@@ -203,12 +203,14 @@ type may publish one canonical direct wrapper for a token/operand shape; a
 second wrapper with that shape rejects. Direct operators need no conformance
 selection.
 
-The selected machine's `requires` is a call obligation for both operator and
-named syntax, including proof-term formation. Resolution does not discharge it,
-and a proof-only caller cannot bypass it. Ordinary `Nat - Nat` and named
-`Nat::subtract` therefore require the same operand-order evidence; explicit
-saturating subtraction has its own total contract. See
-[call preconditions](machines.md#call-preconditions).
+When operator syntax selects a machine, that machine's `requires` is a call
+obligation in executable and proof-term formation. Resolution does not discharge
+it, and a proof-only caller cannot bypass it. Contextual `==` over one
+non-primitive data type in a fact is instead
+[proof-relevant identity](../proofs/contracts.md#data-identity-in-facts) and
+selects no machine. Ordinary `Nat - Nat` and named `Nat::subtract` still require
+the same operand-order evidence; explicit saturating subtraction has its own
+total contract. See [call preconditions](machines.md#call-preconditions).
 
 ### Executable supply
 

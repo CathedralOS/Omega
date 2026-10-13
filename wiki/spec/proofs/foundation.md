@@ -59,6 +59,12 @@ Nonempty A = squash A          existence without ordinary witness extraction
 Id A x y                       proof-relevant mathematical identity
 ```
 
+Source elaboration supplies one existing spelling for this kernel form: in a
+fact or proposition context, `left == right` over one identical non-primitive
+data type elaborates to `Id T left right` under
+[data identity in facts](contracts.md#data-identity-in-facts). This adds no
+kernel equality rule and does not reinterpret executable `==`.
+
 Sort formation and elimination determine the distinction. Compiler-generated
 versus handwritten, runtime versus erased, and a domain's weakening class do not.
 The statement's complete application must agree before strict irrelevance

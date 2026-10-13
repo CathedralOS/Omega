@@ -845,8 +845,9 @@ owns evaluation eligibility.
 
 Primitives and payload-less sums acquire equality implicitly. Records and
 payload-bearing sums need an explicit named conformance. Adding a payload case
-therefore makes existing equality uses require that declaration. Domain
-membership (`in`) remains separate and never requires `Equatable`.
+therefore makes existing executable equality uses require that declaration.
+Identity `==` in a fact or proposition is separate and never requires
+`Equatable`. Domain membership (`in`) also remains separate.
 
 An authored `equals` body or explicit reference row overrides synthesis.
 Synthesized equality compares record fields, or a sum's tag and selected

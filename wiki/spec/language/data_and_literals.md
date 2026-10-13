@@ -54,12 +54,16 @@ first case is not required. Layout optimization cannot use invalid payload niche
 to remove the tag or alter zero's meaning. Stable external placement uses
 [layout policies](../layouts/plans.md), not inferred native offsets.
 
-Value equality and domain membership are distinct. For structural equality,
-compare common fields, case identity, and the active payload, never inactive
-storage/padding. Primitive and payload-free-sum equality is intrinsic; records
-and payload-bearing sums select the declared synthesis/conformance required by
-[Equatable](conformances.md#core-equality-acquisition). Adding a payload requires
-that declaration rather than silently changing tag equality into field equality.
+Value equality and domain membership are distinct. For executable structural
+equality, compare common fields, case identity, and the active payload, never
+inactive storage/padding. Primitive and payload-free-sum equality is intrinsic;
+records and payload-bearing sums select the declared synthesis/conformance
+required by [Equatable](conformances.md#core-equality-acquisition). Adding a
+payload requires that declaration rather than silently changing tag equality
+into field equality. Separately, `==` between values of one identical
+non-primitive data type in a fact denotes
+[proof-relevant identity](../proofs/contracts.md#data-identity-in-facts) and
+does not structurally compare fields or select `Equatable`.
 
 ## Case constraints
 

@@ -6635,9 +6635,18 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     their own generic parameters, target-scoped family calls and case domain
     qualifiers. Implement declared equality through `Equatable` named
     conformances under [core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition).
-    Core's theorems over `Nat`, `Seq` and records also require
-    `proof-fact-data-equality`; do not infer proof identity from executable
-    equality or from the Rust implementation's source-shape distinction.
+    Implement [data identity in facts](wiki/spec/proofs/contracts.md#data-identity-in-facts):
+    `==` between values of one identical non-primitive data type in a fact or
+    proposition elaborates to proof-relevant `Id`, without `Equatable` lookup
+    or runtime comparison. Keep executable `==`, explicit named equality calls,
+    primitive numeric/address relations and static type equality on their
+    existing routes. Preserve the authored `Nat`, `Seq`, `IntPair`, `Real` and
+    `content` theorem spellings. Select by checked context and operand types,
+    never the Rust implementation's application/literal source-shape split.
+    Acceptance: a generic `Seq<T>` identity theorem checks without
+    `Equatable<T>`; the same executable comparison rejects without selected
+    equality; a named equality-machine call in a fact retains its requirements;
+    cross-width integer facts retain their existing relation semantics.
   - Checking and proof (`source/psi/checking/`): implement proof-only `embed`
     under [contracts](wiki/spec/proofs/contracts.md), mathematical/proposition
     facts beyond the current whole-fact bindings, and contract refinement

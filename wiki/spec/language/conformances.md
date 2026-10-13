@@ -248,6 +248,12 @@ the [operator guide](../../language_guide/chapter_14_traits.md#operator-requirem
 There is no ambient search. Other mathematical relations use separately named
 contracts and implementations without competing for operator syntax.
 
+These acquisition rules govern executable `==` and explicit equality-machine
+calls. In a fact or proposition context, `==` over values of one identical
+non-primitive data type elaborates to
+[proof-relevant identity](../proofs/contracts.md#data-identity-in-facts) and
+does not acquire `Equatable<T>`.
+
 Primitives and payload-less sums acquire equality implicitly. Records and
 payload-bearing sums require an explicit named conformance. Adding a payload
 case removes a sum's implicit route; existing equality uses then need that

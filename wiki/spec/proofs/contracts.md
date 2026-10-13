@@ -18,8 +18,32 @@ not prove its negation.
 The same [call-precondition rule](../language/machines.md#call-preconditions)
 also governs forming a mathematical result term, even if none of the callee's
 conclusions is used. Proof-to-proof calls have no exemption. Named calls and
-operator syntax retain the same selected contract; erasure, normalization, or
-knowledge that the underlying body is total cannot remove its `requires`.
+operator syntax retain the same selected contract except for contextual data
+identity below; erasure, normalization, or knowledge that the underlying body
+is total cannot remove a selected call's `requires`.
+
+### Data identity in facts
+
+Named decision: `proof-fact-data-equality`, settled 2026-10-13.
+
+Within `requires`, `ensures`, `where` facts, and expressions expected to form a
+proposition, `left == right` elaborates to the foundation's proof-relevant
+`Id T left right` when both operands have the same non-primitive data type `T`.
+This is contextual mathematical elaboration, not an equality-machine call. It
+selects no `Equatable<T>` implementation, requires no executable equality
+algorithm, and emits no runtime comparison. Records, payload-bearing sums,
+recursive data such as `Nat`, and generic data such as `Seq<T>` can therefore
+state identity laws without equality evidence for themselves or their fields.
+
+Outside those fact/proposition contexts, value `==` retains ordinary operator
+selection and executable `Equatable` meaning. Primitive numeric and address
+equality inside facts retains its existing total relation semantics, including
+the specified cross-carrier integer relation; type equality retains its static
+rule. To reason about an executable equality algorithm inside a fact, call its
+named equality machine explicitly with the required selected implementation.
+The checker retains identity elaboration versus executable equality as distinct
+operation identities; moving source between contexts cannot reuse the other's
+evidence or meaning.
 
 A theorem-only machine has no Type result. Resultless law slots do not need dummy
 returned witnesses. A Type-valued mathematical operation may instead denote a

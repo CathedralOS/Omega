@@ -12,6 +12,10 @@ proposition-returning machines remain optional, unaccepted naming proposals.
 Psi owns elaboration to the common calculus, with independently checked terms,
 contracts and assumption closure. `PROOF-CONTRACT-MIGRATION` in
 [TASKS.md](../../../TASKS.md) owns the connected source/evidence implementation.
+For values of one identical non-primitive data type, `left == right` in a fact
+or proposition context is the selected source elaboration to proof-relevant
+identity. It is not an `Equatable` call or a new proposition declaration; see
+[data identity in facts](contracts.md#data-identity-in-facts).
 
 ## Universes and mathematical function types
 
