@@ -43,7 +43,9 @@ pub machine real(value: f64) reaches Console invokes Console; crashes Trap {
     transition value == 0.0 { true -> zero() _ -> normalize(value, 0) }
     state zero() { Console::write("0"); }
     state normalize(value: f64, exponent: i64 in Wrapping) {
-        transition value >= 10.0 { true -> normalize(value / 10.0, exponent + 1) }
+        transition value >= 10.0 { true -> normalize(value / 10.0, exponent + 1) _ -> raise(value, exponent) }
+    }
+    state raise(value: f64, exponent: i64 in Wrapping) {
         transition value < 1.0 { true -> normalize(value * 10.0, exponent - 1) _ -> digit(value, exponent, 0) }
     }
     state digit(value: f64, exponent: i64 in Wrapping, position: i32 in Wrapping) {
@@ -67,7 +69,9 @@ pub machine precise_real(value: Precise) reaches Console invokes Console; crashe
     transition value.high == 0.0 { true -> zero() _ -> normalize(value, 0) }
     state zero() { Console::write("0"); }
     state normalize(value: Precise, exponent: i64 in Wrapping) {
-        transition value.high >= 10.0 { true -> reduce(value, exponent) }
+        transition value.high >= 10.0 { true -> reduce(value, exponent) _ -> settle(value, exponent) }
+    }
+    state settle(value: Precise, exponent: i64 in Wrapping) {
         transition value.high < 1.0 { true -> increase(value, exponent) _ -> digit(value, exponent, 0) }
     }
     state reduce(value: Precise, exponent: i64 in Wrapping) {
