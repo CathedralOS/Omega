@@ -1086,8 +1086,8 @@ fail/calls/statement_call_undeclared_callee_rejected rejected 829ms expected @a9
 	machine `main` cannot resolve ordinary call `no_such_leg` to a machine entry or requirement
 fail/calls/static_tail_local_custody_no_decrease rejected 1528ms expected @a9ae30e1c334+wt
 	machine call cycle: `Counter::even`, `Counter::odd` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/calls/struct_constant_requires_argument_rejected rejected 2104ms unexpected @e6088bf995e6+wt
 	cannot prove requires contract for call take from Main::main: constructor:79:package:0101010101010101010101010101010101010101010101010101010101010101::Point6:record13:common:name:x1:113:common:name:y1:0 == Point.zero() (needs fact `p == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/struct_constant_requires_argument_rejected rejected 507ms expected @9158ef7b209e+wt
 fail/calls/terminal_call_duplicate_block rejected 2ms expected @1ade44fe20d0+wt
 fail/calls/terminal_call_duplicate_suspend rejected 1ms expected @1ade44fe20d0+wt
 fail/calls/terminal_call_marked_state rejected 1620ms expected @1ade44fe20d0+wt
@@ -4361,6 +4361,7 @@ pass/calls/runtime_completed_operand_then_forwarded_shared_borrow_exit checked 5
 pass/calls/runtime_completed_operand_then_shared_borrow_exit checked 5732ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/calls/runtime_computed_case_subject_affine_argument_exit checked 10348ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_computed_case_terminal_payload_result_exit checked 10244ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_constant_tail_requires_argument_exit checked 5804ms check-target:macos_arm64 @9158ef7b209e+wt
 pass/calls/runtime_constructed_borrowed_payload_arguments_exit checked 10211ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_constructed_copy_payload_arguments_exit checked 10614ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_constructed_payload_arguments_exit checked 10700ms check-target:macos_arm64 @a9ae30e1c334+wt

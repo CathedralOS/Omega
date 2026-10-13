@@ -61,20 +61,26 @@ pub(crate) fn reject_refuted_value_call_requires(
         ) {
             continue;
         }
-        let instantiated = program.expression_table.display_name(expression);
-        let clause = authored
+        // The authored clause names what the reader can find in the callee;
+        // the instantiated spelling names the values this call compared.
+        let authored = authored
             .as_ref()
-            .and_then(|spellings| spellings.get(position))
-            .filter(|authored| **authored != instantiated)
-            .map(|authored| {
-                format!(
-                    "`{authored}`: the fact instantiates here as `{instantiated}`, which is \
-                     structurally false"
-                )
-            })
-            .unwrap_or_else(|| {
-                format!("`{instantiated}`: the instantiated fact is structurally false")
-            });
+            .and_then(|spellings| spellings.get(position).cloned())
+            .unwrap_or_else(|| program.expression_table.display_name(expression));
+        let instantiated = instantiated_fact_spelling(
+            program,
+            &judge,
+            callee_state.symbol,
+            program.state_parameters(callee_state),
+            expression,
+            &map,
+            Some((caller_machine, caller_state)),
+        )
+        .filter(|instantiated| *instantiated != authored)
+        .map(|instantiated| format!(" (`{instantiated}`)"))
+        .unwrap_or_default();
+        let clause =
+            format!("`{authored}`: the instantiated fact is structurally false{instantiated}");
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}` value call to `{callee_name}` violates required fact {clause}",
             caller_machine.name, caller_state.name,
@@ -466,6 +472,68 @@ fn instantiated_operands(
             ),
         ),
     ))
+}
+
+/// The instantiated fact as the values it compared, for the refutation
+/// diagnostic: each comparison spells its two instantiated operands, and a
+/// conjunction or disjunction joins its parts. Facts the judgment decides
+/// another way (case observations) keep their authored spelling.
+fn instantiated_fact_spelling(
+    program: &dyn crate::CheckingInput,
+    judge: &StructuralJudge,
+    callee_owner: symbols::SymbolHandle,
+    callee_parameters: &[typed_trees::signature::StateParameter],
+    fact: ExpressionHandle,
+    map: &[(String, StructuralTerm)],
+    caller_scope: Option<(&Machine, &typed_trees::state::State)>,
+) -> Option<String> {
+    let binary = program.expression_table.binary_node(fact)?;
+    match binary.operator {
+        BinaryOperator::And | BinaryOperator::Or => {
+            let left = instantiated_fact_spelling(
+                program,
+                judge,
+                callee_owner,
+                callee_parameters,
+                binary.left,
+                map,
+                caller_scope,
+            )?;
+            let right = instantiated_fact_spelling(
+                program,
+                judge,
+                callee_owner,
+                callee_parameters,
+                binary.right,
+                map,
+                caller_scope,
+            )?;
+            Some(format!("{left} {} {right}", binary.operator.display_name()))
+        }
+        BinaryOperator::Equal
+        | BinaryOperator::NotEqual
+        | BinaryOperator::Less
+        | BinaryOperator::LessOrEqual
+        | BinaryOperator::Greater
+        | BinaryOperator::GreaterOrEqual => {
+            let (left, right) = instantiated_operands(
+                program,
+                judge,
+                callee_owner,
+                callee_parameters,
+                binary,
+                map,
+                caller_scope,
+            )?;
+            Some(format!(
+                "{} {} {}",
+                super::structural_terms::term_spelling(program, &left),
+                binary.operator.display_name(),
+                super::structural_terms::term_spelling(program, &right)
+            ))
+        }
+        _ => None,
+    }
 }
 
 /// A `.len` projection over a rooted member path reads a closed value when

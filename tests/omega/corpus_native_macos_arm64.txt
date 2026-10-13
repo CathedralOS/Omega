@@ -412,6 +412,7 @@ pass/calls/runtime_completed_operand_then_forwarded_shared_borrow_exit built 177
 pass/calls/runtime_completed_operand_then_shared_borrow_exit built 17896ms exit:0 @589aedee8ebc+wt
 pass/calls/runtime_computed_case_subject_affine_argument_exit built 3612ms exit:0 @9beb2be72f2d+wt
 pass/calls/runtime_computed_case_terminal_payload_result_exit built 3455ms exit:0 @9beb2be72f2d+wt
+pass/calls/runtime_constant_tail_requires_argument_exit built 5803ms exit:70 @9158ef7b209e+wt
 pass/calls/runtime_constructed_borrowed_payload_arguments_exit built 1975ms exit:0 @a9ea4297a1a9
 pass/calls/runtime_constructed_copy_payload_arguments_exit built 1361ms exit:0 @8093eb34a6ed+wt
 pass/calls/runtime_constructed_payload_arguments_exit built 3617ms exit:0 @9beb2be72f2d+wt

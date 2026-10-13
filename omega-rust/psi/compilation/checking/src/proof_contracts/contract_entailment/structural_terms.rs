@@ -165,36 +165,17 @@ pub(super) fn unfold_constant_applications(
 }
 
 /// The constructor value a trivial constant machine returns, when its shape
-/// is exactly one state with one unguarded transition to a closed constructor.
+/// is exactly one state whose sole statement yields a closed constructor.
 fn constant_machine_constructor(
     program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> Option<StructuralTerm> {
-    use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-
     let machine = selected_application_machine(program, target)?;
     let [state] = program.machine_states(machine) else {
         return None;
     };
-    let non_marker: Vec<&StatementNode> = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .filter(|statement| !is_arm_pattern_marker(statement))
-        .collect();
-    let [statement] = non_marker[..] else {
-        return None;
-    };
-    let transition = statement.as_transition()?;
-    if !matches!(transition.guard, TransitionGuardNode::Always) {
-        return None;
-    }
-    let TransitionTargetNode::Value(value) =
-        program.statement_table.transition_target(transition.target)
-    else {
-        return None;
-    };
-    let term = structural_term(program, None, None, *value, None)?;
+    let value = sole_result_expression(program, state)?;
+    let term = structural_term(program, None, None, value, None)?;
 
     fn is_closed(term: &StructuralTerm) -> bool {
         match term {
@@ -207,6 +188,119 @@ fn constant_machine_constructor(
     }
 
     is_closed(&term).then_some(term)
+}
+
+/// The one expression a single-statement state returns. A body spelled as a
+/// tail expression (`{ Point { x: 0, y: 0 } }`) and one spelled as an
+/// unguarded value transition name the same result; the typed tree keeps
+/// the authored form, so a reader of the result accepts both.
+fn sole_result_expression(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+) -> Option<ExpressionHandle> {
+    use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+
+    let non_marker: Vec<&StatementNode> = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter(|statement| !is_arm_pattern_marker(statement))
+        .collect();
+    let [statement] = non_marker[..] else {
+        return None;
+    };
+    if let StatementNode::Expression(value) = statement {
+        return Some(*value);
+    }
+    let transition = statement.as_transition()?;
+    if !matches!(transition.guard, TransitionGuardNode::Always) {
+        return None;
+    }
+    let TransitionTargetNode::Value(value) =
+        program.statement_table.transition_target(transition.target)
+    else {
+        return None;
+    };
+    Some(*value)
+}
+
+/// The authored spelling of a term for a diagnostic. Identity stays with the
+/// term itself; this text only tells a reader which values the judgment
+/// compared, in the source grammar they wrote.
+pub(super) fn term_spelling(program: &dyn crate::CheckingInput, term: &StructuralTerm) -> String {
+    let arguments = |arguments: &[StructuralTerm]| {
+        arguments
+            .iter()
+            .map(|argument| term_spelling(program, argument))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    match term {
+        StructuralTerm::Variable(name) => name.clone(),
+        StructuralTerm::ObservedValue { value, .. } => term_spelling(program, value),
+        StructuralTerm::BoundValue(symbol) => program.symbols.name(*symbol).to_owned(),
+        StructuralTerm::CapturedValue { expression, .. } => {
+            program.expression_table.display_name(*expression)
+        }
+        StructuralTerm::BoundProjection { subject, path } => {
+            format!("{}.{path}", program.symbols.name(*subject))
+        }
+        StructuralTerm::Integer(value) => value.to_string(),
+        StructuralTerm::Float(value) => value.to_string(),
+        StructuralTerm::Constructor { data, case, fields } => {
+            let head = if case.is_empty() || data == "bool" {
+                if data == "bool" {
+                    case.clone()
+                } else {
+                    data.clone()
+                }
+            } else {
+                format!("{data}::{case}")
+            };
+            if fields.is_empty() {
+                return head;
+            }
+            let fields = fields
+                .iter()
+                .map(|(name, value)| format!("{name}: {}", term_spelling(program, value)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{head} {{ {fields} }}")
+        }
+        StructuralTerm::Application {
+            machine,
+            arguments: values,
+            ..
+        } => format!("{machine}({})", arguments(values)),
+        StructuralTerm::CallProjection {
+            machine,
+            field_name,
+            arguments: values,
+            ..
+        } => format!("{machine}({}).{field_name}", arguments(values)),
+        StructuralTerm::Projection { subject, path } => {
+            format!("{}.{path}", term_spelling(program, subject))
+        }
+        StructuralTerm::IndexedValue {
+            collection, index, ..
+        } => format!(
+            "{}[{}]",
+            term_spelling(program, collection),
+            term_spelling(program, index)
+        ),
+        StructuralTerm::ScalarBinary {
+            operator,
+            left,
+            right,
+            ..
+        } => format!(
+            "{} {} {}",
+            term_spelling(program, left),
+            operator.display_name(),
+            term_spelling(program, right)
+        ),
+        StructuralTerm::Opaque(display) => display.clone(),
+    }
 }
 
 /// Preserve compile-time machine selections in structural application
