@@ -1008,3 +1008,5 @@ pass/layouts/runtime_constant_layout_contract_exit built 5437ms exit:0 interpret
 pass/layouts/runtime_size_of_align_of_exit built 6721ms exit:70 interpreter-exit:70 interpreter:agrees @e63c4b1e202d+wt
 pass/layouts/runtime_target_layout_queries_exit built 11446ms exit:0 interpreter-exit:0 interpreter:agrees @e63c4b1e202d+wt
 pass/termination/runtime_zero_local_rank_prefix_exit built 18445ms exit:0 interpreter-exit:0 interpreter:agrees @3d664be0c918+wt
+pass/borrows/runtime_recursive_mutable_array_store_exit built 6454ms exit:70 interpreter-exit:70 interpreter:agrees @0ab6a3e7fdb4+wt
+pass/termination/runtime_projected_extent_fill_exit built 5302ms exit:0 interpreter-exit:0 interpreter:agrees @0ab6a3e7fdb4+wt

@@ -12,6 +12,7 @@ use super::super::{
     saved_arguments,
 };
 use super::{BinaryOperator, RankingRangeCallMember};
+use facts::NormalizedWriteFrame;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
 pub(crate) struct RankingRangeCallEdge<'program> {
@@ -172,13 +173,27 @@ fn endpoint_reads(
             endpoint_reads(program, frame, state, atomic.value, reads, depth + 1)?;
         }
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
-            let receiver = crate::value_custody::places::collection_length_receiver(
+            let collection = crate::value_custody::places::collection_length_receiver(
                 program,
                 frame.machine,
                 Some(frame.state),
                 expression,
-            )
-            .unwrap_or(expression);
+            );
+            // A fixed extent is declared by the carrier, not read from its
+            // contents. Replacing elements or the entire array cannot change
+            // this endpoint; runtime slice extents still need conservation.
+            if collection.is_some_and(|receiver| {
+                crate::value_custody::places::declared_collection_extent(
+                    program,
+                    frame.machine,
+                    Some(frame.state),
+                    receiver,
+                )
+                .is_some()
+            }) {
+                return Some(());
+            }
+            let receiver = collection.unwrap_or(expression);
             let place = crate::canonical_place_from_expression_in_state(
                 program,
                 frame.state.symbol,
@@ -489,9 +504,10 @@ fn equality_edges<'program>(
     comparisons.extend(super::super::length_bound_comparisons(&lengths));
     // Guard reads denote live values. When a prefix writes, decline its guard
     // hypotheses here rather than replaying them against arrival snapshots.
-    let empty_prefix = prefix_paths(program, source, arrival.statement, frames)?
+    let writes = prefix_frames(program, source, arrival.statement, frames)?;
+    let empty_prefix = writes
         .iter()
-        .all(Vec::is_empty);
+        .all(|(frame, _)| frame.complete_paths().is_some_and(|paths| paths.is_empty()));
     if empty_prefix {
         for &(guard, holds) in &arrival.guards {
             meanings::admitted_carrier(program, source.machine, source.state, guard, 0)?;
@@ -510,23 +526,29 @@ fn equality_edges<'program>(
     if !engine.install_hypotheses(comparisons) {
         return None;
     }
-    let writes = prefix_paths(program, source, arrival.statement, frames)?;
     let source_values = domain
         .iter()
         .map(|value| {
             if value.state != arrival.source {
                 return None;
             }
-            let path = crate::frame_coordinate_path(
+            let observation = match coordinate_kind(program, source.state, &value.location)? {
+                ValueKind::Integer => super::super::RankPremiseObservation::Value,
+                ValueKind::Length => super::super::RankPremiseObservation::Length,
+            };
+            let protected = super::super::rank_protected_path(
                 program,
                 value.location.parameter,
                 &value.location.path,
+                observation,
             )?;
-            if writes
-                .iter()
-                .flatten()
-                .any(|write| crate::frame_paths_overlap(write, &path))
-            {
+            if !writes.iter().all(|(frame, element_store)| {
+                super::super::frame_preserves_rank_premises(
+                    frame.clone(),
+                    *element_store,
+                    std::slice::from_ref(&protected),
+                )
+            }) {
                 return None;
             }
             coordinate_value(
@@ -679,33 +701,39 @@ fn actual_value(
     }
 }
 
-fn prefix_paths<'program>(
+fn prefix_frames<'program>(
     program: &'program dyn crate::CheckingInput,
     source: &StateFrame<'program>,
     through: usize,
     frames: Option<&crate::CallFrameResolver<'program>>,
-) -> Option<Vec<Vec<String>>> {
+) -> Option<Vec<(NormalizedWriteFrame, bool)>> {
     let frames = frames?;
-    program
+    let mut writes = Vec::new();
+    for statement in program
         .statement_table
         .statements(source.state.statement_nodes)
         .iter()
         .take(through + 1)
-        .map(|statement| {
-            let mut paths = frames
-                .statement_value_write_frame(source.machine, statement)
-                .into_complete_paths()?;
-            let own = match statement {
-                StatementNode::Assignment(_) => {
-                    Some(frames.assignment_write_frame(source.machine, statement))
-                }
-                StatementNode::Call(call) => Some(frames.may_write_frame(source.machine, call)),
-                _ => None,
-            };
-            if let Some(own) = own {
-                paths.extend(own.into_complete_paths()?);
+    {
+        // Preserve operand effects separately: only the direct element store
+        // leaves extents unchanged, not arbitrary calls evaluating its value.
+        let values = frames.statement_value_write_frame(source.machine, statement);
+        values.complete_paths()?;
+        writes.push((values, false));
+        let own = match statement {
+            StatementNode::Assignment(_) => Some((
+                frames.assignment_write_frame(source.machine, statement),
+                frames.assignment_stores_element(statement),
+            )),
+            StatementNode::Call(call) => {
+                Some((frames.may_write_frame(source.machine, call), false))
             }
-            Some(paths)
-        })
-        .collect()
+            _ => None,
+        };
+        if let Some((frame, element_store)) = own {
+            frame.complete_paths()?;
+            writes.push((frame, element_store));
+        }
+    }
+    Some(writes)
 }

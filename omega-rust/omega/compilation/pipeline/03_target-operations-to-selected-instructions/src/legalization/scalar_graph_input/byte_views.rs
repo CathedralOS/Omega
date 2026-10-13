@@ -136,7 +136,7 @@ pub(super) fn writable_bytes(
                 &result.projected_qualifications,
             )
         };
-    if multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted || !projected.is_empty() {
+    if !projected.is_empty() {
         return false;
     }
     let Some(declaration) = terminal_psi::find_structural_type(types, structural_type) else {
@@ -144,13 +144,21 @@ pub(super) fn writable_bytes(
     };
     match optimization_unit_semantics::structural_place_access(function, place) {
         Some(terminal_psi::StructuralAccess::MutableBorrow) => {
+            // A locally derived mutable descriptor is affine; an incoming
+            // loan can be unrestricted. Neither multiplicity grants access:
+            // the shared lineage query above must establish MutableBorrow.
             matches!(
+                multiplicity,
+                terminal_psi::StructuralMultiplicity::Unrestricted
+                    | terminal_psi::StructuralMultiplicity::Affine
+            ) && matches!(
                 declaration.shape,
                 terminal_psi::StructuralTypeShape::ByteSequence(_)
             )
         }
         Some(terminal_psi::StructuralAccess::Owned) => {
-            declaration.shape.is_bounded_owned_byte_sequence()
+            multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && declaration.shape.is_bounded_owned_byte_sequence()
         }
         _ => false,
     }

@@ -44,19 +44,15 @@ pub(super) fn write(
             != ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?,
             )
-        || builder
-            .transport
-            .views
-            .iter()
-            .any(|view| view.place == destination)
     {
         return Err(invalid());
     }
     let pointer = backing_pointer(function, builder, row, destination)?;
+    let physical_index = backing_index(builder, row, destination, index_register)?;
     let address = transport_register(builder, destination, 0)?;
     builder.emit_byte_view_address(
         pointer,
-        index_register,
+        physical_index,
         address,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
@@ -202,29 +198,7 @@ fn byte_sequence_read(
         return Err(invalid());
     }
     let pointer = backing_pointer(function, builder, row, source)?;
-    let view = builder.transport.view(source).copied();
-    let physical_index = if let Some(view) = view {
-        let offset = transport_register(builder, source, 0)?;
-        // The view chain proves O + L <= R <= U64::MAX. The checked read i < L
-        // gives O + i < R, so only this integer offset sum is claimed exact.
-        builder.emit(
-            SelectedInstructionKind::ExactAddI64 {
-                obligation,
-                accepted_fact,
-            },
-            builder.constraints.keys.add_i64,
-            &[view.byte_offset, index_register, offset],
-            SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![index, length, view.root_length],
-                obligations: vec![obligation],
-                ..Default::default()
-            },
-        )?;
-        offset
-    } else {
-        index_register
-    };
+    let physical_index = backing_index(builder, row, source, index_register)?;
     let output = builder.register(
         definition.value,
         definition.definition_site,
@@ -293,6 +267,54 @@ fn byte_sequence_read(
         },
     )?;
     Ok(output)
+}
+
+/// Reads and writes index the same retained backing, including nested cuts.
+/// The view chain proves O + L <= R <= U64::MAX, and the admitted access
+/// proves i < L. Thus O + i < R: only the integer offset sum is claimed
+/// exact. Pointer arithmetic and memory-effect roots retain their own owners.
+fn backing_index(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    index_register: VirtualRegisterId,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let Some(view) = builder.transport.view(place).copied() else {
+        return Ok(index_register);
+    };
+    let (index, length, obligation, accepted_fact) = match row.kind {
+        LegalizedScalarInstructionKind::ByteSequenceRead {
+            index,
+            length,
+            obligation,
+            accepted_fact,
+            ..
+        }
+        | LegalizedScalarInstructionKind::ByteSequenceWrite {
+            index,
+            length,
+            obligation,
+            accepted_fact,
+            ..
+        } => (index, length, obligation, accepted_fact),
+        _ => return Err(invalid()),
+    };
+    let offset = transport_register(builder, place, 0)?;
+    builder.emit(
+        SelectedInstructionKind::ExactAddI64 {
+            obligation,
+            accepted_fact,
+        },
+        builder.constraints.keys.add_i64,
+        &[view.byte_offset, index_register, offset],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![index, length, view.root_length],
+            obligations: vec![obligation],
+            ..Default::default()
+        },
+    )?;
+    Ok(offset)
 }
 
 pub(super) fn backing_pointer(

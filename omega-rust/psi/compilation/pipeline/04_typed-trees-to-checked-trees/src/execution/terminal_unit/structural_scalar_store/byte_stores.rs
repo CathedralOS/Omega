@@ -37,48 +37,48 @@ pub(super) fn byte_write(
     if !destination.place.segments.is_empty() {
         return None;
     }
-    let declared_type = match destination.root {
+    // Resolve declaration properties once, then apply the same byte-store
+    // contract to every root. A local `let view: &mut [u8]` owns its descriptor,
+    // not its borrowed contents: binding mutability controls replacement of
+    // the descriptor, while the loan grants mutation of its bytes. Destination
+    // resolution already retained that live loan rather than its initializer.
+    let (declared_type, access, multiplicity, mutable_owner) = match destination.root {
         Root::Parameter { plan, parameter } => {
-            let writable = match plan.access {
-                CheckedStructuralAccess::MutableBorrow => true,
-                CheckedStructuralAccess::Owned => {
-                    parameter.is_mutable
-                        && !parameter.is_const
-                        && matches!(
-                            byte_sequence_carrier(program, parameter.type_reference, &[]),
-                            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
-                        )
-                }
-                _ => false,
-            };
-            if !writable
-                || plan.multiplicity != Multiplicity::Unrestricted
-                || plan.binding_carrier.is_some()
-                || byte_sequence_carrier(program, parameter.type_reference, &[]).is_none()
-            {
+            if plan.binding_carrier.is_some() {
                 return None;
             }
-            parameter.type_reference
+            (
+                parameter.type_reference,
+                plan.access,
+                plan.multiplicity,
+                parameter.is_mutable && !parameter.is_const,
+            )
         }
         Root::Local { symbol } => {
-            // Destination resolution independently rejoined the earlier literal
-            // establishment. Keep its declared carrier and mutation authority;
-            // an immutable bounded owner or an unrelated view is not writable.
             let (_, local) = program.state_local_declaration(state, symbol)?;
-            if !local.is_mutable
-                || program.type_multiplicity(local.type_reference) != Multiplicity::Unrestricted
-                || structural_access_for_type_reference(program, local.type_reference)
-                    != Some(CheckedStructuralAccess::Owned)
-                || !matches!(
-                    byte_sequence_carrier(program, local.type_reference, &[]),
-                    Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
-                )
-            {
-                return None;
-            }
-            local.type_reference
+            (
+                local.type_reference,
+                structural_access_for_type_reference(program, local.type_reference)?,
+                program.type_multiplicity(local.type_reference),
+                local.is_mutable,
+            )
         }
     };
+    let carrier = byte_sequence_carrier(program, declared_type, &[])?;
+    let writable = match access {
+        CheckedStructuralAccess::MutableBorrow => true,
+        CheckedStructuralAccess::Owned => {
+            mutable_owner
+                && matches!(
+                    carrier,
+                    checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                )
+        }
+        _ => false,
+    };
+    if !writable || multiplicity != Multiplicity::Unrestricted {
+        return None;
+    }
     let domains = validation::field_domains::domain_constraint_symbols(program, declared_type);
     if !domains.into_iter().all(|symbol| {
         typed_trees::domain::domain_by_symbol(program, symbol).is_some_and(|domain| {

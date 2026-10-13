@@ -1,4 +1,4 @@
-//! Exact slice metadata coordinates, kept separate from scalar parameter values.
+//! Exact collection extents, kept separate from scalar parameter values.
 //! Collection lengths compose through borrows and range formation regardless
 //! of whether the source extent is declared or observed. Saved initializers
 //! use the same evaluator without caller facts: a later observation cannot
@@ -115,95 +115,45 @@ pub(super) fn install(
     engine: &mut Engine<'_>,
     expressions: &[ExpressionHandle],
 ) -> Option<()> {
-    if bindings.is_empty() {
-        return Some(());
-    }
-    for expression in expressions {
-        install_expression(
-            program,
-            machine,
-            state,
-            root,
-            bindings,
-            engine,
-            *expression,
-            0,
-        )?;
-    }
-    Some(())
-}
-
-fn install_expression(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    root: &State,
-    bindings: &[(SymbolHandle, String)],
-    engine: &mut Engine<'_>,
-    expression: ExpressionHandle,
-    depth: usize,
-) -> Option<()> {
-    let node = program
-        .expression_table
-        .expression_at_depth(expression, depth)?;
-    // These handles are metadata projections only. A slice Name stays outside
-    // the scalar language, including in expressions that algebraically cancel.
-    if matches!(node, ExpressionNode::Member(_)) {
-        for scope in [state, root] {
-            let Some(receiver) = crate::value_custody::places::collection_length_receiver(
-                program,
-                machine,
-                Some(scope),
-                expression,
-            ) else {
-                continue;
-            };
-            let Some(parameter) = parameter(program, scope, receiver) else {
-                continue;
-            };
-            let Some(identity) = crate::substitutions::actual_for(bindings, parameter.symbol)
-            else {
-                continue;
-            };
-            if !engine.bind_strict_projection(expression, Polynomial::atom(identity)) {
-                return None;
-            }
-        }
-    }
-    let mut visit = |child| {
-        install_expression(
-            program,
-            machine,
-            state,
-            root,
-            bindings,
-            engine,
-            child,
-            depth + 1,
-        )
-    };
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Binary(binary) => {
-            visit(binary.left)?;
-            visit(binary.right)?;
-        }
-        ExpressionNode::Unary(unary) => visit(unary.operand)?,
-        ExpressionNode::Atomic(atomic) => visit(atomic.value)?,
-        ExpressionNode::Member(member) => visit(member.receiver)?,
-        ExpressionNode::Indexed(indexed) => {
-            visit(indexed.collection)?;
-            visit(indexed.index)?;
-        }
-        ExpressionNode::Range(range) => {
-            for endpoint in [range.start, range.end] {
-                if endpoint.is_valid() {
-                    visit(endpoint)?;
+    // Fixed extents belong to declared storage, including projected fields.
+    // They need no dynamic slice binding, so an empty binding roster cannot
+    // skip metadata installation. Authenticate `.len` before substituting;
+    // an ordinary field with that spelling is still a stored value.
+    projections::for_each_projection_expression(
+        program,
+        expressions,
+        |member, expression, visit| {
+            for scope in [state, root] {
+                let Some(receiver) = crate::value_custody::places::collection_length_receiver(
+                    program,
+                    machine,
+                    Some(scope),
+                    expression,
+                ) else {
+                    continue;
+                };
+                let value = crate::value_custody::places::declared_collection_extent(
+                    program,
+                    machine,
+                    Some(scope),
+                    receiver,
+                )
+                .map(|extent| Polynomial::constant(BigInt::from_u64(extent as u64)))
+                .or_else(|| {
+                    let parameter = parameter(program, scope, receiver)?;
+                    let identity = crate::substitutions::actual_for(bindings, parameter.symbol)?;
+                    Some(Polynomial::atom(identity))
+                });
+                if let Some(value) = value
+                    && !engine.bind_strict_projection(expression, value)
+                {
+                    return None;
                 }
             }
-        }
-        _ => {}
-    }
-    Some(())
+            visit(member.receiver);
+            Some(())
+        },
+    )
 }
 
 pub(super) fn actual(

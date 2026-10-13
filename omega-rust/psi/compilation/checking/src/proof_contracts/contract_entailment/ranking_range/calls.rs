@@ -174,25 +174,24 @@ pub(crate) fn prove_ranking_range_call(
             }
         }
     }
-    if !length_bindings.is_empty() {
-        let expressions = installation_expressions(
-            program,
-            &caller,
-            source,
-            scalar_subjects(&caller, source_measure),
-            guards,
-            arguments,
-        );
-        lengths::install(
-            program,
-            caller.machine,
-            source,
-            entry,
-            &length_bindings,
-            &mut engine,
-            &expressions,
-        )?;
-    }
+    // Declared array extents need installation even without dynamic slices.
+    let expressions = installation_expressions(
+        program,
+        &caller,
+        source,
+        scalar_subjects(&caller, source_measure),
+        guards,
+        arguments,
+    );
+    lengths::install(
+        program,
+        caller.machine,
+        source,
+        entry,
+        &length_bindings,
+        &mut engine,
+        &expressions,
+    )?;
     // Saved caller observations ride the same site scope: a state-local
     // `let` the saved-observation bar admits denotes the exact value its
     // initializer produced, so an actual or guard spelling the local
@@ -920,7 +919,18 @@ fn collect_destination_lengths(
                         expression,
                     )
                 {
-                    let actual = if let Some(coordinate) =
+                    let actual = if let Some(extent) =
+                        crate::value_custody::places::declared_collection_extent(
+                            program,
+                            machine,
+                            Some(destination),
+                            receiver,
+                        ) {
+                        // The formal's fixed carrier requires this extent of
+                        // every actual; unlike a slice, it has no live length
+                        // value to transport from the caller.
+                        Some(Polynomial::constant(BigInt::from_u64(extent as u64)))
+                    } else if let Some(coordinate) =
                         lengths::SliceCoordinate::resolve_length(program, destination, receiver)
                     {
                         typed_trees::signature::state_parameter_position(

@@ -6739,3 +6739,6 @@ fail/layouts/runtime_value_is_not_layout_constant rejected 533ms expected @e63c4
 	cannot prove requires contract for call required from forward: value >= size_of() (needs fact `value >= size_of()` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/layouts/unselected_target_layout_contract rejected 3615ms expected @e63c4b1e202d+wt
 	requires contract for call impossible from scoped: size_of() == 0: constant predicate is false under the selected target realization `windows_x86_64`
+pass/termination/runtime_projected_extent_fill_exit checked 5030ms check-target:macos_arm64 @0ab6a3e7fdb4+wt
+fail/termination/mixed_endpoint_stored_length_write rejected 527ms expected @0ab6a3e7fdb4+wt
+	machine call cycle: `ranged`, `unranged` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking

@@ -3164,24 +3164,6 @@ crash and native exit behavior.
   and execute exit 70 on Windows. Other hosts may validate production but
   must report native execution as unverified.
 
-- **EXTENT-OBSERVATION-PRECISION.** (new-scope)
-  `91aef9b6e12` made a ranking's `.len` read an extent premise, so an element
-  store into the ranked collection no longer invalidates the entry-relative
-  ranking (`pass/borrows/runtime_recursive_mutable_array_store_exit` runs).
-  Two sibling judgments still read the whole collection: rank formation
-  refuses a `Distance` upper spelled through a field
-  (`terminates by (index, cells.bytes.len)` reports "lacks a source-complete
-  ranking witness"), and the call-site endpoint pin
-  (`omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/calls/endpoint_pins.rs`,
-  about line 528) overlaps an element store with a fixed array ranked by
-  its own `.len`. Separately, stage 05 does not lower an indexed store
-  through a reborrowed `&mut bytes[..]` view ("indexed store: byte backing").
-  Probe programs: the fill_field and fill_counted variants of
-  `runtime_recursive_mutable_array_store_exit` described in its header.
-  Acceptance: both variants check and execute exit 70 through the shared
-  `frame_preserves_rank_premises` route, with no second whole-collection
-  reader left in either judgment.
-
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
   Restore the macOS ARM64 corpus rows that met their authored check, build or
   runtime oracle and no longer do. Every such check row carries a

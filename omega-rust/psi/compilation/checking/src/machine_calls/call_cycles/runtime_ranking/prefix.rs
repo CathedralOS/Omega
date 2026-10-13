@@ -13,16 +13,16 @@ use typed_trees::statement::StatementNode;
 
 /// `premises` names the member's entry premise carriers and how much of each
 /// the judgment reads (`None` conservatively protects all formals whole);
-/// `entry_parameters` is this state's source-admitted coordinate readings;
-/// `conserved_endpoints` says the component mixes ranged and unranged
-/// members, so every caller entry input may be read as a conserved endpoint.
+/// `entry_parameters` is this state's source-admitted coordinate readings.
+/// Mixed-component endpoint conservation checks its own complete prefix
+/// frames independently; it does not turn every unrelated formal into a
+/// whole-value ranking premise here.
 pub(super) fn preserves_rank(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     premises: Option<&[RankPremiseInput]>,
     entry_parameters: &crate::RankStateBindings,
-    conserved_endpoints: bool,
     statement: &StatementNode,
     frames: Option<&CallFrameResolver<'_>>,
 ) -> bool {
@@ -47,36 +47,41 @@ pub(super) fn preserves_rank(
         }
     }
     for binding in &entry_parameters.coordinates {
-        // A conserved endpoint is read whole. An extent reading follows the
-        // binding only while the destination still denotes the entry's whole
-        // formal; a projected coordinate reads a value of its own.
+        // Transport each observation through the selected coordinate, keeping
+        // its suffix and observation kind. Projecting a collection into a
+        // field does not turn a length read into a whole-value read.
         let whole = || {
             vec![(
                 binding.destination.path.clone(),
                 RankPremiseObservation::Value,
             )]
         };
-        let readings: Vec<(Vec<facts::PlaceSegment>, RankPremiseObservation)> =
-            match premises.filter(|_| !conserved_endpoints) {
-                None => whole(),
-                Some(premises) => {
-                    let inputs = premises
-                        .iter()
-                        .filter(|input| input.parameter == binding.entry.parameter)
-                        .collect::<Vec<_>>();
-                    if inputs.is_empty() {
-                        continue;
-                    }
-                    if binding.entry.path.is_empty() && binding.destination.path.is_empty() {
-                        inputs
-                            .into_iter()
-                            .map(|input| (input.path.clone(), input.observation))
-                            .collect()
-                    } else {
-                        whole()
-                    }
-                }
-            };
+        let readings: Vec<(Vec<facts::PlaceSegment>, RankPremiseObservation)> = match premises {
+            None => whole(),
+            Some(premises) => {
+                premises
+                    .iter()
+                    .filter(|input| input.parameter == binding.entry.parameter)
+                    .map(|input| {
+                        if let Some(suffix) = input.path.strip_prefix(binding.entry.path.as_slice())
+                        {
+                            let mut path = binding.destination.path.clone();
+                            path.extend_from_slice(suffix);
+                            (path, input.observation)
+                        } else {
+                            // An unmatched path supplies no exact suffix.
+                            // In particular, unequal indexed spellings do not
+                            // prove disjoint storage. Keep the supplied place
+                            // protected whole until correspondence is known.
+                            (
+                                binding.destination.path.clone(),
+                                RankPremiseObservation::Value,
+                            )
+                        }
+                    })
+                    .collect()
+            }
+        };
         if program
             .state_parameter_by_symbol(state, binding.destination.parameter)
             .is_none()
