@@ -253,6 +253,18 @@ def accept_review(cli, sample, target, timeout):
     if completed is None:
         return "review-timeout", ""
     output = completed.stdout + completed.stderr
+    if "unsupported package lock version" in output:
+        # The lock is this checkout's own earlier acceptance, written by a CLI
+        # built from another revision; the compiler asks for it to be removed
+        # explicitly before it will review afresh. It is ignored, local state,
+        # so removing it loses nothing the gate's review would not recreate.
+        lock = os.path.join(sample, "omega.lock")
+        if os.path.exists(lock):
+            os.remove(lock)
+        completed = run([cli, "update", "--project", sample, "--target", target], timeout)
+        if completed is None:
+            return "review-timeout", ""
+        output = completed.stdout + completed.stderr
     review = os.path.join(sample, "build", "package-manager", f"review-{target}.txt")
     text = b""
     if os.path.exists(review):

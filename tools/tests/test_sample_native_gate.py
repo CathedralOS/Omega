@@ -43,6 +43,24 @@ class ReviewAcceptanceTests(unittest.TestCase):
             self.assertEqual(runner.call_count, 2)
             self.assertEqual(runner.call_args.args[0][-1], "--resume")
 
+    def test_unsupported_lock_is_removed_and_reviewed_afresh(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lock = Path(directory) / "omega.lock"
+            lock.write_bytes(b"omega-lock 0\n")
+            review = Path(directory) / "build/package-manager/review-macos_arm64.txt"
+            review.parent.mkdir(parents=True)
+            review.write_bytes(b"omega-package-review 1\nend-review\n")
+            refusal = subprocess.CompletedProcess(
+                [], 0, "", "cannot read accepted omega.lock: unsupported package lock "
+                "version; restore a compatible lock or explicitly remove it")
+            success = subprocess.CompletedProcess([], 0, "Published build.omg and omega.lock", "")
+            with patch.object(gate, "run", side_effect=[refusal, success]) as runner:
+                reason, _ = gate.accept_review("omega", directory, "macos_arm64", 10)
+            self.assertIsNone(reason)
+            self.assertFalse(lock.exists())
+            self.assertEqual(runner.call_count, 2)
+            self.assertEqual(runner.call_args.args[0][1], "update")
+
     def test_resume_failure_is_not_successful_acceptance(self):
         with tempfile.TemporaryDirectory() as directory:
             review = Path(directory) / "build/package-manager/review-windows_x86_64.txt"
