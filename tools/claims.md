@@ -76,8 +76,14 @@ uncertain write, retaining its ticket. Removed tickets cannot be resurrected.
 
 Snapshots retain verified tips under local `refs/coordination-cache/` refs,
 scoped by remote URL and protocol ref. This keeps Git from repeatedly walking
-the independent claims history. These refs are advisory fetch hints; a local
+the independent claims history. Fetch negotiation explicitly offers that
+registry's cached tip instead of competing with unrelated project histories.
+These refs are advisory fetch hints; a local
 cache lock collision does not reject a successful read or change remote claims.
+Coordination fetches disable submodule recursion: registry and landing objects
+belong to this repository, and reading them must not walk or fetch application
+submodules. This is a per-command setting; ordinary project fetches retain their
+configured submodule behavior.
 
 Mutations compare-and-swap the Git reference, so concurrent claims all
 survive, including two on the same item. Expired claims are reaped by the

@@ -256,7 +256,7 @@ class Claims:
             return
         try:
             coordination.fetch_object(self.repository, self.push_url, version,
-                                      deadline=self.deadline)
+                                      reference=CLAIMS_REF, deadline=self.deadline)
         except coordination.CoordinationTimeout:
             raise
         except ClaimsError:
@@ -266,8 +266,8 @@ class Claims:
                             allow_failure=True).returncode:
                 self.remember_version(version)
                 return
-        self.git("fetch", "--no-tags", "--no-write-fetch-head",
-                 self.push_url, CLAIMS_REF)
+        coordination.fetch_object(self.repository, self.push_url, CLAIMS_REF,
+                                  reference=CLAIMS_REF, deadline=self.deadline)
         if self.git("cat-file", "-e", version, allow_failure=True).returncode:
             raise ClaimsError(f"Claims tip {version} is still missing after "
                               f"fetching {CLAIMS_REF}; inspect the remote "

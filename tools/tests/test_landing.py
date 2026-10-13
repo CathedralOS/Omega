@@ -824,7 +824,7 @@ class ReceiptTests(LandingTests):
             self.assertEqual(module.verify(self.a, self.initial), 0)
         self.assertEqual(calls[0], ["mbx", "check", "-p", "omega"])
         self.assertEqual(calls[1], ["mbx", "check", "--manifest-path",
-                                   str(self.a / "crate" / "Cargo.toml"), "-p", "crate-one"])
+                                   str((self.a / "crate" / "Cargo.toml").resolve()), "-p", "crate-one"])
         workspaces = module.affected_workspaces(self.a, self.initial, candidate)
         affected = {"crate-one", "omega"}
         self.assertIsNone(module.receipt_failure(self.a, candidate, affected, workspaces))

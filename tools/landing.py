@@ -413,7 +413,7 @@ class Landing:
             return
         try:
             coordination.fetch_object(self.repository, self.push_url, version,
-                                      deadline=getattr(self, "deadline", None))
+                                      reference=reference, deadline=getattr(self, "deadline", None))
         except coordination.CoordinationTimeout:
             raise
         except LandingError:
@@ -424,8 +424,8 @@ class Landing:
                 coordination.remember_object(self.repository, self.push_url,
                                              reference, version, deadline=getattr(self, "deadline", None))
                 return
-        self.git("fetch", "--no-tags", "--no-write-fetch-head",
-                 self.push_url, reference)
+        coordination.fetch_object(self.repository, self.push_url, reference,
+                                  reference=reference, deadline=getattr(self, "deadline", None))
         if self.git("cat-file", "-e", version, allow_failure=True).returncode:
             raise LandingError(f"Remote tip {version} is still missing after "
                                f"fetching {reference}; inspect the remote "

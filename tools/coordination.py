@@ -152,8 +152,25 @@ def remote_refs(repository, url, *references, deadline=None):
     return found
 
 
-def fetch_object(repository, url, identity, *, deadline=None):
-    git(repository, "fetch", "--no-tags", "--no-write-fetch-head", url, identity, deadline=deadline)
+def fetch_object(repository, url, identity, *, reference=None, deadline=None):
+    # Coordination consumes objects in this repository, never submodule
+    # checkouts. Even an already-present empty-tree tip makes Git inspect
+    # submodule history by default; in a long-lived registry that exhausted
+    # the entire claims deadline. Keep acquisition local to the chosen object
+    # store, including when identity is a fallback advertised reference.
+    arguments = ["fetch", "--no-tags", "--no-write-fetch-head",
+                 "--no-recurse-submodules"]
+    if reference:
+        cached = git(repository, "rev-parse", "--verify", "--quiet",
+                     cache_ref(url, reference), allow_failure=True, deadline=deadline)
+        if cached.returncode == 0:
+            # Git's default negotiation may offer hundreds of unrelated main
+            # commits before this independent history, then download the whole
+            # registry. Offer the verified tip of this exact remote/ref instead.
+            # Capture its ID so a competing cache writer cannot change the hint
+            # between this read and fetch. The remote still supplies identity.
+            arguments.append(f"--negotiation-tip={cached.stdout}")
+    git(repository, *arguments, url, identity, deadline=deadline)
 
 
 def cache_ref(url, reference):
