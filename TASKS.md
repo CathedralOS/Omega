@@ -494,10 +494,12 @@ defines the complete product bar.
     projected record/case/array operands and their unconsumed siblings;
     `pass/float/computed_comparison_literal_landing_exit`,
     `pass/calls/runtime_constructed_payload_arguments_exit`,
-    `pass/calls/runtime_constructed_copy_payload_arguments_exit` and
+    `pass/calls/runtime_constructed_copy_payload_arguments_exit`,
+    `pass/borrows/runtime_computed_case_copy_order_exit` and
     `pass/operators/runtime_constructed_operand_result_exit` (exit 0 in both
-    engines). Use ordinary expression continuations for selected payload returns,
-    not raw jump arguments.
+    engines). Computed copies retain selectors and the selected value before
+    later operands mutate their source. Use ordinary expression continuations
+    for selected payload returns, not raw jump arguments.
     Value dispatch still needs its full construction schedule. Preserve
     occurrence-bound routed memberships through completed
     children, copies and nested projections:

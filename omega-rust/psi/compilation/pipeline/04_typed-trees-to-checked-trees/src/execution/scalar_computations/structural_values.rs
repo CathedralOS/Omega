@@ -200,21 +200,23 @@ impl Builder<'_, '_> {
             return None;
         }
         let statement = u32::try_from(self.statement_index).ok()?;
-        if let Some(root) = self
+        let retained = self
             .structural_values
-            .root_for_expression(self.state, statement, expression)
-        {
-            return (root.machine == self.machine
-                && self.program.normalized_type_identity(root.type_reference)
-                    == self.program.normalized_type_identity(expected)
-                && self.structural_values.nodes.is_valid(root.root)
-                && self.structural_values.nodes.get(root.root).expression == expression
-                && argument_needs_establishment(
-                    &self.structural_values.nodes.get(root.root).kind,
-                ))
-            .then_some(root.root);
-        }
-        let root = self.structural_value(expression, expected)?;
+            .root_for_expression(self.state, statement, expression);
+        let already_retained = retained.is_some();
+        let root = if let Some(root) = retained {
+            if root.machine != self.machine
+                || self.program.normalized_type_identity(root.type_reference)
+                    != self.program.normalized_type_identity(expected)
+                || !self.structural_values.nodes.is_valid(root.root)
+                || self.structural_values.nodes.get(root.root).expression != expression
+            {
+                return None;
+            }
+            root.root
+        } else {
+            self.structural_value(expression, expected)?
+        };
         if !argument_needs_establishment(&self.structural_values.nodes.get(root).kind) {
             return None;
         }
@@ -224,20 +226,26 @@ impl Builder<'_, '_> {
         // statement calls consume the same owner/path relationship.
         if let CheckedStructuralValueKind::Projection { source, .. } =
             self.structural_values.nodes.get(root).kind
-            && argument_needs_establishment(&self.structural_values.nodes.get(source).kind)
         {
+            // A projection of an existing home transfers through its place.
+            // Only a computed owner establishes an argument temporary.
+            if !argument_needs_establishment(&self.structural_values.nodes.get(source).kind) {
+                return None;
+            }
             self.retained_argument_owner(root, expected)?;
         }
-        self.structural_values
-            .roots
-            .append(checked_trees::CheckedStructuralValueRoot {
-                machine: self.machine,
-                state: self.state,
-                statement_ordinal: statement,
-                expression,
-                type_reference: expected,
-                root,
-            });
+        if !already_retained {
+            self.structural_values
+                .roots
+                .append(checked_trees::CheckedStructuralValueRoot {
+                    machine: self.machine,
+                    state: self.state,
+                    statement_ordinal: statement,
+                    expression,
+                    type_reference: expected,
+                    root,
+                });
+        }
         Some(root)
     }
 

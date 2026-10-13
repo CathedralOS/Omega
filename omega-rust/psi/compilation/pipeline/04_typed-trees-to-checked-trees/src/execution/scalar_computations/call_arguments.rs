@@ -192,26 +192,51 @@ impl Builder<'_, '_> {
             } else {
                 let state =
                     validation::find_state_in_machine(self.program, self.machine, self.state)?;
-                let mut selectors = Vec::new();
-                if let Some(place) = validation::canonical_place_from_expression_in_state(
-                    self.program,
-                    self.state,
-                    self.statement_index,
-                    *argument,
-                ) {
-                    for segment in place.segments {
-                        if let facts::PlaceSegment::Index { expression } = segment {
-                            let value = self.index_selector(expression)?;
-                            selectors.push((
-                                expression,
-                                checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(
-                                    value,
-                                ),
-                            ));
+                // Owned operands consume the established value, not a live
+                // view of storage which a later argument can replace. Borrowed
+                // operands keep their loan route; only computed temporaries
+                // need an established owner on that route.
+                let reference_formal = matches!(
+                    self.program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference),
+                    TypeReferenceNode::Reference { .. }
+                );
+                let retained = if !reference_formal && !parameter.is_mutable {
+                    self.retain_structural_argument(*argument, parameter.type_reference)
+                } else {
+                    None
+                };
+                let argument_ordinal = u32::try_from(structural_arguments.len()).ok()?;
+                let argument_plan = if let Some(value) = retained {
+                    self.retained_call_argument(
+                        source_call,
+                        *argument,
+                        parameter,
+                        value,
+                        argument_ordinal,
+                        &mut temporary_cleanups,
+                    )?
+                } else {
+                    (|| {
+                        let mut selectors = Vec::new();
+                        if let Some(place) = validation::canonical_place_from_expression_in_state(
+                            self.program,
+                            self.state,
+                            self.statement_index,
+                            *argument,
+                        ) {
+                            for segment in place.segments {
+                                if let facts::PlaceSegment::Index { expression } = segment {
+                                    let value = self.index_selector(expression)?;
+                                    selectors.push((
+                                        expression,
+                                        checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(value),
+                                    ));
+                                }
+                            }
                         }
-                    }
-                }
-                let argument_plan = crate::execution::terminal_unit::structural_computation_argument(
+                        crate::execution::terminal_unit::structural_computation_argument(
                             self.program,
                             self.borrow,
                             self.machine,
@@ -219,107 +244,59 @@ impl Builder<'_, '_> {
                             self.flow.control.calls.get(source_call),
                             *argument,
                             parameter,
-                    Some(&|expression| selectors.iter().find_map(|(source, value)| (*source == expression).then(|| value.clone()))),
+                            Some(&|expression| {
+                                selectors.iter().find_map(|(source, value)| {
+                                    (*source == expression).then(|| value.clone())
+                                })
+                            }),
                         )
-                        .or_else(|| {
-                            let argument_ordinal = structural_arguments.len();
-                            crate::execution::terminal_unit::calls::subslice_computation_argument(
-                                self.program, self.operators, self.pure, self.plans, self.borrow,
-                                self.machine, state, self.flow.control.calls.get(source_call),
-                                *argument, parameter, u32::try_from(argument_ordinal).ok()?,
-                            )
-                        })
-                        .or_else(|| {
-                            // A `"literal"` actual loans a byte sequence the
-                            // callee reads as a borrowed view; places alone
-                            // cannot name it, so the call argument reuses the
-                            // statement route's literal carrier.
-                            crate::execution::terminal_unit::calls::byte_sequence_literal_argument(
-                                self.program,
-                                parameter.type_reference,
-                                *argument,
-                            )
-                        })
-                        .or_else(|| {
-                            if parameter.is_mutable {
-                                return None;
-                            }
-                            let value = self.retain_structural_argument(*argument, parameter.type_reference)?;
-                            // A view lends its completed descriptor, not an
-                            // unsized owned referent. Use the same carrier
-                            // classification as ordinary calls and arrivals.
-                            let descriptor = validation::slice_view_shell(self.program, parameter.type_reference, &[]);
-                            let (access, referent) = match self.program.type_reference_table.type_reference(parameter.type_reference) {
-                                TypeReferenceNode::Reference { access, .. } if descriptor.is_some() =>
-                                    ((*access).into(), parameter.type_reference),
-                                TypeReferenceNode::Reference { access: language_semantics::ReferenceAccess::Shared, .. } =>
-                                    (checked_trees::CheckedStructuralAccess::SharedBorrow,
-                                        crate::semantic::calls::shared_argument_referent(self.program, *argument, parameter.type_reference)?.1),
-                                TypeReferenceNode::Reference { .. } => return None,
-                                _ => (checked_trees::CheckedStructuralAccess::Owned, parameter.type_reference),
-                            };
-                            let (expression, owner_type, path) = self.retained_argument_owner(value, referent)?;
-                            // The owned-value contract cannot manufacture a
-                            // reference. A descriptor instead retains the
-                            // formation/call's already admitted loan custody.
-                            if descriptor.is_none() {
-                                validation::structural_result_contract(self.program, referent).ok()?;
-                            }
-                            let argument_plan = checked_trees::CheckedUnitStructuralArgumentPlan {
-                                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
-                                path,
-                                type_identity: validation::structural_type_identity(self.program, referent, &[], &[]),
-                                access,
-                            };
-                            let mut discards = None;
-                            if access != checked_trees::CheckedStructuralAccess::Owned {
-                                // Retention only supplies storage. The permission pass owns
-                                // the loan's exact consumer and dying continuation; carry its
-                                // settlement into the scalar call instead of inferring a drop
-                                // later from the reference formal or constructor spelling.
-                                // Descriptor formation already rejoins its
-                                // backing loan at this invocation. Only an
-                                // anonymous referent home needs a separate
-                                // temporary-owner loan settlement.
-                                if descriptor.is_none() {
-                                    crate::execution::terminal_unit::calls::validate_shared_temporary(
-                                        self.program, self.flow, self.machine, self.state,
-                                        self.flow.control.calls.get(source_call), expression,
-                                    )?;
-                                }
-                                match self.program.type_multiplicity(owner_type) {
-                                    language_semantics::Multiplicity::Affine | language_semantics::Multiplicity::Linear => {
-                                        discards = Some(vec![checked_trees::CheckedUnitPartialAffineDiscardPlan {
-                                            source: argument_plan.source.clone(),
-                                            path: Vec::new(),
-                                            type_identity: self.program.normalized_type_identity(owner_type),
-                                            case_conditions: Default::default(),
-                                        }]);
-                                    }
-                                    language_semantics::Multiplicity::Unrestricted => {}
-                                }
-                            } else if !argument_plan.path.is_empty() {
-                                discards = Some(crate::execution::terminal_unit::cleanup::projected_temporary_residuals(
-                                    self.program, self.flow, self.machine, self.state,
-                                    self.flow.control.calls.get(source_call), owner_type, &argument_plan,
-                                )?);
-                            }
-                            if let Some(discards) = discards {
-                                temporary_cleanups.push(checked_trees::CheckedScalarComputationTemporaryCleanup {
-                                    argument_ordinal: u32::try_from(structural_arguments.len()).ok()?,
-                                    actions: self.plans.temporary_cleanup_actions.insert_many(discards.into_iter().map(checked_trees::CheckedNormalCleanupAction::Discard)),
-                                });
-                            }
-                            // The retained root owns the complete carrier; the
-                            // argument's path selects the type matched to this
-                            // formal. Qualifications are not type rows.
-                            Some(argument_plan)
-                        });
+                    })()
+                    .or_else(|| {
+                        let argument_ordinal = structural_arguments.len();
+                        crate::execution::terminal_unit::calls::subslice_computation_argument(
+                            self.program,
+                            self.operators,
+                            self.pure,
+                            self.plans,
+                            self.borrow,
+                            self.machine,
+                            state,
+                            self.flow.control.calls.get(source_call),
+                            *argument,
+                            parameter,
+                            u32::try_from(argument_ordinal).ok()?,
+                        )
+                    })
+                    .or_else(|| {
+                        // A `"literal"` actual loans a byte sequence the
+                        // callee reads as a borrowed view; places alone
+                        // cannot name it, so the call argument reuses the
+                        // statement route's literal carrier.
+                        crate::execution::terminal_unit::calls::byte_sequence_literal_argument(
+                            self.program,
+                            parameter.type_reference,
+                            *argument,
+                        )
+                    })
+                    .or_else(|| {
+                        if !reference_formal || parameter.is_mutable {
+                            return None;
+                        }
+                        let value =
+                            self.retain_structural_argument(*argument, parameter.type_reference)?;
+                        self.retained_call_argument(
+                            source_call,
+                            *argument,
+                            parameter,
+                            value,
+                            argument_ordinal,
+                            &mut temporary_cleanups,
+                        )
+                    })?
+                };
                 structural_actuals.push(*argument);
                 structural_arguments.push(
-                    checked_trees::CheckedScalarComputationStructuralArgument::Place(
-                        argument_plan?,
-                    ),
+                    checked_trees::CheckedScalarComputationStructuralArgument::Place(argument_plan),
                 );
             }
         }
@@ -355,6 +332,124 @@ impl Builder<'_, '_> {
             temporary_cleanups,
             claim_transfers,
         })
+    }
+
+    /// Consume an established producer. A failed owner or custody join cannot
+    /// turn this operand back into a live source-place argument.
+    fn retained_call_argument(
+        &mut self,
+        source_call: arena::Handle<checked_trees::FlowCallFact>,
+        argument: ExpressionHandle,
+        parameter: &typed_trees::signature::StateParameter,
+        value: checked_trees::CheckedStructuralValueHandle,
+        argument_ordinal: u32,
+        temporary_cleanups: &mut Vec<checked_trees::CheckedScalarComputationTemporaryCleanup>,
+    ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
+        use typed_trees::types::TypeReferenceNode;
+        // A view lends its completed descriptor, not an
+        // unsized owned referent. Use the same carrier
+        // classification as ordinary calls and arrivals.
+        let descriptor = validation::slice_view_shell(self.program, parameter.type_reference, &[]);
+        let (access, referent) = match self
+            .program
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        {
+            TypeReferenceNode::Reference { access, .. } if descriptor.is_some() => {
+                ((*access).into(), parameter.type_reference)
+            }
+            TypeReferenceNode::Reference {
+                access: language_semantics::ReferenceAccess::Shared,
+                ..
+            } => (
+                checked_trees::CheckedStructuralAccess::SharedBorrow,
+                crate::semantic::calls::shared_argument_referent(
+                    self.program,
+                    argument,
+                    parameter.type_reference,
+                )?
+                .1,
+            ),
+            TypeReferenceNode::Reference { .. } => return None,
+            _ => (
+                checked_trees::CheckedStructuralAccess::Owned,
+                parameter.type_reference,
+            ),
+        };
+        let (expression, owner_type, path) = self.retained_argument_owner(value, referent)?;
+        // The owned-value contract cannot manufacture a
+        // reference. A descriptor instead retains the
+        // formation/call's already admitted loan custody.
+        if descriptor.is_none() {
+            validation::structural_result_contract(self.program, referent).ok()?;
+        }
+        let argument_plan = checked_trees::CheckedUnitStructuralArgumentPlan {
+            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression,
+            },
+            path,
+            type_identity: validation::structural_type_identity(self.program, referent, &[], &[]),
+            access,
+        };
+        let mut discards = None;
+        if access != checked_trees::CheckedStructuralAccess::Owned {
+            // Retention only supplies storage. The permission pass owns
+            // the loan's exact consumer and dying continuation; carry its
+            // settlement into the scalar call instead of inferring a drop
+            // later from the reference formal or constructor spelling.
+            // Descriptor formation already rejoins its
+            // backing loan at this invocation. Only an
+            // anonymous referent home needs a separate
+            // temporary-owner loan settlement.
+            if descriptor.is_none() {
+                crate::execution::terminal_unit::calls::validate_shared_temporary(
+                    self.program,
+                    self.flow,
+                    self.machine,
+                    self.state,
+                    self.flow.control.calls.get(source_call),
+                    expression,
+                )?;
+            }
+            match self.program.type_multiplicity(owner_type) {
+                language_semantics::Multiplicity::Affine
+                | language_semantics::Multiplicity::Linear => {
+                    discards = Some(vec![checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                        source: argument_plan.source.clone(),
+                        path: Vec::new(),
+                        type_identity: self.program.normalized_type_identity(owner_type),
+                        case_conditions: Default::default(),
+                    }]);
+                }
+                language_semantics::Multiplicity::Unrestricted => {}
+            }
+        } else if !argument_plan.path.is_empty() {
+            discards = Some(
+                crate::execution::terminal_unit::cleanup::projected_temporary_residuals(
+                    self.program,
+                    self.flow,
+                    self.machine,
+                    self.state,
+                    self.flow.control.calls.get(source_call),
+                    owner_type,
+                    &argument_plan,
+                )?,
+            );
+        }
+        if let Some(discards) = discards {
+            temporary_cleanups.push(checked_trees::CheckedScalarComputationTemporaryCleanup {
+                argument_ordinal,
+                actions: self.plans.temporary_cleanup_actions.insert_many(
+                    discards
+                        .into_iter()
+                        .map(checked_trees::CheckedNormalCleanupAction::Discard),
+                ),
+            });
+        }
+        // The retained root owns the complete carrier; the
+        // argument's path selects the type matched to this
+        // formal. Qualifications are not type rows.
+        Some(argument_plan)
     }
 }
 
