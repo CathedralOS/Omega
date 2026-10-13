@@ -67,6 +67,12 @@ def git(repository, *arguments, input_text="", allow_failure=False, deadline=Non
         with tempfile.TemporaryFile() as standard_input, tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as error_output:
             standard_input.write(input_text.encode("utf-8"))
             standard_input.seek(0)
+            environment = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+            if arguments[:2] == ("cat-file", "-e"):
+                # An existence probe in a partial clone must remain local.
+                # Content reads still acquire promised objects normally: the
+                # landing golden-loss gate must observe their actual contents.
+                environment["GIT_NO_LAZY_FETCH"] = "1"
             budget = remaining_seconds(deadline)
             # A timed-out fetch can leave index-pack consuming CPU long after
             # coordination returns. Own the transport tree as well as Git, so
@@ -74,7 +80,7 @@ def git(repository, *arguments, input_text="", allow_failure=False, deadline=Non
             process = subprocess.Popen(
                 ["git", "-C", str(repository), *arguments],
                 stdin=standard_input, stdout=output, stderr=error_output,
-                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                env=environment,
                 start_new_session=os.name != "nt")
             try:
                 return_code = process.wait(timeout=budget)
