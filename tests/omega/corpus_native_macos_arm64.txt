@@ -787,12 +787,12 @@ pass/control_flow/sum_field_storage_roundtrip built 1074ms exit:70 @7a6595c07f7b
 pass/control_flow/termination_index_distance_compile built 525ms exit:0 @d62a4e21b659
 pass/control_flow/transition_operand_schedule checked 189ms
 pass/control_flow/transition_tail_self_call checked 199ms
-pass/core/carry_permission_provider_adapter built 274ms
+pass/core/carry_permission_provider_adapter built 12252ms @83314997c2b2
 pass/core/content_conservation_contract incomplete 1258ms @e007e1d70f35+wt
 	`Main::main` calls `Main::partition_and_retain`; `Main::partition_and_retain` has no executable body: this compiler does not lower a statement of it yet (call operation: boundary contracts)
 pass/core/content_retained_custody_round_trip built 311ms
 pass/core/extent_core_surface checked 196ms
-pass/core/extent_root_provider_adapter built 3863ms exit:0 @693920652f41
+pass/core/extent_root_provider_adapter built 12361ms exit:0 @83314997c2b2
 pass/core/interrupt_obligations_surface checked 508ms @3e42cf204024+wt
 pass/core/numeric_cross_signed_conversion_surface built 13837ms exit:70
 pass/core/numeric_signed_narrowing_policies built 4173ms exit:0 @5a7ed5b57d00+wt
@@ -1282,23 +1282,7 @@ pass/locals/runtime_local_view_member_element_read_exit built 2189ms exit:70 @9b
 pass/locals/static_local_field_names_exit built 3382ms exit:0 @9beb2be72f2d+wt
 pass/machines/static_namespace_constant_exit built 3677ms exit:0 @9beb2be72f2d+wt
 pass/memory/address_translation_canary checked 602ms @3e42cf204024+wt
-pass/memory/bump_allocator_canary rejected 2864ms regressed-from:built @e95f2c8d09cf+wt
-	linear value `named(name(BumpVec)).retained_buffer::Held.storage` was already transferred or consumed; it cannot be moved here
-	linear value `named(name(BumpVec)).retained_buffer::Held.storage` was already transferred or consumed; it cannot be moved here
-	linear value `named(name(BumpVec)).retained_buffer::Held.storage` was already transferred or consumed; it cannot be moved here
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/memory/bump_allocator_canary built 12681ms @83314997c2b2
 pass/memory/interrupt_table_canary rejected 1746ms regressed-from:checked @693920652f41
 	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(InterruptAcknowledgement\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
 pass/memory/runtime_large_entry_record_field_exit built 1425ms exit:70 @3ce19b649c88+wt
@@ -1980,3 +1964,4 @@ run/contained_health_loop_command_branch checked 192ms
 run/nested_mut_alias_assignment_return built 944ms exit:0 stdout:match @874bbd295e3e+wt
 run/stores/runtime_float_indexed_call_result_exit built 9716ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
 run/stores/runtime_float_store_selector_snapshot_exit built 9116ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
+pass/providers/runtime_linear_provider_results_exit built 12448ms exit:0 @83314997c2b2

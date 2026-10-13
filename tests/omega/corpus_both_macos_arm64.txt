@@ -990,3 +990,7 @@ pass/recast/callee_returned_interior_view_exit built 6982ms exit:0 interpreter-e
 pass/recast/callee_returned_mutable_view_exit built 6889ms exit:0 interpreter-exit:0 interpreter:agrees @22286cb27fcc
 pass/recast/callee_returned_scalar_interpretation_exit built 4266ms exit:0 interpreter-exit:0 interpreter:agrees @22286cb27fcc
 pass/recast/returned_view_state_and_record_composition_exit built 4420ms exit:0 interpreter-exit:0 interpreter:agrees @22286cb27fcc
+pass/core/carry_permission_provider_adapter built 12407ms @83314997c2b2
+pass/core/extent_root_provider_adapter built 12694ms exit:0 interpreter-exit:0 interpreter:agrees @83314997c2b2
+pass/memory/bump_allocator_canary built 12976ms @83314997c2b2
+pass/providers/runtime_linear_provider_results_exit built 12784ms exit:0 interpreter-exit:0 interpreter:agrees @83314997c2b2

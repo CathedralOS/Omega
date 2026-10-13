@@ -4848,16 +4848,14 @@ pass/control_flow/termination_index_distance_compile checked 10912ms check-targe
 pass/control_flow/three_param_state_forward_compile checked 1622ms @a9ae30e1c334+wt
 pass/control_flow/transition_operand_schedule checked 1608ms @a9ae30e1c334+wt
 pass/control_flow/transition_tail_self_call checked 1738ms @a9ae30e1c334+wt
-pass/core/carry_permission_provider_adapter rejected 10722ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	terminal-artifact production failed: Lowering(Unsupported("provider structural result disagrees with its boundary requirement"))
+pass/core/carry_permission_provider_adapter checked 11097ms check-target:macos_arm64 @83314997c2b2
 pass/core/content_conservation_constructed_argument checked 1744ms @a9ae30e1c334+wt
 pass/core/content_conservation_contract rejected 11474ms check-target:macos_arm64 @a9ae30e1c334+wt
 	selected compiler intrinsic `<selected target>::RegionSinkProvider::satisfies::RegionSink` for Terminal boundary `named-callable(path(RegionSink::accept),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(Region\\)\\)\\,declared-domain\\(name\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Region::Owned\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::RegionSplitProvider::satisfies::RegionSplit` for Terminal boundary `named-callable(path(RegionSplit::split),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(Region\\)\\)\\,declared-domain\\(name\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Region::Owned\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 pass/core/content_retained_custody_round_trip checked 11400ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/extent_core_surface checked 1673ms @a9ae30e1c334+wt
-pass/core/extent_root_provider_adapter rejected 10779ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	terminal-artifact production failed: Lowering(Unsupported("provider structural result disagrees with its boundary requirement"))
+pass/core/extent_root_provider_adapter checked 11044ms check-target:macos_arm64 @83314997c2b2
 pass/core/interrupt_obligations_surface checked 1707ms @a9ae30e1c334+wt
 pass/core/numeric_cross_signed_conversion_surface checked 11733ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/numeric_signed_narrowing_policies checked 15095ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5556,8 +5554,7 @@ pass/locals/static_local_field_names_exit checked 11008ms check-target:macos_arm
 pass/machines/static_namespace_constant_exit checked 11111ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/math/extent_no_wrap_requires_denotation checked 1688ms @a9ae30e1c334+wt
 pass/memory/address_translation_canary checked 2016ms @a9ae30e1c334+wt
-pass/memory/bump_allocator_canary rejected 12308ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @a9ae30e1c334+wt
-	terminal-artifact production failed: Lowering(Unsupported("provider structural result disagrees with its boundary requirement"))
+pass/memory/bump_allocator_canary checked 11661ms check-target:linux_x86_64 @83314997c2b2
 pass/memory/interrupt_table_canary rejected 1719ms @a9ae30e1c334+wt
 	selected whole provider maps `<selected target>::TimerProviderRoot::satisfies::TimerRoot` and `<selected target>::FatalExceptionProviderRoot::satisfies::FatalExceptionRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
 pass/memory/runtime_large_entry_record_field_exit checked 12386ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6622,3 +6619,6 @@ run/stores/runtime_float_indexed_call_result_exit checked 8854ms check-target:ma
 run/stores/runtime_float_store_selector_snapshot_exit checked 8082ms check-target:macos_arm64 @589aedee8ebc+wt
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
+pass/providers/runtime_linear_provider_results_exit checked 11050ms check-target:macos_arm64 @83314997c2b2
+fail/providers/linear_provider_result_second_use rejected 365ms expected @83314997c2b2
+	cannot use `result` in machine `main` state `entry` (statement 2) after `result` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
