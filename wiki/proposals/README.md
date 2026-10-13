@@ -9,7 +9,7 @@ Acceptance updates the specification; this directory does not define current rul
 Use `NNNN_short_descriptive_name.md`, beginning with `0000`. The number is a stable
 proposal ID, not priority or acceptance order. Do not routinely renumber or reuse
 IDs; an explicit owner-directed reassignment updates every reference in the same sweep.
-The next available ID is **0006**; advance this counter when adding a proposal,
+The next available ID is **0007**; advance this counter when adding a proposal,
 including after accepted or withdrawn files have been removed.
 
 Each proposal names its status, affected spec owners, concrete problem, proposed
@@ -34,5 +34,8 @@ separate review system or historical decision ledger.
   and full anonymous contracts before accepting a scope.
 - [0001: Named proof-formula syntax](0001_proof_formula_syntax.md): unproven ergonomic
   alternatives to ordinary contracts and named witness/law bundles.
+- [0006: Initializer-based local type inference](0006_initializer_local_type_inference.md):
+  infer a local's already-determined initializer type without numeric defaults,
+  later-use inference or implicit mutable borrowing; draft, not accepted.
 
 Temporary working notes belong in [drafts/](../drafts/README.md).
