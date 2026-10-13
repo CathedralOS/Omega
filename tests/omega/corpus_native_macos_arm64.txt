@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 8.56, "load1_start": 9.21, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 6.48, "load1_start": 6.69, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -217,7 +217,7 @@ pass/borrows/runtime_recast_mut_loan_field_write_exit built 1286ms exit:0 @7d0f7
 pass/borrows/runtime_record_byte_region_loan_exit built 30261ms exit:50 @48008365d839
 pass/borrows/runtime_record_carried_loan_state_return_exit built 5378ms exit:42 @af6b0f221559+wt
 pass/borrows/runtime_record_primitive_reference_capture_exit built 1607ms exit:0 @104c2da31081
-pass/borrows/runtime_recursive_mutable_array_store_exit built 1300ms exit:70 @ad65d2640206+wt
+pass/borrows/runtime_recursive_mutable_array_store_exit built 4857ms exit:70 @7364581ccb3d
 pass/borrows/runtime_recursive_shared_array_read_exit built 2356ms exit:70 @6d05c993ca61
 pass/borrows/runtime_reentered_mutable_array_loan_exit built 1705ms exit:70 @98f54226c10c
 pass/borrows/runtime_reference_aggregate_call_result_replacement_exit built 4426ms exit:0 @af6b0f221559+wt
@@ -1402,7 +1402,7 @@ pass/ownership/linear_call_result_claims_exit built 2458ms exit:0 @e007e1d70f35+
 pass/ownership/linear_call_result_place_assignment_exit built 2656ms exit:0 @9c376f77b213+wt
 pass/ownership/linear_computed_call_claim_transfers_exit built 2737ms exit:0 @c70a706629c8+wt
 pass/ownership/linear_inline_constructed_argument_claims_exit built 2790ms exit:0 @9c376f77b213+wt
-pass/ownership/linear_qualified_call_result_claims built 2451ms exit:0 @34440012a21b
+pass/ownership/linear_qualified_call_result_claims built 4156ms exit:0 @7364581ccb3d
 pass/ownership/linear_result_member_projection_arguments_exit built 2676ms exit:0 @9c376f77b213+wt
 pass/ownership/linear_result_owners_residual_cleanup_exit built 2689ms exit:0 @9c376f77b213+wt
 pass/ownership/linear_self_receiver_disposition checked 208ms
@@ -1415,7 +1415,7 @@ pass/ownership/read_owner_before_consumption_and_after_reassignment checked 252m
 pass/ownership/runtime_borrowed_captured_selector_exit built 1857ms exit:0 @fc0dd94dcf25
 pass/ownership/runtime_borrowed_carried_loan_transform_exit built 5362ms exit:42 @af6b0f221559+wt
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit built 4625ms exit:42 @af6b0f221559+wt
-pass/ownership/runtime_borrowed_case_result_restore_exit built 1663ms exit:0 @332ced10410b+wt
+pass/ownership/runtime_borrowed_case_result_restore_exit built 3981ms exit:0 @7364581ccb3d
 pass/ownership/runtime_borrowed_projected_linear_return_exit built 1631ms exit:0 @cd27c16e2c35
 pass/ownership/runtime_borrowed_record_transform_exit built 625ms exit:42 @ed1fb1257faf+wt
 pass/ownership/runtime_borrowed_shared_alias_carrier_transform_exit built 4384ms exit:42 @af6b0f221559+wt
@@ -1425,6 +1425,7 @@ pass/ownership/runtime_captured_construction_selector_exit built 1790ms exit:0 @
 pass/ownership/runtime_captured_replacement_selector_exit built 1790ms exit:0 @441e8f33f8c7+wt
 pass/ownership/runtime_captured_selector_call_exit built 1790ms exit:0 @441e8f33f8c7+wt
 pass/ownership/runtime_generic_borrowed_case_restore_exit built 4474ms exit:0 @af6b0f221559+wt
+pass/ownership/runtime_generic_linear_case_restore_exit built 3656ms exit:0 @7364581ccb3d
 pass/ownership/runtime_known_case_scalar_call_exit built 1656ms exit:0 @a2adbadfe3b3+wt
 pass/ownership/runtime_linear_case_payload_forward_exit built 1664ms exit:0 @332ced10410b+wt
 pass/ownership/runtime_nested_projected_claim_return_exit built 1631ms exit:0 @cd27c16e2c35
