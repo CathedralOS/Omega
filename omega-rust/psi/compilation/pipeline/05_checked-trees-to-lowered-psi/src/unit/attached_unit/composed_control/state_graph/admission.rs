@@ -2,9 +2,8 @@
 //! each state's parameter custody, claim transport across edges, and the
 //! boundaries its calls name. Stage 04 resolved every terminator and edge
 //! from the authored transitions, so admission does not rejoin them to
-//! source; a closed-sum dispatch alone still reads its subject's declaration
-//! and arms (`cases::validate`).
-use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
+//! source: a closed-sum dispatch's subject custody and arms were judged by
+//! its planner (`state_graph::closed_sum`) and are lowered as planned.
 use super::super::super::{CheckedBoundaryMachinePlan, Multiplicity, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::{
@@ -250,19 +249,13 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
             }
             borrowed_parameter(source, parameter)?;
         }
-        if let CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. } = state.terminator {
-            // A closed-sum dispatch checks its subject's sum custody and arms
-            // against what the case emitter lowers (`cases::validate`).
-            super::cases::validate(checked, plan, source, state)?;
-        } else {
-            for successor in state.successors() {
-                let target =
-                    plan.state(successor.target_state)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph successor target is missing",
-                        ))?;
-                edges::admit_transfers(state, successor, target)?;
-            }
+        for successor in state.successors() {
+            let target = plan
+                .state(successor.target_state)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph successor target is missing",
+                ))?;
+            edges::admit_transfers(state, successor, target)?;
         }
     }
     // Dead states are authored and shape-checked above but never execute:

@@ -38,8 +38,9 @@ pub(super) fn prepare<'a>(
     else {
         return Ok(None);
     };
-    // `cases::validate` admitted the original carrier. Its path selects the
-    // inspected sum without transferring that carrier's ownership or loan.
+    // Stage 04's closed-sum planner admitted the original carrier. Its path
+    // selects the inspected sum without transferring that carrier's
+    // ownership or loan.
     let owned = subject.access == checked_trees::CheckedStructuralAccess::Owned;
     let (place, structural_type, multiplicity) = match subject.source {
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {

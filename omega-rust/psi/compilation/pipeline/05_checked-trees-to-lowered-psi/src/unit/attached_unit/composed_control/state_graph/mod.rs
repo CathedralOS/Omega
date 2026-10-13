@@ -105,7 +105,6 @@ pub(super) mod scalars;
 // disposes, and view windows.
 pub(super) mod case_emission;
 mod case_leaf_copy;
-mod cases;
 mod cleanup;
 mod edges;
 mod guarded;

@@ -20,6 +20,7 @@ use super::{
     ScalarCalleeClosure, ShapeCollector, Signature, TransitionExit, TransitionGuardNode,
     TransitionTargetNode, TypeReferenceNode, returns, terminal_calls,
 };
+use crate::checks::established_provenance;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::state_graph::{
     EdgeCalls, FusedStates, SuccessorEdge, successor_bindings,
@@ -141,24 +142,28 @@ pub(super) fn build(
                     access: retained.access,
                 },
                 inspected,
-                language_semantics::PermissionProvenance::Unknown,
+                // A claim-free owned parameter is established at state entry;
+                // its exit event carries that incoming storage occurrence.
+                established_provenance(
+                    machine.symbol,
+                    state.symbol,
+                    PermissionEventSource::StateEntry,
+                ),
             )
         } else {
             let mut matching = operations
                 .iter()
-                .filter_map(|operation| {
-                    Some((operation, super::retained_structural_result(operation)?))
-                })
-                .filter_map(|(operation, result)| {
+                .filter_map(super::retained_structural_result)
+                .filter_map(|result| {
                     let local = statements
                         .get(result.statement_index as usize)?
                         .as_local_data()?;
                     (dispatch.is_symbol(local.symbol)
                         && !local.is_mutable
                         && result.statement_index < transition_start as u32)
-                        .then_some((operation, result, local))
+                        .then_some((result, local))
                 });
-            let (operation, result, local) = matching.next()?;
+            let (result, local) = matching.next()?;
             if matching.next().is_some()
                 || !matches!(
                     result.multiplicity,
@@ -171,11 +176,11 @@ pub(super) fn build(
                 validation::reference_shell(program, local.type_reference)
             {
                 // The descriptor's affine custody belongs to its producer,
-                // not to the unrestricted shared-reference source type.
-                if !matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::EstablishReference { .. }
-                ) || result.multiplicity != Multiplicity::Affine
+                // not to the unrestricted shared-reference source type. The
+                // producer is whichever operation bound the result: a place
+                // capture (`EstablishReference`) or a descriptor value
+                // retained through a selector computation (`EstablishLocal`).
+                if result.multiplicity != Multiplicity::Affine
                     || shell.access == language_semantics::ReferenceAccess::WriteOnly
                 {
                     return None;
@@ -638,7 +643,12 @@ pub(super) fn build(
                     || event.access != PermissionAccess::Owned
                     || event.multiplicity != Multiplicity::Affine
                     || event.claim_identity != PermissionClaimIdentity::Unknown
-                    || event.provenance != language_semantics::PermissionProvenance::Unknown
+                    || event.provenance
+                        != established_provenance(
+                            machine.symbol,
+                            state.symbol,
+                            PermissionEventSource::StateEntry,
+                        )
                     || event.obligation_live
                     || !event.segments.is_empty()
                     || consumed_drops.contains(&index)
