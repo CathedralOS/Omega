@@ -87,7 +87,7 @@ machine main() crashes Trap {
     let mut exits: [Exit; 4];
     let exit_view: &mut [Exit] = &mut exits[0..4];
     fill_exits(exit_view, 1);
-    let exit_tail: &mut [Exit] = exit_view[2..4];
+    let exit_tail: &mut [Exit] = &mut exit_view[2..4];
     reopen(exit_tail);
     let mut tokens: [Token; 3] = [Token { byte: 65 }, Token { byte: 66 }, Token { byte: 67 }];
     let view: &mut [Token] = &mut tokens[0..3];

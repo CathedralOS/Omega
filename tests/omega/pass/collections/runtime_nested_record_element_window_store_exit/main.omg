@@ -37,7 +37,7 @@ requires slots.len >= 2
 machine main() crashes Trap {
     let mut grid: Grid;
     let slots: &mut [Slot] = &mut grid.slots[..];
-    let window: &mut [Slot] = slots[1..3];
+    let window: &mut [Slot] = &mut slots[1..3];
     let observed: i32 = replace(window);
     let backing: &[Slot] = &grid.slots[..];
     let first: &[Slot] = backing[0..2];

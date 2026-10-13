@@ -3,7 +3,7 @@ domain [u8]::Ascii(bytes) requires ascii_only(bytes);
 machine inspect(bytes: &[u8] in Ascii) {}
 machine replace(bytes: &mut [u8])
 requires ascii_only(bytes) && bytes.len >= 1 {
-    let view: &mut [u8] = bytes[0..1];
+    let view: &mut [u8] = &mut bytes[0..1];
     view[0] = 255;
     inspect(view);
 }

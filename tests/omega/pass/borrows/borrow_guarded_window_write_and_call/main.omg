@@ -19,7 +19,7 @@ machine write_outside_window(context: &mut WindowBuffer, index: u64, cut: u64) -
     state separate(main: &mut WindowBuffer, position: u64, boundary: u64) -> u64
         requires position <= 3, boundary <= 4;
     {
-        let held: &mut [i32] = main.items[boundary..4];
+        let held: &mut [i32] = &mut main.items[boundary..4];
         main.items[position] = 3;
         take(&mut main.items[position]);
         held.len

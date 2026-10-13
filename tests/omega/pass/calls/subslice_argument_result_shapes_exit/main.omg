@@ -86,8 +86,8 @@ machine main() crashes Trap {
     let mut bytes: [u8; 8] = [21, 22, 23, 24, 25, 26, 27, 28];
     let mut tally: Tally = Tally { old: 0, pair: Pair { left: 0, right: 0 } };
     let view: &mut [u8] = &mut bytes[..];
-    let tail: &mut [u8] = view[6..8];
-    let middle: &mut [u8] = view[2..4];
+    let tail: &mut [u8] = &mut view[6..8];
+    let middle: &mut [u8] = &mut view[2..4];
     fill(tail, 13);
     zero(middle);
     let old_middle: u8 = swap_out(middle, 33);

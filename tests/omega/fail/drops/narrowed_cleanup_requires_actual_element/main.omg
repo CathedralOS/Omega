@@ -20,7 +20,7 @@ requires elements.len >= 3,
     elements[0].child.value == 9, elements[0].child.ready,
     elements[1].child.value == 4, elements[1].child.ready
 {
-    let tail: &mut [Element] = elements[1..3];
+    let tail: &mut [Element] = &mut elements[1..3];
     tail[select()] = Element { child: Child { value: 9, ready: true } };
 }
 

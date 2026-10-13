@@ -29,11 +29,11 @@ machine ident(value: u8) -> u8 { value }
 machine main() crashes Trap {
     let mut bytes: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
     let view: &mut [u8] = &mut bytes[..];
-    let middle: &mut [u8] = view[2..4];
+    let middle: &mut [u8] = &mut view[2..4];
     let inside: u8 = peek(middle, 1);
     let copied: u8 = ident(view[3]);
-    let left: &mut [u8] = view[0..2];
-    let right: &mut [u8] = view[4..6];
+    let left: &mut [u8] = &mut view[0..2];
+    let right: &mut [u8] = &mut view[4..6];
     fill(left, 10);
     fill(right, 20);
     zero(left);

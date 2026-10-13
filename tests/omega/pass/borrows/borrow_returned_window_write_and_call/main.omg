@@ -18,7 +18,7 @@ machine write_outside_window(context: &mut WindowBuffer, seed: u64) -> u64
     requires 2 <= seed, seed <= 4;
 {
     let split_point: u64 = choose(seed);
-    let held: &mut [i32] = context.items[split_point..4];
+    let held: &mut [i32] = &mut context.items[split_point..4];
     context.items[0] = 3;
     take(&mut context.items[1]);
     let outside: &mut i32 = &mut context.items[0];

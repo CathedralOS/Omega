@@ -42,7 +42,7 @@ ensures elements[0].child.value == 9, elements[0].child.ready,
     elements[2].child.value == 9, elements[2].child.ready,
     elements[3].child.value == 9, elements[3].child.ready
 {
-    let tail: &mut [Element] = elements[1..3];
+    let tail: &mut [Element] = &mut elements[1..3];
     tail[select(cursor)] = replacement(cursor);
 }
 
