@@ -264,20 +264,11 @@ pub fn closed_collection_length_at_place(
     collection: &crate::CanonicalPlace,
 ) -> Option<u64> {
     let (machine, state) = crate::find_state(program, state_symbol)?;
-    if let Some(mut reference) =
+    if let Some(reference) =
         crate::canonical_place_type_reference(program, state_symbol, usize::MAX, collection)
+        && let Some(length) = crate::fixed_array_type_length(program, reference)
     {
-        loop {
-            match program.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-                TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-                TypeReferenceNode::FixedArray {
-                    length: typed_trees::types::FixedArrayLength::Literal(length),
-                    ..
-                } => return u64::try_from(*length).ok(),
-                _ => break,
-            }
-        }
+        return u64::try_from(length).ok();
     }
     if !collection.segments.is_empty() {
         return None;

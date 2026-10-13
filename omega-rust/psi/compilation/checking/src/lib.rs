@@ -148,7 +148,7 @@ pub use value_custody::places::{
     assignment_target_selectors, attached_storage_root, canonical_storage_label,
     collection_length_receiver, declaration_storage_label, declared_collection_extent,
     exact_attached_field, exact_attached_storage_field, exact_data_member_field, exact_self_field,
-    expression_names_attached_storage, has_builtin_subslice_meaning,
+    expression_names_attached_storage, fixed_array_type_length, has_builtin_subslice_meaning,
     mutable_byte_slice_parameter_element, place_has_builtin_coordinates, saved_dispatch_call,
     saved_dispatch_subject, structural_scalar_field, structural_scalar_field_at_coordinate,
     structural_scalar_field_in_parameters, structural_source, subslice_expression,

@@ -19,33 +19,7 @@ pub(super) fn fixed_array_field_lengths(
     fields
 }
 
-pub(in crate::checks) fn fixed_array_type_length(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<usize> {
-    if bounded_byte_type_capacity(program, type_reference).is_some() {
-        return None;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::FixedArray { length, .. } => match length {
-            FixedArrayLength::Literal(length) => Some(*length),
-            // ConstCall lengths are substituted to literals by the
-            // orchestration const-eval pass before checking; treat a survivor
-            // like an unresolved const parameter (no concrete length known).
-            FixedArrayLength::ConstParameter { .. } | FixedArrayLength::ConstCall { .. } => None,
-        },
-        TypeReferenceNode::Reference { referee, .. }
-        | TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        } => fixed_array_type_length(program, *referee),
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::Generic { .. }
-        | TypeReferenceNode::Named { .. }
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::Unit => None,
-    }
-}
+pub(in crate::checks) use validation::fixed_array_type_length;
 
 /// The retained constant recipe of a fixed array's extent (`[T; call()]`),
 /// through reference and constraint shells; the invalid handle when the

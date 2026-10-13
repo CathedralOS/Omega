@@ -7,6 +7,13 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
+pass/contracts/runtime_literal_view_extent_calls_exit checked 5692ms check-target:macos_arm64 @81a0434130f9bfb47b3bec8ac9b47181a4ae96d2+wt
+fail/contracts/literal_view_extent_not_invented rejected 545ms expected @81a0434130f9bfb47b3bec8ac9b47181a4ae96d2+wt
+	cannot prove requires contract for call nonempty from empty_is_not_nonempty: [].len > 0 (needs fact `bytes.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call one_byte from codepoints_are_not_bytes: [195, 169].len == 1 (needs fact `bytes.len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call nonempty from replaced_descriptor_is_not_its_initializer: bytes.len > 0 (needs fact `bytes.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call nonempty from capacity_is_not_live_length: bytes.len > 0 (needs fact `bytes.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call nonempty from projected_capacity_is_not_live_length: buffer.bytes.len > 0 (needs fact `bytes.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 # context: {"cpus": 10, "jobs": "3", "load1_end": 7.13, "load1_start": 7.23, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 # W2-17 scoped observations: wire qualification; prior rows preserved.
 # prior context: {"cpus": 10, "jobs": "3", "load1_end": 11.93, "load1_start": 7.22, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}

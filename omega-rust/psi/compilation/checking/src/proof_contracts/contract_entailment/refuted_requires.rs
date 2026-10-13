@@ -604,23 +604,16 @@ fn declared_len_extent_term(
         }
         _ => return term,
     }
-    let Some(declared) = crate::value_custody::places::declared_member_path_type(
+    let Some(extent) = crate::value_custody::places::declared_member_path_type(
         program,
         machine,
         Some(state),
         &names,
     )
-    .and_then(|declared| crate::value_custody::places::unwrapped_type_reference(program, declared)) else {
+    .and_then(|declared| crate::fixed_array_type_length(program, declared)) else {
         return term;
     };
-    let typed_trees::types::TypeReferenceNode::FixedArray {
-        length: typed_trees::types::FixedArrayLength::Literal(extent),
-        ..
-    } = program.type_reference_table.type_reference(declared)
-    else {
-        return term;
-    };
-    StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(*extent as u64))
+    StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(extent as u64))
 }
 
 /// Walk an ensures fact's `&&`-conjuncts; each `==` conjunct whose sides

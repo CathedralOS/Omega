@@ -1,0 +1,35 @@
+machine nonempty(bytes: &[u8])
+requires bytes.len > 0
+{}
+
+machine one_byte(bytes: &[u8])
+requires bytes.len == 1
+{}
+
+machine empty_is_not_nonempty() {
+    nonempty("");
+}
+
+machine codepoints_are_not_bytes() {
+    one_byte("\xC3\xA9");
+}
+
+machine replaced_descriptor_is_not_its_initializer() {
+    let mut bytes: &[u8] = "ab";
+    bytes = "";
+    nonempty(bytes);
+}
+domain [u8; 8]::Utf8(bytes)
+requires valid_utf8(bytes);
+
+machine capacity_is_not_live_length() {
+    let bytes: [u8; 8] in Utf8 = "";
+    nonempty(&bytes);
+}
+
+data Buffer { bytes: [u8; 8] in Utf8; }
+
+machine projected_capacity_is_not_live_length() {
+    let buffer: Buffer = Buffer { bytes: "" };
+    nonempty(&buffer.bytes);
+}

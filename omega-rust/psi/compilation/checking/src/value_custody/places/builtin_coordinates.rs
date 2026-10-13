@@ -43,13 +43,34 @@ pub fn declared_collection_extent(
     // the loaned place's declared type, so `(&mut control).len` on a fixed
     // field resolves the same extent `control.len` does.
     let declared = declared_place_type_raw(program, machine, state, receiver)?;
-    let declared = super::unwrapped_type_reference(program, declared)?;
-    match program.type_reference_table.type_reference(declared) {
-        typed_trees::types::TypeReferenceNode::FixedArray {
-            length: typed_trees::types::FixedArrayLength::Literal(extent),
-            ..
-        } => Some(*extent),
-        _ => None,
+    fixed_array_type_length(program, declared)
+}
+
+/// A type establishes exact length only for always-full arrays. Preserve
+/// constrained shells until their carrier classification is known: bounded
+/// byte owners carry a live length independently of their storage capacity.
+/// Expression and canonical-place observations share this rule with bounds
+/// checking, so projecting or borrowing a buffer cannot turn capacity into
+/// evidence that any bytes are present.
+pub fn fixed_array_type_length(
+    program: &dyn crate::CheckingInput,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<usize> {
+    loop {
+        if crate::bounded_byte_buffer_capacity(program, reference).is_some() {
+            return None;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            typed_trees::types::TypeReferenceNode::FixedArray {
+                length: typed_trees::types::FixedArrayLength::Literal(extent),
+                ..
+            } => return Some(*extent),
+            typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+            | typed_trees::types::TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => reference = *referee,
+            _ => return None,
+        }
     }
 }
 

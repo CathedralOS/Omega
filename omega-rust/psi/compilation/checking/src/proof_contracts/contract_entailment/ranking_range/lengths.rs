@@ -287,7 +287,11 @@ fn evaluate_length(
             };
             return saved_length(program, machine, state, symbol, engine, depth);
         }
-        ExpressionNode::ArrayLiteral(values) => Some(values.len() as u64),
+        // Quoted bytes form an immutable image-backed view. Its live extent
+        // is the byte count, just as an array literal's extent is its element
+        // count; this supplies geometry only, never an encoding predicate.
+        ExpressionNode::String(bytes) => u64::try_from(bytes.len()).ok(),
+        ExpressionNode::ArrayLiteral(values) => u64::try_from(values.len()).ok(),
         ExpressionNode::Call(call) => slice_view_call_length(program, machine, state, call)
             .or_else(|| calls::normal_return_length(program, call, engine)),
         _ => None,
