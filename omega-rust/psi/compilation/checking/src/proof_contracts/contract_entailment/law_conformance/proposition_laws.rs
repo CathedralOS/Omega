@@ -151,29 +151,96 @@ pub(crate) fn synthesize_indexed_law_binder_labels(
     requirement: &StateSignature,
     entry_state: &typed_trees::state::State,
 ) -> Option<Vec<String>> {
-    let declaration = program.proposition_definition_by_symbol(instantiated_law.proposition)?;
+    let pack = indexed_law_pack(
+        program,
+        authored_law,
+        instantiated_law.proposition,
+        program.state_signature_parameters(requirement),
+        program.state_parameters(entry_state),
+    )?;
+    Some(
+        pack.iter()
+            .map(|argument| program.display_type_reference(*argument))
+            .collect(),
+    )
+}
+
+/// The index pack a family law omits. A requirement over a carrier family
+/// `C` states `R(left, right)` without packs; the laws quantify them
+/// independently, and the realizer instantiates them through its own
+/// parameter types: the subject at requirement position `k` has the
+/// realizer's type `C<I>` at `k`, whose arguments are that subject's pack.
+/// `None` when a subject is not a requirement parameter, a realizer subject
+/// type has no arguments, or the recovered pack does not fill the family's
+/// binder telescope.
+fn indexed_law_pack(
+    program: &dyn crate::CheckingInput,
+    law: &typed_trees::proposition::PropositionApplication,
+    family: symbols::SymbolHandle,
+    required_parameters: &[typed_trees::signature::StateParameter],
+    actual_parameters: &[typed_trees::signature::StateParameter],
+) -> Option<Vec<typed_trees::types::TypeReferenceHandle>> {
+    let declaration = program.proposition_definition_by_symbol(family)?;
     let binder_count = program.proposition_binders(declaration).len();
     if binder_count == 0 {
         return Some(Vec::new());
     }
-    let required_parameters = program.state_signature_parameters(requirement);
-    let actual_parameters = program.state_parameters(entry_state);
-    let mut labels = Vec::with_capacity(binder_count);
-    for argument in program
-        .expression_table
-        .expression_handles(authored_law.arguments)
-    {
+    let mut pack = Vec::with_capacity(binder_count);
+    for argument in program.expression_table.expression_handles(law.arguments) {
         let required_index =
             proposition_law_parameter_index(program, *argument, required_parameters)?;
         let actual = actual_parameters.get(required_index)?;
-        let generic_arguments = generic_type_argument_handles(program, actual.type_reference)?;
-        labels.extend(
-            generic_arguments
-                .iter()
-                .map(|argument| program.display_type_reference(*argument)),
-        );
+        pack.extend_from_slice(generic_type_argument_handles(
+            program,
+            actual.type_reference,
+        )?);
     }
-    (labels.len() == binder_count).then_some(labels)
+    (pack.len() == binder_count).then_some(pack)
+}
+
+/// The binder arguments of a family law whose pack the requirement omits,
+/// recovered by [`indexed_law_pack`] from the realizer's parameter types.
+/// Each pack member must name one static binder of the family's kind.
+pub(crate) fn indexed_law_binder_arguments(
+    program: &dyn crate::CheckingInput,
+    law: &typed_trees::proposition::PropositionApplication,
+    required_parameters: &[typed_trees::signature::StateParameter],
+    actual_parameters: &[typed_trees::signature::StateParameter],
+) -> Option<Vec<typed_trees::proposition::PropositionBinderArgument>> {
+    use typed_trees::proposition::{
+        PropositionBinderArgument, PropositionBinderArgumentKind, PropositionBinderKind,
+    };
+    let declaration = program.proposition_definition_by_symbol(law.proposition)?;
+    let pack = indexed_law_pack(
+        program,
+        law,
+        law.proposition,
+        required_parameters,
+        actual_parameters,
+    )?;
+    program
+        .proposition_binders(declaration)
+        .iter()
+        .zip(pack)
+        .map(|(binder, argument)| {
+            let typed_trees::types::TypeReferenceNode::Named { symbol, name } =
+                program.type_reference_table.type_reference(argument)
+            else {
+                return None;
+            };
+            Some(PropositionBinderArgument {
+                kind: match binder.kind {
+                    PropositionBinderKind::Type => PropositionBinderArgumentKind::Type,
+                    PropositionBinderKind::Const { .. } => PropositionBinderArgumentKind::Const,
+                    PropositionBinderKind::Machine => PropositionBinderArgumentKind::Machine,
+                },
+                path: Box::new([name.clone()]),
+                const_literal: None,
+                evidence_projection: None,
+                symbol: *symbol,
+            })
+        })
+        .collect()
 }
 
 fn proposition_law_parameter_index(

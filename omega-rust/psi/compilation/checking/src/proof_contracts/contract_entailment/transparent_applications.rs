@@ -22,7 +22,8 @@ use typed_trees::signature::SignatureContractKind;
 /// The identity equations one transparent application denotes, one per
 /// conjunct of its unfolded body. `None` when the application is not
 /// transparent. A `None` conjunct lies outside the structural language: a
-/// hypothesis drops it (only weakening), a goal cannot be proven.
+/// hypothesis drops it (only weakening), a goal cannot be proven. A literal
+/// `true` conjunct contributes no equation.
 pub(super) fn transparent_application_conjuncts(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -173,6 +174,12 @@ fn unfold_boolean(
             environment,
             conjuncts,
         );
+        return;
+    }
+    // `true` is the unit of conjunction: it owes a goal nothing and grants a
+    // premise nothing. A total relation (`= true`) therefore unfolds to no
+    // equations rather than one unreadable conjunct.
+    if program.expression_table.boolean_node(expression) == Some(&true) {
         return;
     }
     conjuncts.push(

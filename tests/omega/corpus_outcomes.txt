@@ -3095,6 +3095,8 @@ fail/proofs/core_nat_runtime_consumption_rejected rejected 2761ms expected @a9ae
 	machine `Main::main` state `main` parameter `main` mentions proof-only `Main`, which has no runtime layout
 fail/proofs/defined_proposition_premise_not_symmetric rejected 168ms expected @77ecdbf5e7c6
 	checked machine `before_symmetric` cannot establish proposition ensure `boolean:right.x < left.x` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+fail/proofs/family_carrier_relation_extra_premise_rejected rejected 487ms expected @47fae30824a7+wt
+	machine `ordered_symmetric` realizes `Symmetric::symmetric` but requires `ordered`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/proofs/field_view_constructor_geometry rejected 276ms expected @f87e5abb7145+wt
 	machine `main` state `entry` value call to `Slice::range` violates required fact `start <= end && end <= items.len`: the instantiated fact is structurally false (`0 <= 3 && 3 <= 2`)
 fail/proofs/field_view_index_missing_bound rejected 1721ms expected @d3431e5a76cb+wt
@@ -4165,6 +4167,8 @@ fail/traits/explicit_implementation_wrong_trait_arguments rejected 169ms expecte
 	`PowerOrder` implements `Ranked<Card>`, not the `Ranked<Gem>` this call of `Ranked::compare` names
 fail/traits/external_row_does_not_capture_map_region rejected 223ms expected @21c44dfab69b
 	machine `read` state `entry` parameter `context` uses undeclared lifetime `'storage'; declare it in the owner's generic parameter list
+fail/traits/family_carrier_pack_dependent_storage_rejected rejected 402ms expected @47fae30824a7+wt
+	machine `hold_any` state `entry` does not satisfy trait `Holding` machine `hold`: conformance borrow contract: unimplemented: callable input region frontier is incomplete
 fail/traits/finite_family_machine_facts_do_not_bind_state rejected 91ms expected @7e763bd2f4f6+wt
 	cannot prove declared where facts for static application of requirement `Factory::make` under its complete applied telescope
 fail/traits/finite_family_mutable_state_subject rejected 89ms expected @7e763bd2f4f6+wt
@@ -6488,6 +6492,7 @@ pass/proofs/cauchy_predicates_compile rejected 2674ms @a9ae30e1c334+wt
 pass/proofs/citation_requires_discharged checked 10576ms @b7aaf37278ea+wt
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 1240ms @1cb01af2f0bb
 pass/proofs/defined_proposition_premises checked 1193ms @77ecdbf5e7c6
+pass/proofs/family_carrier_relation_laws checked 1811ms @47fae30824a7+wt
 pass/proofs/field_view_index_contract checked 5381ms @d3431e5a76cb+wt
 pass/proofs/float_guarded_negated_result_contract checked 3661ms @1f63ee648905+wt
 pass/proofs/float_named_contract_literal_landing checked 3204ms @1f63ee648905+wt
@@ -6535,10 +6540,7 @@ pass/proofs/proof_order_transitivity checked 1832ms @a9ae30e1c334+wt
 pass/proofs/proof_remainder_range checked 1775ms @a9ae30e1c334+wt
 pass/proofs/proposition_const_operand_application checked 1615ms @a9ae30e1c334+wt
 pass/proofs/proposition_reference_operand_application checked 1601ms @a9ae30e1c334+wt
-pass/proofs/proposition_relation_hierarchy_compile rejected 1502ms regressed-from:checked @a9ae30e1c334+wt
-	machine `stream_related_reflexive` state `entry` does not satisfy trait `Reflexive` machine `reflexive`: conformance borrow contract: unimplemented: callable input region frontier is incomplete
-	machine `stream_related_symmetric` state `entry` does not satisfy trait `Symmetric` machine `symmetric`: conformance borrow contract: unimplemented: callable input region frontier is incomplete
-	machine `stream_related_transitive` state `entry` does not satisfy trait `Transitive` machine `transitive`: conformance borrow contract: unimplemented: callable input region frontier is incomplete
+pass/proofs/proposition_relation_hierarchy_compile checked 1809ms @47fae30824a7+wt
 pass/proofs/quotient_define_managed_compile checked 11130ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/proofs/quotient_equivalence_compile checked 1752ms @a9ae30e1c334+wt
 pass/proofs/quotient_lift_managed_compile checked 11287ms check-target:linux_x86_64 @a9ae30e1c334+wt

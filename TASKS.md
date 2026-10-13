@@ -3183,9 +3183,7 @@ crash and native exit behavior.
     (external evaluation not build-time admissible),
     `pass/generics/open_computed_quantity_result` (const parameter
     materialization), `pass/modules/same_name_requirement_field_calls_exit`
-    (Unit services with empty or duplicate canonical identities),
-    `pass/proofs/proposition_relation_hierarchy_compile` (conformance borrow
-    contract unimplemented).
+    (Unit services with empty or duplicate canonical identities).
   - Cross-host control: Linux records still reject
     `pass/text/local_bounded_text_case_result_loan_exit` and mark
     `local_bounded_text_scalar_loan_exit` incomplete, while macOS recorded

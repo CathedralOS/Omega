@@ -11,7 +11,7 @@
 //! scoped integer prover supplies implication beyond exact correspondence;
 //! unknown implication refuses, rather than comparing diagnostic spellings.
 
-use super::law_conformance::term_mentions_variable;
+use super::law_conformance::{indexed_law_binder_arguments, term_mentions_variable};
 use super::structural_terms::structural_term;
 use super::{
     RESULT_BINDER, ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
@@ -65,13 +65,20 @@ pub(crate) fn check_contract_refinement(
         // Signature correspondence owns the arity diagnostic.
         return;
     }
-    let required = ContractFacts::collect(
+    let mut required = ContractFacts::collect(
         program,
         requirement.symbol,
         program.state_signature_contracts(requirement).iter(),
         required_parameters,
         requirement.return_type,
         program.state_signature_type_parameters(requirement),
+    );
+    required.instantiate_family_packs(
+        program,
+        program.state_signature_type_parameters(requirement),
+        required_parameters,
+        invocation_parameters,
+        member_parameters,
     );
     let member = ContractFacts::collect(
         program,
@@ -191,6 +198,48 @@ impl ContractFacts {
             }
         }
         facts
+    }
+
+    /// A requirement over a carrier family states its premises without index
+    /// packs (`R(left, right)`); the laws quantify those packs independently
+    /// and the realizer's binders instantiate them through its parameter
+    /// types (quotients.md, "Families, relations, and evidence"). Recover
+    /// each omitted pack by the same rule law conformance uses, then compare
+    /// the completed premise in the realizer's binder namespace. A pack that
+    /// cannot be recovered keeps the premise without identity, which refuses.
+    fn instantiate_family_packs(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        required_generics: &[typed_trees::data::TypeParameter],
+        required_parameters: &[StateParameter],
+        member_generics: &[typed_trees::data::TypeParameter],
+        member_parameters: &[StateParameter],
+    ) {
+        let mut generics = generic_binders(required_generics);
+        generics.extend(generic_binders(member_generics));
+        let binders = callable_binders(&generics, required_parameters);
+        for conjunct in &mut self.requires {
+            let ProofFact::Proposition(application) = &conjunct.fact else {
+                continue;
+            };
+            if conjunct.identity.is_some() || !application.binder_arguments.is_empty() {
+                continue;
+            }
+            let Some(binder_arguments) = indexed_law_binder_arguments(
+                program,
+                application,
+                required_parameters,
+                member_parameters,
+            ) else {
+                continue;
+            };
+            let completed = typed_trees::proposition::PropositionApplication {
+                binder_arguments: binder_arguments.into(),
+                ..application.clone()
+            };
+            conjunct.identity =
+                correspondence_fact(program, &ProofFact::Proposition(completed), &binders);
+        }
     }
 
     fn bind_integer(

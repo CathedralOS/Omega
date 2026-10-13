@@ -565,22 +565,28 @@ fn collect_type(
                 }
                 return false;
             };
-            if !definition.type_parameters.is_empty()
-                || (whole_elided_contract && !definition.lifetime_parameters.is_empty())
+            if whole_elided_contract
+                && (!definition.type_parameters.is_empty()
+                    || !definition.lifetime_parameters.is_empty())
             {
                 return false;
             }
-            collect_data(
-                program,
-                reference,
-                definition,
-                lifetimes,
-                types,
-                owner_path,
-                visiting,
-                output,
-                whole_elided_contract,
-                template,
+            if definition.type_parameters.is_empty() {
+                return collect_data(
+                    program,
+                    reference,
+                    definition,
+                    lifetimes,
+                    types,
+                    owner_path,
+                    visiting,
+                    output,
+                    whole_elided_contract,
+                    template,
+                );
+            }
+            collect_family(
+                program, reference, definition, owner_path, visiting, output, template,
             )
         }
         TypeReferenceNode::Unit => true,
@@ -588,6 +594,57 @@ fn collect_type(
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::DynamicTrait { .. } => false,
     }
+}
+
+/// A generic declaration named without arguments is a carrier family: its
+/// subject is the total carrier `Σ (I : IndexPack). C<I>` (quotients.md,
+/// "Families, relations, and evidence"), so its frontier is the union over
+/// every admissible index pack. The pack is existential, never the symbolic
+/// template of the surrounding comparison, and no outer application supplies
+/// it. Machine, proposition, implementation and value binders select code or
+/// facts, not stored field types, so the declaration's fields describe the
+/// frontier exactly. A field whose type is one of the family's own Type
+/// binders depends on the unknown pack and leaves the frontier incomplete; a
+/// reference over one of its own regions names no lexical declaration, which
+/// callable refinement refuses.
+fn collect_family(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    definition: &typed_trees::data::DataDefinition,
+    owner_path: &[BorrowOwnerSegment],
+    visiting: &mut Vec<DataVisit>,
+    output: &mut Vec<CarriedLifetime>,
+    template: &mut TemplateFrontier<'_>,
+) -> bool {
+    let pack = program.data_type_parameters(definition);
+    let comparison_parameters = template
+        .parameters
+        .iter()
+        .copied()
+        .filter(|parameter| !pack.iter().any(|binder| binder.symbol == *parameter))
+        .collect::<Vec<_>>();
+    let mut family_template = TemplateFrontier {
+        parameters: &comparison_parameters,
+        dependent: false,
+        scoped_regions: template.scoped_regions,
+    };
+    let complete = collect_data(
+        program,
+        reference,
+        definition,
+        &[],
+        TypeScope {
+            declaration: definition.symbol,
+            ..TypeScope::default()
+        },
+        owner_path,
+        visiting,
+        output,
+        false,
+        &mut family_template,
+    );
+    template.dependent |= family_template.dependent;
+    complete
 }
 
 fn collect_data(

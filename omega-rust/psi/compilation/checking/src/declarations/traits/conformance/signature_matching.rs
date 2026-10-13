@@ -973,11 +973,19 @@ fn binding_matches_actual(
                 },
             ) if actual_symbol.is_valid() && expected_symbol.is_valid() => {
                 actual_symbol == expected_symbol
-                    || type_reference_is_instance_of_family(program, actual, *expected)
+                    || type_reference_is_instance_of_family(
+                        program,
+                        actual,
+                        outer_binding_argument(program, *expected, bindings, binding.scope_start),
+                    )
             }
             _ => {
                 type_references_match(program, actual, *expected)
-                    || type_reference_is_instance_of_family(program, actual, *expected)
+                    || type_reference_is_instance_of_family(
+                        program,
+                        actual,
+                        outer_binding_argument(program, *expected, bindings, binding.scope_start),
+                    )
             }
         },
         TraitTypeBindingTarget::Parameter(symbol) => matches!(
@@ -988,6 +996,31 @@ fn binding_matches_actual(
             } if (*symbol).is_valid() && *actual_symbol == *symbol
         ),
     }
+}
+
+/// A nested application's argument may name a parameter of an enclosing
+/// application (`Reflexive<C, R>` inherited by `Equivalence<C, R>`). Follow
+/// those simultaneous telescopes outward to the argument the enclosing
+/// application supplies, each lookup seeing only the bindings before its own
+/// telescope.
+fn outer_binding_argument(
+    program: &dyn crate::CheckingInput,
+    mut argument: TypeReferenceHandle,
+    bindings: &[TraitTypeBinding],
+    mut scope_start: usize,
+) -> TypeReferenceHandle {
+    while let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(argument)
+        && let Some(outer) = bindings[..scope_start]
+            .iter()
+            .rev()
+            .find(|binding| binding.parameter_symbol == *symbol)
+        && let TraitTypeBindingTarget::Type(supplied) = outer.target
+    {
+        argument = supplied;
+        scope_start = outer.scope_start;
+    }
+    argument
 }
 
 fn type_reference_is_instance_of_family(
