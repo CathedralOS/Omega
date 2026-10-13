@@ -78,6 +78,35 @@ facts. Selected-cell citations follow from the predicate's body; mutable
 handback proves the predicate for the functional store result. Neither route
 assumes a fixed slice extent or an arbitrary predicate's preservation.
 
+## Audited bounded reference carriers
+
+The following six customers retain 19 historical scalar positions. Every
+`Cell.value: i32 [0..=100]` becomes plain i32 with data
+`where value >= 0, value <= 100`; every `Main.index: u64 [0..=1]` becomes
+plain u64 with data `where index <= 1`. The unsigned carrier supplies the
+zero floor. Observed locals retain their original initializer and consume its
+bounds through `require_cell_value`, rather than asserting them with a local
+annotation. State parameters retain both bounds as ordinary `requires`.
+
+Paths below are under `tests/omega/pass/borrows/`.
+
+| Customer and original snapshot | Historical positions | Count |
+| --- | --- | --- |
+| `runtime_nested_reference_array_bounded_read_exit`, `fcce1da2785` | `Cell.value`, `Main.index`, `observed` | 3 |
+| `runtime_nested_carrier_bounded_reference_read_exit`, `40f16ba2097` | `Cell.value`, `Main.index`, `observed` | 3 |
+| `runtime_stored_reference_array_constructor_transfer_exit`, `3723809d259` | `Cell.value`, `observed`, `other` | 3 |
+| `runtime_stored_reference_leaf_constructor_transfer_exit`, `6b52c3a60e2` | `Cell.value`, `observed` | 2 |
+| `runtime_shared_reference_array_cohort_restoration_exit`, `60ac0370941` | `Cell.value`, `Main.index`, `first`, `observed` | 4 |
+| `runtime_stored_reference_case_residual_retirement_exit`, `0a1b53bab78` | `Cell.value`, `observed`, `selected.observed`, `selected.second` | 4 |
+
+The original reference-array construction, nested record reads, constructor
+transfers, descriptor retirement, case payloads and writes remain unchanged.
+Each authored exit is 70 in native and Terminal execution. The paired
+`fail/borrows/reference_record_{field,index}_predicate_invalid_store` controls
+reject writes outside the field predicates;
+`fail/borrows/reference_array_field_requires_declared_predicate` prevents a
+same-named unbounded field from supplying the borrowed-read guarantee.
+
 ## Audited core layout fields
 
 The 13 common-field suffixes in `source/library/core/layout.omg` at

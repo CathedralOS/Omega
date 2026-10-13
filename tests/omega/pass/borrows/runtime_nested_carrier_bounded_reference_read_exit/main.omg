@@ -2,14 +2,14 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Cell { stamp: i32; value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0, value <= 100 { stamp: i32; value: i32; ready: bool; }
 data Message { stamp: i32; body: &Cell; }
 data Envelope { stamp: i32; message: &Message; }
-data Main {
+data Main where index <= 1 {
     console: Binding<Console>;
     first: Cell;
     second: Cell;
-    index: u64 [0..=1];
+    index: u64;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -26,7 +26,8 @@ machine Main::main(main: &mut Main) reaches Console {
         Envelope { stamp: 13, message: &first_message },
         Envelope { stamp: 17, message: &second_message }
     ];
-    let observed: i32 [0..=100] = envelopes[main.index].message.body.value;
+    let observed: i32 = envelopes[main.index].message.body.value;
+    require_cell_value(observed);
     let ready: bool = envelopes[main.index].message.body.ready;
     transition observed == 70 && ready {
         true -> good(main)
@@ -35,3 +36,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }
 }
+
+machine require_cell_value(value: i32)
+requires value >= 0 && value <= 100
+{}

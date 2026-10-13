@@ -1581,6 +1581,11 @@ defines the complete product bar.
     executes with exit 70 on macOS ARM64; stale-local and earlier-operand
     mutation controls reject. Ordinary CLI package preparation still requires
     this new fixture's local package review; no acceptance policy is committed.
+    Keep the [19-position reference-carrier inventory](wiki/drafts/designs/range_suffix_migration.md#audited-bounded-reference-carriers)
+    and its six authored exit-70 witnesses as regression constraints: nested
+    reference arrays/records, constructor transfers, shared cohorts and case
+    retirement retain field predicates and bare-local facts. Invalid field
+    and index stores and a same-named unbounded field must still reject.
     Continue with the nonliteral/indexed writes and consumer transports above;
     this does not close the complete field/case migration.
   - Guarded immutable-local, guarded-field, nested-call-result and
