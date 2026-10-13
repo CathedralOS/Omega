@@ -229,15 +229,19 @@ pub(crate) fn emit(
                         })
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
-                let structural_arguments = call
-                    .structural_arguments
-                    .iter()
-                    .map(|argument| argument.emit(values, calls, next_value, operations))
-                    .collect::<Result<Vec<_>, _>>()?;
                 // Only dispatch changes the operation kind. The common result
                 // receiver below binds declared qualifications and actual claims.
                 let kind = match &call.endpoint {
                     EffectCallTarget::Boundary => {
+                        // Each endpoint prepares these completed operands once.
+                        // Module preparation owns its structural lanes below;
+                        // emitting them here too would duplicate indexed-path
+                        // operations and their exact proof obligations.
+                        let structural_arguments = call
+                            .structural_arguments
+                            .iter()
+                            .map(|argument| argument.emit(values, calls, next_value, operations))
+                            .collect::<Result<Vec<_>, _>>()?;
                         let target = calls
                             .boundaries
                             .iter()
