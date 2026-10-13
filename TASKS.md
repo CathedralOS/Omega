@@ -2099,7 +2099,7 @@ then independent claimed restoration slices -> final closure.
   **BUILD-EVALUATES-ONCE**, pre-effect admission and all-target authored rows;
   do not retain a feature/fixture-specific Build evaluator.
   Discovery/default-source phase selection is **OWNER-BLOCKED** on
-  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q7---how-does-a-build-select-its-core-only-discovery-entry):
+  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q6---how-does-a-build-select-its-core-only-discovery-entry):
   the same free Build entry mixes discovery with work needing the resolved
   graph, with no defined entry/phase boundary. This blocks that subfrontier
   only; Terminal/mutable-slot/accounting and immutable resolver joins remain
@@ -5491,7 +5491,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Default builds and anonymous owners
     ([spec](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)):
     The interpreted discovery/default-source prerequisite references
-    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q7---how-does-a-build-select-its-core-only-discovery-entry);
+    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q6---how-does-a-build-select-its-core-only-discovery-entry);
     other owner/identity/resolution joins remain engineering.
     `omega-rust/omega/packages/compilation-inputs/src/source_imports/frontier.rs`
     leaves loose roots without package identity. Derive the versioned anonymous
@@ -6409,12 +6409,19 @@ wait for Cathedral's instruction coverage. The interpreter is
     `x86_fma_plan_association`, `named_provider_fused_multiply_add_exit` and
     `admitted_numeric_imports_preserve_semantics` (all admit AvxFma3) on
     matching hosts now that std Console source checking is restored.
-  - The never-populated image custody (constant-operand
-    `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd`, machine-code FMA
-    fragments/occurrences, `object_artifact/replay/x86_fma.rs`) waits on
-    `OWNER_QUESTIONS.md` `x86-fma-image-custody`.
+  - Delete the superseded constant-operand
+    `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd` route, machine-code
+    FMA fragments/occurrences and their digest plumbing,
+    `object_artifact/replay/x86_fma.rs`, and the unused ObjectArtifact /
+    ExecutableImage `x86_scalar_fma_provider` fields. Preserve the admitted
+    provider in the realization plan, ordinary runtime-operand lowering and
+    floating-control behavior. Do not extend replay to runtime operands or
+    replace it with another FMA-specific image ledger; see
+    [numeric realization](wiki/spec/language/numeric_values.md#target-realization-and-control-state).
   Acceptance: the three std fixtures run on Windows and Linux x86-64 at their
-  oracles and the std-free fixture runs on Linux x86-64 hardware.
+  oracles and the std-free fixture runs on Linux x86-64 hardware; the dormant
+  image custody route and its callers are absent, with missing-feature and
+  fused-versus-unfused controls retained.
 
 - **ASM-INSTRUCTION-CATALOG-EXPANSION.** Carry checked assembly through
   source-to-native production under [assembly](wiki/spec/language/assembly.md)

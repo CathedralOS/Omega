@@ -294,6 +294,12 @@ no ambient fast-math flag or build option. A future relaxed operation would
 need an explicit per-operation contract; an either-rounding `muladd` remains
 deferred without a customer.
 
+These are result guarantees, not a requirement to execute operations through
+runtime `Rat` values. Hardware or checked software must implement the same
+selected contract. Selecting an optimization in `build.omg` cannot weaken the
+arithmetic facts used by checking; relaxed arithmetic would need a separately
+accepted contract visible to checking as well as realization.
+
 ### Meaning, comparisons, and representation
 
 `Float::meaning32` and `Float::meaning64` project to proof-only `FloatMeaning`:
@@ -398,6 +404,16 @@ selected identities and covers normal/subnormal boundaries, ties,
 overflow/underflow, signed zeros, infinities, NaNs, and policy edges. Exact NaN
 bit comparisons are required only for claimed raw-bit refinements. Compilation
 or image reproducibility is not hardware execution evidence.
+
+Optional ISA features, including x86 AVX+FMA3, are admitted by target/provider
+selection and retained in the realization plan. FMA uses the ordinary operation
+and instruction pipeline. Native images require no separate FMA fragment,
+occurrence, digest or provider-custody record, and emission does not decode or
+replay those records. The superseded constant-operand FMA custody route is not
+an alternative lowering path. Instruction encoding and execution tests still
+check the selected realization, including its feature admission and floating
+controls; this ruling removes no arithmetic guarantee. It does not introduce
+a loader-facing ISA-feature manifest.
 
 A library can define an encoded float carrier and checked software operations
 without new primitives. First-class literal/evaluation integration requires an

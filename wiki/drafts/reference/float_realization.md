@@ -17,10 +17,12 @@ operation saves/restores controls around the single operation; source has no
 ambient mode change.
 
 Generic x86-64 remains SSE2-baseline. The opt-in `AvxFma3` deployment joins one
-exact profile and canonical AVX+FMA3 requirement to register-only
-`VFMADD132SS`/`VFMADD132SD`. Both format slots retain raw-bit cancellation
-receipts distinguishing fused from separately rounded results. An encoder or
-checked build selection alone is not hardware execution evidence.
+exact profile and canonical AVX+FMA3 requirement to the ordinary runtime-operand
+lowering, which emits `VFMADD213SS`/`VFMADD213SD`. Cancellation tests distinguish
+fused from separately rounded results. An encoder or checked build selection
+alone is not hardware execution evidence. Remaining host execution and removal
+of the superseded image-custody route belong to **X86-FMA-PROVIDER-TRANSPORT**
+in [TASKS.md](../../../TASKS.md).
 
 [x86_fma_plan_association.rs](../../../omega-rust/omega/compilation/realization/provider-planning/src/x86_fma_plan_association/mod.rs) joins the
 complete selected `ProviderPlan`, compiler-intrinsic provenance, exact requirement,
@@ -86,19 +88,14 @@ operation or control edge. Their machine, object, and final-image bytes agree.
 Internal AAPCS64 transport is not a claim that private symbols implement Darwin
 C's differently packed stack arguments.
 
-A supported source lane carries independent landed-literal FMA locals through
-Terminal raw-bit constants and FMA operations. Exact per-occurrence proposals
-cover the source-ordered Terminal operation roster one-to-one. The ordinary
-Abstract/Target/Assigned/machine pipeline retains the selected plan and admitted
-provider; assignment owns XMM homes. Wider shapes require their own checked
-correspondence and cannot silently fall into an optimized-direct entrance.
-
-The x86 FMA function envelope saves complete MXCSR, installs `0x1f80`
-(nearest-even, masked exceptions, FTZ/DAZ disabled), and restores incoming state.
-Object decoding independently checks operand loads, controls, FMA bytes, and
-instruction intervals; final native replay rejoins the canonical Terminal graph
-and selected plan. Permitted internal Unit calls remain within the function
-envelope. A supported returning foreign leaf uses its own nested envelope.
+FMA follows the ordinary operation, register-allocation and emission pipeline;
+the selected plan retains the admitted provider. The
+[numeric realization contract](../../spec/language/numeric_values.md#target-realization-and-control-state)
+rejects a separate FMA image ledger or emission replay. Do not extend the old
+constant-operand fragments and occurrence records to cover runtime operands.
+Canonical floating controls and foreign-call preservation remain required,
+independently of removing that bookkeeping; encoding and execution tests check
+the actual instructions and single-rounding result.
 
 Returning foreign calls preserve complete MXCSR or AArch64 FPCR around argument
 setup/call and restore it after outbound-stack release, before scalar result

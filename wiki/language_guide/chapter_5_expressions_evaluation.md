@@ -610,6 +610,12 @@ arithmetic's partial order.
 the former silently. There is no ambient fast-math option; any future relaxed
 operation would need its own explicit contract.
 
+This specifies the answer, not an obligation to perform runtime rational
+arithmetic. Native instructions may implement that answer directly. FMA has
+its own single-rounding meaning because hardware can provide that operation;
+it does not get a separate compilation pipeline or image bookkeeping scheme.
+Build optimization choices cannot silently weaken the guarantees proofs use.
+
 ### Literals and compile-time arithmetic
 
 `9.80665` denotes exactly `196133/20000` until landing. Anonymous arithmetic

@@ -173,9 +173,6 @@ A proposed shape for work that has not landed.
 - [Filesystem release contract](designs/filesystem_release_contract.md): scope
   verification and paused-closure plan for the bounded release proof; delete
   once the occurrence derivation and structural field-store closure land.
-- [Float FMA native transport](designs/float_fma_native_transport.md): measured state of
-  the scalar-FMA transport legs and their fences; delete once legs (b) and (c)
-  land and the native-realization fences are removed.
 - [General cyclic execution optimizer](designs/general_cyclic_execution_optimizer.md):
   re-verification ledger for the optimizer half of ranked cyclic execution;
   delete once an admitted ranked call cycle reaches that half.
