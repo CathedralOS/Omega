@@ -96,3 +96,13 @@ states. Canonical contracts are `wiki/spec/language/state_contracts.md`
 (terminal calls) and `wiki/spec/language/effects.md` (exact acknowledgements).
 The focused recursive-call corpus controls also cover parenthesized and
 qualified call forms, missing and redundant markers.
+
+Pinned qualification can separate production from observation. Run the same
+validator with `--route all --prepare-only` to compile the native executable
+and strict Terminal sponsor, then `--route all --prepared` to execute all
+cases against their recorded hashes without rewriting those artifacts. The
+prepared mode still checks the source-invalid bin and every numerical/refusal
+oracle. `validation/freeze_producer.py` copies a verified CLI/sponsor closure
+into a fresh private root; strict sponsor linking verifies that copied closure.
+Preparation alone is not numerical acceptance. The default command continues
+to prepare and validate both routes in one invocation.

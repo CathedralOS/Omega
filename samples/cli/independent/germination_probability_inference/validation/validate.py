@@ -3,7 +3,7 @@
 The Terminal sponsor links the supplied CLI's exact recorded library closure;
 normal complete-project preparation and runtime authority stay enforced.
 """
-import argparse, hashlib, json, math, subprocess, sys, time
+import argparse, hashlib, json, math, shutil, subprocess, sys, time
 sys.dont_write_bytecode=True
 from decimal import Decimal
 from fractions import Fraction
@@ -90,30 +90,72 @@ def main():
     parser.add_argument('--route',choices=['all','native','terminal'],default='all')
     parser.add_argument('--output',type=Path,default=ROOT/'build/qualification')
     parser.add_argument('--timeout',type=int,default=180);parser.add_argument('--fuel',type=int,default=500_000_000)
-    parser.add_argument('--case',action='append',dest='cases');options=parser.parse_args()
+    parser.add_argument('--case',action='append',dest='cases')
+    preparation=parser.add_mutually_exclusive_group()
+    preparation.add_argument('--prepare-only',action='store_true')
+    preparation.add_argument('--prepared',action='store_true')
+    options=parser.parse_args()
     assert options.timeout>0 and options.fuel>0
     output=options.output.resolve();output.mkdir(parents=True,exist_ok=True)
     omega=str(options.omega.resolve());oracle=load();names=options.cases or list(oracle['cases'])
     assert all(name in oracle['cases'] for name in names)
     started=time.monotonic();source=str(ROOT/'main.omg');record={'routes':{}}
+    source_hashes={str(path.relative_to(ROOT)):digest(path) for path in ROOT.rglob('*.omg') if 'build' not in path.relative_to(ROOT).parts}
+    prepared_path=output/'prepared.json';prepared={}
+    if options.prepared:
+        prepared=json.loads(prepared_path.read_text())
+        assert prepared['producer_sha256']==digest(Path(omega)), 'prepared producer changed'
+        assert prepared['source_hashes']==source_hashes, 'prepared source changed'
+        assert prepared['freeze']==json.loads((ROOT/'validation/FREEZE.json').read_text())
+        for path,wanted in prepared['artifact_hashes'].items():
+            assert digest(Path(path))==wanted,('prepared artifact changed',path)
     for name,path,code,fragment in [('check',ROOT/'main.omg',0,''),('source_invalid',ROOT/'controls/predictive_bin/main.omg',1,'cannot prove index `33` is within length 33')]:
         result=execute([omega,'--check',str(path)],b'',output,name,options.timeout)
         assert result.returncode==code and fragment.encode() in result.stdout+result.stderr,(name,result.stderr)
     if options.route in ('all','native'):
         report=output/'native.report'
-        result=execute([omega,'--target','linux_x86_64','--report-file',str(report),source],b'',output,'compile',options.timeout)
-        assert result.returncode==0,result.stderr
-        paths=[line.removeprefix('published native output to ') for line in report.read_text().splitlines() if line.startswith('published native output to ')]
-        assert len(paths)==1,report.read_text();program=paths[0];results=[]
-        for name in names:
-            observed=execute([program],(ROOT/'data'/f'{name}.txt').read_bytes(),output,name+'.native',options.timeout)
-            results.append(check(observed.stdout,observed.stderr,observed.returncode,name,oracle))
-        invariants(results);record['routes']['native']={'program_sha256':digest(Path(program)),'cases':results}
-        print('Native:',len(results),'actual numerical/refusal outputs matched',flush=True)
+        if options.prepared:
+            program=prepared['native_program']
+        else:
+            result=execute([omega,'--target','linux_x86_64','--report-file',str(report),source],b'',output,'compile',options.timeout)
+            assert result.returncode==0,result.stderr
+            paths=[line.removeprefix('published native output to ') for line in report.read_text().splitlines() if line.startswith('published native output to ')]
+            assert len(paths)==1,report.read_text()
+            private=output/'prepared-artifacts';private.mkdir(exist_ok=True)
+            program=str(private/'native-program');shutil.copy2(paths[0],program)
+            prepared['native_program']=program
+        if not options.prepare_only:
+            results=[]
+            for name in names:
+                observed=execute([program],(ROOT/'data'/f'{name}.txt').read_bytes(),output,name+'.native',options.timeout)
+                results.append(check(observed.stdout,observed.stderr,observed.returncode,name,oracle))
+            invariants(results);record['routes']['native']={'program_sha256':digest(Path(program)),'cases':results}
+            print('Native:',len(results),'actual numerical/refusal outputs matched',flush=True)
     if options.route in ('all','terminal'):
         sponsor=output/'terminal-output'
-        observed=execute([sys.executable,str(REPOSITORY/'tools/link_terminal_sponsor.py'),'--omega',omega,'--source',str(ROOT/'validation/terminal_output.rs'),'--output',str(sponsor)],b'',output,'sponsor_build',options.timeout)
-        assert observed.returncode==0,observed.stderr.decode(errors='replace')
+        if not options.prepared:
+            observed=execute([sys.executable,str(REPOSITORY/'tools/link_terminal_sponsor.py'),'--omega',omega,'--source',str(ROOT/'validation/terminal_output.rs'),'--output',str(sponsor)],b'',output,'sponsor_build',options.timeout)
+            assert observed.returncode==0,observed.stderr.decode(errors='replace')
+            prepared['terminal_observer']=str(sponsor)
+        else:
+            sponsor=Path(prepared['terminal_observer'])
+    if options.prepare_only:
+        paths=[Path(omega),prepared_path.parent/'native.report']
+        for key in ('native_program','terminal_observer'):
+            if key in prepared: paths.append(Path(prepared[key]))
+        if 'terminal_observer' in prepared:
+            receipt=Path(prepared['terminal_observer']).with_suffix('.build.json');paths.append(receipt)
+            for library in json.loads(receipt.read_text())['libraries']:
+                paths.append(Path(library['path']))
+                metadata=Path(library['path']).with_suffix('.rmeta')
+                if metadata.is_file(): paths.append(metadata)
+        prepared.update(producer_sha256=digest(Path(omega)),source_hashes=source_hashes,
+            freeze=json.loads((ROOT/'validation/FREEZE.json').read_text()),
+            artifact_hashes={str(path):digest(path) for path in paths if path.is_file()})
+        prepared_path.write_text(json.dumps(prepared,indent=2)+'\n')
+        print('Prepared exact native/Terminal artifacts; no numerical acceptance claimed',flush=True)
+        return
+    if options.route in ('all','terminal'):
         observed=execute([str(sponsor),str(ROOT),str(output),str(options.fuel),str(options.timeout),*names],b'',output,'terminal_observer',options.timeout*len(names)+180)
         assert observed.returncode==0,observed.stdout+observed.stderr
         results=[]
@@ -123,7 +165,7 @@ def main():
         print('Terminal:',len(results),'actual retained numerical/refusal outputs matched',flush=True)
     record.update({'producer_version':subprocess.check_output([omega,'--version'],text=True).strip(),
         'producer_sha256':digest(Path(omega)),'source_head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=REPOSITORY,text=True).strip(),
-        'source_hashes':{str(path.relative_to(ROOT)):digest(path) for path in ROOT.rglob('*.omg') if 'build' not in path.relative_to(ROOT).parts},
+        'source_hashes':source_hashes,
         'freeze':json.loads((ROOT/'validation/FREEZE.json').read_text()),'elapsed_seconds':time.monotonic()-started,'target':'linux_x86_64'})
     (output/'results.json').write_text(json.dumps(record,indent=2)+'\n')
 if __name__=='__main__':main()
