@@ -516,6 +516,8 @@ pass/layouts/runtime_stored_returned_encoded_reference_exit built 1697ms exit:0 
 pass/locals/runtime_deferred_scalar_initialization_exit built 1212ms exit:1 interpreter-exit:1 interpreter:agrees @25d3c2dff582+wt
 pass/locals/runtime_local_record_array_element_field_reads_exit built 1979ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
 pass/modules/runtime_nominal_constant_lexical_ownership_exit built 3880ms exit:0 interpreter-exit:0 interpreter:agrees @e178570a8179+wt
+pass/modules/same_name_requirement_field_calls_exit built 6768ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @292c990572a9+wt
+pass/modules/same_name_service_callback_exit built 5517ms exit:0 interpreter-exit:0 interpreter:agrees @292c990572a9+wt
 pass/operators/crash_routes built 640ms exit:0 interpreter-exit:0 interpreter:agrees @5ed90973d982+wt
 pass/operators/division_value_entry_selection built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
 pass/operators/runtime_constructed_operand_result_exit built 12708ms exit:0 interpreter-exit:0 interpreter:agrees @dfece6e7f6a1+wt
@@ -590,6 +592,8 @@ pass/providers/owned_array_operand_epochs_exit built 1550ms exit:0 interpreter-e
 pass/providers/runtime_boundary_array_construction_exit built 4358ms exit:70 interpreter-exit:70 interpreter:agrees @b6846d69ce88+wt
 pass/providers/runtime_boundary_array_result_exit built 1834ms exit:70 interpreter-exit:70 interpreter:agrees @006fa124be2c
 pass/providers/runtime_boundary_linear_result_exit built 4994ms exit:70 interpreter-exit:70 interpreter:agrees @20ad71d6e3a6+wt
+pass/providers/same_name_requirement_dispatch_exit built 5125ms exit:70 interpreter-exit:70 interpreter:agrees @292c990572a9+wt
+pass/providers/same_name_requirement_right_dispatch_exit built 5107ms exit:70 interpreter-exit:70 interpreter:agrees @292c990572a9+wt
 pass/providers/selected_const_provider_call_identity_exit built 2803ms exit:70 interpreter-exit:70 interpreter:agrees @c8e8e86a6e1b
 pass/providers/specialized_mixed_structural_result_operator_hosted_native built 5262ms exit:0 interpreter-exit:0 interpreter:agrees @7084889a08d8+wt
 pass/recast/runtime_aggregate_slice_representation_recast_exit built 5319ms exit:70 interpreter-exit:70 interpreter:agrees @9765a474ac87+wt

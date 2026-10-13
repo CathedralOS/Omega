@@ -65,6 +65,20 @@ id_constructor!(contract_id, ContractId);
 id_constructor!(obligation_id, ObligationId);
 id_constructor!(proposition_id, PropositionId);
 
+/// Publish the resolved service declaration, including its package and module.
+/// The service reach table's name is a diagnostic label: distinct modules may
+/// each declare `Sink`. Executable catalogs and retained reach contracts must
+/// use this same identity or an unused contract can silently select its sibling.
+pub(crate) fn service_declaration_identity(
+    checked: &checked_trees::CheckedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Result<String, LoweringError> {
+    checked
+        .typed
+        .normalized_hermetic_symbol_identity(symbol)
+        .map_err(LoweringError::InvalidServiceIdentity)
+}
+
 /// Find the `u8` scalar a borrowed `&[u8]` view establishes through the
 /// element-view op family. The byte carrier keeps no element field, so the
 /// catalog roots this row at that establishment and the emitter resolves the

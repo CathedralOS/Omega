@@ -1,0 +1,4 @@
+module right;
+pub boundary trait Sink {}
+
+pub machine selected(value: u64) -> u64 reaches Sink { value }

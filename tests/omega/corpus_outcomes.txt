@@ -2536,6 +2536,8 @@ fail/modules/private_generic_dependency rejected 5425ms expected @a9ae30e1c334+w
 	package `private_generic_dependency` (0101010101010101010101010101010101010101010101010101010101010101) selects private machine `values::Window::range$specialized$accfc01a22f6af21$0`
 fail/modules/runtime_fixed_array_index rejected 18ms expected @a9ae30e1c334+wt
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
+fail/modules/same_name_service_callback_wrong_owner rejected 434ms expected @a27dad2ed102+wt
+	machine argument `selected` for `apply` does not refine `Selected`: service reach `Sink` exceeds its authored ceiling
 fail/modules/selected_constant_array_alias_policy_mismatch rejected 30ms expected @a9ae30e1c334+wt
 	constant initializer: constant initializer result does not match its declared carrier
 fail/modules/selected_constant_array_alias_range_rejected rejected 32ms expected @a9ae30e1c334+wt
@@ -5623,8 +5625,8 @@ pass/modules/runtime_named_extent_generic_copy_exit checked 20629ms check-target
 pass/modules/runtime_nominal_constant_lexical_ownership_exit checked 16334ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/modules/runtime_public_generic_dependency_exit checked 3592ms check-target:macos_arm64 @92558d90488a+wt
 pass/modules/runtime_qualified_static_mutation_exit checked 11682ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/modules/same_name_requirement_field_calls_exit rejected 11418ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	terminal-artifact production failed: Lowering(Unsupported("Unit services have empty or duplicate canonical identities"))
+pass/modules/same_name_requirement_field_calls_exit checked 6766ms check-target:macos_arm64 @a27dad2ed102+wt
+pass/modules/same_name_service_callback_exit checked 5515ms check-target:macos_arm64 @a27dad2ed102+wt
 pass/modules/selected_constant_array_alias_computed_extent checked 1803ms @a9ae30e1c334+wt
 pass/modules/selected_constant_array_alias_computed_extent_exit checked 4674ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/modules/selected_constant_array_alias_match_qualification checked 1611ms @a9ae30e1c334+wt

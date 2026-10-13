@@ -20,7 +20,7 @@ use super::{
 };
 use crate::terminal_identities::{
     BYTE_VIEW_ELEMENT_TYPE_IDENTITY, StructuralDomainBinding, lookup_domain_id_for_carrier,
-    structural_domain_identity,
+    service_declaration_identity, structural_domain_identity,
 };
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypePlan};
@@ -1477,33 +1477,37 @@ pub(super) fn lower_selected_unit_services(
     let mut selected_definitions = selected
         .iter()
         .map(|service| {
-            facts
-                .services
-                .definition(*service)
-                .map(|definition| (*service, definition))
-                .ok_or(LoweringError::Unsupported(
-                    "Unit closure references an unknown checked service",
-                ))
+            let definition =
+                facts
+                    .services
+                    .definition(*service)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit closure references an unknown checked service",
+                    ))?;
+            let identity = service_declaration_identity(checked, definition.symbol)?;
+            Ok((*service, definition, identity))
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    selected_definitions.sort_by(|left, right| left.1.name.cmp(&right.1.name));
+    selected_definitions.sort_by(|left, right| left.2.cmp(&right.2));
     if selected_definitions
         .iter()
-        .any(|(_, definition)| definition.name.is_empty())
+        .any(|(_, _, identity)| identity.is_empty())
         || selected_definitions
             .windows(2)
-            .any(|pair| pair[0].1.name == pair[1].1.name)
+            .any(|pair| pair[0].2 == pair[1].2)
     {
         return unsupported("Unit services have empty or duplicate canonical identities");
     }
     let service_ids = selected_definitions
         .iter()
         .enumerate()
-        .map(|(index, (source, _))| Ok((*source, service_id(dense_identity(index)?))))
+        .map(|(service_index, (source, _, _))| {
+            Ok((*source, service_id(dense_identity(service_index)?)))
+        })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let declarations = selected_definitions
         .into_iter()
-        .map(|(source, definition)| {
+        .map(|(source, definition, identity)| {
             let mut parents = definition
                 .parents
                 .iter()
@@ -1513,7 +1517,7 @@ pub(super) fn lower_selected_unit_services(
             parents.dedup();
             Ok(ServiceDeclaration {
                 id: lookup_service_id(&service_ids, source)?,
-                identity: identities.intern(&definition.name.clone()),
+                identity: identities.intern(&identity),
                 parents,
             })
         })

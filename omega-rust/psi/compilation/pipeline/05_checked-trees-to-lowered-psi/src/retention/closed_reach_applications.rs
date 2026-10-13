@@ -641,10 +641,13 @@ fn retain_services(
             .ok_or(LoweringError::Unsupported(
                 "closed reach contract has an unknown service",
             ))?;
+        let identity = identities.intern(
+            &crate::terminal_identities::service_declaration_identity(checked, definition.symbol)?,
+        );
         let existing = module
             .services
             .iter()
-            .find(|service| service.identity == identities.intern(&definition.name))
+            .find(|service| service.identity == identity)
             .map(|service| service.id);
         let id = if let Some(id) = existing {
             id
@@ -666,7 +669,7 @@ fn retain_services(
             let id = crate::terminal_identities::service_id(next);
             module.services.push(ServiceDeclaration {
                 id,
-                identity: identities.intern(&definition.name.clone()),
+                identity,
                 parents,
             });
             id
