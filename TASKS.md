@@ -1,47 +1,43 @@
 # Tasks
 
-Unfinished product and language work for the Rust reference compiler. The
-[completion contract](wiki/drafts/reference/rust_compiler_completion.md)
-defines release acceptance; this board lists the remaining work, not a
-passing baseline.
-
-Own a general compiler capability through its release acceptance. Programs
-expose missing behavior and provide evidence; Squalr is not the destination or
-a reason to special-case source. All accepted language scope stays required.
-Measured iteration-performance and test-environment repairs are also outcomes,
-not fallback busywork when implementation files overlap.
+This board is reference, not the work queue. Compiler work follows
+[the sample loop](AGENTS.md#the-sample-loop): take a failing sample from
+`python3 tools/sample_queue.py`, make it run, and when it already runs, write a
+harder one. The [completion contract](wiki/drafts/reference/rust_compiler_completion.md)
+defines release acceptance. Squalr is a customer, not the destination or a
+reason to special-case source; all accepted language scope stays required.
 
 ## Working the board
 
-Keep the existing item IDs and capability sections stable for running agents.
-These are three views of the same board, not copies of its tasks:
+The sections below describe capability gaps, release requirements and design
+context under stable IDs that other documents link to. Read the section a
+sample's failure leads into; do not take an item as work on its own. A sample
+that runs because of a repair is the record that the repair is done: subtract
+what now works from any item that names that sample or its root cause, and
+delete the item when nothing remains.
 
-- **Active:** some session has a live claim in `python tools/claims.py
-  status`. A claim shows who is working on it; it does not stop another
-  session from working on it too.
-- **Ready:** items from `python tools/claims.py available --board TASKS.md`
-  whose stated prerequisites can be met. File overlap does not remove
-  availability. The command lists unclaimed work, not a proof of readiness.
-- **Parked:** items with an explicit missing decision, environment or priority
-  prerequisite. Keep that prerequisite and the acceptance, not an abandoned
-  report. Take the item when it can be advanced; scope the project owner
-  parked explicitly stays parked.
+An item stands on its own only when no sample can carry it:
 
-A claim note carries outcome, acceptance, current failure, next necessary
-action and prerequisites. Keep session names in the live registry rather than
-in shared prose. Existing task text supplies the contract; clarify it when you
-take the item instead of mass-renaming items others are working on. After
-compaction or a checkpoint, reread the note before proceeding.
+- an owner decision (linked to [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md)) or an
+  unavailable environment;
+- release closure ([Rust compiler release closure](#rust-compiler-release-closure))
+  and its full gates;
+- a regression that could not be repaired where it was found.
 
-A roadblock you discover belongs to the work that found it: fix it. Record a
-shared blocker once and link it only when it cannot be fixed in that session.
-A checkpoint, diagnosis or child task does not complete the parent. File
-conflicts are reconciled at rebase, not avoided by inventing another item.
-Never retain competing implementations as modes.
+Optimizer and bootstrap work keep their own boards
+([TASKS_OPTIMIZER.md](TASKS_OPTIMIZER.md), [TASKS_BOOTSTRAP.md](TASKS_BOOTSTRAP.md))
+and acceptance; Cathedral structures stay Cathedral's.
+
+A claim note carries the sample, its oracle, the current failure, the next
+necessary action and prerequisites. After compaction or a checkpoint, reread
+the note before proceeding. A roadblock you discover belongs to the work that
+found it: fix it. A checkpoint, diagnosis or child task does not make a sample
+run. File conflicts are reconciled at rebase, not avoided by inventing another
+item. Never retain competing implementations as modes.
 
 ### Development-health outcomes
 
-After a completed round or explicit handoff, an agent may own either duty below.
+After landing a sample, an agent may take either duty below.
 These standing entries are parked when no concrete incident is assigned. An
 active claim must name an experienced obstruction, reproducible workflow,
 baseline and adequate acceptance target. Close that incident and return the
@@ -57,14 +53,6 @@ Use an existing specific repair item when one already owns the obstruction.
   environment friction and demonstrates that affected regressions are detected
   without an unnecessary full-suite run. Preserve release coverage and runtime
   oracles; recorded unrelated failures need not become this incident's repairs.
-
-| Priority | Work |
-| --- | --- |
-| 1. Run existing programs | [High-priority composition repairs](#high-priority-composition-repairs) and [Immediate product closure](#immediate-product-closure). Choose a concrete failure from SAMPLE-CORPUS, CANARY-CORPUS or SQUALR-HEADLESS and repair the general operation. |
-| 2. Remove source and pipeline blockers | [Universal interpreter cutover](#universal-interpreter-cutover), [Pipeline route](#pipeline-route), [Lowering simplification](#lowering-simplification), [Checker simplification](#checker-simplification), [Data-flow defects](#data-flow-defects) and [PCC removal](#pcc-removal). |
-| 3. Connect remaining accepted capabilities | [Entry and authority](#p1---authority-roots-and-entry), [materialization](#p2---materialization-and-placed-access), [service reach](#automatic-service-reach), [reflection](#semantic-reflection), [scoped build execution](#scoped-build-execution), [process exit](#process-exit-contract), [exclusions](#build-level-behavior-exclusions), [tests](#requirement-based-tests), [embedding](#embedding-and-interpreted-components) and [parallel lanes](#parallel-language-and-compiler-lanes). Move an item earlier when the chosen program needs it. |
-| 4. Close the release matrix | [Rust compiler release closure](#rust-compiler-release-closure). Focused successes do not satisfy full gates. |
-| Separate owners | [Optimizer](TASKS_OPTIMIZER.md), [bootstrap](TASKS_BOOTSTRAP.md) and [Cathedral](#p5---cathedral-over-general-omega-primitives). A native correctness dependency moves with the program that exercises it. |
 
 Language behavior is tested by corpus fixtures under
 `tests/omega/{pass,fail,run}/` through `tools/corpus_gate.py` (`--native`

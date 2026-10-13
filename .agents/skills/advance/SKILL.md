@@ -1,50 +1,61 @@
 ---
 name: advance
 description: >-
-  Own one Omega compiler or development-health outcome from the execution boards or
-  an existing customer example. Use for advance, continue the compiler, work the
-  boards, or pick the next compiler task. Not for a named bug fix, code question,
-  review, or repository-wide health check.
+  Take one failing Omega sample end to end: make it compile and run with its
+  authored result, landing every compiler repair it needs. Use for advance,
+  continue the compiler, or pick the next compiler work. Not for a named bug
+  fix, code question, review, or repository-wide health check.
 ---
 
 # Advance the Omega compiler
 
-Own one outcome through demonstrated acceptance and publication.
+Make one sample run, through demonstrated acceptance and publication, following
+[the sample loop](../../../AGENTS.md#the-sample-loop).
 Follow [AGENTS.md](../../../AGENTS.md) for repository ownership,
 validation, board rules, and publication.
 
-## Choose and retain the outcome
+## Choose the sample
 
 Record the start time, starting checkout, and branch. Fetch main and inspect
 status and recent lane commits. If the starting checkout is clean and on main,
 fast-forward it with `git merge --ff-only origin/main` before reading its boards.
 Otherwise preserve it and read from an isolated worktree based on fetched main.
 
-For a continuation, retain the same outcome through complete acceptance and
-authorized verified landing, unless the user changes priority. Missing implementation is part of the assignment,
-not a reason to move elsewhere. Without prior continuity, choose from
-`TASKS.md`, `TASKS_BOOTSTRAP.md`, or `TASKS_OPTIMIZER.md`; honor a named board.
-Choose a general capability that closes release requirements; real programs
-and relevant invalid controls demonstrate it. Squalr and Cathedral are customers,
-not source shapes to special-case or rewrite around gaps. Prefer, in order: a
-regression `tools/native_watch.py` reports on main, a group of failing samples
-from `tools/sample_native_gate.py` with one demonstrated root cause, then a board
-item. When none is real, write new samples at the frontier and own what they
-reveal; do not split an item to stay busy. After a completed
-outcome and authorized verified landing, measured iteration performance or test-environment
-friction may be the next owned outcome. Name its workflow, baseline and adequate
-target first; a minor incidental slowdown is not permission to abandon a feature.
-Check live assignments with `python tools/claims.py status`. Claim your item
-(`claim --board <board> --item <item> --owner "<label>" --path <paths>`), renew
+For a continuation, keep the same sample until it runs and lands, unless the
+user changes priority. Missing implementation is part of the work, not a reason
+to move elsewhere. Without prior continuity, take work in this order:
+
+1. A regression `tools/native_watch.py` reports on main, or a sample that ran
+   before and no longer does: bisect it and repair it.
+2. A sample the user names.
+3. The smallest failing sample from `python3 tools/sample_queue.py` (run
+   `python3 tools/sample_native_gate.py` first when no recent run exists).
+   Several queued samples with one demonstrated root cause are one piece of
+   work.
+4. When the queue is empty, write a harder sample at the language frontier
+   and take its failure.
+
+Size the work to finish in this session. When the sample is too large to
+trace, write a smaller sample that isolates its failing construct with its own
+oracle, make that run and land it, then return to the large one. A sample that
+passes on its first run is not work; take the next one.
+
+Squalr and Cathedral are customers, not source shapes to special-case or
+rewrite around gaps. `TASKS_BOOTSTRAP.md` and `TASKS_OPTIMIZER.md` work, when the
+user names it, keeps its own acceptance. After landing a sample, measured
+iteration performance or test-environment friction may be the next piece of
+work. Name its workflow, baseline and adequate target first; a minor
+incidental slowdown is not permission to abandon a sample.
+Check live work with `python tools/claims.py status`. Claim your sample
+(`claim --item <sample path> --owner "<label>" --path <paths>`), renew
 a long task before its lease expires, and release it when finished for any
 reason, recording the remaining frontier if interrupted. Another claim on
 the same item or on overlapping paths is information, not a stop: read its
-note, proceed in isolation and reconcile at rebase. A named board limits selection
-to that board; an explicitly named
-program limits it to that program and the dependencies it needs to run. State
-the outcome, missing dependencies and acceptance command.
+note, proceed in isolation and reconcile at rebase. An explicitly named program
+limits the work to that program and the repairs it needs to run. State the
+sample, its oracle, the current failure and the acceptance command.
 
-Keep that short record in the claim note: outcome, acceptance, current
+Keep that short record in the claim note: sample, acceptance, current
 failure, next necessary action and dependencies. Reread it after compaction
 and before changing direction. When resuming saved work after a crash or
 compaction, rebase first and check whether main already
@@ -125,8 +136,8 @@ acceptance, required review and authorized verified main landing. Do not leave
 necessary compiler/library stages for another agent; there are no handoffs.
 Follow the concrete path through completion; let working programs reveal design.
 
-Keep the outer command in the sample's README or owning design document and the
-current first failure in its existing board item. After a milestone, rerun the
+Keep the outer command and the current first failure in the sample's README.
+After a milestone, rerun the
 command. The program running is the result; the program's source stays as
 authored.
 
@@ -226,24 +237,21 @@ reasoning this invocation had to reconstruct. Add what is missing in the
 touched design area and update what is stale; existing comments that already
 answer the question stay as they are.
 
-## Delegate without fragmenting the outcome
+## Delegate without fragmenting the sample
 
-Follow [delegation](../../../AGENTS.md#delegation). Give the worker its exact
+Follow [sessions and subagents](../../../AGENTS.md#sessions-and-subagents). Give the worker its exact
 worktree/revision and canonical skill path, objective, design anchors, edit
 ownership, dependencies, acceptance, and escalation conditions.
 
 For discoverability assignments, include the reader's question, the affected
 entry-to-operation route, and the orchestration requirement above.
 
-Give each implementation worker a distinct complete outcome, not one stage or
-file of this outcome. Necessary cross-layer repairs remain with its owner.
+Give each implementation worker a distinct sample to make run, never one stage
+or file of a sample. The worker makes the necessary cross-layer repairs and
+lands its own result; retain any explicitly required independent review.
 Independent read-only review challenges assumptions and checks correctness.
-
-For contributor assignments, the coordinator owns board updates from returned
-evidence. An authorized end-to-end owner carries its assigned publication through
-normal landing; retain any explicitly required independent review. Worker evidence
-reaches the board through `python tools/claims.py note --ticket <ticket>
---text <finding>` on its claim ticket plus the session report.
+Workers record progress through `python tools/claims.py note --ticket <ticket>
+--text <finding>` on their claim ticket plus the session report.
 
 Use the actual agent tool and returned ID before reporting a worker as launched.
 Monitor through completion, respond to findings, and inspect the returned diff
@@ -265,18 +273,12 @@ Validate before entering the queue. Follow the protocol for the local wait,
 claim, rebase, exact verified candidate, and release on an affected failure.
 Hold the lease only for the publish itself.
 
-Read the entire owning item and apply [board update discipline](../../../TASKS.md#updating-the-boards).
-Subtract completed requirements; do not replace them with a success narrative.
-If work remains, retain its current failure, reproduction and host, owning
-implementation, dependencies and acceptance. Keep a revision only when needed
-to reproduce or qualify that unresolved observation. Preserve regression commands
-that constrain the remaining repair, not a ledger of passing runs. Delete the
-item only when its full acceptance is satisfied, not merely the chosen subcase.
-Search all three boards for the repaired capability and affected program, and
-reconcile stale references. Before committing, ask which unfinished requirement
-the change removed; explain any growth by new unfinished work or necessary
-context, not by the amount of work performed. Board edits ride with the code
-change that earned them.
+The sample running is the record of the work; no board entry is needed. If a
+`TASKS.md` item names this sample or its root cause, update it in the same
+change following [board update discipline](../../../TASKS.md#updating-the-boards):
+subtract what now works, delete the item when its acceptance is met, and do
+not replace it with a success narrative. A sample that still fails keeps its
+current failure in its README.
 
 After publication, return to the recorded starting checkout and recheck its
 branch and status. If it is still clean and on main, fetch and run

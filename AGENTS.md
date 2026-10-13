@@ -21,8 +21,8 @@ state machines. This repository holds the language, its Rust reference
 compiler, its Omega-written product compiler, and the Alpha-to-Omega bootstrap
 chain.
 
-**The goal is a compiler that ships.** Own a release capability end to end,
-not a file or a stage. Demonstrate compiler work through real programs and
+**The goal is a compiler that ships.** Take a sample program end to end, not
+a file or a stage ([the sample loop](#the-sample-loop)). Demonstrate compiler work through real programs and
 relevant invalid controls; `omega run <program.omg>` must produce the authored
 result. Squalr and Cathedral expose general compiler gaps, not special cases
 to recognize or applications to rewrite around missing language support.
@@ -87,6 +87,36 @@ Raise genuine external authorization or environment blockers precisely, keep
 the work marked unfinished, and continue all other feasible engineering. A
 user stop or exhausted runtime budget preserves the work for a later
 continuation; it does not turn unfinished work into completion.
+
+## The sample loop
+
+Compiler work is one loop, and its unit is a sample: a runnable program under
+`samples/` whose header documents `Expected exit` or `Expected output contains`.
+
+1. **Take a failing sample.** `python3 tools/sample_queue.py` lists the
+   samples that fail on this host in the latest sample-gate run, smallest
+   first, with each one's refusal; run `python3 tools/sample_native_gate.py`
+   first when no recent run exists. A sample the user names comes first.
+2. **Make it run.** Done means the sample compiles and runs natively with its
+   authored result on main, with every compiler, library and fixture repair
+   it needed landed with it, and its invalid controls still rejecting.
+   Nothing short of that is done: a stage, checkpoint, diagnosis or board edit
+   is progress, not completion.
+3. **Keep it small enough to finish.** A piece of work is sized to finish in
+   one session. When a sample is too large to trace (its size hides the
+   failing construct, or its first failure leads into an unrelated second
+   gap), cut it down: write a smaller sample that isolates the failing
+   construct with its own oracle, make that run, land it, then return to the
+   large one. Large programs advance as a ladder of small runnable samples,
+   never as stage tasks.
+4. **When it already works, go harder.** A sample that passes on its first
+   run teaches nothing. Take the next failing sample, or write a harder one at
+   the language frontier: a construct, combination or scale no passing sample
+   uses yet. Its failure is the next work.
+
+The repair inside the loop is ordinary compiler engineering and follows every
+rule below: generalize the operation, check mechanical variants, pin the
+behavior with fixtures under `tests/omega/`, and keep main green.
 
 ## Commands
 
@@ -177,15 +207,16 @@ The rules that touch every edit:
   provenance.
 - Commit subjects are `lane: statement` — pick the lane by changed
   responsibility per [commit naming](#commit-naming) below.
-- `TASKS.md`, `TASKS_BOOTSTRAP.md`, `TASKS_OPTIMIZER.md` are execution
-  boards, not changelogs: an item exists only while it names unfinished work
-  and is deleted when acceptance passes. An open item states its current
-  frontier once — replace the paragraph, do not append run history. New
-  items carry `(new-scope)` or `(split-of:<parent>)` on the first line.
-  Owner decisions go to `OWNER_QUESTIONS.md`, not the boards.
-  Task lists are shared: claim outcomes and report likely implementation paths,
-  never a whole board file. Update only the relevant items and reconcile
-  concurrent board edits during landing; nobody owns the task list.
+- The sample gate is the work queue; the boards are not. `TASKS.md` records
+  only what the sample loop cannot: a prerequisite outside any sample (an
+  owner decision, an unavailable environment), release work with its own
+  acceptance, and a regression that could not be repaired where it was found.
+  `TASKS_BOOTSTRAP.md` and `TASKS_OPTIMIZER.md` keep the bootstrap chain and
+  optimizer work, which have their own acceptance. An item exists only while
+  it names unfinished work and is deleted when its acceptance passes; state
+  its current frontier once, replacing the paragraph rather than appending
+  history. Owner decisions go to `OWNER_QUESTIONS.md`. Nobody owns the boards;
+  reconcile concurrent edits at rebase.
 - Windows and macOS are both supported development hosts; shared tooling
   needs a documented usable entrypoint on each — a `.ps1` alone is not
   macOS support; either document `pwsh` as an explicit prerequisite or
@@ -206,7 +237,7 @@ The rules that touch every edit:
   inventory. A Rust test of one crate stays beside that crate.
 - Write direct prose: state the idea in literal words.
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
-  board work, `rust-systems-programmer` for Rust implementation and review,
+  the sample loop, `rust-systems-programmer` for Rust implementation and review,
   `architecture-cleanup`, `task-board-cleanup`, `local-swarm`, `devin-swarm`,
   `codex-swarm`.
 
@@ -226,23 +257,21 @@ are byte-sensitive.
 - The session that starts work finishes it. A claim records what a session
   is doing so other sessions can see it; it grants nothing and blocks nothing.
   Parked work is available to any session once its prerequisite is met.
-- A sample-driven compiler outcome includes the complete application and the
-  compiler repairs needed for its acceptance; carry it through source,
-  native/Terminal execution, invalid controls and publication. Group samples
-  by a demonstrated shared capability or root cause, not shared files or
-  pipeline stages, and never divide one outcome into stages for different
-  agents. Only an actual external prerequisite (an owner decision, an
+- A sample's work includes the complete application and the compiler repairs
+  it needs to run; carry it through source, native/Terminal execution, invalid
+  controls and publication. Several failing samples with one demonstrated root
+  cause are one piece of work; shared files or pipeline stages are not a
+  reason to group. Never divide a sample into stages for different agents. Only an actual external prerequisite (an owner decision, an
   unavailable environment) gates work.
-- Keep a short record in the claim note: outcome, acceptance, current failure,
+- Keep a short record in the claim note: sample, acceptance, current failure,
   next necessary action and prerequisites. Reread it after context compaction
   and before changing direction. A checkpoint is not completion. A user stop
   or exhausted budget preserves the frontier without claiming success.
 - A newly discovered obstacle belongs to the work that found it: fix it
   rather than filing a task for someone else. Do not split work or mine
   tasks to keep agents busy; narrow parallel slices build duplicate routes for
-  the same operation. Real work comes from programs: when nothing is ready,
-  write new samples at the language frontier and let their failures define
-  the next work.
+  the same operation. When the queue is empty, write a harder sample (step 4
+  of the sample loop).
 - Overlap is expected and needs no permission. A Git conflict is a design
   signal: two sessions are changing one decision point, so reconcile them into
   one implementation at rebase. Conflicts only show textual overlap; semantic
@@ -252,26 +281,26 @@ are byte-sensitive.
   so each host with a native golden runs `python tools/native_watch.py` on a
   schedule ([testing](tools/testing.md#corpus-outcome-gate)). Whoever sees a
   regression bisects it to its first bad commit and repairs it before landing
-  more capability work. Record it on the board only when it cannot be
+  more capability work. Record it in `TASKS.md` only when it cannot be
   repaired in that session, and say exactly what prevents the repair.
-- After completing an outcome, an agent may take a bounded
+- After landing a sample, an agent may take a bounded
   iteration-performance or test-environment outcome based on an experienced
   obstruction. Record the workflow and adequate target before repair; return
   to product work when it meets that target. No incidental profiling detours.
-- Report outcome acceptance, not activity or commit counts. Missing implementation
+- Report which samples now run, not activity or commit counts. Missing implementation
   and file overlap are work to resolve, not blockers. An actual missing owner
   decision, inaccessible environment or external dependency may pause that one
   piece of work; record it and continue everything else. Unrelated busywork is
   not a substitute.
 - Language/architecture decisions go in `OWNER_QUESTIONS.md`, referenced from
-  the affected board item; engineering decisions stay with the session doing
+  the affected sample's README; engineering decisions stay with the session doing
   the work. Gates pass on real behavior. The accepted bootstrap
   chain changes only through its proofs.
 
 ## Sessions and subagents
 
-- Give a session or subagent a complete piece of work, never a stage: what
-  must work, how acceptance is verified, and that it lands its own result.
+- Give a session or subagent a complete piece of work, never a stage: the
+  sample that must run, its oracle, and that it lands its own result.
   State directions directly; never imply or insinuate them. The session
   carries authorized work through implementation, testing, review, normal
   main landing and remote verification, and keeps working until it is
@@ -282,8 +311,8 @@ are byte-sensitive.
   launch fields; a prompt alone cannot change a model. Before launching or
   resuming cloud work, follow the [cloud launch preflight](.agents/skills/dot-swarm/references/cloud-launch.md).
   A single advance remains one assignment; it does not authorize a swarm.
-- Parallel sessions take distinct pieces of work, chosen by root cause, not
-  by file. Shared implementation paths are fine; each session works in its
+- Parallel sessions take distinct samples, chosen by root cause, not by
+  file. Shared implementation paths are fine; each session works in its
   own worktree and reconciles at rebase. Reuse another session's repair when
   practical; never wait for permission to touch files.
 - Read-only review or scouting does not authorize writes or publication. A

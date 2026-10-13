@@ -524,6 +524,11 @@ python3 tools/sample_native_gate.py --filter cli/ --jobs 8 --timeout 900 < /dev/
 python3 tools/sample_native_gate.py --cli <existing-omega> --filter cli/games
 ```
 
+`python3 tools/sample_queue.py` reads the latest run record and lists the
+samples that do not yet run, smallest first with each refusal: the work queue
+of [the sample loop](../AGENTS.md#the-sample-loop). `--all` adds probes and
+invalid controls.
+
 The corpus gate executes fixtures with `input.txt` as stdin (absent means an
 empty stream); the sample gate does the same for a project carrying
 `input.txt` beside its entry and then scores the authored
