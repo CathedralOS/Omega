@@ -6,6 +6,7 @@
 //! when it declines a body) and `call_results.rs` binds call results to unit
 //! locals.
 
+mod boundary_contracts;
 mod boundary_machine;
 mod call_occurrences;
 mod call_results;

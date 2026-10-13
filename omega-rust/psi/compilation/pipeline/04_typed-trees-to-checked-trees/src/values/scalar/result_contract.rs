@@ -109,6 +109,47 @@ struct ContractPredicates<'program, 'budget> {
     remaining: &'budget mut usize,
 }
 
+/// Project a scalar membership under the callable's existing formal namespace.
+/// The domain owner supplies the complete theory; this does not reinterpret
+/// routed membership as a predicate or infer a subject from its spelling.
+pub(crate) fn lower_callable_scalar_membership(
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    owner: symbols::SymbolHandle,
+    parameters: &[StateParameter],
+    membership: &typed_trees::domain::ProofMembershipFact,
+    remaining: &mut usize,
+) -> Option<CheckedBooleanExpression> {
+    let primitive = validation::scalar_membership_carrier(program, membership)?;
+    let mut context = ContractPredicates {
+        program,
+        operators,
+        owner,
+        result_type: TypeReferenceHandle::invalid(),
+        parameters,
+        allow_result: false,
+        remaining,
+    };
+    let subject = if primitive == PrimitiveType::Bool {
+        CheckedScalarExpression::Boolean(Box::new(context.boolean(membership.value, 0)?))
+    } else if let Some((subject, _)) = context.numeric_term(membership.value, 0) {
+        (scalar_expression_type(&subject) == Some(primitive)).then_some(subject)?
+    } else {
+        lower_contract_integer_literal(program, operators, membership.value, primitive)?
+    };
+    let mut predicates =
+        validation::scalar_membership_predicates(program, membership, &subject)?.into_iter();
+    let first = predicates
+        .next()
+        .unwrap_or(CheckedBooleanExpression::Constant(true));
+    Some(
+        predicates.fold(first, |left, right| CheckedBooleanExpression::And {
+            left: Box::new(left),
+            right: Box::new(right),
+        }),
+    )
+}
+
 impl ContractPredicates<'_, '_> {
     /// Scalar storage observations share the formal-place and access check.
     /// Selectors use this contract's exact scalar namespace; the shared read

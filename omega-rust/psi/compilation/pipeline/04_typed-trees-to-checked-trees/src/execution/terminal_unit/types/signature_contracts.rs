@@ -146,15 +146,17 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
     let mut output = Vec::new();
     for checked in checked_requires {
         let Some(membership) = program.proof_facts.get(checked.fact).as_membership() else {
-            // A machine-level scalar predicate is not a qualification check:
-            // it travels as a checked scalar requires row
-            // (`boundary_scalar_requires`), which refuses any clause the
-            // closed contract did not lower. State-level clauses have no row.
-            if matches!(checked.owner, ContractProofFactOwner::Machine { .. }) {
-                continue;
-            }
-            return None;
+            // Authored and implicit entry predicates use the scalar lane.
+            // Its complete clause projection refuses unsupported facts rather
+            // than dropping a requirement this structural roster cannot carry.
+            continue;
         };
+        if validation::scalar_membership_carrier(program, membership).is_some() {
+            // A scalar subject may itself be an expression. Its declaration-
+            // local projection, not a structural root-only place recognizer,
+            // establishes the subject in boundary_scalar_requires.
+            continue;
+        }
         let place = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
@@ -168,6 +170,15 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
         let source_position = source_parameters
             .iter()
             .position(|parameter| parameter_is_root(parameter, root))?;
+        // Scalar qualifications use the complete predicate lane published by
+        // boundary_scalar_requires, including implicit entry clauses. They do
+        // not invent a structural argument or gain routed domain authority.
+        if program
+            .primitive_type_reference(source_parameters[source_position].type_reference)
+            .is_some()
+        {
+            continue;
+        }
         let argument_index = structural_parameters
             .iter()
             .position(|parameter| parameter.position as usize == source_position)?;

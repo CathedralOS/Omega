@@ -44,7 +44,13 @@ pub(super) fn discover(
         }
     }
     for boundary in &retained_boundary_roots {
-        super::unique_unit_boundary(plans, *boundary)?;
+        super::unique_unit_boundary(plans, *boundary).map_err(
+            crate::lowering_error::unit_machine_plan_error(
+                checked,
+                checked.symbols.name(*boundary),
+                *boundary,
+            ),
+        )?;
     }
     // Authored roots and target families are portable product surface, not
     // reachability from whichever application happens to be requested first.

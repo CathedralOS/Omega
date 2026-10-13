@@ -3484,6 +3484,10 @@ fail/providers/satisfier_extra_parameter_rejected rejected 1269ms expected @a9ae
 	machine `stateful_count` declares 2 parameter(s), but top-level boundary requirement `Arithmetic::count` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 	machine `stateful_offset` declares 2 parameter(s), but requirement `Arithmetic::offset` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 	machine `stateful_select_left` declares 3 parameter(s), but requirement `Arithmetic::select_left` declares 2: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
+fail/providers/scalar_membership_boundary_false rejected 722ms expected @8d82e5b2d466+wt
+	cannot prove requires contract for call accept from bad: 2 in u32::Flags in state `entry`
+fail/providers/scalar_membership_boundary_issuer rejected 780ms expected @8d82e5b2d466+wt
+	cannot prove requires contract for call accept from bad: 128 in u32::Issued in state `entry`
 fail/providers/service_nonboundary_requirement_rejected rejected 829ms expected @a9ae30e1c334+wt
 	data `Main` field `service` uses an invalid routed service carrier: `Binding<Local>` requires a boundary trait; ordinary traits are local interfaces
 fail/providers/via_signature_mismatch_rejected rejected 1339ms expected @a9ae30e1c334+wt
@@ -6721,6 +6725,8 @@ pass/providers/runtime_result_domain_requirement_overload_exit checked 11708ms c
 pass/providers/same_name_requirement_dispatch_exit checked 11740ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/same_name_requirement_right_dispatch_exit checked 11571ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/same_target_internal checked 9658ms @5041ef1af684+wt
+pass/providers/scalar_membership_boundary_exit checked 6094ms check-target:macos_arm64 @8d82e5b2d466+wt
+pass/providers/scalar_membership_foreign checked 6716ms check-target:macos_arm64 @8d82e5b2d466+wt
 pass/providers/selected_const_provider_call_identity_exit checked 7618ms check-target:macos_arm64 @4ffd613e37f1
 pass/providers/service_borrowed_parameter checked 1655ms @a9ae30e1c334+wt
 pass/providers/service_fused_root checked 9678ms @5041ef1af684+wt
