@@ -312,6 +312,9 @@ pub(super) fn project_component(
                     }
                 }
             }
+            // Whether every earlier statement in this state preserved the
+            // entry-relative frame the call-site comparison reads.
+            let mut entry_relative = true;
             for (statement_ordinal, statement) in program
                 .statement_table
                 .indexed_statements(state.statement_nodes)
@@ -356,6 +359,23 @@ pub(super) fn project_component(
                         StatementNode::Expression(expression)
                             if expression_is_inert(program, machine, state, *expression) =>
                         {
+                            continue;
+                        }
+                        // A call-free direct store ends the entry-relative
+                        // frame for every later judgment in this state. Only
+                        // an edge the member's own current-value judgment
+                        // already proved can still be admitted after it.
+                        StatementNode::Assignment(assignment)
+                            if expression_is_inert(program, machine, state, assignment.target)
+                                && expression_is_inert(
+                                    program,
+                                    machine,
+                                    state,
+                                    assignment.value,
+                                ) =>
+                        {
+                            entry_relative = false;
+                            natural = None;
                             continue;
                         }
                         // Do not replay an entry-relative projection or a guard
@@ -489,7 +509,29 @@ pub(super) fn project_component(
                             );
                         };
                         let strict;
-                        if matches!(
+                        if !entry_relative {
+                            // The store before this arrival leaves no entry-
+                            // relative operand to compare. A self-invocation
+                            // keeps the strict decrease its body's source
+                            // judgment proved over current values at this
+                            // exact occurrence; nothing else is admitted.
+                            let proved = callee == index
+                                && body_witnesses[position].is_some_and(|witness| {
+                                    witness.edges.iter().any(|edge| {
+                                        edge.source == state.symbol
+                                            && edge.destination == callee_entry.symbol
+                                            && edge.target == transition.target
+                                            && edge.statement_ordinal as usize == statement_ordinal
+                                            && edge.strictly_decreases
+                                    })
+                                });
+                            if !proved {
+                                return Err(
+                                    "a write, call, or alias invalidates the entry-relative ranking",
+                                );
+                            }
+                            strict = true;
+                        } else if matches!(
                             ranks[position].order,
                             projection::RankOrder::Natural(_)
                                 | projection::RankOrder::IncreasingTo(_)

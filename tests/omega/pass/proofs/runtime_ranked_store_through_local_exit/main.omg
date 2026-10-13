@@ -1,0 +1,32 @@
+// Expected: accumulate(3, 4, 7) returns 7, so the program exits 70. The ranked
+// value is stored through a local before the self-call; the call judgment
+// reuses the body's current-value decrease at that exact occurrence.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let floor: u64 = accumulate(3, 4, 7);
+    transition floor == 7 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}
+
+machine accumulate(mut remaining: u64, mut accumulator: u64, total: u64) -> u64
+requires remaining > 0 && remaining <= 1000 && accumulator <= 1000 && total <= 1000
+requires remaining + accumulator == total
+terminates by remaining -> Nat::Descending;
+ensures result == total
+{
+    let next: u64 = remaining - 1;
+    remaining = next;
+    accumulator = accumulator + 1;
+    transition remaining > 0 {
+        true -> accumulate(remaining, accumulator, total)
+        false -> accumulator
+    }
+}

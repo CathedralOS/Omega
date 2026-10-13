@@ -3243,7 +3243,8 @@ fail/proofs/mathematical_term_in_runtime_arguments rejected 865ms expected @a9ae
 	mathematical terms are proof-only and cannot be used as executable values or statements
 	machine `main` state `entry`: value call `identity(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 	machine `main` state `entry`: value call `identity(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
-fail/proofs/mutable_ranked_accumulator_wrong_step rejected 5189ms expected @a9ae30e1c334+wt
+fail/proofs/mutable_ranked_accumulator_wrong_step rejected 3874ms expected @1727c70d2f7e+wt
+	cannot prove requires contract for call accumulate from accumulate: remaining + accumulator == total (needs fact `remaining + accumulator == total` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove ensures contract for exit from accumulate at statement 3: result == total
 fail/proofs/nat_exact_subtraction_requires_order rejected 1577ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call subtract from remaining: used <= total (needs fact `right <= left` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
@@ -6670,12 +6671,13 @@ pass/proofs/runtime_byte_predicate_state_contract_exit checked 11690ms check-tar
 pass/proofs/runtime_decreases_u64_measure_exit checked 11603ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_inductive_climbing_sum_exit checked 12046ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_inductive_gauss_sum_exit checked 6282ms check-target:macos_arm64 @3e63a17a5fea+wt
-pass/proofs/runtime_mutable_ranked_accumulator_exit checked 11998ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/proofs/runtime_mutable_ranked_accumulator_exit checked 8574ms check-target:macos_arm64 @1727c70d2f7e+wt
 pass/proofs/runtime_nat_structural_recursion_exit checked 11942ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_ranked_accumulator_early_exit checked 11627ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_ranked_accumulator_guarantee_exit checked 12061ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_ranked_forwarding_state_recursion_exit checked 6774ms check-target:macos_arm64 @1727c70d2f7e+wt
 pass/proofs/runtime_ranked_intermediary_accumulator_exit checked 6663ms check-target:macos_arm64 @1727c70d2f7e+wt
+pass/proofs/runtime_ranked_store_through_local_exit checked 6703ms check-target:macos_arm64 @1727c70d2f7e+wt
 pass/proofs/runtime_sequential_ranked_components_exit checked 11517ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_sequential_relational_accumulator_exit checked 11587ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_two_state_accumulator_exit checked 6334ms check-target:macos_arm64 @1727c70d2f7e+wt

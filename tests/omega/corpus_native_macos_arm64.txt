@@ -1696,12 +1696,13 @@ pass/proofs/runtime_byte_predicate_state_contract_exit built 1294ms exit:70 @767
 pass/proofs/runtime_decreases_u64_measure_exit built 680ms exit:70
 pass/proofs/runtime_inductive_climbing_sum_exit built 932ms exit:70 @08b483f23366+wt
 pass/proofs/runtime_inductive_gauss_sum_exit built 6360ms exit:70 @3e63a17a5fea+wt
-pass/proofs/runtime_mutable_ranked_accumulator_exit built 955ms exit:70 @6571128ff286
+pass/proofs/runtime_mutable_ranked_accumulator_exit built 9403ms exit:70 @1727c70d2f7e+wt
 pass/proofs/runtime_nat_structural_recursion_exit built 573ms exit:70
 pass/proofs/runtime_ranked_accumulator_early_exit built 578ms exit:70
 pass/proofs/runtime_ranked_accumulator_guarantee_exit built 821ms exit:70
 pass/proofs/runtime_ranked_forwarding_state_recursion_exit built 6739ms exit:70 @1727c70d2f7e+wt
 pass/proofs/runtime_ranked_intermediary_accumulator_exit built 6659ms exit:70 @1727c70d2f7e+wt
+pass/proofs/runtime_ranked_store_through_local_exit built 6610ms exit:70 @1727c70d2f7e+wt
 pass/proofs/runtime_sequential_ranked_components_exit built 894ms exit:70 @3ed38434a87f+wt
 pass/proofs/runtime_sequential_relational_accumulator_exit built 888ms exit:70 @abeaf0e29f04+wt
 pass/proofs/runtime_two_state_accumulator_exit built 5797ms exit:70 @1727c70d2f7e+wt
