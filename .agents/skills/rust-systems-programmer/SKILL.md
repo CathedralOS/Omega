@@ -48,7 +48,7 @@ verified. Optional optimizations may specialize only over a correct general
 path. If a general repair cannot be completed in scope, report the precise
 missing dependency; do not ship a narrower accepted-source workaround. This is
 cleanup of the touched mechanism, not permission for an unrelated rewrite.
-Before handoff, name the removed special path and exercise a valid composition
+Before reporting completion, name the removed special path and exercise a valid composition
 variation plus an invalid ownership/evidence control through the real customer.
 
 Identify which facts change per request, partition, and element. Prepare reusable facts at the outer lifetime; specialize local choices where their inputs become known; keep the inner operation narrow. Borrow immutable context, own mutable working state, and transfer useful output storage to the consumer.
@@ -65,7 +65,7 @@ For a proposed change, identify the avoided work and the contract that must surv
 For implementation, carry the smallest justified change through formatting and [scoped validation](../../../tools/testing.md#validation-scope). Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result.
 
 When changing code organization, follow the touched route from its public
-entrypoint to the operation and result handling before handoff, applying
+entrypoint to the operation and result handling before reporting completion, applying
 [Discoverability architecture](../../../omega-rust/pipeline.md#discoverability-architecture).
 Use the linked main.rs and compiler.rs as orchestration examples, and repeat
 that ownership test at subordinate multi-step flows. Choose the entrance from

@@ -70,8 +70,8 @@ syntax; a `.ps1` is not itself macOS support. Do not globally change Git config.
    in useful outcome throughput without unacceptable E2E latency or pressure.
    Stop the experiment once the adequate envelope is established.
 5. Keep worktree paths stable during an ongoing outcome. Reuse a completed slot
-   only after preserving its branch/artifacts and verifying completion or an
-   explicit handoff. Never reset, stash or clean another owner's state.
+   only after preserving its branch/artifacts and verifying completion or that
+   its session stopped. Never reset, stash or clean another session's state.
 
 Use optimized dev (`CARGO_PROFILE_DEV_OPT_LEVEL=1`) for active Rust edit/rebuild
 work. Release is useful for repeated execution and final qualification; do not
@@ -121,7 +121,7 @@ authorized. It renders prompts/worktrees; it does not spawn agents. Use actual
 in-session agent tools and returned handles if exposed. If unavailable, report
 that limitation; do not substitute cloud sessions or detached shell agents.
 
-Handoff outcome, acceptance, DRI, exact worktree/base, model controls, retained
+Dispatch outcome, acceptance, exact worktree/base, model controls, retained
 receipts, next action, dependencies, build-admission plan and publication
 authority. Keep real agent states through `tools/swarm/fill.py` and the local
 skill. Coalesce redundant baseline qualification, not checks for unique edits.

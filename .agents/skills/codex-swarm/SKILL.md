@@ -81,7 +81,7 @@ cannot dispatch work or acquire managed rollout/completion credit. See
    evidence against current code before dispatching an already-landed repair.
 3. Assign distinct outcomes, allowing shared implementation paths. Each assignment carries the
    program, authored exit/output, board acceptance, governing designs, exact
-   DRI, advisory paths, dependencies and acceptance commands. Never reserve a whole board.
+   session, advisory paths, dependencies and acceptance commands. Never reserve a whole board.
 4. Keep `build/swarm/<wave>/pool.json` and the cloud recovery journal. Record each
    logical slot's actual session/host/executor IDs, generation, assignment, source
    base, claim ticket, status, genuine progress time, result cursor, artifacts,
@@ -129,9 +129,9 @@ create another session merely because a worker ended its turn or became idle.
 When create or follow-up has an uncertain result, preserve the operation identity
 and read the existing task before retrying. Do not duplicate a worker under the
 same logical slot. A capacity error is not permission for a resume-cap loophole.
-Keep blocked source checkpoints with the same owner and continue every feasible
-part of its assigned outcome. A genuine external gate leaves it unfinished;
-do not route that owner away from the outcome as an implicit handoff.
+A blocked session keeps its source checkpoint and continues every feasible
+part of its outcome. A genuine external gate leaves it unfinished; do not move
+the session away from its outcome.
 
 Use the controller's durable step adapter for continuation: `prepare-step`
 records the exact operation and checkpoint, `dispatch-step` reserves its one

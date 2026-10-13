@@ -17,9 +17,10 @@ workflow.
 
 Respect the requested area and mode: an audit asks for evidence and proposals;
 a cleanup authorizes implementation. Follow repository worktree, claims and
-landing procedures. Campaign duration comes from the invocation. Claims own
-outcomes, not files; report overlaps and reconcile rather than avoiding the
-necessary repair. Retain one DRI through integration and acceptance.
+landing procedures. Campaign duration comes from the invocation. Claims make
+work visible and grant nothing; report overlaps and reconcile rather than
+avoiding the necessary repair. The session that starts a cleanup carries it
+through integration and acceptance.
 
 ## Choose a consequential problem
 
@@ -61,8 +62,8 @@ Carry one checked route through producer and consumers. Remove replaced paths
 as the repair lands. Write the non-obvious reasoning at the entry or decision
 site where the next reader needs it.
 
-Delegate only independent, bounded work with explicit edit ownership and one
-integration owner, and review the returned changes.
+Delegate only complete, independent pieces of work, each landed by the
+session that does it, and review what lands.
 
 ## Validate the actual improvement
 

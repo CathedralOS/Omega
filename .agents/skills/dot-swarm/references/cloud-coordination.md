@@ -7,11 +7,10 @@ uses its actually exposed cloud create/read/follow-up tools; native workers shar
 one executor and do not represent cloud provisioning capacity.
 
 Before dispatch, record actual producer/consumer and digest/golden dependencies.
-Keep one DRI per outcome; shared paths alone neither create a dependency nor
-block work. Use isolated worktrees and reconcile at landing. Exact claims and
-bilateral handoff receipts cover required producer results and same-outcome
-transfers, not permission to edit another outcome's path estimates. A dependency
-wait is distinct from terminal failure.
+Shared paths alone neither create a dependency nor block work. Use isolated
+worktrees and reconcile at rebase. An actual producer dependency is recorded
+with the exact result the consumer needs; claims never grant or refuse edits.
+A dependency wait is distinct from terminal failure.
 
 When the parent has no child filesystem access and read exposes only recorded
 messages/results, use bounded preflight/report turns and controller-issued
@@ -36,11 +35,11 @@ reuse needs unchanged reviewed inputs/environment and explicit justification.
 
 Admit only a bounded two-session canary first: two currently red real programs
 with distinct outcomes and eligible hosts. Shared implementation paths are allowed. Declare a dependency
-and exact handoff only for an actual separately assigned producer prerequisite
-or same-outcome transfer; shared-file closure alone does not require it.
-Independent assignments use an empty dependency list. A coherent sample and its
-compiler repairs retain one integration DRI across stages. Required
-digest and golden updates remain part of the actual ownership review. Admit five, then
+only for an actual producer prerequisite that another session is building;
+shared-file closure alone does not require one. Independent assignments use an
+empty dependency list. A sample and its compiler repairs stay one assignment
+across stages. Required digest and golden updates remain part of that
+assignment's review. Admit five, then
 ten only after every outcome in the prior stage satisfies that same contract
 without user rescue. Keep independent executors' build slots independent and
 shared publication serialized. Simulate fault cases in tests, never by disrupting

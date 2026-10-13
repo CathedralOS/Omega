@@ -271,14 +271,14 @@
     {
       "id": 17,
       "name": "outcome-ownership-does-not-fence-files",
-      "prompt": "Continue the assigned aggregate-return outcome. A live coordinator assignment owns a distinct checked scalar-control outcome. Your next fix needs the same lowering files. Neither acceptance passes yet. An unrelated documentation task would avoid the overlap.",
+      "prompt": "Continue the assigned aggregate-return outcome. Another live session claims a distinct checked scalar-control outcome. Your next fix needs the same lowering files. Neither acceptance passes yet. An unrelated documentation task would avoid the overlap.",
       "status": "Not run against this revision",
-      "expected_output": "Retain the assigned outcome, report the path overlap, work in isolation and reconcile the shared implementation at landing. Do not switch to easier work or wait for file permission.",
+      "expected_output": "Continue the assigned outcome, report the path overlap, work in isolation and reconcile the shared implementation at rebase. Do not switch to easier work or wait for file permission.",
       "files": [],
       "assertions": [
         "Does not treat shared files as an unavailable outcome or require an overlap override",
         "Reports the actual peer assignment and preserves its incoming behavior",
-        "Retains one DRI per outcome; taking over the peer outcome would require handoff",
+        "Treats the peer claim as information, not a stop: continues its own outcome without asking for a handoff",
         "Reconciles one implementation without retaining competing modes or abandoning acceptance"
       ]
     },

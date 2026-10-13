@@ -37,21 +37,21 @@ target first; a minor incidental slowdown is not permission to abandon a feature
 Check live assignments with `python tools/claims.py status`. Claim your item
 (`claim --board <board> --item <item> --owner "<label>" --path <paths>`), renew
 a long task before its lease expires, and release it when finished for any
-reason, recording the remaining frontier if interrupted. Same-outcome ownership
-requires a handoff; overlapping paths do not. Inform peers where practical,
-proceed in isolation and reconcile at landing. A named board limits selection
+reason, recording the remaining frontier if interrupted. Another claim on
+the same item or on overlapping paths is information, not a stop: read its
+note, proceed in isolation and reconcile at rebase. A named board limits selection
 to that board; an explicitly named
 program limits it to that program and the dependencies it needs to run. State
 the outcome, missing dependencies and acceptance command.
 
-Keep that short assignment in the claim note or session handoff: outcome,
-acceptance, current failure, next necessary action and dependencies. Reread it
-after compaction and before changing direction. When resuming saved work after a
-crash, compaction or handoff, rebase first and check whether main already
+Keep that short record in the claim note: outcome, acceptance, current
+failure, next necessary action and dependencies. Reread it after compaction
+and before changing direction. When resuming saved work after a crash or
+compaction, rebase first and check whether main already
 carries it (`git log origin/main -S '<distinctive line>'`) before reapplying a
 patch or rerunning its validation. A new obstacle updates this
-frontier; it does not automatically create a task. Split genuinely independent
-work only with an integration DRI. Do not mine tasks to keep a slot occupied.
+frontier; it does not create a task for someone else. Do not split work or
+mine tasks to keep a slot occupied.
 
 Choose the capability by its source-to-execution acceptance: "a helper mutates
 the caller's field and the caller observes it after return," stated as the
@@ -122,7 +122,7 @@ the independently replayed PCC checks retired by the owning tasks.
 Apply the [law of completion](../../../AGENTS.md#law-of-completion).
 Retain the reproduction, source findings and outcome context through complete
 acceptance, required review and authorized verified main landing. Do not leave
-necessary compiler/library stages for another agent or treat a handoff as done.
+necessary compiler/library stages for another agent; there are no handoffs.
 Follow the concrete path through completion; let working programs reveal design.
 
 Keep the outer command in the sample's README or owning design document and the
@@ -254,7 +254,7 @@ The assigned acceptance is the required capability demonstrated on the target,
 or the measured development workflow restored to its agreed bound; continue
 implementation when the design answers the next question. Escalate genuine
 external decisions with the exact missing prerequisite and next acceptance,
-retaining ownership and continuing feasible engineering.
+and keep the work marked unfinished while continuing feasible engineering.
 
 ## Land and restore the checkout
 

@@ -61,30 +61,32 @@ Follow the river to its end; do not carve every possible branch along the way.
 Working paths reveal the design. Build and validate what this journey needs;
 adjacent journeys will reveal their own needs when undertaken.
 
-Unfinished work loses the context that made it tractable when its owner moves
-on. Preserve that context by keeping the same outcome owner through complete
-acceptance, integration, required review, authorized landing and remote
-verification on main. A checkpoint, component pass, archive, JSON report or
-handoff document preserves evidence; none completes the assigned outcome.
+Unfinished work loses the context that made it tractable when the session
+doing it stops. The session that starts a piece of work therefore carries it
+through acceptance, integration, required review, authorized landing and
+remote verification on main. A checkpoint, component pass, archive, JSON
+report or handoff document preserves evidence; none completes the work.
+There are no handoffs: nobody else is waiting to finish it.
 
-Each implementation owner finishes the entire assigned path, including its
-necessary compiler, library and prerequisite repairs. Do not manufacture
-dependencies on other agents by dividing one outcome into stages or waiting
-for another worker to finish missing functionality. Reuse available repairs
-when practical; otherwise continue necessary work in the isolated worktree.
-Overlapping edits and merge conflicts are expected and reconciled at landing.
+The working session finishes the entire path, including the necessary
+compiler, library and prerequisite repairs. Do not manufacture dependencies on
+other agents by dividing work into stages or waiting for another session to
+finish missing functionality. Reuse available repairs when practical;
+otherwise continue the necessary work in the isolated worktree. Overlapping
+edits and merge conflicts are expected and reconciled at rebase.
 
-When the user authorizes end-to-end publication, the owner carries the completed
-path through the normal landing protocol; returning a partial candidate to a
-coordinator is not a substitute. Do not publish half-finished functionality or
-an unfinished workflow. Read-only investigations remain read-only.
+When the user authorizes end-to-end publication, the session lands the
+completed path through the normal landing protocol; returning a partial
+candidate for someone else to finish is not a substitute. Do not publish
+half-finished functionality or an unfinished workflow. Read-only
+investigations remain read-only.
 
 Persistence does not authorize fabricated results, narrowed customer acceptance,
 permission changes, custody bypasses or weakened review and validation gates.
-Raise genuine external authorization or environment blockers precisely, retain
-ownership and an unfinished status, and continue all feasible engineering.
-A user stop or exhausted runtime budget preserves work for the same owner's
-continuation; it does not turn the unfinished assignment into completion.
+Raise genuine external authorization or environment blockers precisely, keep
+the work marked unfinished, and continue all other feasible engineering. A
+user stop or exhausted runtime budget preserves the work for a later
+continuation; it does not turn unfinished work into completion.
 
 ## Commands
 
@@ -221,82 +223,78 @@ are byte-sensitive.
 
 ## Scope and escalation
 
-- Every active outcome has one directly responsible individual (DRI), recorded
-  in its live claim. The DRI owns acceptance and integration across stages.
-  Parked work remains available for a DRI when its dependency or priority changes.
+- The session that starts work finishes it. A claim records what a session
+  is doing so other sessions can see it; it grants nothing and blocks nothing.
+  Parked work is available to any session once its prerequisite is met.
 - A sample-driven compiler outcome includes the complete application and the
-  compiler repairs needed for its acceptance. Keep one integration DRI through
-  source, native/Terminal execution, invalid controls and publication. Group
-  samples by a demonstrated shared capability or root cause, not shared files
-  or pipeline stages; do not manufacture worker dependencies for these stages.
-  Actual external prerequisites and already-owned outcomes retain their gates.
-- Keep a short assignment record in the claim note or session handoff: outcome,
-  acceptance, current failure, next necessary action and dependencies. Reread it
-  after context compaction and before changing direction. A checkpoint is not
-  completion; continue with the same owner under the law of completion. A user
-  stop or exhausted budget preserves the frontier without claiming success.
-- A newly discovered obstacle normally belongs to the current outcome. Update
-  its frontier rather than spawning a task. Split only independently assignable
-  work; the original DRI still owns integration. Shared blockers are recorded
-  once and linked from affected outcomes. Do not mine work to occupy agents.
-  Real work comes from programs: when no grouped outcome is ready, write new
-  samples at the language frontier and let their failures define the next
-  outcomes. Never split an existing item to keep an agent busy; narrow parallel
-  slices build duplicate routes for the same operation.
-- Overlap is expected. A Git conflict between outcomes is a design signal:
-  two owners are changing one decision point, so reconcile into one
-  implementation and record that shared owner on the board. Conflicts only
-  show textual overlap; semantic breakage lands without one, which is why
-  main must stay green on every host (below).
+  compiler repairs needed for its acceptance; carry it through source,
+  native/Terminal execution, invalid controls and publication. Group samples
+  by a demonstrated shared capability or root cause, not shared files or
+  pipeline stages, and never divide one outcome into stages for different
+  agents. Only an actual external prerequisite (an owner decision, an
+  unavailable environment) gates work.
+- Keep a short record in the claim note: outcome, acceptance, current failure,
+  next necessary action and prerequisites. Reread it after context compaction
+  and before changing direction. A checkpoint is not completion. A user stop
+  or exhausted budget preserves the frontier without claiming success.
+- A newly discovered obstacle belongs to the work that found it: fix it
+  rather than filing a task for someone else. Do not split work or mine
+  tasks to keep agents busy; narrow parallel slices build duplicate routes for
+  the same operation. Real work comes from programs: when nothing is ready,
+  write new samples at the language frontier and let their failures define
+  the next work.
+- Overlap is expected and needs no permission. A Git conflict is a design
+  signal: two sessions are changing one decision point, so reconcile them into
+  one implementation at rebase. Conflicts only show textual overlap; semantic
+  breakage lands without one, which is why main must stay green on every host
+  (below).
 - Main stays green on every supported host. No machine runs all three OSes,
   so each host with a native golden runs `python tools/native_watch.py` on a
-  schedule ([testing](tools/testing.md#corpus-outcome-gate)). A regression it
-  reports is bisected to its first bad commit and recorded on the owning item
-  the same day; the owner repairs it before landing more capability work.
-- After completing an outcome, an agent may claim a bounded
+  schedule ([testing](tools/testing.md#corpus-outcome-gate)). Whoever sees a
+  regression bisects it to its first bad commit and repairs it before landing
+  more capability work. Record it on the board only when it cannot be
+  repaired in that session, and say exactly what prevents the repair.
+- After completing an outcome, an agent may take a bounded
   iteration-performance or test-environment outcome based on an experienced
   obstruction. Record the workflow and adequate target before repair; return
   to product work when it meets that target. No incidental profiling detours.
 - Report outcome acceptance, not activity or commit counts. Missing implementation
   and file overlap are work to resolve, not blockers. An actual missing owner
-  decision, inaccessible environment or external dependency may require a pause
-  while retaining ownership; unrelated busywork is not a substitute.
-- Language/architecture decisions go in `OWNER_QUESTIONS.md` with the
-  dependency referenced on the owning task; engineering decisions stay with
-  the implementer. Gates pass on real behavior. The accepted bootstrap
+  decision, inaccessible environment or external dependency may pause that one
+  piece of work; record it and continue everything else. Unrelated busywork is
+  not a substitute.
+- Language/architecture decisions go in `OWNER_QUESTIONS.md`, referenced from
+  the affected board item; engineering decisions stay with the session doing
+  the work. Gates pass on real behavior. The accepted bootstrap
   chain changes only through its proofs.
 
-## Delegation
+## Sessions and subagents
 
-- Think in completed outcomes when creating sessions or subagents. Give each
-  owner clear, explicit directions: what must work, the required work, how
-  acceptance is verified, and who reviews and lands it. State directions
-  directly; never imply or insinuate them. The owner carries authorized work
-  through implementation, testing, review, normal main landing and remote
-  verification, and keeps working until the assigned outcome is complete.
+- Give a session or subagent a complete piece of work, never a stage: what
+  must work, how acceptance is verified, and that it lands its own result.
+  State directions directly; never imply or insinuate them. The session
+  carries authorized work through implementation, testing, review, normal
+  main landing and remote verification, and keeps working until it is
+  complete.
 - Dot-created Omega cloud sessions and their native workers default to
   **GPT 6.1 Sol, medium reasoning** (`gpt-6.1-sol`, `medium`), unless the user
   specifies another model or effort. Select them through the runtime's exposed
   launch fields; a prompt alone cannot change a model. Before launching or
   resuming cloud work, follow the [cloud launch preflight](.agents/skills/dot-swarm/references/cloud-launch.md).
   A single advance remains one assignment; it does not authorize a swarm.
-- One DRI per outcome; contributors may share implementation paths in isolated
-  worktrees. Assignments carry acceptance, governing design, dependencies and
-  an integration owner. Keep distinct outcomes rather than partitioning files.
-- State publication and review responsibility in the assignment. An authorized
-  end-to-end owner completes normal landing. Do not downgrade an implementation
-  assignment into a contributor-only handoff without the user's instruction.
-  Read-only review/scouting does not authorize writes or
-  publication. User-required independent review remains required; a bounded
-  report turn does not itself add another approval or reviewer gate.
-- Workers report through `python tools/claims.py note --ticket` and the
-  session report; the coordinator reconciles board evidence without replacing
-  outcome ownership or blocking other sessions' updates. A slice
-  that reaches a sibling's implementation path reports the overlap and continues
-  necessary work. Reuse a shared repair when practical; do not wait for permission
-  to touch files. Reconcile competing changes into one implementation at landing.
-- Continue implementation when the design answers the question; escalate
-  the exact missing owner decision when it does not, retaining the outcome.
+- Parallel sessions take distinct pieces of work, chosen by root cause, not
+  by file. Shared implementation paths are fine; each session works in its
+  own worktree and reconciles at rebase. Reuse another session's repair when
+  practical; never wait for permission to touch files.
+- Read-only review or scouting does not authorize writes or publication. A
+  user-required independent review remains required; no other approval or
+  reviewer gate exists.
+- Sessions record progress in their claim note
+  (`python tools/claims.py note --ticket`) and their final report. Nobody
+  reconciles another session's work on its behalf.
+- Continue implementation when the design answers the question; when it does
+  not, put the exact missing decision to the project owner and keep working
+  on everything else.
 
 ## Commit naming
 
@@ -388,16 +386,15 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   bookkeeping, not a record. Land only finished work: every commit builds on
   its own, because main is bisected one commit at a time, and no commit says
   its own validation or review is still pending. `landing.py` refuses both.
-- Before editing shared paths, check `python tools/claims.py status` for
-  live session assignments and attempt to claim the work ([tools/claims](tools/claims.md)).
-  Claims are advisory, not permission to develop. If coordination is unavailable
-  or times out, report it and continue in an isolated worktree with the intended
-  scope recorded locally. Do not wait repeatedly, treat an outage as a known
-  conflict, or claim registration succeeded. Path overlaps are informational,
-  not exclusions; notify peers where possible and reconcile their changes.
-  Taking over the same outcome requires an explicit handoff, not an overlap flag.
-  Existing tickets remain valid; refresh old clients that reject path overlap.
-  Publication still uses the landing queue and never overwrites incoming work.
+- Before editing shared paths, check `python tools/claims.py status` and
+  record a claim for your work ([tools/claims](tools/claims.md)) so other
+  sessions can see it. Claims never grant or block work. If coordination is
+  unavailable or times out, report it and continue in an isolated worktree
+  with the intended scope recorded locally. Do not wait repeatedly, treat an
+  outage as a conflict, or claim registration succeeded. Path overlaps are
+  informational; reconcile overlapping changes at rebase. Existing tickets
+  remain valid; refresh old clients that reject path overlap. Publication
+  still uses the landing queue and never overwrites incoming work.
 - Keep sample coverage out of the shipped CLI.
 
 ## Design references

@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Cross-machine work-claim registry on refs/coordination/omega-claims/main.
 
-A claim records one owner's in-progress assignment: a board item or freeform
+A claim records one session's in-progress work: a board item or freeform
 name, the repository paths it expects to edit, and a renewable lease. Claims
 make live work visible across machines, waves, and local sessions so a new
-agent can pick unclaimed work instead of duplicating an active assignment.
+agent can choose unclaimed work instead of unknowingly duplicating it.
 
-Claims name outcome owners, not exclusive files. Another live claim on the
-same item rejects; path overlaps are reported without blocking registration.
---allow-overlap remains accepted for older callers, not as an ownership override.
+Claims grant and refuse nothing. Another live claim on the same item or on
+overlapping paths is reported as an overlap, and the sessions reconcile their
+changes at rebase. --allow-overlap remains accepted for older callers and
+changes nothing.
 Expired claims are reaped by the next writer and never block
 reuse. Every mutation compares the prior object like tools/landing.py; see
 claims.md.
@@ -511,12 +512,10 @@ class Claims:
                 "log", "-1", "--format=%H", "--fixed-strings",
                 f"--grep={options.ticket}", snapshot["version"]).stdout:
             raise ClaimsError("This ticket was already removed. Claim with a new ticket.")
+        # A claim makes work visible; it never refuses work. Another live
+        # claim on the same item is reported like an overlapping path, and
+        # the sessions reconcile their changes at rebase (AGENTS.md).
         found = self.conflicts(record, options.item, options.paths)
-        owners = [conflict for conflict in found if conflict["reason"] == "same item"]
-        if owners:
-            return {"code": 2, "proceed": False,
-                    "record": {"state": "conflict", "item": options.item,
-                               "conflicts": owners}}
         lease = options.lease_minutes
         entry = {"ticket": options.ticket, "item": options.item,
                  "board": options.board, "owner": options.owner,

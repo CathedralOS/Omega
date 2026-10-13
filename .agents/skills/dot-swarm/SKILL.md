@@ -131,12 +131,12 @@ absent, report the missing runtime rather than pretending a shell is an agent.
 For implementation, create worktrees from the top-level checkout under
 `.codex/worktrees/<wave>-<name>` and use local `swarm/<wave>-<name>` branches.
 Start fresh work from fetched `origin/main`; keep a continuation's worktree and
-warm build state. Never switch, reset, auto-stash, or clean another owner's tree.
+warm build state. Never switch, reset, auto-stash, or clean another session's tree.
 Git's stash is shared across worktrees; use a separate baseline worktree instead.
 
 Claim before editing, retain the ticket, renew before expiry, and report evidence
-through `claims.py note`. A same-outcome conflict requires a handoff;
-path overlap does not block work or require an override. Shared claims, notes, releases, and landing are remote writes:
+through `claims.py note`. Another claim on the same outcome or on overlapping
+paths does not block work or require an override; reconcile at rebase. Shared claims, notes, releases, and landing are remote writes:
 if the assignment forbids remote writes, do not silently invoke them. A read-only
 wave needs no edit claim; keep its assignments locally and label them read-only.
 A local-only edit exception needs an explicit scope decision and is not a shared
@@ -186,7 +186,7 @@ Give each worker one self-contained assignment containing:
 - Mode: diagnostic, local implementation, or authorized publication
 - One program/outcome chain, current board acceptance, witness and expected result
 - Read-only restrictions where applicable, advisory edit paths, validation,
-  design links and the current outcome/DRI roster
+  design links and the current outcome/session roster
 - Exact useful checks, build ownership, relevant toolchain setup, and stop rules
 - Reporting destination and the verdict fields below
 

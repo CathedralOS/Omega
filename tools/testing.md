@@ -14,8 +14,8 @@ A known-red unrelated baseline need not block a checkpoint, but is not release
 acceptance. Add tests for missing behavioral distinctions, not mechanically
 expanded combinations or test-count targets.
 
-An agent may own **VALIDATION-ENVIRONMENT** or **ITERATION-PERFORMANCE** after
-a round of compiler work (see [outcome ownership](../TASKS.md#outcome-ownership)).
+An agent may take **VALIDATION-ENVIRONMENT** or **ITERATION-PERFORMANCE** after
+a round of compiler work (see [working the board](../TASKS.md#working-the-board)).
 Name the obstructed workflow and adequate target first. Repair the bottleneck
 or validation path, demonstrate the result and stop. Do not silently turn a
 feature assignment into profiling or repeated broad test runs.

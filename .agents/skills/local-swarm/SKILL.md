@@ -55,16 +55,16 @@ stable worktree for an ongoing outcome; a same-checkout no-op does not prove a
 new worktree's cache hits. Check pressure before builds and close delegated stdin
 using the native host's supported entrypoint.
 
-Dispatch outcome, acceptance, DRI, failure, next action, dependencies, design,
+Dispatch outcome, acceptance, failure, next action, dependencies, design,
 exact worktree/base and publication permission. Agents reread the short assignment
-after compaction. Keep outcome ownership through checkpoints; a missing next
-stage is normally more work on the same assignment.
+after compaction. A checkpoint is not completion; a missing next stage is more
+work on the same assignment.
 
 ## Coordinate and integrate
 
-Report file overlaps, continue necessary work and reconcile one implementation.
-Same-outcome ownership requires a handoff or a delegated contribution under its
-DRI. Never narrow path estimates merely to evade a collision.
+Report overlaps, continue necessary work and reconcile one implementation at
+rebase. Two sessions on the same outcome is an overlap to reconcile, not a
+permission question. Never narrow path estimates merely to evade a collision.
 
 Keep returned handles and real states in `build/swarm/<wave>/slots.json`;
 `tools/swarm/fill.py note` and `plan` support this. On completion inspect

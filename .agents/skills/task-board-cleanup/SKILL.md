@@ -39,7 +39,7 @@ it. If status cannot be verified, write the precise verification needed.
   Missing implementation is unfinished work, and stays.
 - Consolidate duplicates under the owner of the missing capability, preserving
   distinct acceptance cases and dependencies. Split only when it enables
-  independently useful work; retain the parent outcome's integration DRI.
+  independently useful work; the split pieces stay whole outcomes, never stages.
   A next diagnostic or implementation step normally updates the current frontier,
   not the number of tasks. Never mine assignments just to occupy agents.
 - Challenge dependencies: separate an executable concurrency witness from model

@@ -338,16 +338,17 @@ class ClaimsTests(unittest.TestCase):
                         "--owner", "A", "--lease-minutes", "2000", expected=1)
         self.assertEqual(self.run_claims(self.a, "status")["state"], "available")
 
-    def test_same_item_conflict_blocks_until_release(self):
+    def test_same_item_claims_coexist_and_release_independently(self):
+        # Claims make work visible; they never refuse it (AGENTS.md).
         claimed = self.claim(self.a, owner="A")
-        conflict = self.run_claims(self.b, "claim", "--item", "ALPHA-ITEM",
-                                   "--owner", "B", expected=2)
-        self.assertEqual(conflict["state"], "conflict")
-        self.assertEqual(conflict["conflicts"][0]["owner"], "A")
-        self.claim(self.b, item="BETA-ITEM", owner="B")
-        self.run_claims(self.a, "release", "--ticket", claimed["ticket"])
-        self.claim(self.b, item="ALPHA-ITEM", owner="B")
+        second = self.run_claims(self.b, "claim", "--item", "ALPHA-ITEM", "--owner", "B")
+        self.assertEqual(second["state"], "claimed")
+        self.assertEqual(second["overlaps"][0]["owner"], "A")
+        self.assertEqual(second["overlaps"][0]["reason"], "same item")
         self.assertEqual(len(self.run_claims(self.a, "status")["claims"]), 2)
+        self.run_claims(self.a, "release", "--ticket", claimed["ticket"])
+        claims = self.run_claims(self.a, "status")["claims"]
+        self.assertEqual([claim["owner"] for claim in claims], ["B"])
 
     def test_task_board_path_claims_are_rejected_even_with_overlap(self):
         for board in ("TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
@@ -371,7 +372,7 @@ class ClaimsTests(unittest.TestCase):
         self.assertEqual(report["uncovered"], [])
         self.assertEqual(report["violations"], [])
         self.claim(self.b, "BETA-ITEM", "B")
-        self.claim(self.b, "ALPHA-ITEM", "B", expected=2)
+        self.claim(self.b, "ALPHA-ITEM", "B")
         self.claim(self.b, "GAMMA-ITEM", "B", "--path", "src/x/file.rs")
 
     def test_claim_splits_comma_joined_path_values(self):
@@ -438,11 +439,13 @@ class ClaimsTests(unittest.TestCase):
         second = self.claim(self.b, "BETA-ITEM", "B", "--path", "src/dir/new.rs")
         self.assertEqual(second["overlaps"][0]["ticket"], first["ticket"])
 
-    def test_overlap_flag_cannot_replace_outcome_owner(self):
+    def test_second_claim_on_an_item_is_recorded_with_its_overlap(self):
         self.claim(self.a, owner="A")
-        conflict = self.run_claims(self.b, "claim", "--item", "ALPHA-ITEM",
-                            "--owner", "B", "--allow-overlap", expected=2)
-        self.assertEqual(conflict["conflicts"][0]["reason"], "same item")
+        second = self.run_claims(self.b, "claim", "--item", "ALPHA-ITEM",
+                                 "--owner", "B", "--allow-overlap")
+        self.assertEqual(second["state"], "claimed")
+        self.assertEqual(second["overlaps"][0]["reason"], "same item")
+        self.assertEqual(len(self.run_claims(self.a, "status")["claims"]), 2)
 
     def test_file_claim_stays_off_board(self):
         (self.a / "notes.txt").write_text("x\n", encoding="utf-8")
@@ -525,13 +528,13 @@ class ClaimsTests(unittest.TestCase):
                 for ticket in tickets:
                     self.run_claims(self.a, "release", "--ticket", ticket)
 
-    def test_same_outcome_race_keeps_one_owner(self):
+    def test_concurrent_claims_on_one_item_both_register(self):
         first = self.start(self.a, "claim", "--item", "ALPHA-ITEM", "--owner", "A")
         second = self.start(self.b, "claim", "--item", "ALPHA-ITEM", "--owner", "B",
                             "--allow-overlap")
         results = [self.finish(first), self.finish(second)]
-        self.assertEqual(sorted(row[0] for row in results), [0, 2], results)
-        self.assertEqual(len(self.run_claims(self.a, "status")["claims"]), 1)
+        self.assertEqual(sorted(row[0] for row in results), [0, 0], results)
+        self.assertEqual(len(self.run_claims(self.a, "status")["claims"]), 2)
 
     def test_audit_reports_advisory_overlaps_without_rejecting(self):
         self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x")

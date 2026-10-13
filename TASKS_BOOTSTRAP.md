@@ -2,9 +2,9 @@
 
 Follow [board update discipline](TASKS.md#updating-the-boards): retain unfinished
 work and its necessary context, not a history of completed milestones.
-Use [outcome ownership](TASKS.md#outcome-ownership): one DRI carries each
-construction outcome through its executable and proof acceptance. Path overlap
-does not partition the chain or discharge integration responsibility.
+Use [working the board](TASKS.md#working-the-board): the session that starts
+a construction outcome carries it through its executable and proof acceptance.
+Path overlap does not partition the chain into stages for different sessions.
 
 Build the smallest **human-auditable proof chain to self-hosted Omega**.
 Runnable compilers and checked edge evidence are both required; neither replaces

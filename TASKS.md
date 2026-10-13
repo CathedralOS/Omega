@@ -11,31 +11,33 @@ a reason to special-case source. All accepted language scope stays required.
 Measured iteration-performance and test-environment repairs are also outcomes,
 not fallback busywork when implementation files overlap.
 
-## Outcome ownership
+## Working the board
 
 Keep the existing item IDs and capability sections stable for running agents.
 These are three views of the same board, not copies of its tasks:
 
-- **Active:** an outcome has a DRI in `python tools/claims.py status`. That
-  person owns acceptance and integration, including necessary cross-stage work.
-- **Ready:** unowned outcomes from `python tools/claims.py available --board
-  TASKS.md` whose stated prerequisites can be met. File overlap does not remove
-  availability. The command lists unowned work, not a proof of readiness.
-- **Parked:** outcomes with an explicit missing decision, environment or priority
-  prerequisite. Retain that prerequisite and acceptance, not an abandoned report.
-  Claim when it can be advanced; explicit owner-parked scope stays parked.
+- **Active:** some session has a live claim in `python tools/claims.py
+  status`. A claim shows who is working on it; it does not stop another
+  session from working on it too.
+- **Ready:** items from `python tools/claims.py available --board TASKS.md`
+  whose stated prerequisites can be met. File overlap does not remove
+  availability. The command lists unclaimed work, not a proof of readiness.
+- **Parked:** items with an explicit missing decision, environment or priority
+  prerequisite. Keep that prerequisite and the acceptance, not an abandoned
+  report. Take the item when it can be advanced; scope the project owner
+  parked explicitly stays parked.
 
-Each assignment carries outcome, acceptance, DRI ticket, current failure, next
-necessary action and dependency links. Keep the DRI in the live registry rather
-than stamping names into shared prose. Existing task text supplies the contract;
-clarify it when taking ownership instead of mass-renaming active assignments.
-After compaction or a checkpoint, reread that short assignment before proceeding.
+A claim note carries outcome, acceptance, current failure, next necessary
+action and prerequisites. Keep session names in the live registry rather than
+in shared prose. Existing task text supplies the contract; clarify it when you
+take the item instead of mass-renaming items others are working on. After
+compaction or a checkpoint, reread the note before proceeding.
 
-Discovered roadblocks normally remain within the owned outcome. Record a shared
-blocker once and link it; a separate assignment requires independently useful
-work and an identified integration owner. A checkpoint, diagnosis or child task
-does not complete the parent. File conflicts are reconciled, not avoided by
-inventing another outcome. Never retain competing implementations as modes.
+A roadblock you discover belongs to the work that found it: fix it. Record a
+shared blocker once and link it only when it cannot be fixed in that session.
+A checkpoint, diagnosis or child task does not complete the parent. File
+conflicts are reconciled at rebase, not avoided by inventing another item.
+Never retain competing implementations as modes.
 
 ### Development-health outcomes
 
@@ -47,11 +49,11 @@ duty to parked; keep measurements in its commit, not a growing incident log.
 Use an existing specific repair item when one already owns the obstruction.
 
 - **ITERATION-PERFORMANCE.** (new-scope) Restore a usable edit/build/run workflow
-  that is measurably obstructing compiler development. The DRI fixes its cause
+  that is measurably obstructing compiler development. The session fixes its cause
   and demonstrates the agreed time/resource target on comparable inputs while
   preserving behavior. Stop at usable iteration, not exhaustive optimization.
 - **VALIDATION-ENVIRONMENT.** (new-scope) Restore meaningful, bounded feedback
-  for a named development workflow. The DRI repairs test selection, harness or
+  for a named development workflow. The session repairs test selection, harness or
   environment friction and demonstrates that affected regressions are detected
   without an unnecessary full-suite run. Preserve release coverage and runtime
   oracles; recorded unrelated failures need not become this incident's repairs.
@@ -2416,7 +2418,7 @@ crash and native exit behavior.
   [the pipeline contract](omega-rust/pipeline.md): Psi 00-07 and Build execute
   once over every authored target body; one canonical Terminal Psi product is
   the only portable handoff; Omega 00-09 realizes each requested target from
-  that product and target-keyed Build rows. This DRI owns integration and
+  that product and target-keyed Build rows. This item covers integration and
   acceptance across **PSI-TARGET-FAMILIES**, **BUILD-EVALUATES-ONCE**,
   **PROVIDER-SELECTION-AFTER-TERMINAL**, **ONE-DRIVER-PER-STAGE**,
   **ONE-TRANSITION-LOWERING**, **ONE-CALL-LOWERING** and the route-retirement

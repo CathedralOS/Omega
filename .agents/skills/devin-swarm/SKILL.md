@@ -5,7 +5,7 @@ description: Coordinate a requested Devin swarm with complete end-to-end outcome
 
 # Devin outcome coordination
 
-One DRI owns each outcome through acceptance and integration. Follow
+Each session carries its outcome through acceptance and integration. Follow
 [AGENTS.md](../../../AGENTS.md), [advance](../advance/SKILL.md),
 [claims](../../../tools/claims.md), [testing](../../../tools/testing.md) and
 [landing](../../../tools/landing.md). The user sets scope, width and stopping
@@ -25,7 +25,7 @@ release capabilities or measured iteration-performance/test-environment outcomes
 Applications are witnesses, not separate priorities. Do not manufacture mining,
 fuzzing or gardening assignments to fill slots.
 
-Before dispatch record outcome, acceptance, DRI/session, revision, current failure,
+Before dispatch record outcome, acceptance, session, revision, current failure,
 next action, dependencies and ticket in ignored `build/swarm/<wave>/`.
 Consult in-flight assignments too: claims can lag dispatch. Distinct outcomes
 may edit the same files in isolated worktrees. Notify peers, reuse repairs where
