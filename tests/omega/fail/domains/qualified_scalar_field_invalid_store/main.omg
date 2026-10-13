@@ -1,3 +1,6 @@
+// The mixed scalar record is valid at construction; assigning 0 to the
+// Positive count must refuse at its receiving field despite read-geometry
+// admission.
 use omega::language::core::float_operations;
 domain f64::Time;
 domain i32::Positive(value) requires value > 0;
