@@ -1,5 +1,6 @@
 mod boolean_requirements;
 mod captured_boolean;
+mod guard_observations;
 mod labels;
 mod predicate_domains;
 mod state_preservation;

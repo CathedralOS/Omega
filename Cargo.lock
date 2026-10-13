@@ -669,6 +669,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hmm-terminal-validation"
+version = "0.1.0"
+dependencies = [
+ "compilation-products",
+ "compiler",
+ "package-manager",
+ "sha2",
+ "target",
+ "terminal-interpreter",
+]
+
+[[package]]
 name = "iced-x86"
 version = "1.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

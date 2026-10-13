@@ -1476,8 +1476,10 @@ fail/contracts/float_field_crash_wrong_order rejected 1015ms expected @c29465709
 fail/contracts/float_indexed_crash_wrong_element rejected 1028ms expected @c294657097ec+wt
 	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/contracts/indexed_element_requirement_after_write rejected 447ms expected @6d847e2a233e
-fail/contracts/indexed_element_requirement_effectful_guard rejected 451ms expected @6d847e2a233e
-fail/contracts/indexed_element_requirement_weakened_guard rejected 449ms expected @6d847e2a233e
+fail/contracts/indexed_element_requirement_effectful_guard rejected 10343ms expected @7912abbc354e
+	cannot prove requires contract for call letter from invalid: index < text.len && text[index] >= 97 (needs fact `index < text.len && text[index] >= 97` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/indexed_element_requirement_weakened_guard rejected 3500ms expected @7912abbc354e
+	cannot prove requires contract for call letter from invalid: index < text.len && text[index] >= 97 (needs fact `index < text.len && text[index] >= 97` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/indexed_element_requirement_wrong_collection rejected 449ms expected @6d847e2a233e
 fail/contracts/indexed_element_requirement_wrong_selector rejected 451ms expected @6d847e2a233e
 fail/contracts/later_arm_call_requires_unproven rejected 1669ms expected @a9ae30e1c334+wt
@@ -1520,7 +1522,7 @@ fail/contracts/returned_integer_operation_wrong_operand rejected 1617ms expected
 	cannot prove ensures contract for exit from remainder at statement 0: result.actual == right % 2
 fail/contracts/runtime_requirement_after_argument_write rejected 1559ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call needs_one from outer: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/contracts/runtime_requirement_after_guard_write rejected 1484ms expected @a9ae30e1c334+wt
+fail/contracts/runtime_requirement_after_guard_write rejected 5847ms expected @7912abbc354e
 	cannot prove requires contract for call needs_one from outer: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/runtime_requirement_after_sibling_write rejected 1575ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call needs_one from outer: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
@@ -1531,7 +1533,7 @@ fail/contracts/runtime_requirement_after_transition_argument_write rejected 1579
 	cannot prove requires contract for call needs_one from statement: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/saved_call_case_guarantee_replaced_by_call rejected 1625ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call observe from main: choice == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/contracts/saved_float_guard_after_write rejected 1065ms expected @cf645a79ddb2+wt
+fail/contracts/saved_float_guard_after_write rejected 18747ms expected @7912abbc354e
 	cannot prove requires contract for call accept from main: reading.value >= 0.0 && 0 <= 4 (needs fact `reading.value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/shared_field_current_arithmetic_out_of_bounds rejected 1605ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call checked from last: offset < backing.len (needs fact `index < backing.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
@@ -3417,7 +3419,7 @@ fail/range/element_view_field_domain_occurrence rejected 863ms expected @a9ae30e
 	machine `store` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/range/funnel_guard_one_edge_unguarded rejected 5560ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call push from Main::main: main.sp >= 0 && main.sp < 16 (needs fact `main.sp >= 0 && main.sp < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/range/guarded_copy_stale_after_write rejected 5238ms expected @a9ae30e1c334+wt
+fail/range/guarded_copy_stale_after_write rejected 6258ms expected @7912abbc354e
 	cannot prove requires contract for call store from Main::main: w >= 0 && w <= 9 (needs fact `v >= 0 && v <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/range/guarded_runtime_index_collection_write rejected 5650ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call bump from Main::main: u < 16 (needs fact `v < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
@@ -4679,7 +4681,7 @@ pass/calls/guard_call_scalar_argument_exit checked 11453ms check-target:macos_ar
 pass/calls/guarded_arm_tail_call_to_state_machine_exit checked 11089ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/guarded_arm_value_tail_call_exit checked 11235ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/guarded_arm_view_range_tail_call_exit checked 11098ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/guarded_terminal_call_chain_exit checked 10293ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/guarded_terminal_call_chain_exit checked 32857ms check-target:macos_arm64 @7912abbc354e
 pass/calls/guarded_value_call_arm_exit checked 10918ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/indexed_self_root_call_arg checked 11196ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/inline_record_scalar_call_arguments_exit checked 11193ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4784,11 +4786,11 @@ pass/calls/runtime_guarded_boundary_tail_call_exit checked 11007ms check-target:
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 11101ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_guarded_reference_return_before_crash_exit checked 30464ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @0e06d190735e
 pass/calls/runtime_guarded_reference_return_crash checked 38264ms check-target:macos_arm64 terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @0e06d190735e
-pass/calls/runtime_guarded_terminal_array_operands_exit checked 10472ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_guarded_terminal_array_operands_exit checked 35821ms check-target:macos_arm64 @7912abbc354e
 pass/calls/runtime_guarded_terminal_guard_order_exit checked 10359ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_guarded_terminal_mutable_reference_result_exit checked 10571ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_guarded_terminal_operand_order_exit checked 10400ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_guarded_terminal_reference_result_exit checked 10315ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_guarded_terminal_reference_result_exit checked 34410ms check-target:macos_arm64 @7912abbc354e
 pass/calls/runtime_guarded_terminal_reference_write_exit checked 10384ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_guarded_terminal_structural_result_exit checked 10209ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_heterogeneous_case_argument_exit checked 10426ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7058,3 +7060,28 @@ run/stores/runtime_float_indexed_call_result_exit checked 16446ms check-target:m
 run/stores/runtime_float_store_selector_snapshot_exit checked 16333ms check-target:macos_arm64 @77cde1c51efd+wt
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
+fail/contracts/scalar_copy_guard_after_selector_write rejected 40145ms expected @7912abbc354e
+	cannot prove requires contract for call bounded from Main::main: main.items[selected] >= 48 (needs fact `main.items[selector] >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call bounded from Main::main: main.items[selected] <= 49 (needs fact `main.items[selector] <= 49` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/scalar_copy_guard_after_source_restore rejected 54554ms expected @7912abbc354e
+	cannot prove requires contract for call bounded from Main::main: main.items[selector] >= 48 (needs fact `main.items[selector] >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call bounded from Main::main: main.items[selector] <= 49 (needs fact `main.items[selector] <= 49` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/scalar_copy_guard_after_source_write rejected 14755ms expected @7912abbc354e
+	cannot prove requires contract for call bounded from Main::main: main.items[selector] >= 48 (needs fact `main.items[selector] >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call bounded from Main::main: main.items[selector] <= 49 (needs fact `main.items[selector] <= 49` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/scalar_copy_guard_shadowed_const rejected 7755ms expected @7912abbc354e
+	cannot prove requires contract for call bounded from probe: value >= 48 (needs fact `delivered >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/scalar_copy_guard_shadowed_const_expression rejected 2791ms expected @7912abbc354e
+	cannot prove requires contract for call bounded from probe: value + 1 >= 48 (needs fact `delivered + 1 >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/scalar_copy_guard_shadowed_const_selector rejected 6764ms expected @7912abbc354e
+	cannot prove requires contract for call bounded from probe: bytes.items[selector] >= 48 (needs fact `bytes.items[selected] >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/scalar_field_copy_guard_after_destination_write rejected 5679ms expected @7912abbc354e
+	cannot prove requires contract for call bounded from Main::main: main.items[selector] >= 48 (needs fact `main.items[selector] >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call bounded from Main::main: main.items[selector] <= 49 (needs fact `main.items[selector] <= 49` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/scalar_index_copy_guard_after_destination_selector_write rejected 7729ms expected @7912abbc354e
+	cannot prove requires contract for call bounded from Main::main: main.items[selector] >= 48 (needs fact `main.items[selector] >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call bounded from Main::main: main.items[selector] <= 49 (needs fact `main.items[selector] <= 49` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+pass/proofs/guarded_dynamic_field_arrival checked 43960ms check-target:macos_arm64 @7912abbc354e
+pass/proofs/scalar_copy_guard_const_forwarding checked 9766ms @7912abbc354e
+pass/proofs/scalar_copy_guard_disjoint_write checked 40817ms check-target:macos_arm64 @7912abbc354e
+pass/proofs/scalar_field_copy_guard checked 43195ms check-target:macos_arm64 @7912abbc354e

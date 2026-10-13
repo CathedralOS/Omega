@@ -94,6 +94,9 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
         return false;
     }
     (guard_conjunct_matches(program, guard, &required_label)
+        || super::guard_observations::conjunct_matches(
+            program, facts, state_flow, call_flow, guard, expression,
+        )
         || super::super::call_bounds::proves(
             program,
             facts,
@@ -159,7 +162,15 @@ pub(super) fn transition_guard_proves_requires(
         }
         _ => return false,
     };
-    let guard_establishes = guard_conjunct_matches(program, guard, &required_label)
+    let copied_guard_establishes = match fact.payload {
+        FactPayload::ContractBooleanExpression { expression, .. } => {
+            super::guard_observations::conjunct_matches(
+                program, facts, state_flow, call_flow, guard, expression,
+            )
+        }
+        _ => false,
+    };
+    let guard_establishes = guard_conjunct_matches(program, guard, &required_label) || copied_guard_establishes
         || super::predicate_domains::predicate_only_domain_labels(program, facts, fact).is_some_and(|labels| {
             labels
                 .iter()

@@ -703,7 +703,7 @@ fn reference_construction_preserves_source(
 /// denotation owner establishes value-only normal returns. An empty write
 /// frame alone does not make a call repeatable. This stage already holds
 /// fact-call projections, so those calls need no second identity derivation.
-fn computed_values_have_source_identity(
+pub(super) fn computed_values_have_source_identity(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,

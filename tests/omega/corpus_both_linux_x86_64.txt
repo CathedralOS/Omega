@@ -323,3 +323,10 @@ run/stores/runtime_float_indexed_call_result_exit built 15768ms exit:0 stdout:ma
 run/stores/runtime_float_store_selector_snapshot_exit built 16044ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @77cde1c51efd+wt
 run/variant_decimal_runtime_division built 8601ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @14d037e0837c+wt
 run/variant_record_normalization_repeats built 11141ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @14d037e0837c+wt
+pass/calls/guarded_terminal_call_chain_exit built 33631ms exit:0 interpreter-exit:0 interpreter:agrees @7912abbc354e
+pass/calls/runtime_guarded_terminal_array_operands_exit built 52644ms exit:0 interpreter-exit:0 interpreter:agrees @7912abbc354e
+pass/calls/runtime_guarded_terminal_reference_result_exit built 22113ms exit:0 interpreter-exit:0 interpreter:agrees @7912abbc354e
+pass/proofs/guarded_dynamic_field_arrival built 42117ms @7912abbc354e
+pass/proofs/scalar_copy_guard_const_forwarding checked 11238ms @7912abbc354e
+pass/proofs/scalar_copy_guard_disjoint_write built 42649ms @7912abbc354e
+pass/proofs/scalar_field_copy_guard built 35891ms @7912abbc354e
