@@ -35,7 +35,10 @@ cannot reasonably be bounded. Explain that scope before starting a full run.
 An unverified base alone does not force a routine task to establish a full baseline.
 
 Attribute unexpected failures with a focused baseline comparison or dependency
-and source-reader evidence. Confirmed unrelated failures do not block landing a
+and source-reader evidence. For corpus movement the comparison is
+`python3 tools/corpus_gate.py --compare <parent> --filter <groups the change can
+move>`; a diff against the checked-in golden mixes this change with other
+lanes' drift and cannot attribute either. Confirmed unrelated failures do not block landing a
 scoped change: retain the command, revision, and evidence, and report them without
 repairing them in the same task. New or unexplained failures in affected behavior
 must be resolved before landing. Do not repeat broad suites to attribute one test.

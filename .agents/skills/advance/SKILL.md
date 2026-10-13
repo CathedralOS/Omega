@@ -123,6 +123,27 @@ tier`, `structurally false`), `python tools/proof_advisor.py --omega
 classification — advisory only: it orders investigation, never discharges
 anything, and admission fences stay out of its scope by design.
 
+### Trace a refusal with probes
+
+Cut a refusal down before reading compiler code. Write scratch projects of a
+few lines that keep only the failing construct, then vary one thing per probe:
+the value through a field or a separate parameter, the operation in the same
+state or across states, inside a loop or on a straight line. The passing and
+failing probe that differ in one construct name the cause. Those probes later
+become the fixtures and invalid controls that pin the repair.
+
+Before repairing a checker refusal, decide whether it is a rule or a gap. Read
+the spec and the comment at the decision site of the prover that declined; a
+refusal can be deliberate (a state inside a loop proves from its own
+`requires` contract, not from first-arrival facts). A rule changes the program
+to the language's idiom, recorded in the sample header. A precision gap is a
+compiler repair under the rules below.
+
+A diagnostic that does not say where it failed (machine, state, statement) is
+part of the work: fix it so it does, since the next agent meets the same
+message. Temporary tracing goes behind an environment variable in an
+`eprintln!` and is removed before commit.
+
 Apply [compositional lowering](../../../omega-rust/pipeline.md#compositional-lowering).
 If supported operations fail only because of their surrounding arrangement,
 repair the shared sequencing or semantic join and retire the replaced
@@ -179,7 +200,11 @@ test-name filters select different things. For e2e-visible changes — diagnosti
 pipeline stages, acceptance behavior — `python3 tools/corpus_gate.py --filter
 <domain>` diffs the touched fixture domain against the recorded corpus golden in
 seconds-to-minutes; prefer it to chaining per-crate nextest suites as the first
-regression signal. `--jev` on the same run gives the advisory record-safety
+regression signal. The shared golden also carries other lanes' drift and other
+hosts' rows, so its moves are a signal to attribute, not evidence against this
+change; attribute them with `--compare` (below) before acting on them. Record
+only the fixtures this change adds or moves (`--record --filter <fixtures>`),
+which splices those rows into the golden and leaves the rest unchanged. `--jev` on the same run gives the advisory record-safety
 verdict before any `--record`. Include affected crate and integration
 checks. Reuse successful results on unchanged inputs, including at landing.
 Qualify on a fixed recorded revision. Main advancing does not invalidate every
