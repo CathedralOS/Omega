@@ -75,6 +75,10 @@ fail/arithmetic/collection_result_wrong_argument rejected 197ms expected @d840c6
 	exact arithmetic in machine `rejected` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `count(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/arithmetic/complement_nested_overflow rejected 876ms expected @a9ae30e1c334+wt
 	exact arithmetic in machine `run` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/composite_bound_arrival_late_write rejected 196ms expected @82646dcce47b+wt
+	exact arithmetic in machine `advance` state `commit` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/composite_bound_arrival_unbounded_predecessor rejected 189ms expected @82646dcce47b+wt
+	exact arithmetic in machine `advance` state `commit` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/construction_payload_out_of_range rejected 672ms expected @2b888a3f0e32
 	data `Slot` case `Found` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/arithmetic/constructor_divisor_requires_nonzero rejected 938ms expected @a9ae30e1c334+wt
@@ -3654,9 +3658,8 @@ fail/slices/match_index_guard_does_not_escape rejected 1510ms expected @a9ae30e1
 	cannot prove index `0` is within unknown slice length of `values` in observe::entry
 fail/slices/mutable_subslice_state_out_of_bounds rejected 1504ms expected @a9ae30e1c334+wt
 	cannot prove subslice range end bound `1..3` is within unknown slice length
-fail/slices/mutable_subslice_state_requires_nonempty rejected 1583ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call forwarded from write: items[1..1].len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-	cannot prove index `0` is within length 0
+fail/slices/mutable_subslice_state_requires_nonempty rejected 550ms expected @82646dcce47b+wt
+	cannot prove requires contract for call forwarded from write: items[1..1].len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/slices/mutable_subslice_state_uses_wrong_source_extent rejected 285ms expected @dca1c7cd7e6f+wt
 	cannot prove subslice range end bound `1..2` is within unknown slice length
 fail/slices/namespace_range_keeps_bounds rejected 806ms expected @a9ae30e1c334+wt
@@ -3721,6 +3724,8 @@ fail/slices/signed_slice_range_upper_only rejected 1708ms expected @a9ae30e1c334
 	cannot prove every subslice range endpoint of `__hoist_14..__hoist_15` is non-negative
 fail/slices/signed_to_unsigned_cast_does_not_inherit_position rejected 291ms expected @2ab552549670+wt
 	Exact integer cast in machine `read` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/slices/stored_bound_replaces_old_value rejected 1251ms expected @82646dcce47b+wt
+	cannot prove index `cursor.offset` is within length 64 in read::replace
 fail/slices/subslice_range_operator_contract_unproven rejected 1808ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` value call to `Slice::range` violates required fact `start <= end && end <= items.len`: the instantiated fact is structurally false
 fail/slices/termination_slice_length_order_unimplemented rejected 310ms expected @dca1c7cd7e6f+wt
@@ -4349,6 +4354,7 @@ pass/arithmetic/runtime_bounded_unsigned_sum_chain_exit checked 13816ms check-ta
 pass/arithmetic/runtime_bounded_unsigned_sum_field_and_call_exit checked 14708ms check-target:macos_arm64 @1b12798e27f4
 pass/arithmetic/runtime_call_live_remainder_recovery_exit checked 7304ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/arithmetic/runtime_comparison_signedness_exit checked 11182ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/arithmetic/runtime_composite_bound_arrivals_exit checked 13494ms check-target:macos_arm64 @82646dcce47b+wt
 pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit checked 10981ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/runtime_dispatch_cast_decisions_exit checked 11007ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/runtime_domain_boundaries_exit checked 11073ms check-target:macos_arm64 @a9ae30e1c334+wt

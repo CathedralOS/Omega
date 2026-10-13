@@ -174,6 +174,86 @@ pub(super) fn proves_range(
     })
 }
 
+/// Compare admitted ordinals with their exact collection's live extent.
+/// Pure operand admission and the occurrence environment preserve evaluation
+/// effects; no source-spelling match establishes a descriptor identity.
+pub(super) fn proves_collection_bounds(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    environment: &ValueEnvironment,
+    collection: ExpressionHandle,
+    index: ExpressionHandle,
+) -> bool {
+    let Some(collection) =
+        super::ordered_values::operand(program, machine, state, collection, None)
+    else {
+        return false;
+    };
+    let mut observations = Observations::default();
+    let Some(length) = observations.value(&Operand::CollectionLength(Box::new(collection))) else {
+        return false;
+    };
+    let mut value = |expression| {
+        super::ordered_values::operand(program, machine, state, expression, None)
+            .and_then(|operand| observations.value(&operand))
+    };
+    let complements = if let Some(range) = program.expression_table.range_node(index) {
+        let start = if range.start.is_valid() {
+            value(range.start)
+        } else {
+            Some(integer(0))
+        };
+        let end = if range.end.is_valid() {
+            value(range.end)
+        } else {
+            Some(length.clone())
+        };
+        let (Some(start), Some(mut end)) = (start, end) else {
+            return false;
+        };
+        let authored_end = end.clone();
+        if range.end_inclusive && range.end.is_valid() {
+            // Normalize in mathematical integers. This does not form a runtime
+            // addition or assume that an inclusive endpoint fits the extent.
+            end = ScopedArithmeticValue::IntegerOperation {
+                operator: BinaryOperator::Add,
+                left: Box::new(end),
+                right: Box::new(integer(1)),
+            };
+        }
+        vec![
+            (BinaryOperator::Less, start.clone(), integer(0)),
+            (BinaryOperator::Less, authored_end, integer(0)),
+            (BinaryOperator::Greater, start, end.clone()),
+            (BinaryOperator::Greater, end, length),
+        ]
+    } else {
+        let Some(index) = value(index) else {
+            return false;
+        };
+        vec![
+            (BinaryOperator::Less, index.clone(), integer(0)),
+            (BinaryOperator::GreaterOrEqual, index, length),
+        ]
+    };
+    // Each required bound is proved independently. In particular, ordered
+    // endpoints and a common ceiling cannot stand in for non-negativity.
+    complements.into_iter().all(|(operator, left, right)| {
+        contradicts(
+            program,
+            machine,
+            environment,
+            observations.clone(),
+            vec![ScopedArithmeticComparison {
+                operator,
+                left,
+                right,
+            }],
+        )
+    })
+}
+
 fn contradicts(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -283,7 +363,7 @@ fn contradicts(
     scoped_arithmetic_comparisons_unsatisfiable(program, machine, &comparisons)
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Observations {
     atoms: Vec<Operand>,
 }

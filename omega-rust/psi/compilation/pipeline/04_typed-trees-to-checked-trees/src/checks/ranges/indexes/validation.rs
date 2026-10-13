@@ -8,18 +8,20 @@
 //! inconsistent selection. When a selected operator governs a collection with
 //! builtin array or slice geometry, `obligation` also validates the
 //! operator's `requires` clauses and proves their non-negative operands, and
-//! every later failure message names that `requires`. The route then depends
-//! on what is known about the collection:
+//! every later failure message names that `requires`. Builtin collection
+//! geometry first consumes the shared all-arrival integer observations for
+//! complete element/window bounds, including original endpoint non-negativity.
+//! When that judgment cannot close the obligation, existing extent-specific
+//! facts and recipes remain available:
 //!
 //! 1. a known length, from the facts or a fixed array type:
-//!    `check_known_length_index`, which rejects a computed index that is not
-//!    literal-only arithmetic, proves a scalar index from facts, declared
+//!    `check_known_length_index` proves a scalar index from facts, declared
 //!    ranges, callee `ensures` and hoisted index initializers, and checks a
 //!    range by its constant bounds or, when they do not fold, by the
 //!    unknown-length facts and then `known_ranges`;
 //! 2. a slice or bounded byte type with no known length:
-//!    `check_unknown_length_slice_index` consumes retained ordinal facts and
-//!    the shared scalar/descriptor relation judgment. A captured computation
+//!    `check_unknown_length_slice_index` consumes retained ordinal facts.
+//!    The shared judgment above already considered live value relations. A captured computation
 //!    keeps its value identity; it is not expanded by a subtraction recognizer;
 //! 3. a fixed array with a const-generic extent:
 //!    `check_symbolic_extent_index`;
@@ -153,6 +155,31 @@ pub(super) fn check_indexed_access(
                 },
             )
         });
+    // Both elements and windows consume the live integer arrival owner. This
+    // retains copied bounds through state jumps and intervening assignments;
+    // rebuilding only state-local guards loses those value identities.
+    let builtin_geometry = length.is_some()
+        || expression_is_slice(program, machine, state, indexed.collection)
+        || expression_type_reference(program, machine, state, indexed.collection)
+            .and_then(|reference| {
+                super::super::arrays::bounded_byte_type_capacity(program, reference)
+            })
+            .is_some();
+    if builtin_geometry
+        && ::validation::occurrence_collection_bounds_are_proven(
+            program,
+            machine.symbol,
+            state.symbol,
+            facts.statement_index,
+            expression,
+        )
+    {
+        return if spelling == OperatorSpelling::Range {
+            BoundsCheckResult::ProvenRange
+        } else {
+            BoundsCheckResult::ProvenScalar
+        };
+    }
     let proven = if let Some(length) = length {
         check_known_length_index(
             program,
@@ -682,20 +709,7 @@ fn check_unknown_length_slice_index(
             )));
         }
         _ => {
-            if unknown_length_index_is_proven(program, facts, collection, index)
-                || crate::checks::current_scalar_values::CurrentScalarValues::proves_collection_index_at(
-                    program,
-                    machine,
-                    state,
-                    facts.statement_index,
-                    collection,
-                    index,
-                    facts
-                        .checked_calls
-                        .as_ref()
-                        .and_then(|context| context.call_frames()),
-                )
-            {
+            if unknown_length_index_is_proven(program, facts, collection, index) {
                 return true;
             }
             diagnostics.push(Diagnostic::error(with_attribution(

@@ -17,7 +17,9 @@ use crate::proof_contracts::arithmetic_domains::expression_analysis::{CheckedAna
 use symbols::SymbolHandle;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
+mod collection_bounds;
 mod transition_arguments;
+pub use collection_bounds::occurrence_collection_bounds_are_proven;
 
 struct EvaluatedValue {
     interval: Interval,
@@ -1046,7 +1048,7 @@ impl ArrivalWalk<'_, '_> {
                         .and_then(|reference| self.program.primitive_type_reference(reference)),
                         assignment.value,
                     );
-                    let value = self.evaluated_value(source, assignment.value, environment);
+                    let mut value = self.evaluated_value(source, assignment.value, environment);
                     let written = self.frames.and_then(|frames| {
                         frames
                             .assignment_write_frame(self.machine, statement)
@@ -1054,6 +1056,14 @@ impl ArrivalWalk<'_, '_> {
                     });
                     let complete = written.is_some();
                     if let Some(written) = written {
+                        value.copied.capture_assignment_relations(
+                            self.program,
+                            self.machine,
+                            source,
+                            assignment,
+                            &written,
+                            environment,
+                        );
                         environment.invalidate_assignment_paths(
                             self.program,
                             self.machine,

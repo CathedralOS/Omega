@@ -56,21 +56,84 @@ impl CopiedIntegerValue {
         {
             return;
         }
-        let Some(observed) = state.and_then(|state| {
-            ordered_values::operand(program, machine, state, local.initial_value, None)
-        }) else {
-            return;
-        };
         let destination = ordered_values::Operand::Place {
             root: local.symbol,
             fields: Vec::new(),
             path: local.name.as_str().to_owned(),
+        };
+        self.capture_relations(
+            program,
+            machine,
+            state,
+            local.initial_value,
+            destination,
+            &[local.name.as_str().to_owned()],
+            environment,
+        );
+    }
+
+    /// Stores capture the same scalar value as local bindings. Other operands
+    /// retain identity only when the complete write footprint preserves them;
+    /// the new destination must never revive facts about its old contents.
+    pub(crate) fn capture_assignment_relations(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        assignment: &typed_trees::statement::TableAssignment,
+        written: &[String],
+        environment: &ValueEnvironment,
+    ) {
+        let primitive =
+            super::declared_place_type_raw(program, machine, Some(state), assignment.target)
+                .map(|reference| {
+                    crate::value_custody::places::assignment_value_type(program, reference)
+                })
+                .and_then(|reference| program.primitive_type_reference(reference));
+        if !primitive.is_some_and(|primitive| primitive.is_fixed_integer()) {
+            return;
+        }
+        // Dynamic destinations require a captured selector, not its later
+        // spelling. A static projection is stable here only because the
+        // shared RHS operand admission below recursively refuses effectful
+        // calls; a reference-retargeting RHS cannot earn these relations.
+        let Some(destination @ ordered_values::Operand::Place { .. }) =
+            ordered_values::operand(program, machine, state, assignment.target, None)
+        else {
+            return;
+        };
+        self.capture_relations(
+            program,
+            machine,
+            Some(state),
+            assignment.value,
+            destination,
+            written,
+            environment,
+        );
+    }
+
+    fn capture_relations(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        state: Option<&typed_trees::state::State>,
+        expression: ExpressionHandle,
+        destination: ordered_values::Operand,
+        written: &[String],
+        environment: &ValueEnvironment,
+    ) {
+        let Some(observed) = state
+            .and_then(|state| ordered_values::operand(program, machine, state, expression, None))
+        else {
+            return;
         };
         let mut bindings = Vec::new();
         for relation in &environment.ordered_values {
             retain_places(&relation.left, &observed, &mut bindings);
             retain_places(&relation.right, &observed, &mut bindings);
         }
+        bindings.retain(|(source, _)| source.survives(written));
         bindings.push((observed.clone(), destination.clone()));
         self.ordered_relations =
             ordered_values::rebind_relations(&environment.ordered_values, &bindings);
@@ -79,7 +142,7 @@ impl CopiedIntegerValue {
         // inputs remain current, so hoisting arithmetic does not discard its
         // correlations. Ordinary write invalidation retires either side; a
         // shadowing destination must not revive its old storage observation.
-        if observed.survives(&[local.name.as_str().to_owned()]) {
+        if observed.survives(written) {
             for (left, right) in [
                 (destination.clone(), observed.clone()),
                 (observed, destination),

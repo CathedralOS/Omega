@@ -23,7 +23,9 @@ use crate::value_custody::places::{collection_length_receiver, declared_member_p
 use symbols::SymbolHandle;
 
 mod requirements;
+mod transport;
 pub use requirements::validate_ordered_requirement_call_totality;
+pub(super) use transport::rebind_relations;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Operand {
@@ -336,65 +338,6 @@ impl Relation {
             })
             .collect()
     }
-}
-
-/// Project live relations onto an edge's delivered operands before forgetting
-/// the others. `ceiling >= intermediary` and `intermediary > value` still imply
-/// `ceiling > value` when the intermediary is not an argument. Merely rebinding
-/// each relation independently loses that consequence. This operates on the
-/// already checked observations; it never replays a guard or equates paths.
-/// Unequal observations transport directly but do not compose as orders.
-pub(super) fn rebind_relations(
-    relations: &[Relation],
-    bindings: &[(Operand, Operand)],
-) -> Vec<Relation> {
-    let mut rebound = Vec::new();
-    for relation in relations
-        .iter()
-        .flat_map(|relation| relation.rebound(bindings))
-    {
-        if !rebound.contains(&relation) {
-            rebound.push(relation);
-        }
-    }
-    let mut operands = Vec::new();
-    for relation in relations {
-        for operand in [&relation.left, &relation.right] {
-            if !operands.contains(&operand) {
-                operands.push(operand);
-            }
-        }
-    }
-    let delivered = operands
-        .iter()
-        .map(|operand| operand.rebound(bindings))
-        .collect::<Vec<_>>();
-    if delivered.iter().all(|operands| !operands.is_empty()) {
-        return rebound;
-    }
-    for (operand, targets) in operands.iter().zip(&delivered) {
-        if targets.is_empty() {
-            continue;
-        }
-        for (ceiling, floor) in ordered_gaps(relations, operand) {
-            if ceiling == *operand {
-                continue;
-            }
-            for left in ceiling.rebound(bindings) {
-                for right in targets {
-                    let relation = Relation {
-                        left: left.clone(),
-                        right: right.clone(),
-                        constraint: RelationConstraint::MinimumDifference(floor),
-                    };
-                    if !rebound.contains(&relation) {
-                        rebound.push(relation);
-                    }
-                }
-            }
-        }
-    }
-    rebound
 }
 
 /// Only a builtin element store through an exact mutable byte parameter leaves

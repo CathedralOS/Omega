@@ -601,53 +601,6 @@ impl<'program> CurrentScalarValues<'program> {
         ) == StrictArithmeticImplicationJudgment::Proven
     }
 
-    /// Prove an element's upper bound from the same captured scalar and
-    /// descriptor observations used by arrivals and ranks. This is an integer
-    /// relation, not a fixed-extent or layout selection. The range owner keeps
-    /// its independent non-negative and selected-index obligations.
-    pub(crate) fn proves_collection_index_at(
-        program: &'program dyn ::validation::CheckingInput,
-        machine: &'program Machine,
-        state: &'program State,
-        statement_index: usize,
-        collection: ExpressionHandle,
-        index: ExpressionHandle,
-        frames: Option<&validation::CallFrameResolver<'_>>,
-    ) -> bool {
-        let Some(mut values) = Self::at(
-            program,
-            machine,
-            state,
-            statement_index,
-            TransitionTargetHandle::invalid(),
-            frames,
-        ) else {
-            return false;
-        };
-        // This query has no operand-completion receipt. Retire any storage
-        // the enclosing statement's operands can change before interpreting
-        // the current reads; disjoint writes preserve their own observations.
-        if let Some(statement) = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(statement_index)
-        {
-            values.invalidate_operand_effects(program, machine, statement, frames);
-        }
-        let Some(index) = values.current(index) else {
-            return false;
-        };
-        let Some(length) = values.collection_length(collection, 0) else {
-            return false;
-        };
-        values.proves_values_relation(
-            program,
-            machine,
-            BinaryOperator::Less,
-            &ScopedArithmeticValue::Term(index),
-            &length,
-        )
-    }
     pub(crate) fn proves(
         &self,
         program: &dyn ::validation::CheckingInput,
