@@ -7,9 +7,11 @@
 //!
 //! Start at `build_checked_unit_effect_plans`, the checking
 //! stage's entry into this module (`build_checked_unit_effect_plans` is its
-//! test-only form without call frames). The cleanup rosters are built
-//! separately by `build_checked_partial_affine_unit_cleanup_plans` and
-//! `build_checked_nominal_affine_unit_cleanup_plans`. We first collect boundary
+//! test-only form without call frames). It also publishes the partial-affine
+//! roster: an ordinary body whose return edge owes a projected owned
+//! parameter's residual complement is the same candidate kept beside those
+//! rows, and a callee like any other. The nominal cleanup roster is built
+//! separately by `build_checked_nominal_affine_unit_cleanup_plans`. We first collect boundary
 //! signatures and ordinary single-state candidates through control.rs. A
 //! single-state body has one producer: control/statement_sequence.rs walks the
 //! authored statements in order and emits each one's operations — stores,
@@ -96,7 +98,7 @@
 
 use crate::execution::terminal_unit::cleanup::build_nominal_affine_unit_cleanup_machine;
 use crate::execution::terminal_unit::control::{
-    LocalConstructionTrace, build_boundary_machine, build_checked_machine_traced,
+    LocalConstructionTrace, build_boundary_machine, build_checked_machine_residual_parts,
     build_static_boundary_requirements,
 };
 use crate::execution::terminal_unit::plan_gaps::{GapSite, plan_gap};
@@ -167,7 +169,6 @@ mod structural_value_calls;
 pub(crate) use structural_value_calls::retain as retain_structural_value_calls;
 pub(crate) mod types;
 
-use crate::execution::terminal_unit::cleanup::build_partial_affine_unit_cleanup_machine;
 pub(crate) use calls::structural_computation_argument;
 pub(crate) use types::{is_reference, strips_erased_parameter};
 
@@ -186,7 +187,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     free_nominal_cleanups: &mut Vec<CheckedNominalAffineUnitCleanupMachinePlan>,
     diagnostics: &mut Vec<Diagnostic>,
-) -> CheckedUnitEffectPlans {
+) -> (CheckedUnitEffectPlans, CheckedPartialAffineUnitCleanupPlans) {
     let mut shapes = ShapeCollector::new(program);
     let mut boundary_machines = program
         .machines()
@@ -209,9 +210,15 @@ pub(crate) fn build_checked_unit_effect_plans(
         .map(|plan| plan.machine)
         .collect::<Vec<_>>();
     // Each checked body takes the one route its shape selects; a builder that
-    // cannot plan it leaves the gap where it stopped.
+    // cannot plan it leaves the gap where it stopped. An ordinary body whose
+    // return edge owes the residual complement of a projected owned
+    // parameter move is published through the partial-affine carrier: the
+    // same plan, kept beside the residual rows its return edge closes, so
+    // the root-only roster never disposes that parameter whole. It stays a
+    // callee like any ordinary body; only its return edge differs.
     let mut candidates = Vec::new();
     let mut composed_machines = Vec::new();
+    let mut partial_affine_machines = Vec::new();
     let mut construction_gaps = BTreeMap::new();
     for machine in program
         .machines()
@@ -222,7 +229,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     {
         let trace = LocalConstructionTrace::default();
         let planned = match body_route(program, machine) {
-            BodyRoute::Sequence => build_checked_machine_traced(
+            BodyRoute::Sequence => build_checked_machine_residual_parts(
                 program,
                 facts,
                 scalar_callees,
@@ -231,7 +238,18 @@ pub(crate) fn build_checked_unit_effect_plans(
                 call_frames,
                 &trace,
             )
-            .map(|plan| candidates.push(plan)),
+            .map(
+                |(plan, residual_affine_discards, has_projected_parameter_moves)| {
+                    if has_projected_parameter_moves {
+                        partial_affine_machines.push(CheckedPartialAffineUnitCleanupMachinePlan {
+                            machine: plan,
+                            residual_affine_discards,
+                        });
+                    } else {
+                        candidates.push(plan);
+                    }
+                },
+            ),
             BodyRoute::Graph => state_graph::build_traced(
                 program,
                 facts,
@@ -251,7 +269,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         }
     }
 
-    let planned = planned_machines(&candidates, &composed_machines);
+    let planned = planned_machines(&candidates, &composed_machines, &partial_affine_machines);
     let mut gaps = construction_gaps
         .into_iter()
         .filter(|(key, _)| !planned.contains(key))
@@ -410,7 +428,7 @@ pub(crate) fn build_checked_unit_effect_plans(
             false
         }
     });
-    let planned = planned_machines(&candidates, &composed_machines);
+    let planned = planned_machines(&candidates, &composed_machines, &partial_affine_machines);
     gaps.extend(
         cleanup_gaps
             .into_iter()
@@ -424,6 +442,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         &boundary_symbols,
         &mut candidates,
         &mut composed_machines,
+        &mut partial_affine_machines,
     );
     gaps.extend(closure_gaps);
     gaps.sort_by_key(|gap| symbol_key(gap.machine));
@@ -451,7 +470,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 .map(|parameter| parameter.type_identity)
                 .chain(plan.result.structural_identity())
         }))
-        .chain(candidates.iter().flat_map(|plan| {
+        .chain(candidates.iter().chain(partial_affine_machines.iter().map(|plan| &plan.machine)).flat_map(|plan| {
             plan.attachment_type_identity
                 .iter()
                 .copied()
@@ -834,21 +853,38 @@ pub(crate) fn build_checked_unit_effect_plans(
                 _ => None,
             }),
     );
+    // A partial-affine return edge names the residual complement's shapes
+    // beside the body's own call results.
+    retained_type_identities.extend(partial_affine_machines.iter().flat_map(|plan| {
+        plan.residual_affine_discards
+            .iter()
+            .map(|discard| discard.type_identity)
+            .chain(plan.machine.operations.iter().filter_map(|operation| {
+                let result = operation.call()?.structural_result()?;
+                Some(result.type_identity)
+            }))
+    }));
     shapes.retain_transitive(&retained_type_identities);
 
-    CheckedUnitEffectPlans {
-        cleanup_control: shapes.cleanup_control,
-        structural_types: shapes.types.into_values().collect(),
-        structural_domains: {
-            shapes.domains.sort_by_key(|domain| domain.domain.0);
-            shapes.domains
+    let partial_affine_plans = CheckedPartialAffineUnitCleanupPlans {
+        machines: partial_affine_machines,
+    };
+    (
+        CheckedUnitEffectPlans {
+            cleanup_control: shapes.cleanup_control,
+            structural_types: shapes.types.into_values().collect(),
+            structural_domains: {
+                shapes.domains.sort_by_key(|domain| domain.domain.0);
+                shapes.domains
+            },
+            boundary_machines,
+            dynamic_slots,
+            machines: candidates,
+            composed_machines,
+            gaps,
         },
-        boundary_machines,
-        dynamic_slots,
-        machines: candidates,
-        composed_machines,
-        gaps,
-    }
+        partial_affine_plans,
+    )
 }
 
 pub(super) fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
@@ -858,6 +894,7 @@ pub(super) fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
 fn planned_machines(
     candidates: &[CheckedUnitEffectMachinePlan],
     composed_machines: &[CheckedComposedUnitControlMachinePlan],
+    partial_affine_machines: &[CheckedPartialAffineUnitCleanupMachinePlan],
 ) -> BTreeSet<(u32, u32)> {
     candidates
         .iter()
@@ -866,6 +903,11 @@ fn planned_machines(
             composed_machines
                 .iter()
                 .map(|plan| symbol_key(plan.machine)),
+        )
+        .chain(
+            partial_affine_machines
+                .iter()
+                .map(|plan| symbol_key(plan.machine.machine)),
         )
         .collect()
 }
@@ -942,56 +984,6 @@ fn body_route(
     } else {
         BodyRoute::Graph
     }
-}
-
-/// Build the checked front of direct-record path-sensitive affine cleanup.
-///
-/// This plan is deliberately parallel to `CheckedUnitEffectPlans`: current
-/// ordinary Unit production has root-only cleanup, so publishing partial
-/// moves through that lane would silently erase the live sibling.
-pub(crate) fn build_checked_partial_affine_unit_cleanup_plans(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    unit_effects: &CheckedUnitEffectPlans,
-) -> (
-    CheckedPartialAffineUnitCleanupPlans,
-    Vec<CheckedUnitStructuralTypePlan>,
-) {
-    let mut shapes = ShapeCollector::new(program);
-    let machines = program
-        .machines()
-        .iter()
-        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
-        .filter_map(|machine| {
-            build_partial_affine_unit_cleanup_machine(
-                program,
-                facts,
-                unit_effects,
-                &mut shapes,
-                machine,
-            )
-        })
-        .collect::<Vec<_>>();
-    let retained = machines
-        .iter()
-        .flat_map(|plan| {
-            machine_owned_type_identities(&plan.machine)
-                .chain(
-                    plan.residual_affine_discards
-                        .iter()
-                        .map(|discard| discard.type_identity),
-                )
-                .chain(plan.machine.operations.iter().filter_map(|operation| {
-                    let result = operation.call()?.structural_result()?;
-                    Some(result.type_identity)
-                }))
-        })
-        .collect::<BTreeSet<_>>();
-    shapes.retain_transitive(&retained);
-    (
-        CheckedPartialAffineUnitCleanupPlans { machines },
-        shapes.types.into_values().collect(),
-    )
 }
 
 /// Build the checked front of the first executable nominal-cleanup slice.

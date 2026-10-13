@@ -25,7 +25,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
 
     // Stage 04 adopted the nominal lane's shapes into the ordinary roster's
     // one type namespace, rejecting any conflicting registration there.
-    let published = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
+    let published = UnitPlans::published(&checked.facts.flow);
     // A receiver-free caller, qualified or not, retains no attachment
     // storage. A retained owner must be an empty record: the dispatcher
     // carries no attachment state across its cleanup edges.
@@ -75,7 +75,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     // The dispatcher is the ordinary roster's own row for this machine —
     // the checking stage publishes each nominal plan's `.machine` there —
     // so no dispatcher stages from outside the published roster.
-    let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
+    let plans = UnitPlans::published(&checked.facts.flow);
     // The dispatcher plus each unique cleanup root anchors a transitive call
     // closure; ordinary machines reached by a hook body lower beside it.
     let mut unit_roots = Vec::with_capacity(roots.len() + 1);

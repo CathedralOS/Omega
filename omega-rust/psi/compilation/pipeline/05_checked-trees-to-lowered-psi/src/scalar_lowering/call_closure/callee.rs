@@ -34,6 +34,15 @@ impl<'checked> CheckedScalarCallee<'checked> {
             .terminal_unit_effects
             .machines
             .iter()
+            .chain(
+                checked
+                    .facts
+                    .flow
+                    .terminal_partial_affine_unit_cleanups
+                    .machines
+                    .iter()
+                    .map(|plan| &plan.machine),
+            )
             .filter(|plan| plan.machine == source);
         let operation_body = operation_bodies.next();
         let mut graph_bodies = checked

@@ -25,7 +25,7 @@ pub(super) fn admit_calls<'a>(
     checked: &'a CheckedTrees,
     call_states: &[&'a checked_trees::CheckedComposedUnitControlStatePlan],
 ) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)>, LoweringError> {
-    let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
+    let plans = UnitPlans::published(&checked.facts.flow);
     let mut boundaries = Vec::new();
     for state in call_states.iter().copied() {
         for operation in state.operation_dependencies() {

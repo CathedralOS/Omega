@@ -17,8 +17,11 @@ use crate::execution::terminal_unit::calls::{
 /// candidates, and a multi-state state graph by its index among the composed
 /// candidates. A caller survives pruning only while its callee's body does.
 pub(super) enum AvailableScalarTarget {
-    OrdinaryBody(usize),
-    ComposedBody(usize),
+    Ordinary(usize),
+    Composed(usize),
+    /// An ordinary single-state body published through the partial-affine
+    /// carrier, by its index among those candidates.
+    PartialAffine(usize),
 }
 
 /// The call-site half of a scalar-call availability check. Ordinary machine
@@ -107,6 +110,7 @@ pub(super) fn available_target(
     facts: &CheckFacts,
     candidates: &[CheckedUnitEffectMachinePlan],
     composed_candidates: &[checked_trees::CheckedComposedUnitControlMachinePlan],
+    partial_affine_candidates: &[checked_trees::CheckedPartialAffineUnitCleanupMachinePlan],
     caller: &ScalarCallSite<'_>,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<AvailableScalarTarget> {
@@ -166,7 +170,7 @@ pub(super) fn available_target(
         {
             return None;
         }
-        availability = AvailableScalarTarget::ComposedBody(composed_index);
+        availability = AvailableScalarTarget::Composed(composed_index);
         (
             &entry.structural_parameters,
             &entry.scalar_parameters,
@@ -181,9 +185,18 @@ pub(super) fn available_target(
         let mut targets = candidates
             .iter()
             .enumerate()
+            .map(|(index, plan)| (AvailableScalarTarget::Ordinary(index), plan))
+            .chain(
+                partial_affine_candidates
+                    .iter()
+                    .enumerate()
+                    .map(|(index, plan)| {
+                        (AvailableScalarTarget::PartialAffine(index), &plan.machine)
+                    }),
+            )
             .filter(|(_, plan)| plan.machine == *target_machine);
-        let (candidate_index, plan) = targets.next()?;
-        availability = AvailableScalarTarget::OrdinaryBody(candidate_index);
+        let (candidate, plan) = targets.next()?;
+        availability = candidate;
         let primitive_type = match (&plan.scalar_result, &plan.scalar_control) {
             (Some(completion), None) => completion.primitive_type,
             (None, Some(completion)) => completion.primitive_type,

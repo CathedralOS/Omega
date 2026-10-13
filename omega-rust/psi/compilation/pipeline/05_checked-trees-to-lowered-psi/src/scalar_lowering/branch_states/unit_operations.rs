@@ -32,7 +32,7 @@ impl<'a> Caller<'a> {
         Ok(Self {
             state,
             erased_proof_parameters: UnitBody::find(
-                UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+                UnitPlans::published(&checked.facts.flow),
                 machine,
             )?
             .state_erased_proof_parameters(state)?,
@@ -57,8 +57,7 @@ pub(super) fn prepare(
     let call = operation.call().ok_or(LoweringError::Unsupported(
         "expression call preparation received a non-call operation",
     ))?;
-    let target =
-        UnitPlans::published(&checked.facts.flow.terminal_unit_effects).call_entry(call)?;
+    let target = UnitPlans::published(&checked.facts.flow).call_entry(call)?;
     if target.state != call.target.state
         || target.contract_report_fingerprint != call.target.contract_report_fingerprint
         || !crate::unit::attached_unit::catalog::checked_unit_target_reach_matches(

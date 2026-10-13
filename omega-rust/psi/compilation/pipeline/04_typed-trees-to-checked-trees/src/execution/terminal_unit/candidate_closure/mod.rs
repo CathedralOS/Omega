@@ -1,8 +1,8 @@
 //! Close the fixed candidate roster over exact call dependencies, without
 //! rebuilding bodies or rechecking unaffected callers after each removal.
 use super::{
-    CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, SymbolHandle, symbol_key,
+    CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedPartialAffineUnitCleanupMachinePlan,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, SymbolHandle, symbol_key,
 };
 use crate::execution::terminal_unit::plan_gaps::{GapSite, plan_gap};
 use crate::execution::terminal_unit::scalar_targets;
@@ -137,17 +137,21 @@ impl CandidateClosure {
 fn apply_scalar_target_verdict(
     closure: &mut CandidateClosure,
     candidate_count: usize,
+    partial_base: usize,
     caller_index: usize,
     target: SymbolHandle,
     verdict: Option<scalar_targets::AvailableScalarTarget>,
     site: GapSite,
 ) {
     match verdict {
-        Some(scalar_targets::AvailableScalarTarget::OrdinaryBody(target_index)) => {
+        Some(scalar_targets::AvailableScalarTarget::Ordinary(target_index)) => {
             closure.depend(target_index, caller_index, site);
         }
-        Some(scalar_targets::AvailableScalarTarget::ComposedBody(composed_index)) => {
+        Some(scalar_targets::AvailableScalarTarget::Composed(composed_index)) => {
             closure.depend(candidate_count + composed_index, caller_index, site);
+        }
+        Some(scalar_targets::AvailableScalarTarget::PartialAffine(partial_index)) => {
+            closure.depend(partial_base + partial_index, caller_index, site);
         }
         None => {
             closure.drop_candidate(caller_index, CheckedUnitPlanGapReason::Callee(target), site)
@@ -161,6 +165,7 @@ fn admit_call_target(
     closure: &mut CandidateClosure,
     boundaries: &[(u32, u32)],
     candidate_count: usize,
+    partial_base: usize,
     caller_index: usize,
     call: &checked_trees::CheckedUnitCallPlan,
     scalar_verdict: impl FnOnce() -> Option<scalar_targets::AvailableScalarTarget>,
@@ -191,6 +196,7 @@ fn admit_call_target(
             apply_scalar_target_verdict(
                 closure,
                 candidate_count,
+                partial_base,
                 caller_index,
                 call.target.machine,
                 scalar_verdict(),
@@ -215,7 +221,12 @@ pub(super) fn retain_available(
     boundary_symbols: &[SymbolHandle],
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed_machines: &mut Vec<CheckedComposedUnitControlMachinePlan>,
+    partial_affine_machines: &mut Vec<CheckedPartialAffineUnitCleanupMachinePlan>,
 ) -> Vec<CheckedUnitPlanGap> {
+    // Candidate ordinals: ordinary bodies, then composed bodies, then the
+    // partial-affine bodies, which are ordinary bodies with a residual
+    // return edge and admit their calls exactly as ordinary bodies do.
+    let partial_base = candidates.len() + composed_machines.len();
     let mut closure = CandidateClosure::new(
         candidates
             .iter()
@@ -227,7 +238,12 @@ pub(super) fn retain_available(
                         .first()
                         .map_or(SymbolHandle::invalid(), |state| state.state),
                 )
-            })),
+            }))
+            .chain(
+                partial_affine_machines
+                    .iter()
+                    .map(|plan| (plan.machine.machine, plan.machine.state)),
+            ),
     );
     let mut boundaries = boundary_symbols
         .iter()
@@ -236,7 +252,13 @@ pub(super) fn retain_available(
         .collect::<Vec<_>>();
     boundaries.sort_unstable();
     boundaries.dedup();
-    for (caller_index, plan) in candidates.iter().enumerate() {
+    let ordinary_bodies = candidates.iter().enumerate().chain(
+        partial_affine_machines
+            .iter()
+            .enumerate()
+            .map(|(index, plan)| (partial_base + index, &plan.machine)),
+    );
+    for (caller_index, plan) in ordinary_bodies {
         if !closure.retained[caller_index] {
             continue;
         }
@@ -250,6 +272,7 @@ pub(super) fn retain_available(
                     &mut closure,
                     &boundaries,
                     candidates.len(),
+                    partial_base,
                     caller_index,
                     call,
                     || {
@@ -258,6 +281,7 @@ pub(super) fn retain_available(
                             facts,
                             candidates,
                             composed_machines,
+                            partial_affine_machines,
                             &scalar_targets::ScalarCallSite::of_plan(plan),
                             operation,
                         )
@@ -371,6 +395,7 @@ pub(super) fn retain_available(
                         &mut closure,
                         &boundaries,
                         candidates.len(),
+                        partial_base,
                         caller_index,
                         call,
                         || {
@@ -385,6 +410,7 @@ pub(super) fn retain_available(
                                     facts,
                                     candidates,
                                     composed_machines,
+                                    partial_affine_machines,
                                     &site,
                                     operation,
                                 )
@@ -451,6 +477,11 @@ pub(super) fn retain_available(
         .iter()
         .map(|plan| plan.machine)
         .chain(composed_machines.iter().map(|plan| plan.machine))
+        .chain(
+            partial_affine_machines
+                .iter()
+                .map(|plan| plan.machine.machine),
+        )
         .collect::<Vec<_>>();
     let (retained, causes) = closure.close();
     // A machine leaves only when none of its bodies survived; it keeps the
@@ -475,6 +506,7 @@ pub(super) fn retain_available(
     let mut retained = retained.into_iter();
     candidates.retain(|_| retained.next().unwrap_or(false));
     composed_machines.retain(|_| retained.next().unwrap_or(false));
+    partial_affine_machines.retain(|_| retained.next().unwrap_or(false));
     gaps
 }
 

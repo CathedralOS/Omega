@@ -30,9 +30,7 @@ pub(crate) use nominal_requirements::{
     nominal_cleanup_boolean_requirements, nominal_cleanup_caller_boolean_requirements,
     nominal_cleanup_missing_requirement, nominal_cleanup_missing_requirement_diagnostic,
 };
-pub(crate) use partial_affine_cleanup::{
-    build_partial_affine_unit_cleanup_machine, partial_affine_residuals,
-};
+pub(crate) use partial_affine_cleanup::partial_affine_residuals;
 
 use super::{
     BTreeMap, CheckFacts, CheckedNominalAffineUnitCleanupMachinePlan, CheckedStructuralAccess,

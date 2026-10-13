@@ -7,51 +7,36 @@ use super::{
 };
 use checked_trees::{CheckedComposedUnitControlMachinePlan, CheckedUnitStructuralParameterPlan};
 
-/// The Unit plan roster one closure assembly reads. Ordinary closures read
-/// the checked `terminal_unit_effects` lane as published. A cleanup closure
-/// begins at a dispatcher the checked trees publish in its own lane
-/// (`terminal_nominal_affine_unit_cleanups` or
-/// `terminal_partial_affine_unit_cleanups`), beside the ordinary roster
-/// rather than inside it. The shapes that dispatcher names already live in
-/// the ordinary roster's one structural type namespace, where stage 04
-/// adopted them. This view joins the one staged dispatcher onto the ordinary
-/// roster so the emitter resolves it like any other body, without the
-/// cleanup lowering cloning the checked trees to push it in. A staged
-/// machine that the ordinary roster also publishes is a duplicate, exactly
-/// as two published rows would be. A caller outside the Unit lanes may
-/// stage extra declaration roots from its own roster; a staged shape whose
-/// identity the roster already carries yields to the published shape.
+/// The Unit plan roster one closure assembly reads: the checked
+/// `terminal_unit_effects` lane as published, joined with the partial-affine
+/// lane (`terminal_partial_affine_unit_cleanups`). Each partial row is an
+/// ordinary body whose return edge owes a residual complement, published
+/// beside those rows and callable like any other body; the closure installs
+/// that complement on every emitted member. A nominal cleanup dispatcher is
+/// the ordinary roster's own row for its machine. Every shape any lane names
+/// lives in the ordinary roster's one structural type namespace, where stage
+/// 04 registered or adopted it. A machine two lanes both publish is a
+/// duplicate, exactly as two published rows would be.
 #[derive(Clone, Copy)]
 pub(crate) struct UnitPlans<'a> {
     checked: &'a checked_trees::CheckedUnitEffectPlans,
-    staged_machine: Option<&'a CheckedUnitEffectMachinePlan>,
-    staged_structural_types: &'a [checked_trees::CheckedUnitStructuralTypePlan],
+    partial_affine: &'a [checked_trees::CheckedPartialAffineUnitCleanupMachinePlan],
 }
 
 impl<'a> UnitPlans<'a> {
-    /// The ordinary roster alone.
-    pub(crate) fn published(checked: &'a checked_trees::CheckedUnitEffectPlans) -> Self {
+    /// The published roster: the ordinary lane and the partial-affine lane.
+    pub(crate) fn published(flow: &'a checked_trees::FlowFacts) -> Self {
         Self {
-            checked,
-            staged_machine: None,
-            staged_structural_types: &[],
-        }
-    }
-
-    /// The ordinary roster joined with one cleanup lane's dispatcher plan.
-    pub(crate) fn with_staged(
-        checked: &'a checked_trees::CheckedUnitEffectPlans,
-        machine: &'a CheckedUnitEffectMachinePlan,
-    ) -> Self {
-        Self {
-            checked,
-            staged_machine: Some(machine),
-            staged_structural_types: &[],
+            checked: &flow.terminal_unit_effects,
+            partial_affine: &flow.terminal_partial_affine_unit_cleanups.machines,
         }
     }
 
     pub(crate) fn machines(self) -> impl Iterator<Item = &'a CheckedUnitEffectMachinePlan> {
-        self.checked.machines.iter().chain(self.staged_machine)
+        self.checked
+            .machines
+            .iter()
+            .chain(self.partial_affine.iter().map(|plan| &plan.machine))
     }
 
     pub(crate) fn for_machine(
@@ -104,14 +89,7 @@ impl<'a> UnitPlans<'a> {
     pub(crate) fn structural_types(
         self,
     ) -> impl Iterator<Item = &'a checked_trees::CheckedUnitStructuralTypePlan> {
-        let published = &self.checked.structural_types;
-        published
-            .iter()
-            .chain(self.staged_structural_types.iter().filter(move |staged| {
-                !published
-                    .iter()
-                    .any(|shape| shape.identity == staged.identity)
-            }))
+        self.checked.structural_types.iter()
     }
 
     pub(crate) fn structural_type(

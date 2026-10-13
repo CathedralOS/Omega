@@ -595,9 +595,7 @@ pub(crate) fn caller_erased_proof_roster(
     state: symbols::SymbolHandle,
 ) -> Result<&[CheckedErasedProofParameterPlan], LoweringError> {
     crate::unit::attached_unit::bodies::UnitBody::find(
-        crate::unit::attached_unit::bodies::UnitPlans::published(
-            &checked.facts.flow.terminal_unit_effects,
-        ),
+        crate::unit::attached_unit::bodies::UnitPlans::published(&checked.facts.flow),
         machine,
     )?
     .state_erased_proof_parameters(state)

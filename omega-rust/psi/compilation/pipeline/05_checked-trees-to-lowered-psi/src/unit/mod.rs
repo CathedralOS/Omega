@@ -12,11 +12,11 @@ use checked_trees::types::PrimitiveType;
 use checked_trees::{
     CheckedBooleanExpression, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedNominalAffineUnitCleanupMachinePlan,
-    CheckedPartialAffineUnitCleanupMachinePlan, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedTerminalSignatureEligibility, CheckedTrees,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitPlan, CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTerminalSignatureEligibility,
+    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEntryClaimPlan, CheckedUnitPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypeShape,
 };
 use language_semantics::{
     CarryPolicy, Multiplicity, PermissionClaimIdentity, SemanticDomainId, ServiceReachId,
@@ -80,9 +80,7 @@ use crate::terminal_identities::{
     structural_domain_id, structural_field_id, structural_type_id, value_id,
 };
 use crate::unit::attached_unit::{lower_unit_closure, lower_unit_effect_closure};
-use crate::unit::unit_cleanup::{
-    lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,
-};
+use crate::unit::unit_cleanup::lower_nominal_affine_unit_cleanup_machine;
 
 pub(crate) mod attached_unit;
 pub(crate) mod crash_interface;
@@ -116,11 +114,13 @@ pub(crate) fn lower_unit_plan_machine(
                 debug: DebugPublication::Omit,
             },
         ),
+        // The partial-affine plan is an ordinary body whose residual return
+        // edge the closure installs for every emitted member.
         CheckedUnitPlan::PartialAffineCleanup(plan) => LoweredSelectedMachine::source_mapped(
-            lower_partial_affine_unit_cleanup_machine(
+            lower_unit_effect_closure(
                 identities,
                 checked,
-                plan,
+                plan.machine.machine,
                 program_roots,
                 exact_toolchain_sources,
             )?,

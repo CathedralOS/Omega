@@ -48,7 +48,7 @@ pub(crate) fn finalize_execution(
             )
         })
         .collect::<Vec<_>>();
-    let mut terminal_unit_effects =
+    let (mut terminal_unit_effects, partial_cleanups) =
         crate::execution::terminal_unit::build_checked_unit_effect_plans(
             program,
             &facts,
@@ -58,20 +58,16 @@ pub(crate) fn finalize_execution(
             &mut free_nominal_cleanups,
             &mut cleanup_diagnostics,
         );
-    // Both cleanup lanes keep their dispatchers apart from the ordinary
-    // roster, but every shape a Unit body names lives in that roster's one
-    // type namespace. A body that kills a same-statement temporary on a shared
+    // The partial-affine roster is built beside the ordinary one, from the
+    // same body plans, so its shapes already live in the roster's one type
+    // namespace. The nominal lane keeps its dispatchers apart from the
+    // ordinary roster, but every shape a Unit body names lives in that
+    // namespace too. A body that kills a same-statement temporary on a shared
     // call continuation lowers through the ordinary lane and replays residual
     // reconstruction against these shapes, so a type referenced only by a
     // cleanup machine must still resolve there. Identities are deterministic:
     // a lane that registered a different shape under a published identity is
     // a planning defect, not a choice for lowering to make.
-    let (partial_cleanups, partial_types) =
-        crate::execution::terminal_unit::build_checked_partial_affine_unit_cleanup_plans(
-            program,
-            &facts,
-            &terminal_unit_effects,
-        );
     facts.flow.terminal_partial_affine_unit_cleanups = partial_cleanups;
     let (mut nominal_cleanups, nominal_types) =
         crate::execution::terminal_unit::build_checked_nominal_affine_unit_cleanup_plans(
@@ -95,9 +91,7 @@ pub(crate) fn finalize_execution(
         }
     }
     facts.flow.terminal_nominal_affine_unit_cleanups = nominal_cleanups;
-    if let Err(identity) =
-        terminal_unit_effects.adopt_structural_types(partial_types.into_iter().chain(nominal_types))
-    {
+    if let Err(identity) = terminal_unit_effects.adopt_structural_types(nominal_types) {
         cleanup_diagnostics.push(Diagnostic::error(format!(
             "Unit cleanup plans register structural type `{}` with a shape the ordinary Unit roster does not carry",
             program.type_identity_text(identity).unwrap_or_default()

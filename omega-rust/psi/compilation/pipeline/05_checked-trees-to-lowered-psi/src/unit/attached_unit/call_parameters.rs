@@ -14,7 +14,7 @@ pub(crate) fn structural_parameters<'checked>(
     checked: &'checked CheckedTrees,
     call: &CheckedUnitCallPlan,
 ) -> Result<&'checked [CheckedUnitStructuralParameterPlan], LoweringError> {
-    let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
+    let plans = UnitPlans::published(&checked.facts.flow);
     let (state, parameters) = if call.dynamic_selector().is_some() {
         // A dispatch slot owns the shared formal roster; no single selectable
         // implementation is the call's target body. Its authored selector is

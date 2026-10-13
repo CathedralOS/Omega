@@ -3,27 +3,28 @@
 //! Nominal cleanup contracts are prepared with ordinary callable signatures
 //! (`contexts`), then one finalizer installs the checked actions for entries
 //! and called members alike. `ordered` only admits and roots a selected nominal
-//! entry; partial-affine cleanup lives in `partial`.
+//! entry. Partial-affine cleanup is a return-edge property of an ordinary
+//! body: `finalize_partial_affine_residuals` installs the residual complement
+//! on every emitted machine the partial roster publishes.
 //! Build cleanup requirements and their obligation identities here, but leave
 //! certificates to final operation proof emission. Owned-field requirements are
 //! validity-scoped observations, not permanent assumption slots; their available
 //! premises are known only after the complete caller and cleanup edge exist.
 
 use super::{
-    CheckedNominalAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedTrees, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralTypeShape, LoweringError, MachineId, NominalAffineCleanup, PlaceId,
-    PrimitiveType, Proposition, ScalarTerm, StructuralTypeId, StructuralTypeShape, TerminalMachine,
-    Terminator, lookup_machine_id, lookup_type_id, lower_unit_closure, obligation_id, unsupported,
+    CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape, LoweringError, MachineId,
+    NominalAffineCleanup, PlaceId, PrimitiveType, Proposition, ScalarTerm, StructuralAffineDiscard,
+    StructuralTypeId, StructuralTypeShape, TerminalMachine, Terminator, lookup_machine_id,
+    lookup_type_id, lower_structural_path, lower_unit_closure, obligation_id, unsupported,
 };
-use checked_trees::CheckedUnitNominalAffineCleanupPlan;
+use checked_trees::{CheckedUnitNominalAffineCleanupPlan, CheckedUnitStructuralArgumentSourcePlan};
 use symbols::SymbolHandle;
 pub(crate) mod contexts;
 mod custody;
 mod dispositions;
 pub(crate) use dispositions::outstanding_actions;
 mod ordered;
-mod partial;
 mod reference_retirement;
 use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;
 pub(crate) use reference_retirement::lower_reference_completion_regions;
@@ -699,18 +700,75 @@ fn nominal_cleanup_return_actions(
     Ok(cleanups)
 }
 
-pub(crate) fn lower_partial_affine_unit_cleanup_machine(
+/// Install the residual complement a partial-affine return edge owes on every
+/// emitted machine the partial roster publishes, entry or callee alike. An
+/// ordinary body is one operation sequence, so every Unit return follows all
+/// of its projected moves and owes the same complement; the residual tail
+/// follows the whole-root schedule the return edge already carries. A root
+/// fully consumed by its projections publishes no residual row and keeps the
+/// ordinary return edge.
+pub(super) fn finalize_partial_affine_residuals(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    partial: &CheckedPartialAffineUnitCleanupMachinePlan,
-    program_roots: crate::TerminalProgramRoots<'_>,
-    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    partial::lower_partial_affine_unit_cleanup_machine(
-        identities,
-        checked,
-        partial,
-        program_roots,
-        exact_toolchain_sources,
-    )
+    machines: &mut [TerminalMachine],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
+    machine_ids: &[(SymbolHandle, MachineId)],
+) -> Result<(), LoweringError> {
+    for partial in &checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .machines
+    {
+        if partial.residual_affine_discards.is_empty() {
+            continue;
+        }
+        let Ok(terminal_member) = lookup_machine_id(machine_ids, partial.machine.machine) else {
+            continue;
+        };
+        let emitted = machines
+            .iter_mut()
+            .find(|member| member.id == terminal_member)
+            .ok_or(LoweringError::Unsupported(
+                "partial affine member was not emitted in the terminal closure",
+            ))?;
+        // Stage 04 publishes the complement of one partially moved owned
+        // parameter; its structural parameters lower in plan order, so the
+        // row's dense index names the emitted machine's place.
+        let residual_affine_discards = partial
+            .residual_affine_discards
+            .iter()
+            .map(|residual| {
+                let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+                    residual.source
+                else {
+                    return unsupported(
+                        "partial affine residual rooted outside a structural parameter has no return-edge route",
+                    );
+                };
+                let parameter = emitted
+                    .structural_parameters
+                    .get(parameter_index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "partial affine residual names a parameter the machine does not declare",
+                    ))?;
+                Ok(terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                    StructuralAffineDiscard {
+                        place: parameter.place,
+                        path: lower_structural_path(identities, &residual.path)?,
+                        structural_type: lookup_type_id(type_ids, &residual.type_identity)?,
+                    },
+                ))
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        for block in &mut emitted.blocks {
+            if let Terminator::ReturnUnit {
+                cleanup_actions, ..
+            } = &mut block.terminator
+            {
+                cleanup_actions.extend(residual_affine_discards.iter().cloned());
+            }
+        }
+    }
+    Ok(())
 }

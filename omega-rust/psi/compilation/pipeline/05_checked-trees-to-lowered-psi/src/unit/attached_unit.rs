@@ -142,7 +142,7 @@ impl<'a> UnitClosureRequest<'a> {
         exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     ) -> Self {
         Self {
-            plans: UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+            plans: UnitPlans::published(&checked.facts.flow),
             entry,
             unit_roots: roots,
             program_roots,
@@ -522,6 +522,13 @@ pub(crate) fn lower_unit_closure(
             .collect::<Vec<_>>(),
         &scalar_requirement_counts,
         &mut next_call_obligation,
+    )?;
+    super::unit_cleanup::finalize_partial_affine_residuals(
+        identities,
+        checked,
+        &mut machines,
+        &type_ids,
+        &machine_ids,
     )?;
     let provider_candidates = providers::conformances(
         identities,

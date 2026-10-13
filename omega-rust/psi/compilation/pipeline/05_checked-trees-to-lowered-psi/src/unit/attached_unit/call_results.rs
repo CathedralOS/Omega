@@ -66,7 +66,7 @@ pub(crate) fn prepare(
         checked_trees::CheckedUnitCallRoute::Module { .. } => None,
         checked_trees::CheckedUnitCallRoute::Boundary => Some(
             &super::call_closure::unique_unit_boundary(
-                super::bodies::UnitPlans::published(plans),
+                super::bodies::UnitPlans::published(&checked.facts.flow),
                 call.target.machine,
             )?
             .result,

@@ -49,7 +49,7 @@ pub(super) fn emit_call_operations(
     // Blocks split off by argument evaluation rejoin with the one frontier
     // this sequence carries.
     let mut windows = crate::emission::borrowed_window::BorrowedWindowLedger::default();
-    let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
+    let plans = UnitPlans::published(&checked.facts.flow);
     // The state's `mut` formal storage and the mutable primitive locals this
     // sequence establishes. Their places live in the shared private roster;
     // this roster keys later stores to them by authored symbol, as the

@@ -20,30 +20,6 @@ use crate::execution::terminal_unit::{
     CheckedUnitPartialAffineDiscardPlan, StatementNode,
 };
 
-/// Build the ordinary explicit-parameter machine, retaining construction diagnostics.
-pub(crate) fn build_checked_machine_traced(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    scalar_callees: ScalarCalleeClosure,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    trace: &LocalConstructionTrace,
-) -> Option<CheckedUnitEffectMachinePlan> {
-    build_checked_machine_residual_parts(
-        program,
-        facts,
-        scalar_callees,
-        shapes,
-        machine,
-        call_frames,
-        trace,
-    )
-    .and_then(|(plan, _, has_projected_parameter_moves)| {
-        (!has_projected_parameter_moves).then_some(plan)
-    })
-}
-
 /// Build the machine while retaining the exit edge's residual
 /// discards alongside the machine plan. The ordinary Unit roster publishes
 /// only machines whose argument custody is whole-root; a body that moved an
