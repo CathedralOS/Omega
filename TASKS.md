@@ -379,14 +379,21 @@ helper that passes does not close an item.
   unmigrated program pass.
   - Source remainder: the two memory canaries
     (**TOP-LEVEL-BOUNDARY-REQUIREMENTS** and **CHECKED-ASM-LABEL-CONTRACTS**).
-    Build receiver calls remain
-    for facets such as test groups. Move their producers and consumers to
+    Build receiver calls remain for facets such as test groups, and service
+    bindings still use the retired `binding.operation(...)` exception in
+    product/library source. Move their producers and consumers to
     namespace-qualified calls with explicit arguments, following `Build::bind`,
     `Build::select_provider`, `Build::exclude_service`, and
-      `Build::select_representation`, `Build::accept_boundary`, and
+    `Build::select_representation`, `Build::accept_boundary`,
     `Build::require_wire_compatibility`, and `Build::assume_binding_contract`.
-    Do not restore
-    implicit builder insertion.
+    A boundary requirement call spells
+    `Requirement::operation(&binding, arguments)`: the leading binding is an
+    explicit call-authority argument outside the requirement's ordinary
+    parameter list. Migrate source and fixtures, remove the resolver's
+    `Binding<R>` receiver unwrapping path, and add fail controls for
+    `binding.operation(...)` on fields, locals and parameters. Do not restore
+    implicit argument insertion or general receiver syntax. Proposal 0007 is
+    not implementation authority.
   - Compiler remainder: typed parameters now have only explicit subject
     identities; checking, interpretation, provider arity and review capture
     consume those identities without an implicit receiver parameter. The
@@ -6662,8 +6669,14 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     specified source meaning; resolve that contract instead of importing the
     Rust parser's contextual recognition. `std/build.omg` needs its build
     context's `Build`. The product entry's console closure also needs the
-    boundary trait argument in `Binding<Console>` and the open
-    `binding-receiver-call-form` decision for calls through it. Reconcile std target
+    boundary trait argument in `Binding<Console>` and the settled explicit call
+    form: `Console::read_byte(&context.console)` supplies the binding as a
+    leading call-authority argument while `Console::read_byte` retains no
+    ordinary binding parameter
+    ([expressions](wiki/spec/language/expressions.md#calls-places-and-temporaries),
+    [boundary calls](wiki/spec/terminal-psi/boundary_calls.md)). Migrate
+    `source/omega/main.omg`; its receiver-spelled calls are migration debt, not
+    accepted syntax. Reconcile std target
     providers' undocumented `Owner::provider_defaults` / provider-data
     convention with named implementation selection in
     [provider selection](wiki/spec/build/provider_selection.md).

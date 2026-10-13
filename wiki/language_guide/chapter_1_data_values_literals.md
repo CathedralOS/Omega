@@ -23,7 +23,7 @@ data Main {
 }
 
 machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("Hello, Omega.");
+    Console::write_line(&context.console, "Hello, Omega.");
 }
 ```
 

@@ -195,6 +195,10 @@ Its affine multiplicity comes from the `Binding` data declaration and is unchang
 by `R`, the selected provider, or whether realization is fused or independent.
 Passing `Binding<R>` by value moves that binding occurrence. Repeated service use
 borrows it; copying requires a checked protocol that establishes another binding.
+Source invokes requirement `R::operation` with an explicit leading
+`&Binding<R>` call-authority argument, followed by the operation's declared
+ordinary parameters. That leading value is not an authored requirement
+parameter and does not grant receiver syntax: dot access remains data projection.
 
 `Binding` is a core type name, not a keyword. It does not imply networking or
 asynchronous execution. The foreign-symbol locator is separately named

@@ -21,10 +21,13 @@ inputs before invoking the effect handler. Lowering must preserve both lanes.
 Each declaration also retains the exact runtime interleave as scalar/structural
 parameter tags. Reading a tag consumes the next parameter from that lane; the
 tag counts must cover both lanes exactly. Scalar contract IDs and structural
-custody positions remain lane-local. Erased formals and omitted service receivers
-do not receive tags. Private callback parameters enter only through the evaluated
-calling plan. Native placement and independent replay join both semantic lanes
-to that plan in retained runtime order, never scalar-first by convention.
+custody positions remain lane-local. Erased formals and the compiler-known
+service-binding lane do not receive tags. Source supplies that binding explicitly
+as the leading call-authority argument; Terminal omits it from the requirement's
+ordinary parameter lanes after retaining its exact occurrence and requirement.
+Private callback parameters enter only through the evaluated calling plan.
+Native placement and independent replay join both semantic lanes to that plan
+in retained runtime order, never scalar-first by convention.
 
 Borrowed arguments retain the caller's referent across completion. Only owned
 arguments transfer custody; eventual owner cleanup remains separate even when
@@ -245,14 +248,15 @@ this classification does not replace closed-application or physical-child
 custody.
 
 An ordinary explicit context parameter retains its exact record type, access
-and multiplicity. A direct or projected `Binding<R>` receiver rejoins that
-parameter occurrence and the exact carrier requirement, independently of
-whether the call is a statement or an operand inside an expression. It gains
-no implicit `self` value or declaration-attachment authority. Ordinary callees
-retain their own direct requirements and receive existing contexts explicitly.
-Their signatures do not construct
-storage. Generated native entry provisioning must establish and lend that
-context under the selected [entry shape](../build/entry_roots.md#entry-shape-and-arrival-bridge);
+and multiplicity. An explicit leading `&Binding<R>` call-authority argument,
+whether it names a direct place or a projected field, rejoins that place and the
+exact carrier requirement independently of whether the call is a statement or
+an operand inside an expression. It is not one of the requirement's ordinary
+parameters and gains no implicit `self` value or declaration-attachment
+authority. Ordinary callees retain their own direct requirements and receive
+existing contexts explicitly. Their signatures do not construct storage.
+Generated native entry provisioning must establish and lend that context under
+the selected [entry shape](../build/entry_roots.md#entry-shape-and-arrival-bridge);
 an erased field's zero-payload layout proves no authority. A carrier-qualified
 machine name supplies neither a parameter nor permission to provision one.
 

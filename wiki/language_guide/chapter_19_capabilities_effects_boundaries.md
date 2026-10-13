@@ -188,7 +188,7 @@ ComponentLogger satisfies Logger<LoggingProxy>
         reaches LoggingService
         suspends
     {
-        suspend proxy.service.write(text);
+        suspend LoggingService::write(&proxy.service, text);
     }
 }
 ```
@@ -378,7 +378,7 @@ data App {
 machine App::greet(app: &mut App)
 reaches Console;
 {
-    app.console.write_line("Hello");
+    Console::write_line(&app.console, "Hello");
 }
 
 machine App::start(app: &mut App) {
@@ -388,9 +388,9 @@ machine App::start(app: &mut App) {
 
 `greet` must declare Console because it calls the boundary directly. `start`
 automatically publishes Console reach through `greet`. Provider selection and
-any required runtime authority remain separate obligations. This example uses
-an established service binding, not a requirement that every service be a runtime
-object.
+any required runtime authority remain separate obligations. The leading
+`&app.console` supplies established call authority explicitly; it is not an
+ordinary `Console::write_line` parameter or receiver syntax.
 The same reach rule applies to directly named boundary calls; provider
 selection is not creation of a global mutable Console object.
 

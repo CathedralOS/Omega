@@ -45,6 +45,8 @@ and cleanup under the permitted observation contract.
 
 ## Calls, places, and temporaries
 
+Named decision: `binding-receiver-call-form`, settled 2026-10-13.
+
 A call invokes a machine; an internal state jump transfers within the current
 machine. Transition dispatch may also select a final call whose result completes
 the enclosing machine. A named machine call selects a static path and supplies
@@ -52,8 +54,20 @@ every ordinary parameter explicitly. A qualified declaration such as
 `Buffer::clear(buffer: &mut Buffer)` is called as `Buffer::clear(&mut buffer)`,
 not `buffer.clear()`. The qualification establishes a namespace and semantic
 home, not an implicit receiver. Dot access remains data-field projection; it
-does not select or invoke a machine. Calls obey the exact
-[suspension/blocking acknowledgement and position rules](effects.md#call-site-acknowledgements).
+does not select or invoke a machine, including when the place has type
+`Binding<R>`.
+
+A call through an established service binding uses the qualified static form
+`R::operation(&binding, arguments)`. The explicit leading `&Binding<R>` value is
+the call-authority argument and is not one of `operation`'s declared ordinary
+parameters; every declared parameter follows it explicitly in source order.
+The call borrows rather than moves the binding. A missing, differently typed, or
+additional binding argument rejects; no ambient binding search or implicit
+insertion repairs it. [Bindings](../build/component_publication.md#bindings-and-era-entry)
+define establishment and custody, while
+[boundary calls](../terminal-psi/boundary_calls.md) define the erased Terminal
+service-receiver lane. Calls obey the exact [suspension/blocking acknowledgement
+and position rules](effects.md#call-site-acknowledgements).
 
 Machine invocations require their full ordinary argument list. Application of
 a [mathematical function term](../proofs/mathematical_bindings.md#named-mathematical-definitions)

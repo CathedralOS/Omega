@@ -147,7 +147,7 @@ data Main { console: Binding<Console>; }
 machine Main::main(context: &mut Main)
 reaches Console
 {
-    context.console.exit_process(42);
+    Console::exit_process(&context.console, 42);
 }
 ```
 

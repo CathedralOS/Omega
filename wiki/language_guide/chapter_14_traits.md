@@ -680,7 +680,7 @@ ComponentLogger satisfies Logger<LoggingProxy>
         reaches LoggingService
         suspends
     {
-        suspend proxy.service.write(text);
+        suspend LoggingService::write(&proxy.service, text);
     }
 }
 
