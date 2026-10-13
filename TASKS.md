@@ -3215,39 +3215,6 @@ crash and native exit behavior.
   actual regressions under those owners rather than changing source or
   expected results to make the report empty.
 
-- **BUILD-FACET-DEAD-SELECTION-RESIDUE.** (split-of:BUILD-FACET-RECEIVER-RESIDUE)
-  No build operation is classified by receiver shape any more: stage 04's
-  `BuildOperationForm`, both of its receiver predicates, and the `State`
-  payload on `StaticArgumentCall::Statement` that existed only to answer the
-  receiver question are deleted. All four classified operations declare their
-  facet as an explicit first parameter in the build prelude
-  (`BuildLog::write_line`, `BuildOutput::include_source`, and the generated
-  `Optimizations::enable`/`emit_report`), so every authored use resolves that
-  declaration and the resolved-target arm answers it first; Omega harvests the
-  optimization selections from the evaluated `Build.optimizations` counter
-  fields, never from an intrinsic fact.
-
-  What remains is one unconstructed variant,
-  `ExecutedProviderSelectionSite::Statement`, and it is unconstructed for an
-  upstream reason rather than as a property of the published Psi record.
-  Stage 02 retains every non-discarding provider-selection statement as an
-  expression (`lowering/statement/statement_nodes.rs`), and the only statement
-  spelling left, `_ = Build::select_provider<..>(builder)`, is refused at
-  checking with "qualified call `select_provider` has no resolved callable
-  declaration" because `select_provider` is the one operation with no prelude
-  declaration. The expression retention cannot absorb that spelling, because
-  `TableCallExpression` carries no `discards_result` field. The sibling record
-  beside it, `ExecutedBehaviorExclusionSite`, constructs both of its variants
-  -- `Build::exclude_crash(builder, cause);` takes the statement arm -- so the
-  two-variant site is a live shared shape, not provider-only ceremony.
-  `try_provider_selection_statement` stays called unguarded, so any spelling
-  that does reach it works. Acceptance: either `TableCallExpression` carries
-  the discard marker so stage 02 retains that spelling too and the statement
-  arm becomes structurally impossible, or checking admits
-  `_ = Build::select_provider<..>` and the arm becomes constructed. Deleting
-  the arm by itself would bake the upstream gap into the Psi/Omega record
-  contract.
-
 - **COMPONENT-ASSUMPTION-ACCEPTANCE-SHAPE.** (new-scope)
   `Build::accept_component_assumption` declares signature
   `(builder: &mut Build, digest: &[u8])` but no authored spelling can

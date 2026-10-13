@@ -388,14 +388,6 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(Value::Unit);
         }
-        // Stage 02 retains every admitted provider-selection statement as an
-        // expression, so this entry stays unreached today. It reads the
-        // activation out of its first argument and never needed the receiver
-        // classification that used to gate it.
-        if let Some(value) = self.try_provider_selection_statement(statement, call, frame)? {
-            return Ok(value);
-        }
-
         // Host boundary call? (e.g. self.console.exit_process(70))
         if let Some(value) = self.try_host_call(call, frame)? {
             return Ok(value);

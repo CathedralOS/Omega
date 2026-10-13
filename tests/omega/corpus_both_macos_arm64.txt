@@ -151,6 +151,7 @@ pass/borrows/stored_reference_projection_exit built 1368ms exit:70 interpreter-e
 pass/borrows/transition_shared_borrow_result built 7025ms exit:181 interpreter-exit:181 interpreter:agrees @5889f8b8208f+wt
 pass/boundary/later_state_requirement_scalar_result_exit built 69713ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
 pass/boundary/static_foreign_scalar_result_locals_exit built 69334ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
+pass/build/discarded_provider_selection_exit built 6550ms exit:70 interpreter-exit:70 interpreter:agrees @ac7fc986d407+wt
 pass/calls/borrowed_scalar_result_with_binding_exit built 14692ms exit:70 interpreter-exit:70 interpreter:agrees @9be6967d04c3+wt
 pass/calls/caller_result_binding_mutable_loan_exit built 6887ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/calls/case_scrutinee_self_dispatch_exit built 6706ms exit:0 interpreter-exit:0 interpreter:agrees @faab7e6c1b7d+wt

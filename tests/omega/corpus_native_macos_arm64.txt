@@ -289,6 +289,7 @@ pass/build/dependency_declaration_queries checked 3756ms @9beb2be72f2d+wt
 pass/build/dependency_implementation_closure built 3437ms exit:0 @9beb2be72f2d+wt
 pass/build/described_runner_entry_left_exit built 2356ms exit:11 @26b974b5cae7+wt
 pass/build/described_runner_entry_right_exit built 2175ms exit:37 @26b974b5cae7+wt
+pass/build/discarded_provider_selection_exit built 6503ms exit:70 @ac7fc986d407+wt
 pass/build/entry_schema_same_leaf_exit built 1503ms exit:0 @199028b84b44+wt
 pass/build/product_description_paths_exit built 953ms exit:0 @5d467687f505+wt
 pass/build/product_entry_named_user_machine_exit built 608ms exit:0 @d7dd90112d31

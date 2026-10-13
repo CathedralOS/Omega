@@ -4335,6 +4335,7 @@ pass/build/dependency_declaration_queries checked 10390ms @a9ae30e1c334+wt
 pass/build/dependency_implementation_closure checked 10406ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/described_runner_entry_left_exit checked 11063ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/described_runner_entry_right_exit checked 11077ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/build/discarded_provider_selection_exit checked 6362ms check-target:macos_arm64 @ac7fc986d407+wt
 pass/build/entry_schema_same_leaf_exit checked 10244ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/explicit_lifetime_entry_context_exit checked 10214ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/product_description_paths_exit checked 10456ms check-target:macos_arm64 @a9ae30e1c334+wt

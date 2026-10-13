@@ -1,0 +1,11 @@
+// The discard spelling of a provider selection, `_ = Build::select_provider
+// <..>(builder);`, is the same operation as the bare statement: stage 02
+// retains every spelling of a Build declaration call as one expression, so
+// the selection reaches Omega's provider planning and the program runs with
+// the selected Console provider. Exits 70.
+use omega_language_std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.exit_process(70);
+}

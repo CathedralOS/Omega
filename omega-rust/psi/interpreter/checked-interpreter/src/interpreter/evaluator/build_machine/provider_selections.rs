@@ -3,40 +3,13 @@
 //! executes normally. Omega validates the retained operand identities and
 //! coverage after evaluation, keeping target policy out of this interpreter.
 
+use crate::ExecutedProviderSelection;
 use crate::interpreter::evaluator::{
-    Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, TableCall, Value,
-    trap,
+    Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value, trap,
 };
-use crate::{ExecutedProviderSelection, ExecutedProviderSelectionSite};
 use language_semantics::declaration_selection::BuildOperation;
 
 impl<'program> Evaluator<'program> {
-    pub(in crate::interpreter::evaluator) fn try_provider_selection_statement(
-        &mut self,
-        statement: typed_trees::statement::StatementHandle,
-        call: &TableCall,
-        frame: &mut Frame,
-    ) -> EvalResult<Option<Value>> {
-        if BuildOperation::from_call_target(call.target.as_str())
-            != Some(BuildOperation::ProviderSelection)
-            || call.target_symbol.is_valid()
-        {
-            return Ok(None);
-        }
-        let composition_case = self.provider_composition_case(
-            self.program
-                .statement_table
-                .expression_handles(call.arguments),
-            frame,
-        )?;
-        self.record_provider_selection(
-            ExecutedProviderSelectionSite::Statement(statement),
-            composition_case,
-            frame,
-        )?;
-        Ok(Some(Value::Unit))
-    }
-
     pub(in crate::interpreter::evaluator) fn try_provider_selection_value_call(
         &mut self,
         expression: ExpressionHandle,
@@ -55,11 +28,7 @@ impl<'program> Evaluator<'program> {
                 .expression_handles(call.arguments),
             frame,
         )?;
-        self.record_provider_selection(
-            ExecutedProviderSelectionSite::Expression(expression),
-            composition_case,
-            frame,
-        )?;
+        self.record_provider_selection(expression, composition_case, frame)?;
         Ok(Some(Value::Unit))
     }
 
@@ -124,7 +93,7 @@ impl<'program> Evaluator<'program> {
 
     fn record_provider_selection(
         &mut self,
-        site: ExecutedProviderSelectionSite,
+        expression: ExpressionHandle,
         composition_case: SymbolHandle,
         frame: &Frame,
     ) -> EvalResult<()> {
@@ -136,7 +105,7 @@ impl<'program> Evaluator<'program> {
         self.executed_provider_selections
             .push(ExecutedProviderSelection {
                 machine: frame.machine_symbol,
-                site,
+                expression,
                 composition_case,
             });
         Ok(())

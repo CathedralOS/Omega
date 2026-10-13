@@ -377,15 +377,11 @@ pub struct ExecutedRootBinding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedProviderSelection {
     pub machine: symbols::SymbolHandle,
-    pub site: ExecutedProviderSelectionSite,
+    /// The authored call: stage 02 retains every provider-selection
+    /// spelling, statement or discard included, as this one expression.
+    pub expression: typed_trees::expression::ExpressionHandle,
     /// Zero means the omitted default; otherwise the evaluated toolchain case.
     pub composition_case: symbols::SymbolHandle,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExecutedProviderSelectionSite {
-    Statement(typed_trees::statement::StatementHandle),
-    Expression(typed_trees::expression::ExpressionHandle),
 }
 
 /// One crash, physical-authority, or service exclusion selection that

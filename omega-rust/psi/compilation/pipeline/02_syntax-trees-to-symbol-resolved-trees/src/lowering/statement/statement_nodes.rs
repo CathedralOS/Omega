@@ -223,7 +223,10 @@ pub(crate) fn lower_statement_node(
             // later proves the exact Build namespace and explicit argument.
             // Preserve expression custody to finalize the operand occurrences;
             // the statement-call form retains only its callee occurrence.
-            // Retain the same operand custody for statement and value uses.
+            // Retain the same operand custody for statement and value uses,
+            // and for the discard spelling `_ = Build::select_provider<..>(b)`:
+            // these operations return Unit, so the discard marker names no
+            // value and the one expression route serves every spelling.
             if matches!(
                 BuildOperation::from_call_target(call.target.as_str()),
                 Some(
@@ -233,8 +236,7 @@ pub(crate) fn lower_statement_node(
                         | BuildOperation::WireCompatibilityRequest
                         | BuildOperation::RepresentationSelection
                 )
-            ) && !call.discards_result
-            {
+            ) {
                 let expression = retain_build_declaration_call_expression(lowerer, lowered_call);
                 hoisted.push(Statement::Expression(expression));
             } else {

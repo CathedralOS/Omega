@@ -152,55 +152,25 @@ pub fn collect_executed_provider_selections(
     let requests = executed
         .iter()
         .map(|row| {
-            let request = match row.site {
-                checked_interpreter::ExecutedProviderSelectionSite::Statement(handle) => {
-                    match typed.statement_table.statement(handle) {
-                        checked_trees::typed_trees::statement::StatementNode::Call(call)
-                            if language_semantics::declaration_selection::is_unresolved_provider_selection_call(
-                                call.target.as_str(),
-                                call.target_symbol,
-                            ) =>
-                        {
-                            Some(ProviderSelectionCall {
-                                target: call.target.as_str(),
-                                arguments: &call.machine_arguments,
-                                value_arguments: typed
-                                    .statement_table
-                                    .expression_handles(call.arguments),
-                                source_span: call.source_span,
-                                machine: row.machine,
-                                composition_case: Some(row.composition_case),
-                                product_operands: true,
-                            })
-                        }
-                        _ => None,
-                    }
+            let handle = row.expression;
+            let request = match typed.expression_table.expression(handle) {
+                checked_trees::typed_trees::expression::ExpressionNode::Call(call)
+                    if language_semantics::declaration_selection::is_unresolved_provider_selection_call(
+                        call.target.as_str(),
+                        call.target_symbol,
+                    ) =>
+                {
+                    Some(ProviderSelectionCall {
+                        target: call.target.as_str(),
+                        arguments: &call.machine_arguments,
+                        value_arguments: typed.expression_table.expression_handles(call.arguments),
+                        source_span: provider_selection_expression_source_span(typed, handle),
+                        machine: row.machine,
+                        composition_case: Some(row.composition_case),
+                        product_operands: true,
+                    })
                 }
-                checked_interpreter::ExecutedProviderSelectionSite::Expression(handle) => {
-                    match typed.expression_table.expression(handle) {
-                        checked_trees::typed_trees::expression::ExpressionNode::Call(call)
-                            if language_semantics::declaration_selection::is_unresolved_provider_selection_call(
-                                call.target.as_str(),
-                                call.target_symbol,
-                            ) =>
-                        {
-                            Some(ProviderSelectionCall {
-                                target: call.target.as_str(),
-                                arguments: &call.machine_arguments,
-                                value_arguments: typed
-                                    .expression_table
-                                    .expression_handles(call.arguments),
-                                source_span: provider_selection_expression_source_span(
-                                    typed, handle,
-                                ),
-                                machine: row.machine,
-                                composition_case: Some(row.composition_case),
-                                product_operands: true,
-                            })
-                        }
-                        _ => None,
-                    }
-                }
+                _ => None,
             };
             request.ok_or_else(|| {
                 vec![Diagnostic::error(
