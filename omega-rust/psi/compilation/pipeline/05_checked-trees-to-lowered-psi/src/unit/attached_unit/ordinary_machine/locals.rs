@@ -1,90 +1,11 @@
 //! Places only an ordinary body establishes for itself: trivial affine
-//! locals, references and scalar arrays. Scalar locals, primitive locals and
-//! structural values (whose member operands are calls) emit through the shared
-//! `operation_frame`.
+//! locals. Scalar locals, scalar arrays, primitive locals and structural
+//! values emit through the shared `operation_frame`.
 
-use super::super::{scalar_arrays, structural_values};
 use super::MachineEmission;
-use crate::unit::{
-    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError, OperationKind,
-    unsupported,
-};
+use crate::unit::{CheckedUnitEffectOperationPlan, LoweringError, OperationKind};
 
 impl MachineEmission<'_> {
-    pub(super) fn establish_scalar_array(
-        &mut self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        operation: &CheckedUnitEffectOperationPlan,
-    ) -> Result<Option<OperationKind>, LoweringError> {
-        let checked = self.checked;
-        let plan = self.plan;
-        let CheckedUnitEffectOperationPlan::EstablishLocal(
-            checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
-                source,
-                result,
-                elements,
-            },
-        ) = operation
-        else {
-            unreachable!("dispatched establish_scalar_array")
-        };
-        if result.binding_ordinal as usize != self.structural_result_places.len() {
-            return unsupported("array result binding is not dense");
-        }
-        // Earlier arguments are private staging slots, not source
-        // bindings. Keep them live through every leaf's control
-        // joins, then remove only this constructor's leaf tail.
-        let leaf_start = self.scalar_result_values.len();
-        let source_value_count = self.retained_scalar_prefix.unwrap_or(leaf_start);
-        for (ordinal, element) in elements.iter().enumerate() {
-            let element_ordinal = u32::try_from(ordinal)
-                .map_err(|_| LoweringError::Unsupported("array element ordinal exceeds u32"))?;
-            let value = self.evaluation.source_value(
-                identities,
-                checked,
-                plan.machine,
-                plan.state,
-                result.statement_index,
-                CheckedScalarExpressionRole::ArrayElement {
-                    source: *source,
-                    element_ordinal,
-                },
-                element,
-                source_value_count,
-                &mut self.scalar_result_values,
-                &mut self.next_value_identity,
-                &mut self.next_block,
-                &mut self.next_edge,
-                &mut self.operations,
-                &mut self.scalar_calls,
-            )?;
-            self.scalar_result_values.push(value);
-        }
-        self.next_call_obligation = self.scalar_calls.next_obligation_identity;
-        // Private control joins may replace every scalar identity.
-        // Read the completed leaves only after the final element.
-        let declaration = scalar_arrays::emit(
-            result,
-            &self.scalar_result_values[leaf_start..],
-            self.type_ids,
-            &mut self.next_place,
-            &mut self.operations,
-        )?;
-        self.scalar_result_values.truncate(leaf_start);
-        self.structural_result_places
-            .push((Some(declaration), false));
-        if *source == checked_trees::CheckedArrayConstructionSource::Statement {
-            structural_values::bind_local(
-                operation,
-                declaration,
-                crate::terminal_identities::lookup_type_id(self.type_ids, &result.type_identity)?,
-                self.structural_types,
-                &mut self.evaluation.structural_locals,
-            )?;
-        }
-        Ok(None)
-    }
-
     pub(super) fn establish_trivial_affine_local(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,

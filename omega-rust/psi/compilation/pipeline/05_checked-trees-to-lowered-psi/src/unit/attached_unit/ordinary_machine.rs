@@ -1616,6 +1616,9 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::Structural { .. },
             )
+            | CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. },
+            )
             | checked_trees::reference_hold_pattern!() => {
                 return self.emit_through_frame(identities, operation, step.source_value_count);
             }
@@ -1630,9 +1633,6 @@ impl MachineEmission<'_> {
                     self.next_call_obligation = self.scalar_calls.next_obligation_identity;
                     self.primitive_local_places.push(local);
                     return Ok(());
-                }
-                checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. } => {
-                    self.establish_scalar_array(identities, operation)?
                 }
                 checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. } => {
                     self.establish_trivial_affine_local(operation)?
