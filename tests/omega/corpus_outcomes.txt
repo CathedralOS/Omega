@@ -1885,7 +1885,7 @@ fail/float/digit_separator_format_mismatch_rejected rejected 189ms expected @9c4
 	literal `12.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/float/digit_separator_missing_exponent_rejected rejected 0ms expected @9c4d1c444502
 	tests/omega/fail/float/digit_separator_missing_exponent_rejected/main.omg:1:35: invalid float literal
-fail/float/digit_separator_unknown_suffix_rejected rejected 0ms expected @9c4d1c444502
+fail/float/digit_separator_unknown_suffix_rejected rejected 1ms expected @1b12798e27f4
 	tests/omega/fail/float/digit_separator_unknown_suffix_rejected/main.omg:1:35: unknown float literal suffix
 fail/float/exact_format_conversion_requires_denotation rejected 480ms expected @9c4d1c444502
 	machine `lossy` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
@@ -1944,7 +1944,7 @@ fail/float/integer_to_float_semantics_lookalike rejected 32ms expected @9c4d1c44
 fail/float/local_initializer_range_unproven rejected 204ms expected @9c4d1c444502
 	cannot prove initializer `20.0` satisfies the bounded value of machine `literal` state `entry` local `bounded`; expected 0..=0.5
 	cannot prove initializer `value` satisfies the bounded value of machine `forwarded` state `entry` local `bounded`; expected 0..=0.5
-fail/float/mathematical_generic_ieee_equality_requires_non_nan rejected 559ms expected @9c4d1c444502
+fail/float/mathematical_generic_ieee_equality_requires_non_nan rejected 849ms expected @1b12798e27f4
 	cannot prove ensures contract for exit from invalid at statement 0: reflexive<f32>(value)
 fail/float/named_argument_format_rejected rejected 194ms expected @9c4d1c444502
 	argument `value` for state `entry` delivers a `f64` value to a `f32` parameter; a landed float retains its format, so changing format requires an explicit conversion
@@ -2034,7 +2034,7 @@ fail/float/state_arrival_ieee_predicate_unsatisfied rejected 1645ms expected @9c
 	cannot prove requires contract for call bounded from Main::main: main.value == main.value && main.value >= 0.0 && main.value < 1000.0 (needs fact `value == value && value >= 0.0 && value < 1000.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/float/state_constructor_ieee_reflexivity rejected 552ms expected @9c4d1c444502
 	cannot prove requires contract for call conclude from invalid: constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail87:constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail4:tail == constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail87:constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail4:tail (needs fact `Chain == Chain` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/float/suffix_format_disagrees_rejected rejected 738ms expected @9c4d1c444502
+fail/float/suffix_format_disagrees_rejected rejected 3311ms expected @1b12798e27f4
 	literal `1.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/float/symbolic_integer_conversion_requires_preserves_exact_cast rejected 484ms expected @9c4d1c444502
 	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
@@ -5137,12 +5137,12 @@ pass/float/builtin_extrema_field_store_exit checked 33249ms check-target:macos_a
 pass/float/closed_integer_conversion_predicate_proof_exit checked 29550ms check-target:macos_arm64 @9c4d1c444502
 pass/float/closed_integer_conversion_trapping_source_no_normal_result checked 29350ms check-target:macos_arm64 @9c4d1c444502
 pass/float/coherent_field_energy_scattering_exit checked 43211ms check-target:macos_arm64 @9c4d1c444502
-pass/float/computed_comparison_literal_landing_exit checked 29297ms check-target:macos_arm64 @9c4d1c444502
+pass/float/computed_comparison_literal_landing_exit checked 32379ms check-target:macos_arm64 @1b12798e27f4
 pass/float/computed_float_bare_literal_comparison checked 29624ms check-target:macos_arm64 @9c4d1c444502
 pass/float/constructor_requirement_result_policy_exit checked 29175ms check-target:macos_arm64 @9c4d1c444502
 pass/float/data_where_float_field_restored_exit checked 28777ms check-target:macos_arm64 @9c4d1c444502
 pass/float/f32_arg_const_arith_landed_exit checked 28206ms check-target:macos_arm64 @9c4d1c444502
-pass/float/f32_per_operation_rounding_exit checked 28524ms check-target:macos_arm64 @9c4d1c444502
+pass/float/f32_per_operation_rounding_exit checked 46604ms check-target:macos_arm64 @1b12798e27f4
 pass/float/finite_core_domain_range_discharge checked 27869ms check-target:macos_arm64 @9c4d1c444502
 pass/float/finite_signature_transport_exit checked 27899ms check-target:macos_arm64 @9c4d1c444502
 pass/float/float_saturating_arithmetic_exit checked 28544ms check-target:macos_arm64 @9c4d1c444502
@@ -5154,9 +5154,9 @@ pass/float/fused_multiply_add_single_rounding_exit checked 26137ms check-target:
 pass/float/guarded_exact_float_conversion checked 7372ms @9c4d1c444502
 pass/float/guarded_scalar_state_contract_exit checked 26224ms check-target:macos_arm64 @9c4d1c444502
 pass/float/hydrostatic_load_format_exit checked 11293ms check-target:macos_arm64 @589aedee8ebc+wt
-pass/float/literal_indexed_float_field_read_exit checked 26117ms check-target:macos_arm64 @9c4d1c444502
+pass/float/literal_indexed_float_field_read_exit checked 17424ms check-target:macos_arm64 @1b12798e27f4
 pass/float/live_division_operand_across_call_exit checked 13385ms check-target:macos_arm64 @9c4d1c444502
-pass/float/live_float_parameter_across_call_exit checked 27021ms check-target:macos_arm64 @9c4d1c444502
+pass/float/live_float_parameter_across_call_exit checked 14660ms check-target:macos_arm64 @1b12798e27f4
 pass/float/local_after_float_call_store_exit checked 26480ms check-target:macos_arm64 @9c4d1c444502
 pass/float/module_imported_policy_conversion_family_exit checked 10926ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/float/named_constant_materialization_exit checked 64831ms check-target:macos_arm64 @9c4d1c444502
@@ -5177,7 +5177,7 @@ pass/float/named_provider_multiply_then_add_exit checked 25581ms check-target:ma
 pass/float/named_provider_negate_is_nan_exit checked 25723ms check-target:macos_arm64 @9c4d1c444502
 pass/float/nearest_even_binary_arithmetic_exit checked 25648ms check-target:macos_arm64 @9c4d1c444502
 pass/float/nested_float_operator_applications_exit checked 25987ms check-target:macos_arm64 @9c4d1c444502
-pass/float/owned_local_computed_float_store_exit checked 11186ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/float/owned_local_computed_float_store_exit checked 17257ms check-target:linux_x86_64 @1b12798e27f4
 pass/float/public_boolean_result_contract_import_exit checked 24929ms check-target:macos_arm64 @9c4d1c444502
 pass/float/public_boolean_result_contract_match_import_exit checked 24773ms check-target:macos_arm64 @9c4d1c444502
 pass/float/public_boolean_result_contract_short_circuit_import_exit checked 25074ms check-target:macos_arm64 @9c4d1c444502
@@ -5188,14 +5188,14 @@ pass/float/public_integer_input_contract_state_import_exit checked 25240ms check
 pass/float/public_integer_result_contract_import_exit checked 25164ms check-target:macos_arm64 @9c4d1c444502
 pass/float/qualified_integer_source_exact_float_coercion_exit checked 25623ms check-target:macos_arm64 @9c4d1c444502
 pass/float/requirement_nested_record_arithmetic_exit checked 25829ms check-target:macos_arm64 @9c4d1c444502
-pass/float/returned_record_computed_fields_exit checked 11311ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/float/returned_record_computed_fields_exit checked 14608ms check-target:linux_x86_64 @1b12798e27f4
 pass/float/runtime_absolute_return_sum_exit checked 11834ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/float/runtime_absolute_shared_call_operands_exit checked 11413ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/float/runtime_authored_max_selection_exit checked 25839ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_builtin_guard_application_exit checked 25797ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_builtin_ieee_order_exit checked 27023ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_coercion_future_policy_exit checked 26161ms check-target:macos_arm64 @9c4d1c444502
-pass/float/runtime_exact_format_narrowing_exit checked 25624ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_exact_format_narrowing_exit checked 15375ms check-target:macos_arm64 @1b12798e27f4
 pass/float/runtime_exact_integer_coercion_exit checked 25427ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_exact_integer_to_float_coercion_exit checked 25190ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_finite_record_invariant_window_exit checked 25261ms check-target:macos_arm64 @9c4d1c444502
@@ -6530,3 +6530,6 @@ pass/collections/float_array_completed_call_store_exit checked 12682ms check-tar
 pass/collections/runtime_three_indexed_record_float_read_exit checked 10892ms check-target:macos_arm64 @9462eda24d9e+wt
 fail/collections/runtime_three_indexed_float_read_missing_bound rejected 1706ms expected @9462eda24d9e+wt
 	cannot prove index `row` is within length 2 in read::entry
+fail/float/generic_constructor_suffix_format_disagrees rejected 315ms expected @1b12798e27f4
+	literal `3.0` is suffixed `f64` but lands in a `f32` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
+pass/float/runtime_generic_constructor_literal_landing_exit checked 14705ms check-target:macos_arm64 @1b12798e27f4
