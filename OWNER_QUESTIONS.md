@@ -65,4 +65,37 @@ Proposed solutions below are recommendations, not owner rulings. Remove an
 entry when the contract answers it; retain any unfinished implementation on
 its owning task.
 
-None.
+### Q10 - Does a Build provider selection bind a boundary-trait token?
+
+Named decision: `boundary-trait-token-binder`.
+
+**Customer:** a program declares `pub boundary trait T { machine == equal(left:
+i32, right: i32) -> bool requires right >= 0; }`, selects a checked satisfier
+with `Build::select_provider<T, CheckedEquality>(builder)`, and writes `a == b`.
+Measured at `5041ef1af68` (lane note on `samples/cli/probes/operator_requires_effects`):
+the named call `T::equal(a, b)` runs natively, but `a == b` resolves to the
+primitive `i32` equality, and on a user carrier to no candidate at all. The
+float-row migration under TOP-LEVEL-BOUNDARY-REQUIREMENTS meets the same shape.
+
+[Expressions](wiki/spec/language/expressions.md) says "A trait-backed token use
+requires one exact conformance already selected by an explicit proof-static
+binder: no binder rejects even when only one conformance is visible". It does
+not say whether a Build `select_provider` row is such a binder; Build rows are
+build-time selections, and the passage's binders are source-level.
+[Provider selection](wiki/spec/build/provider_selection.md) lets a Slot be "one
+exact boundary trait or package-qualified same-path boundary-operator family"
+and says selection "contributes no service reach", but is silent on token
+resolution. The [language guide](wiki/language_guide/chapter_5_expressions_evaluation.md)
+says closed direct families belong to their semantic-home owner and "foreign
+packages cannot inject another `+` into `Vec2`", which a selected boundary-trait
+token on a primitive operand would appear to do.
+
+**Decision needed:** (1) a selected provider row binds the trait's tokens for
+operands of the trait's parameter types, overriding the primitive direct family
+only inside the selecting build; (2) selection never binds tokens, so a
+boundary-trait token is reachable only through an explicit source-level binder
+and otherwise only the named call works; or (3) boundary-trait tokens bind only
+on carriers the trait's package owns, never on primitives. Recommendation: (2),
+which keeps operator meaning independent of Build rows and matches the closed
+direct-family rule; it would make the `== equal` token declaration inert
+without a binder, so it should then reject at the declaration.
