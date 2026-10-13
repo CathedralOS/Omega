@@ -1017,10 +1017,9 @@ defines the complete product bar.
     covers limited Linux x86-64 leaves). Owned by
     **FILESYSTEM-PLATFORM-SERVICES**. Acceptance: the seven-step workflow,
     exit 7.
-  - `systems/note_vault`: needs the portable `FilesystemHost` binding under
-    **FILESYSTEM-PLATFORM-SERVICES** and
-    `portable-service-per-family-binding-carrier` in
-    [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md). Acceptance: unchanged workflow,
+  - `systems/note_vault`: needs the portable `Filesystem` service under
+    **FILESYSTEM-PLATFORM-SERVICES**, carried as
+    [platform services](wiki/spec/build/platform_services.md#three-layers) requires. Acceptance: unchanged workflow,
     exit 14.
 
   Host coverage still owed:
@@ -1701,9 +1700,7 @@ defines the complete product bar.
 
   The 16 recursive filesystem parameter suffixes remain unmigrated. Their
   `pass/filesystem/dir_walk_wrappers_exit` customer's portable binding
-  dependency is **FILESYSTEM-PLATFORM-SERVICES** and
-  `portable-service-per-family-binding-carrier` in
-  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md). Continue the other customer groups
+  dependency is **FILESYSTEM-PLATFORM-SERVICES**. Continue the other customer groups
   without manufacturing an implicit re-export or provider-name fallback.
 
   Collection frontier: qualify remaining view and capture compositions through
@@ -2071,7 +2068,7 @@ then independent claimed restoration slices -> final closure.
   **BUILD-EVALUATES-ONCE**, pre-effect admission and all-target authored rows;
   do not retain a feature/fixture-specific Build evaluator.
   Discovery/default-source phase selection is **OWNER-BLOCKED** on
-  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q4---how-does-a-build-select-its-core-only-discovery-entry):
+  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q1---what-does-a-non-discovery-build-call-do-while-discovery-runs):
   the same free Build entry mixes discovery with work needing the resolved
   graph, with no defined entry/phase boundary. This blocks that subfrontier
   only; Terminal/mutable-slot/accounting and immutable resolver joins remain
@@ -2794,9 +2791,7 @@ crash and native exit behavior.
     binds same-target calls.
   - Exercise filesystem `read_dir_count`, `read_dir_nth`, `remove_dir_all`,
     `open_with` and `lock` from a consumer package once its portable binding
-    is supplied by **FILESYSTEM-PLATFORM-SERVICES** under
-    `portable-service-per-family-binding-carrier` in
-    [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
+    is supplied by **FILESYSTEM-PLATFORM-SERVICES**.
   - The common lowering route retains runtime bodies and opaque contracts,
     including unreachable members and uncatalogued tags, in Terminal family
     rows; inspection exposes tags and exact callable ids. Semantic conformance
@@ -5335,7 +5330,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Default builds and anonymous owners
     ([spec](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)):
     The interpreted discovery/default-source prerequisite references
-    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q4---how-does-a-build-select-its-core-only-discovery-entry);
+    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q1---what-does-a-non-discovery-build-call-do-while-discovery-runs);
     other owner/identity/resolution joins remain engineering.
     `omega-rust/omega/packages/compilation-inputs/src/source_imports/frontier.rs`
     leaves loose roots without package identity. Derive the versioned anonymous
@@ -5698,16 +5693,18 @@ wait for Cathedral's instruction coverage. The interpreter is
     through 4096-byte buffers. Remove unnecessary byte copying; preserve
     the native layout, alignment and minimum-storage requirements of
     structure-valued calls. Keep NUL-terminated path construction separate.
-  The portable wrapper's carrier depends on
-  `portable-service-per-family-binding-carrier` in `OWNER_QUESTIONS.md`;
-  independent family/provider work can proceed. Evidence for that question:
-  `samples/cli/audio/wav_output` is Q1's option 1 in miniature — an
-  application holds one `Binding<WavOutput>`, and target-scoped named
-  implementations satisfy it, each reaching its own raw family — and it
-  runs natively on Windows x86-64 and linux_x86_64 today. Its cost: the
-  trait's `invokes PosixFilesystemHost; invokes WindowsFilesystemHost;`
-  makes every application `reaches` both families and import both host
-  modules, so the family names leak into the portable caller's reach set.
+  The portable carrier is settled by [platform services](wiki/spec/build/platform_services.md#three-layers):
+  an application holds a binding to the portable service only, and each
+  target's implementation of that service reaches its own raw family. Raw
+  handle types and family traits never appear in the portable API, and
+  family names are "provider-selection identities, not automatically added
+  service effects", so a portable caller's reach names the core filesystem
+  service identities, not `PosixFilesystemHost` or `WindowsFilesystemHost`.
+  `samples/cli/audio/wav_output` already has this shape and runs natively on
+  Windows x86-64 and linux_x86_64, but its trait's
+  `invokes PosixFilesystemHost; invokes WindowsFilesystemHost;` still puts
+  both family names in every caller's reach set; replace them with the core
+  filesystem identities when the portable `Filesystem` moves over.
   Update `source/library/std/targets/<target>/filesystem_impl.omg`:
   POSIX stores descriptor + 1, Windows stores HANDLE, zero OpenOptions means
   defaults, failures are closed and unsupported operations return
@@ -6536,7 +6533,7 @@ report a missing runtime leg explicitly.
     or scope the oracle to its bound hosts; `expected_stdout.txt` has no
     per-target form.
   - `tests/omega/pass/filesystem/windows_set_file_time_exit` rejects (its
-    `Binding<FilesystemHost>` waits on `OWNER_QUESTIONS.md` Q1) and its oracle
+    `Binding<FilesystemHost>` must hold `WindowsFilesystemHost` instead) and its oracle
     is only a comment: add `expected_native_exit` so the fixture must call
     SetFileTime then `_stat64`, read back Unix time 1,500,000,000 and exit 70.
 
@@ -6608,9 +6605,19 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     their own generic parameters, target-scoped family calls and case domain
     qualifiers. Implement declared equality through `Equatable` named
     conformances under [core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition).
-    Core's theorems over `Nat`, `Seq` and records also require
-    `proof-fact-data-equality`; do not infer proof identity from executable
-    equality or from the Rust implementation's source-shape distinction.
+    Core's theorems over `Nat`, `Seq` and records state mathematical identity
+    with `==`, which the contracts do not allow: operator syntax keeps its
+    selected `Equatable` meaning in facts too ([proof contracts](wiki/spec/proofs/contracts.md#machines-and-bundles):
+    "Named calls and operator syntax retain the same selected contract"),
+    other mathematical relations "use separately named contracts and
+    implementations without competing for operator syntax"
+    ([core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition)),
+    and mathematical identity stays available without an equality algorithm
+    ([quotients](wiki/spec/proofs/quotients.md)). Name the foundation's
+    identity as a compiler-known core proposition beside `core::Type` and
+    `core::Strict`, and respell those theorems with it; do not infer proof
+    identity from executable equality or from the Rust implementation's
+    source-shape distinction.
   - Checking and proof (`source/psi/checking/`): implement proof-only `embed`
     under [contracts](wiki/spec/proofs/contracts.md), mathematical/proposition
     facts beyond the current whole-fact bindings, and contract refinement
@@ -6646,8 +6653,11 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     specified source meaning; resolve that contract instead of importing the
     Rust parser's contextual recognition. `std/build.omg` needs its build
     context's `Build`. The product entry's console closure also needs the
-    boundary trait argument in `Binding<Console>` and the open
-    `binding-receiver-call-form` decision for calls through it. Reconcile std target
+    boundary trait argument in `Binding<Console>` and the binding-receiver
+    call form for calls through it: a direct or projected `Binding<R>`
+    receiver calls requirement `R::op` with exactly its arguments
+    ([boundary calls](wiki/spec/terminal-psi/boundary_calls.md),
+    [language guide chapter 19](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md)). Reconcile std target
     providers' undocumented `Owner::provider_defaults` / provider-data
     convention with named implementation selection in
     [provider selection](wiki/spec/build/provider_selection.md).

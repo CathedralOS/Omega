@@ -3,7 +3,7 @@
 // implementation satisfies the trait and reaches its own raw filesystem
 // family — PosixFilesystemHost on linux/macos, WindowsFilesystemHost on
 // windows_x86_64 — so provider selection sees exactly one realizable raw
-// family per target (Q1 option 1 in miniature).
+// family per target, the shape wiki/spec/build/platform_services.md sets.
 // `write_wav` creates/truncates `path`, writes `bytes`, closes, and returns
 // the byte count or a negative error (negated errno on POSIX, negated Win32
 // code on Windows).
