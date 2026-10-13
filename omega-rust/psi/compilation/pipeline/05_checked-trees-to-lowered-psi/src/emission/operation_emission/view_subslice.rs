@@ -31,9 +31,45 @@ pub(crate) enum ViewFamily {
     Elements,
 }
 
+/// Normalize a checked range endpoint after its authored integer arithmetic.
+/// Source range admission establishes 0 <= endpoint <= extent <= u64::MAX,
+/// so this exact coordinate conversion carries that same admission decision.
+/// It never changes the endpoint's arithmetic carrier or policy during evaluation.
+pub(crate) fn coordinate(
+    expression: LoweredDirectExpression,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    let source = expression
+        .scalar_type()
+        .as_integer()
+        .filter(|integer| !integer.is_address())
+        .ok_or(LoweringError::Unsupported(
+            "range endpoint requires an integer carrier",
+        ))?;
+    let scalar_type = terminal_scalar_type(PrimitiveType::U64)?;
+    if expression.scalar_type() == scalar_type {
+        return Ok(expression);
+    }
+    if source.can_widen_to(
+        scalar_type
+            .as_integer()
+            .ok_or(LoweringError::InvalidPsiIntegerType)?,
+    ) {
+        Ok(LoweredDirectExpression::IntegerWiden {
+            scalar_type,
+            operand: Box::new(expression),
+        })
+    } else {
+        Ok(LoweredDirectExpression::IntegerExactCast {
+            scalar_type,
+            operand: Box::new(expression),
+            formation_decided: true,
+        })
+    }
+}
+
 /// Emit `source[start..end]` into `destination`. A missing start is zero and
-/// a missing end is the source's own length; present endpoints must already
-/// be branch-free `u64` expressions over `values`.
+/// a missing end is the source's own length. Present endpoints keep their
+/// authored integer carrier and become u64 coordinates only after evaluation.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit(
     family: ViewFamily,
@@ -57,14 +93,16 @@ pub(crate) fn emit(
         .map(|value| value.scalar_type)
         .collect::<Vec<_>>();
     let mut endpoint = |expression: &LoweredDirectExpression| -> Result<ValueId, LoweringError> {
-        if expression.scalar_type() != count_type
-            || direct_expression_contains_short_circuit(expression)
-        {
+        let expression = coordinate(expression.clone())?;
+        if direct_expression_contains_short_circuit(&expression) {
             return unsupported("view subslice endpoint needs a branch-free u64 value");
         }
-        validate_direct_parameter_types(expression, &types)?;
+        validate_direct_parameter_types(&expression, &types)?;
         Ok(emit_direct_expression(
-            expression, values, next_value, operations,
+            &expression,
+            values,
+            next_value,
+            operations,
         ))
     };
     let start = match start {

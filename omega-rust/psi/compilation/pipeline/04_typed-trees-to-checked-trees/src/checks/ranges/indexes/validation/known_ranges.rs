@@ -68,6 +68,7 @@ pub(super) fn prove(
         || start_maximum
             .zip(end_minimum)
             .is_some_and(|(start, end)| start <= end)
+        || same_stable_endpoint(program, machine, state, range.start, range.end)
         || facts.at_most_is_proven(
             &program.expression_table.display_name(range.start),
             &program.expression_table.display_name(range.end),
@@ -102,4 +103,36 @@ fn at_most_constant(
     // plus the strict-ordering allowance of one element).
     facts.index_upper_bound_is_proven(&label, exclusive)
         || facts.index_upper_bound_is_proven_via_ordering(&label, "", exclusive)
+}
+
+/// Reflexive order applies to one stable storage subject, not two equal source
+/// spellings. Calls/rvalues and evaluated selectors can produce different values
+/// on each occurrence and therefore retain their independent ordering proof.
+/// Static projections contain no endpoint effects; lower and upper bounds above
+/// remain required even when both endpoints read the same subject.
+fn same_stable_endpoint(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    start: ExpressionHandle,
+    end: ExpressionHandle,
+) -> bool {
+    let stable = |expression| {
+        if !validation::place_has_builtin_coordinates(program, machine, Some(state), expression) {
+            return None;
+        }
+        let place = validation::canonical_place_from_expression(program, expression)?;
+        if !place
+            .root
+            .as_symbol()
+            .is_some_and(|symbol| symbol.is_valid())
+            || !(place.segments.is_empty() || place.has_only_positional_segments())
+        {
+            return None;
+        }
+        Some(place)
+    };
+    stable(start)
+        .zip(stable(end))
+        .is_some_and(|(start, end)| start == end)
 }

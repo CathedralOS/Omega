@@ -192,11 +192,20 @@ impl super::Expansion<'_> {
                 }
             };
             let value_type = self.argument_type(identities, &argument, site, input_types)?;
-            if value_type.scalar_type != scalar_type {
-                return unsupported("computed range endpoint lost its count type");
+            if !value_type
+                .scalar_type
+                .as_integer()
+                .is_some_and(|integer| !integer.is_address())
+            {
+                return unsupported("computed range endpoint lost its integer type");
             }
             endpoints.push(argument);
-            completed[index] = Some(super::parameter(endpoint_types.len(), value_type));
+            completed[index] = Some(
+                crate::emission::operation_emission::view_subslice::coordinate(super::parameter(
+                    endpoint_types.len(),
+                    value_type,
+                ))?,
+            );
             endpoint_types.push(value_type);
         }
         let [start, end] = completed;

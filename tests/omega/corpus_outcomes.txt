@@ -339,6 +339,12 @@ fail/borrow/scalar_reference_result_does_not_preserve_mutated_bound rejected 542
 	cannot prove index `change(&mut position)` is within length 2 in test::entry
 fail/borrow/scalar_reference_result_uses_returned_argument rejected 535ms expected @5b32c4eb36ff+wt
 	cannot prove index `select(&position, &other)` is within length 2 in test::entry
+fail/borrow/signed_window_missing_lower_bound rejected 3798ms expected @5acf32321f42+wt
+	cannot prove every subslice range endpoint of `context.offset..context.count` is non-negative
+fail/borrow/signed_window_missing_upper_bound rejected 3430ms expected @5acf32321f42+wt
+	cannot prove subslice range start bound `context.offset..context.count` is within slice length 8
+fail/borrow/signed_window_shared_mutation rejected 640ms expected @5acf32321f42+wt
+	argument `values` for state `entry` is declared `&mut` (`&mut [f64]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrow/static_byte_state_loan_cannot_write rejected 3500ms expected @a9ae30e1c334+wt
 	machine `main` state `damage` assignment cannot write `bytes` because it is not mutable in this state (if `bytes` is undeclared -- a typo -- no such field or local exists)
 fail/borrow/stored_write_only_observation rejected 846ms expected @a9ae30e1c334+wt
@@ -4025,6 +4031,10 @@ pass/borrow/runtime_dispatch_call_payload_snapshot_exit checked 11203ms check-ta
 pass/borrow/runtime_exclusive_loan_local_write_exit checked 11011ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrow/runtime_indexed_write_only_local_receiver_exit checked 10278ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrow/runtime_method_view_write_after_last_use_exit checked 11063ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrow/runtime_signed_element_call_exit checked 19301ms check-target:linux_x86_64 @5acf32321f42+wt
+pass/borrow/runtime_signed_element_empty_exit checked 19250ms check-target:linux_x86_64 @5acf32321f42+wt
+pass/borrow/runtime_signed_element_inclusive_exit checked 18287ms check-target:linux_x86_64 @5acf32321f42+wt
+pass/borrow/runtime_signed_element_window_exit checked 17670ms check-target:linux_x86_64 @5acf32321f42+wt
 pass/borrow/runtime_write_only_affine_sum_exit checked 5635ms check-target:macos_arm64 @af6b0f221559+wt
 pass/borrow/runtime_write_only_aggregate_selector_snapshot_exit checked 5735ms check-target:macos_arm64 @af6b0f221559+wt
 pass/borrow/runtime_write_only_array_indexed_calls_exit checked 5689ms check-target:macos_arm64 @af6b0f221559+wt

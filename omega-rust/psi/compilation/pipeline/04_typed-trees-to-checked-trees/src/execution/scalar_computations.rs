@@ -145,7 +145,12 @@ pub(crate) fn build_checked_value_computation_plans(
                             statement_ordinal,
                             role,
                             endpoint,
-                            PrimitiveType::U64,
+                            validation::expression_result_type_reference(
+                                program, machine, state, endpoint,
+                            )
+                            .and_then(|reference| program.primitive_type_reference(reference))
+                            .filter(|primitive| primitive.integer_sign_bits().is_some())
+                            .unwrap_or(PrimitiveType::U64),
                         );
                     }
                 }

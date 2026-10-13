@@ -600,15 +600,17 @@ pub(crate) fn emit(
             values.push(completed);
         }
     }
-    let count_type = crate::emission::scalar_types::terminal_scalar_type(
-        checked_trees::types::PrimitiveType::U64,
-    )?;
     let [start, end] = positions.map(|position| {
-        position.map(|position| LoweredDirectExpression::Parameter {
-            position,
-            scalar_type: count_type,
-        })
+        position
+            .map(|position| {
+                view_subslice::coordinate(LoweredDirectExpression::Parameter {
+                    position,
+                    scalar_type: values[position].scalar_type,
+                })
+            })
+            .transpose()
     });
+    let (start, end) = (start?, end?);
     let end = exclusive_end(site.range.end_inclusive, end)?;
     let declaration = view_subslice::emit(
         source.family,
@@ -637,6 +639,7 @@ pub(crate) fn exclusive_end(
     end_inclusive: bool,
     end: Option<LoweredDirectExpression>,
 ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
+    let end = end.map(view_subslice::coordinate).transpose()?;
     if !end_inclusive {
         return Ok(end);
     }

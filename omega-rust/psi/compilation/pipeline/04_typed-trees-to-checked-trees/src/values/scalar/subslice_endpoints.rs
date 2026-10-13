@@ -18,7 +18,8 @@ use typed_trees::statement::StatementNode;
 
 /// Lower the present endpoints of `expression` when it is a range
 /// whose operator use (if any) resolved to the builtin meaning. `lower`
-/// evaluates one endpoint as a `u64` in the site's own scalar namespace.
+/// evaluates one endpoint in its authored integer carrier in the site's scalar
+/// namespace. Descriptor emission performs the exact count conversion later.
 pub(crate) fn subslice_endpoints<Value>(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,

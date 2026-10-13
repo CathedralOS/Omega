@@ -1,9 +1,6 @@
 //! Range operands have one occurrence inventory for pure and computed values.
 //! Planning records coordinates; the consumer owns selective evaluation.
-use super::{
-    PrimitiveType, StatementNode, StatementPlanner, lower_return_expression,
-    retain_subslice_endpoints,
-};
+use super::{StatementNode, StatementPlanner, lower_index_expression, retain_subslice_endpoints};
 
 pub(crate) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode) {
     let StatementPlanner {
@@ -32,7 +29,7 @@ pub(crate) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode)
             expression,
             site,
             |endpoint| {
-                lower_return_expression(
+                lower_index_expression(
                     program,
                     operators,
                     endpoint,
@@ -40,7 +37,6 @@ pub(crate) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode)
                     parameters,
                     parameter_types,
                     locals,
-                    PrimitiveType::U64,
                     exact_integer_casts,
                 )
             },

@@ -349,16 +349,18 @@ pub(in crate::execution) fn admit_replayed(
             let value = computations.nodes.get(root.root);
             return (root.machine == machine.symbol
                 && value.authored_root == endpoint
-                && value.primitive_type == PrimitiveType::U64)
-                .then_some(Some(checked_trees::CheckedCallScalarArgument::Computation(
-                    root.root,
-                )));
+                && value.primitive_type.integer_sign_bits().is_some())
+            .then_some(Some(checked_trees::CheckedCallScalarArgument::Computation(
+                root.root,
+            )));
         }
         let (binding, value) =
             expressions.bound_expression_at(state.symbol, statement_ordinal, role)?;
         (binding.expression == endpoint
             && !binding.destination.is_valid()
-            && value.primitive_type() == Some(PrimitiveType::U64))
+            && value
+                .primitive_type()
+                .is_some_and(|primitive| primitive.integer_sign_bits().is_some()))
         .then(|| {
             Some(checked_trees::CheckedCallScalarArgument::Pure(
                 value.clone(),
