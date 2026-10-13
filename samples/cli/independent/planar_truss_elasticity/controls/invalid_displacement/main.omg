@@ -1,0 +1,5 @@
+// Intended source-invalid: displacement index equals the array capacity.
+data Main { displacement: [f64; 16]; }
+machine Main::main(main: &mut Main) {
+    let invalid: f64 = main.displacement[16];
+}
