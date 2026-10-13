@@ -68,8 +68,12 @@ impl super::TypedTrees {
             crate::expression::ExpressionNode::Name(path) if path.symbol == owner.symbol)
     }
 
-    /// A data-qualified call names its owner without evaluating a receiver.
-    /// A value path, borrow, or other expression is still a runtime receiver.
+    /// A data- or implementation-qualified call names its owner without
+    /// evaluating a receiver. An implementation name (a conformance or an
+    /// evidence binder) identifies a map of machines, never a value that can
+    /// be borrowed as state, so qualifying a row call by it supplies no
+    /// argument. A value path, borrow, or other expression is still a runtime
+    /// receiver.
     pub fn call_has_no_runtime_receiver(
         &self,
         call: &crate::expression::TableCallExpression,
@@ -82,9 +86,7 @@ impl super::TypedTrees {
         if !call.receiver.is_valid() {
             return true;
         }
-        if !owner.attached_data_symbol.is_valid()
-            || !self.expression_table.expression_is_valid(call.receiver)
-        {
+        if !self.expression_table.expression_is_valid(call.receiver) {
             return false;
         }
         let crate::expression::ExpressionNode::Name(path) =
@@ -92,6 +94,14 @@ impl super::TypedTrees {
         else {
             return false;
         };
-        path.symbol == owner.attached_data_symbol
+        if path.symbol.is_valid()
+            && matches!(
+                self.symbols.get(path.symbol).kind,
+                symbols::SymbolKind::Conformance | symbols::SymbolKind::ConformanceParameter
+            )
+        {
+            return true;
+        }
+        owner.attached_data_symbol.is_valid() && path.symbol == owner.attached_data_symbol
     }
 }

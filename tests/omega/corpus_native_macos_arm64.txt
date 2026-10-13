@@ -2193,7 +2193,7 @@ pass/traits/boundary_trait_effects_host_call built 1527ms exit:0 @b8c70eeec573
 pass/traits/default_row_nested_captured_reference_exit built 3767ms exit:0 @619f89e4fed6+wt
 pass/traits/dyn_finite_family checked 9801ms @5041ef1af684+wt
 pass/traits/dyn_finite_family_dispatch checked 432ms @7f068b5c82b8
-pass/traits/equatable_implementation_selection_exit built 1404ms exit:70 @e3131e3bcd65+wt
+pass/traits/equatable_implementation_selection_exit built 7854ms exit:70 @dd191203ff08+wt
 pass/traits/equatable_mixed_shape_equality_exit built 2037ms exit:70 @fb2178def922
 pass/traits/equatable_record_equality_exit built 1490ms exit:70
 pass/traits/equatable_string_field_equality_exit built 3979ms exit:70 @11b293f8af86+wt

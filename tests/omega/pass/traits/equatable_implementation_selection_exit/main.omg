@@ -6,7 +6,10 @@
 // only the value. A generic evidence binder selects the same rows. `Player`
 // equality recurses into `Pos` through `Pos`'s own implementation. `Mark`
 // fills its row with a reference to an ordinary machine, which `==` then
-// calls. Exits 70 only when every face agrees.
+// calls. The same rows also run inside one compound transition guard, on
+// either side of `&&`, as a call argument and through an evidence binder's
+// own guard: an implementation name qualifies its row and is never a
+// runtime receiver. Exits 70 only when every face agrees.
 
 use omega_language_std::console;
 use omega::language::core::binding;
@@ -30,6 +33,17 @@ CoinValueEquality satisfies Equatable<Coin> {
 
 machine equal<T, Equality satisfies Equatable<T>>(left: &T, right: &T) -> bool {
     Equality::equals(left, right)
+}
+
+machine agree<T, Equality satisfies Equatable<T>>(left: &T, right: &T, other: &T) -> bool {
+    transition Equality::equals(left, right) && !Equality::equals(left, other) {
+        true -> true
+        _ -> false
+    }
+}
+
+machine accept(value: bool) -> bool {
+    value
 }
 
 data Pos {
@@ -133,6 +147,17 @@ machine Main::main(main: &mut Main) reaches Console {
         let same_x: bool = main.first_mark == main.second_mark;
 
         transition same_x {
+            true -> check_guard_rows(main)
+            _ -> missed(main)
+        }
+    }
+
+    state check_guard_rows(main: &mut Main) {
+        transition main.first_mark == main.second_mark
+            && CoinValueEquality::equals(&main.old_coin, &main.new_coin)
+            && !CoinEquality::equals(&main.old_coin, &main.new_coin)
+            && accept(PlayerEquality::equals(&main.player, &main.moved))
+            && agree<Coin, CoinValueEquality>(&main.old_coin, &main.new_coin, &main.old_coin) == false {
             true -> matched(main)
             _ -> missed(main)
         }

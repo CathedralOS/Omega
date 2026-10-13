@@ -7305,7 +7305,7 @@ pass/traits/default_row_shadowed_captured_operand checked 470ms @eee96af606fc+wt
 pass/traits/default_row_shadowed_captured_operand_exit checked 2755ms check-target:macos_arm64 @eee96af606fc+wt
 pass/traits/dyn_finite_family checked 10417ms @5041ef1af684+wt
 pass/traits/dyn_finite_family_dispatch checked 1661ms @a9ae30e1c334+wt
-pass/traits/equatable_implementation_selection_exit checked 12652ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/equatable_implementation_selection_exit checked 8420ms check-target:macos_arm64 @dd191203ff08+wt
 pass/traits/equatable_mixed_shape_equality_exit checked 11458ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/equatable_record_equality_exit checked 12150ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/equatable_string_field_equality_exit checked 11427ms check-target:macos_arm64 @a9ae30e1c334+wt
