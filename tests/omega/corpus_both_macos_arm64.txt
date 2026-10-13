@@ -92,6 +92,7 @@ pass/borrows/runtime_forwarded_reference_array_bounded_read_exit built 2446ms ex
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit built 5558ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/borrows/runtime_indexed_carrier_reference_read_exit built 4292ms exit:70 interpreter-exit:70 interpreter:agrees @056c1343fac1+wt
 pass/borrows/runtime_indexed_reference_array_bounded_read_exit built 1899ms exit:70 interpreter-exit:70 interpreter:agrees @15c77983aab0+wt
+pass/borrows/runtime_initialized_computed_case_copy_order_exit built 3898ms exit:0 interpreter-exit:0 interpreter:agrees @7f27983f22b3+wt
 pass/borrows/runtime_mutable_primitive_reference_exit built 2255ms exit:0 interpreter-exit:0 interpreter:agrees @20a60bd05eab+wt
 pass/borrows/runtime_mutable_reference_array_bounded_read_exit built 1813ms exit:70 interpreter-exit:70 interpreter:agrees @15c77983aab0+wt
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit built 4554ms exit:70 interpreter-exit:70 interpreter:agrees @edb462c792f9

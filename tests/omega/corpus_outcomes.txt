@@ -4029,6 +4029,7 @@ pass/borrows/runtime_indexed_reference_call_regions checked 10482ms check-target
 pass/borrows/runtime_indexed_scalar_descriptor_call checked 10433ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_indexed_shared_primitive_loan_call_exit checked 20445ms check-target:macos_arm64 @1b12798e27f4
 pass/borrows/runtime_indexed_stored_reference_call checked 10457ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_initialized_computed_case_copy_order_exit checked 3754ms check-target:macos_arm64 @7f27983f22b3+wt
 pass/borrows/runtime_measured_range_record_domains_exit checked 10402ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_mixed_static_dynamic_loan_header_exit checked 5848ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/borrows/runtime_mutable_byte_loan_read_exit checked 11104ms check-target:macos_arm64 @a9ae30e1c334+wt
