@@ -29,10 +29,10 @@
 //! lowering expands case membership into tag compares and declared-domain
 //! membership into fact expansions, after which case arms and
 //! arbitrary boolean guards are indistinguishable). A transition block
-//! desugars at parse time into consecutive `Transition` statements, so a
-//! maximal run of consecutive transitions in a state body IS the dispatch:
-//! runtime control tries each guard in order and falls through the whole run
-//! when none match.
+//! desugars at parse time into consecutive `Transition` statements, retaining
+//! its final-arm boundary. Coverage belongs to that authored block, never to
+//! a maximal run formed by adjoining a crash, return or another source block.
+//! Runtime control still tries the admitted arms in order.
 
 use diagnostics::Diagnostic;
 use resolved::SymbolResolvedTrees;
@@ -59,11 +59,9 @@ pub(crate) fn validate_case_dispatch_exhaustiveness(
                 format!("{}::{}", machine.name, state.name)
             };
 
-            // Maximal runs of consecutive transitions: the statement-level
-            // shape every transition block desugars into. A transition
-            // carrying a CONTINUATION (the `if`/`else` desugar) has a
-            // well-defined no-match path, so its run cannot fall through --
-            // it closes the dispatch like a `_` arm.
+            // A retained final-arm boundary closes each authored dispatch.
+            // An explicit continuation is already a complete no-match edge;
+            // physical adjacency alone cannot supply one from another block.
             let mut run = Vec::new();
             let mut run_has_continuation = false;
             for statement in statements {
@@ -71,6 +69,11 @@ pub(crate) fn validate_case_dispatch_exhaustiveness(
                     StatementNode::Transition(transition) => {
                         run.push(&transition.guard);
                         run_has_continuation |= transition.continuation.is_valid();
+                        if transition.ends_dispatch {
+                            check_dispatch_run(program, &run, run_has_continuation, &location)?;
+                            run.clear();
+                            run_has_continuation = false;
+                        }
                     }
                     _ => {
                         check_dispatch_run(program, &run, run_has_continuation, &location)?;

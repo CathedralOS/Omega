@@ -214,6 +214,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
                     guard,
                     proof_selectors,
                     exit: Default::default(),
+                    ends_dispatch: false,
                     source_span,
                 }));
         let handle = syntax_trees.items.append_statement_handle(statement);
@@ -224,6 +225,20 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         count = count
             .checked_add(1)
             .expect("transition block statement span count overflow");
+    }
+
+    // Keep the authored block boundary after flattening its arms. A later
+    // crash, return or another dispatch cannot cover this block's no-match path.
+    let last = *arm_statements
+        .last()
+        .expect("empty dispatch rejected above");
+    if let StatementNode::Transition(mut transition) =
+        syntax_trees.statements.statement(last).clone()
+    {
+        transition.ends_dispatch = true;
+        syntax_trees
+            .statements
+            .replace_statement(last, StatementNode::Transition(transition));
     }
 
     // A two-arm Boolean subject needs only the first test: the opposite arm

@@ -38,6 +38,9 @@ ordinary subject invalidation and loan rules.
 
 Every dispatch must cover the admitted subject. Missing runtime coverage is a
 compile error, not an implicit trap or fallthrough. A wildcard closes coverage.
+Coverage is checked separately for each authored dispatch. A later dispatch,
+ordinary result, or explicit crash cannot cover alternatives missing from an
+earlier dispatch, even when lowering places their control edges next to it.
 Finite case coverage includes ordinary and historical-lineage sums, pure
 case-union domains, and prior facts excluding impossible cases. Boolean coverage
 includes true/false and complete Boolean tuple alternatives; complementary

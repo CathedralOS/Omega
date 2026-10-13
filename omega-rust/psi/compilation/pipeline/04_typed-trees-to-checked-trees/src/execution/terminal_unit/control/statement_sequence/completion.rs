@@ -82,7 +82,11 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         mut structural_results,
         call_count,
     } = completion;
-    let statements = program.statement_table.statements(state.statement_nodes);
+    let statements = typed_trees::statement::reachable_state_statements(
+        program.statement_table.statements(state.statement_nodes),
+    );
+    // Completion reads only the executable prefix. Authored dead suffixes remain
+    // in the source table for admission but cannot supply a return value.
     // The completion value is the final expression statement. A return and
     // its nested call arguments may each establish a structural value at this
     // statement, so rejoin the returned expression, not a presumed unique
@@ -266,7 +270,9 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         return_binding(binding)
     } else if validation::is_closed_primitive_array_type(program, state.return_type) {
         trace.phase("statement sequence: structural result: returned scalar array");
-        let statements = program.statement_table.statements(state.statement_nodes);
+        let statements = typed_trees::statement::reachable_state_statements(
+            program.statement_table.statements(state.statement_nodes),
+        );
         let expression = statements.last()?.as_expression()?;
         let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
         if let Some(path) = program.expression_table.name_path_node(*expression) {
@@ -331,7 +337,9 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     // An empty body cannot have established a call-result reference. Do not
     // require a last-statement coordinate for an ordinary empty helper/state.
     trace.phase("statement sequence: returned carrier releases");
-    let statements = program.statement_table.statements(state.statement_nodes);
+    let statements = typed_trees::statement::reachable_state_statements(
+        program.statement_table.statements(state.statement_nodes),
+    );
     // A transition evaluates its guard and arguments after body operations.
     // Statement storage may retain later non-body nodes; their coordinates
     // must not advance disposal past a transition whose reads have not run.
@@ -358,7 +366,9 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         && let Some(primitive_type) = program.primitive_type_reference(state.return_type)
     {
         trace.phase("statement sequence: scalar completion");
-        let statements = program.statement_table.statements(state.statement_nodes);
+        let statements = typed_trees::statement::reachable_state_statements(
+            program.statement_table.statements(state.statement_nodes),
+        );
         // A tail that transfers control to a named state produces no scalar
         // completion; the state terminator owns those exits.
         if !matches!(statements.last(), Some(StatementNode::Transition(_))) {

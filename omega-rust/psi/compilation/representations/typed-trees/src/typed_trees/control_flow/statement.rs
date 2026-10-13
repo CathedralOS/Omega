@@ -11,15 +11,10 @@ pub type StatementHandle = Handle<StatementNode>;
 /// execute. This is structural reachability, not a proof that a conditional
 /// guard is true. Preserve the authored statements and their ordinals for
 /// checking; consumers borrow this prefix only when planning/replaying exits.
-/// Mixed statement tails are left intact, rather than hiding unsupported
-/// sequencing or treating an ordinary statement as an alternative arm.
+/// Statements before that departure stay in order, including mixed prefixes.
+/// Later source statements remain in the authored table for type, effect and
+/// loan admission; executable planning must not manufacture blocks for them.
 pub fn reachable_transition_prefix(statements: &[StatementNode]) -> &[StatementNode] {
-    if !statements
-        .iter()
-        .all(|statement| matches!(statement, StatementNode::Transition(_)))
-    {
-        return statements;
-    }
     match statements.iter().position(|statement| {
         matches!(statement, StatementNode::Transition(transition)
             if transition.guard == TransitionGuardNode::Always)
@@ -30,9 +25,9 @@ pub fn reachable_transition_prefix(statements: &[StatementNode]) -> &[StatementN
 }
 
 /// A state's ordinary body followed by its executable transition tail. Keep
-/// authored ordinals unchanged and trim only alternatives after an explicit
-/// unconditional arm. A mixed tail remains intact, as it does in the narrower
-/// transition query, so reachability never disguises unsupported sequencing.
+/// authored ordinals unchanged and trim only statements after an explicit
+/// unconditional departure. Mixed statements before it are preserved, so this
+/// query never disguises unsupported reachable sequencing.
 pub fn reachable_state_statements(statements: &[StatementNode]) -> &[StatementNode] {
     let Some(start) = statements
         .iter()

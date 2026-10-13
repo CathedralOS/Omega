@@ -78,6 +78,7 @@ pub(crate) fn rewrite_terminal_tail_calls(
                 guard: TransitionGuardNode::Always,
                 proof_selectors: HandleSpan::empty(),
                 exit: Default::default(),
+                ends_dispatch: true,
                 source_span: Default::default(),
             }),
         );

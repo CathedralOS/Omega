@@ -13,16 +13,19 @@ use symbols::SymbolHandle;
 fn type_reference_table_stores_nested_typed_references_as_handles() {
     let mut source_arguments = Arena::<TypeReference>::new();
     let fixed_array_element = source_arguments.append(TypeReference::Named {
+        supplied_operand_owner: Default::default(),
         symbol: SymbolHandle::invalid(),
         name: DiagnosticName::generated("u8"),
     });
     let arguments = source_arguments.insert_many([
         TypeReference::Named {
+            supplied_operand_owner: Default::default(),
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("usize"),
         },
         TypeReference::FixedArray(FixedArrayTypeReference {
             storage: FixedArrayTypeReferenceStorage {
+                supplied_operand_owner: Default::default(),
                 element_type: fixed_array_element,
                 length: FixedArrayLength::Literal(16),
             },
@@ -30,6 +33,7 @@ fn type_reference_table_stores_nested_typed_references_as_handles() {
     ]);
     let type_reference = TypeReference::Generic(GenericTypeReference {
         storage: GenericTypeReferenceStorage {
+            supplied_operand_owner: Default::default(),
             base_symbol: SymbolHandle::invalid(),
             base_name: DiagnosticName::generated("Result"),
             lifetime_arguments: Vec::new(),
@@ -69,6 +73,7 @@ fn check_range_tree_to_table(end_inclusive: bool) {
     let mut source_expressions = ExpressionTable::new();
     let mut source_arguments = Arena::<TypeReference>::new();
     let base_type = source_arguments.append(TypeReference::Named {
+        supplied_operand_owner: Default::default(),
         symbol: SymbolHandle::invalid(),
         name: DiagnosticName::generated("i32"),
     });
@@ -94,6 +99,7 @@ fn check_range_tree_to_table(end_inclusive: bool) {
     let constraints = source_constraints.insert_many([source_constraint]);
     let type_reference = TypeReference::Constrained(ConstrainedTypeReference {
         storage: ConstrainedTypeReferenceStorage {
+            supplied_operand_owner: Default::default(),
             base_type,
             constraints,
         },

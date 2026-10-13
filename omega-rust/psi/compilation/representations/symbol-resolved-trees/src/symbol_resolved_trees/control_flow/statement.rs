@@ -167,6 +167,9 @@ pub struct Transition {
     pub guard: TransitionGuard,
     pub proof_selectors: Box<[OutcomeProofSelector]>,
     pub exit: TransitionExit,
+    /// Final arm of one authored dispatch; standalone transitions also end a dispatch.
+    /// Coverage must not borrow an outcome from a physically adjacent source block.
+    pub ends_dispatch: bool,
     pub source_span: SourceSpan,
 }
 
@@ -593,6 +596,7 @@ impl StatementTable {
                     guard,
                     proof_selectors,
                     exit: transition.exit,
+                    ends_dispatch: transition.ends_dispatch,
                     source_span: transition.source_span,
                 }))
             }
@@ -771,6 +775,9 @@ pub struct TableTransition {
     pub guard: TransitionGuardNode,
     pub proof_selectors: HandleSpan<TableOutcomeProofSelector>,
     pub exit: TransitionExit,
+    /// Final arm of one authored dispatch; standalone transitions also end a dispatch.
+    /// Coverage must not borrow an outcome from a physically adjacent source block.
+    pub ends_dispatch: bool,
     pub source_span: SourceSpan,
 }
 
@@ -782,6 +789,7 @@ impl Default for TableTransition {
             guard: TransitionGuardNode::Always,
             proof_selectors: HandleSpan::empty(),
             exit: Default::default(),
+            ends_dispatch: true,
             source_span: SourceSpan::default(),
         }
     }
@@ -957,6 +965,7 @@ mod tests {
             guard: TransitionGuard::When(guard),
             proof_selectors: Box::default(),
             exit: Default::default(),
+            ends_dispatch: true,
             source_span: Default::default(),
         });
 

@@ -43,3 +43,46 @@ pub(crate) fn returning_exits<'checked>(
     }
     Ok(arms)
 }
+
+/// Exact normal destinations of this executable scalar control plan. Authored
+/// cleanup rows can also describe dead suffixes; they do not make those exits
+/// executable or justify allocating a completion block for them.
+pub(crate) fn returning_destinations(
+    checked: &CheckedTrees,
+    control: &checked_trees::CheckedUnitScalarControlPlan,
+) -> Result<Vec<CheckedScalarBranchDestination>, LoweringError> {
+    use checked_trees::CheckedScalarStateTerminator;
+    let destinations = match &control.terminator {
+        CheckedScalarStateTerminator::Return { statement_ordinal } => {
+            vec![CheckedScalarBranchDestination::Return {
+                statement_ordinal: *statement_ordinal,
+                is_continuation: false,
+            }]
+        }
+        CheckedScalarStateTerminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => {
+            vec![when_true.clone(), when_false.clone()]
+        }
+        CheckedScalarStateTerminator::Guarded { arms, fallback } => {
+            returning_exits(checked, *arms, fallback.as_ref())?
+                .iter()
+                .map(|arm| arm.destination.clone())
+                .chain(fallback.iter().cloned())
+                .collect()
+        }
+        _ => return unsupported("scalar completion has no normal return destination"),
+    };
+    let mut selected = Vec::new();
+    for destination in destinations {
+        if !matches!(destination, CheckedScalarBranchDestination::Return { .. }) {
+            return unsupported("scalar completion has a nonreturning destination");
+        }
+        if !selected.contains(&destination) {
+            selected.push(destination);
+        }
+    }
+    Ok(selected)
+}

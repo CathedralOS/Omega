@@ -8,8 +8,8 @@
 //! - root bindings, assembly facts (`requires`/`ensures`), assignments and
 //!   expression statements lower their expressions through `arguments`;
 //! - calls go to `calls`;
-//! - transitions go to `transitions`, with `closes_run` true when the next
-//!   statement is not a transition;
+//! - transitions go to `transitions`, with `closes_run` true at the retained
+//!   authored dispatch boundary or when the next statement is not a transition;
 //! - local data lowers its written type with
 //!   `lower_type_reference_handle_from_table`. An inferred local whose
 //!   declared type is the `Unit` sentinel, and whose initializer is not a
@@ -32,7 +32,7 @@ use self::calls::lower_call_statement;
 use self::hoist_temp_type::infer_hoist_temp_type;
 use self::transitions::lower_transition_statement;
 
-/// `closes_run` says no transition follows this statement in its state.
+/// `closes_run` says this statement ends its authored dispatch.
 pub(crate) fn lower_statement_node(
     lowerer: &mut Lowerer,
     attached_data: Option<&resolved::name::DiagnosticName>,

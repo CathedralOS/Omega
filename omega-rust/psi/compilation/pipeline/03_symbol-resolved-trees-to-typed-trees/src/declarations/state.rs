@@ -73,7 +73,9 @@ pub(crate) fn complete_state_body(
         .statements
         .statements(state.statement_nodes);
     for (index, statement) in statements.iter().enumerate() {
-        let closes_run = !matches!(
+        let closes_run = matches!(statement,
+            resolved::statement::StatementNode::Transition(transition) if transition.ends_dispatch
+        ) || !matches!(
             statements.get(index + 1),
             Some(resolved::statement::StatementNode::Transition(_))
         );

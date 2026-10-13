@@ -267,3 +267,6 @@ pass/structural/runtime_affine_local_successor_loans_exit built 6473ms exit:0 in
 
 # W2-13: scoped closed scalar requirement composition qualification.
 pass/generics/runtime_static_requirement_complex_composition_exit built 17284ms exit:0 interpreter-exit:0 interpreter:agrees @b338d531fce8
+# dispatch coverage: scoped measured row; existing published bytes preserved.
+# context: {"cpus": 5, "jobs": "4", "load1_end": 0.34, "load1_start": 0.23, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/control_flow/runtime_dispatch_boundary_total_exit built 9643ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @58a5ed816ae5

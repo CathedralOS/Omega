@@ -1,4 +1,4 @@
-The false guard reaches the authored crash after a guarded reference return.
+The false guard reaches the authored crash through an explicit false edge after a guarded reference return.
 Native execution must trap; an ordinary return cannot satisfy the oracle. The
 caller ends normally if the call returns, so a wrong reference value cannot
 satisfy the trap oracle by sending the caller into another crash.

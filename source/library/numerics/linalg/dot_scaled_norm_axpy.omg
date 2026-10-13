@@ -67,11 +67,9 @@ pub machine try_scaled_norm_f64(values: &[f64], output: &mut f64) -> bool {
     }
     state update(values: &[f64], output: &mut f64, index: u64 in Wrapping,
         scale: f64, squares: f64, value: f64) -> bool {
-        transition value == 0.0 {
-            true -> step(values, output, index + 1, scale, squares)
-        }
-        transition scale < value {
-            true -> rescale(values, output, index, scale, squares, value)
+        transition {
+            value == 0.0 -> step(values, output, index + 1, scale, squares)
+            scale < value -> rescale(values, output, index, scale, squares, value)
             _ -> accumulate(values, output, index, scale, squares, value)
         }
     }

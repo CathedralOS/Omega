@@ -30,21 +30,21 @@ pub machine sin(x: f64) -> f64 {
         lo = lo - hi;
         let mut step: f64 = 6.28318530717958623;
         step = step * k;
-        transition k < 1.0 { true -> fold(x) }
-        transition x > hi { true -> reduce(x - step, k) }
-        transition x < lo { true -> reduce(x + step, k) }
-        transition { _ -> reduce(x, k * 0.5) }
+        transition {
+            k < 1.0 -> fold(x)
+            x > hi -> reduce(x - step, k)
+            x < lo -> reduce(x + step, k)
+            _ -> reduce(x, k * 0.5)
+        }
     }
 
     // Quadrant fold: sin(x) = sin(pi - x) on (pi/2, pi]; mirrored below.
     state fold(x: f64) {
-        transition x > 1.57079632679489656 {
-            true -> poly(3.14159265358979312 - x)
+        transition {
+            x > 1.57079632679489656 -> poly(3.14159265358979312 - x)
+            x < 0.0 - 1.57079632679489656 -> poly(0.0 - 3.14159265358979312 - x)
+            _ -> poly(x)
         }
-        transition x < 0.0 - 1.57079632679489656 {
-            true -> poly(0.0 - 3.14159265358979312 - x)
-        }
-        transition { _ -> poly(x) }
     }
 
     // Degree-17 Taylor in Horner form over x*x. The accumulator is

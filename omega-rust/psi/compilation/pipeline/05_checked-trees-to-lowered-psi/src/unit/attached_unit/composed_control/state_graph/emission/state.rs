@@ -609,6 +609,7 @@ impl StateGraphEmission<'_, '_> {
                     self.claims.published(),
                     self.checked,
                     state,
+                    exits,
                     self.catalogs,
                     state_parameters,
                     &evaluation,

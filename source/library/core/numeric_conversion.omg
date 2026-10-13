@@ -291,11 +291,9 @@ pub machine narrow_i16_to_i8_wrapping(value: i16) -> i8 {
 }
 
 pub machine narrow_i16_to_i8_saturating(value: i16) -> i8 {
-    transition value < -128 {
-        true -> (-128)
-    }
-    transition value > 127 {
-        true -> (127)
+    transition {
+        value < -128 -> (-128)
+        value > 127 -> (127)
         _ -> (value as i8)
     }
 }
@@ -303,11 +301,9 @@ pub machine narrow_i16_to_i8_saturating(value: i16) -> i8 {
 pub machine narrow_i16_to_i8_trapping(value: i16) -> i8
 crashes Trap
 {
-    transition value < -128 {
-        true -> invalid()
-    }
-    transition value > 127 {
-        true -> invalid()
+    transition {
+        value < -128 -> invalid()
+        value > 127 -> invalid()
         _ -> (value as i8)
     }
 
@@ -342,11 +338,9 @@ pub machine narrow_i32_to_i8_wrapping(value: i32) -> i8 {
 }
 
 pub machine narrow_i32_to_i8_saturating(value: i32) -> i8 {
-    transition value < -128 {
-        true -> (-128)
-    }
-    transition value > 127 {
-        true -> (127)
+    transition {
+        value < -128 -> (-128)
+        value > 127 -> (127)
         _ -> (value as i8)
     }
 }
@@ -354,11 +348,9 @@ pub machine narrow_i32_to_i8_saturating(value: i32) -> i8 {
 pub machine narrow_i32_to_i8_trapping(value: i32) -> i8
 crashes Trap
 {
-    transition value < -128 {
-        true -> invalid()
-    }
-    transition value > 127 {
-        true -> invalid()
+    transition {
+        value < -128 -> invalid()
+        value > 127 -> invalid()
         _ -> (value as i8)
     }
 
@@ -379,11 +371,9 @@ pub machine narrow_i32_to_i16_wrapping(value: i32) -> i16 {
 }
 
 pub machine narrow_i32_to_i16_saturating(value: i32) -> i16 {
-    transition value < -32768 {
-        true -> (-32768)
-    }
-    transition value > 32767 {
-        true -> (32767)
+    transition {
+        value < -32768 -> (-32768)
+        value > 32767 -> (32767)
         _ -> (value as i16)
     }
 }
@@ -391,11 +381,9 @@ pub machine narrow_i32_to_i16_saturating(value: i32) -> i16 {
 pub machine narrow_i32_to_i16_trapping(value: i32) -> i16
 crashes Trap
 {
-    transition value < -32768 {
-        true -> invalid()
-    }
-    transition value > 32767 {
-        true -> invalid()
+    transition {
+        value < -32768 -> invalid()
+        value > 32767 -> invalid()
         _ -> (value as i16)
     }
 
@@ -426,11 +414,9 @@ pub machine narrow_i64_to_i8_wrapping(value: i64) -> i8 {
 }
 
 pub machine narrow_i64_to_i8_saturating(value: i64) -> i8 {
-    transition value < -128 {
-        true -> (-128)
-    }
-    transition value > 127 {
-        true -> (127)
+    transition {
+        value < -128 -> (-128)
+        value > 127 -> (127)
         _ -> (value as i8)
     }
 }
@@ -438,11 +424,9 @@ pub machine narrow_i64_to_i8_saturating(value: i64) -> i8 {
 pub machine narrow_i64_to_i8_trapping(value: i64) -> i8
 crashes Trap
 {
-    transition value < -128 {
-        true -> invalid()
-    }
-    transition value > 127 {
-        true -> invalid()
+    transition {
+        value < -128 -> invalid()
+        value > 127 -> invalid()
         _ -> (value as i8)
     }
 
@@ -463,11 +447,9 @@ pub machine narrow_i64_to_i16_wrapping(value: i64) -> i16 {
 }
 
 pub machine narrow_i64_to_i16_saturating(value: i64) -> i16 {
-    transition value < -32768 {
-        true -> (-32768)
-    }
-    transition value > 32767 {
-        true -> (32767)
+    transition {
+        value < -32768 -> (-32768)
+        value > 32767 -> (32767)
         _ -> (value as i16)
     }
 }
@@ -475,11 +457,9 @@ pub machine narrow_i64_to_i16_saturating(value: i64) -> i16 {
 pub machine narrow_i64_to_i16_trapping(value: i64) -> i16
 crashes Trap
 {
-    transition value < -32768 {
-        true -> invalid()
-    }
-    transition value > 32767 {
-        true -> invalid()
+    transition {
+        value < -32768 -> invalid()
+        value > 32767 -> invalid()
         _ -> (value as i16)
     }
 
@@ -500,11 +480,9 @@ pub machine narrow_i64_to_i32_wrapping(value: i64) -> i32 {
 }
 
 pub machine narrow_i64_to_i32_saturating(value: i64) -> i32 {
-    transition value < -2147483648 {
-        true -> (-2147483648)
-    }
-    transition value > 2147483647 {
-        true -> (2147483647)
+    transition {
+        value < -2147483648 -> (-2147483648)
+        value > 2147483647 -> (2147483647)
         _ -> (value as i32)
     }
 }
@@ -512,11 +490,9 @@ pub machine narrow_i64_to_i32_saturating(value: i64) -> i32 {
 pub machine narrow_i64_to_i32_trapping(value: i64) -> i32
 crashes Trap
 {
-    transition value < -2147483648 {
-        true -> invalid()
-    }
-    transition value > 2147483647 {
-        true -> invalid()
+    transition {
+        value < -2147483648 -> invalid()
+        value > 2147483647 -> invalid()
         _ -> (value as i32)
     }
 
@@ -1020,11 +996,9 @@ pub machine narrow_i16_to_u8_wrapping(value: i16) -> u8 {
 }
 
 pub machine narrow_i16_to_u8_saturating(value: i16) -> u8 {
-    transition value < 0 {
-        true -> (0)
-    }
-    transition value > 255 {
-        true -> (255)
+    transition {
+        value < 0 -> (0)
+        value > 255 -> (255)
         _ -> (value as u8)
     }
 }
@@ -1032,11 +1006,9 @@ pub machine narrow_i16_to_u8_saturating(value: i16) -> u8 {
 pub machine narrow_i16_to_u8_trapping(value: i16) -> u8
 crashes Trap
 {
-    transition value < 0 {
-        true -> invalid()
-    }
-    transition value > 255 {
-        true -> invalid()
+    transition {
+        value < 0 -> invalid()
+        value > 255 -> invalid()
         _ -> (value as u8)
     }
 
@@ -1149,11 +1121,9 @@ pub machine narrow_i32_to_u8_wrapping(value: i32) -> u8 {
 }
 
 pub machine narrow_i32_to_u8_saturating(value: i32) -> u8 {
-    transition value < 0 {
-        true -> (0)
-    }
-    transition value > 255 {
-        true -> (255)
+    transition {
+        value < 0 -> (0)
+        value > 255 -> (255)
         _ -> (value as u8)
     }
 }
@@ -1161,11 +1131,9 @@ pub machine narrow_i32_to_u8_saturating(value: i32) -> u8 {
 pub machine narrow_i32_to_u8_trapping(value: i32) -> u8
 crashes Trap
 {
-    transition value < 0 {
-        true -> invalid()
-    }
-    transition value > 255 {
-        true -> invalid()
+    transition {
+        value < 0 -> invalid()
+        value > 255 -> invalid()
         _ -> (value as u8)
     }
 
@@ -1186,11 +1154,9 @@ pub machine narrow_i32_to_u16_wrapping(value: i32) -> u16 {
 }
 
 pub machine narrow_i32_to_u16_saturating(value: i32) -> u16 {
-    transition value < 0 {
-        true -> (0)
-    }
-    transition value > 65535 {
-        true -> (65535)
+    transition {
+        value < 0 -> (0)
+        value > 65535 -> (65535)
         _ -> (value as u16)
     }
 }
@@ -1198,11 +1164,9 @@ pub machine narrow_i32_to_u16_saturating(value: i32) -> u16 {
 pub machine narrow_i32_to_u16_trapping(value: i32) -> u16
 crashes Trap
 {
-    transition value < 0 {
-        true -> invalid()
-    }
-    transition value > 65535 {
-        true -> invalid()
+    transition {
+        value < 0 -> invalid()
+        value > 65535 -> invalid()
         _ -> (value as u16)
     }
 
@@ -1284,11 +1248,9 @@ pub machine narrow_i64_to_u8_wrapping(value: i64) -> u8 {
 }
 
 pub machine narrow_i64_to_u8_saturating(value: i64) -> u8 {
-    transition value < 0 {
-        true -> (0)
-    }
-    transition value > 255 {
-        true -> (255)
+    transition {
+        value < 0 -> (0)
+        value > 255 -> (255)
         _ -> (value as u8)
     }
 }
@@ -1296,11 +1258,9 @@ pub machine narrow_i64_to_u8_saturating(value: i64) -> u8 {
 pub machine narrow_i64_to_u8_trapping(value: i64) -> u8
 crashes Trap
 {
-    transition value < 0 {
-        true -> invalid()
-    }
-    transition value > 255 {
-        true -> invalid()
+    transition {
+        value < 0 -> invalid()
+        value > 255 -> invalid()
         _ -> (value as u8)
     }
 
@@ -1321,11 +1281,9 @@ pub machine narrow_i64_to_u16_wrapping(value: i64) -> u16 {
 }
 
 pub machine narrow_i64_to_u16_saturating(value: i64) -> u16 {
-    transition value < 0 {
-        true -> (0)
-    }
-    transition value > 65535 {
-        true -> (65535)
+    transition {
+        value < 0 -> (0)
+        value > 65535 -> (65535)
         _ -> (value as u16)
     }
 }
@@ -1333,11 +1291,9 @@ pub machine narrow_i64_to_u16_saturating(value: i64) -> u16 {
 pub machine narrow_i64_to_u16_trapping(value: i64) -> u16
 crashes Trap
 {
-    transition value < 0 {
-        true -> invalid()
-    }
-    transition value > 65535 {
-        true -> invalid()
+    transition {
+        value < 0 -> invalid()
+        value > 65535 -> invalid()
         _ -> (value as u16)
     }
 
@@ -1358,11 +1314,9 @@ pub machine narrow_i64_to_u32_wrapping(value: i64) -> u32 {
 }
 
 pub machine narrow_i64_to_u32_saturating(value: i64) -> u32 {
-    transition value < 0 {
-        true -> (0)
-    }
-    transition value > 4294967295 {
-        true -> (4294967295)
+    transition {
+        value < 0 -> (0)
+        value > 4294967295 -> (4294967295)
         _ -> (value as u32)
     }
 }
@@ -1370,11 +1324,9 @@ pub machine narrow_i64_to_u32_saturating(value: i64) -> u32 {
 pub machine narrow_i64_to_u32_trapping(value: i64) -> u32
 crashes Trap
 {
-    transition value < 0 {
-        true -> invalid()
-    }
-    transition value > 4294967295 {
-        true -> invalid()
+    transition {
+        value < 0 -> invalid()
+        value > 4294967295 -> invalid()
         _ -> (value as u32)
     }
 

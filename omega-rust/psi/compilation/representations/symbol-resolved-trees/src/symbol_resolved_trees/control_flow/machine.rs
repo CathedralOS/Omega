@@ -237,6 +237,7 @@ pub(crate) fn test_program_with_guarded_transition()
             guard: crate::statement::TransitionGuard::When(guard),
             proof_selectors: Box::default(),
             exit: Default::default(),
+            ends_dispatch: true,
             source_span: Default::default(),
         }),
     ]);

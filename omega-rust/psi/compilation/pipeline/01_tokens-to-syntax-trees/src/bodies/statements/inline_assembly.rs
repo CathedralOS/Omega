@@ -530,6 +530,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         guard: TransitionGuardNode::Always,
                         proof_selectors: HandleSpan::empty(),
                         exit: TransitionExit::Ordinary,
+                        ends_dispatch: true,
                         source_span: Default::default(),
                     })),
                 contract,

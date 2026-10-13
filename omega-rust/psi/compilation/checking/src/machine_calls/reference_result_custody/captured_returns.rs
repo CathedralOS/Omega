@@ -86,10 +86,11 @@ impl Captures<'_> {
                 symbol: state.symbol,
             },
         )?;
-        let statements = self
-            .program
-            .statement_table
-            .statements(state.statement_nodes);
+        let statements = typed_trees::statement::reachable_state_statements(
+            self.program
+                .statement_table
+                .statements(state.statement_nodes),
+        );
         let mut output = Vec::new();
         let mut completed = false;
         for (statement_index, statement) in statements.iter().enumerate() {
@@ -112,7 +113,19 @@ impl Captures<'_> {
                         .transition_target(transition.target)
                     {
                         TransitionTargetNode::Value(expression) => Some(*expression),
-                        TransitionTargetNode::Named { .. } => None,
+                        TransitionTargetNode::Named { path, .. } => {
+                            if let Some(destination) = self.program.state_by_symbol(path.symbol)
+                                && self.flow(destination.symbol)?.machine_symbol
+                                    == self.flow(state.symbol)?.machine_symbol
+                                && !self.normal_completion_possible(destination)?
+                            {
+                                // A state transfer into a proved nonreturning subgraph
+                                // contributes no machine result. Missing capture rows on
+                                // any potentially normal route still decline below.
+                                continue;
+                            }
+                            None
+                        }
                         TransitionTargetNode::Terminal => return None,
                     }
                 }
@@ -184,6 +197,71 @@ impl Captures<'_> {
             }
         }
         completed.then_some(output)
+    }
+
+    /// Conservative normal-completion reachability over admitted state control.
+    /// Coverage has already ruled out implicit misses; explicit crash edges
+    /// never return. Internal transfers retain their exact declaration owner.
+    /// Ordinary results and external calls remain potentially normal, without
+    /// using a failed origin query as evidence that a result is absent.
+    fn normal_completion_possible(&self, initial: &typed_trees::state::State) -> Option<bool> {
+        let owner = self.flow(initial.symbol)?.machine_symbol;
+        let mut pending = vec![initial.symbol];
+        let mut visited = Vec::new();
+        while let Some(symbol) = pending.pop() {
+            if visited.contains(&symbol) {
+                continue;
+            }
+            visited.push(symbol);
+            let state = self.program.state_by_symbol(symbol)?;
+            if self.flow(symbol)?.machine_symbol != owner {
+                return Some(true);
+            }
+            let statements = typed_trees::statement::reachable_state_statements(
+                self.program
+                    .statement_table
+                    .statements(state.statement_nodes),
+            );
+            let mut has_transition = false;
+            for (index, statement) in statements.iter().enumerate() {
+                match statement {
+                    StatementNode::Expression(_) if index + 1 == statements.len() => {
+                        return Some(true);
+                    }
+                    StatementNode::Transition(transition) => {
+                        has_transition = true;
+                        if matches!(transition.exit, TransitionExit::Crash(_)) {
+                            continue;
+                        }
+                        for target in transition.targets() {
+                            match self.program.statement_table.transition_target(target) {
+                                TransitionTargetNode::Named { path, .. } => {
+                                    let Some(destination) =
+                                        self.program.state_by_symbol(path.symbol)
+                                    else {
+                                        return Some(true);
+                                    };
+                                    if self.flow(destination.symbol)?.machine_symbol != owner {
+                                        return Some(true);
+                                    }
+                                    pending.push(destination.symbol);
+                                }
+                                TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {
+                                    return Some(true);
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            // An admitted body without an explicit control edge may complete
+            // implicitly as Unit; lack of capture rows cannot erase that path.
+            if !has_transition {
+                return Some(true);
+            }
+        }
+        Some(false)
     }
 
     /// Loan rows own lifetime and access. The completed value owns evaluated

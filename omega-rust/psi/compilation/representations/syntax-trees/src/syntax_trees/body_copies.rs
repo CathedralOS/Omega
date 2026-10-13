@@ -236,6 +236,7 @@ impl SyntaxCopy<'_> {
                         .cloned(),
                 ),
                 exit: transition.exit,
+                ends_dispatch: transition.ends_dispatch,
                 source_span: transition.source_span,
             }),
         }

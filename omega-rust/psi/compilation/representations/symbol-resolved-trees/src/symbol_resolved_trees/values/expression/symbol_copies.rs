@@ -445,6 +445,7 @@ mod tests {
     fn generic(base: SymbolHandle, arguments: HandleSpan<TypeReference>) -> TypeReference {
         TypeReference::Generic(GenericTypeReference {
             storage: GenericTypeReferenceStorage {
+                supplied_operand_owner: Default::default(),
                 base_symbol: base,
                 base_name: DiagnosticName::generated("Carrier"),
                 lifetime_arguments: Vec::new(),
@@ -471,6 +472,7 @@ mod tests {
             .declarations
             .child_type_references
             .insert_many([TypeReference::Named {
+                supplied_operand_owner: Default::default(),
                 symbol: original,
                 name: DiagnosticName::generated("T"),
             }]);

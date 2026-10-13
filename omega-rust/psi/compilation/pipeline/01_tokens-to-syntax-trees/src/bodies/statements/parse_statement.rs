@@ -156,6 +156,7 @@ fn parse_statement_handle<'tokens, 'source>(
                     guard: TransitionGuardNode::Always,
                     proof_selectors: HandleSpan::empty(),
                     exit: TransitionExit::Crash(cause),
+                    ends_dispatch: true,
                     source_span,
                 })),
             input,

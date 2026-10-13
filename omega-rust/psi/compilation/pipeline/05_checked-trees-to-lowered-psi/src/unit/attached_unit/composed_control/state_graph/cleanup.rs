@@ -41,6 +41,7 @@ pub(super) fn scalar_returns(
     claims: crate::emission::claim_bindings::PublishedClaims<'_>,
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
+    control: &checked_trees::CheckedUnitScalarControlPlan,
     catalogs: &mut catalogs::ComposedCatalogs<'_>,
     parameters: &[StructuralParameterDeclaration],
     evaluation: &Evaluation,
@@ -51,25 +52,20 @@ pub(super) fn scalar_returns(
             "scalar return has no source cleanup coordinates",
         ));
     }
-    state
-        .normal_exit_cleanups
-        .iter()
-        .map(|cleanup| {
-            let destination = CheckedScalarBranchDestination::Return {
-                statement_ordinal: u32::try_from(cleanup.exit.statement_index).map_err(|_| {
-                    LoweringError::Unsupported("scalar return statement ordinal exceeds u32")
-                })?,
-                is_continuation: cleanup.exit.kind == FlowClaimJoinExitKind::TransitionContinuation,
-            };
+    // Source admission retains all authored exits. Only the checked control
+    // plan selects runtime returns; preparing dead cleanup rows would allocate
+    // orphan completion blocks and their obligations. Every selected return
+    // still requires its unique, exact source-owned cleanup coordinate.
+    let destinations =
+        crate::unit::attached_unit::scalar_completion::control::returning_destinations(
+            checked, control,
+        )?;
+    destinations
+        .into_iter()
+        .map(|destination| {
+            let exit = self::destination(state, &destination)?;
             let mut actions = for_exit_regions(
-                identities,
-                claims,
-                checked,
-                state,
-                cleanup.exit,
-                catalogs,
-                parameters,
-                evaluation,
+                identities, claims, checked, state, exit, catalogs, parameters, evaluation,
                 operations,
             )?;
             selection(evaluation, operations, &mut actions)?;

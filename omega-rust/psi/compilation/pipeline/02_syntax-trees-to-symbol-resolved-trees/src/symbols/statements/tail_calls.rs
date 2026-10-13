@@ -44,6 +44,7 @@ pub(super) fn normalize_recursive_tail_calls(
                         guard: TransitionGuard::Always,
                         proof_selectors: Box::default(),
                         exit: Default::default(),
+                        ends_dispatch: true,
                         source_span,
                     });
                 }

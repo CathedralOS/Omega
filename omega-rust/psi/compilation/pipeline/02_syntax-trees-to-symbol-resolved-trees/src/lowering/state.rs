@@ -589,18 +589,11 @@ fn lower_statement_into_pending(
     // must precede the rewritten statement in source order (later passes seed
     // and bind their symbols by statement order).
     //
-    // DISPATCH-RUN SPLICE: a multi-arm transition block desugars into
-    // CONSECUTIVE per-arm `Transition` statements, and both the
-    // exhaustiveness pairing and the state-graph dispatch grouping key on
-    // maximal runs of consecutive transitions. A LATER arm whose hoisted
-    // `let`s landed between two arm transitions would SPLIT the run
-    // (un-pairing `true`/`false` arms into a phantom fall-through), so the
-    // lets of every arm after the first are spliced BEFORE the run's first
-    // transition instead. Target work after an earlier arm stays selected;
-    // only legacy guard-subject preprocessing supplies this shared prefix.
-    let has_preceding_transition = pending
-        .iter()
-        .any(|statement| matches!(statement, Statement::Transition(_)));
+    // Hoisted guard-subject preprocessing is shared only by arms of the same
+    // authored dispatch. Splice later-arm prefixes before its first arm, then
+    // reset at the retained final-arm boundary so an adjacent source block's
+    // work cannot move before the preceding block's terminal edge.
+    let has_preceding_transition = run_start.is_some();
     let mut lowered = lower_statement_handle(
         lowerer,
         syntax_trees,
@@ -633,6 +626,13 @@ fn lower_statement_into_pending(
         }
     } else {
         pending.extend(lowered);
+        *run_start = None;
+    }
+
+    if matches!(
+        syntax_trees.statements.statement(statement),
+        syntax::statement::StatementNode::Transition(transition) if transition.ends_dispatch
+    ) {
         *run_start = None;
     }
 

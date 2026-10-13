@@ -1195,6 +1195,7 @@ mod tests {
             guard: statement::TransitionGuard::Always,
             proof_selectors: Box::default(),
             exit: statement::TransitionExit::Ordinary,
+            ends_dispatch: true,
             source_span: SourceSpan::default(),
         })
     }

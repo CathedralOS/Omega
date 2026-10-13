@@ -501,7 +501,7 @@ fn validate_evidence_forwarding_definite_assignment(
                     }
                 }
                 // Resolved-to-typed lowering has already rejected every
-                // non-exhaustive maximal transition run. A miss proceeds to
+                // non-exhaustive authored dispatch. A miss proceeds to
                 // the next consecutive arm, but the run as a whole cannot
                 // fall through. Evidence forwarding is erased from the
                 // runtime statement table, so its recorded coordinate must

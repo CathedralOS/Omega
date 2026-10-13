@@ -1,21 +1,21 @@
 data Node { value: u64; }
 machine choose(node: &mut Node, take: bool) -> &mut Node crashes Trap {
-    transition take { true -> (node) }
-    crash Trap;
+    transition take { true -> (node) false -> failed() }
+    state failed() { crash Trap; }
 }
 machine identity(node: &mut Node) -> &mut Node { node }
 machine call_result(node: &mut Node, take: bool) -> &mut Node crashes Trap {
-    transition take { true -> identity(node) }
-    crash Trap;
+    transition take { true -> identity(node) false -> failed() }
+    state failed() { crash Trap; }
 }
 machine scalar_result(take: bool) -> u64 crashes Trap {
-    transition take { true -> (70) }
-    crash Trap;
+    transition take { true -> (70) false -> failed() }
+    state failed() { crash Trap; }
 }
 machine normal() {}
 machine unit_result(take: bool) crashes Trap {
-    transition take { true -> normal() }
-    crash Trap;
+    transition take { true -> normal() false -> failed() }
+    state failed() { crash Trap; }
 }
 machine main() crashes Trap {
     let mut node: Node = Node { value: 70 };

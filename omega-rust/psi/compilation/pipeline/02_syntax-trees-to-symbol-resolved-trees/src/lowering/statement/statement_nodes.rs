@@ -515,6 +515,7 @@ pub(crate) fn lower_statement_node(
                         })
                     }
                 },
+                ends_dispatch: transition.ends_dispatch,
                 source_span: transition.source_span,
             }));
             Ok(hoisted)
