@@ -26,7 +26,10 @@ Run `omega --check tests/omega/pass/build/nested_generated_dependency_dual_purpo
 Verified directly through the real CLI: `omega --check main.omg` compiles 19
 source files and evaluates all four occurrence rows (generator@Build,
 nested_kernel@Product, nested_kernel@Build, root@Product) successfully on
-2026-10-11. The corpus runner rejects it because it stages the fixture root as
+2026-10-13, after the generated `value()` took over the public machine and
+calls the authored `seed()`: authored source never selects its own package's
+generated declarations (`wiki/spec/build/execution.md`, "Generated-source
+boundary"). The corpus runner rejects it because it stages the fixture root as
 a sealed snapshot and does not execute dependency `build_depend_as` chains the
 way the CLI does — the same limitation
 `pass/build/dependency_implementation_closure/README.md` documents for the

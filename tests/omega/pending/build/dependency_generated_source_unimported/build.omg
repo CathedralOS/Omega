@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "dependency_generated_source_unimported");
+    Build::depend_as(builder, "kit", Source::Path { location: "kit" });
+    Build::build_depend_as(builder, "tool", Source::Path { location: "tool" });
+}

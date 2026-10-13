@@ -354,6 +354,7 @@ fn append_dependency_generated_sources_to_storage(
     let mut retained = Vec::with_capacity(entries.len());
     for entry in entries {
         let text = entry.source_text()?;
+        let entry_base = entry.authored_base(package_inputs)?;
         let crate::source_imports::DependencyGeneratedSource {
             logical_path,
             source,
@@ -386,6 +387,7 @@ fn append_dependency_generated_sources_to_storage(
             &contract_custody,
         )?;
         imports.enqueue(discovered)?;
+        imports.enqueue(entry_base)?;
         source_storage.extend_dependency_generated(parsed)?;
         retained.push((source_id, source.clone()));
     }

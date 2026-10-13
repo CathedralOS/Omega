@@ -144,6 +144,29 @@ pub(crate) struct DependencyGeneratedSource<'source> {
 }
 
 impl<'source> DependencyGeneratedSource<'source> {
+    /// The authored base this generated unit resolves against: its package's
+    /// project roots, exactly as the package's own compile seeds them, joined
+    /// under the unit's checked instance. Generated source may select its
+    /// package's admitted authored declarations (`wiki/spec/build/execution.md`,
+    /// "Generated-source boundary"), so that base joins whether or not any
+    /// consumer imports it. A consumer never loads a dependency's `build.omg`.
+    pub fn authored_base(
+        &self,
+        package_inputs: &crate::PackageCompilationInputs,
+    ) -> Result<Vec<(std::path::PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
+        let filesystem = package_inputs.source_filesystem();
+        let package_root = package_inputs
+            .package_root(self.package)
+            .expect("validated generated-source bundle retains its package root");
+        let roots = super::project_roots(package_root, filesystem);
+        roots
+            .sources
+            .iter()
+            .filter(|path| Some(*path) != roots.build.as_ref() && filesystem.is_file(path))
+            .map(|path| Ok((super::paths::normalize_path(path, filesystem)?, self.scope)))
+            .collect()
+    }
+
     /// Decode when this source reaches the load frontier, preserving authored
     /// diagnostic order relative to earlier source parsing and import errors.
     pub fn source_text(&self) -> Result<&'source str, Vec<Diagnostic>> {

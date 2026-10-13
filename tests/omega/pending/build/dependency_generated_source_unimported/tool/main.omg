@@ -1,0 +1,2 @@
+// Authored base the generated `offset` and `total` select.
+pub machine seed() -> i32 { 7 }
