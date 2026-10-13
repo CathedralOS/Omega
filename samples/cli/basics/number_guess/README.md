@@ -84,7 +84,7 @@ if ($LASTEXITCODE -ne 70) { throw 'Expected exit 70' }
 `run` compiles, publishes, and executes the receipt-bound artifact; do not guess
 an executable filename. It captures the program's output and closes its stdin,
 so the final pause completes on EOF. Expect the stdout above and
-`native exit: 70` on stderr. Do not add `--target` to this execution command:
+`native exit 70` on stderr. Do not add `--target` to this execution command:
 an explicit target makes `run` compile-only.
 
 The ordinary review/resume/run route passed on macOS ARM64 at `ba57b10d5e`.
@@ -95,6 +95,10 @@ CLI review route on Linux is still unverified. On Linux x86-64 the ordinary
 route is gated before review decisions: package candidate checking rejects
 inside `omega-language-std` with `routed service field Filesystem::host has
 no exact Fused selected-provider-plan join`, the shared std-wide gate
-recorded on the board (attempted at `b53c7ea26032`). Windows x86-64 and the
-ordinary Linux routes remain unverified; their required runtime
-coverage stays in [SAMPLE-CORPUS](../../../../TASKS.md).
+recorded on the board (attempted at `b53c7ea26032`). Windows x86-64 is verified
+at `b80e3d12bdd` with an optimized dev compiler after local package review:
+EOF and Enter produce all 133 stdout bytes, empty program stderr, and exit 70.
+The published image prints the prompt before input and waits for Enter.
+The combined CLI route also reports native and Terminal exit 70; its comparison
+checks exits. Ordinary Linux coverage stays in
+[SAMPLE-CORPUS](../../../../TASKS.md).

@@ -458,7 +458,7 @@ helper that passes does not close an item.
     the selected requirement, returned loan custody and bounds; do not
     substitute builtin slicing.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
-    on its other declared targets.
+    on both Linux targets, preserving Windows x86-64 and macOS ARM64 behavior.
   Acceptance: static customers execute with their authored exit/output; the
   migrated corpus and sample gates pass; no accepted receiver syntax,
   implicit receiver argument or receiver-specific signature authority
@@ -1045,30 +1045,35 @@ defines the complete product bar.
     `algorithms/{binary_search_viz,sort_visualizer}`,
     `rendering/{bouncing_console,ripple_field,tick_marquee}`,
     `simulation/{cellular_automaton,game_of_life_glider,langtons_ant,random_walk}`.
-  - `arithmetic/stats_compute` runs on macOS ARM64 with its PASS line and exit
-    70 (`5094be283192`, optimized CLI, closed stdin). Windows x86-64 and both
-    Linux hosts still need the same [runtime oracle](samples/cli/arithmetic/stats_compute/README.md#runtime-acceptance);
-    non-tail self recursion is not a reproduced blocker.
+  - `arithmetic/stats_compute`: both Linux hosts still need the
+    [runtime oracle](samples/cli/arithmetic/stats_compute/README.md#runtime-acceptance),
+    preserving the Windows x86-64 and macOS ARM64 output and exit checks.
+    Non-tail self recursion is not a reproduced blocker.
   - Text/index/match programs: missing operations belong to
     **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**,
     **MATCH-SELECTIVE-LOWERING**, **CML4** and **OPERATOR-MACHINE-SUPPLY**. Keep
     `Utf8` and ordinary domain evidence; recognized function names or weakened
     invariants cannot replace it.
 
-  Distinct product oracles (paths under `samples/cli`); each needs Windows
-  x86-64 and both Linux hosts while retaining macOS ARM64:
+  Distinct product oracles (paths under `samples/cli`); retain Windows x86-64
+  and macOS ARM64 checks and close the stated remaining host obligations:
   - `cli_mvp`, `euclid_gcd`, `generic_counters`, `number_guess`: exact output,
     exits 0/12/16/70; interactive EOF/Enter behavior, both lines, prompt timing,
-    empty stderr.
+    empty stderr. Both Linux hosts remain owed.
   - `basics/print_squares`: rows `001,004,...,081` in order, exit 0, EOF/Enter
-    completion; the banner's `081` alone is not an oracle.
-  - `recursive_sum`: exact 144-byte output, exit 70.
-  - `systems/framed_payload`: the [exact-output oracle](samples/cli/systems/framed_payload/README.md), exit 60.
+    completion; the banner's `081` alone is not an oracle. Both Linux hosts
+    remain owed.
+  - `recursive_sum`: the [exact 144-byte output](samples/cli/arithmetic/recursive_sum/README.md),
+    exit 70; both Linux hosts remain owed.
+  - `systems/framed_payload`: the [exact-output oracle](samples/cli/systems/framed_payload/README.md),
+    exit 60; both Linux hosts remain owed.
   - `simulation/calendar`: the 277-byte/exit-0 oracle in
-    [its README](samples/cli/simulation/calendar/README.md); a banner containing `30` is insufficient.
+    [its README](samples/cli/simulation/calendar/README.md); a banner containing
+    `30` is insufficient. Both Linux hosts remain owed.
   - `longest_run`, `parse_int`, `roman_numeral`, `string_hash`, `substring_search`:
     exits 4/150/70/40/4 per the [scanner](samples/cli/algorithms/longest_run/README.md)
-    and [text](samples/cli/text/README.md) READMEs.
+    and [text](samples/cli/text/README.md) READMEs; Windows x86-64 and both
+    Linux hosts remain owed.
   - `proofs/math_proofs`: ordinary multiset extraction and checked proof terms;
     the false twin rejects. `source/library/core/seq.omg` is not a Bag.
   - Bounded Console input under [bounded input](wiki/spec/resources/bounded_input.md):

@@ -58,7 +58,10 @@ native and checked interpretation on macOS ARM64:
 omega run --both samples/cli/basics/generic_counters/main.omg
 ```
 
-The other declared hosts remain untested for this migration.
+Windows x86-64 is verified at `b80e3d12bdd` with an optimized dev compiler:
+after local package review, EOF and finite Enter each produce empty stdout,
+native exit 16 and Terminal exit 16. The CLI comparison checks exits.
+Both Linux hosts remain untested for this migration.
 Remaining coverage is in [STATIC-MACHINE-MIGRATION](../../../../TASKS.md).
 
 ## Native regression

@@ -30,6 +30,12 @@ The sample declares Windows x86-64, Linux x86-64, Linux ARM64 and macOS
 ARM64 entry points. Run on each matching host: an explicit `--target`
 only compiles and cannot establish runtime success.
 
+Windows x86-64 is verified at `b80e3d12bdd` with an optimized dev compiler
+after local package review: EOF and finite Enter each produce the exact
+165-byte native stdout, empty program stderr, and native and Terminal exit 60.
+The other declared hosts retain their matching-host obligations in
+[SAMPLE-CORPUS](../../../../TASKS.md).
+
 For disposable local test acceptance and the header's exit oracle:
 
 ```sh

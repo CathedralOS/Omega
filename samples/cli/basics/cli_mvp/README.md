@@ -20,8 +20,13 @@ update --project . --target linux_x86_64` rejects inside the
 `omega-language-std` package candidate check with `routed service field
 Filesystem::host has no exact Fused selected-provider-plan join`, before any
 review decision — a shared std-dependency gate, not a sample defect. Windows
-execution remains open in
-[SAMPLE-CORPUS](../../../../TASKS.md). Cross-compilation is not host execution.
+x86-64 is verified at `b80e3d12bdd` with an optimized dev compiler after local
+package review. EOF and Enter produce the exact 37-byte stdout, empty program
+stderr, and exit 0. The published image prints both lines while stdin is open,
+waits for input, and completes after Enter. The CLI's combined route also
+reports native and Terminal exit 0; its comparison checks exits. Remaining
+Linux coverage is in [SAMPLE-CORPUS](../../../../TASKS.md).
+Cross-compilation is not host execution.
 
 ## Review the project
 

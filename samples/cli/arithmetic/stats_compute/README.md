@@ -48,6 +48,10 @@ python3 tools/sample_native_gate.py --cli target/debug/omega --filter arithmetic
 
 This route records local acceptance for measurement, not a dependency audit.
 Use Python 3 and `target/debug/omega.exe` on Windows, and select the matching
-host target. macOS ARM64 execution is verified at `5094be283192`; Windows and
-both Linux hosts still need matching-host runs. The unchanged program does not
+host target. macOS ARM64 execution is verified at `5094be283192`. Windows
+x86-64 execution is verified with an optimized dev compiler at `b80e3d12bdd`:
+EOF and finite Enter input each produce the complete 165-byte stdout above,
+native exit 70 and Terminal exit 70, after local package review. The CLI
+comparison checks exits; the recorded exact-output check covers native stdout.
+Both Linux hosts still need matching-host runs. The unchanged program does not
 reproduce the old non-tail-recursion blocker.

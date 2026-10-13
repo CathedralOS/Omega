@@ -52,12 +52,12 @@ linux_x86_64` rejects inside the `omega-language-std` package candidate check
 with `routed service field Filesystem::host has no exact Fused
 selected-provider-plan join` before review decisions — the shared std gate
 already recorded for this project at `f600f8400b7`, re-witnessed at
-`b53c7ea26032`. Windows x86-64
-and the ordinary Linux CLI route remain open in [SAMPLE-CORPUS](../../../../TASKS.md).
+`b53c7ea26032`. The ordinary Linux CLI route remains open in
+[SAMPLE-CORPUS](../../../../TASKS.md).
 
-The migrated source passes `omega --check` on Windows x86-64. Its ordinary
-`omega run` attempt stops at missing package acceptance before native
-realization; no review decisions were accepted during migration. The historical
-native results above do not validate this version. After reviewing the current
-package closure, rerun the ordinary CLI route and verify the exact output and
-exit code above. The former `samples_compile` Rust test target no longer exists.
+The migrated source is verified on Windows x86-64 at `b80e3d12bdd` with an
+optimized dev compiler after local package review. EOF and Enter produce all
+138 stdout bytes, empty program stderr, and exit 12. The published image emits
+the prompt before input and waits for Enter. `omega run --both` also reports
+native and Terminal exit 12; its comparison checks exits. The former
+`samples_compile` Rust test target no longer exists.

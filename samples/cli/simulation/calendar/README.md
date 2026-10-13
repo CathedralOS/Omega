@@ -31,6 +31,13 @@ commands work in PowerShell; select `windows_x86_64` for update/check and
 review that target's generated file. The native result below was verified
 on macOS ARM64.
 
+Windows x86-64 is verified at `b80e3d12bdd` with an optimized dev compiler
+after local package review. EOF and finite Enter each produce the complete
+277-byte stdout below, including every trailing space, and native and Terminal
+exit 0. The CLI comparison checks exits; the exact-output check covers native
+stdout. Both Linux hosts retain their matching-host obligations in
+[SAMPLE-CORPUS](../../../../TASKS.md).
+
 The exact header and five rows are shown as quoted strings so the trailing
 spaces remain visible. The quotes are not printed. Every string is 21 ASCII
 bytes, including the header's final space:
