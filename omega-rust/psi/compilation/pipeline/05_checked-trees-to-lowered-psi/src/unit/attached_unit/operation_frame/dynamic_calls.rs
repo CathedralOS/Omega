@@ -10,8 +10,8 @@
 use super::calls::CallInputs;
 use super::{OperationFrame, StructuralResults};
 use crate::unit::{
-    LoweringError, Operation, OperationKind, OperationResult, ValueDeclaration, allocate_dense,
-    terminal_scalar_type, unsupported, value_id,
+    LoweringError, OperationResult, ValueDeclaration, allocate_dense, terminal_scalar_type,
+    unsupported, value_id,
 };
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult};
 
@@ -58,18 +58,10 @@ impl OperationFrame<'_, '_> {
         {
             return unsupported("selector call operands disagree with its slot");
         }
-        let dispatch = &self.operations.dynamic_dispatch;
-        let interface =
-            dispatch
-                .interface(interface_identity)
-                .ok_or(LoweringError::Unsupported(
-                    "selector call names an interface no implementation is selected for",
-                ))?;
-        let slot = dispatch
-            .slot(interface, &slot_plan.requirement_identity)
-            .ok_or(LoweringError::Unsupported(
-                "selector call names a requirement absent from its interface",
-            ))?;
+        let (interface, slot) = self
+            .operations
+            .dynamic_dispatch
+            .resolve_slot(interface_identity, &slot_plan.requirement_identity)?;
         let structural_arguments = &call.structural_arguments;
         let earlier = self
             .results
@@ -143,19 +135,11 @@ impl OperationFrame<'_, '_> {
             );
         }
         if !family_actuals.is_empty() {
-            let dispatch = &self.operations.dynamic_dispatch;
-            let roster: Vec<Vec<String>> = dispatch
-                .interface_slots(interface)
-                .ok_or(LoweringError::Unsupported(
-                    "selector call names an interface with no slot roster",
-                ))?
-                .iter()
-                .skip(slot as usize)
-                .take_while(|(requirement, tuple)| {
-                    *requirement == slot_plan.requirement_identity && !tuple.is_empty()
-                })
-                .map(|(_, tuple)| tuple.clone())
-                .collect();
+            let roster = self.operations.dynamic_dispatch.family_roster(
+                interface,
+                slot,
+                &slot_plan.requirement_identity,
+            )?;
             let leaf_selector = selector.id;
             let leaf_arguments: Vec<_> = data.iter().map(|value| value.id).collect();
             let mut first_leaf = Some(id);
@@ -197,28 +181,20 @@ impl OperationFrame<'_, '_> {
                         }
                     };
                     let operation = first_leaf.take().unwrap_or_else(|| operations.allocate());
-                    operations.push(Operation {
-                        static_reach_binding: None,
-                        suspension_crossing: None,
-                        id: operation,
-                        result: produced.clone(),
-                        kind: OperationKind::CallDynamic {
-                            selector: leaf_selector,
-                            interface,
-                            slot: slot
-                                + u32::try_from(tuple_index).map_err(|_| {
-                                    LoweringError::Unsupported("dynamic family slot overflows")
-                                })?,
-                            arguments: leaf_arguments.clone(),
-                            family_actuals: family_actuals.clone(),
-                            erased_arguments: Vec::new(),
-                            erased_proof_arguments: Vec::new(),
-                            structural_arguments: structural_arguments.clone(),
-                            claim_transfers: claim_transfers.clone(),
-                            requirement_obligations: Vec::new(),
-                            crash_continuations: Vec::new(),
-                        },
-                    });
+                    crate::emission::operation_emission::dynamic_calls::emit_dynamic_call_leaf(
+                        leaf_selector,
+                        interface,
+                        slot + u32::try_from(tuple_index).map_err(|_| {
+                            LoweringError::Unsupported("dynamic family slot overflows")
+                        })?,
+                        leaf_arguments.clone(),
+                        family_actuals.clone(),
+                        structural_arguments.clone(),
+                        claim_transfers.clone(),
+                        produced.clone(),
+                        operation,
+                        operations,
+                    );
                     Ok(produced)
                 },
             );
@@ -237,25 +213,18 @@ impl OperationFrame<'_, '_> {
             if declaration.is_none() {
                 self.record_source_call(call.coordinate, None, id, call.target.machine)?;
             }
-            self.operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
+            crate::emission::operation_emission::dynamic_calls::emit_dynamic_call_leaf(
+                selector.id,
+                interface,
+                slot,
+                data.iter().map(|value| value.id).collect(),
+                family_actuals,
+                structural_arguments,
+                claim_transfers,
+                result.clone(),
                 id,
-                result: result.clone(),
-                kind: OperationKind::CallDynamic {
-                    selector: selector.id,
-                    interface,
-                    slot,
-                    arguments: data.iter().map(|value| value.id).collect(),
-                    family_actuals,
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                    structural_arguments,
-                    claim_transfers,
-                    requirement_obligations: Vec::new(),
-                    crash_continuations: Vec::new(),
-                },
-            });
+                self.operations,
+            );
         }
         match (result, call.result(), declaration) {
             (OperationResult::Scalar(value), _, _) => {

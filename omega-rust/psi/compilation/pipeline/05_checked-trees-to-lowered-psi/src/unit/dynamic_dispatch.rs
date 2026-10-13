@@ -36,12 +36,7 @@ pub(crate) struct DynamicDispatchIndex {
     /// Per interface id: each slot's requirement identity and, for a
     /// finite-family row, the canonical tuple identities it commits; one
     /// slot per canonical row.
-    slots: Vec<
-        Vec<(
-            typed_trees::type_identity::CallableIdentityId,
-            Vec<String>,
-        )>,
-    >,
+    slots: Vec<Vec<(typed_trees::type_identity::CallableIdentityId, Vec<String>)>>,
 }
 
 impl DynamicDispatchIndex {
@@ -143,12 +138,7 @@ impl DynamicDispatchIndex {
     pub(crate) fn interface_slots(
         &self,
         interface: u32,
-    ) -> Option<
-        &[(
-            typed_trees::type_identity::CallableIdentityId,
-            Vec<String>,
-        )],
-    > {
+    ) -> Option<&[(typed_trees::type_identity::CallableIdentityId, Vec<String>)]> {
         self.slots
             .get(usize::try_from(interface).ok()?)
             .map(Vec::as_slice)
@@ -165,6 +155,53 @@ impl DynamicDispatchIndex {
             .iter()
             .position(|(candidate, _)| candidate == requirement_identity)?;
         u32::try_from(position).ok()
+    }
+
+    /// The `(interface, slot)` a selector call names, with the one refusal
+    /// every selector-call emitter reports for an unselected interface or an
+    /// absent requirement.
+    pub(crate) fn resolve_slot(
+        &self,
+        interface_identity: &typed_trees::type_identity::TypeIdentityId,
+        requirement_identity: &typed_trees::type_identity::CallableIdentityId,
+    ) -> Result<(u32, u32), LoweringError> {
+        let interface = self
+            .interface(interface_identity)
+            .ok_or(LoweringError::Unsupported(
+                "selector call names an interface no implementation is selected for",
+            ))?;
+        let slot = self
+            .slot(interface, requirement_identity)
+            .ok_or(LoweringError::Unsupported(
+                "selector call names a requirement absent from its interface",
+            ))?;
+        Ok((interface, slot))
+    }
+
+    /// The tuple roster of a finite-family call: the contiguous run of the
+    /// requirement's tuple rows starting at its base slot, which dispatch
+    /// matches against the evaluated family actuals in order.
+    pub(crate) fn family_roster(
+        &self,
+        interface: u32,
+        slot: u32,
+        requirement_identity: &typed_trees::type_identity::CallableIdentityId,
+    ) -> Result<Vec<Vec<String>>, LoweringError> {
+        let slots = self
+            .interface_slots(interface)
+            .ok_or(LoweringError::Unsupported(
+                "selector call names an interface with no slot roster",
+            ))?;
+        let base = usize::try_from(slot)
+            .map_err(|_| LoweringError::Unsupported("dynamic family slot overflows"))?;
+        Ok(slots
+            .iter()
+            .skip(base)
+            .take_while(|(requirement, tuple)| {
+                requirement == requirement_identity && !tuple.is_empty()
+            })
+            .map(|(_, tuple)| tuple.clone())
+            .collect())
     }
 }
 

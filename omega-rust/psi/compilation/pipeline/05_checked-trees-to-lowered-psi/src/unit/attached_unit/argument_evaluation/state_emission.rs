@@ -119,34 +119,14 @@ pub(super) fn emit_state(
                     actual, &values, next_value, operations,
                 ));
             }
-            let interface = operations
+            let (interface, slot) = operations
                 .dynamic_dispatch
-                .interface(&call.interface_identity)
-                .ok_or(LoweringError::Unsupported(
-                    "selector call names an interface no implementation is selected for",
-                ))?;
-            let slot = operations
-                .dynamic_dispatch
-                .slot(interface, &call.requirement_identity)
-                .ok_or(LoweringError::Unsupported(
-                    "selector call names a requirement absent from its interface",
-                ))?;
-            let roster: Vec<Vec<String>> = operations
-                .dynamic_dispatch
-                .interface_slots(interface)
-                .ok_or(LoweringError::Unsupported(
-                    "selector call names an interface with no slot roster",
-                ))?
-                .iter()
-                .skip(
-                    usize::try_from(slot)
-                        .map_err(|_| LoweringError::Unsupported("dynamic family slot overflows"))?,
-                )
-                .take_while(|(requirement, tuple)| {
-                    *requirement == call.requirement_identity && !tuple.is_empty()
-                })
-                .map(|(_, tuple)| tuple.clone())
-                .collect();
+                .resolve_slot(&call.interface_identity, &call.requirement_identity)?;
+            let roster = operations.dynamic_dispatch.family_roster(
+                interface,
+                slot,
+                &call.requirement_identity,
+            )?;
             let produced_decl = ValueDeclaration {
                 qualifications: Default::default(),
                 id: value_id(allocate_dense(next_value)?),
@@ -216,7 +196,7 @@ pub(super) fn emit_state(
                         family_actuals.clone(),
                         structural_arguments,
                         claim_transfers,
-                        produced,
+                        terminal_psi::OperationResult::Scalar(produced),
                         operation,
                         operations,
                     );
