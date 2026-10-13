@@ -1,0 +1,10 @@
+// Expected: reject source coordinate access without an index bound.
+use omega_language_std::console;
+machine coordinate(source: &[f64; 48], index: u64) -> f64 {
+    source[index]
+}
+machine main() reaches Console {
+    let source: [f64; 48];
+    let observed: f64 = coordinate(&source, 48);
+    Console::exit_process(0);
+}

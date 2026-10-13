@@ -1,0 +1,4 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": ["cannot prove index", "within length 48", "coordinate::entry"]
+}
