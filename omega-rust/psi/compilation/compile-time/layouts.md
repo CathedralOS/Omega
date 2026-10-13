@@ -57,6 +57,29 @@ substituted layout. Malformed evidence and a short destination leave the
 destination unchanged. Richer producer-origin chains, quotient custody, and
 target-dependent const applications remain outside this bounded entrance.
 
+## Runtime layout observations
+
+Portable checking retains layout queries until selected, validated layouts
+close their values before Terminal production. Exact integer addition,
+subtraction and multiplication retain bounds recipes through ordinary value
+flow: locals, copied fields and records, array elements, parameters, results,
+casts, dispatch and state transfers. Copies keep value snapshots; writes retire
+facts about the changed storage. Each arithmetic operation retains its own
+representability obligation, so later cancellation cannot excuse an overflowing
+intermediate.
+
+Proof applications follow checked invocation edges into portable helpers,
+selected callbacks and provider bodies under each applicable target, including
+authored bodies outside the requested output target. False or unresolved
+predicates and arithmetic bounds refuse production. These facts describe
+geometry only; they grant no custody, backing or memory-access authority.
+They do not turn an arbitrary runtime argument into a layout constant.
+
+[Record storage geometry](../../../../samples/cli/layouts/record_geometry/README.md)
+exercises the supported value flow through native and Terminal execution;
+`tests/omega/fail/layouts/` pins overflow, overwritten values and unselected
+target applications.
+
 ## Target-family value policies
 
 A plan-laid value policy may retain a finite target family. Psi evaluates every

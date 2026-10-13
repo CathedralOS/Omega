@@ -83,14 +83,8 @@ These forms take data types. Executable machine entries and their late code
 regions instead use [address and code-layout queries](../language/counts_and_addresses.md#native-code-layout-queries).
 Neither `usize` nor a dedicated alignment carrier is introduced.
 
-The Rust reference retains these queries during portable checking and closes
-them against validated layouts before Terminal production. A ground contract
-predicate can retain an obligation instead of guessing its query values. Each
-target-scoped caller's obligation closes under its authored target, including
-bodies outside the requested output target; an unscoped caller uses the product
-application's target. False or unresolved predicates refuse production.
-This does not yet supply symbolic interval bounds for general runtime arithmetic
-over query results; **TARGET-SEMANTIC-APPLICATIONS** tracks that remaining work.
+The Rust reference's supported query flow and retained arithmetic obligations
+are documented under [runtime layout observations](../../../omega-rust/psi/compilation/compile-time/layouts.md#runtime-layout-observations).
 
 ## Placement vocabulary
 
