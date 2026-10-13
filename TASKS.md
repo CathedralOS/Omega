@@ -3143,23 +3143,6 @@ crash and native exit behavior.
   and execute exit 70 on Windows. Other hosts may validate production but
   must report native execution as unverified.
 
-- **TWINS-GOLDEN-RECORDS-A-LOAD-ARTIFACT.** (split-of:OPERATOR-BOUNDARY-CALLS)
-  Refresh the stale macOS native records for
-  `pass/float/build_runtime_semantics_twins_{x86_baseline,windows_x64}`.
-  The portable and Linux x86-64 records already reach rejection rather than
-  timeout; macOS still records the old 20-second probe. Run on an idle host
-  with `OMEGA_CORPUS_FIXTURE_SECS` above 600 and record the actual verdict.
-  Those are cross-target production measurements, not execution of foreign
-  binaries. Confirm authored exit 70 separately on matching hosts after repair.
-
-  Recheck completed production before attributing a new failure;
-  **OPERATOR-BOUNDARY-CALLS** retains matching-host Windows twin execution.
-  A timeout identifies an exhausted measurement budget, not a source rejection.
-
-  Acceptance: both macOS rows reflect completed production verdicts at a named
-  revision, with no timeout replacing the actual diagnostic. Native execution
-  remains the owning capability task's acceptance.
-
 - **STRUCT-CONSTANT-REQUIRES-REFUTATION-DRIFT.** (new-scope)
   `fail/calls/struct_constant_requires_argument_rejected` pins that
   `Main::take(Point { x: 1, y: 0 })` under `requires p == Point::zero()` is

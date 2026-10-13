@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 24.28, "load1_start": 20.28, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 12.9, "load1_start": 7.57, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1075,8 +1075,10 @@ pass/filesystem/wrapper_open_with_exit rejected 15773ms @e01f73c689de+wt
 pass/float/admitted_float_conversion_crash built 4993ms exit:signal signal:5 stdout:match @673b838f6d76+wt
 pass/float/admitted_float_lower_boundary_crash built 5076ms exit:signal signal:5 stdout:match @673b838f6d76+wt
 pass/float/admitted_numeric_imports_preserve_semantics built 7854ms exit:70 @673b838f6d76+wt
-pass/float/build_runtime_semantics_twins_windows_x64 timeout 20010ms @6ef30fb818e6+wt
-pass/float/build_runtime_semantics_twins_x86_baseline timeout 20005ms @6ef30fb818e6+wt
+pass/float/build_runtime_semantics_twins_windows_x64 rejected 206982ms @d41eaa7793f9
+	shared function MachineId(14) contains an unaccounted operation at ordinal 0: BoundaryCall { psi_operation: OperationId(317), result: Structural(StructuralOperationResult { place: PlaceId(51), structural_type: StructuralTypeId(26), multiplicity: Unrestricted, qualifications: [], projected_qualifications: [], qualification_establishments: [], claims: [] }), boundary: BoundaryMachineId(31), arguments: [ValueId(4)], structural_arguments: [], completion_claim_sources: [], completion_receipts: [] }
+pass/float/build_runtime_semantics_twins_x86_baseline rejected 212511ms @d41eaa7793f9
+	shared function MachineId(14) contains an unaccounted operation at ordinal 0: BoundaryCall { psi_operation: OperationId(317), result: Structural(StructuralOperationResult { place: PlaceId(51), structural_type: StructuralTypeId(26), multiplicity: Unrestricted, qualifications: [], projected_qualifications: [], qualification_establishments: [], claims: [] }), boundary: BoundaryMachineId(31), arguments: [ValueId(4)], structural_arguments: [], completion_claim_sources: [], completion_receipts: [] }
 pass/float/builtin_extrema_field_store_exit built 2139ms exit:70 @9213c1dcbe3f+wt
 pass/float/computed_comparison_literal_landing_exit built 6031ms exit:0 @6ef30fb818e6+wt
 pass/float/data_where_float_field_restored_exit built 1621ms exit:70 @8cb8c462809d+wt
