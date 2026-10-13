@@ -6042,8 +6042,9 @@ pass/generics/contextual_static_machine_lifetime_result_sources_exit checked 117
 pass/generics/contextual_static_machine_open_const_exit checked 12711ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/contextual_static_machine_returned_view_local_exit checked 12160ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/contextual_static_machine_universal_lifetime_application_exit checked 13923ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/generics/declared_range_endpoint_inference checked 21278ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/declared_range_endpoint_inference checked 9805ms check-target:macos_arm64 @1727c70d2f7e+wt
 pass/generics/erased_static_arguments_keep_lexical_scope_exit checked 15185ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/folded_range_endpoint_selection_custody checked 9382ms check-target:macos_arm64 @1727c70d2f7e+wt
 pass/generics/foreign_case_membership_dispatch_exit checked 13819ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/foreign_case_payload_reads_exit checked 16573ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/forwarded_slice_result_local_receipt checked 1822ms @82646dcce47b+wt

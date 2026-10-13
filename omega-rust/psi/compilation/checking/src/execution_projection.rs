@@ -304,10 +304,28 @@ fn project_declarations(
         .excluded_authored_selection_occurrences
         .sort_unstable();
     program.excluded_authored_selection_occurrences.dedup();
+    // An expression no declaration root reaches in the original program is
+    // an orphan: a whole-bound fold replaced its parent with a literal, and
+    // the orphan alone carries that subexpression's selection occurrence.
+    // Its ID stayed an obligation above, so the orphan must stay with it as
+    // that obligation's discharge site, exactly as in the original program.
     let expressions = selected_references.expressions;
-    program
+    let excluded = &program.excluded_authored_selection_occurrences;
+    let orphan_obligations = original
         .expression_table
-        .retain_expression_roots(|handle| expressions.contains(&handle));
+        .iter_expressions()
+        .map(|(handle, _)| handle)
+        .filter(|handle| {
+            !original_references.expressions.contains(handle)
+                && original
+                    .expression_table
+                    .authored_selection_occurrences(*handle)
+                    .any(|occurrence| excluded.binary_search(&occurrence).is_err())
+        })
+        .collect::<HashSet<_>>();
+    program.expression_table.retain_expression_roots(|handle| {
+        expressions.contains(&handle) || orphan_obligations.contains(&handle)
+    });
     program.target_machine_families.retain_mut(|family| {
         family
             .members

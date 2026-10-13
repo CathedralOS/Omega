@@ -1321,8 +1321,9 @@ pass/generics/closed_generic_local_field_observation_exit built 1759ms exit:0 @c
 pass/generics/closed_indexed_quantity built 12715ms @4ffed225fc45+wt
 pass/generics/closed_sum_case_membership checked 191ms
 pass/generics/const_data_param checked 166ms
-pass/generics/declared_range_endpoint_inference built 4327ms exit:70 @bed5f45e9185+wt
+pass/generics/declared_range_endpoint_inference built 10509ms exit:70 @1727c70d2f7e+wt
 pass/generics/erased_static_arguments_keep_lexical_scope_exit built 1382ms exit:0 @e31dda2664298bc891b76cde9f607ecf2a1f5973
+pass/generics/folded_range_endpoint_selection_custody built 9528ms exit:70 @1727c70d2f7e+wt
 pass/generics/foreign_case_membership_dispatch_exit built 1066ms exit:70 @c49da64f85d3
 pass/generics/foreign_case_payload_reads_exit built 1056ms exit:70 @3119e8d23b09
 pass/generics/forwarded_slice_result_local_receipt checked 1721ms @82646dcce47b+wt
