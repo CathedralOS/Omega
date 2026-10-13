@@ -7,6 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
+pass/calls/runtime_terminal_call_state_machine_call_operand_exit built 4841ms exit:70 interpreter-exit:70 interpreter:agrees @e9d32814a23f+wt
 pass/contracts/runtime_literal_view_extent_calls_exit built 5611ms exit:0 interpreter-exit:0 interpreter:agrees @81a0434130f9bfb47b3bec8ac9b47181a4ae96d2+wt
 # context: {"cpus": 10, "jobs": "4", "load1_end": 4.52, "load1_start": 3.19, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 7965ms exit:112 interpreter-exit:112 interpreter:agrees @97705f5a651d

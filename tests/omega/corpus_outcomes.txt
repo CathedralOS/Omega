@@ -4815,6 +4815,7 @@ pass/calls/runtime_stored_equal_observations_exit checked 11955ms check-target:m
 pass/calls/runtime_stored_reference_computation_argument_exit checked 4325ms check-target:macos_arm64 @af6b0f221559+wt
 pass/calls/runtime_structural_literal_call_initializer_exit checked 12783ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_temporary_lending_order_exit checked 12689ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_terminal_call_state_machine_call_operand_exit checked 4712ms check-target:macos_arm64 @e9d32814a23f+wt
 pass/calls/runtime_terminal_requirement_projected_context_exit checked 12338ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_trailing_state_mut_param_phase_exit checked 14799ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_transition_subject_call_single_evaluation_exit checked 15988ms check-target:macos_arm64 @a9ae30e1c334+wt

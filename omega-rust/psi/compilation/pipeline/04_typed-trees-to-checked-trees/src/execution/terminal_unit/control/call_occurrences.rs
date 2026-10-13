@@ -66,10 +66,15 @@ pub(in crate::execution::terminal_unit) fn terminal_named_call(
     else {
         return None;
     };
-    let (_, return_type) = validation::terminal_callable_target(program, machine, path.symbol)?;
+    // The authored path spells the callee as its machine or as its entry
+    // state (a body-only machine resolves to the state itself); the flow
+    // call facts name the entry state either way, so the terminal call is
+    // identified by that resolved callable, not by the authored spelling.
+    let (callable, return_type) =
+        validation::terminal_callable_target(program, machine, path.symbol)?;
     (program.normalized_type_identity(return_type)
         == program.normalized_type_identity(state.return_type))
-    .then_some(path.symbol)
+    .then_some(callable)
 }
 
 pub(in crate::execution::terminal_unit) fn tail_call<'a>(

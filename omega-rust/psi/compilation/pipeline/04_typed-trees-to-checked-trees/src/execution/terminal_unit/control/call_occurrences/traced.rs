@@ -484,7 +484,12 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 expression_target(*expression, authored, call.statement_index)
             }
             validation::CallSite::Statement(authored) => authored.target_symbol,
-            validation::CallSite::TransitionNamed { path, .. } => path.symbol,
+            // The arm spells the callee as its machine or its entry state;
+            // the call row names the resolved entry state either way.
+            validation::CallSite::TransitionNamed { path, .. } => {
+                validation::terminal_callable_target(program, owner, path.symbol)
+                    .map_or(path.symbol, |(callable, _)| callable)
+            }
         };
         if target != call.target_symbol {
             return None;
