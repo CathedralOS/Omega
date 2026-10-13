@@ -19,5 +19,5 @@ invokes Sink;
     main.sink.emit(3);
     let seen: i32 = main.sink.last();
     transition { _ -> done(main, seen) }
-    state done(main: &mut Main, kept: i32) -> i32 { kept }
+    state done(main: &mut Main, kept: i32) { }
 }

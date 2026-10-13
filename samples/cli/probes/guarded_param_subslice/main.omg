@@ -8,15 +8,12 @@ data Entry {
 
 data Main {}
 
-machine Main::main(main: &mut Main) {
-    transition {
-        _ -> 0
-    }
-    state choose(entries: &[Entry], start: u64, end: u64) -> u64 {
-        transition start <= end && end < entries.len {
-            true -> length(entries[start..end])
-            false -> 0
-        }
+machine Main::main(main: &mut Main) { }
+
+machine choose(entries: &[Entry], start: u64, end: u64) -> u64 {
+    transition start <= end && end < entries.len {
+        true -> length(entries[start..end])
+        false -> 0
     }
     state length(entries: &[Entry]) -> u64 {
         transition {
