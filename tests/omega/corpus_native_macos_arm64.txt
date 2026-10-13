@@ -1450,6 +1450,7 @@ pass/proofs/cauchy_predicates_compile rejected 26ms
 	machine `converges_together_at_triangle_split` cites `rat_close_triangle_split`, but the callee's requires fact `saturating_sub(Nat, q.den) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 	machine `converges_together_at_triangle_split` ensures contract proof fact `converges_together_at<Left, Right, Modulus>(precision, left_index, right_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 pass/proofs/citation_requires_discharged checked 223ms
+pass/proofs/defined_proposition_premises checked 1161ms @77ecdbf5e7c6
 pass/proofs/higher_order_machine_schema_compile checked 209ms
 pass/proofs/kernel_integer_discreteness built 254ms
 pass/proofs/kernel_integer_subtract_bound checked 197ms

@@ -53,7 +53,14 @@ pub(crate) fn validate_proposition_entailment(
                     &mut known,
                 );
                 if let Some(call) = statement.as_call() {
-                    intake_call_propositions(program, machine, call, &mut known, diagnostics);
+                    intake_call_propositions(
+                        program,
+                        machine,
+                        state,
+                        call,
+                        &mut known,
+                        diagnostics,
+                    );
                 }
             }
             intake_proof_output_propositions(
@@ -94,6 +101,7 @@ pub(crate) fn validate_proposition_entailment(
                                 machine,
                                 state,
                                 application,
+                                None,
                             )
                     },
                 );
@@ -255,22 +263,45 @@ pub fn select_named_evidence_implementation<'program>(
 fn intake_call_propositions(
     program: &dyn crate::CheckingInput,
     caller: &Machine,
+    caller_state: &typed_trees::state::State,
     call: &TableCall,
     known: &mut BTreeSet<String>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some((callee, parameters)) = call_target(program, call) else {
+    let Some((callee, callee_state)) = call_target(program, call) else {
         return;
     };
-    let substitutions = call_parameter_substitutions(program, call, parameters);
-    let requires = proposition_labels(
-        program,
-        program.machine_contracts(callee),
-        SignatureContractKind::Requires,
-        &substitutions,
-        false,
-    );
-    if let Some(missing) = requires.iter().find(|required| !known.contains(*required)) {
+    let substitutions =
+        call_parameter_substitutions(program, call, program.state_parameters(callee_state));
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    // A requirement holds when the caller knows its exact label or when the
+    // caller's premises prove its unfolded definition under the call's
+    // argument substitution.
+    let missing = program
+        .machine_contracts(callee)
+        .iter()
+        .filter(|contract| contract.kind == SignatureContractKind::Requires)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .filter_map(ProofFact::as_proposition)
+        .filter_map(|application| {
+            Some((
+                application,
+                application_label(program, application, &substitutions)?,
+            ))
+        })
+        .find(|(application, label)| {
+            !known.contains(label)
+                && !crate::proof_contracts::contract_entailment::transparent_call_requirement_entailed(
+                    program,
+                    caller,
+                    caller_state,
+                    callee,
+                    callee_state,
+                    arguments,
+                    application,
+                )
+        });
+    if let Some((_, missing)) = missing {
         diagnostics.push(Diagnostic::error(format!(
             "checked machine `{}` cannot cite `{}`: proposition requirement `{missing}` is not established at the call",
             caller.name.as_str(),
@@ -290,14 +321,13 @@ fn intake_call_propositions(
 fn call_target<'a>(
     program: &'a dyn crate::CheckingInput,
     call: &TableCall,
-) -> Option<(&'a Machine, &'a [StateParameter])> {
+) -> Option<(&'a Machine, &'a typed_trees::state::State)> {
     for machine in program.machines() {
         if machine.symbol == call.target_symbol {
-            let state = program.machine_states(machine).first()?;
-            return Some((machine, program.state_parameters(state)));
+            return Some((machine, program.machine_states(machine).first()?));
         }
         if let Some(state) = program.state_in_machine(machine, call.target_symbol) {
-            return Some((machine, program.state_parameters(state)));
+            return Some((machine, state));
         }
     }
     None
@@ -354,29 +384,37 @@ fn proposition_labels(
                     | ProofFact::Proposition(_) => None,
                 };
             };
-            let binder_labels = application
-                .binder_arguments
-                .iter()
-                .map(|argument| {
-                    substitutions
-                        .iter()
-                        .find(|(symbol, _, _)| *symbol == argument.symbol)
-                        .map(|(_, _, label)| label.clone())
-                        .unwrap_or_else(|| argument.display_name())
-                })
-                .collect::<Vec<_>>();
-            let argument_labels = program
-                .expression_table
-                .expression_handles(application.arguments)
-                .iter()
-                .map(|argument| {
-                    program.render_proof_expression(
-                        *argument,
-                        ProofSubstitutions::ByParameter(substitutions),
-                    )
-                })
-                .collect::<Vec<_>>();
-            program.normalized_identity_label(application, &binder_labels, &argument_labels)
+            application_label(program, application, substitutions)
         })
         .collect()
+}
+
+/// The normalized identity label of one proposition application with the
+/// given parameter substitution applied to its binders and arguments.
+fn application_label(
+    program: &dyn crate::CheckingInput,
+    application: &typed_trees::proposition::PropositionApplication,
+    substitutions: &[(symbols::SymbolHandle, String, String)],
+) -> Option<String> {
+    let binder_labels = application
+        .binder_arguments
+        .iter()
+        .map(|argument| {
+            substitutions
+                .iter()
+                .find(|(symbol, _, _)| *symbol == argument.symbol)
+                .map(|(_, _, label)| label.clone())
+                .unwrap_or_else(|| argument.display_name())
+        })
+        .collect::<Vec<_>>();
+    let argument_labels = program
+        .expression_table
+        .expression_handles(application.arguments)
+        .iter()
+        .map(|argument| {
+            program
+                .render_proof_expression(*argument, ProofSubstitutions::ByParameter(substitutions))
+        })
+        .collect::<Vec<_>>();
+    program.normalized_identity_label(application, &binder_labels, &argument_labels)
 }

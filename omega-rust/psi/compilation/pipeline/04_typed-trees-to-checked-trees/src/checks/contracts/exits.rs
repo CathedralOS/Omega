@@ -256,7 +256,7 @@ pub(super) fn check_exit_ensures(
                         || float_meaning_reflexivity
                         || super::entailment::integral_parameter_reflexivity(program, fact)
                         || super::entailment::transparent_proposition_proves_exit(
-                            program, entailment, state_flow, fact,
+                            program, facts, entailment, state_flow, fact,
                         )
                         || collection_premises_prove_exit(program, state_flow, fact)
                         || (authorized_route && route_predicates_satisfied)))

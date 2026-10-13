@@ -4,11 +4,8 @@
 // `trait X<C, proposition Relation>` carries one law; a user
 // `proposition` binds the parameter through `satisfies`.
 //
-//   * `machine related_reflexive(value) satisfies
-//     Reflexive<Carrier, related>::reflexive requires
-//     related(value, value) ensures related(value, value)`.
-//   * Transitive's requires also demands the conclusion as a
-//     premise — proof admission surface, not callable.
+//   * `related` is a defined proposition (code equality), so every
+//     realizer proves its law from the requirement's own premises.
 //
 // Compile-checked only: declaration surface (proposition
 // contracts aren't callable), no standard-library dependency.
@@ -19,20 +16,20 @@ data Carrier {
     code: u32;
 }
 
-proposition related(left: Carrier, right: Carrier);
+// `related` is defined, so each realizer proves its law from exactly the
+// premises the trait requirement grants; a realizer may not add premises
+// the requirement does not imply.
+proposition related(left: Carrier, right: Carrier) = left.code == right.code;
 
 machine related_reflexive(value: Carrier)
 satisfies Reflexive<Carrier, related>::reflexive
-requires related(value, value)
 ensures related(value, value)
 {
 }
 
 machine related_symmetric(left: Carrier, right: Carrier)
 satisfies Symmetric<Carrier, related>::symmetric
-requires
-    related(left, right)
-    related(right, left)
+requires related(left, right)
 ensures related(right, left)
 {
 }
@@ -42,7 +39,6 @@ satisfies Transitive<Carrier, related>::transitive
 requires
     related(left, middle)
     related(middle, right)
-    related(left, right)
 ensures related(left, right)
 {
 }
@@ -52,15 +48,6 @@ satisfies Antisymmetric<Carrier, related>::antisymmetric
 requires
     related(left, right)
     related(right, left)
-    left == right
 ensures left == right
 {
-}
-
-data Main {
-    hits: i32 in Wrapping;
-}
-
-machine Main::main(main: &mut Main) {
-    main.hits = 1;
 }

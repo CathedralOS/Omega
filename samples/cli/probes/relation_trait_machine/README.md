@@ -12,8 +12,10 @@ imports omega::language::core::relation — depend-free proof module).
   them; `i32 in Ten` interval-domained payload discharges
   `scale`'s `requires level in Ten` at the call.
 - relation_trait_machine: core Reflexive/Symmetric/Transitive/
-  Antisymmetric traits take `proposition Relation` params — user
-  propositions bind through `satisfies` (declaration surface).
+  Antisymmetric traits take `proposition Relation` params — a defined
+  user proposition binds through `satisfies`, and each realizer proves
+  its law from exactly the requirement's premises, unfolded through the
+  definition (antisymmetry through record field equality).
 
 Compile-checked only (no ProcessExit provider):
 

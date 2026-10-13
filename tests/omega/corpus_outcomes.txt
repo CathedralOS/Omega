@@ -3072,6 +3072,8 @@ fail/proofs/constant_equation_refuted rejected 888ms expected @a9ae30e1c334+wt
 	machine `false_constant_equation` ensures contract proof fact `false` is disproved by constant arithmetic
 fail/proofs/core_nat_runtime_consumption_rejected rejected 2761ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` parameter `main` mentions proof-only `Main`, which has no runtime layout
+fail/proofs/defined_proposition_premise_not_symmetric rejected 168ms expected @77ecdbf5e7c6
+	checked machine `before_symmetric` cannot establish proposition ensure `boolean:right.x < left.x` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
 fail/proofs/field_view_constructor_geometry rejected 276ms expected @f87e5abb7145+wt
 	machine `main` state `entry` value call to `Slice::range` violates required fact `start <= end && end <= items.len`: the instantiated fact is structurally false (`0 <= 3 && 3 <= 2`)
 fail/proofs/field_view_index_missing_bound rejected 1721ms expected @d3431e5a76cb+wt
@@ -6273,6 +6275,7 @@ pass/proofs/cauchy_predicates_compile rejected 2674ms @a9ae30e1c334+wt
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
 pass/proofs/citation_requires_discharged checked 10576ms @b7aaf37278ea+wt
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 1240ms @1cb01af2f0bb
+pass/proofs/defined_proposition_premises checked 1193ms @77ecdbf5e7c6
 pass/proofs/field_view_index_contract checked 5381ms @d3431e5a76cb+wt
 pass/proofs/float_guarded_negated_result_contract checked 3661ms @1f63ee648905+wt
 pass/proofs/float_named_contract_literal_landing checked 3204ms @1f63ee648905+wt

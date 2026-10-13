@@ -734,6 +734,24 @@ impl<'program> StructuralJudge<'program> {
             (_, StructuralTerm::Variable(name)) => {
                 Arc::make_mut(&mut self.substitutions).push((name.clone(), left));
             }
+            // A parameter-rooted member place resolves to its Opaque display
+            // (`left.code`), so it carries the same rewrite as the unresolved
+            // `Projection` above. Variables keep their substitution priority.
+            (StructuralTerm::Opaque(_), _) => {
+                if !term_contains(&right, &left) {
+                    Arc::make_mut(&mut self.rewrites).push((left, right));
+                }
+            }
+            (_, StructuralTerm::Opaque(_)) => {
+                if !term_contains(&left, &right) {
+                    Arc::make_mut(&mut self.rewrites).push((right, left));
+                }
+            }
+            // Distinct literals are disjoint, as distinct cases are above:
+            // a rewrite can resolve both sides of a later premise to them.
+            (StructuralTerm::Integer(_), StructuralTerm::Integer(_)) if left != right => {
+                self.hypotheses_contradictory = true;
+            }
             _ => {}
         }
     }
@@ -1002,8 +1020,13 @@ impl<'program> StructuralJudge<'program> {
                     }
                     return resolved;
                 }
-                StructuralTerm::Opaque(_)
-                | StructuralTerm::Integer(_)
+                StructuralTerm::Opaque(_) => {
+                    let Some((_, replacement)) = self.rewrites.find(&term) else {
+                        return term;
+                    };
+                    term = replacement.clone();
+                }
+                StructuralTerm::Integer(_)
                 | StructuralTerm::Float(_)
                 | StructuralTerm::BoundValue(_)
                 | StructuralTerm::BoundProjection { .. } => return term,
@@ -2010,7 +2033,21 @@ impl<'program> StructuralJudge<'program> {
                         self.machine_symbol, self.rewrites,
                     );
                 }
-                let equality = self.judge_equation(left, right, 0);
+                let equality = match self.judge_equation(left.clone(), right.clone(), 0) {
+                    // Identity equality of a record is the conjunction of its
+                    // field equalities (structural predicates, "Equality
+                    // expansion"), so judge the sides field by field.
+                    StructuralJudgment::Unknown => self
+                        .declaration_expression_type(binary.left)
+                        .map_or(StructuralJudgment::Unknown, |reference| {
+                            self.judge_equation(
+                                self.record_fields_term(left, reference, &mut Vec::new()),
+                                self.record_fields_term(right, reference, &mut Vec::new()),
+                                0,
+                            )
+                        }),
+                    judgment => judgment,
+                };
                 if binary.operator == BinaryOperator::Equal {
                     equality
                 } else {
@@ -2427,6 +2464,68 @@ impl<'program> StructuralJudge<'program> {
             }
         }
         verdict
+    }
+
+    /// `term` of type `reference` expanded to its record's field terms, each
+    /// resolved under the hypotheses and expanded again by its own declared
+    /// type. Sums, recursive records and unreadable projections stay whole.
+    fn record_fields_term(
+        &self,
+        term: StructuralTerm,
+        reference: typed_trees::types::TypeReferenceHandle,
+        active: &mut Vec<typed_trees::types::TypeReferenceHandle>,
+    ) -> StructuralTerm {
+        if active.contains(&reference) || active.len() >= 32 {
+            return term;
+        }
+        let Some(data) =
+            crate::value_custody::places::data_definition_for_type(self.program, reference)
+        else {
+            return term;
+        };
+        let members = self.program.data_members(data);
+        if members
+            .iter()
+            .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
+        {
+            return term;
+        }
+        let term = term.into_semantic_value();
+        let mut fields = Vec::new();
+        active.push(reference);
+        for field in self.program.data_member_fields(members) {
+            let name = field.name.as_str();
+            let value = match &term {
+                StructuralTerm::Constructor {
+                    data: constructed,
+                    case,
+                    fields,
+                } if constructed == data.name.as_str() && case.is_empty() => fields
+                    .iter()
+                    .find_map(|(field, value)| (field == name).then(|| value.clone())),
+                StructuralTerm::Constructor { .. } => None,
+                _ => super::observed_projections::project_field(term.clone(), name)
+                    .map(|value| self.resolve(value)),
+            };
+            let Some(value) = value else {
+                active.pop();
+                return term;
+            };
+            fields.push((
+                name.to_owned(),
+                self.record_fields_term(value, field.type_reference, active),
+            ));
+        }
+        active.pop();
+        if fields.is_empty() {
+            return term;
+        }
+        fields.sort_by(|left, right| left.0.cmp(&right.0));
+        StructuralTerm::Constructor {
+            data: data.name.as_str().to_owned(),
+            case: String::new(),
+            fields,
+        }
     }
 
     /// RECORD ETA: does `constructor` rebuild every declared field of the

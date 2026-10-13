@@ -175,7 +175,10 @@ pub use strict_arithmetic::{
     strict_arithmetic_expression_implication,
 };
 pub(crate) use structural_judgment::declared_index_algebra_laws;
-pub use transparent_applications::transparent_proposition_application_entailed;
+pub use transparent_applications::{
+    InheritedRequirementEdge, transparent_call_requirement_entailed,
+    transparent_proposition_application_entailed,
+};
 
 use std::collections::BTreeMap;
 
@@ -310,6 +313,15 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     // grammar-gated today (struct literals do not parse in contract
     // position), so injectivity decomposition is the recorded next rung.
     let mut structural = StructuralJudge::from_requires(program, machine, &requires, true);
+    if let Some(entry) = program.machine_states(machine).first() {
+        transparent_applications::intake_transparent_requires(
+            program,
+            machine,
+            entry,
+            program.machine_contracts(machine),
+            &mut structural,
+        );
+    }
     // CITATIONS (ch10 "Citing Proofs"; the settled proof-citation rule):
     // each statement call to a free proof machine carries the callee's
     // proven ensures to this proof, instantiated at the call's argument

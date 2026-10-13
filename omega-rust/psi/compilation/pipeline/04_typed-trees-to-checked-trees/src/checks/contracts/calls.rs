@@ -112,12 +112,14 @@ pub(super) fn check_call_requires(
                         call_frames,
                     )
                 }
-                _ => semantic_contexts_prove_contract_fact(
-                    program,
-                    &facts.semantic,
-                    requirement_contexts,
-                    fact,
-                ),
+                _ => {
+                    semantic_contexts_prove_contract_fact(
+                        program,
+                        &facts.semantic,
+                        requirement_contexts,
+                        fact,
+                    ) || transparent_requirement_proves(program, facts, state_flow, call_flow, fact)
+                }
             });
             // ch8 construction-grant: a string literal whose compile-time bytes
             // satisfy a domain's declared byte-predicate fact grants that
@@ -243,6 +245,52 @@ pub(super) fn check_call_requires(
             }
         }
     }
+}
+
+/// A transparent proposition requirement holds when the calling state's own
+/// premises prove its unfolded definition under the call's argument terms.
+/// Those premises describe state entry, so any earlier write in the state
+/// withdraws the route.
+fn transparent_requirement_proves(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    fact: &facts::Fact,
+) -> bool {
+    let FactPayload::ContractPropositionApplication { fact: source, .. } = fact.payload else {
+        return false;
+    };
+    let Some(application) = program.proof_facts.get(source).as_proposition() else {
+        return false;
+    };
+    let Some((caller, caller_state)) = validation::find_state(program, state_flow.state_symbol)
+        .filter(|(machine, _)| machine.symbol == state_flow.machine_symbol)
+    else {
+        return false;
+    };
+    let Some((callee, callee_state)) = validation::find_state(program, call_flow.target_symbol)
+    else {
+        return false;
+    };
+    facts
+        .flow
+        .state_call_prior_invalidations(state_flow, call_flow)
+        .next()
+        .is_none()
+        && validation::transparent_call_requirement_entailed(
+            program,
+            caller,
+            caller_state,
+            callee,
+            callee_state,
+            facts
+                .flow
+                .control
+                .call_arguments
+                .span_or_empty(call_flow.authored_arguments),
+            application,
+        )
 }
 
 /// ch8 construction-grant: a string literal grants a domain `D` -- satisfying a

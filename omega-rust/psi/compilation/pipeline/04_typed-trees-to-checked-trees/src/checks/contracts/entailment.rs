@@ -155,6 +155,7 @@ pub(super) fn integral_parameter_reflexivity(
 
 pub(super) fn transparent_proposition_proves_exit(
     program: &dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
     outcome: &MachineEntailmentOutcome,
     state_flow: &checked_trees::FlowStateFact,
     fact: &facts::Fact,
@@ -182,7 +183,38 @@ pub(super) fn transparent_proposition_proves_exit(
     ) else {
         return false;
     };
-    validation::transparent_proposition_application_entailed(program, machine, state, application)
+    // A requirement-authored fact migrated onto this state names the
+    // requirement's proposition parameter and parameters; its conformance
+    // edge selects the family and the satisfier's terms.
+    let inherited = facts
+        .proof
+        .contract_facts
+        .iter()
+        .find(|(_, contract)| {
+            contract.fact == source
+                && contract.owner
+                    == checked_trees::ContractProofFactOwner::MachineState {
+                        machine_symbol: state_flow.machine_symbol,
+                        state_symbol: state_flow.state_symbol,
+                    }
+        })
+        .and_then(|(_, contract)| {
+            crate::semantic::facts::inherited_contract_scope_parts(program, &facts.proof, contract)
+        })
+        .map(
+            |(trait_definition, requirement, _, scope)| validation::InheritedRequirementEdge {
+                trait_definition,
+                requirement,
+                trait_arguments: &scope.trait_arguments,
+            },
+        );
+    validation::transparent_proposition_application_entailed(
+        program,
+        machine,
+        state,
+        application,
+        inherited,
+    )
 }
 
 /// Entry-context proofs do not establish a mutable subject's exit revision.

@@ -361,7 +361,7 @@ fn seed_current_requirement(
 /// declaring trait, its requirement signature, and the satisfying state the
 /// fact is owned by. `None` fails closed -- the fact keeps its authored schema
 /// identity rather than publishing a partial substitution.
-fn inherited_contract_scope_parts<'program>(
+pub(crate) fn inherited_contract_scope_parts<'program>(
     program: &'program dyn ::validation::CheckingInput,
     proof: &'program ProofFacts,
     contract: &ContractProofFact,

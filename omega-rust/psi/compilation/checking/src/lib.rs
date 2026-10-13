@@ -358,7 +358,6 @@ pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
 pub use proof_contracts::contract_entailment::selected_value_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::structural_call_requirement_entailed;
-pub use proof_contracts::contract_entailment::transparent_proposition_application_entailed;
 pub use proof_contracts::contract_entailment::{
     ArithmeticCallObservation, RankArrivalCompatibility, RankArrivalCorrespondence,
     RankArrivalDemand, RankCoordinateBinding, RankCoordinateTransport, RankLocalCapture,
@@ -383,6 +382,10 @@ pub use proof_contracts::contract_entailment::{
 pub use proof_contracts::contract_entailment::{
     InheritedRequirementApplication, inherited_requirement_proposition_application,
     inherited_requirement_proposition_label, inherited_satisfier_parameters,
+};
+pub use proof_contracts::contract_entailment::{
+    InheritedRequirementEdge, transparent_call_requirement_entailed,
+    transparent_proposition_application_entailed,
 };
 pub use proof_contracts::contract_entailment::{
     MatchedLawGuarantee, matched_machine_law_guarantees,
