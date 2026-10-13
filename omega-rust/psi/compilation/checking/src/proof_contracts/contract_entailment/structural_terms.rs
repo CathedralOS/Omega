@@ -8,7 +8,7 @@
 use symbols::JoinedPath;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 
-use super::{StructuralTerm, is_arm_pattern_marker};
+use super::StructuralTerm;
 
 mod binary;
 mod constructors;
@@ -75,8 +75,9 @@ pub(super) fn term_contains(haystack: &StructuralTerm, needle: &StructuralTerm) 
     }
 }
 
-/// Normalize nullary applications of trivial constant machines to the closed
-/// constructor value returned by that machine.
+/// Normalize eligible selected applications to complete closed values through
+/// the shared body/environment evaluator. Runtime prefix resolution remains
+/// occurrence-based: symbolic or effectful calls gain no replayable identity.
 pub(super) fn unfold_constant_applications(
     program: &dyn crate::CheckingInput,
     term: StructuralTerm,
@@ -95,34 +96,51 @@ pub(super) fn unfold_constant_applications(
             selections,
             machine,
             arguments,
-        } if arguments.is_empty() => match constant_machine_constructor(program, target) {
-            Some(constructor) => constructor,
-            None => StructuralTerm::Application {
+        } => {
+            let arguments: Vec<_> = arguments
+                .into_iter()
+                .map(|argument| unfold_constant_applications(program, argument))
+                .collect();
+            super::StructuralJudge::closed_application_value(
+                program,
+                result_type,
+                target,
+                &selections,
+                &arguments,
+                None,
+            )
+            .unwrap_or(StructuralTerm::Application {
                 result_type,
                 target,
                 selections,
                 machine,
                 arguments,
-            },
-        },
-        StructuralTerm::Application {
-            result_type,
-            target,
-            selections,
-            machine,
-            arguments,
-        } => StructuralTerm::Application {
-            result_type,
-            target,
-            selections,
-            machine,
-            arguments: arguments
-                .into_iter()
-                .map(|argument| unfold_constant_applications(program, argument))
-                .collect(),
-        },
+            })
+        }
         term @ StructuralTerm::CallProjection { .. } => {
-            term.map_argument_terms(|argument| unfold_constant_applications(program, argument))
+            let term =
+                term.map_argument_terms(|argument| unfold_constant_applications(program, argument));
+            if let StructuralTerm::CallProjection {
+                result_type,
+                target,
+                selections,
+                arguments,
+                field,
+                ..
+            } = &term
+            {
+                super::StructuralJudge::closed_application_value(
+                    program,
+                    *result_type,
+                    *target,
+                    selections,
+                    arguments,
+                    Some(*field),
+                )
+                .unwrap_or(term)
+            } else {
+                unreachable!()
+            }
         }
         StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
             data,
@@ -162,66 +180,6 @@ pub(super) fn unfold_constant_applications(
         },
         other => other,
     }
-}
-
-/// The constructor value a trivial constant machine returns, when its shape
-/// is exactly one state whose sole statement yields a closed constructor.
-fn constant_machine_constructor(
-    program: &dyn crate::CheckingInput,
-    target: symbols::SymbolHandle,
-) -> Option<StructuralTerm> {
-    let machine = selected_application_machine(program, target)?;
-    let [state] = program.machine_states(machine) else {
-        return None;
-    };
-    let value = sole_result_expression(program, state)?;
-    let term = structural_term(program, None, None, value, None)?;
-
-    fn is_closed(term: &StructuralTerm) -> bool {
-        match term {
-            StructuralTerm::Integer(_) => true,
-            StructuralTerm::Constructor { fields, .. } => {
-                fields.iter().all(|(_, value)| is_closed(value))
-            }
-            _ => false,
-        }
-    }
-
-    is_closed(&term).then_some(term)
-}
-
-/// The one expression a single-statement state returns. A body spelled as a
-/// tail expression (`{ Point { x: 0, y: 0 } }`) and one spelled as an
-/// unguarded value transition name the same result; the typed tree keeps
-/// the authored form, so a reader of the result accepts both.
-fn sole_result_expression(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-) -> Option<ExpressionHandle> {
-    use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-
-    let non_marker: Vec<&StatementNode> = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .filter(|statement| !is_arm_pattern_marker(statement))
-        .collect();
-    let [statement] = non_marker[..] else {
-        return None;
-    };
-    if let StatementNode::Expression(value) = statement {
-        return Some(*value);
-    }
-    let transition = statement.as_transition()?;
-    if !matches!(transition.guard, TransitionGuardNode::Always) {
-        return None;
-    }
-    let TransitionTargetNode::Value(value) =
-        program.statement_table.transition_target(transition.target)
-    else {
-        return None;
-    };
-    Some(*value)
 }
 
 /// The authored spelling of a term for a diagnostic. Identity stays with the

@@ -23,6 +23,30 @@ pub(super) fn transport(
 ) {
     let target_place = write.target_place;
     let source_place = write.source_place;
+    // Storage aliasing does not preserve a scalar value across a recast.
+    // Compare the source and installed referent carriers before transporting
+    // completed value observations; reference access itself is not a value.
+    let value_carriers_agree = source_place.is_some_and(|source| {
+        let source = crate::flow::canonical_place_from_semantic_place(
+            program,
+            semantic,
+            semantic.places.get(source),
+        );
+        let target = crate::flow::canonical_place_from_semantic_place(
+            program,
+            semantic,
+            semantic.places.get(target_place),
+        );
+        source.zip(target).is_some_and(|(source, target)| {
+            super::completed_value_carriers_agree(
+                program,
+                state_symbol,
+                statement_index,
+                &source,
+                &target,
+            )
+        })
+    });
     for context_handle in context_handles {
         let context = semantic.contexts.get(context_handle);
         let facts_to_transfer: Vec<_> = semantic
@@ -36,7 +60,7 @@ pub(super) fn transport(
                     | FactPayload::AssignedValue { .. }
                     | FactPayload::AssignedScalarValue { .. }
                     | FactPayload::BytePredicate { .. } => {
-                        if !stable_value_target {
+                        if !stable_value_target || !value_carriers_agree {
                             return None;
                         }
                         let fact_place = fact.place.as_place()?;

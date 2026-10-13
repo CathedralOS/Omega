@@ -144,6 +144,16 @@ mod rewrite_table;
 mod term_identity;
 
 impl StructuralTerm {
+    fn is_closed_value(&self) -> bool {
+        match self {
+            Self::Integer(_) => true,
+            Self::Constructor { fields, .. } => {
+                fields.iter().all(|(_, value)| value.is_closed_value())
+            }
+            _ => false,
+        }
+    }
+
     pub(super) fn semantic_value(&self) -> &Self {
         match self {
             Self::ObservedValue { value, .. } => value.semantic_value(),
@@ -212,12 +222,17 @@ pub(super) struct StructuralJudge<'program> {
     // one copy only for the field they actually change.
     normal_results: Arc<Vec<(ExpressionHandle, StructuralTerm)>>,
     invalidated_storage: Arc<Vec<SymbolHandle>>,
+    // Values captured by an executed exact store, separate from retired roots.
+    stored_values: Arc<Vec<(crate::value_custody::places::CanonicalPlace, StructuralTerm)>>,
     capture_sequence: usize,
     pub(super) normal_guarantees: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
     // Producer identity comes only from the captured public result contract.
     // Selected branch equalities remain ordinary normal-path proof facts.
     captured_result_equations: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
     resolve_applications: bool,
+    // Closed computation owes completion of every eager operand. Symbolic
+    // law normalization can retain applications without asserting completion.
+    require_closed_computation: bool,
     runtime_body_values: bool,
     case_facts_only: bool,
     pub(super) substitutions: Arc<Vec<(String, StructuralTerm)>>,
@@ -255,10 +270,12 @@ impl Clone for StructuralJudge<'_> {
             premise_facts: self.premise_facts.clone(),
             normal_results: Arc::clone(&self.normal_results),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
+            stored_values: Arc::clone(&self.stored_values),
             capture_sequence: self.capture_sequence,
             normal_guarantees: Arc::clone(&self.normal_guarantees),
             captured_result_equations: Arc::clone(&self.captured_result_equations),
             resolve_applications: self.resolve_applications,
+            require_closed_computation: self.require_closed_computation,
             runtime_body_values: self.runtime_body_values,
             case_facts_only: self.case_facts_only,
             substitutions: Arc::clone(&self.substitutions),
@@ -385,10 +402,12 @@ impl<'program> StructuralJudge<'program> {
             premise_facts: requires.to_vec(),
             normal_results: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
+            stored_values: Arc::new(Vec::new()),
             capture_sequence: 0,
             normal_guarantees: Arc::new(Vec::new()),
             captured_result_equations: Arc::new(Vec::new()),
             resolve_applications,
+            require_closed_computation: false,
             runtime_body_values: false,
             case_facts_only: false,
             substitutions: Arc::new(Vec::new()),
@@ -797,6 +816,24 @@ impl<'program> StructuralJudge<'program> {
                     if !self.resolve_applications {
                         return resolved;
                     }
+                    if self.require_closed_computation {
+                        let StructuralTerm::Application {
+                            target,
+                            selections,
+                            machine,
+                            arguments,
+                            ..
+                        } = &resolved
+                        else {
+                            unreachable!();
+                        };
+                        // Conditional normal-return guarantees are not proof
+                        // that this evaluation completes. Compute its body
+                        // using the same continuing invocation depth instead.
+                        return self
+                            .unfold_application(*target, selections, machine, arguments, depth + 1)
+                            .map_or(resolved.clone(), |value| self.resolve_at(value, depth + 1));
+                    }
                     // Hypothesis rewrites first (the inductive hypothesis
                     // reduces the self-application), then unfolding.
                     if let Some((_, replacement)) = self.rewrites.find(&resolved) {
@@ -907,9 +944,10 @@ impl<'program> StructuralJudge<'program> {
                         term = replacement.clone();
                         continue;
                     }
-                    if let Some(value) = path
-                        .split('.')
-                        .try_fold(subject, super::observed_projections::project_field)
+                    if (!self.require_closed_computation || subject.is_closed_value())
+                        && let Some(value) = path
+                            .split('.')
+                            .try_fold(subject, super::observed_projections::project_field)
                         && value != resolved
                     {
                         term = value;
@@ -1064,7 +1102,9 @@ impl<'program> StructuralJudge<'program> {
                 depth + 1,
             )
         };
-        if let Some(value) = direct_literal_field() {
+        if !self.require_closed_computation
+            && let Some(value) = direct_literal_field()
+        {
             return Some(value);
         }
         let result = self.unfold_application(
@@ -1074,11 +1114,15 @@ impl<'program> StructuralJudge<'program> {
             arguments,
             depth + 1,
         )?;
+        let result = self.resolve_at(result, depth + 1);
+        if self.require_closed_computation && !result.is_closed_value() {
+            return None;
+        }
         let StructuralTerm::Constructor {
             data: result_data,
             case,
             fields,
-        } = self.resolve_at(result, depth + 1)
+        } = result
         else {
             return None;
         };
@@ -1090,6 +1134,72 @@ impl<'program> StructuralJudge<'program> {
         fields
             .into_iter()
             .find_map(|(name, value)| (name == projected_field.name.as_str()).then_some(value))
+    }
+
+    /// Closed computation is separate from runtime-prefix resolution. This
+    /// declaration judge borrows no caller hypotheses, snapshots or loans.
+    /// Invocation eligibility excludes observations, effects, crash routes and
+    /// selected preconditions requiring evidence; lowering still independently
+    /// establishes termination before publishing the checked application.
+    pub(super) fn closed_application_value(
+        program: &'program dyn crate::CheckingInput,
+        result_type: TypeReferenceHandle,
+        target: SymbolHandle,
+        selections: &[typed_trees::expression::StaticMachineArgument],
+        arguments: &[StructuralTerm],
+        projection: Option<SymbolHandle>,
+    ) -> Option<StructuralTerm> {
+        if !arguments.iter().all(StructuralTerm::is_closed_value) {
+            return None;
+        }
+        let plans = crate::machine_calls::calls::operand_call_plans(program, None);
+        let (machine, state) =
+            crate::machine_calls::fact_call_projections::checked_call_target_candidate(
+                program,
+                target,
+                &plans.0,
+                &plans.1,
+                &|_, _| {},
+                &mut Vec::new(),
+            )?;
+        if program.machine_states(machine).first()?.symbol != state.symbol
+            || (result_type.is_valid() && state.return_type != result_type)
+        {
+            return None;
+        }
+        // Shape-only law matching has no caller telescope. The selected
+        // declaration still fixes its own result; never guess from a peer or
+        // borrow a caller's expected carrier. Typed applications must agree.
+        let result_type = state.return_type;
+        if crate::reference_shell(program, result_type).is_some() {
+            return None;
+        }
+        let mut judge = Self::from_requires(program, machine, &[], true);
+        judge.require_closed_computation = true;
+        // Finite proof constructors (including recursive Nat) are values,
+        // while a nominal shell cannot hide references or opaque contents.
+        // This is representation authority, not runtime layout or Copy.
+        if !judge
+            .frame_resolver()?
+            .proof_value_is_caller_isolated(result_type)
+        {
+            return None;
+        }
+        let value = match projection {
+            Some(field) => judge.unfold_exact_call_projection(
+                target,
+                selections,
+                result_type,
+                field,
+                arguments,
+                0,
+            )?,
+            None => {
+                judge.unfold_application(target, selections, machine.name.as_str(), arguments, 0)?
+            }
+        };
+        let value = judge.resolve(value);
+        value.is_closed_value().then_some(value)
     }
 
     /// COMPUTE-MODE unfolding (N3): apply a single-state proof machine of
@@ -1119,6 +1229,28 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let program = self.program;
+        if self.require_closed_computation {
+            if !arguments.iter().all(StructuralTerm::is_closed_value) {
+                return None;
+            }
+            let plans =
+                crate::machine_calls::calls::operand_call_plans(program, self.frame_resolver());
+            let (_, selected) =
+                crate::machine_calls::fact_call_projections::checked_call_target_candidate(
+                    program,
+                    target,
+                    &plans.0,
+                    &plans.1,
+                    &|_, _| {},
+                    &mut Vec::new(),
+                )?;
+            if !self
+                .frame_resolver()?
+                .proof_value_is_caller_isolated(selected.return_type)
+            {
+                return None;
+            }
+        }
         let machine = self.entry_machines.machine(program, target)?;
         let machine_parameters: Vec<&typed_trees::data::TypeParameter> =
             program.machine_kind_type_parameters(machine).collect();
@@ -1175,9 +1307,18 @@ impl<'program> StructuralJudge<'program> {
                     local.initial_value,
                     &environment,
                     &machine_environment,
-                    Some((machine, state, state.return_type)),
+                    Some((machine, state, local.type_reference)),
                     depth + 1,
                 )?;
+                let term = if self.require_closed_computation {
+                    let completed = self.resolve_at(term, depth + 1);
+                    if !completed.is_closed_value() {
+                        return None;
+                    }
+                    completed
+                } else {
+                    term
+                };
                 environment.push((local.name.as_str().to_owned(), term));
                 continue;
             }
@@ -1288,6 +1429,9 @@ impl<'program> StructuralJudge<'program> {
         } else {
             self.resolve_at(receiver_term, depth + 1)
         };
+        if self.require_closed_computation && !value.is_closed_value() {
+            return None;
+        }
         super::observed_projections::project_field(value, field_name)
     }
 
@@ -1328,6 +1472,9 @@ impl<'program> StructuralJudge<'program> {
             .find(|(source, _)| *source == expression)
         {
             return Some(value.clone());
+        }
+        if let Some(value) = self.stored_value_observation(expression) {
+            return Some(value);
         }
         if self.storage_observation_invalidated(expression) {
             return None;

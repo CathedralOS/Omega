@@ -149,6 +149,35 @@ pub(super) fn append_copied_field_predicates(
             continue;
         }
         let suffix = segments[source_segments.len()..].to_vec();
+        let ProgramPoint::Statement {
+            state_symbol,
+            statement_index,
+            ..
+        } = point
+        else {
+            continue;
+        };
+        let source_value = validation::CanonicalPlace {
+            root: place.root,
+            segments: segments.to_vec(),
+        };
+        let target_value = validation::CanonicalPlace {
+            root: destination_place.root,
+            segments: destination_segments
+                .iter()
+                .chain(&suffix)
+                .copied()
+                .collect(),
+        };
+        if !super::completed_value_carriers_agree(
+            program,
+            state_symbol,
+            statement_index,
+            &source_value,
+            &target_value,
+        ) {
+            continue;
+        }
         let copied_place = semantic.append_place(facts::Place {
             root: destination_place.root,
             segments: HandleSpan::empty(),

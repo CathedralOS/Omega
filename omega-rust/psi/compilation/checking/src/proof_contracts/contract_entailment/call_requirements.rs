@@ -252,6 +252,23 @@ fn structural_requirement_at_prefix(
         seen: false,
         proven: true,
     };
+    // A state-local proof needs no incoming-path replay. Its independent
+    // Requires and completed prefix suffice even when another acyclic branch
+    // contains unsupported effects. Keep the full incoming-path analysis as
+    // fallback for obligations that genuinely need an arrival substitution.
+    if runtime_values && !state_prefix {
+        let local = super::structural_prefix::observe_runtime_state_prefix(
+            program,
+            machine,
+            caller_state,
+            &mut requirement,
+        );
+        if local.is_some() && requirement.seen && requirement.proven {
+            return true;
+        }
+        requirement.seen = false;
+        requirement.proven = true;
+    }
     let mut judge = if state_prefix {
         StructuralJudge::from_runtime_state_requires(program, machine, caller_state, &requires)
     } else if runtime_values {

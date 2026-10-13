@@ -737,3 +737,25 @@ fn contextual_expression_place(
         expression,
     )
 }
+
+/// A completed value is interpreted in its source and installed destination
+/// declarations. An alias or recast alone cannot equate different carriers.
+fn completed_value_carriers_agree(
+    program: &dyn ::validation::CheckingInput,
+    state: SymbolHandle,
+    statement_index: usize,
+    source: &CanonicalPlace,
+    target: &CanonicalPlace,
+) -> bool {
+    let type_at = |place, position| {
+        let reference =
+            validation::canonical_place_type_reference(program, state, position, place)?;
+        let reference = validation::reference_shell(program, reference)
+            .map_or(reference, |shell| shell.referee);
+        Some(program.normalized_type_identity(reference))
+    };
+    // Only the installed destination's current declaration becomes visible.
+    type_at(source, statement_index)
+        .zip(type_at(target, statement_index.saturating_add(1)))
+        .is_some_and(|(source, target)| source == target)
+}

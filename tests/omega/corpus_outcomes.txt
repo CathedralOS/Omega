@@ -1121,7 +1121,8 @@ fail/calls/statement_call_undeclared_callee_rejected rejected 829ms expected @a9
 fail/calls/static_tail_local_custody_no_decrease rejected 1528ms expected @a9ae30e1c334+wt
 	machine call cycle: `Counter::even`, `Counter::odd` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 	cannot prove requires contract for call take from Main::main: constructor:79:package:0101010101010101010101010101010101010101010101010101010101010101::Point6:record13:common:name:x1:113:common:name:y1:0 == Point.zero() (needs fact `p == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/calls/struct_constant_requires_argument_rejected rejected 507ms expected @9158ef7b209e+wt
+fail/calls/struct_constant_requires_argument_rejected rejected 978ms expected @197e7e7ec2b9
+	machine `Main::main` state `main` value call to `Main::take` violates required fact `p == Point.zero()`: the instantiated fact is structurally false (`Point { x: 1, y: 0 } == Point { x: 0, y: 0 }`)
 fail/calls/terminal_call_duplicate_block rejected 2ms expected @1ade44fe20d0+wt
 fail/calls/terminal_call_duplicate_suspend rejected 1ms expected @1ade44fe20d0+wt
 fail/calls/terminal_call_marked_state rejected 1620ms expected @1ade44fe20d0+wt
@@ -6761,3 +6762,34 @@ fail/borrows/state_transfer_shared_carrier_mutable_leaf rejected 393ms @fa10277f
 fail/borrows/state_transfer_write_only_carrier_pointer rejected 408ms @fa10277fce92
 	machine `transfer` state `entry` reads field `body` from write-only parameter `carrier`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 	argument `reference` for state `done` requires explicit write-only attenuation; pass `&write ...` (a bare value or `&mut ...` does not establish the no-read contract)
+fail/calls/closed_constructor_projection_runtime_receiver_rejected rejected 1628ms expected @197e7e7ec2b9
+	fact-position projection from call `zero` is not denotational: only one direct free call with non-call runtime arguments is admitted
+fail/calls/closed_constructor_requires_alias_write_rejected rejected 2075ms expected @197e7e7ec2b9
+	cannot prove requires contract for call take from Main::main: main.point == Point.zero() (needs fact `point == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/closed_constructor_requires_overwritten_store_rejected rejected 1955ms expected @197e7e7ec2b9
+	cannot prove requires contract for call take from Main::main: main.point == Point.zero() (needs fact `point == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/closed_constructor_requires_restricted_nested_call_rejected rejected 2100ms expected @197e7e7ec2b9
+	cannot prove requires contract for call restricted from outer: false (needs fact `false` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call take from Main::main: outer() == Point.zero() (needs fact `point == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/closed_constructor_requires_stale_entry_rejected rejected 2661ms expected @197e7e7ec2b9
+	cannot prove requires contract for call take from bad: main.point == Point.zero() (needs fact `point == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/closed_constructor_requires_stale_store_rejected rejected 2608ms expected @197e7e7ec2b9
+	cannot prove requires contract for call take from Main::main: main.point == Point.zero() (needs fact `point == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/closed_constructor_requires_symbolic_unknown rejected 2564ms expected @197e7e7ec2b9
+	cannot prove requires contract for call take from symbolic: point == Point.zero() (needs fact `point == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/closed_constructor_store_recast_not_identity rejected 2712ms expected @197e7e7ec2b9
+	cannot prove requires contract for call take from Main::main: view > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+pass/calls/runtime_closed_constructor_requires_exit checked 11464ms check-target:macos_arm64 @197e7e7ec2b9
+fail/calls/closed_constructor_divergent_unselected_field_unknown rejected 5424ms expected @197e7e7ec2b9
+	specification call `Point::zero` is not denotational: the selected machine is not unconditionally terminating
+fail/calls/closed_constructor_generic_field_recast_not_identity rejected 2096ms expected @197e7e7ec2b9
+	cannot prove requires contract for call take from Main::main: view.value > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/closed_constructor_inline_projection_divergence_unknown rejected 1714ms expected @197e7e7ec2b9
+	specification call `projected` is not denotational: the selected machine is not unconditionally terminating
+fail/calls/closed_constructor_projection_reference_result_rejected rejected 1611ms expected @197e7e7ec2b9
+	fact-position projection from call `zero` is not denotational: the selected call closure observes or mutates hidden state, uses atomic/external machinery, or contains a non-checked target
+	specification call `View::zero` has no observation-free, reach-free, crash-free value denotation: the selected closure contains runtime observations or mutable storage
+fail/calls/closed_constructor_unused_divergence_unknown rejected 2055ms expected @197e7e7ec2b9
+	specification call `Point::zero` is not denotational: the selected machine is not unconditionally terminating
+fail/calls/closed_constructor_unused_mutual_divergence_unknown rejected 1753ms expected @197e7e7ec2b9
+	specification call `Point::zero` is not denotational: the selected machine is not unconditionally terminating

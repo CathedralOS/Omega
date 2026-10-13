@@ -1,0 +1,14 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+data Point [copy] { x: u64; y: u64; }
+data Main { console: Binding<Console>; point: Point; }
+machine Point::zero() -> Point { Point { x: 0, y: 0 } }
+machine take(point: Point) -> u64 requires point == Point::zero(); { point.y }
+machine mutate(point: &mut Point) { point.x = 1; }
+machine Main::main(main: &mut Main) reaches Console {
+ main.point = Point { x: 0, y: 0 };
+ let alias: &mut Point = &mut main.point;
+ mutate(alias);
+ let result: u64 = take(main.point);
+ main.console.exit_process(0);
+}

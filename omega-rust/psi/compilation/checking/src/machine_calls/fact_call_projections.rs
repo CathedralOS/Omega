@@ -246,7 +246,10 @@ fn validate_direct_projection(
             call.target
         )));
     };
-    if call.receiver.is_valid()
+    // A selected namespace receiver is not a runtime observation. Authenticate
+    // it through the same declaration query used by ordinary invocation; an
+    // actual receiver or unresolved selector still cannot enter this route.
+    if (call.receiver.is_valid() && !program.call_has_no_runtime_receiver_for_target(call))
         || call.quotient_operation.is_some()
         || !call.evidence_arguments.is_empty()
         || program
@@ -365,6 +368,31 @@ pub(crate) fn validate_checked_call_candidate<'program>(
     &'program typed_trees::machine::Machine,
     &'program typed_trees::state::State,
 )> {
+    checked_call_target_candidate(
+        program,
+        call.target_symbol,
+        operational,
+        service_reaches,
+        reject,
+        diagnostics,
+    )
+}
+
+/// Shared checked invocation eligibility for source projections and closed
+/// structural computation. Identity comes from the exact retained target;
+/// a spelling cannot recover a missing entry or choose another body.
+/// Termination retains the independent checked-lowering obligation below.
+pub(crate) fn checked_call_target_candidate<'program>(
+    program: &'program dyn crate::CheckingInput,
+    target: symbols::SymbolHandle,
+    operational: &flow_effects::OperationalPlan,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
+    reject: &impl Fn(&str, &mut Vec<Diagnostic>),
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<(
+    &'program typed_trees::machine::Machine,
+    &'program typed_trees::state::State,
+)> {
     let matches = program
         .machines()
         .iter()
@@ -372,7 +400,7 @@ pub(crate) fn validate_checked_call_candidate<'program>(
             program
                 .machine_states(machine)
                 .iter()
-                .filter(|state| state.symbol == call.target_symbol)
+                .filter(|state| state.symbol == target)
                 .map(move |state| (machine, state))
         })
         .collect::<Vec<_>>();

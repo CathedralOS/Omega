@@ -254,12 +254,18 @@ fn instantiated_live_value_proves(
                         caller_state_symbol,
                         statement_index,
                         leaf,
-                    ) && let Some(value) = super::prover::scalar_value_at_place(
+                    ) && let Some(value) = scalar_value_at_observation(
                         program,
                         semantic,
-                        contexts
-                            .iter()
-                            .map(|context| semantic.contexts.get(*context)),
+                        contexts,
+                        caller_state_symbol,
+                        statement_index,
+                        validation::expression_result_type_reference(
+                            program,
+                            program.machine_holding_state(caller_state_symbol)?,
+                            program.state_by_symbol(caller_state_symbol)?,
+                            leaf,
+                        )?,
                         &place,
                     ) {
                         return Some(value);
@@ -322,6 +328,11 @@ fn projected_formal_leaf_value(
     // only explicit formals join the positional argument roster.
     let position = typed_trees::signature::state_parameter_position(parameters, formal)?;
     let argument = *arguments.get(position)?;
+    let observed_type = validation::project_type_reference_from_segments(
+        program,
+        parameters[position].type_reference,
+        &required.segments,
+    )?;
     let mut actual = validation::canonical_place_from_expression_in_state(
         program,
         caller_state_symbol,
@@ -344,12 +355,18 @@ fn projected_formal_leaf_value(
         ) else {
             continue;
         };
-        let Some(facts::ScalarValue::Integer(value)) = super::prover::scalar_value_at_place(
+        let Some(facts::ScalarValue::Integer(value)) = scalar_value_at_observation(
             program,
             semantic,
-            contexts
-                .iter()
-                .map(|context| semantic.contexts.get(*context)),
+            contexts,
+            caller_state_symbol,
+            statement_index,
+            validation::expression_result_type_reference(
+                program,
+                program.machine_holding_state(caller_state_symbol)?,
+                program.state_by_symbol(caller_state_symbol)?,
+                expression,
+            )?,
             &selector,
         ) else {
             continue;
@@ -358,13 +375,46 @@ fn projected_formal_leaf_value(
             *segment = facts::PlaceSegment::FixedIndex { index };
         }
     }
+    scalar_value_at_observation(
+        program,
+        semantic,
+        contexts,
+        caller_state_symbol,
+        statement_index,
+        observed_type,
+        &actual,
+    )
+}
+
+/// Backing coordinates do not establish the scalar observation's interpretation.
+/// A recast needs its own checked value transform; matching address or width
+/// cannot import the backing carrier's live scalar facts.
+fn scalar_value_at_observation(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &facts::FactPlan,
+    contexts: &[facts::FactContextHandle],
+    state: SymbolHandle,
+    statement_index: usize,
+    observed_type: typed_trees::types::TypeReferenceHandle,
+    place: &validation::CanonicalPlace,
+) -> Option<facts::ScalarValue> {
+    let stored_type =
+        validation::canonical_place_type_reference(program, state, statement_index, place)?;
+    let referee = |reference| {
+        validation::reference_shell(program, reference).map_or(reference, |shell| shell.referee)
+    };
+    if program.normalized_type_identity(referee(stored_type))
+        != program.normalized_type_identity(referee(observed_type))
+    {
+        return None;
+    }
     super::prover::scalar_value_at_place(
         program,
         semantic,
         contexts
             .iter()
             .map(|context| semantic.contexts.get(*context)),
-        &actual,
+        place,
     )
 }
 
