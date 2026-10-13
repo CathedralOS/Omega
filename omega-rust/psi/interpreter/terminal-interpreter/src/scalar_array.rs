@@ -37,11 +37,6 @@ impl TerminalExecution<'_> {
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<TerminalScalarArrayValue, TerminalInterpretError> {
-        let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
-            self.program.structural_types().values(),
-            parameter.structural_type,
-        )
-        .ok_or_else(malformed)?;
         // Only an owned occurrence copies payload. Borrowed arrays retain their
         // activation home through loans.rs, for reads and writes alike.
         if parameter.access != StructuralAccess::Owned
@@ -60,15 +55,32 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
+        self.scalar_array_snapshot(argument, parameter.structural_type)
+    }
+
+    /// One canonical owned snapshot for array arguments and structural copies.
+    /// Whole payloads clone their exact bits; placed fields and selected rows
+    /// read through the ordinary primitive-storage owner. The caller establishes
+    /// copy permission; this method never creates source access or a loan.
+    pub(crate) fn scalar_array_snapshot(
+        &self,
+        argument: &StructuralArgument,
+        structural_type: StructuralTypeId,
+    ) -> Result<TerminalScalarArrayValue, TerminalInterpretError> {
+        let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
+            self.program.structural_types().values(),
+            structural_type,
+        )
+        .ok_or_else(malformed)?;
         let Some(value) = argument
             .path
             .is_empty()
             .then(|| self.scalar_array_values.get(&argument.place))
             .flatten()
         else {
-            return self.stored_scalar_array_copy(argument, parameter.structural_type, scalar_type);
+            return self.stored_scalar_array_copy(argument, structural_type, scalar_type, count);
         };
-        if value.structural_type != parameter.structural_type
+        if value.structural_type != structural_type
             || u64::try_from(value.elements.len()).ok() != Some(count)
             || value
                 .elements
@@ -93,6 +105,7 @@ impl TerminalExecution<'_> {
         argument: &StructuralArgument,
         structural_type: StructuralTypeId,
         scalar_type: ScalarType,
+        count: u64,
     ) -> Result<TerminalScalarArrayValue, TerminalInterpretError> {
         let types = self.program.structural_types();
         let root_type = self.live_structural_type(argument.place)?;
@@ -109,10 +122,9 @@ impl TerminalExecution<'_> {
             dimensions.push(*length);
             current = *element;
         }
-        let count = dimensions
-            .iter()
-            .try_fold(1_u64, |count, length| count.checked_mul(*length))
-            .ok_or_else(malformed)?;
+        // The common shape owner validates the primitive endpoint and computes
+        // the zero-aware leaf count. Recomputing a partial dimension product
+        // here could overflow before a later zero, rejecting an empty value.
         let mut elements = Vec::with_capacity(usize::try_from(count).map_err(|_| malformed())?);
         let mut path = argument.path.clone();
         let prefix = path.len();

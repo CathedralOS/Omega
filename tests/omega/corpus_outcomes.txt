@@ -369,6 +369,9 @@ fail/borrow/view_return_ambiguous_ref_inputs rejected 5301ms expected @a9ae30e1c
 	machine `pick_either` returns a view but takes 2 candidate ref inputs (`a`, `b`); cannot infer which input the returned view borrows — annotate the return type with the lifetime of the input it borrows, e.g. `-> &'a T` matching an input `&'a T`
 fail/borrow/write_only_affine_replacement_reuse rejected 342ms expected @6abc05dd203a
 	cannot use `incoming` in machine `replace` state `entry` (statement 1) after `incoming` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `incoming` first
+fail/borrow/write_only_array_projection_copy rejected 364ms expected @2617de0d2dec
+	machine `invalid` state `entry` reads through index projection of write-only parameter `rows`; `&write` permits admitted fixed-array element replacement but never observation
+	machine `empty` state `entry` reads through index projection of write-only parameter `rows`; `&write` permits admitted fixed-array element replacement but never observation
 fail/borrow/write_only_byte_field_missing_membership rejected 467ms expected @7fa075570fe9
 	cannot prove the value assigned to `tagged.label` in replace is in domain `[u8; N]::Utf8`; a place declared `in [u8; N]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/borrow/write_only_capture_missing_bounds rejected 419ms expected @e80db4a269fa+wt
@@ -436,6 +439,8 @@ fail/borrow/write_only_stored_reference_constraint_loss rejected 115ms expected 
 fail/borrow/write_only_stored_shared_widening rejected 116ms expected @992d27dd3135+wt
 	machine `replace` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type
 	write-only argument `slot` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/borrows/affine_array_projection_copy rejected 621ms expected @2617de0d2dec
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `invalid`, state `entry` (statement 0)
 fail/borrows/affine_record_copy_handoff rejected 1237ms expected @a9ae30e1c334+wt
 	cannot use `settings` in machine `inspect` state `entry` (statement 2) after `settings` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `settings` first
 fail/borrows/array_carried_reference_live_source_move rejected 1533ms expected @a9ae30e1c334+wt
@@ -1159,6 +1164,8 @@ fail/collections/array_child_membership_requires_issuance rejected 1539ms expect
 	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 	cannot prove default-domain field requirement for call observe from lookalike::entry: parameter values[1].ticket requires Ticket::Issued
 	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+fail/collections/array_projection_copy_out_of_bounds rejected 922ms expected @2617de0d2dec
+	cannot prove index `2` is within length 2
 fail/collections/authored_index_guard_bound rejected 1606ms expected @a9ae30e1c334+wt
 	cannot prove index `index` is within unknown slice length of `items` in read::entry
 fail/collections/bounded_local_index_write_overrun rejected 1531ms expected @a9ae30e1c334+wt
@@ -4687,6 +4694,7 @@ pass/collections/runtime_fixed_byte_view_dynamic_state_shared_loan_exit checked 
 pass/collections/runtime_fixed_byte_view_restricted_scalar_state_loan_exit checked 11017ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_fixed_vec_contract_chain_exit checked 11190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_fixed_vec_round_trip_exit checked 11229ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/runtime_float_array_projection_return_exit checked 25246ms check-target:macos_arm64 @2617de0d2dec
 pass/collections/runtime_frame_indexed_param_read_exit checked 11188ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_generic_record_slice_reads_exit checked 13557ms check-target:macos_arm64 @d3431e5a76cb+wt
 pass/collections/runtime_guarded_computed_index_exit checked 11296ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4712,6 +4720,7 @@ pass/collections/runtime_nested_record_element_window_store_exit checked 10510ms
 pass/collections/runtime_nested_selected_element_extents_exit checked 10336ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_offset_view_case_observation_exit checked 2717ms check-target:macos_arm64 @1e469c9b15bb
 pass/collections/runtime_ordered_computed_selector_reads_exit checked 5917ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/collections/runtime_owned_array_projection_snapshot_exit checked 13420ms check-target:macos_arm64 @2617de0d2dec
 pass/collections/runtime_owned_descriptor_parameter_read_exit checked 10965ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_parameter_computed_selector_wrapping_exit checked 5633ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/collections/runtime_parameter_nested_literal_index_read_exit checked 12300ms check-target:macos_arm64 @a9ae30e1c334+wt

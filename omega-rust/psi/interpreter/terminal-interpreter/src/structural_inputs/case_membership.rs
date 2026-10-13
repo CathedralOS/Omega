@@ -256,11 +256,15 @@ impl TerminalExecution<'_> {
     /// declared field names. A canonical Case segment therefore checks the
     /// stored discriminator rather than adding a storage-path component. Do
     /// not erase it without that check: two cases may reuse a field name.
-    pub(crate) fn case_payload_leaf(
+    /// Retain both physical storage and its checked observation path. Case tags
+    /// select field namespaces but are absent from physical storage keys; readers
+    /// still need the exact live tag and declaration-selected field identities.
+    pub(crate) fn case_payload_projection(
         &self,
         source: PlaceId,
         path: &[CanonicalStructuralPathSegment],
-    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+    ) -> Result<(TerminalStructuralValue, Vec<StructuralPathSegment>), TerminalInterpretError> {
+        let mut projection = Vec::with_capacity(path.len());
         let mut leaf =
             crate::custody::verified_structural_place(&self.structural_values, source).cloned()?;
         let mut case_fields = None;
@@ -296,6 +300,7 @@ impl TerminalExecution<'_> {
                             .fields
                             .as_slice(),
                     );
+                    projection.push(StructuralPathSegment::Case(*case));
                     saw_case = true;
                 }
                 CanonicalStructuralPathSegment::Field(field) => {
@@ -315,8 +320,8 @@ impl TerminalExecution<'_> {
                     let Some(child) = field.field_type.as_structural() else {
                         return Err(malformed());
                     };
-                    leaf.path
-                        .push(StructuralPathSegment::Field(field.identity.clone()));
+                    leaf.path.push(StructuralPathSegment::Field(field.identity));
+                    projection.push(StructuralPathSegment::Field(field.identity));
                     leaf.structural_type = child;
                 }
                 CanonicalStructuralPathSegment::FixedIndex(index) => {
@@ -328,6 +333,7 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     }
                     leaf.path.push(StructuralPathSegment::FixedIndex(*index));
+                    projection.push(StructuralPathSegment::FixedIndex(*index));
                     leaf.structural_type = element;
                 }
             }
@@ -335,7 +341,7 @@ impl TerminalExecution<'_> {
         if !saw_case || case_fields.is_some() {
             return Err(malformed());
         }
-        Ok(leaf)
+        Ok((leaf, projection))
     }
 
     pub(crate) fn bind_structural_cases(

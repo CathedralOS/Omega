@@ -1374,29 +1374,35 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         if let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
-            && path.is_empty()
             && !self.structural_values.contains_key(source)
             && self.scalar_array_values.contains_key(source)
         {
-            return self.copy_whole_scalar_payload(*source, result);
+            return self.copy_scalar_array_payload(
+                &StructuralArgument {
+                    place: *source,
+                    path: path.clone(),
+                    access: StructuralAccess::Owned,
+                },
+                result,
+            );
         }
-        let (leaf, source, endpoint_field) = match &operation.kind {
+        let (leaf, source, endpoint_field, copy_path) = match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => {
                 let (leaf, field) = self.resolve_live_leaf_copy(*source, path)?;
-                (leaf, *source, field)
+                (leaf, *source, field, path.clone())
             }
             OperationKind::StructuralCaseLeafCopy { source, path } => {
                 // Membership and typed endpoint selection remain owned by the
                 // case walker. Its canonical final field identifies the same
                 // runtime cell namespace as an ordinary resolved projection.
-                let leaf = self.case_payload_leaf(*source, path)?;
+                let (leaf, projection) = self.case_payload_projection(*source, path)?;
                 let field = match path.last() {
                     Some(semantic_vocabulary::CanonicalStructuralPathSegment::Field(field)) => {
                         Some(*field)
                     }
                     _ => None,
                 };
-                (leaf, *source, field)
+                (leaf, *source, field, projection)
             }
             _ => return Err(malformed()),
         };
@@ -1406,6 +1412,30 @@ impl TerminalExecution<'_> {
             // record's scalar leaves decode little-endian out of the
             // consecutive bytes the source recast judgment proved fit.
             return self.byte_carrier_leaf_copy(&leaf, result);
+        }
+        // Primitive array copies have one owned representation regardless of
+        // their source home. A selected row/field snapshots the same checked
+        // primitive storage as a call argument; publishing it as opaque placed
+        // storage would strand its payload when a scalar-array return consumes it.
+        // Resolve the live projection above even for empty arrays: their absence
+        // of element reads cannot waive source access or active-case custody.
+        // Qualified arrays retain their membership metadata in placed storage;
+        // the detached primitive payload representation carries no domains.
+        if result.is_unrestricted_plain()
+            && terminal_semantics::scalar_array_leaf_shape(
+                self.program.structural_types().values(),
+                result.structural_type,
+            )
+            .is_some()
+        {
+            return self.copy_scalar_array_payload(
+                &StructuralArgument {
+                    place: source,
+                    path: copy_path,
+                    access: StructuralAccess::Owned,
+                },
+                result,
+            );
         }
         let source_place = StructuralRuntimePlace::from(&leaf);
         if shared_descriptor && !self.reference_referents.contains_key(&source_place) {
@@ -1552,32 +1582,22 @@ impl TerminalExecution<'_> {
         Ok(OperationFlow::Advance)
     }
 
-    /// A whole scalar array keeps its complete payload
-    /// under its own place in `scalar_array_values`,
-    /// never in `structural_values`, so a whole-home copy of one clones that
-    /// payload under the fresh result place in the same map. The verifier
-    /// admitted the source and the result type; this re-checks only what the
-    /// stored payload can contradict: the payload has the result's type and
-    /// the result place holds no value yet.
-    fn copy_whole_scalar_payload(
+    /// Publish a detached primitive-array snapshot only after all source reads
+    /// and exact type checks complete. This consumes no source storage or loans.
+    fn copy_scalar_array_payload(
         &mut self,
-        source: semantic_vocabulary::PlaceId,
+        source: &StructuralArgument,
         result: &terminal_psi::StructuralOperationResult,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        if self.scalar_array_values.contains_key(&result.place) {
+        if !result.is_unrestricted_plain()
+            || self.scalar_array_values.contains_key(&result.place)
+            || self.structural_values.contains_key(&result.place)
+        {
             return Err(malformed());
         }
-        if let Some(array) = self.scalar_array_values.get(&source) {
-            if array.structural_type != result.structural_type {
-                return Err(malformed());
-            }
-            let copied = array.clone();
-            self.scalar_array_values.insert(result.place, copied);
-            return Ok(OperationFlow::Advance);
-        }
-        Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-            source,
-        ))
+        let copied = self.scalar_array_snapshot(source, result.structural_type)?;
+        self.scalar_array_values.insert(result.place, copied);
+        Ok(OperationFlow::Advance)
     }
 
     /// Mint the copied record a byte-carrier leaf copy names: the resolved

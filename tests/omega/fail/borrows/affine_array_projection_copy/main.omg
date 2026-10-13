@@ -1,0 +1,2 @@
+data Token { value: i32; }
+machine invalid(rows: &[[Token; 2]; 2]) -> [Token; 2] { rows[0] }

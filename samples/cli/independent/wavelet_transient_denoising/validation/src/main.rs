@@ -46,6 +46,10 @@ fn run() {
                 .map(|artifact| artifact.psi_artifact())
         })
         .unwrap();
+    println!(
+        "retained placed_view_inputs={}",
+        artifact.semantic_module().placed_view_inputs.len()
+    );
     for input_path in arguments.iter().skip(3).map(PathBuf::from) {
         let case_directory = input_path.parent().unwrap();
         let observation = compiler::runtime::execute(TerminalRuntimeRequest {

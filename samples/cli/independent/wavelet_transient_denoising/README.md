@@ -3,7 +3,10 @@
 An orthonormal Haar transform preserves the coarsest approximation, applies
 soft thresholding to the requested number of finest detail levels, then
 reconstructs the supplied signal. The implementation uses pairwise butterflies;
-the independent oracle uses a dense matrix defined directly by Haar support and
+each stage stores its approximation/detail pairs in fixed-size scratch rows.
+A helper returns each selected row as an independent owned packet before
+reassembly writes the coefficient buffers. The independent oracle uses a dense
+matrix defined directly by Haar support and
 sign, with Decimal square roots at 80 digits.
 
 Supply whitespace-separated decimals, terminated by EOF:
