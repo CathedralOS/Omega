@@ -106,7 +106,7 @@ forming the canonical union; a same-spelled user declaration is not equivalent.
 ## Selection and scope
 
 Exclusions are evaluated Build selections, like other product configuration, not
-dependency-discovery declarations. They may be assembled by authorized helpers
+dependency requests. They may be assembled by authorized helpers
 within the root's admitted build. Repeated selections combine by set union;
 duplicates are idempotent, order cannot change the result, and later selections
 cannot remove earlier restrictions. No added exclusion is implied by omission.

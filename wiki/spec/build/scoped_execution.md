@@ -13,12 +13,12 @@ shipped signatures or wire compatibility.
 | Question | Required behavior |
 | --- | --- |
 | One builder or two? | One `Build`; scope and authority are enforced at individual operations. |
-| Build-only code? | Interpreted `build_depend`/`build_depend_as` discovery results; separate host/product nameability and checked instances. |
+| Build-only code? | Nonblocking `build_depend`/`build_depend_as` requests plus explicit `suspend Build::binding<R>` acquisition; separate host/product nameability and checked instances. |
 | Reference target code from a host build? | Existing designated product operands plus qualified, non-callable product descriptions; no general host import of target code. |
 | Filesystem default? | Exact read-only input tree, append-and-seal staging, deterministic logical metadata, no implicit symlink traversal or ambient services. |
 | Extra host files? | Independently supplied captured inputs; live-host protocols are not added by this slice. |
 | Build failure? | Checked local errors, linear required outputs, sticky explicit failure, and no final result set after interruption or failed checks. |
-| Artifact-only application? | One complete-Build request, at least one completed artifact, and no executable root/provider selections. |
+| Artifact-only application? | One interpreted Build request, at least one completed artifact, and no executable root/provider selections. |
 | Generated entry or inspection of this build's final executable? | Separate staged compilation; no cycle through this invocation's generated source. |
 
 Detailed rules below define these requirements. The comparison section
@@ -57,8 +57,8 @@ helpers, not a dependency of this contract.
 Extend these contracts rather than introduce parallel acquisition, evaluation,
 or evidence systems:
 
-- [Build declarations](declarations.md): root discovery, package
-  identity, and interpreted dependency discovery.
+- [Build declarations](declarations.md): root description, package identity,
+  interpreted dependency requests, and typed binding acquisition.
 - [Build execution](execution.md): admission before effects,
   generated-source strata, dependency build outputs, and observation custody.
 - [Modules](../language/modules.md) and
@@ -72,20 +72,19 @@ or evidence systems:
   component interfaces and installation requirements. This contract supplies
   no replacement topology or deployment semantics.
 
-## Dependency declarations and discovery
+## Dependency declarations and binding
 
 Keep `depend` / `depend_as` for product dependencies. Add `build_depend` /
 `build_depend_as` for build-only dependencies, with the same source-selection
-vocabulary. The core-only discovery program emits both forms through the exact
-root Build activation; local helpers and control flow may compute them without
-calling dependency code. Aliases are unique within each scope; the same alias
-may identify different packages in the two contexts without cross-context
-lookup or fallback.
+vocabulary. The one root Build activation records both forms and package
+coordination may start their work immediately; neither declaration suspends the
+activation. Local helpers and control flow may compute requests. Aliases are
+unique within each scope; the same alias may identify different packages in the
+two contexts without cross-context lookup or fallback.
 
 Illustrative build source:
 
 ```omega
-use topology::policies;
 use build_support::configuration;
 
 machine build(builder: &mut Build) {
@@ -96,24 +95,31 @@ machine build(builder: &mut Build) {
     Build::depend_as(builder, "protocol", Source::Path {
         location: "../payment-protocol"
     });
-    configure_products(builder);
+
+    let topology: Binding<TopologyBuild> =
+      suspend Build::binding<TopologyBuild>(builder, "topology");
+    configure_products(builder, topology);
 }
 ```
 
 Here `configure_products` is an ordinary helper from the local
-`build_support::configuration` module. Code needing only a schema, input bytes,
-or an output sink receives those values instead of the whole builder. Passing
-the whole builder is deliberate authority delegation, not the library default.
+  `build_support::configuration` module. `TopologyBuild` is a pre-known
+  requirement; its independently governed binding invocation rule is not specified
+  by this example. The dependency request may proceed while local work continues.
+  Acquisition suspends only if the checked implementation is not installed yet,
+  then resumes this same call site. Code needing only a schema, input bytes, or an
+  output sink receives those values instead of the whole builder. Passing the
+  whole builder is deliberate authority delegation, not the library default.
 
-Discovery runs the core-only discovery program the compiler constructs from the
-entry ([build declarations](declarations.md)) without resolving the root's
-imports, obtains both dependency sets, resolves their immutable closures, then
-checks and admits the complete build entry and its helpers. A top-of-file import
-may therefore refer to a build dependency declared later in the entry.
-Package/dependency discovery cannot call imported helpers, evaluate a
-dependency-dependent path, or read generated source. Product-selection
-operations below are admitted Build operations, not part of the discovery
-program.
+The root is initially checked without static names from newly requested
+packages. Arbitrary top-of-file imports of those packages therefore reject;
+requesting an alias does not retroactively change name resolution. Package
+coordination resolves immutable closures as requests are observed. Before
+installing `Binding<R>`, Psi checks the selected implementation against `R` and
+admits its effects, reach, and resources. The Terminal interpreter owns the
+parked continuation and resumes it without rerunning earlier statements.
+Dependency requests may appear in local helpers and ordinary conditionals; the
+final Build return joins every request even when no binding was acquired.
 
 The build can be split across ordinary imported source files. Only the selected
 root declares its role and dependency sets; imported helpers do not become build
@@ -125,7 +131,7 @@ root or builder state.
 
 | Occurrence | Selectable dependency code | Execution context |
 | --- | --- | --- |
-| Build entry and transitive helpers | Its package-local build sources, core, and its declared build dependencies | Admitted build evaluator on the host |
+| Build entry and transitive helpers | Its package-local build sources, core, and implementations installed through `Binding<R>` | Admitted build evaluator on the host |
 | Product source and its generated source | Its package-local product sources, core, and its ordinary dependencies | Selected product target |
 
 Core's exact toolchain vocabulary is directly available. Std is an ordinary
@@ -160,10 +166,13 @@ requested product target)`, omitting only coordinates that do not apply. A
 product node waits for its build output and product dependencies; a build node
 waits for its host helper libraries and captured input artifacts. A helper library
 uses its ordinary dependency edges in that host context, not its own build-only
-edges as public library imports. Reject cycles in this complete prerequisite
-graph before running an affected activation. No implicit recursive compiler call,
-new dependency discovery, or reading the current product's unfinished output can
-resolve a cycle.
+edges as public library imports. Reject cycles in the known prerequisite graph
+before running an affected node. Because requests are ordinary execution
+effects, package coordination may observe a new edge after an activation starts;
+it must reject any newly closed cycle before installing a binding and again at
+the mandatory final join. Build code cannot resolve a cycle through a static
+alias lookup, an implicit compiler call, or the current product's unfinished
+output.
 
 A local file imported in both contexts is checked separately against each
 context's dependencies and authority. This is not filename-based trust: naming
@@ -493,7 +502,7 @@ Add a compiler-issued linear `RequiredOutput` under the owning Build authority.
 activation-bound obligation, or a checked error. Duplicate names and file/directory
 prefix collisions reject; no last writer wins. Names use the same logical path
 rules as staging. Registration may depend on admitted build computation, unlike
-package/dependency discovery. A caller needing a fixed output roster supplies
+package dependency requests. A caller needing a fixed output roster supplies
 that roster as an invocation requirement: never infer that a conditional branch
 which omitted `require` nevertheless checked the intended artifact.
 
@@ -555,7 +564,7 @@ to exist in a previous output folder. Per-target children retain independent
 outcomes; failure of one child is not hidden by another child's successful set.
 
 An application build may publish companion artifacts. Select
-`Build::artifact_only(builder)` once during complete Build execution. It is valid
+`Build::artifact_only(builder)` once during Build execution. It is valid
 for an application and invalid for a workspace/package. No fourth project role
 is added. Executable is the application default. Artifact-only mode rejects
 executable root/provider selections rather than silently ignoring them and must
@@ -599,10 +608,9 @@ and mutation tests; this document does not claim that interface implemented.
 The exact sequencing is:
 
 ```text
-core-only interpreted root/dependency/output-mode discovery
-  -> dependency-purpose closure and immutable input capture
-  -> host build checking + frozen authored product selection frontier
-  -> build admission and execution using only those inputs/descriptions
+host Build checking and admission
+  -> one resumable Build activation with dependency requests and typed bindings
+  -> final dependency join and frozen product-selection frontier
   -> generated-source incorporation and final target/component checks
   -> required-output completion check and committed result set
 ```
@@ -618,9 +626,10 @@ dependency or input frontier by serializing a new manifest as output.
 
 | Case | Required result |
 | --- | --- |
-| Top-of-file import of a directly declared build dependency | Discovery succeeds before import resolution; helpers execute only after admission. |
-| Dependency declaration computed by a local helper or control flow | Discovered by the core-only discovery program. |
-| Dependency declaration computed through imported or dependency code | Reject during discovery without executing that code. |
+| Build dependency declared but never used by Build code | Request may complete without suspending; Build return still joins and records it. |
+| Typed binding requested before dependency work completes | Suspend at `Build::binding<R>`, install only the admitted implementation, and resume the same continuation without replay. |
+| Dependency declaration in a local helper or conditional | Execute normally; only the requests actually emitted belong to this Build result. |
+| Static import or call into a newly requested build dependency | Reject initial Build checking; acquire its implementation through a pre-known requirement and `Binding<R>`. |
 | Local multi-file build helper | Checked in the build context with exact Build vocabulary and normal visibility. |
 | Product-only entry/provider selected from a build with no host import of that implementation | Exact designated product operand resolves; no target code executes on the host. |
 | Same alias names different host and product packages | Ordinary calls select only the host package; product operands select only the product package. No fallback. |
@@ -653,7 +662,7 @@ leakage, and test same-package dual-purpose cache entries with different targets
 
 The first slice uses the declaration names above, explicit purpose
 migration, product-reference roles, snapshot/staging operations, completion state
-table, and statically discovered artifact-only mode. Their observable behavior
+table, and interpreted artifact-only mode. Their observable behavior
 is not delegated to implementation. Numeric wire tables and exact source
 signatures belong in the existing build/protocol owners before implementation
 can claim compatibility; the semantic outcomes and authority rules are fixed by
@@ -670,9 +679,10 @@ They may expose a new design choice; raise any semantic or trust amendment in
 implementation acceptance gates, not prerequisites to the design's ratification.
 
 Live-host grant extension, persistent writable caches, symbolic generated-root
-binding, concurrent filesystem operations, dynamic dependency discovery, and
-native plugin execution are deferred. This leaves code generation and topology
-composition usable without requiring a virtual operating system or action DSL.
+binding, concurrent filesystem operations, dependency inference from imports,
+and native plugin execution are deferred. This leaves code generation and
+topology composition usable without requiring a virtual operating system or
+action DSL.
 
 ## Comparison and mechanism choice
 

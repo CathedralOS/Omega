@@ -1,6 +1,6 @@
 # Build execution and generated source
 
-[Build declarations](declarations.md) define project discovery and the
+[Build declarations](declarations.md) define project description and the
 activation-scoped build facets. Build execution uses the benign confined
 snapshot/staging baseline by default; effects outside that baseline require
 explicit opt-in. It is not the hermetic evaluator used for constants and proofs.
@@ -9,15 +9,36 @@ explicit opt-in. It is not the hermetic evaluator used for constants and proofs.
 
 The order is:
 
-1. Check and interpret the core-only discovery program to obtain root role and
-  product/build dependency requests.
-2. Resolve the purpose-specific immutable closures and capture inputs under resolver/sponsor custody.
-3. Check the complete host Build entry and helpers with resolved dependencies;
-  freeze the authored product-selection frontier.
-4. Surface restricted build requests for project acceptance, join actual executor grants, and admit the complete build contract before executing its prepared projection.
-5. Incorporate generated source, resolve final selections, and finish all requested product checks, including behavior exclusions.
-6. Discover registered test roots, admit their execution authority, and run all enabled [test groups](testing.md).
-7. Check required-output completion and commit one immutable result set only after required tests pass.
+1. Check package-local Build source against `omega::core` and every pre-known
+  requirement used by `Build::binding<R>`; surface and admit its own restricted
+  requests, then produce one prepared Terminal entry.
+2. Interpret that entry once. Each dependency declaration mutates the same
+  `Build` and submits an immutable purpose-qualified request without suspending
+  the Build continuation.
+3. For each request, the application coordinator asks package management to
+  resolve and review source, recursively activates the dependency Build, and
+  asks Psi to compile and admit any implementation requested through
+  `Build::binding<R>`.
+4. When typed binding acquisition encounters an implementation that is not yet
+  installed, the Terminal interpreter suspends that exact continuation. After
+  package coordination installs an admitted `Binding<R>`, the interpreter
+  resumes at the acquisition without replaying prior work.
+5. When the Build entry returns, join every outstanding dependency job, reject
+  any failed, cyclic, unresolved, or unadmitted edge, resolve inert product
+  selections, and freeze the normalized Build output.
+6. Incorporate generated source and finish all requested product checks,
+  including behavior exclusions.
+7. Discover registered test roots, admit their execution authority, and run all
+  enabled [test groups](testing.md).
+8. Check required-output completion and commit one immutable result set only
+  after required tests pass.
+
+The application coordinator owns this lifecycle; package management owns source
+resolution and review; Psi owns checking and admission; the Terminal interpreter
+owns suspension, binding installation, and continuation resumption. A dependency
+declaration may complete in the background when Build code never requests its
+binding. Build return is still a mandatory join, so no unresolved request leaks
+into product compilation or publication.
 
 [Scoped execution](scoped_execution.md) defines the execution-profile/product-target
 distinction, deterministic snapshot and staging protocol, and linear output
@@ -30,12 +51,14 @@ authorize a build-time query of that unfinished product or change the build
 entry's own admission. Physical exclusions additionally require complete selected
 mechanism classification before realized-product admission.
 
-Before step 4, discovery interpretation, dependency resolution, target
-filtering, symbol/type resolution, semantic prechecks, and exact dynamic-call
-binding are complete.
-The admitted checkpoint binds the base typed program, prepared specialized
-build projection, operational/reach plans, source snapshot, and authority verdict.
-Execution uses that exact admitted entry, not a later name lookup, and runs once.
+Before step 2, root Build symbol/type resolution, semantic prechecks, and its
+known operational/reach plans are complete. Before any dependency binding is
+installed in step 4, that selected implementation's source resolution, review,
+checking, restricted-request admission, and exact dynamic-call binding are
+complete. The root checkpoint binds its base typed program, prepared Terminal
+entry, source snapshot, and authority verdict; each installed binding carries
+the corresponding admitted dependency checkpoint. Execution uses those exact
+entries, not later name lookup, and the root Build runs once.
 
 Reach, authority roots, retained storage, resource bounds, failure, and
 termination must fit the executor's policy. A blocking operation must expose
@@ -69,11 +92,12 @@ network, credential, or resolver access. Unsupported host operations remain
 unsupported; acceptance cannot create a missing execution protocol.
 
 Checked build contracts expose requests outside that baseline, including requests
-reached through imported helpers or prerequisite dependency build activations.
-No nested call, dependency edge, or accepted runtime permission hides or authorizes
-a build-host action. Retain the originating package, build purpose, operation,
-logical resource scope, bounds, and applicable profile/target context. Delegation
-uses explicitly supplied capabilities and cannot widen their authority.
+reached through local helpers, installed dependency bindings, or prerequisite
+dependency Build activations. No nested call, dependency edge, or accepted
+runtime permission hides or authorizes a build-host action. Retain the originating
+package, build purpose, operation, logical resource scope, bounds, and applicable
+profile/target context. Delegation uses explicitly supplied capabilities and
+cannot widen their authority.
 
 The root selects the filesystem implementation. Descendants receive scoped views
 of that selection, not independent backend choices. Importing a real-filesystem
@@ -87,12 +111,13 @@ are retained in `omega.lock`; the executor separately supplies actual scoped
 resources. Neither lock acceptance nor a callee's own lock manufactures a host
 grant. A root's grant is not automatically available to dependency builds.
 
-Discovery and audit cannot run an unaccepted restricted action merely to learn
-what it requests. Check the authored build closure first; if further checking
-needs such an action, retain a pending review/incomplete audit until acceptance
-and actual grants permit continuation. Generated source is then checked and
-audited normally, not trusted because its generator was accepted. Benign work
-needs no approval ceremony; unchanged accepted requests need no recurring approval.
+Checking and audit cannot run an unaccepted restricted action merely to learn
+what it requests. Check each authored Build or requested binding implementation
+before its first execution; if further checking needs such an action, retain a
+pending review/incomplete audit until acceptance and actual grants permit
+continuation. Generated source is then checked and audited normally, not trusted
+because its generator was accepted. Benign work needs no approval ceremony;
+unchanged accepted requests need no recurring approval.
 
 This governs existing helper delegation and dependency build scheduling; it adds
 no recursive build API or permission to import another activation's build entry.

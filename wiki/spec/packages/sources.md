@@ -1,19 +1,22 @@
 # Package source selection
 
-[Build declarations](../build/declarations.md) define package keys and statically
-projected dependency edges. [Acceptance](acceptance.md) is separate from source
-resolution. A resolver supplies immutable source custody, not approval of the
-package or certification of anything compiled from it.
+[Build declarations](../build/declarations.md) define package keys and
+interpreted dependency requests. [Acceptance](acceptance.md) is separate from
+source resolution. A resolver supplies immutable source custody, not approval of
+the package or certification of anything compiled from it.
 
-Dependency projection is hermetic even when later build staging is not. It
-extracts explicit flat unconditional build and product request sets from each
-package without executing imported code or depending on build-host observations,
-generated files, or dependency build output. Close the graph before downloaded build code receives
-authority. Each dependency's requests remain unknown until its source is resolved.
-Both declared edge sets are the same for every target; target identity cannot
-discover additional dependencies. Checked scheduling, review, generated outputs
-and realization retain purpose, execution profile and requested product target
-under [scoped build execution](../build/scoped_execution.md#two-checked-contexts).
+The application coordinator forwards each exact `depend*` or `build_depend*`
+request when the package's one Build activation emits it. The resolver may begin
+immutable acquisition immediately, but no requested code executes before its
+source, review, checking, and admission complete. A package's further requests
+remain unknown until its own Build activation runs. The graph becomes closed
+only after every activation returns and every outstanding request joins; product
+source compilation consumes that immutable result. No import scan, call-name
+parser, or dependency output manufactures an edge. Both request forms are
+target-independent because Build cannot observe a realization target. Checked
+scheduling, review, generated outputs and realization retain purpose, execution
+profile and requested product target under
+[scoped build execution](../build/scoped_execution.md#two-checked-contexts).
 
 ## Requester-local graph
 
@@ -24,15 +27,16 @@ not across both; there is no cross-scope fallback. Distinct requesters may use
 different aliases for the same key; an ancestor cannot rename dependencies
 inside another package.
 
-Package-aware compilation consumes a closed validated graph of requester-local,
+Package coordination incrementally constructs requester-local,
 purpose-qualified aliases to opaque package keys and canonical source roots.
-The resolver coalesces requests for the same key and exact resolution while
-constructing this graph, before build execution or source compilation. A DAG
-does not itself ensure uniqueness: repeated edges must point to the same node,
-and conflicting resolutions and cycles reject. A diamond through two libraries
-to the same std therefore has one std owner, not two copied declarations.
-Checked build instances may still differ by host/product context or target.
-Those instances do not rename the package's declarations.
+The resolver coalesces requests for the same key and exact resolution as they
+arrive. Before installing a requested `Binding<R>`, and again at final join, the
+coordinator rejects conflicting resolutions and cycles. Repeated edges must
+point to the same node. A diamond through two libraries to the same std therefore
+has one std owner, not two copied declarations. Checked build instances may
+still differ by host/product context or target. Those instances do not rename
+the package's declarations. Product compilation receives only the final closed,
+validated graph.
 
 The standalone compiler handoff serializes this same canonical source-lineage
 structure and uses the same package-key identity algorithm. Local aliases and
@@ -41,15 +45,18 @@ second origin identity. See the
 [shared package identity contract](../build/compiler_request.md#shared-package-identity)
 for the encoding obligation and pre-release format policy.
 
-Graph preparation also establishes [anonymous root identities](../build/declarations.md#default-builds-and-anonymous-owner-identity),
-working dependency-first over exact source inputs, without compiling outputs or
-consulting a historical build catalog. Compilation carries those owners forward;
-it does not rediscover them from paths, import spelling or missing package fields.
-Import discovery does not combine package-authored dependency rows. Paths route source loading; they
-are not nominal identity. Orchestration re-roots each package at exactly its
-transitive subgraph in the applicable context and compiles prerequisite-first.
-Acquisition may share exact source custody; that does not merge checked host and
-product instances or make a helper's own build dependencies its library imports.
+After final graph closure, coordination establishes
+[anonymous root identities](../build/declarations.md#default-builds-and-anonymous-owner-identity),
+working dependency-first over exact source inputs without compiling product
+outputs or consulting a historical build catalog. An invocation-private Build
+activation identity never substitutes for that owner. Compilation carries final
+owners forward; it does not rediscover them from paths, import spelling or
+missing package fields. Import discovery does not combine package-authored
+dependency requests. Paths route source loading; they are not nominal identity.
+Orchestration re-roots each package at exactly its transitive subgraph in the
+applicable context and compiles product prerequisites first. Acquisition may
+share exact source custody; that does not merge checked host and product
+instances or make a helper's own build dependencies its library imports.
 
 The Rust focused-file compatibility entrance resolves root-relative and
 toolchain imports only; package aliases require the validated package-aware
@@ -63,8 +70,8 @@ standalone compiler's sealed request protocol.
 Acquisition selects a repository and revision. Package selection separately
 normalizes to `Root` or `Named(PackageName)` and does not enter `SourceIdentity`.
 Several members at one revision therefore share one verified fetch/tree.
-Named selection uses only the verified root's statically declared members and
-requires exactly one matching package declaration. The selected member path
+Named selection uses only members emitted by the verified root's admitted Build
+activation and requires exactly one matching package declaration. The selected member path
 remains navigation/replay custody and the base for relative dependencies, not
 package-key identity.
 

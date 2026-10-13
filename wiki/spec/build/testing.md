@@ -31,7 +31,8 @@ service/provider operands of `service`, use the existing
 They resolve under the author's product scope to exact declaration applications,
 not host imports, strings, spelling matches, or evaluator table indices. A
 same-named user machine gains no product-selection privilege. Registration is
-evaluated configuration after dependency discovery, not a new dependency edge.
+evaluated configuration in the same Build activation, not a new dependency edge.
+Its product references remain inert until the final dependency join.
 
 Each registration creates one group for the current package occurrence and
 selected target. Its configuration remains owned by that Build activation;
@@ -113,7 +114,7 @@ Groups are enabled on registration. `group.disabled` and
 `builder.tests.disabled` default to false, so ZII configuration does not silently
 disable testing. Effective enablement requires neither disable flag to be set.
 Configuration may use ordinary admitted build computation and explicit inputs;
-it does not make dependency discovery conditional or grant ambient environment
+it does not make dependency requests target-dependent or grant ambient environment
 access. This contract introduces no debug/release mode or special CLI profile.
 
 `service<Requirement, Provider>()` requests a checked provider selection within

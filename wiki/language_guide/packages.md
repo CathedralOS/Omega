@@ -11,15 +11,21 @@ No `build.omg` means default build configuration, not missing ownership. A loose
 root defaults to an application; executable output still needs ordinary target
 entry and provider selections. There is no special entry discovered merely by
 the name `main`, and default configuration grants no extra build-host authority.
-An already resolved package keeps its supplied role and owner.
+An already resolved package keeps its supplied role and owner. The compiler
+supplies ordinary Build source and runs it through the same one-entry execution,
+dependency join, and freeze path as an authored file.
 
-Dependency requests are resolved before build execution. Two libraries referring
-to the same resolved std instance share one graph node and its declarations;
-each consumer does not create another std. Different host/target build instances
-can still be required for that one owner.
+Dependency requests begin resolving when Build execution emits them. Recording a
+request does not wait; typed build-code acquisition may suspend the same Build
+continuation, and Build return joins every outstanding request before product
+compilation. Two libraries referring to the same resolved std instance share one
+graph node and its declarations; each consumer does not create another std.
+Different host/target build instances can still be required for that one owner.
 
-When a root has no supplied package identity, the compiler uses a content-derived
-owner from its captured source, exact dependencies and semantic build inputs.
+When a root has no supplied package identity, it uses an invocation-private
+identity while Build runs. After dependency requests join, the compiler derives
+the portable owner from captured source, exact dependencies and semantic build
+inputs.
 Published artifacts retain that owner and their declaration identities:
 
 ```text
@@ -50,7 +56,7 @@ An executable uses `Build::application(builder, "name")`; a workspace lists
 `Build::member(builder, "path")` calls. Package and application names use lowercase
 underscore-separated words. The default alias is the declared name unchanged;
 use `--as` to choose another. See
-[build declarations](../spec/build/declarations.md) for identity and projection.
+[build declarations](../spec/build/declarations.md) for identity and execution.
 
 Renaming a package changes its key, even when its directory and source locator
 stay the same. Existing locks require a fresh update/review after a declaration
@@ -59,7 +65,9 @@ declarations are not accepted through an implicit spelling conversion.
 
 Product dependencies use `depend`/`depend_as`; build-only helpers use
 `build_depend`/`build_depend_as`. They are separate checked scopes, including
-when the same library is used in both. The
+when the same library is used in both. Build code obtains a dependency helper
+through `suspend Build::binding<R>` after declaring its build edge; the edge does
+not make unresolved static package paths visible. The
 [build dependency guide](chapter_15_modules_imports_visibility.md#build-and-product-dependencies)
 explains target separation, helper imports, and explicit legacy migration.
 Purpose-aware installation/lock support is implementation work; the current

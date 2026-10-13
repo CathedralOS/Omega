@@ -124,17 +124,24 @@ machine build(builder: &mut Build) {
 
     let inputs = deployment_inputs(&mut builder.source);
     let output = builder.output.require("payments.plan");
-    compose_payments(inputs, output);
+  let topology: Binding<TopologyBuild> =
+    suspend Build::binding<TopologyBuild>(builder, "topology");
+  compose_payments(topology, inputs, output);
 }
 ```
 
-The local deployment helper imports `topology::policies` in its own source file.
-`deployment_inputs` captures the three exact component artifacts from permitted
-snapshot inputs and supplies explicit policy/storage configuration. The topology
-helper receives those values and one output obligation, not the root builder,
-resolver credentials, or general host filesystem access. Extra runtime transport
-packages are declared independently by their actual consumers. Package builds do
-not get installer authority merely because their output describes installation.
+`TopologyBuild` is a requirement already known when this Build is checked. The
+dependency request may proceed while `deployment_inputs` performs local work;
+typed acquisition suspends only if the admitted implementation is not installed
+yet. The local deployment helper receives that restricted binding rather than
+statically importing unresolved dependency paths. Its invocation spelling
+follows the independent binding call rule. `deployment_inputs` captures the
+three exact component artifacts from permitted snapshot inputs and supplies
+explicit policy/storage configuration. The topology helper receives those
+values and one output obligation, not the root builder, resolver credentials,
+or general host filesystem access. Extra runtime transport packages are
+declared independently by their actual consumers. Package builds do not get
+installer authority merely because their output describes installation.
 
 The package algorithm is ordinary code, schematically:
 
@@ -190,7 +197,7 @@ inputs; they do not become source dependencies on application-role packages.
 Artifact compatibility never requires merging their source trees. Component
 packages may alternatively produce the same admitted inputs through existing
 build staging. Generated artifacts cannot alter the build's already-admitted
-source or dependency discovery.
+source roster or emit dependency requests.
 
 ## Component contract and identity
 

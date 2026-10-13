@@ -2058,30 +2058,40 @@ then independent claimed restoration slices -> final closure.
   the actual transitive Build/core/stdlib requirements of the seed before
   selecting its scope; a minimal source file does not imply a trivial Build.
   Retire static syntax projection as a second Build language. Put project-role
-  and dependency discovery operations in ordinary `omega::core` boundary
-  traits/machines with compiler/package-manager host implementations. The
-  compiler constructs a core-only discovery program from the one Build entry
-  ([build declarations](wiki/spec/build/declarations.md)): the role and
-  dependency requests it makes, with the local helpers and control flow that
-  compute them. It runs in the Terminal interpreter against the
-  Build-discovery boundary and emits role/product/build dependency effects;
-  package management resolves that graph, then the complete Build entry is
-  checked with its dependencies, admitted and run once
-  ([execution order](wiki/spec/build/execution.md#admission-before-execution)).
-  `bind`, `select_provider`, `assume_binding_contract` and test registration
-  are admitted Build operations whose product operands resolve in the product
+  and dependency request operations in ordinary `omega::core` boundary
+  traits/machines with compiler/package-manager host implementations. Compile
+  the one free Build entry against core, package-local Build code and pre-known
+  binding requirements, then run it once in the Terminal interpreter with one
+  mutable `Build`. `depend` and `build_depend` operations record exact requests
+  and may start package work without suspending the activation. When Build code
+  needs a helper, `suspend Build::binding<R>(builder, alias)` parks that exact
+  continuation until package management resolves/reviews the request, recursively
+  activates dependency Builds and Psi admits the selected implementation. The
+  interpreter installs `Binding<R>` and resumes without replay. Helpers and
+  control flow are ordinary checked Omega, not direct-call syntax recognized by
+  Rust. Static paths from a newly requested dependency remain unavailable to the
+  root's initial checking; binding invocation spelling remains owned by the
+  independent named-implementation decision.
+  `bind`, `select_provider`, `assume_binding_contract` and test registration are
+  admitted Build operations whose product operands resolve in the product
   context ([scoped execution](wiki/spec/build/scoped_execution.md#selecting-product-declarations-without-executing-them));
-  they are not part of the discovery program, so the seed's
-  `Build::bind(..., Main::main)` calls run only in the complete Build. Helpers and control flow are
-  ordinary checked Omega, not direct-call syntax recognized by Rust.
+  they remain inert during Build and resolve at the final join rather than
+  becoming dependency discovery or executing product bodies.
   A missing `build.omg` is compiler-constructed ordinary source for the same
-  discovery/Build contracts, not a separate `BuildConfig::default()` semantic
-  route. Keep discovery deterministic, bounded and authority-explicit; it may
-  only use local/core code and supplied inputs before dependencies exist.
+  one-entry request/binding/join contract, not a separate
+  `BuildConfig::default()` semantic route. Keep execution deterministic, bounded
+  and authority-explicit. Product selections may retain inert references while
+  dependency work proceeds, but no product body executes during Build. On Build
+  return, join every outstanding request, reject failed/cyclic/unadmitted edges,
+  resolve product references and freeze the output before product compilation.
   Product description queries do not execute product bodies. Preserve
   **BUILD-EVALUATES-ONCE**, pre-effect admission and all-target authored rows;
   do not retain a feature/fixture-specific Build evaluator.
-  Preserve the seed and invalid acceptance below.
+  Preserve the seed and invalid acceptance below. Add acceptance for a request
+  emitted from a local helper/conditional, an unused build dependency completing
+  without suspension, typed acquisition parking and resuming once, recursive
+  dependency Build activation, and cycle/failure rejection at binding install
+  and final join. An unresolved static dependency import must reject.
   Owners: `omega-rust/omega/compilation/build-evaluation/src/`, Psi compile-time
   admission, exact Build catalog contracts and Terminal lowering/adapters.
   Acceptance on Windows and macOS: `mbx check -p omega`; ordinary source check
@@ -2095,8 +2105,11 @@ then independent claimed restoration slices -> final closure.
   `omega-rust/omega/packages/build-declarations`; that parser is migration debt,
   not the retained architecture. Delete its role/dependency call-name grammar,
   package-manager projection consumers and fixture copies after the interpreted
-  discovery entry carries the same exact identities. Update the Build
-  declaration/execution specs in that landing. The seed's
+  Build activation carries the same exact identities. Implement application
+  coordination for asynchronous dependency jobs and final join, package-manager
+  resolution/review, Psi requirement admission, and Terminal continuation plus
+  binding installation as their existing owners rather than another Build
+  driver. The seed's
   runtime work is its four authored `Build::bind` rows. Unpublished source
   preparation carries generalized `RootBinding` plans, exact declaration
   coordinates and authenticated original Build inputs through the common core;
@@ -5338,12 +5351,12 @@ wait for Cathedral's instruction coverage. The interpreter is
 
   - Default builds and anonymous owners
     ([spec](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)):
-    The interpreted discovery/default-source prerequisite is the constructed
-    core-only discovery program above; owner/identity/resolution joins are
-    engineering.
     `omega-rust/omega/packages/compilation-inputs/src/source_imports/frontier.rs`
     leaves loose roots without package identity. Derive the versioned anonymous
-    content record before build execution; keep supplied package/core owners;
+    content record after the one Build activation's dependency requests join and
+    before product source compilation. Use an invocation-private activation
+    identity only for Build state/continuations; never publish it as a declaration
+    owner. Keep supplied package/core owners;
     deduplicate dependency nodes while keeping separate host/target build
     instances. A missing build uses default configuration, with no catalog,
     host-path identity, ambient authority or special `main` discovery. Carry

@@ -12,58 +12,81 @@ in `omega.lock`; they cannot approve those requests themselves. Build selections
 also cannot choose an external ecosystem's receiving policy. Producing a binary
 requires no such policy declaration.
 
-Project discovery is itself interpreted Omega, not a privileged syntax subset.
-The compiler constructs a core-only discovery program from `build.omg`, checks
-it through the Psi driver and runs its Terminal artifact against the
-toolchain-owned `omega::core` Build-discovery boundary. That first program may
-use local helpers and control flow but no dependency code; its explicit inputs,
-effects and resource bounds are part of admission. It emits the root role and
-product/build dependency requests. Package management resolves and reviews that
-graph, then the compiler checks and interprets the complete Build program with
-those dependencies available. No Rust parser recognizes Build call names to
-decide project semantics.
+Project description is one interpreted Omega activation, not a privileged
+syntax subset or a pair of programs. The compiler checks `build.omg` through the
+Psi driver against toolchain-owned `omega::core`, package-local Build code, and
+interfaces known before dependency resolution. It then runs the Terminal
+artifact exactly once with one fresh mutable `Build`. Local helpers, control
+flow, explicit inputs, effects, and resource bounds use ordinary checking and
+admission. No Rust parser recognizes Build call names to decide project
+semantics.
+
+`Build::depend*` and `Build::build_depend*` record exact dependency requests and
+may start package resolution, review, compilation, and admission without
+suspending the activation. Product dependencies grant no callable authority to
+Build code. Code from a build dependency enters through
+`suspend Build::binding<R>(builder, alias)`, where the pre-known requirement `R`
+defines its callable surface and effect, reach, and resource bounds. Acquisition
+returns an already installed `Binding<R>` immediately or preserves the same
+Terminal continuation while package coordination recursively activates
+dependency Builds and Psi admits the selected implementation. The interpreter
+installs that typed binding and resumes without replaying any Build effect.
+Binding invocation follows the independent language call rule; acquisition does
+not define another call spelling.
+
+When `build` returns, package coordination joins every outstanding dependency
+request, rejects failed, cyclic, unresolved, or unadmitted edges, and freezes
+the normalized Build. Product selections may carry unresolved product
+references while the activation is running, but those references are inert and
+must resolve before the result freezes. Product bodies never execute during
+Build; product compilation starts only after the join.
 
 ## Project role
 
 A selected `build.omg` has exactly one free
 `machine build(builder: &mut Build)` entry. Its kind is explicit:
 
-| Discovery result | Role |
+| Build result | Role |
 | --- | --- |
 | `Build::package(builder, "name")` | Package |
 | `Build::application(builder, "name")` | Application |
 | One or more `Build::member(builder, "path")` calls | Workspace |
 
-One interpreted discovery execution must produce exactly one
-package/application declaration or the workspace member set. Mixed, missing,
-duplicate, and noncanonical results reject.
+The one interpreted activation must produce exactly one package/application
+declaration or the workspace member set. Mixed, missing, duplicate, and
+noncanonical results reject.
 `Owner::build` is not a project root and cannot acquire a synthesized receiver.
 An ordinary same-spelled machine remains ordinary source.
 
 With no selected `build.omg`, the compiler supplies ordinary default Build
-source and runs it through the same discovery and complete-Build routes. No file
-need be written. A standalone loose root defaults to application role; an
-already resolved package retains its supplied role and owner. Checking source
-does not require an executable entry. Executable output still needs ordinary
-target-slot selections and provider checks; the default does not discover a
-machine named `main` or bypass [entry admission](entry_roots.md).
+source and runs it through the same one-entry checking, interpretation, join,
+and freeze route. No file need be written. A standalone loose root defaults to
+application role; an already resolved package retains its supplied role and
+owner. Checking source does not require an executable entry. Executable output
+still needs ordinary target-slot selections and provider checks; the default
+does not discover a machine named `main` or bypass
+[entry admission](entry_roots.md).
 
 `package`, `application`, `member`, `depend`, `depend_as`, `build_depend`, and
-`build_depend_as` are compiler-supplied boundary operations in the discovery
-environment. Product and build dependency sets remain separate; aliases are
-unique within each scope, with no cross-scope fallback. The interpreted result,
-not source spelling, determines the requested graph. Default configuration does
-not discover undeclared dependency edges from imports. Package tooling edits
+`build_depend_as` are compiler-supplied boundary operations on the mutable Build
+output. Product and build dependency sets remain separate; aliases are unique
+within each scope, with no cross-scope fallback. The interpreted result, not
+source spelling, determines the requested graph. Default configuration does not
+discover undeclared dependency edges from imports. Package tooling edits
 ordinary Build source when persisting dependency changes to a loose project.
 
 `depend`/`depend_as` authorize product imports; `build_depend`/`build_depend_as`
-authorize imports in the build entry and its local helpers. An imported host
-library uses its own ordinary dependencies in that host context. Using a package
-in both contexts requires both edges, including std. Legacy locks cannot imply
-a missing edge. [Scoped execution](scoped_execution.md#two-checked-contexts)
-defines purpose-specific scheduling, acquisition reuse, provenance, and migration.
+request a host-profile implementation eligible for typed binding acquisition in
+the build entry and its local helpers; only successful `Build::binding<R>`
+acquisition yields callable code. A newly requested package's static paths are
+unavailable when that entry is first checked; `R` and the acquisition site must
+be meaningful before the package resolves. The host library uses its own ordinary
+dependencies in that host context. Using a package in both contexts requires
+both edges, including std. Legacy locks cannot imply a missing edge.
+[Scoped execution](scoped_execution.md#two-checked-contexts) defines
+purpose-specific scheduling, acquisition reuse, provenance, and migration.
 
-Applications default to executable output. The complete Build program may
+Applications default to executable output. The Build activation may
 request `artifact_only` once for an application, never a package/workspace. It
 requires at least one completed required artifact and rejects executable
 root/provider selections. It is not a new role or target profile.
@@ -109,9 +132,12 @@ supplied by the resolved source graph or an imported artifact. Core retains its
 toolchain owner; ordinary std retains its resolved package owner. Neither shares
 an absent-owner key with the root, and repeated imports never mint fresh owners.
 
-A genuinely anonymous root receives a content-derived owner before build
-execution and source compilation. Its key is a domain-separated strong digest
-of a versioned canonical record containing:
+A genuinely anonymous root uses an invocation-private activation identity while
+its Build runs. That identity scopes mutable state, continuations, diagnostics,
+and dependency requests but never becomes a declaration owner or portable
+artifact identity. After Build returns and every dependency request joins, the
+root receives a content-derived owner before product source compilation. Its key
+is a domain-separated strong digest of a versioned canonical record containing:
 
 - The complete captured source snapshot, with root-relative paths and exact
   bytes under [source capture](../packages/sources.md#local-source-capture).
@@ -149,11 +175,13 @@ nor execution authority.
 
 ## Evaluated build work
 
-After graph closure, helpers may borrow the root Build value for provider
-selection, root binding, staging, and other evaluated work. Authority follows
-that value and the checked call graph, not a helper name or receiver spelling.
-Transitive reach, invocation, blocking/suspension, termination, observations, and
-authority demands compose into the root's published ceiling.
+Local and package-owned helpers may borrow the root Build value for dependency
+requests, provider selection, root binding, staging, and other evaluated work.
+Build-dependency helpers enter through `Build::binding<R>` only after their
+implementation has been admitted. Authority follows the value, requirement, and
+checked call graph, not a helper name or receiver spelling. Transitive reach,
+invocation, blocking/suspension, termination, observations, and authority
+demands compose into the root's published ceiling.
 
 `Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)` is an
 evaluated root-authorized product selection under the

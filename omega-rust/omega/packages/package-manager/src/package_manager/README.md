@@ -134,11 +134,14 @@ review or decision recovery.
 It does not roll back accepted files or discard publication recovery. Every
 operation recovers pending commit intent before using the accepted pair.
 
-Dependency discovery and complete graph resolution precede build execution.
-An I/O-derived source locator or missing transitive package rejects before any
-build logging or input reads. Candidate builds use the existing scoped evaluator:
-source reads, disposable output writes, and compiler logging are possible before
-a later rejection.
+The application coordinator submits dependency requests as Build execution emits
+them; package management does not run or scan Build source to discover a graph.
+It resolves and reviews each immutable request before an implementation can be
+installed as a typed Build binding. The graph becomes complete only when every
+Build has returned and all outstanding requests join. A missing transitive
+package may therefore reject after earlier benign Build observations or
+disposable staging writes, but no failed graph publishes a result. Candidate
+builds use the existing scoped evaluator.
 Runtime boundary services and resolver credentials are not supplied to builds.
 Source and output paths stay relative to their compiler-supplied roots; absolute
 paths and parent traversal reject. Publication checks build-input content even

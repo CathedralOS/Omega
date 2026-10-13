@@ -108,7 +108,7 @@ can only be attenuated; selecting a real provider cannot escape virtual backing.
 The group and global `disabled` fields default to false. No registered groups
 means no automatic tests, not an implicit core/std dependency or hidden group.
 Group selection belongs to evaluated build configuration; it does not change
-the unconditional dependency-discovery rules.
+the target-independent dependency-request and final-join rules.
 
 ## Behavior exclusions
 
@@ -116,7 +116,7 @@ The root may require the selected product to exclude exact crash causes, abstrac
 boundary services, or existing physical authority classes. These are additional
 admission requirements, empty by default, independent of provider permission and
 ordinary callable contracts. Repeated exclusions combine monotonically by union.
-They are evaluated product selections, not dependency-discovery declarations.
+They are evaluated product selections, not dependency requests.
 
 [Behavior exclusions](behavior_exclusions.md) defines the complete execution scope,
 evidence, failure outcomes, and installation obligations. A verified selected
@@ -140,7 +140,7 @@ and do not define a support matrix.
 A CLI Host convenience selects the realization set before semantic
 evaluation; Host is not artifact identity. The Build does not observe a
 selected target: target-dependent selections are rows keyed by target, and
-dependency discovery cannot branch on a target. Target schemas and
+dependency requests cannot branch on a target. Target schemas and
 observation vocabulary are closed and toolchain-owned; concrete profiles come
 from validated target packages in the selected toolchain closure, not authored
 reinterpretation or a forever-fixed compiler enum. Use exact canonical spellings,

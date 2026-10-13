@@ -29,11 +29,11 @@ root, not part of one combined dependency graph. An application can depend on
 packages, but cannot itself be imported as a library.
 
 The build root is a free `machine build(builder: &mut Build)`, not an attached
-`Owner::build`. The compiler checks and interprets its core-only discovery
-closure first; that execution emits project kind, members, and dependency
-requests before package resolution. The complete Build closure runs after those
-dependencies resolve. Helpers and control flow are ordinary checked Omega in
-both closures; discovery cannot call dependency code it has not obtained yet.
+`Owner::build`. The compiler checks it against core, package-local Build code,
+and pre-known dependency requirements, then interprets it once with one mutable
+`Build`. Helpers, control flow, and dependency requests are ordinary checked
+Omega. A dependency request can begin resolving while the Build continues; no
+second entry, statement prefix, or replay discovers the graph.
 
 A package name is not globally unique. Its stable identity combines its declared
 name with its source lineage. A revision identifies the selected source, not a
@@ -56,7 +56,8 @@ proof, reach, or artifact checks.
 ### Build and product dependencies
 
 Use `depend`/`depend_as` for product code and `build_depend`/`build_depend_as`
-for build-only libraries. Both are explicit discovery effects:
+for build-only libraries. Both record exact requests without waiting for the
+requested package:
 
 ```omega
 machine build(builder: &mut Build) {
@@ -67,22 +68,40 @@ machine build(builder: &mut Build) {
     Build::depend_as(builder, "tables", Source::Path {
         location: "../table-protocol"
     });
-    configure_products(builder);
+
+    configure_local_products(builder);
+
+    let generator: Binding<TableGenerator> =
+        suspend Build::binding<TableGenerator>(builder, "generator");
+    generate_tables(builder, generator);
 }
 ```
 
 This illustrates the specified dependency surface, not a claim of current
-compiler support or a complete runnable build. The local `configure_products`
-helper can import `generator`; product source cannot. Generated code using
-`tables` needs the ordinary product edge. Using std or another library in both
-contexts requires both declarations. A build library uses its own ordinary
-dependencies for its host implementation, not the consumer's product aliases.
+compiler support or a complete runnable build. `configure_local_products` may
+run while package work proceeds. `TableGenerator` is a requirement already
+known when this Build is checked. Binding acquisition returns immediately when
+its admitted implementation is installed or suspends and resumes this same
+continuation when it becomes available. The generator's call spelling is the
+ordinary binding call rule. Product source cannot use this build-only binding.
+Generated code using `tables` needs the ordinary product edge. Using std or
+another library in both contexts requires both declarations. A build library
+uses its own ordinary dependencies for its host implementation, not the
+consumer's product aliases.
 
 Imports remain file-local. Build helpers can live in ordinary local files;
 importing a file in both contexts checks it twice under the corresponding scope.
-Two scopes may use the same alias differently without lookup fallback. A legacy
-`depend` remains product-only; missing build edges need explicit declarations,
-not permission inferred from an old lock or dead-code elimination.
+A static import or call into a newly requested build dependency rejects because
+that package was not available when the root Build was checked; declaring an
+alias does not retroactively alter name resolution. Two scopes may use the same
+alias differently without lookup fallback. A legacy `depend` remains
+product-only; missing build edges need explicit declarations, not permission
+inferred from an old lock or dead-code elimination.
+
+When `build` returns, the compiler waits for every outstanding request and
+rejects failed, cyclic, unresolved, or unadmitted dependencies before compiling
+product source. Declaring a dependency is therefore fire-and-forget within the
+Build activation, not optional in the final result.
 
 The build evaluator's execution profile and the product target are distinct.
 A macOS helper generating Windows code is checked for the build execution profile,

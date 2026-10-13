@@ -628,8 +628,9 @@ into the root.
 
 The [scoped build contract](../spec/build/scoped_execution.md) requires an exact
 captured input inventory, no implicit symlink traversal, deterministic logical
-metadata, and fresh append-and-seal staging. A build dependency grants code
-nameability, not host authority. Pass narrowed inputs and linear required-output
+metadata, and fresh append-and-seal staging. A build dependency makes an admitted
+implementation eligible for explicit typed binding; it grants neither static
+nameability nor host authority. Pass narrowed inputs and linear required-output
 obligations to helpers; borrowing the whole builder delegates its operations.
 No new successful result set is published after a required output fails or final
 product checking rejects. These requirements are not a claim that every current
