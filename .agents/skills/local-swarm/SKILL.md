@@ -30,8 +30,10 @@ distinct outcomes, not disjoint files. Compiler capabilities and measured
 iteration-performance/test-environment incidents are eligible. Preserve explicit
 parked scope; idle rather than mine tasks or invent audits.
 
-Use `tools/swarm/waves/local-example.json`: one session name, board item and
-path estimate per outcome. Keep active IDs stable. `owning_paths` is a
+Use `tools/swarm/waves/local-example.json`: one session name, sample
+(`"sample": "samples/..."`, whose authored oracle is the acceptance) and path
+estimate per outcome; name a board item instead only for work outside any
+sample. Keep active IDs stable. `owning_paths` is a
 compatibility name for advisory estimates. Layers represent real dependencies,
 not a requirement to serialize file overlaps.
 

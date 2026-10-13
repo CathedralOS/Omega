@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Coordinate a wave of sessions, each advancing one board item.
+"""Coordinate a wave of sessions, each making one sample run end to end.
 
-Why pre-assignment exists: the repository's advance skill selects its own work
-from the execution boards, which is correct for one agent and a collision when
-N sessions start at once. The manifest is the coordinator's partitioning
-decision: one session, one named board item, one set of owning paths. Sessions
-then run the ordinary advance protocol end to end, including landing through
-tools/landing.py; the swarm adds nothing to the boards themselves.
+Why pre-assignment exists: the repository's advance skill selects its own
+sample from the queue, which is correct for one agent and a collision when N
+sessions start at once. The manifest is the coordinator's partitioning
+decision: one session, one sample (or, for work outside any sample, one named
+board item), one set of owning paths. A sample session's acceptance is the
+sample compiling and running natively with its authored oracle on main; the
+session makes every repair that needs and lands it through tools/landing.py.
+The swarm adds nothing to the boards themselves.
 
 Sessions are either Devin Cloud agents (host "linux"; plan/launch/status/report)
 or local agents on this machine (host "local"; the `local` subcommand). A local
@@ -46,16 +48,17 @@ import urllib.request
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import claims
 import corpus_scoreboard
+import sample_native_gate
 import typesafe_key
 import qualification
 
 DEFAULT_BASE_URL = "https://api.devin.ai/v3"
 BOARDS = ("TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md")
 MAX_ATTEMPTS = 3
-PROMPT_FIELDS = ("name", "wave", "item", "board", "owner_label", "exclusions",
+PROMPT_FIELDS = ("name", "wave", "customer_block", "owner_label", "exclusions",
                  "max_acu_limit", "suggested_first_slice_block",
                  "probe_block", "claim_command", "structured_output_schema")
-LOCAL_PROMPT_FIELDS = ("name", "wave", "item", "board", "owner_label",
+LOCAL_PROMPT_FIELDS = ("name", "wave", "customer_block", "owner_label",
                        "repository", "worktree", "branch", "claim_command",
                        "wave_items", "exclusions", "build_tool", "host_block",
                        "suggested_first_slice_block", "probe_block",
@@ -179,10 +182,14 @@ def validate_manifest(manifest, repository):
     names = set()
     for session in sessions:
         where = f"session {session.get('name', '?')!r}"
-        require_fields(session, ("name", "board", "item", "host", "owning_paths"), where)
+        if "sample" in session:
+            require_fields(session, ("name", "sample", "host", "owning_paths"), where)
+            validate_sample_session(session, repository)
+        else:
+            require_fields(session, ("name", "board", "item", "host", "owning_paths"), where)
         if session["item"] in exclusions or session["name"] in exclusions:
             raise SwarmError(f"{session['name']}: item {session['item']} is in exclusions.")
-        if session["board"] not in BOARDS:
+        if session["board"] is not None and session["board"] not in BOARDS:
             raise SwarmError(f"{session['name']}: unknown board {session['board']!r}; "
                              f"expected one of {', '.join(BOARDS)}.")
         if session["host"] not in ("linux", "local"):
@@ -219,13 +226,14 @@ def validate_manifest(manifest, repository):
         if outcome in assigned:
             raise SwarmError(f"Outcome {session['item']} already assigned in layer {layer}")
         assigned.add(outcome)
-        board_text_path = repository / session["board"]
-        if not board_text_path.is_file():
-            raise SwarmError(f"{session['name']}: board file {session['board']} not found.")
-        marker = f"**{session['item']}.**"
-        if marker not in board_text_path.read_text(encoding="utf-8", errors="replace"):
-            raise SwarmError(f"{session['name']}: item {session['item']} not found "
-                             f"in {session['board']} (no {marker!r} marker).")
+        if session["board"] is not None:
+            board_text_path = repository / session["board"]
+            if not board_text_path.is_file():
+                raise SwarmError(f"{session['name']}: board file {session['board']} not found.")
+            marker = f"**{session['item']}.**"
+            if marker not in board_text_path.read_text(encoding="utf-8", errors="replace"):
+                raise SwarmError(f"{session['name']}: item {session['item']} not found "
+                                 f"in {session['board']} (no {marker!r} marker).")
         try:
             classification = qualification.work_classification(session)
             if classification["kind"] == "semantic":
@@ -241,6 +249,48 @@ def validate_manifest(manifest, repository):
         except (qualification.RecoveryError, KeyError, TypeError, ValueError) as error:
             raise SwarmError(f"{session['name']}: missing/stale work context: {error}") from error
     return sessions
+
+
+def validate_sample_session(session, repository):
+    """A sample session names a runnable program under samples/ whose header
+    states its oracle. The sample path becomes the claimed item; there is no
+    board row, because the sample running is the acceptance."""
+    if "board" in session or "item" in session:
+        raise SwarmError(f"{session['name']}: a sample session names its sample, "
+                         "not a board or item.")
+    try:
+        sample = claims.normalize_path(session["sample"])
+    except claims.ClaimsError as error:
+        raise SwarmError(f"{session['name']}: {error}") from error
+    entry = repository / sample / "main.omg"
+    if not sample.startswith("samples/") or not entry.is_file():
+        raise SwarmError(f"{session['name']}: sample {sample} must be a samples/ "
+                         "project with a main.omg entry.")
+    exit_code, output = sample_native_gate.oracle(str(repository / sample))
+    if exit_code is None and output is None:
+        raise SwarmError(f"{session['name']}: sample {sample} states no `Expected "
+                         "exit` or `Expected output contains` oracle, so it has no "
+                         "acceptance to run toward.")
+    session["sample"] = sample
+    session["item"] = sample
+    session["board"] = None
+    session["oracle"] = (f"exit {exit_code}" if exit_code is not None
+                         else f"output containing {output!r}")
+
+
+def customer_block(session):
+    """The assignment sentence the prompt opens with."""
+    if session.get("sample"):
+        return (f"Your customer is sample `{session['sample']}`. Acceptance is "
+                f"`omega run {session['sample']}/main.omg` compiling and running "
+                f"natively with its authored oracle ({session['oracle']}) on main, "
+                "with every compiler, library and fixture repair it needs landed "
+                "and its invalid controls still rejecting. Read its header and "
+                "README from fresh `origin/main`; another session may have moved it.")
+    return (f"Your customer is board item **{session['item']}** in "
+            f"`{session['board']}`. Read its current text from fresh `origin/main`, "
+            "not from this prompt; the board may have moved since this prompt "
+            "was written. Its acceptance criteria govern.")
 
 
 def run_host_gates(repository, session):
@@ -366,7 +416,7 @@ def load_manifest(path, repository):
 def freshness_probe(repository, session, crates=None):
     """Informational only: how hot each owning path and the board file are."""
     lines = []
-    paths = list(session["owning_paths"]) + [session["board"]]
+    paths = list(session["owning_paths"]) + ([session["board"]] if session["board"] else [])
     for path in paths:
         last = git(repository, "log", "-1", "--format=%ad,%an", "--date=short",
                    "--", path)
@@ -514,6 +564,8 @@ def jev_fence_verdict(item_name, item_text, owning_paths):
 def item_section(repository, board, item):
     """The item's board text block: marker line through the next top-level
     item or heading. Path/crate mentions and dependency language live here."""
+    if board is None:
+        return ""
     board_path = repository / board
     if not board_path.is_file():
         return ""
@@ -660,7 +712,8 @@ def session_blocks(session):
 def claim_command(session, owner_label, lease_minutes=None):
     paths = " ".join(f"--path {path}" for path in session["owning_paths"])
     lease = (f" --lease-minutes {lease_minutes}" if lease_minutes else "")
-    return (f"python3 tools/claims.py claim --board {session['board']} "
+    board = f"--board {session['board']} " if session["board"] else ""
+    return (f"python3 tools/claims.py claim {board}"
             f"--item {session['item']} --owner \"{owner_label}\""
             + (f" {paths}" if paths else "") + lease)
 
@@ -696,8 +749,7 @@ def render_prompt(template, manifest, session):
     values = {
         "name": session["name"],
         "wave": manifest["wave"],
-        "item": session["item"],
-        "board": session["board"],
+        "customer_block": customer_block(session),
         "owner_label": owner_label,
         "claim_command": claim_command(session, owner_label),
         "exclusions": ", ".join(manifest["exclusions"]) or "(none)",
@@ -782,8 +834,7 @@ def render_local_prompt(template, manifest, session, repository, state):
     values = {
         "name": session["name"],
         "wave": manifest["wave"],
-        "item": session["item"],
-        "board": session["board"],
+        "customer_block": customer_block(session),
         "owner_label": owner_label,
         "repository": str(repository),
         "worktree": str(state["worktree"]),

@@ -1,14 +1,12 @@
 # Swarm wave {wave} session: {name}
 
-You are one session of a coordinated wave. Your customer is board item
-**{item}** in `{board}`. Read its current text from fresh `origin/main`, not
-from this prompt; the board may have moved since this prompt was written.
+You are one session of a coordinated wave. {customer_block}
 
 Read `AGENTS.md` fully, then run the `advance` skill
-(`.agents/skills/advance/SKILL.md`) restricted to this item. Do not select
-another item.
+(`.agents/skills/advance/SKILL.md`) restricted to this customer. Do not select
+other work.
 
-## Complete outcome ownership
+## Finish the whole path
 
 Apply the law of completion in `AGENTS.md`. Your superhuman advantage is
 carrying the entire difficult task end to end. Difficulty calls for
@@ -45,47 +43,39 @@ sessions see it:
 
 `{claim_command}`
 
-Keep the ticket and own this outcome through acceptance and integration.
-Exit 2 means another DRI owns the same outcome: ask the coordinator for a
-handoff or a delegated contribution, not an unrelated task. Paths are advisory:
-overlaps do not reject or require permission. Notify peers where practical,
-continue necessary work in this worktree and reconcile at landing. Refresh old
-claims clients that still reject file overlaps; existing tickets remain valid.
-Renew before expiry. A checkpoint does not end ownership.
+The claim records what you are doing so other sessions can see it; it grants
+nothing and blocks nothing. Another claim on the same customer or on overlapping
+paths is information: read its note, continue in this worktree and reconcile
+at rebase. There are no handoffs; you finish this work. Renew before expiry.
+A checkpoint does not end the work.
 
-Keep a short assignment record: outcome, acceptance, current failure, next
-necessary action and dependencies. Reread it after compaction. New obstacles
-belong to this outcome; do not manufacture residual tasks or switch
-to profiling/testing work before completing the assignment.
+Keep a short record in the claim note (`python3 tools/claims.py note --ticket
+<ticket> --text "<finding>"`): sample, acceptance, current failure, next
+necessary action and prerequisites. Reread it after compaction. A new obstacle
+belongs to this work: fix it rather than filing a task for someone else. When
+the sample is too large to trace, cut a smaller sample that isolates the failing
+construct, make it run and land it, then return to this one.
 
 Exit 3 means coordination timed out, not a live conflict. Keep the pending
 claim record, report the outage, and continue the assigned work in isolation.
 Do not repeatedly wait for registration. If a write timed out, inspect status
 before retrying; its outcome may be uncertain. Landing remains mandatory.
 
-## Collision rules
+## Shared files
 
-Never edit board or coordination files (`TASKS*.md`, `OWNER_QUESTIONS.md`,
-`tools/swarm/waves/`): board text is the coordinator's, and `landing.py`
-refuses candidates that touch only those files or change nothing — do not
-land `board:` commits or empty ledger commits. Record durable findings on
-your claim ticket instead — `python3 tools/claims.py note --ticket <ticket>
---text "<finding>"` — and repeat them in the structured output; the
-coordinator writes board updates at drain. A re-verification that confirms
-the board's current text is the common case and rides the claim note alone:
-do not take a board-only claim to stamp the row, and expect no board edit
-for an unchanged verdict. Re-verification at a newer revision that reproduces
-the recorded verdict is noise, not evidence — no stamp lands for it. A row
-carries at most one current verification line; a stamp that does land
-replaces the dated observation it supersedes rather than stacking under it,
-and at most one stamp per assigned row per session is permitted — only when
-it changes the row's frontier. Serial witness paragraphs ("re-verified a
-second/third time") are never appended. Never touch these excluded items:
+A sample that still fails keeps its current failure in its own README. If a
+`TASKS.md` item names this sample or its root cause, update that item in the
+same commit as the repair: subtract what now works, delete it when its
+acceptance passes. `landing.py` refuses candidates that touch only
+`TASKS*.md`, `OWNER_QUESTIONS.md` or `tools/swarm/waves/` or change nothing,
+so never land a board-only or empty commit. A missing owner decision goes to
+`OWNER_QUESTIONS.md` with the exact question, referenced from the sample README,
+in the commit that records the frontier. Never touch these excluded items:
 {exclusions}.
-Required edits may span other workers' paths and multiple stages. Reconcile
+Required edits may span other sessions' paths and multiple stages. Reconcile
 shared repairs rather than adding a competing mode or dropping incoming work.
-Refetch main before landing. If acceptance already passes, verify it and report
-superseded; a changed board paragraph alone does not end the assignment.
+Refetch main before landing. If the sample already runs, verify it and report
+superseded.
 
 ## Landing
 
@@ -106,15 +96,15 @@ body the two cases it cannot unify. A conflict-free merge can still break the
 build or a sibling outcome, so rebuild every commit you carry after resolving.
 Give `publish` the model that produced the change: `--provenance "agent=<tool> model=<name> effort=<level>"`
 (or export `OMEGA_PROVENANCE` once). Commit messages carry no attribution; this note is the only record.
-Retain the assigned customer through complete producer and consumer repairs.
-Rerun its outer command after relevant changes; helper tests
-alone do not complete the assignment or justify claiming native execution.
+Carry the sample through complete producer and consumer repairs. Rerun its
+`omega run` after relevant changes; helper tests alone do not complete the
+work or justify claiming native execution.
 
 ## Budget
 
 `max_acu_limit` is {max_acu_limit}. If it is exhausted, preserve the witnessed
-failure, tested revision, command, host and next acceptance for continuation by
-the same owner. Report `budget_exhausted`, not completed work; do not land a
+failure, tested revision, command, host and next acceptance in the claim note
+and the sample README for whoever continues it. Report `budget_exhausted`, not completed work; do not land a
 partial improvement to fit the budget. Board-only churn is not an improvement.
 
 ## Commits and reasoning
@@ -137,8 +127,9 @@ When you finish, for any result, fill this schema exactly:
 `budget_exhausted`, `aborted`. Choose it by the evidence, not by why you
 stopped:
 
-- `landed`: the full assigned acceptance is complete, required review is satisfied
-  and the authorized path is verified on remote main, not merely a landed slice.
+- `landed`: the sample runs with its oracle on remote main (or the board item's
+  full acceptance is met), required review is satisfied, not merely a landed
+  slice.
 
 - `verification_only`: investigation produced evidence but no implementation.
   Name the exact missing dependency and next acceptance. This is the planned

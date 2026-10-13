@@ -6,7 +6,9 @@ durable dispatch results, dependency handoffs, final acceptance and bounded
 2/5/10 admission. The Devin launcher below retains its existing transport.
 
 `launch.py` fans "advance the compiler" out to Devin Cloud sessions: the
-coordinator writes a wave manifest that pre-assigns one board item per session,
+coordinator writes a wave manifest that pre-assigns one sample per session (a
+`"sample": "samples/..."` row whose acceptance is that program running with its
+authored oracle; a board item only for work outside any sample),
 the launcher creates one session per entry, and each session runs the ordinary
 `advance` skill restricted to that item, registering its assignment in the
 shared claims registry ([tools/claims](../claims.md)) and landing through

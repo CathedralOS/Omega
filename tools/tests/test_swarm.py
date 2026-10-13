@@ -495,13 +495,66 @@ class SwarmTests(unittest.TestCase):
         self.validate(record)
         template = TEMPLATE.read_text(encoding="utf-8")
         prompt = self.module.render_prompt(template, record, record["sessions"][0])
-        self.assertIn("Required edits may span other workers' paths and multiple stages", prompt)
-        self.assertIn("overlaps do not reject or require permission", prompt)
-        self.assertIn("A checkpoint does not end ownership", prompt)
+        self.assertIn("Required edits may span other sessions' paths and multiple stages", prompt)
+        self.assertIn("it grants\nnothing and blocks nothing", prompt)
+        self.assertIn("There are no handoffs", prompt)
+        self.assertIn("A checkpoint does not end the work", prompt)
         self.assertIn("diagnosis is intermediate", prompt)
-        self.assertIn("Rerun its outer command", prompt)
+        self.assertIn("`omega run` after relevant changes", prompt)
+        self.assertNotIn("DRI", prompt)
+        self.assertNotIn("coordinator writes board updates", prompt)
         self.assertIn("only when you were actively implementing", prompt)
         self.assertNotIn("is `verification_only`, not `budget_exhausted`", prompt)
+
+    def write_sample(self, path, header):
+        directory = self.repository / path
+        directory.mkdir(parents=True)
+        (directory / "main.omg").write_text(header + "machine main() {}\n",
+                                            encoding="utf-8")
+
+    def sample_manifest(self, sample, host="linux"):
+        record = manifest()
+        record["sessions"][0] = {
+            "name": "alpha", "sample": sample, "host": host,
+            "owning_paths": ["src/one"],
+            "work_classification": dict(kind="non_semantic", reason="fixture")}
+        return record
+
+    def test_sample_session_runs_toward_its_oracle(self):
+        self.write_sample("samples/cli/demo", "// Expected exit: 7.\n")
+        record = self.sample_manifest("samples/cli/demo")
+        session = self.validate(record)[0]
+        self.assertEqual(session["item"], "samples/cli/demo")
+        self.assertIsNone(session["board"])
+        command = self.module.claim_command(session, "Tester / w9-alpha")
+        self.assertNotIn("--board", command)
+        self.assertIn("--item samples/cli/demo", command)
+        template = TEMPLATE.read_text(encoding="utf-8")
+        prompt = " ".join(self.module.render_prompt(template, record, session).split())
+        self.assertIn("Your customer is sample `samples/cli/demo`", prompt)
+        self.assertIn("authored oracle (exit 7)", prompt)
+        self.assertNotIn("Your customer is board item", prompt)
+        local = TEMPLATE.with_name("prompt_template_local.md").read_text(encoding="utf-8")
+        state = {"worktree": self.repository / "wt", "branch": "swarm/w9-alpha", "ahead": 0}
+        local_prompt = self.module.render_local_prompt(
+            local, record, session, self.repository, state)
+        self.assertIn("samples/cli/demo", local_prompt)
+        for field in self.module.LOCAL_PROMPT_FIELDS:
+            self.assertNotIn("{" + field + "}", local_prompt)
+
+    def test_sample_session_without_an_oracle_is_refused(self):
+        self.write_sample("samples/cli/pins_a_contract", "// Checks only.\n")
+        with self.assertRaisesRegex(self.module.SwarmError, "no `Expected"):
+            self.validate(self.sample_manifest("samples/cli/pins_a_contract"))
+        with self.assertRaisesRegex(self.module.SwarmError, "samples/ project"):
+            self.validate(self.sample_manifest("src/one"))
+
+    def test_sample_session_names_no_board_row(self):
+        self.write_sample("samples/cli/demo", "// Expected exit: 0.\n")
+        record = self.sample_manifest("samples/cli/demo")
+        record["sessions"][0]["board"] = "TASKS.md"
+        with self.assertRaisesRegex(self.module.SwarmError, "not a board or item"):
+            self.validate(record)
 
     def test_prompt_owner_label_and_exclusions(self):
         record = manifest()

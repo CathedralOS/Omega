@@ -8,17 +8,21 @@
   "exclusions": [],
   "sessions": [
     {
-      "name": "macos-app-pub",
-      "board": "TASKS.md",
-      "item": "MACOS-APPLICATION-PUBLICATION",
+      "name": "stack-calculator",
+      "sample": "samples/cli/interpreters/stack_calculator",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/application/cli/src/build_evaluation",
-        "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout/src/image_emission"
+        "samples/cli/interpreters/stack_calculator"
       ],
-      "suggested_first_slice": "the identifier field in ordinary build vocabulary",
-      "host_gates": ["which mbx || which cargo"],
-      "probe_only": false
+      "suggested_first_slice": "its stores still rely on the removed implicit i32 to i32 in Wrapping conversion",
+      "host_gates": [
+        "which mbx || which cargo"
+      ],
+      "probe_only": false,
+      "work_classification": {
+        "kind": "non_semantic",
+        "reason": "migrate one sample's source to the current Wrapping store rule; no compiler semantics change"
+      }
     }
   ]
 }

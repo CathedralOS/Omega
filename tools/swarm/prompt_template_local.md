@@ -1,20 +1,20 @@
 # Local swarm session: {name}
 
 You are session "{name}" in wave {wave}: a local swarm slot advancing the
-Omega compiler on this machine. The coordinator spawned you directly — there
-is no cloud session, no structured-output API, and no remote receipt. You
-report back in prose at the end.
+Omega compiler on this machine. There is no cloud session, no
+structured-output API, and no remote receipt. You report back in prose at the
+end.
+
+{customer_block}
 
 Read and follow, in this order:
 
-- the current text of board item `**{item}**` in `{board}` on fresh
-  `origin/main` — the item's own acceptance criteria govern
 - `AGENTS.md`
 - `.agents/skills/advance/SKILL.md` — invoke the advance skill, scoped to
-  this one item
+  this customer
 - `tools/landing.md` for the landing protocol
 
-## Complete outcome ownership
+## Finish the whole path
 
 Apply the law of completion in `AGENTS.md`. Your superhuman advantage is
 carrying the entire difficult task end to end. Difficulty calls for
@@ -68,36 +68,34 @@ From the repository root (`{repository}`):
     python3 tools/claims.py status
     {claim_command}
 
-Keep the ticket and own this outcome through acceptance and integration.
-Exit 2 means another DRI owns the same outcome: ask the coordinator for a
-handoff or a delegated contribution, not an unrelated task. Paths are advisory:
-overlaps do not reject or require permission. Notify peers where practical,
-continue necessary work in this worktree and reconcile at landing. Refresh old
-claims clients that still reject file overlaps; existing tickets remain valid.
-Renew before expiry. A checkpoint does not end ownership.
+The claim records what you are doing so other sessions can see it; it grants
+nothing and blocks nothing. Another claim on the same customer or on overlapping
+paths is information: read its note, continue in this worktree and reconcile
+at rebase. There are no handoffs; you finish this work. Renew before expiry.
+A checkpoint does not end the work.
 
-Keep a short assignment record: outcome, acceptance, current failure, next
-necessary action and dependencies. Reread it after compaction. New obstacles
-belong to this outcome; do not manufacture residual tasks or switch
-to profiling/testing work before completing the assignment.
+Keep a short record in the claim note (`python3 tools/claims.py note --ticket
+<ticket> --text "<finding>"`): sample, acceptance, current failure, next
+necessary action and prerequisites. Reread it after compaction. A new obstacle
+belongs to this work: fix it rather than filing a task for someone else. When
+the sample is too large to trace, cut a smaller sample that isolates the failing
+construct, make it run and land it, then return to this one.
 
 Exit 3 means coordination timed out, not a live conflict. Keep the pending
 claim record, report the outage, and continue the assigned work in this isolated
 worktree. Do not repeatedly wait for registration. Inspect status before retrying
 an uncertain write. The landing queue remains mandatory.
 
-Keep `TASKS*.md` and other coordination files out of claimed paths — board
-files are hot singletons, and `landing.py` refuses candidates that touch only
-coordination files (`TASKS*.md`, `OWNER_QUESTIONS.md`, `tools/swarm/waves/`)
-or change nothing at all. Never land a `board:` commit or an empty ledger
-commit. Record durable evidence on your claim ticket instead —
-`python3 tools/claims.py note --ticket <ticket> --text "<finding>"` —
-and repeat it in your report; the coordinator owns board edits and sweeps
-notes at drain.
+Keep `TASKS*.md` out of claimed paths; they are hot shared files. A sample
+that still fails keeps its current failure in its own README. If a `TASKS.md`
+item names this sample or its root cause, update it in the same commit as the
+repair. `landing.py` refuses candidates that touch only coordination files
+(`TASKS*.md`, `OWNER_QUESTIONS.md`, `tools/swarm/waves/`) or change nothing,
+so never land a board-only or empty commit.
 
 Release the claim with `python3 tools/claims.py release --ticket <ticket>`
-when the outcome completes or is explicitly handed off/stopped. A landed
-checkpoint with remaining acceptance retains ownership.
+when the sample runs on main or the session stops; a stopped session records
+its frontier in the claim note and the sample README first.
 
 ## Working rules
 
@@ -114,9 +112,8 @@ checkpoint with remaining acceptance retains ownership.
   GC with the coordinator; inspect `mbx gc --dry-run` first. Cache budgets do not
   bound unmanaged outputs. Do not delete another slot's active targets,
   unpublished work or ignored package-review state to make room.
-- Refetch `origin/main` before enqueueing. If the item's acceptance has
-  already landed, verify and report `superseded`. A changed board paragraph
-  alone is not completion or a reason to abandon the outcome.
+- Refetch `origin/main` before enqueueing. If the sample already runs on
+  main, verify and report `superseded`.
 - On Windows, never use `2>nul` or `>nul` to silence output: Git Bash
   creates a literal file named `nul` in the worktree, which lands as an
   untracked file and can block a publish from the main checkout. Drop the
@@ -154,10 +151,9 @@ Give `publish` the model that produced the change: `--provenance "agent=<tool> m
 
 End with a prose report containing:
 
-- the owned outcome and whether its acceptance is complete
+- the sample and whether it now runs with its oracle on main
 - claim ticket
 - landed commit(s), or the exact blocker with the conflict details
 - checks run, each with command, host, and exit code
 - failures confirmed unrelated, with base-revision evidence
-- unfinished acceptance and next actions for continuation by the same owner
-- whether the board item stays open
+- the current failure and next action, as also recorded in the sample README
