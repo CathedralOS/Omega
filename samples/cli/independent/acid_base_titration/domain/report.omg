@@ -1,0 +1,89 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+use omega::language::core::float_operations;
+use omega::language::core::numeric_conversion;
+use domain::equilibrium;
+
+
+// Scientific notation preserves tiny species; normalized mantissa fits i64.
+// Round magnitude half upward and retain the sign separately.
+machine mantissa(console: &mut Binding<Console>, value: f64) reaches Console {
+    let mut bytes: [u8; 18] = "+0.000000000000000";
+    transition value < 0.0 {
+        true -> negative(console, &mut bytes, value)
+        _ -> positive(console, &mut bytes, value)
+    }
+    state negative(console: &mut Binding<Console>, bytes: &mut [u8; 18], value: f64) {
+        bytes[0] = 45;
+        let scaled: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000000000000.0 + 0.5);
+        transition { _ -> digits(console, bytes, scaled as i64 in Wrapping, 17) }
+    }
+    state positive(console: &mut Binding<Console>, bytes: &mut [u8; 18], value: f64) {
+        let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000000.0 + 0.5);
+        transition { _ -> digits(console, bytes, scaled as i64 in Wrapping, 17) }
+    }
+    state digits(console: &mut Binding<Console>, bytes: &mut [u8; 18],
+                 remaining: i64 in Wrapping, position: i32 in Wrapping) {
+        transition position > 0 && position < 18 {
+            true -> separator(console, bytes, remaining, position)
+            _ -> emit(console, bytes)
+        }
+    }
+    state separator(console: &mut Binding<Console>, bytes: &mut [u8; 18],
+                    remaining: i64 in Wrapping, position: i32 in Wrapping) {
+        transition position == 2 {
+            true -> digits(console, bytes, remaining, position - 1)
+            _ -> store(console, bytes, remaining, position)
+        }
+    }
+    state store(console: &mut Binding<Console>, bytes: &mut [u8; 18],
+                remaining: i64 in Wrapping, position: i32 in Wrapping) {
+        let digit: i32 = narrow_i64_to_i32_trapping((remaining % 10 + 48) as i64);
+        bytes[position] = narrow_i32_to_u8_trapping(digit);
+        transition { _ -> digits(console, bytes, remaining / 10, position - 1) }
+    }
+    state emit(console: &mut Binding<Console>, bytes: &[u8; 18]) { console.write(bytes); }
+}
+machine emit_number(console: &mut Binding<Console>, value: f64) reaches Console {
+    transition value < 0.0 { true -> normalize(console, 0.0 - value, -1.0, 0) _ -> normalize(console, value, 1.0, 0) }
+    state normalize(console: &mut Binding<Console>, value: f64, sign: f64, exponent: i32 in Wrapping) {
+        transition value > 0.0 && value < 1.0 && exponent > -60 {
+            true -> normalize(console, value * 10.0, sign, exponent - 1)
+            _ -> upper(console, value, sign, exponent)
+        }
+    }
+    state upper(console: &mut Binding<Console>, value: f64, sign: f64, exponent: i32 in Wrapping) {
+        transition value >= 10.0 && exponent < 60 {
+            true -> normalize(console, value / 10.0, sign, exponent + 1)
+            _ -> emit(console, value, sign, exponent)
+        }
+    }
+    state emit(console: &mut Binding<Console>, value: f64, sign: f64, exponent: i32 in Wrapping) {
+        mantissa(console, value * sign);
+        console.write("e");
+        transition exponent < 0 { true -> minus(console, 0 - exponent) _ -> plus(console, exponent) }
+    }
+    state minus(console: &mut Binding<Console>, exponent: i32 in Wrapping) { console.write("-"); transition { _ -> exponent_digits(console, exponent) } }
+    state plus(console: &mut Binding<Console>, exponent: i32 in Wrapping) { console.write("+"); transition { _ -> exponent_digits(console, exponent) } }
+    state exponent_digits(console: &mut Binding<Console>, exponent: i32 in Wrapping) {
+        console.write_byte((exponent / 10 + 48) as i32);
+        console.write_byte((exponent % 10 + 48) as i32);
+        console.write_line("");
+    }
+}
+pub machine report(console: &mut Binding<Console>, volume: f64, result: &Equilibrium) reaches Console
+invokes console;
+crashes Trap
+{
+    console.write("volume="); emit_number(console, volume);
+    console.write("pH="); emit_number(console, result.ph);
+    console.write("H="); emit_number(console, result.hydrogen);
+    console.write("OH="); emit_number(console, result.hydroxide);
+    console.write("H2A="); emit_number(console, result.species[0]);
+    console.write("HA="); emit_number(console, result.species[1]);
+    console.write("A="); emit_number(console, result.species[2]);
+    console.write("total_acid="); emit_number(console, result.total);
+    console.write("counterion="); emit_number(console, result.counterion);
+    console.write("mass_closure="); emit_number(console, result.closure);
+    console.write("charge_residual="); emit_number(console, result.charge);
+}
