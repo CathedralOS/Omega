@@ -113,7 +113,9 @@ impl<'program> LayoutBuilder<'program> {
                 length,
             } => {
                 let element_layout = self.layout_type_reference_handle(*element_type, bindings)?;
-                let Some(length) = fixed_array_length(self.program, length, bindings) else {
+                let Some(length) =
+                    fixed_array_length(self.program, type_reference, length, bindings)
+                else {
                     return Ok(TypeLayout::default());
                 };
 

@@ -209,6 +209,8 @@ fn reject_unresolved_layout_operands(
                              the length `{name}` is not resolved to a constant"
                         ));
                     }
+                    FixedArrayLength::ConstCall { .. }
+                        if typed.closed_fixed_array_length(reference).is_some() => {}
                     FixedArrayLength::ConstCall { name, .. } => {
                         return Err(format!(
                             "`size_of`/`align_of` cannot measure a fixed array whose \

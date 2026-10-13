@@ -438,15 +438,14 @@ impl<'program> LayoutBuilder<'program> {
             TypeReferenceNode::FixedArray {
                 element_type,
                 length,
-            } => match fixed_array_length(self.program, length, bindings) {
+            } => match fixed_array_length(self.program, type_reference, length, bindings) {
                 Some(length) => TypeLayoutDescriptor::FixedArray {
                     element_type: Box::new(self.type_descriptor(*element_type, bindings)),
                     length,
                 },
-                // ConstCall lengths are substituted to literals by the
-                // orchestration const-eval pass before layout; an unresolved
-                // one degrades to Unit exactly like an unresolved const
-                // parameter (layout cannot size it).
+                // A recipe length closes only in a closed program copy; an
+                // unclosed one degrades to Unit exactly like an unresolved
+                // const parameter (layout cannot size it).
                 None => TypeLayoutDescriptor::Unit,
             },
             TypeReferenceNode::Slice { element_type } => TypeLayoutDescriptor::Slice {

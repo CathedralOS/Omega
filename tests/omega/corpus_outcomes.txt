@@ -1152,6 +1152,10 @@ fail/comptime/fuel_exhausted_const_array_length rejected 1929ms expected @a9ae30
 	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: step budget exceeded
 fail/comptime/negative_const_array_length rejected 1761ms expected @a9ae30e1c334+wt
 	fixed-array length `[i64; shrunk_size()]`: const evaluation of `shrunk_size` failed: the call returned -5, but an array length must be a non-negative integer
+fail/comptime/recipe_endpoint_membership_refused_at_closure rejected 4255ms expected @4ffd613e37f1
+	call argument for parameter `value` of `take_bounded` (declared maximum): requires 9 <= `limit`, but the selected target realization closes `limit` to 7
+fail/comptime/recipe_extent_index_refused_at_closure rejected 9011ms expected @4ffd613e37f1
+	index `8` of `main.slots`: requires 8 < `slot_count`, but the selected target realization closes `slot_count` to 8
 fail/comptime/recursive_accumulator_requires_coupling rejected 1554ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call triangle from triangle: acc + n <= 5050 (needs fact `acc <= 5050` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/concurrency/suspend_explicit_parameter_field_rejected rejected 1564ms expected @a9ae30e1c334+wt
@@ -2919,8 +2923,8 @@ fail/providers/binding_formal_runtime_operand rejected 243ms expected @a8cedb394
 	machine `bad` state `entry` parameter `binding` uses an invalid routed service carrier: open operands do not close a requirement instance
 fail/providers/borrowed_binding_local_fabricated_carrier rejected 123ms expected @619f89e4fed6+wt
 	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
-fail/providers/checked_boundary_operator_const_application_unselected rejected 952ms unexpected @d986b866df88+wt
-	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
+fail/providers/checked_boundary_operator_const_application_unselected rejected 4143ms expected @4ffd613e37f1
+	fixed-array length `[u8; limit()]`: const evaluation of `limit` failed: machine `limit` is not build-time admissible: machine call path `limit -> Math::remainder` reaches a requirement that requires exact authored selection before evaluation; the evaluator cannot execute a bodyless requirement; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/providers/checked_boundary_operator_missing_contract rejected 1307ms expected @a9ae30e1c334+wt
 	checked operator provider `CheckedMathProvider::identity_impl` proves no ensures matching operator requirement `operator::CheckedMath::identity(named(name(i32)))->named(name(i32))` contract `result == value`
 fail/providers/checked_view_provider_wrong_extent rejected 271ms expected @71e65af3059c+wt
@@ -4519,15 +4523,12 @@ pass/collections/std_option_runtime_match_exit checked 16596ms check-target:maco
 pass/collections/std_option_surface checked 3192ms @a9ae30e1c334+wt
 pass/collections/view_record_element_member_read_exit checked 10959ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/zero_length_byte_array_admission checked 3145ms @a9ae30e1c334+wt
-pass/comptime/provider_boundary_range_endpoint_exit rejected 1813ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9c4d1c444502
-	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
+pass/comptime/provider_boundary_range_endpoint_exit checked 21562ms check-target:macos_arm64 @4ffd613e37f1
 pass/comptime/range_endpoint_requires_discharge_exit checked 26944ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/comptime/runtime_const_array_length_dependency_order_exit rejected 1893ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9c4d1c444502
-	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
+pass/comptime/runtime_const_array_length_dependency_order_exit checked 22623ms check-target:macos_arm64 @4ffd613e37f1
 pass/comptime/runtime_const_array_length_transitive_exit checked 11031ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/comptime/runtime_const_measured_recursion_exit checked 12401ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/comptime/selected_float_array_length_exit rejected 1822ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9c4d1c444502
-	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
+pass/comptime/selected_float_array_length_exit checked 21625ms check-target:macos_arm64 @4ffd613e37f1
 pass/concurrency/boundary_suspension_inline_completion_exit checked 11498ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/runtime_array_loan_suspension_exit checked 10498ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/runtime_retained_reference_boundary_exit rejected 4723ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5090,10 +5091,8 @@ pass/filesystem/wrapper_open_with_exit rejected 11928ms check-target:macos_arm64
 pass/float/admitted_float_conversion_crash checked 33720ms check-target:macos_arm64 @9c4d1c444502
 pass/float/admitted_float_lower_boundary_crash checked 33599ms check-target:macos_arm64 @9c4d1c444502
 pass/float/admitted_numeric_imports_preserve_semantics checked 41383ms check-target:macos_arm64 @9c4d1c444502
-pass/float/build_runtime_semantics_twins_windows_x64 rejected 9327ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @9c4d1c444502
-	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
-pass/float/build_runtime_semantics_twins_x86_baseline rejected 9417ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @9c4d1c444502
-	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
+pass/float/build_runtime_semantics_twins_windows_x64 checked 252038ms check-target:windows_x86_64 @4ffd613e37f1
+pass/float/build_runtime_semantics_twins_x86_baseline checked 251785ms check-target:linux_x86_64 @4ffd613e37f1
 pass/float/builtin_extrema_field_store_exit checked 33249ms check-target:macos_arm64 @9c4d1c444502
 pass/float/closed_integer_conversion_predicate_proof_exit checked 29550ms check-target:macos_arm64 @9c4d1c444502
 pass/float/closed_integer_conversion_trapping_source_no_normal_result checked 29350ms check-target:macos_arm64 @9c4d1c444502
@@ -5797,11 +5796,9 @@ pass/providers/boundary_primitive_array_argument_exit checked 12398ms check-targ
 pass/providers/boundary_scalar_field_store checked 11793ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/build_product_adapter_frontiers_exit checked 10791ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/calling_application_region_scopes_exit checked 5401ms check-target:macos_arm64 @c03720bf6cb3
-pass/providers/checked_boundary_operator_const_application_alternate_exit rejected 1937ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d986b866df88+wt
-	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
+pass/providers/checked_boundary_operator_const_application_alternate_exit checked 7461ms check-target:macos_arm64 @4ffd613e37f1
 pass/providers/checked_boundary_operator_physical_custody checked 12039ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/checked_boundary_requirement_dispatch_exit rejected 1151ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d986b866df88+wt
-	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
+pass/providers/checked_boundary_requirement_dispatch_exit checked 8590ms check-target:macos_arm64 @4ffd613e37f1
 pass/providers/checked_fixed_operator_dispatch_exit checked 12029ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/checked_fixed_operator_physical_custody checked 11307ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/component_owner_provider_override_compile checked 11504ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5850,8 +5847,7 @@ pass/providers/runtime_named_provider_explicit_state_exit checked 11429ms check-
 pass/providers/runtime_result_domain_requirement_overload_exit checked 11708ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/same_name_requirement_dispatch_exit checked 11740ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/same_name_requirement_right_dispatch_exit checked 11571ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/selected_const_provider_call_identity_exit rejected 964ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d986b866df88+wt
-	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
+pass/providers/selected_const_provider_call_identity_exit checked 7618ms check-target:macos_arm64 @4ffd613e37f1
 pass/providers/service_borrowed_parameter checked 1655ms @a9ae30e1c334+wt
 pass/providers/service_fused_root_establishment checked 10617ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/providers/specialized_boundary_operator_physical_custody checked 11506ms check-target:macos_arm64 @a9ae30e1c334+wt

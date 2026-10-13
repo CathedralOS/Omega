@@ -120,8 +120,10 @@ pub(crate) fn produce_retained_terminal_artifacts(
         let group = groups.iter_mut().find(|group| {
             let first_index = group[0];
             let first = &requests[first_index];
-            Arc::ptr_eq(first.view.program, request.view.program)
-                && first.view.sources == request.view.sources
+            crate::execution_settlement::same_checked_program(
+                first.view.program,
+                request.view.program,
+            ) && first.view.sources == request.view.sources
                 && first.selections.project_psi() == request.selections.project_psi()
         });
         if let Some(group) = group {

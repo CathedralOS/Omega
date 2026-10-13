@@ -25,14 +25,12 @@ pub(crate) fn check_product_source(
         mut timings,
         retained_build_check,
     } = source;
-    // A deferred application still needs selected runtime meaning. Its portable
-    // recipe must cross Psi before realization can close it; folding against one
-    // target here would make the shared source judgment target-dependent again.
-    if !pending_pre_checks.is_empty() {
-        return Err(vec![Diagnostic::error(
-            "unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source",
-        )]);
-    }
+    // A deferred application still needs selected runtime meaning. The shared
+    // judgment checks its symbolic recipe; each target closure resumes this
+    // continuation under its own selected rows after settlement.
+    let constant_recipe_continuations = pending_pre_checks;
+    let constant_recipe_source =
+        (!constant_recipe_continuations.is_empty()).then(|| Arc::new(typed.clone()));
     let build = &computed_build_config.config;
     let representations = representation_planning::rederive_opaque_representation_selections(
         &typed,
@@ -136,5 +134,7 @@ pub(crate) fn check_product_source(
             ..Default::default()
         },
         product_selection,
+        constant_recipe_continuations,
+        constant_recipe_source,
     })
 }

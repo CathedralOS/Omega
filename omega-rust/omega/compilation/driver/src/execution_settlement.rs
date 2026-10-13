@@ -21,6 +21,9 @@ use selected_dispatch::{
 };
 use std::sync::Arc;
 
+mod constant_recipe_closure;
+pub(crate) use constant_recipe_closure::same_checked_program;
+
 /// One target's complete provider selection beside the shared source custody.
 /// Terminal production reads this record to mint the target-neutral artifact;
 /// installation consumes it with the artifact to settle the selected
@@ -177,9 +180,18 @@ fn select_checked_providers(
             .map(|entry| entry.machine_symbol()),
         &selected_provider_provenance,
     )?;
+    // Every provider-dependent constant closes under this target's selected
+    // rows before installation reads the program; the shared judgment stays
+    // symbolic and untouched.
+    let closed_program = constant_recipe_closure::close_constant_recipes(
+        source,
+        selected_native_target,
+        &build_config.opaque_representation_selections,
+        &selected_provider_plan_facts,
+    )?;
     let root_grants = build_config.root_grant_selectors();
     let checked = bind_checked_providers(
-        Arc::clone(&source.program),
+        closed_program,
         source.accepted_template_classifications.clone(),
         ProviderBindingRequest {
             package_inputs,

@@ -30,6 +30,7 @@ pub(crate) fn binding_for_type<'program>(
 
 pub(crate) fn fixed_array_length(
     program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
     length: &FixedArrayLength,
     bindings: &[GenericLayoutBinding<'_>],
 ) -> Option<usize> {
@@ -39,7 +40,8 @@ pub(crate) fn fixed_array_length(
             let binding = binding_for_type(*symbol, name, bindings)?;
             const_argument_value(program, binding.argument, bindings, 0)
         }
-        FixedArrayLength::ConstCall { .. } => None,
+        // A retained recipe has its value only in a closed program copy.
+        FixedArrayLength::ConstCall { .. } => program.closed_fixed_array_length(type_reference),
     }
 }
 
