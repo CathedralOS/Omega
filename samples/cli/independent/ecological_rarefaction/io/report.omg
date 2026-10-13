@@ -1,0 +1,95 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+use domain::model;
+machine decimal(console: &mut Binding<Console>, value: u64 in Wrapping) reaches Console {
+    transition { _ -> scale(console, value, 1) }
+    state scale(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping) {
+        transition divisor <= value/10 {
+            true -> scale(console, value, divisor*10)
+            false -> emit(console, value, divisor)
+        }
+    }
+    state emit(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping) {
+        transition divisor > 0 { true -> digit(console, value, divisor) false -> done() }
+    }
+    state digit(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping)
+    requires divisor > 0 {
+        console.write_byte((value/divisor%10+48) as i32);
+        transition { _ -> emit(console, value%divisor, divisor/10) }
+    }
+    state done() {}
+}
+machine field(console: &mut Binding<Console>, name: &[u8], value: u64 in Wrapping) reaches Console {
+    console.write(name);
+    decimal(console, value);
+    console.write_line("");
+}
+pub machine report(console: &mut Binding<Console>, community: &Community) reaches Console
+invokes console;
+{
+    console.write_line("ecological_rarefaction");
+    field(console, "species=", community.species);
+    field(console, "individuals=", community.total);
+    transition { _ -> query(console, community, 0) }
+    state query(console: &mut Binding<Console>, community: &Community, index: u64 in Wrapping) {
+        transition index < community.queries && index < 16 {
+            true -> start(console, community, index)
+            false -> done()
+        }
+    }
+    state start(console: &mut Binding<Console>, community: &Community, index: u64 in Wrapping)
+    requires index < 16 {
+        let depth: u64 in Wrapping = community.depths[index];
+        let denominator: u64 in Wrapping = choose(community.total, depth);
+        field(console, "depth=", depth);
+        field(console, "denominator=", denominator);
+        transition { _ -> bin(console, community, index, depth, denominator, 0, 0, 0) }
+    }
+    state bin(console: &mut Binding<Console>, community: &Community,
+               index: u64 in Wrapping, depth: u64 in Wrapping, denominator: u64 in Wrapping,
+               richness: u64 in Wrapping, first: u64 in Wrapping, second: u64 in Wrapping) {
+        transition richness <= community.species && richness < 13 && depth < 33 {
+            true -> value(console, community, index, depth, denominator, richness, first, second)
+            false -> moments(console, community, index, denominator, first, second)
+        }
+    }
+    state value(console: &mut Binding<Console>, community: &Community,
+                 index: u64 in Wrapping, depth: u64 in Wrapping, denominator: u64 in Wrapping,
+                 richness: u64 in Wrapping, first: u64 in Wrapping, second: u64 in Wrapping)
+    requires richness < 13 && depth < 33 {
+        let weight: u64 in Wrapping = community.weights[depth][richness];
+        console.write("bin=");
+        decimal(console, richness);
+        console.write(" numerator=");
+        decimal(console, weight);
+        console.write_line("");
+        transition { _ -> bin(console, community, index, depth, denominator, richness+1,
+                              first+richness*weight, second+richness*richness*weight) }
+    }
+    state moments(console: &mut Binding<Console>, community: &Community,
+                   index: u64 in Wrapping, denominator: u64 in Wrapping,
+                   first: u64 in Wrapping, second: u64 in Wrapping) {
+        transition denominator > 0 {
+            true -> centered(console, community, index, denominator, first, second)
+            false -> done()
+        }
+    }
+    state centered(console: &mut Binding<Console>, community: &Community,
+                    index: u64 in Wrapping, denominator: u64 in Wrapping,
+                    first: u64 in Wrapping, second: u64 in Wrapping)
+    requires denominator > 0 {
+        // floor(E) centers before squaring. E[(R-center)^2] <= 37,
+        // so products fit u64 even when an uncentered second moment does not.
+        // choose(32,16)^2 * 37 < 2^64; the residual mean is less than 1.
+        let center: u64 in Wrapping = first/denominator;
+        let centered_second: u64 in Wrapping = second+center*center*denominator-2*center*first;
+        let residual: u64 in Wrapping = first-center*denominator;
+        let variance: u64 in Wrapping = centered_second*denominator-residual*residual;
+        field(console, "expectation_numerator=", first);
+        field(console, "expectation_denominator=", denominator);
+        field(console, "variance_numerator=", variance);
+        field(console, "variance_denominator=", denominator*denominator);
+        transition { _ -> query(console, community, index+1) }
+    }
+    state done() {}
+}
