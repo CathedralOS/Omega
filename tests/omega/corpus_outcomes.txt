@@ -5773,8 +5773,7 @@ pass/proofs/cauchy_predicates_compile rejected 2674ms @a9ae30e1c334+wt
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
-pass/proofs/citation_requires_discharged rejected 5515ms regressed-from:checked @a9ae30e1c334+wt
-	package `citation_requires_discharged` (0101010101010101010101010101010101010101010101010101010101010101) selects private machine `add_zero_right::entry`
+pass/proofs/citation_requires_discharged checked 10576ms @b7aaf37278ea+wt
 pass/proofs/higher_order_machine_schema_compile checked 1725ms @a9ae30e1c334+wt
 pass/proofs/kernel_integer_discreteness checked 11286ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/proofs/kernel_integer_subtract_bound checked 1690ms @a9ae30e1c334+wt
@@ -5801,12 +5800,7 @@ pass/proofs/proof_integer_embedding_denotational_call checked 1877ms @a9ae30e1c3
 pass/proofs/proof_integer_quotient_remainder checked 1821ms @a9ae30e1c334+wt
 pass/proofs/proof_linear_range_sum checked 1754ms @a9ae30e1c334+wt
 pass/proofs/proof_multiplication_distributivity checked 1615ms @a9ae30e1c334+wt
-pass/proofs/proof_nat_structural_lemmas rejected 5716ms regressed-from:checked @a9ae30e1c334+wt
-	package `proof_nat_structural_lemmas` (0101010101010101010101010101010101010101010101010101010101010101) selects private machine `add_zero_right::entry`
-	package `proof_nat_structural_lemmas` (0101010101010101010101010101010101010101010101010101010101010101) selects private machine `add_zero_right::entry`
-	package `proof_nat_structural_lemmas` (0101010101010101010101010101010101010101010101010101010101010101) selects private machine `add_comm::entry`
-	package `proof_nat_structural_lemmas` (0101010101010101010101010101010101010101010101010101010101010101) selects private machine `add_assoc::entry`
-	package `proof_nat_structural_lemmas` (0101010101010101010101010101010101010101010101010101010101010101) selects private machine `mul_comm::entry`
+pass/proofs/proof_nat_structural_lemmas checked 10747ms @b7aaf37278ea+wt
 pass/proofs/proof_nonlinear_square_range checked 1575ms @a9ae30e1c334+wt
 pass/proofs/proof_order_antisymmetry checked 1609ms @a9ae30e1c334+wt
 pass/proofs/proof_order_transitivity checked 1832ms @a9ae30e1c334+wt
@@ -6547,13 +6541,9 @@ fail/collections/runtime_three_indexed_float_read_missing_bound rejected 1706ms 
 fail/float/generic_constructor_suffix_format_disagrees rejected 315ms expected @1b12798e27f4
 	literal `3.0` is suffixed `f64` but lands in a `f32` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 pass/float/runtime_generic_constructor_literal_landing_exit checked 14705ms check-target:macos_arm64 @1b12798e27f4
-# NEW064: scoped actual rows; previous published bytes preserved.
-# context: {"cpus": 5, "jobs": null, "load1_end": 3.84, "load1_start": 4.42, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/nested_unsigned_sum_operand_overflow rejected 729ms expected @1b12798e27f4
 	exact arithmetic in machine `tally` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/zero_increment_unproved_index rejected 2249ms expected @1b12798e27f4
 	cannot prove index `position` is within length 3 in select::entry
 pass/arithmetic/runtime_bounded_unsigned_sum_chain_exit checked 13816ms check-target:macos_arm64 @1b12798e27f4
 pass/arithmetic/runtime_bounded_unsigned_sum_field_and_call_exit checked 14708ms check-target:macos_arm64 @1b12798e27f4
-# e01calls: scoped exact1b127 producer rows; other published rows preserved.
-# historical-context (9462 measurement, not current): {"cpus": 5, "jobs": "1", "load1_end": 0.89, "load1_start": 0.87, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}

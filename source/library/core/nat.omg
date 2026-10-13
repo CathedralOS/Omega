@@ -120,7 +120,7 @@ ensures
 // is the induction edge: exact recursion checking proves `prev` descends from
 // `a`, then the citation contributes `add(prev, Zero) == prev` to that arm.
 // Consumers cite the theorem as a statement; it never computes a dummy Nat.
-machine add_zero_right(a: Nat)
+pub machine add_zero_right(a: Nat)
 satisfies CommutativeSemiring<Nat>::add_identity
 terminates by a;
 ensures
@@ -192,7 +192,7 @@ ensures
 // inductive hypothesis, whose descent flows through the sub-state parameter
 // (provenance: every transition into comm_step binds it from `a`'s Succ
 // payload).
-machine add_comm(a: Nat, b: Nat)
+pub machine add_comm(a: Nat, b: Nat)
 satisfies CommutativeSemiring<Nat>::add_comm
 terminates by a;
 ensures
@@ -215,7 +215,7 @@ ensures
 
 // ASSOCIATIVITY: pure induction on `a`, no citations -- both sides
 // normalize by unfolding plus the inductive hypothesis.
-machine add_assoc(a: Nat, b: Nat, c: Nat)
+pub machine add_assoc(a: Nat, b: Nat, c: Nat)
 satisfies CommutativeSemiring<Nat>::add_assoc
 terminates by a;
 ensures
@@ -380,7 +380,7 @@ ensures
 
 // MULTIPLICATION COMMUTES: base cites mul_zero_right; step cites
 // mul_succ_right at (b, prev) plus the inductive hypothesis.
-machine mul_comm(a: Nat, b: Nat)
+pub machine mul_comm(a: Nat, b: Nat)
 satisfies CommutativeSemiring<Nat>::mul_comm
 terminates by a;
 ensures
