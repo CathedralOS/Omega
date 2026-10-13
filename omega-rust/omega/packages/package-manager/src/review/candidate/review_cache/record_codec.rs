@@ -29,7 +29,9 @@ use semantic_vocabulary::PackageKeyIdentity;
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
 // Schemas retain exact applied receiver rosters. Older records cannot license
 // an inherited view by omitting its application and complete requirements.
-const RECORD_VERSION: u16 = 9;
+// Portable contract hashes resolve owned type/binding content under new domains.
+// Cached old local-handle commitments cannot satisfy the new review projection.
+const RECORD_VERSION: u16 = 10;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {

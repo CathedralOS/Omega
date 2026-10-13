@@ -10,8 +10,10 @@ use validation::contract_structure::{
 /// Normalization scratch retained until every generated contract's envelope
 /// settles. Publishing a head before its member graph closes would commit an
 /// empty crash permission set and then silently change that public contract.
-struct ContractPublication {
+struct ContractPublication<'program> {
+    type_identities: &'program arena::OwnedInterner<typed_trees::type_identity::TypeIdentityTable>,
     supply: language_semantics::MachineSupplyMode,
+    external_binding: Option<language_semantics::ExternalBindingIdentity>,
     services: Vec<String>,
     invocations: language_semantics::SynchronousInvocationInterface,
     published_invocations: Vec<String>,
@@ -21,22 +23,26 @@ struct ContractPublication {
     declaration: checked_trees::DeclaredContractStructure,
 }
 
-impl ContractPublication {
+impl ContractPublication<'_> {
     fn identity(
         &self,
         crashes: checked_trees::CrashInterface,
     ) -> checked_trees::MachineContractIdentity {
-        checked_trees::contract_identity(
-            self.supply,
-            &self.services,
-            self.invocations,
-            &self.published_invocations,
-            self.suspension,
-            self.blocking,
-            crashes,
-            &self.termination,
-            &self.declaration,
-        )
+        self.type_identities.with(|table| {
+            checked_trees::contract_identity(
+                self.supply,
+                self.external_binding.as_ref(),
+                &self.services,
+                self.invocations,
+                &self.published_invocations,
+                self.suspension,
+                self.blocking,
+                crashes,
+                &self.termination,
+                &self.declaration,
+                table,
+            )
+        })
     }
 }
 
@@ -46,7 +52,7 @@ impl ContractPublication {
 /// later against this finalized ceiling, never against a lexical body.
 fn publish_family_crash_envelopes(
     contracts: &mut [checked_trees::MachineContractPlan],
-    publications: &mut [ContractPublication],
+    publications: &mut [ContractPublication<'_>],
     additions: &[(symbols::SymbolHandle, Vec<checked_trees::CrashCause>)],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     for (head, causes) in additions {
@@ -203,8 +209,27 @@ pub(crate) fn build_contract_plans(
         let published_termination = declared_termination(program, &termination.interface, &binders);
         let closed_scalar_values =
             build_closed_scalar_value_contract_plan(program, machine, operators);
+        let external_binding = match machine.supply_mode {
+            language_semantics::MachineSupplyMode::ExternalRealization {
+                binding: Some(binding),
+                ..
+            } => Some(
+                program
+                    .external_bindings
+                    .identity(binding)
+                    .cloned()
+                    .ok_or_else(|| {
+                        vec![diagnostics::Diagnostic::error(
+                            "checked external supply lost its owning binding identity",
+                        )]
+                    })?,
+            ),
+            _ => None,
+        };
         publications.push(ContractPublication {
+            type_identities: &program.type_identities,
             supply: machine.supply_mode,
+            external_binding,
             services: published_service_names,
             invocations: synchronous_invocation.interface,
             published_invocations: synchronous_invocation.published.clone(),

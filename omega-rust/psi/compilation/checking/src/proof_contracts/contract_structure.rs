@@ -359,6 +359,83 @@ mod tests {
     use super::*;
 
     #[test]
+    fn public_contract_hash_uses_owned_type_content_across_mint_orders() {
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+        use typed_trees::types::TypeReferenceNode;
+        let mut symbols = SymbolTableBuilder::new();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = symbols.insert_children(
+            root,
+            [
+                (SymbolKind::Data, SymbolNameRef::Static("Alpha")),
+                (SymbolKind::Data, SymbolNameRef::Static("Beta")),
+            ],
+        );
+        let mut children = SymbolTableBuilder::child_handles(children);
+        let alpha = children.next().unwrap();
+        let beta = children.next().unwrap();
+        let mut first = typed_trees::TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let alpha_type = first.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: alpha,
+            name: "Alpha".into(),
+        });
+        let beta_type = first.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: beta,
+            name: "Beta".into(),
+        });
+        let second = first.clone();
+        let different = first.clone();
+        let first_alpha = first.type_identity(TypeIdentityRequest::ordinary(alpha_type));
+        second.type_identity(TypeIdentityRequest::ordinary(beta_type));
+        let second_alpha = second.type_identity(TypeIdentityRequest::ordinary(alpha_type));
+        let different_beta = different.type_identity(TypeIdentityRequest::ordinary(beta_type));
+        assert_ne!(first_alpha, second_alpha);
+        assert_eq!(first_alpha, different_beta);
+        let contract = |program: &typed_trees::TypedTrees, value| {
+            let parameters = [StateParameter {
+                type_reference: value,
+                ..Default::default()
+            }];
+            let declaration = checked_trees::DeclaredContractStructure {
+                callables: vec![declared_callable(
+                    program,
+                    &parameters,
+                    value,
+                    &[],
+                    &[],
+                    &[],
+                    true,
+                )],
+                clauses: Vec::new(),
+            };
+            program.type_identities.with(|table| {
+                checked_trees::contract_identity(
+                    language_semantics::MachineSupplyMode::CheckedBody,
+                    None,
+                    &[],
+                    language_semantics::SynchronousInvocationInterface::PublishedCeiling,
+                    &[],
+                    language_semantics::SuspensionInterface::PublishedMaySuspend(false),
+                    language_semantics::BlockingInterface::PublishedMayBlock(false),
+                    checked_trees::CrashInterface::PublishedCeiling,
+                    &checked_trees::DeclaredTermination::NoGuarantee,
+                    &declaration,
+                    table,
+                )
+                .commitment
+            })
+        };
+        assert_eq!(contract(&first, alpha_type), contract(&second, alpha_type));
+        assert_ne!(
+            contract(&first, alpha_type),
+            contract(&different, beta_type)
+        );
+    }
+
+    #[test]
     fn nominal_type_spelling_cannot_be_replaced_by_a_generic_binder() {
         use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
         use typed_trees::types::TypeReferenceNode;

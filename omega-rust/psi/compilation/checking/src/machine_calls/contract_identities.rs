@@ -157,7 +157,12 @@ pub fn canonical_template_contract_bytes(
         &content_conservation,
         true,
     );
-    bytes.extend(checked_trees::contract_declarations_commitment(&contracts).as_bytes());
+    bytes.extend(
+        program
+            .type_identities
+            .with(|table| checked_trees::contract_declarations_commitment(&contracts, table))
+            .as_bytes(),
+    );
     let termination = contract_structure::declared_termination(
         program,
         &machine.termination_plan.interface,
@@ -626,7 +631,12 @@ fn encode_state_signature(
         content_conservation,
         true,
     );
-    output.extend(checked_trees::contract_declarations_commitment(&contracts).as_bytes());
+    output.extend(
+        program
+            .type_identities
+            .with(|table| checked_trees::contract_declarations_commitment(&contracts, table))
+            .as_bytes(),
+    );
     let termination = contract_structure::declared_termination(
         program,
         &language_semantics::TerminationInterface::Published(
@@ -692,7 +702,12 @@ fn encode_state_shape(
         content_conservation,
         true,
     );
-    output.extend(checked_trees::contract_declarations_commitment(&contracts).as_bytes());
+    output.extend(
+        program
+            .type_identities
+            .with(|table| checked_trees::contract_declarations_commitment(&contracts, table))
+            .as_bytes(),
+    );
 }
 
 fn encode_parameter(

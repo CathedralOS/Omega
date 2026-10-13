@@ -462,10 +462,13 @@ struct CrashPredicateIdentityParts {
 }
 
 impl CrashPredicateIdentity {
-    pub fn from_declared_fact(fact: super::DeclaredContractFact) -> Self {
+    pub fn from_declared_fact(
+        fact: &super::DeclaredContractFact,
+        type_identities: &typed_trees::type_identity::TypeIdentityTable,
+    ) -> Self {
         let mut identity =
-            super::contract_identity::ContractHasher::new(b"omega.declared-crash-fact.v1\0");
-        fact.hash(&mut identity);
+            super::contract_identity::ContractHasher::new(b"omega.declared-crash-fact.v2\0");
+        super::contract_identity::hash_declared_fact(fact, type_identities, &mut identity);
         let mut bytes = vec![2]; // non-expression declared fact namespace
         bytes.extend(identity.complete().commitment.as_bytes());
         Self(Arc::new(CrashPredicateIdentityParts {
