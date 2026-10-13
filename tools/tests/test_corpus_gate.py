@@ -312,10 +312,11 @@ class MainVerdicts(unittest.TestCase):
                                encoding="utf-8")
 
     def run_gate(self, records, *extra, golden_records=None,
-                 golden_context=None):
+                 golden_context=None, keep_golden=False):
         if golden_records is None:
             golden_records = records
-        self.write_golden(golden_records, context=golden_context)
+        if not keep_golden:
+            self.write_golden(golden_records, context=golden_context)
         argv = ["corpus_gate", "--runner", "unused",
                 "--golden", str(self.golden), *extra]
         patches = [patch.object(corpus_gate, "ROOT", self.root),
@@ -491,6 +492,24 @@ class MainVerdicts(unittest.TestCase):
                   for row in corpus_records.read(self.golden)}
         self.assertEqual(merged["pass/a/x"]["recorded_at"], "aaaaaaaaaaaa")
         self.assertIsNone(merged["pass/a/y"]["recorded_at"])
+
+    def test_subset_record_leaves_unmeasured_text_untouched(self):
+        prior = [record("pass/a/y", recorded_at="bbbbbbbbbbbb"),
+                 record("pass/a/x")]
+        self.write_golden(prior)
+        annotated = (self.golden.read_text()
+                     + "# an annotation another lane wrote\n")
+        self.golden.write_text(annotated)
+        untouched = [line for line in annotated.splitlines()
+                     if not line.startswith("pass/a/x")]
+        code = self.run_gate([record("pass/a/x")], "--record", "--filter", "a/x",
+                             golden_records=None, keep_golden=True)
+        self.assertEqual(code, 0)
+        written = self.golden.read_text().splitlines()
+        self.assertEqual([line for line in written
+                          if not line.startswith("pass/a/x")], untouched)
+        self.assertTrue(any(line.startswith("pass/a/x") and "@aaaaaaaaaaaa" in line
+                            for line in written))
 
     def test_authored_stdout_refuses_bad_evidence_and_preserves_golden(self):
         fixture = self.root / "tests" / "omega" / "run" / "a" / "x"

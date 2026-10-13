@@ -64,6 +64,45 @@ class CarriedRegression(unittest.TestCase):
                 {"status": "built", "facts": {"exit": "7 0"}})
 
 
+class Splice(unittest.TestCase):
+    """A subset record changes only the rows it measured."""
+
+    def row(self, fixture, status="checked", diagnostics=()):
+        return {"fixture": fixture, "tier": fixture.split("/")[0],
+                "status": status, "millis": 5, "expected_satisfied": None,
+                "facts": {}, "diagnostics": list(diagnostics),
+                "regressed_from": None, "recorded_at": "aaaaaaaaaaaa"}
+
+    def test_rows_replace_in_place_and_insert_sorted(self):
+        text = ("# header comment\n"
+                "# context: {\"jobs\": \"3\"}\n"
+                "pass/a/b rejected 1ms\n"
+                "\told diagnostic\n"
+                "# an annotation another lane wrote\n"
+                "pass/a/d checked 2ms\n"
+                "pass/a/c checked 3ms @bbbbbbbbbbbb\n")
+        spliced = corpus_records.splice(text, [
+            self.row("pass/a/b", diagnostics=["fresh"]),
+            self.row("pass/a/a"),
+            self.row("pass/a/z"),
+        ])
+        self.assertEqual(spliced, (
+            "# header comment\n"
+            "# context: {\"jobs\": \"3\"}\n"
+            "pass/a/a checked 5ms @aaaaaaaaaaaa\n"
+            "pass/a/b checked 5ms @aaaaaaaaaaaa\n"
+            "\tfresh\n"
+            "# an annotation another lane wrote\n"
+            "pass/a/d checked 2ms\n"
+            "pass/a/c checked 3ms @bbbbbbbbbbbb\n"
+            "pass/a/z checked 5ms @aaaaaaaaaaaa\n"))
+
+    def test_an_unchanged_row_round_trips_byte_for_byte(self):
+        record = self.row("pass/a/b", diagnostics=["two\nlines"])
+        text = corpus_records.render([record])
+        self.assertEqual(corpus_records.splice(text, [record]), text)
+
+
 class RoundTrip(unittest.TestCase):
     def test_every_field_survives_render_and_parse(self):
         records = [

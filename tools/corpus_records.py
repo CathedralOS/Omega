@@ -281,18 +281,62 @@ def render(records: list[dict], context=None) -> str:
         lines.append(CONTEXT_PREFIX + json.dumps(context, ensure_ascii=True,
                                                  sort_keys=True))
     for record in records:
-        header = f"{record['fixture']} {record['status']} {record['millis']}ms"
-        if record["expected_satisfied"] is not None:
-            header += " expected" if record["expected_satisfied"] else " unexpected"
-        for key, value in record.get("facts", {}).items():
-            header += f" {key}:{value}"
-        if record.get("regressed_from") is not None:
-            header += " " + format_regression(record["regressed_from"])
-        if record.get("recorded_at") is not None:
-            header += f" @{record['recorded_at']}"
-        lines.append(header)
-        lines.extend("\t" + escape(diagnostic) for diagnostic in record["diagnostics"])
+        lines.extend(record_lines(record))
     return "\n".join(lines) + "\n"
+
+
+def record_lines(record: dict) -> list[str]:
+    """One fixture's row and its tab-indented diagnostics."""
+    header = f"{record['fixture']} {record['status']} {record['millis']}ms"
+    if record["expected_satisfied"] is not None:
+        header += " expected" if record["expected_satisfied"] else " unexpected"
+    for key, value in record.get("facts", {}).items():
+        header += f" {key}:{value}"
+    if record.get("regressed_from") is not None:
+        header += " " + format_regression(record["regressed_from"])
+    if record.get("recorded_at") is not None:
+        header += f" @{record['recorded_at']}"
+    return [header] + ["\t" + escape(diagnostic) for diagnostic in record["diagnostics"]]
+
+
+def splice(text: str, records: list[dict]) -> str:
+    """Write `records` into an existing golden's text and change nothing else.
+
+    A filtered or sharded `--record` measures a few fixtures. Re-rendering the
+    whole file from parsed rows also reorders rows, drops comments and
+    rewrites the context line, so two sessions recording disjoint fixtures
+    conflicted on every rebase. Here each recorded fixture replaces its own
+    row block in place; a new fixture goes before the first row that sorts
+    after it. Comments, context lines and every other row stay byte-for-byte.
+    """
+    blocks: list[list[str]] = []
+    for line in text.splitlines():
+        if line.startswith("\t") and blocks and block_fixture(blocks[-1]):
+            blocks[-1].append(line)
+        else:
+            blocks.append([line])
+    for record in sorted(records, key=lambda record: record["fixture"]):
+        fixture = record["fixture"]
+        replacement = record_lines(record)
+        existing = [index for index, block in enumerate(blocks)
+                    if block_fixture(block) == fixture]
+        if existing:
+            blocks[existing[0]] = replacement
+            for index in reversed(existing[1:]):
+                del blocks[index]
+            continue
+        position = next((index for index, block in enumerate(blocks)
+                         if (block_fixture(block) or "") > fixture), len(blocks))
+        blocks.insert(position, replacement)
+    return "\n".join(line for block in blocks for line in block) + "\n"
+
+
+def block_fixture(block: list[str]):
+    """The fixture a row block names, or None for a comment or blank line."""
+    first = block[0]
+    if not first.strip() or first.startswith("#") or first.startswith("\t"):
+        return None
+    return first.split(" ", 1)[0]
 
 
 def read(path) -> list[dict]:

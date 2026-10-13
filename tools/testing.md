@@ -312,7 +312,10 @@ disagrees with your checkout over another lane's in-flight movement, which is
 the usual case: a run against the shared golden cannot separate that drift from
 yours, and re-recording the shared golden would pin their regression as
 expected. A subset diff compares only the fixtures that ran; a subset
-`--record` merges into the golden. The unfiltered corpus is scheduled-workload cost,
+`--record` splices the rows it measured into the golden's existing text and
+leaves every other row, comment and context line byte-for-byte, so sessions
+recording different fixtures rebase without golden conflicts. The unfiltered
+corpus is scheduled-workload cost,
 not loop cost — keep it out of routine iteration.
 
 The default run checks fixtures only. `--native` realizes each pass and run

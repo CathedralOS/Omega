@@ -123,7 +123,7 @@ get an adaptive cap of max(cap, 3x golden millis), so boundary flap needs a
 genuine slowdown rather than a busier box. `OMEGA_CORPUS_JOBS` overrides the
 worker count; record and diff at the same jobs value on a quiet machine —
 `millis` inflates uniformly under external load, which floods the perf-move
-report. `--record` stamps the golden with a `# context:` line (jobs, cpus,
+report. An unfiltered `--record` stamps the golden with a `# context:` line (jobs, cpus,
 load averages bracketing the run), and a diff that finds perf moves compares
 the two contexts and says when one side started on a busy machine; only the
 pre-run load counts, since the end sample includes the gate's own workers. The
@@ -1316,16 +1316,19 @@ def main() -> int:
     if options.record:
         merged = records
         # A subset record merges into the golden: fixtures that ran get their
-        # fresh records, everything else keeps its pin — so sharded/filtered
-        # recordings assemble the same file an unfiltered record would. The
-        # context line describes this run, not the merged rows' originals —
-        # which is honest, since load context only says when the file was
-        # written, and each row's @stamp still says when it was measured.
+        # fresh records, everything else keeps its pin and its text. A subset
+        # writes no context line; each row's @stamp says when it was measured.
+        # Only an unfiltered record re-renders the file with this run's
+        # context.
         if subset and prior_records is not None:
             carried = {record["fixture"]: record for record in prior_records}
             carried.update({record["fixture"]: record for record in records})
             merged = [carried[fixture] for fixture in sorted(carried)]
-            rendered = corpus_records.render(merged, context)
+            # Splice the measured rows into the existing text so a subset
+            # record leaves every other row, comment and context line
+            # byte-for-byte; concurrent subset records then rebase cleanly.
+            rendered = corpus_records.splice(
+                options.golden.read_text(encoding="utf-8"), records)
         elif subset:
             print(f"corpus_gate: warning — no golden at {options.golden}; "
                   f"recording only the {len(records)} selected fixtures",
