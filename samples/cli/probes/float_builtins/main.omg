@@ -1,4 +1,5 @@
 use omega_language_std::math;
+use omega::language::core::float_operations;
 
 // Ordinary float extrema and roots imported from std math. Carrier-specific
 // declarations select f32 or f64, including for anonymous literal operands.
@@ -9,6 +10,8 @@ use omega_language_std::math;
 //   * `hits` records the reached arm.
 //
 // The state field records the reached arm; no ProcessExit provider is used.
+// The float comparisons in the guard resolve through the imported
+// `float_operations` selection; a primitive spelling has no fallback meaning.
 
 data Main {
     left32: f32;

@@ -18,17 +18,10 @@ mbx run -p omega -- --check samples/cli/probes/float_builtins/main.omg
 mbx run -p omega -- update --project samples/cli/probes/float_builtins
 ```
 
-The imported helper program checks. Native realization on macOS arm64 still
-rejects the `Main::main` state graph's conditional guard (`state graph:
-terminator: conditional successors: guard expression`). The cause is the
-guard's own `f32`/`f64` comparisons, not the std helpers: this program does not
-import `omega::language::core::float_operations`, so each `==` checks through
-its builtin-fallback meaning, and a builtin float comparison has no Terminal
-route in any position (the reduction is
-`tests/omega/pending/arithmetic/float_computation_no_route`, owned by
-OPERATOR-BOUNDARY-CALLS, whose board entry says to preserve declared operator
-selection with no spelling-based fallback). The same program with that import
-builds natively on macOS arm64. Whether this probe should import the selected
-float operations or the builtin fallback should execute is an owner decision;
-until it is made this probe is not a passing native example. `omega.lock`
-publishes locally and is ignored.
+The program imports `omega::language::core::float_operations`, so the guard's
+`f32`/`f64` comparisons resolve through that declared selection and the probe
+builds natively on macOS arm64. Without the import each `==` checks through a
+builtin-fallback meaning that has no Terminal route in any position; that gap
+is pinned at `tests/omega/pending/arithmetic/float_computation_no_route` and
+owned by OPERATOR-BOUNDARY-CALLS, whose board entry says to preserve declared
+operator selection with no spelling-based fallback.
