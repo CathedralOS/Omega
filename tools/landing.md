@@ -7,6 +7,14 @@ starting when it becomes head, not when its owner claims. Publication or expiry
 removes that ticket; the next head receives a fresh three-minute lease.
 Development and initial testing happen before joining.
 
+For an active [pinned qualification](qualification.md), finish the coherent
+run first, integrate current main near publication outside this queue, and
+assess/requalify affected inputs there. Ordinary `verify` automatically checks
+the worktree's registered assessment before/after its mandatory exact-SHA build;
+publication revalidates the bound assessment and artifacts. Main movement alone
+does not invalidate unchanged behavioral observations. Required final-candidate
+checks and user-required independent final review still observe the final tree.
+
 `main` is the only shared code branch. Develop in isolated worktrees, including
 detached worktrees. GitHub stores queue metadata at
 `refs/coordination/omega-landing/main`; it runs no builds, waiting processes, or

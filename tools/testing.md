@@ -47,6 +47,15 @@ compiler binary identity and producer revision, toolchain, target and relevant
 environment/resources. Keep frozen expected results and refusal controls intact.
 After main advances, compare the incoming changes against those recorded inputs:
 
+Use the executable [pinned qualification runner](qualification.md) to capture
+reviewed dependency identities and measured checks on that revision. Keep the
+checkpoint fixed during qualification; integrate main near publication, outside
+the queue, then `assess`/`run-pending` the exact incoming changes. Its worktree
+registration binds the final assessment to ordinary landing verification, while
+the original observation SHA remains visible when evidence is reused. Immutable
+producer artifacts and complete reviewed closures are required; file replacement
+during capture invalidates evidence even when the validator exits successfully.
+
 - Resolve ordinary Git text conflicts while preserving both outcomes' intent.
   Unrelated changes do not require repeating unaffected checks.
 - Changes to exercised compiler semantics, libraries, runtime, source readers,

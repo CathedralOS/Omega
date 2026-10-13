@@ -152,6 +152,68 @@ class SwarmTests(unittest.TestCase):
     def validate(self, record):
         return self.module.validate_manifest(record, self.repository)
 
+    def test_semantic_launch_review_and_continuation_deliver_verified_context(self):
+        spec = self.repository / 'wiki/spec/rule.md'
+        spec.parent.mkdir(parents=True)
+        spec.write_text('The selected canonical rule.\n', encoding='utf-8')
+        self.git(self.repository, 'add', '.')
+        self.git(self.repository, 'commit', '-m', 'canonical rule')
+        base = self.git(self.repository, 'rev-parse', 'HEAD')
+        record = manifest(dict(host='local', source_revision=base, semantic_contracts=[dict(
+            implementation=['src/one'], contract='wiki/spec/rule.md',
+            classification='missing_implementation', reason='repair the existing behavior',
+            passages=['The selected canonical rule.'])]))
+        session = self.validate(record)[0]
+        manifest_path = self.root / 'semantic-wave.json'
+        def delivered_prompt():
+            manifest_path.write_text(json.dumps(record), encoding='utf-8')
+            with mock.patch.object(self.module, 'emit'):
+                result = self.module.main(['--repository', str(self.repository), 'local',
+                    '--manifest', str(manifest_path), '--skip-host-gates',
+                    '--skip-route-check', '--skip-claims-check'])
+            self.assertEqual(result, 0)
+            return (self.module.build_directory(self.repository, 'w9') / 'prompts/alpha.md').read_text(encoding='utf-8')
+        self.assertIn('The selected canonical rule.', delivered_prompt())
+        state = dict(worktree=self.repository, branch='main', ahead=1)
+        cloud = TEMPLATE.read_text(encoding='utf-8')
+        local = TEMPLATE.with_name('prompt_template_local.md').read_text(encoding='utf-8')
+        for prompt in (self.module.render_prompt(cloud, record, session),
+                       self.module.render_local_prompt(local, record, session, self.repository, state)):
+            self.assertIn('The selected canonical rule.', prompt)
+            self.assertIn(base, prompt)
+            self.assertIn(self.git(self.repository, 'rev-parse', base + ':wiki/spec/rule.md'), prompt)
+        prior = session['semantic_handoff']
+        session['semantic_handoff_role'] = 'review'
+        self.validate(record)
+        for prompt in (self.module.render_prompt(cloud, record, session),
+                       self.module.render_local_prompt(local, record, session, self.repository, state)):
+            self.assertIn('The selected canonical rule.', prompt)
+            self.assertIn('Independent read-only final review', prompt)
+            self.assertIn('Do not edit files, claim implementation ownership or publish', prompt)
+            self.assertIn('implementation owner retains landing', prompt)
+            self.assertNotIn('advance', prompt)
+        self.assertIn('Independent read-only final review', delivered_prompt())
+        session['semantic_handoff_role'] = 'continuation'
+        with self.assertRaisesRegex(self.module.SwarmError, 'prior delivered'):
+            self.validate(record)
+        session['previous_semantic_handoff'] = prior
+        self.validate(record)
+        resumed = self.module.render_local_prompt(local, record, session, self.repository, state)
+        self.assertIn('context verified unchanged', resumed)
+        self.assertNotIn('The selected canonical rule.', resumed)
+        self.assertIn('context verified unchanged', delivered_prompt())
+        spec.write_text('The revised canonical rule.\n', encoding='utf-8')
+        self.git(self.repository, 'add', '.')
+        self.git(self.repository, 'commit', '-m', 'revise canonical rule')
+        session['source_revision'] = self.git(self.repository, 'rev-parse', 'HEAD')
+        with self.assertRaisesRegex(self.module.SwarmError, 'missing/stale'):
+            self.validate(record)
+        session['semantic_contracts'][0]['passages'] = ['The revised canonical rule.']
+        self.validate(record)
+        refreshed = self.module.render_local_prompt(local, record, session, self.repository, state)
+        self.assertIn('The revised canonical rule.', refreshed)
+        self.assertIn('The revised canonical rule.', delivered_prompt())
+
     def test_manifest_rejects_excluded_item(self):
         record = manifest({"item": "ITEM-EXCLUDED"})
         with self.assertRaises(self.module.SwarmError):

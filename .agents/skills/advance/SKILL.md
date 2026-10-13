@@ -185,6 +185,21 @@ checks. Reuse successful results on unchanged inputs, including at landing.
 Qualify on a fixed recorded revision. Main advancing does not invalidate every
 check: apply [main-change validation](../../../tools/testing.md#main-change-validation)
 to the actual changed inputs, retaining the exact-SHA landing receipt requirement.
+Use [qualification.py](../../../tools/qualification.md) to capture the reviewed
+source/compiler/artifact closure and measured checks. Keep the qualification
+checkpoint fixed, integrate main near publication outside the queue, then assess
+and run only invalidated or required final-candidate checks. Reused observations
+retain their actual producer/revision; final independent review and exact-SHA
+landing verification are not reused across candidates.
+Before a semantic repair, include the focused canonical passages themselves,
+their source revision/blob hashes and the behavior-to-contract mapping in the
+implementation and independent-review context (`qualification.py handoff`
+with `--role implementation` or `--role review`). Save the packet; on resume
+use `--role continuation --previous SAVED_PACKET_JSON` with the integrated
+base to verify focused fingerprints and reinject only changed context.
+Distinguish missing implementation from an unapproved new rule; tests and a spec
+clause authored in the same patch do not supply language authority. Missing or
+stale context requires identifying the exact semantic gap before coding.
 
 Before landing, challenge the assumptions that make this change correct, even
 when working alone. For each assumption the change's correctness depends on,

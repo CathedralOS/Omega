@@ -28,6 +28,7 @@ import uuid
 # Sibling-script import; both files live in tools/.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import coordination
+import qualification
 from push_budgets import (COLLISION_BACKOFF_BASE, COLLISION_BACKOFF_CAP,
                         COLLISION_LIMIT, PROBE_ATTEMPTS,
                         PROBE_BACKOFF_SECONDS, PUSH_FAILURE_BACKOFF_BASE,
@@ -265,13 +266,14 @@ def write_receipt(repository, receipt):
                     encoding="utf-8")
     return path
 
-def verify(repository, base):
+def verify(repository, base, qualification_path=None):
     """Build-receipt producer: `check` the affected crates at a clean HEAD.
 
     Publish cannot afford this — the queue head lease is LEASE_SECONDS —
     so the check runs here, ahead of enqueueing, and publish reads the
     receipt. Prints and writes the receipt; exits 0 only when the check
     did."""
+    started = time.monotonic()
     repository = Path(repository).resolve()
     head = coordination.git(repository, "rev-parse", "HEAD").stdout
     if coordination.git(repository, "status", "--porcelain").stdout:
@@ -284,6 +286,20 @@ def verify(repository, base):
                         allow_failure=True).returncode:
         raise LandingError(f"Base {base[:12]} is not an ancestor of HEAD; "
                            "rebase onto it before verifying.")
+    qualification_receipt = None
+    try:
+        active_qualification = qualification.active_path(repository)
+    except qualification.RecoveryError as error:
+        raise LandingError(str(error)) from error
+    if qualification_path and active_qualification:
+        if Path(qualification_path).resolve() != Path(active_qualification).resolve():
+            raise LandingError("verify must use this worktree's active qualification")
+    qualification_path = qualification_path or active_qualification
+    if qualification_path:
+        try:
+            qualification_receipt = qualification.validate(repository, qualification_path, head, base)
+        except qualification.RecoveryError as error:
+            raise LandingError(str(error)) from error
     workspaces = affected_workspaces(repository, base, head)
     packages = sorted({package for names in workspaces.values() for package in names})
     command = None
@@ -297,9 +313,11 @@ def verify(repository, base):
                 check_command += ["--manifest-path", str(repository / workspace)]
             for package in sorted(names):
                 check_command += ["-p", package]
+            check_started = time.monotonic()
             checked_exit = subprocess.run(check_command, cwd=repository).returncode
             checks.append({"workspace": workspace, "packages": sorted(names),
-                           "command": check_command, "exit_code": checked_exit})
+                           "command": check_command, "exit_code": checked_exit,
+                           "duration_seconds": time.monotonic() - check_started})
             if command is None:
                 command = check_command
             if checked_exit and not exit_code:
@@ -332,14 +350,23 @@ def verify(repository, base):
                "packages": packages, "command": command,
                "checks": checks, "intermediate": intermediate,
                "pending": [list(item) for item in pending],
-               "exit_code": exit_code, "utc": now()}
+               "exit_code": exit_code, "utc": now(),
+               "duration_seconds": time.monotonic() - started}
+    if qualification_receipt:
+        # Mandatory build checks still ran for this exact HEAD. Rejoin the
+        # qualification again afterwards: a concurrently replaced compiler or
+        # library cannot inherit acceptance from the pre-build observation.
+        try:
+            receipt["qualification"] = qualification.validate(repository, qualification_path, head, base)
+        except qualification.RecoveryError as error:
+            raise LandingError(str(error)) from error
     if lost:
         receipt["lost_rows"] = lost
     write_receipt(repository, receipt)
     emit(receipt)
     return 0 if exit_code == 0 else 1
 
-def receipt_failure(repository, candidate, affected, workspaces=None):
+def receipt_failure(repository, candidate, affected, workspaces=None, base=None, qualification_path=None):
     """None when a valid build receipt covers `affected`; else the reason."""
     path = receipt_path(repository, candidate)
     if not path.is_file():
@@ -352,6 +379,19 @@ def receipt_failure(repository, candidate, affected, workspaces=None):
         return f"build receipt {path} is not {RECEIPT_SCHEMA}"
     if receipt.get("candidate") != candidate:
         return f"build receipt {path} covers {receipt.get('candidate')}, not this candidate"
+    if base is not None and receipt.get("base") != base:
+        return "build receipt integration base differs from the reserved publication base"
+    if qualification_path and (not receipt.get("qualification")
+            or Path(receipt["qualification"].get("path", "")).resolve() != Path(qualification_path).resolve()):
+        return "build receipt qualification differs from the active worktree registration"
+    if receipt.get("qualification"):
+        qualified = receipt["qualification"]
+        try:
+            current = qualification.validate(repository, qualified["path"], candidate, receipt["base"])
+            if current != qualified:
+                return "qualification changed since exact-candidate verification"
+        except (qualification.RecoveryError, OSError, KeyError, ValueError) as error:
+            return "qualification no longer valid: " + str(error)
     if receipt.get("lost_rows"):
         return (f"build receipt {path} recorded lost corpus rows "
                 f"{receipt['lost_rows']}")
@@ -694,9 +734,24 @@ class Landing:
         workspaces = affected_workspaces(self.repository, options.base,
                                         options.candidate)
         affected = {package for packages in workspaces.values() for package in packages}
-        if affected:
+        # A non-Rust workflow may also carry qualification. Preserve that
+        # binding at publication; no dependency on a Rust package is needed.
+        qualified = False
+        evidence_path = receipt_path(self.repository, options.candidate)
+        if evidence_path.is_file():
+            try:
+                qualified = bool(json.loads(evidence_path.read_text(encoding="utf-8")).get("qualification"))
+            except (OSError, ValueError):
+                pass  # Rust receipts retain their mandatory refusal below.
+        try:
+            active_qualification = qualification.active_path(self.repository)
+        except qualification.RecoveryError as error:
+            raise LandingError(str(error)) from error
+        if active_qualification and not qualified:
+            raise LandingError("active qualification needs an exact-candidate verify receipt before publication")
+        if affected or qualified:
             failure = receipt_failure(self.repository, options.candidate,
-                                      affected, workspaces)
+                                      affected, workspaces, options.base, active_qualification)
             if failure:
                 raise LandingError(
                     f"{failure}; run `python tools/landing.py verify "
@@ -919,6 +974,7 @@ def main(arguments=None):
     parser.add_argument("--board-update", action="store_true",
                         help="publish a candidate that touches only coordination files "
                              "(coordinator board sweeps)")
+    parser.add_argument("--qualification", help="verify a pinned qualification assessment before/after the mandatory build")
     options = None
     try:
         options = parser.parse_args(arguments)
@@ -928,6 +984,8 @@ def main(arguments=None):
             raise LandingError("--wait-seconds applies only to claim.")
         if options.board_update and options.command != "publish":
             raise LandingError("--board-update applies only to publish.")
+        if options.qualification and options.command != "verify":
+            raise LandingError("--qualification applies only to verify.")
         if options.provenance is not None and (options.command != "publish" or len(options.provenance) > 500):
             raise LandingError("--provenance applies only to publish and holds at most 500 characters.")
         if options.command == "enqueue":
@@ -942,7 +1000,7 @@ def main(arguments=None):
             if not options.base:
                 raise LandingError("verify requires --base <full-sha> — the integration base the claim reserved.")
             object_id(options.base, "Base")
-            return verify(options.repository, options.base)
+            return verify(options.repository, options.base, options.qualification)
         operation_deadline = time.monotonic() + LEASE_SECONDS + options.wait_seconds
         return Landing(options.repository, options.remote, operation_deadline).coordinate(options)
     except (LandingError, OSError) as error:

@@ -10,6 +10,12 @@ Each worker keeps its own cloud executor, checkout, build cache and outcome chai
 Reuse a settled session for its next dependency-ready assignment. The coordinator
 selects programs, reconciles ownership and verifies complete results.
 
+Each session qualifies coherently on one checkpoint with the executable
+[qualification runner](../../../tools/qualification.md). Integrate main near
+publication outside the queue; assess actual changed dependencies, reuse only
+justified unchanged observations and rerun affected/final-candidate checks.
+Preserve exact producer artifacts and final review/build/publication gates.
+
 Apply the [law of completion](../../../AGENTS.md#law-of-completion).
 Each implementation owner retains context through full acceptance, required
 review and authorized verified main landing, including its necessary compiler,
