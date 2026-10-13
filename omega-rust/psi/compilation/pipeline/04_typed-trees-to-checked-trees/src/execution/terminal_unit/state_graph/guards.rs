@@ -5,9 +5,10 @@
 //! `forwards_qualified_parameter` admits a successor's forwarded parameters.
 //! The terminator module shares these with `build_traced` through `super::`.
 use super::super::{
-    CheckFacts, CheckedComposedUnitControlStatePlan, CheckedScalarExpressionRole, PrimitiveType,
+    CheckFacts, CheckedComposedUnitControlStatePlan, CheckedScalarExpressionRole,
+    CheckedUnitEffectOperationPlan, PrimitiveType,
 };
-use crate::execution::terminal_unit::types::ShapeCollector;
+use crate::execution::terminal_unit::types::{ShapeCollector, declared_qualifications};
 
 /// A returning exit disposes whole roots only: a partial affine drop or a
 /// residual discard at the return has no Terminal return-cleanup row here.
@@ -37,6 +38,8 @@ use crate::execution::terminal_unit::types::ShapeCollector;
 /// `Nat::BoundedDistance` admits -- however exactly its edges forward the
 /// qualified parameter.
 pub(in crate::execution::terminal_unit) fn forwards_qualified_parameter(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
     shapes: &ShapeCollector<'_>,
     planned: &[CheckedComposedUnitControlStatePlan],
     live: &[bool],
@@ -62,7 +65,56 @@ pub(in crate::execution::terminal_unit) fn forwards_qualified_parameter(
                     && domain.establishment_routes.is_empty()
             })
         },
+        |operation| established_qualified_value(program, facts, operation),
     )
+}
+
+/// The declaration an establishment publishes its owned value under: a byte
+/// literal carries its admitted domains; a structural value carries its
+/// named local's declared type, or, for an anonymous copy of a readable
+/// leaf, that leaf's declared type.
+fn established_qualified_value(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Option<checked_trees::CheckedEstablishedQualifiedValue> {
+    let result = operation.structural_result_binding()?;
+    let qualifications = match operation {
+        CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::ByteSequence { qualifications, .. },
+        ) => {
+            let mut qualifications = qualifications.clone();
+            qualifications.sort_by_key(|domain| domain.0);
+            qualifications.dedup();
+            qualifications
+        }
+        CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+        ) => {
+            let declared = if result.local.declared_type.is_valid() {
+                result.local.declared_type
+            } else {
+                let values = &facts.values.structural_values;
+                if !values.nodes.is_valid(*value) {
+                    return None;
+                }
+                match &values.nodes.get(*value).kind {
+                    checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace {
+                        leaf,
+                        ..
+                    } => *leaf,
+                    _ => return None,
+                }
+            };
+            declared_qualifications(program, declared)?
+        }
+        _ => return None,
+    };
+    Some(checked_trees::CheckedEstablishedQualifiedValue {
+        type_identity: result.type_identity,
+        multiplicity: result.multiplicity,
+        qualifications,
+    })
 }
 
 /// The exact Boolean value one authored guard retains at its `Guard`

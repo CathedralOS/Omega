@@ -52,11 +52,11 @@ pub use composed_unit_control_plans::{
     CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
     CheckedClosedSumSubjectKind, CheckedComposedUnitControlMachinePlan,
     CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
-    CheckedConditionalReturnArm, CheckedControlResultPlan, CheckedGuardedJumpArmPlan,
-    CheckedGuardedJumpFallbackPlan, CheckedGuardedJumpPlan, CheckedGuardedJumpReturnPlan,
-    CheckedNaturalRankMeasure, CheckedRankEdgeCoordinate, CheckedScalarCaseFieldPlan,
-    CheckedScalarReturnPlan, CheckedStateContractRequirement, CheckedStateNaturalRank,
-    forwards_qualified_parameter,
+    CheckedConditionalReturnArm, CheckedControlResultPlan, CheckedEstablishedQualifiedValue,
+    CheckedGuardedJumpArmPlan, CheckedGuardedJumpFallbackPlan, CheckedGuardedJumpPlan,
+    CheckedGuardedJumpReturnPlan, CheckedNaturalRankMeasure, CheckedRankEdgeCoordinate,
+    CheckedScalarCaseFieldPlan, CheckedScalarReturnPlan, CheckedStateContractRequirement,
+    CheckedStateNaturalRank, forwards_qualified_parameter,
 };
 pub use dynamic_slot_plans::{CheckedDynamicClaimPath, CheckedDynamicSlotPlan};
 pub use place_loan_plans::{CheckedPlaceLoanPlan, CheckedPlaceLoanRoot};

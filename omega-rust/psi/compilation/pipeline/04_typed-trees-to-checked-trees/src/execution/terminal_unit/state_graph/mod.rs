@@ -614,6 +614,8 @@ pub(super) fn build_traced(
                 && !parameter.qualifications.is_empty()
                 && !(state_index == 0 && invocation_only_entry)
                 && !forwards_qualified_parameter(
+                    program,
+                    facts,
                     shapes,
                     &planned,
                     &live_states,

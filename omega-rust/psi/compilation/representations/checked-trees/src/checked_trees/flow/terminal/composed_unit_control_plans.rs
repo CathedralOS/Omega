@@ -761,6 +761,28 @@ pub struct CheckedClosedSumPayloadTransferPlan {
     pub target_scalar_parameter_index: u32,
 }
 
+/// An owned value one edge establishes for a qualified successor parameter,
+/// as its declaration publishes it: the stored carrier identity, the
+/// multiplicity and the domain roster the declared type carries. A fresh
+/// copy of a `[u8; N] in D` field or local and an authored `[u8; N] in D`
+/// literal both arrive under exactly the domains their declaration names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedEstablishedQualifiedValue {
+    pub type_identity: TypeIdentityId,
+    pub multiplicity: Multiplicity,
+    pub qualifications: Vec<SemanticDomainId>,
+}
+
+impl CheckedEstablishedQualifiedValue {
+    /// Whether this value arrives as exactly the roster `parameter` declares.
+    fn arrives_as(&self, parameter: &CheckedUnitStructuralParameterPlan) -> bool {
+        self.type_identity == parameter.type_identity
+            && self.multiplicity == parameter.multiplicity
+            && self.qualifications == parameter.qualifications
+            && parameter.projected_qualifications.is_empty()
+    }
+}
+
 /// A shared loan freezes its referent. A mutable bounded byte owner instead
 /// preserves its primitive byte predicates through independently checked
 /// stores. Neither rule grants transport for arbitrary mutable qualified
@@ -768,14 +790,15 @@ pub struct CheckedClosedSumPayloadTransferPlan {
 /// established value whole, with exactly the same primitive predicate roster
 /// on every arrival. A successor's qualified parameter is admitted only when
 /// every live edge into its state forwards a source parameter with exactly
-/// the same carrier, access, multiplicity and qualifications, or, for a
-/// shared byte view, establishes an authored literal under those
-/// qualifications: each is then a byte-predicate domain without establishment
-/// routes, which Terminal verification decides from the literal's octets at
-/// the edge.
+/// the same carrier, access, multiplicity and qualifications; establishes,
+/// for a shared byte view, an authored literal under those qualifications;
+/// or establishes, for an owned byte carrier, a value whose own declaration
+/// carries them (`established_value` reads that declaration). Each is then
+/// a byte-predicate domain without establishment routes, which Terminal
+/// verification decides from the arriving octets at the edge.
 ///
-/// Checking and lowering share this admission: the container of structural
-/// types and domains differs per stage, so callers pass the two lookups.
+/// The container of structural types, domains and value declarations lives
+/// with the checking stage, so callers pass the three lookups.
 pub fn forwards_qualified_parameter<'shapes>(
     states: &[CheckedComposedUnitControlStatePlan],
     live: &[bool],
@@ -783,6 +806,9 @@ pub fn forwards_qualified_parameter<'shapes>(
     parameter_index: usize,
     structural_type_shape: impl Fn(TypeIdentityId) -> Option<&'shapes CheckedUnitStructuralTypeShape>,
     domain_without_establishment_routes: impl Fn(SemanticDomainId, TypeIdentityId) -> bool,
+    established_value: impl Fn(
+        &crate::CheckedUnitEffectOperationPlan,
+    ) -> Option<CheckedEstablishedQualifiedValue>,
 ) -> bool {
     let Some(target) = states.get(target_index) else {
         return false;
@@ -820,6 +846,12 @@ pub fn forwards_qualified_parameter<'shapes>(
         && parameter.qualifications.iter().all(|qualification| {
             domain_without_establishment_routes(*qualification, parameter.type_identity)
         });
+    // A fresh owned value carries whatever its declaration establishes: the
+    // establishment on the edge or the source state's own result binding.
+    let owned_establishment_arrives = |operation: &crate::CheckedUnitEffectOperationPlan| {
+        parameter.access == CheckedStructuralAccess::Owned
+            && established_value(operation).is_some_and(|value| value.arrives_as(parameter))
+    };
     states
         .iter()
         .zip(live)
@@ -857,6 +889,21 @@ pub fn forwards_qualified_parameter<'shapes>(
                                     subject.type_identity == parameter.type_identity
                                         && subject.access == parameter.access
                                 }
+                                CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                                    establishment,
+                                    ..
+                                } => owned_establishment_arrives(establishment),
+                                CheckedStructuralControlTransferSourcePlan::StructuralResult {
+                                    binding_ordinal,
+                                } => source
+                                    .operations
+                                    .iter()
+                                    .find(|operation| {
+                                        operation.structural_result_binding().is_some_and(
+                                            |result| result.binding_ordinal == *binding_ordinal,
+                                        )
+                                    })
+                                    .is_some_and(owned_establishment_arrives),
                                 _ => false,
                             }
                     })
