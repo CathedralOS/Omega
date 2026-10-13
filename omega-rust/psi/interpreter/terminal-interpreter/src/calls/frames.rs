@@ -271,6 +271,8 @@ impl TerminalExecution<'_> {
                 &callee.structural_parameters,
                 callee.result.structural().ok_or_else(malformed)?,
                 &structural_values,
+                &prepared_arguments.aggregate_backings,
+                &prepared_arguments.primitive_loans,
             )?;
         }
         let aggregate_payload = self.stage_owned_aggregate_arguments(

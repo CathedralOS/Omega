@@ -1293,11 +1293,14 @@ fn write_destination(
 /// Join a store to its declared root and exact target operation. Descriptor
 /// establishment, construction and call results all use the same store; the
 /// producing operation's spelling cannot change its publication contract.
-fn scalar_store_place(
+/// A retained logical store is not necessarily one fixed memory-footprint row:
+/// encoded cells use an address and runtime codec. Mandatory graph and physical
+/// replay authenticate that encoding, including every pointer/selector step.
+pub(super) fn scalar_store_retained(
     function: &AbstractFunction,
     operation: &AbstractOperation,
     target: &TargetFunction,
-) -> Option<semantic_vocabulary::PlaceId> {
+) -> bool {
     let AbstractOperation::StructuralScalarFieldStore {
         psi_operation,
         destination,
@@ -1307,11 +1310,11 @@ fn scalar_store_place(
         ..
     } = operation
     else {
-        return None;
+        return false;
     };
     let place = destination.place();
     if !retained_field_root(function, target, place) {
-        return None;
+        return false;
     }
     let mut stores = target.graph.operations().filter(|operation| {
         matches!(operation,
@@ -1325,7 +1328,7 @@ fn scalar_store_place(
                 && retained_selectors(path, indices)
         )
     });
-    (stores.next().is_some() && stores.next().is_none()).then_some(place)
+    stores.next().is_some() && stores.next().is_none()
 }
 
 fn pointer_read_before(
@@ -1345,108 +1348,6 @@ fn pointer_read_before(
     matches!(reads.next(), Some(read) if read.byte_offset == 0 && read.byte_count == 8
         && read.instruction < before)
         && reads.next().is_none()
-}
-
-/// Every static reference crossing loads its own descriptor word before the
-/// field write. Reconstruct offsets in each region independently: a nested
-/// descriptor is not necessarily at offset zero in the original home.
-fn field_pointer_reads_before(
-    function: &AbstractFunction,
-    target: &TargetFunction,
-    accesses: &[selected_instructions::SelectedMemoryAccess],
-    operation: semantic_vocabulary::OperationId,
-    carrier: semantic_vocabulary::PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
-    before: selected_instructions::SelectedInstructionId,
-) -> Option<()> {
-    use selected_instructions::{
-        SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
-    };
-    let types = &target.graph.structural_types;
-    let mut root = field_root_type(function, carrier)?;
-    let mut reads = accesses.iter().filter(|access| {
-        access.origin == Origin::Operation(operation)
-            && access.role == Role::ReadPlace
-            && access.place == carrier
-    });
-    let mut region_start = 0;
-    let mut previous = None;
-    for (position, segment) in path.iter().enumerate() {
-        if *segment != terminal_psi::StructuralPathSegment::Referent {
-            continue;
-        }
-        let prefix = &path[region_start..position];
-        let (descriptor, offset) = if prefix.is_empty() {
-            (root, 0)
-        } else {
-            let (descriptor, _, offset) = crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
-                root, prefix, types,
-            )?;
-            (descriptor, offset)
-        };
-        let terminal_psi::StructuralTypeShape::Reference { referent, .. } =
-            terminal_psi::find_structural_type(types, descriptor)?.shape
-        else {
-            return None;
-        };
-        let read = reads.next()?;
-        if read.byte_offset != offset
-            || read.byte_count != 8
-            || read.instruction >= before
-            || previous.is_some_and(|previous| previous >= read.instruction)
-        {
-            return None;
-        }
-        previous = Some(read.instruction);
-        root = referent;
-        region_start = position + 1;
-    }
-    reads.next().is_none().then_some(())
-}
-
-pub(super) fn scalar_store_footprints_retained(
-    function: &AbstractFunction,
-    operation: &AbstractOperation,
-    target: &TargetFunction,
-    accesses: &[selected_instructions::SelectedMemoryAccess],
-) -> bool {
-    use selected_instructions::{
-        SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
-    };
-    let AbstractOperation::StructuralScalarFieldStore {
-        psi_operation,
-        path,
-        ..
-    } = operation
-    else {
-        return false;
-    };
-    let Some(place) = scalar_store_place(function, operation, target) else {
-        return false;
-    };
-    let mut writes = accesses.iter().filter(|access| {
-        access.origin == Origin::Operation(*psi_operation)
-            && access.place == place
-            && access.role == Role::WritePlace
-    });
-    let Some(write) = writes.next() else {
-        return false;
-    };
-    if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
-        writes.next().is_none()
-            && field_pointer_reads_before(
-                function,
-                target,
-                accesses,
-                *psi_operation,
-                place,
-                path,
-                write.instruction,
-            )
-            .is_some()
-    } else {
-        true
-    }
 }
 
 /// Owned field observations retain the complete obligation on the carrier.

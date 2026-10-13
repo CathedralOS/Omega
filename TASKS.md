@@ -1017,12 +1017,11 @@ defines the complete product bar.
     covers limited Linux x86-64 leaves). Owned by
     **FILESYSTEM-PLATFORM-SERVICES**. Acceptance: the seven-step workflow,
     exit 7.
-  - `systems/note_vault`: needs the same `FilesystemHost` provider. Its
-    `Filesystem::create_dir_all` -> `Filesystem::mkall_walk` loop forwards a
-    shared `path: &[u8] in Path` into its own entry, which now lowers
-    natively (`pass/borrows/runtime_shared_qualified_view_cycle_exit`).
-    Result custody and nested-field initialization stay with
-    **STATE-LOCAL-VALUE-FRONTIER**.
+  - `systems/note_vault`: needs the portable `FilesystemHost` binding under
+    **FILESYSTEM-PLATFORM-SERVICES** and
+    `portable-service-per-family-binding-carrier` in
+    [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md). Acceptance: unchanged workflow,
+    exit 14.
 
   Host coverage still owed:
   - std `Clock` on Linux (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`):
@@ -1684,9 +1683,9 @@ defines the complete product bar.
   `pass/termination/rank_range_{declared_step_copies,call_declared_step_copy}`.
 
   The 16 recursive filesystem parameter suffixes remain unmigrated. Their
-  `pass/filesystem/dir_walk_wrappers_exit` customer currently refuses unresolved
-  `read_dir_count` / qualified `remove_dir_all` routes; its portable binding
-  dependency is **FILESYSTEM-PLATFORM-SERVICES** and Q1 in
+  `pass/filesystem/dir_walk_wrappers_exit` customer's portable binding
+  dependency is **FILESYSTEM-PLATFORM-SERVICES** and
+  `portable-service-per-family-binding-carrier` in
   [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md). Continue the other customer groups
   without manufacturing an implicit re-export or provider-name fallback.
 
@@ -2728,6 +2727,16 @@ crash and native exit behavior.
     is supplied by **FILESYSTEM-PLATFORM-SERVICES** under
     `portable-service-per-family-binding-carrier` in
     [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
+  - Preserve original source coordinates independently of a returned reference's
+    presentation. `pending/recast/callee_returned_aggregate_view_exit` admits
+    the callee's re-view but stops at `statement sequence: reference result`:
+    checking's `reference_result_custody/captured_returns.rs` requires the
+    original source type to equal the result referent. Terminal result-origin
+    validation and return binding require the same equality. Retain the admitted
+    formation's extent, codec and access rather than rename its source path or
+    infer cast authority from equal size. Acceptance: native and Terminal exit 0,
+    including returned subregions and scalar interpretations; invalid source,
+    lifetime, predicate and footprint controls remain refusals.
   - The common lowering route retains runtime bodies and opaque contracts,
     including unreachable members and uncatalogued tags, in Terminal family
     rows; inspection exposes tags and exact callable ids. Semantic conformance

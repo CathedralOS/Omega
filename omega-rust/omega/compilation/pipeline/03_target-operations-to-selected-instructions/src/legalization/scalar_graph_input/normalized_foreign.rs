@@ -444,12 +444,30 @@ pub(in crate::legalization) fn structural_argument_at(
                 declarations,
             )
             .ok_or(LegalizationError::custody())?;
-        // A foreign pointer can expose checked canonical aggregate backing,
-        // not an internal scalar pointer-and-codec descriptor.
-        if projection.scalar_descriptor || !projection.elements.is_empty() {
-            return Err(LegalizationError::custody());
+        // The foreign ABI receives the referent address, never the codec
+        // descriptor. Admit a scalar only when discarding that codec cannot
+        // expose bytes outside any backing admitted by its checked loan.
+        if projection.scalar_descriptor {
+            let shape = crate::structural_inputs::structural_reference_input::shape(
+                projection.selected,
+                declarations,
+            )
+            .ok_or(LegalizationError::custody())?;
+            let exported_width =
+                crate::structural_inputs::structural_reference_input::scalar_reference_export_width(
+                    projection.selected,
+                    semantic.access,
+                    declarations,
+                );
+            if exported_width != Some(shape.byte_size) {
+                return Err(LegalizationError::custody());
+            }
         }
-        (projection.selected, projection.referent_offset, Vec::new())
+        (
+            projection.selected,
+            projection.referent_offset,
+            projection.elements,
+        )
     } else {
         crate::structural_inputs::structural_reference_input::runtime_projection(
             root_type,

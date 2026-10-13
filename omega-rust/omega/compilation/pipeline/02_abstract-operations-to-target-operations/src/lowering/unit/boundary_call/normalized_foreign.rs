@@ -319,9 +319,10 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         structural_types,
                     )
                     .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
-                    if !indices.is_empty() {
-                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-                    }
+                    // Selectors retain their original pointer regions in the
+                    // authored path. The common runtime roster carries their
+                    // exact operands and bounds through foreign calls too.
+                    index_runs = indices;
                     (selected, shape, offset)
                 } else if argument.path.is_empty() {
                     if descriptor_root(source_structural_type) {

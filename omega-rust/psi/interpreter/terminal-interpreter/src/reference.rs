@@ -38,9 +38,9 @@ pub(crate) struct ReferenceReferent {
     pub(crate) byte_region: Option<ReferenceByteRegion>,
     /// A typed re-view of aggregate storage with identical geometry: `view`
     /// keeps the backing under its own declaration, and this names the
-    /// declaration the reference observes it as. Paths written against the
-    /// view rejoin the backing position by position.
-    pub(crate) aggregate_view: Option<StructuralTypeId>,
+    /// declaration and byte window the reference observes it as. Logical
+    /// nesting does not need to match the supplying declaration.
+    pub(crate) aggregate_view: Option<AggregateViewRegion>,
 }
 
 /// Where a path written against an aggregate view ends: an aggregate of both
@@ -48,12 +48,12 @@ pub(crate) struct ReferenceReferent {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AggregateViewTip {
     Aggregate {
-        view: StructuralTypeId,
+        view: AggregateViewRegion,
         backing: StructuralTypeId,
     },
     Scalar {
-        view: semantic_vocabulary::ScalarType,
-        backing: semantic_vocabulary::ScalarType,
+        view: terminal_semantics::ReferenceStorageProjection,
+        backing: terminal_semantics::ReferenceStorageProjection,
     },
 }
 
@@ -64,179 +64,24 @@ struct ResolvedStructuralProjection {
     value: TerminalStructuralValue,
     view_tip: Option<AggregateViewTip>,
     endpoint_field: Option<semantic_vocabulary::StructuralFieldId>,
+    primitive_storage: Option<crate::primitive_storage::PrimitiveStorage>,
 }
 
-/// The backing field at the same relevant position as the view field
-/// `selects` names. Identical geometry pairs relevant fields one to one.
-fn paired_field<'fields>(
-    view: &'fields [terminal_psi::StructuralFieldDeclaration],
-    backing: &'fields [terminal_psi::StructuralFieldDeclaration],
-    selects: impl Fn(&terminal_psi::StructuralFieldDeclaration) -> bool,
-) -> Option<(
-    &'fields terminal_psi::StructuralFieldDeclaration,
-    &'fields terminal_psi::StructuralFieldDeclaration,
-)> {
-    let relevant = |field: &&terminal_psi::StructuralFieldDeclaration| !field.relevance.is_erased();
-    let position = view.iter().filter(relevant).position(selects)?;
-    Some((
-        view.iter().filter(relevant).nth(position)?,
-        backing.iter().filter(relevant).nth(position)?,
-    ))
+/// A returned reference must retain the exact admitted source association,
+/// including a re-view's window. Equal opaque roots alone do not authenticate
+/// two distinct subregions of one aggregate.
+#[derive(Clone)]
+pub(crate) struct ReferenceBacking {
+    pub(crate) value: TerminalStructuralValue,
+    aggregate_view: Option<AggregateViewRegion>,
+    primitive_storage: Option<crate::primitive_storage::PrimitiveStorage>,
 }
 
-/// Rewrite a canonical observation (`path` to a record, then `field`) written
-/// against an aggregate view into its backing's declaration, pairing fields
-/// by position. Case selections have no translation and refuse.
-pub(crate) fn translate_aggregate_view_field(
-    types: &crate::program::ProgramDeclarations<'_, terminal_psi::StructuralTypeDeclaration>,
-    mut view: StructuralTypeId,
-    mut backing: StructuralTypeId,
-    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-    field: semantic_vocabulary::StructuralFieldId,
-) -> Option<(
-    Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-    semantic_vocabulary::StructuralFieldId,
-)> {
-    use semantic_vocabulary::CanonicalStructuralPathSegment;
-    let mut translated = Vec::with_capacity(path.len());
-    for segment in path {
-        match (
-            segment,
-            &types.get(&view)?.shape,
-            &types.get(&backing)?.shape,
-        ) {
-            (
-                CanonicalStructuralPathSegment::Field(selected),
-                StructuralTypeShape::Record {
-                    fields: view_fields,
-                    ..
-                },
-                StructuralTypeShape::Record {
-                    fields: backing_fields,
-                    ..
-                },
-            ) => {
-                let (view_field, backing_field) =
-                    paired_field(view_fields, backing_fields, |field| field.id == *selected)?;
-                let (
-                    terminal_psi::StructuralFieldType::Structural(view_child),
-                    terminal_psi::StructuralFieldType::Structural(backing_child),
-                ) = (&view_field.field_type, &backing_field.field_type)
-                else {
-                    return None;
-                };
-                translated.push(CanonicalStructuralPathSegment::Field(backing_field.id));
-                (view, backing) = (*view_child, *backing_child);
-            }
-            (
-                CanonicalStructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray {
-                    element: view_element,
-                    length: view_length,
-                },
-                StructuralTypeShape::FixedArray {
-                    element: backing_element,
-                    length: backing_length,
-                },
-            ) if view_length == backing_length && index < view_length => {
-                translated.push(CanonicalStructuralPathSegment::FixedIndex(*index));
-                (view, backing) = (*view_element, *backing_element);
-            }
-            _ => return None,
-        }
-    }
-    let (
-        StructuralTypeShape::Record {
-            fields: view_fields,
-            ..
-        },
-        StructuralTypeShape::Record {
-            fields: backing_fields,
-            ..
-        },
-    ) = (&types.get(&view)?.shape, &types.get(&backing)?.shape)
-    else {
-        return None;
-    };
-    let (_, backing_field) = paired_field(view_fields, backing_fields, |candidate| {
-        candidate.id == field
-    })?;
-    Some((translated, backing_field.id))
-}
-
-/// Rewrite a path written against an aggregate view into its backing's
-/// declaration. Identical geometry (checked when the view formed) pairs the
-/// relevant fields of each record by position and each array by element;
-/// any other segment has no translation and refuses.
-pub(crate) fn translate_aggregate_view_path(
-    types: &crate::program::ProgramDeclarations<'_, terminal_psi::StructuralTypeDeclaration>,
-    view: StructuralTypeId,
-    backing: StructuralTypeId,
-    path: &[StructuralPathSegment],
-) -> Option<(Vec<StructuralPathSegment>, AggregateViewTip)> {
-    let mut tip = AggregateViewTip::Aggregate { view, backing };
-    let mut translated = Vec::with_capacity(path.len());
-    for segment in path {
-        let AggregateViewTip::Aggregate { view, backing } = tip else {
-            return None;
-        };
-        tip = match (
-            segment,
-            &types.get(&view)?.shape,
-            &types.get(&backing)?.shape,
-        ) {
-            (
-                StructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record {
-                    fields: view_fields,
-                    ..
-                },
-                StructuralTypeShape::Record {
-                    fields: backing_fields,
-                    ..
-                },
-            ) => {
-                let (view_field, backing_field) =
-                    paired_field(view_fields, backing_fields, |field| {
-                        field.identity == *identity
-                    })?;
-                translated.push(StructuralPathSegment::Field(backing_field.identity.clone()));
-                match (&view_field.field_type, &backing_field.field_type) {
-                    (
-                        terminal_psi::StructuralFieldType::Structural(view),
-                        terminal_psi::StructuralFieldType::Structural(backing),
-                    ) => AggregateViewTip::Aggregate {
-                        view: *view,
-                        backing: *backing,
-                    },
-                    (view, backing) => AggregateViewTip::Scalar {
-                        view: view.scalar_type()?,
-                        backing: backing.scalar_type()?,
-                    },
-                }
-            }
-            (
-                StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray {
-                    element: view,
-                    length: view_length,
-                },
-                StructuralTypeShape::FixedArray {
-                    element: backing,
-                    length: backing_length,
-                },
-            ) if view_length == backing_length && index < view_length => {
-                translated.push(StructuralPathSegment::FixedIndex(*index));
-                AggregateViewTip::Aggregate {
-                    view: *view,
-                    backing: *backing,
-                }
-            }
-            _ => return None,
-        };
-    }
-    Some((translated, tip))
-}
+mod aggregate_views;
+pub(crate) use aggregate_views::{
+    AggregateBacking, AggregateViewRegion, backing_scalar_path, translate_aggregate_view_field,
+    translate_aggregate_view_path,
+};
 
 /// An aggregate view retains its captured byte endpoint and complete extent.
 /// Projecting a child applies catalog geometry, never the formation expression.
@@ -563,7 +408,7 @@ impl TerminalExecution<'_> {
                     backing: actual,
                 }) = tip
                 {
-                    if view != referent_type || actual != backing.structural_type {
+                    if view.structural_type != referent_type || actual != backing.structural_type {
                         return Err(malformed());
                     }
                     // Reborrowing an ingress re-view keeps the supplying
@@ -646,18 +491,20 @@ impl TerminalExecution<'_> {
                 } else {
                     None
                 };
-                let projected = match &byte_loan {
-                    Some(loan) => loan.referent.clone(),
-                    None => {
-                        self.resolve_live_projection(source.place, &source.path, source.access)?
-                    }
+                let (projected, projected_view) = match &byte_loan {
+                    Some(loan) => (loan.referent.clone(), None),
+                    None => self.resolve_live_view_projection(
+                        source.place,
+                        &source.path,
+                        source.access,
+                    )?,
                 };
                 let byte_offset = usize::try_from(byte_offset).map_err(|_| malformed())?;
                 let captured = self.reference_byte_region(&projected)?;
                 if captured.is_none() && !byte_endpoint {
                     // Aggregate storage with identical geometry keeps its own
                     // typed cells: the view names that whole backing under
-                    // its declaration, and crossings rejoin it by position.
+                    // its declaration, and crossings retain the selected window.
                     let source_length = terminal_semantics::reference_storage_size(
                         self.program.structural_types().values(),
                         original_type,
@@ -666,7 +513,18 @@ impl TerminalExecution<'_> {
                     if byte_offset != 0 || source_length != Some(byte_length) {
                         return Err(malformed());
                     }
-                    aggregate_view = Some(referent_type);
+                    let mut region =
+                        AggregateViewRegion::whole(&self.program.structural_types(), referent_type)
+                            .ok_or_else(malformed)?;
+                    if let Some(AggregateViewTip::Aggregate { view, backing }) = projected_view {
+                        if backing != projected.structural_type
+                            || view.byte_length != region.byte_length
+                        {
+                            return Err(malformed());
+                        }
+                        region.byte_offset = view.byte_offset;
+                    }
+                    aggregate_view = Some(region);
                     region_referent = Some(projected);
                 } else {
                     let (mut view, region) = if let Some(region) = captured {
@@ -811,6 +669,33 @@ impl TerminalExecution<'_> {
             .map(|(value, _)| value)
     }
 
+    /// A scalar projection presents its logical loan type while preserving the
+    /// already selected backing endpoint and any composed storage codec.
+    pub(crate) fn resolve_live_primitive_projection(
+        &self,
+        place: PlaceId,
+        path: &[StructuralPathSegment],
+        access: StructuralAccess,
+    ) -> Result<
+        (
+            TerminalStructuralValue,
+            Option<crate::primitive_storage::PrimitiveStorage>,
+        ),
+        TerminalInterpretError,
+    > {
+        self.resolve_live_projection_with_leaf_type(
+            place,
+            path,
+            access,
+            if access == StructuralAccess::SharedBorrow {
+                terminal_psi::StructuralFieldType::shared_observation_type
+            } else {
+                terminal_psi::StructuralFieldType::canonical_leaf_type
+            },
+        )
+        .map(|projected| (projected.value, projected.primitive_storage))
+    }
+
     /// Present the exact selected declaration at borrowed ingress while
     /// retaining its supplying storage namespace. Calls and state edges use
     /// the same projection; neither may turn a re-view into an owned copy.
@@ -818,19 +703,21 @@ impl TerminalExecution<'_> {
         &self,
         argument: &StructuralArgument,
         expected: StructuralTypeId,
-    ) -> Result<(TerminalStructuralValue, Option<TerminalStructuralValue>), TerminalInterpretError>
-    {
+    ) -> Result<(TerminalStructuralValue, Option<AggregateBacking>), TerminalInterpretError> {
         let (mut value, tip) =
             self.resolve_live_view_projection(argument.place, &argument.path, argument.access)?;
         let backing = if let Some(AggregateViewTip::Aggregate { view, backing }) = tip {
             if argument.access == StructuralAccess::Owned
-                || expected != view
+                || expected != view.structural_type
                 || value.structural_type != backing
             {
                 return Err(malformed());
             }
-            let backing = value.clone();
-            value.structural_type = view;
+            let backing = AggregateBacking {
+                value: value.clone(),
+                region: view,
+            };
+            value.structural_type = view.structural_type;
             Some(backing)
         } else {
             None
@@ -899,7 +786,7 @@ impl TerminalExecution<'_> {
             }
         }
         let (backing, view) = match self.aggregate_argument_backings.get(&place) {
-            Some(backing) => (backing, Some(owner.structural_type)),
+            Some(backing) => (&backing.value, Some(backing.region)),
             None => (owner, None),
         };
         self.resolve_reference_view_path_with_leaf_type(
@@ -910,18 +797,6 @@ impl TerminalExecution<'_> {
             view,
         )?
         .ok_or_else(malformed)
-    }
-
-    /// Project storage, crossing each reference boundary through its captured
-    /// backing. A suffix belongs to that backing, not to the descriptor object.
-    fn resolve_reference_path(
-        &self,
-        owner: &TerminalStructuralValue,
-        path: &[StructuralPathSegment],
-        access: StructuralAccess,
-    ) -> Result<Option<TerminalStructuralValue>, TerminalInterpretError> {
-        self.resolve_reference_view_path(owner, path, access)
-            .map(|selected| selected.map(|(value, _)| value))
     }
 
     /// Project like `resolve_reference_path`, and also name where a final
@@ -960,7 +835,7 @@ impl TerminalExecution<'_> {
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
         let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
         let (backing, view) = match self.aggregate_argument_backings.get(&place) {
-            Some(backing) => (backing, Some(owner.structural_type)),
+            Some(backing) => (&backing.value, Some(backing.region)),
             None => (owner, None),
         };
         self.resolve_reference_view_path_with_leaf_type(
@@ -982,12 +857,13 @@ impl TerminalExecution<'_> {
         leaf_type: fn(
             &terminal_psi::StructuralFieldType,
         ) -> Option<terminal_psi::StructuralFieldType>,
-        initial_view: Option<StructuralTypeId>,
+        initial_view: Option<AggregateViewRegion>,
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
         let types = self.program.structural_types();
         let mut value = owner.clone();
         let mut remaining = path;
         let mut aggregate_view = initial_view;
+        let mut primitive_storage = None;
         loop {
             // Inline geometry ends at each descriptor. Resolving the whole
             // suffix statically would either invent an extent or address the
@@ -1001,7 +877,7 @@ impl TerminalExecution<'_> {
                 if matches!(segment, StructuralPathSegment::FixedIndex(_)) {
                     let prefix_type = resolve_structural_path_type(
                         &types,
-                        aggregate_view.unwrap_or(value.structural_type),
+                        aggregate_view.map_or(value.structural_type, |view| view.structural_type),
                         &remaining[..position],
                     )?;
                     if matches!(
@@ -1014,9 +890,11 @@ impl TerminalExecution<'_> {
                 }
             }
             let prefix = &remaining[..boundary.unwrap_or(remaining.len())];
+            let logical_prefix = prefix;
+            let active_view = aggregate_view.take();
             let translated;
             let mut tip = None;
-            let prefix = match aggregate_view.take() {
+            let prefix = match active_view {
                 Some(view) => {
                     let (path, view_tip) =
                         translate_aggregate_view_path(&types, view, value.structural_type, prefix)
@@ -1044,7 +922,51 @@ impl TerminalExecution<'_> {
                         .map(|field| field.id)
                 })
                 .flatten();
-            value = if boundary.is_none() {
+            // An aggregate re-view is a window in this backing root, not an
+            // eagerly paired child. Keep its coordinate for subsequent reads,
+            // reborrows and ingress; scalar endpoints have a real backing path.
+            value = if let Some(AggregateViewTip::Scalar { .. }) = tip {
+                let view = active_view.ok_or_else(malformed)?;
+                let (storage, _, _) = self.aggregate_view_primitive_access(
+                    &value,
+                    AggregateViewTip::Aggregate {
+                        view,
+                        backing: value.structural_type,
+                    },
+                    logical_prefix,
+                )?;
+                primitive_storage = Some(storage);
+                // This is a logical loan descriptor, not a relabelled cell.
+                // The actual endpoint and codec above still name the source.
+                let structural_type = if let Some(field) = crate::custody::inline_structural_field(
+                    &types,
+                    view.structural_type,
+                    logical_prefix,
+                ) {
+                    leaf_type(&field.field_type)
+                        .and_then(|leaf| leaf.leaf_declaration(types.values()))
+                        .map(|declaration| declaration.id)
+                } else {
+                    terminal_semantics::runtime_structural_path_tip(
+                        types.values(),
+                        view.structural_type,
+                        logical_prefix,
+                    )
+                    .map(|declaration| declaration.id)
+                }
+                .ok_or_else(malformed)?;
+                (value.qualifications, value.projected_qualifications) =
+                    terminal_psi::StructuralPathQualification::select(
+                        &value.qualifications,
+                        &value.projected_qualifications,
+                        prefix,
+                    );
+                value.structural_type = structural_type;
+                value.path.extend_from_slice(prefix);
+                value
+            } else if matches!(tip, Some(AggregateViewTip::Aggregate { .. })) {
+                value
+            } else if boundary.is_none() {
                 crate::custody::project_structural_value_with_leaf(
                     &types, &value, prefix, leaf_type,
                 )?
@@ -1068,12 +990,17 @@ impl TerminalExecution<'_> {
                     // a re-view must not become an untyped backing path.
                     aggregate_view = match tip {
                         Some(AggregateViewTip::Aggregate { view, .. }) => {
-                            let StructuralTypeShape::ElementView { element } =
-                                types.get(&view).ok_or_else(malformed)?.shape
+                            let StructuralTypeShape::ElementView { element } = types
+                                .get(&view.structural_type)
+                                .ok_or_else(malformed)?
+                                .shape
                             else {
                                 return Err(malformed());
                             };
-                            Some(element)
+                            Some(
+                                AggregateViewRegion::whole(&types, element)
+                                    .ok_or_else(malformed)?,
+                            )
                         }
                         None => None,
                         Some(AggregateViewTip::Scalar { .. }) => return Err(malformed()),
@@ -1099,17 +1026,18 @@ impl TerminalExecution<'_> {
                     .reference_referents
                     .get(&StructuralRuntimePlace::from(&value))
                     .ok_or_else(malformed)?;
+                primitive_storage = captured
+                    .primitive_loan
+                    .as_ref()
+                    .map(|loan| loan.storage.clone());
                 value = captured.view.clone();
                 if let Some(view) = captured.aggregate_view {
                     // The backing keeps its declaration; the next run is
-                    // written against the view and rejoins it by position.
-                    if view != referent_type
-                        || !terminal_semantics::reference_storage_source_compatible(
-                            types.values(),
-                            value.structural_type,
-                            reference_type,
-                            None,
-                        )
+                    // written against the captured logical window. Formation
+                    // already admitted its plain storage and validity relation;
+                    // a child need not have the full backing root's size.
+                    if view.structural_type != referent_type
+                        || !view.fits(&types, value.structural_type)
                     {
                         return Err(malformed());
                     }
@@ -1140,6 +1068,7 @@ impl TerminalExecution<'_> {
                     value,
                     view_tip: tip,
                     endpoint_field,
+                    primitive_storage,
                 }));
             }
         }
@@ -1176,7 +1105,9 @@ impl TerminalExecution<'_> {
         parameters: &[StructuralParameterDeclaration],
         signature: &StructuralResultDeclaration,
         arguments: &BTreeMap<PlaceId, TerminalStructuralValue>,
-    ) -> Result<Vec<Vec<TerminalStructuralValue>>, TerminalInterpretError> {
+        aggregate_backings: &BTreeMap<PlaceId, AggregateBacking>,
+        primitive_loans: &BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
+    ) -> Result<Vec<Vec<ReferenceBacking>>, TerminalInterpretError> {
         signature
             .reference_sources
             .iter()
@@ -1202,16 +1133,36 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     }
                     let owner = arguments.get(&parameter.place).ok_or_else(malformed)?;
+                    // Normalize provenance in the formal's logical namespace,
+                    // then resolve its captured original window. Applying the
+                    // marker rule to the backing's different nesting would
+                    // mistake a view field for an absent descriptor crossing.
                     let path = terminal_semantics::reference_source_storage_path(
                         self.program.structural_types().values(),
                         owner.structural_type,
                         &source.path,
                     );
-                    let Some(expected) = self.resolve_reference_path(owner, path, source.access)?
+                    let (backing, view) = match aggregate_backings.get(&parameter.place) {
+                        Some(backing) => (&backing.value, Some(backing.region)),
+                        None => (owner, None),
+                    };
+                    let Some(projected) = self.resolve_reference_view_path_with_leaf_type(
+                        backing,
+                        path,
+                        Some(source.access),
+                        terminal_psi::StructuralFieldType::canonical_leaf_type,
+                        view,
+                    )?
                     else {
                         continue;
                     };
-                    if expected.structural_type != referent_type
+                    let view = match projected.view_tip {
+                        Some(AggregateViewTip::Aggregate { view, .. }) => Some(view),
+                        _ => None,
+                    };
+                    let expected = projected.value;
+                    if view.map_or(expected.structural_type, |view| view.structural_type)
+                        != referent_type
                         || !expected.qualifications.is_empty()
                     {
                         return Err(malformed());
@@ -1219,7 +1170,20 @@ impl TerminalExecution<'_> {
                     // Capture every resident alternative before the callee
                     // moves or repacks ingress storage. These are backing
                     // identities, not another owner or a runtime address choice.
-                    backings.push(expected);
+                    let primitive_storage = projected.primitive_storage.or_else(|| {
+                        path.is_empty()
+                            .then(|| {
+                                primitive_loans
+                                    .get(&parameter.place)
+                                    .map(|loan| loan.storage.clone())
+                            })
+                            .flatten()
+                    });
+                    backings.push(ReferenceBacking {
+                        value: expected,
+                        aggregate_view: view,
+                        primitive_storage,
+                    });
                 }
                 Ok(backings)
             })
@@ -1312,10 +1276,22 @@ impl TerminalExecution<'_> {
                     .sources
                     .iter()
                     .any(|source| !access_covers(source.access, access))
-                || expected
-                    .iter()
-                    .any(|backing| backing.structural_type != referent_type)
-                || !expected.iter().any(|backing| backing == &actual.view)
+                || expected.iter().any(|backing| {
+                    backing
+                        .aggregate_view
+                        .map_or(backing.value.structural_type, |view| view.structural_type)
+                        != referent_type
+                })
+                || !expected.iter().any(|backing| {
+                    backing.value == actual.view
+                        && backing.aggregate_view == actual.aggregate_view
+                        && backing.primitive_storage.as_ref().is_none_or(|storage| {
+                            actual
+                                .primitive_loan
+                                .as_ref()
+                                .is_some_and(|loan| &loan.storage == storage)
+                        })
+                })
             {
                 return Err(malformed());
             }

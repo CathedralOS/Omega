@@ -399,10 +399,13 @@ pub(super) fn capture(
                 }
                 let original_restriction =
                     execution.captured_scalar_restriction(&storage, access)?;
-                if original_restriction
-                    .as_ref()
-                    .is_some_and(|field| !value.satisfies_field(field))
-                {
+                if original_restriction.as_ref().is_some_and(|field| {
+                    !crate::effects::scalar_loans::satisfies_source_restriction(
+                        value,
+                        field,
+                        storage.encoding,
+                    )
+                }) {
                     return Err(malformed());
                 }
                 endpoints.push(PinnedScalar {
@@ -415,7 +418,7 @@ pub(super) fn capture(
                 });
                 TerminalStorageContents::Scalar {
                     value,
-                    stored_scalar: storage.stored_scalar.unwrap_or(*stored_scalar),
+                    stored_scalar: storage.storage_scalar().unwrap_or(*stored_scalar),
                 }
             }
             StorageLeafKind::Opaque { .. }

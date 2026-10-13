@@ -246,11 +246,25 @@ fn referent_pointer(
     // Stored views cross a pointer at an element selector, without an explicit
     // Referent segment. Geometry owns both crossings and preserves their order.
     let referent = reference.is_some();
-    let thin_scalar = if target.shape.class == calling_conventions::ValueClass::BorrowedReference
-        && !referent
-        && semantic.path.is_empty()
-    {
-        crate::selection::reference_input::borrowed_scalar_source(source, semantic.place)
+    let thin_scalar = if target.shape.class == calling_conventions::ValueClass::BorrowedReference {
+        if reference
+            .as_ref()
+            .is_some_and(|address| address.scalar_descriptor)
+        {
+            let declarations = &source
+                .structural
+                .as_ref()
+                .ok_or_else(|| SelectedInstructionError::custody())?
+                .structural_types;
+            crate::structural_inputs::structural_reference_input::scalar_storage_type(
+                target.structural_type,
+                declarations,
+            )
+        } else if !referent && semantic.path.is_empty() {
+            crate::selection::reference_input::borrowed_scalar_source(source, semantic.place)
+        } else {
+            None
+        }
     } else {
         None
     };
@@ -308,7 +322,13 @@ fn referent_pointer(
     let pointer = if thin_scalar.is_some() {
         // The proven footprint belongs to the original referent, not the
         // descriptor home. Unwrap its address without copying its contents.
-        structural::reference::load(builder, operation, pointer_place, pointer)?
+        structural::reference::load_scalar_referent(
+            builder,
+            operation,
+            pointer_place,
+            pointer,
+            reference.as_ref(),
+        )?
     } else {
         pointer
     };

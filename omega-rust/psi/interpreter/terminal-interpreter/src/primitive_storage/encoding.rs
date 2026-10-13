@@ -4,7 +4,7 @@
 //! Captured region projection retains extent and scalar codec together. A
 //! projected logical type cannot recover the ancestor's authored field storage.
 
-use super::{PrimitiveLoan, PrimitiveStorage, PrimitiveStorageEndpoint};
+use super::{PrimitiveLoan, PrimitiveStorage, PrimitiveStorageEncoding, PrimitiveStorageEndpoint};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
@@ -51,7 +51,10 @@ impl TerminalExecution<'_> {
         Ok(Some((
             PrimitiveStorage {
                 endpoint: projected.region.endpoint,
-                stored_scalar: Some(stored_scalar),
+                encoding: Some(PrimitiveStorageEncoding {
+                    source: stored_scalar,
+                    view: stored_scalar,
+                }),
             },
             logical_scalar,
         )))
@@ -154,14 +157,23 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        if let Some(captured) = loan.storage.stored_scalar {
-            if byte_offset != 0 || captured != stored_scalar {
+        if let Some(captured) = &mut loan.storage.encoding {
+            if byte_offset != 0
+                || terminal_semantics::reference_storage_byte_width(captured.source)
+                    != terminal_semantics::reference_storage_byte_width(stored_scalar)
+            {
                 return Err(malformed());
             }
+            // Re-view the already captured bytes; the original cell codec is
+            // still needed to encode its wider logical carrier correctly.
+            captured.view = stored_scalar;
         } else {
             self.position_reference_storage(loan, byte_offset, width)?;
+            loan.storage.encoding = Some(PrimitiveStorageEncoding {
+                source: stored_scalar,
+                view: stored_scalar,
+            });
         }
-        loan.storage.stored_scalar = Some(stored_scalar);
         loan.scalar_type = logical_scalar;
         Ok(())
     }
@@ -173,7 +185,7 @@ impl TerminalExecution<'_> {
         byte_offset: usize,
         width: usize,
     ) -> Result<(), TerminalInterpretError> {
-        if loan.storage.stored_scalar.is_some() {
+        if loan.storage.encoding.is_some() {
             return Err(malformed());
         }
         match &mut loan.storage.endpoint {
@@ -348,7 +360,7 @@ impl TerminalExecution<'_> {
         }
     }
 
-    fn endpoint_scalar(
+    pub(crate) fn endpoint_scalar(
         &self,
         source: PlaceId,
         endpoint: &PrimitiveStorageEndpoint,
@@ -408,7 +420,7 @@ fn byte_type() -> Result<ScalarType, TerminalInterpretError> {
     Ok(ScalarType::Integer(byte_integer_type()?))
 }
 
-fn convert_scalar(
+pub(super) fn convert_scalar(
     value: TerminalScalarValue,
     target: ScalarType,
 ) -> Result<TerminalScalarValue, TerminalInterpretError> {
@@ -458,7 +470,10 @@ fn convert_scalar(
     })
 }
 
-fn encode(stored: ScalarType, scalar: TerminalScalarValue) -> Result<u128, TerminalInterpretError> {
+pub(super) fn encode(
+    stored: ScalarType,
+    scalar: TerminalScalarValue,
+) -> Result<u128, TerminalInterpretError> {
     let scalar = convert_scalar(scalar, stored)?;
     let width = terminal_semantics::reference_storage_byte_width(stored).ok_or_else(malformed)?;
     let bits = match scalar {
@@ -482,7 +497,10 @@ fn encode(stored: ScalarType, scalar: TerminalScalarValue) -> Result<u128, Termi
     Ok(bits & mask)
 }
 
-fn decode(stored: ScalarType, bits: u128) -> Result<TerminalScalarValue, TerminalInterpretError> {
+pub(super) fn decode(
+    stored: ScalarType,
+    bits: u128,
+) -> Result<TerminalScalarValue, TerminalInterpretError> {
     let width = terminal_semantics::reference_storage_byte_width(stored).ok_or_else(malformed)?;
     let result = match stored {
         ScalarType::Boolean => boolean_bits(bits)?,

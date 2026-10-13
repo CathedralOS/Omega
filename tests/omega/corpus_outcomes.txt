@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 14.16, "load1_start": 10.88, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 5.92, "load1_start": 2.26, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -5296,12 +5296,14 @@ pass/host/runtime_descriptor_record_loan_input_exit checked 13256ms check-target
 pass/host/runtime_descriptor_reference_record_prefix_exit rejected 12270ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 	native artifact fragment object publication failed: fragment import lacks selected call custody
 pass/host/runtime_descriptor_scalar_input_exit checked 11138ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/host/runtime_encoded_record_view_observation_exit checked 3867ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/host/runtime_fixed_arithmetic_across_console_exit checked 11481ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_foreign_scalar_loan_writeback_exit checked 7606ms check-target:windows_x86_64 @d041496df109
 pass/host/runtime_gui_foreground_window_exit rejected 11838ms check-target:macos_arm64 @a9ae30e1c334+wt
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
 pass/host/runtime_gui_window_lifecycle_exit rejected 11646ms check-target:macos_arm64 @a9ae30e1c334+wt
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
+pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 3861ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/host/std_clock_sleep_exit checked 12935ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/inline_asm/asm_aarch64_system_registers_compile incomplete 10935ms check-target:macos_arm64 @a9ae30e1c334+wt
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state)
@@ -5906,6 +5908,7 @@ pass/recast/runtime_aggregate_slice_representation_recast_exit checked 12079ms c
 pass/recast/runtime_authored_toolchain_type_shadow_exit checked 10420ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_bool_representation_recast_exit checked 11336ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_boolean_view_decision_exit checked 10913ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/recast/runtime_encoded_record_view_loan_exit checked 3825ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/recast/runtime_field_precondition_capture_exit checked 11966ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_float_range_representation_recast_exit checked 14468ms check-target:macos_arm64 @9c4d1c444502
 pass/recast/runtime_guarded_offset_recast_exit checked 11146ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5920,6 +5923,8 @@ pass/recast/runtime_mutable_equivalent_domain_recast_exit rejected 11610ms check
 pass/recast/runtime_mutable_equivalent_range_recast_exit checked 11394ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_mutable_equivalent_record_recast_exit checked 14981ms check-target:macos_arm64 @9c4d1c444502
 pass/recast/runtime_nested_record_byte_store_exit checked 11664ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/recast/runtime_nested_scalar_view_loan_exit checked 3821ms check-target:macos_arm64 @61ba1df9375e+wt
+pass/recast/runtime_nested_view_subregion_forwarding_exit checked 3728ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 11962ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_recast_record_view_indexed_write_exit checked 12001ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_record_array_view_mutable_write_exit checked 13303ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5929,6 +5934,7 @@ pass/recast/runtime_scalar_parameter_shared_views_exit checked 13159ms check-tar
 pass/recast/runtime_shared_domain_weakening_recast_exit checked 16067ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_shared_parameter_view_calls_exit checked 11207ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_shared_record_float_range_weakening_exit checked 21081ms check-target:macos_arm64 @9c4d1c444502
+pass/recast/shared_nested_view_observation_exit checked 3719ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/recast/signed64_unsigned_view_compile checked 1675ms @a9ae30e1c334+wt
 pass/recast/signed_int_float_view_compile checked 2482ms @a9ae30e1c334+wt
 pass/recast/signed_source_bits_view_compile checked 1659ms @a9ae30e1c334+wt

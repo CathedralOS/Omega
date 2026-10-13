@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 4.94, "load1_start": 5.24, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 3.85, "load1_start": 3.45, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 2645ms exit:112 interpreter-exit:112 interpreter:agrees @1152c1496b39
 pass/arithmetic/full_width_integer_literals_compose_exit built 3129ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
@@ -973,4 +973,10 @@ pass/atomics/runtime_atomic_case_field_state_exit built 7044ms exit:0 interprete
 pass/contracts/runtime_case_payload_write_preserves_tag_exit built 5667ms exit:0 interpreter-exit:0 interpreter:agrees @38b196bc35a5+wt
 pass/borrows/borrowed_case_leaf_copy_exit built 6012ms exit:70 interpreter-exit:70 interpreter:agrees @6043bf4a18bd+wt
 pass/borrows/runtime_computed_case_copy_order_exit built 5013ms exit:0 interpreter-exit:0 interpreter:agrees @6043bf4a18bd+wt
+pass/host/runtime_encoded_record_view_observation_exit built 4230ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @61ba1df9375e+wt
+pass/host/runtime_stored_scalar_reference_foreign_export_exit built 4133ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @61ba1df9375e+wt
+pass/recast/runtime_encoded_record_view_loan_exit built 4313ms exit:0 interpreter-exit:0 interpreter:agrees @61ba1df9375e+wt
+pass/recast/runtime_nested_scalar_view_loan_exit built 4046ms exit:0 interpreter-exit:0 interpreter:agrees @61ba1df9375e+wt
+pass/recast/runtime_nested_view_subregion_forwarding_exit built 3817ms exit:0 interpreter-exit:0 interpreter:agrees @61ba1df9375e+wt
+pass/recast/shared_nested_view_observation_exit built 3829ms exit:0 interpreter-exit:0 interpreter:agrees @61ba1df9375e+wt
 pass/targets/imported_target_family_heads_exit built 3816ms exit:0 interpreter-exit:0 interpreter:agrees @61ba1df9375e+wt

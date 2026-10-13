@@ -42,7 +42,7 @@ use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 pub(crate) struct BlockBindings {
     scalars: BTreeMap<ValueId, TerminalScalarValue>,
     structural: BTreeMap<PlaceId, TerminalStructuralValue>,
-    aggregate_backings: BTreeMap<PlaceId, TerminalStructuralValue>,
+    aggregate_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
     scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     primitive_loans: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,

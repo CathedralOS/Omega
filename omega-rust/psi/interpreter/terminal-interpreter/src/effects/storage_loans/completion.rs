@@ -113,10 +113,13 @@ pub(super) fn stage(
                     .ok()
                     .map(|position| &binding.scalars[position]);
                 if let Some(original) = original
-                    && original
-                        .restriction
-                        .as_ref()
-                        .is_some_and(|field| !value.satisfies_field(field))
+                    && original.restriction.as_ref().is_some_and(|field| {
+                        !crate::effects::scalar_loans::satisfies_source_restriction(
+                            value,
+                            field,
+                            original.storage.encoding,
+                        )
+                    })
                 {
                     return Err(malformed());
                 }

@@ -107,15 +107,44 @@ pub(crate) enum PrimitiveStorageEndpoint {
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct PrimitiveStorage {
     pub(crate) endpoint: PrimitiveStorageEndpoint,
-    pub(crate) stored_scalar: Option<ScalarType>,
+    pub(crate) encoding: Option<PrimitiveStorageEncoding>,
+}
+
+/// Decode the original cell into physical bits, then observe those same bits
+/// through the view. Keeping both carriers prevents a narrow view from trying
+/// to convert the wider logical source value directly into its interpretation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PrimitiveStorageEncoding {
+    pub(crate) source: ScalarType,
+    pub(crate) view: ScalarType,
+}
+
+impl PrimitiveStorageEncoding {
+    /// Host replacement checks the original field in its source-domain value,
+    /// not the view's logical scalar. This is the same inverse byte image that
+    /// eventual writeback will store; it establishes no new predicate or loan.
+    pub(crate) fn source_value(
+        self,
+        value: TerminalScalarValue,
+        source: ScalarType,
+    ) -> Result<TerminalScalarValue, TerminalInterpretError> {
+        let bits = encoding::encode(self.view, value)?;
+        encoding::convert_scalar(encoding::decode(self.source, bits)?, source)
+    }
 }
 
 impl PrimitiveStorage {
     fn canonical(endpoint: PrimitiveStorageEndpoint) -> Self {
         Self {
             endpoint,
-            stored_scalar: None,
+            encoding: None,
         }
+    }
+
+    /// Host snapshots expose the observed physical carrier; the pinned
+    /// endpoint still retains the original codec for eventual writeback.
+    pub(crate) fn storage_scalar(&self) -> Option<ScalarType> {
+        self.encoding.map(|encoding| encoding.view)
     }
 }
 
@@ -282,17 +311,28 @@ impl TerminalExecution<'_> {
                 shared_view,
             )
         } else {
-            let value =
-                self.resolve_live_projection(argument.place, &argument.path, argument.access)?;
+            let projected = self.resolve_live_primitive_projection(
+                argument.place,
+                &argument.path,
+                argument.access,
+            )?;
+            let value = projected.0;
             if value.structural_type != parameter.structural_type {
                 return Err(malformed());
             }
-            let (storage, scalar_type, shared_view) = self.primitive_view_access(
-                &value,
-                &[],
-                expected,
-                parameter.access == StructuralAccess::SharedBorrow,
-            )?;
+            let (storage, scalar_type, shared_view) = match projected.1 {
+                Some(storage) => (
+                    storage,
+                    expected,
+                    parameter.access == StructuralAccess::SharedBorrow,
+                ),
+                None => self.primitive_view_access(
+                    &value,
+                    &[],
+                    expected,
+                    parameter.access == StructuralAccess::SharedBorrow,
+                )?,
+            };
             (value, storage, scalar_type, shared_view)
         };
         if scalar_type != expected {
@@ -541,11 +581,11 @@ impl TerminalExecution<'_> {
     }
 
     /// A scalar leaf observed through an aggregate re-view lives in the
-    /// backing cell at the same position. When the two declarations carry
+    /// backing cell occupying its complete captured byte region. When they carry
     /// it differently (`i16` seen as `u16`), the view's carrier becomes the
     /// stored interpretation, so reads take the modular image and writes
     /// store the image of the view's value through the existing codec.
-    fn aggregate_view_primitive_access(
+    pub(crate) fn aggregate_view_primitive_access(
         &self,
         referent: &TerminalStructuralValue,
         view: crate::reference::AggregateViewTip,
@@ -558,37 +598,50 @@ impl TerminalExecution<'_> {
         if backing != referent.structural_type {
             return Err(malformed());
         }
-        let (suffix, tip) =
-            crate::reference::translate_aggregate_view_path(&types, view, backing, suffix)
-                .ok_or_else(malformed)?;
-        let primitive = |structural_type: StructuralTypeId| match types
-            .get(&structural_type)
-            .map(|declaration| &declaration.shape)
-        {
-            Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar)) => Some(*scalar),
-            _ => None,
+        let (suffix, tip) = crate::reference::translate_aggregate_view_path(
+            &types, view, backing, suffix,
+        )
+        .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+            "aggregate re-view has no unique contiguous scalar endpoint",
+        ))?;
+        let crate::reference::AggregateViewTip::Scalar {
+            view: observed,
+            backing: stored,
+        } = tip
+        else {
+            return Err(malformed());
         };
-        let (observed, stored) = match tip {
-            crate::reference::AggregateViewTip::Scalar { view, backing } => (view, backing),
-            crate::reference::AggregateViewTip::Aggregate { view, backing } => (
-                primitive(view).ok_or_else(malformed)?,
-                primitive(backing).ok_or_else(malformed)?,
+        let canonical = crate::reference::backing_scalar_path(&types, backing, &suffix).ok_or(
+            TerminalInterpretError::UnsupportedSemanticVariant(
+                "aggregate re-view backing scalar has no retained cell coordinate",
             ),
-        };
-        let canonical =
-            terminal_semantics::canonical_primitive_path(types.values(), backing, &suffix)
-                .ok_or_else(malformed)?;
-        let (mut storage, _, shared_view) =
-            self.primitive_view_access(referent, canonical.as_slice(), stored, false)?;
-        if observed != stored {
-            if storage.stored_scalar.is_some()
-                || !terminal_semantics::scalar_reference_view_is_total(stored, observed)
-            {
-                return Err(malformed());
-            }
-            storage.stored_scalar = Some(observed);
+        )?;
+        let (mut storage, _, shared_view) = self.primitive_view_access(
+            referent,
+            canonical.as_slice(),
+            stored.logical_scalar,
+            false,
+        )?;
+        if storage
+            .encoding
+            .is_some_and(|encoding| encoding.source != stored.stored_scalar)
+            || !terminal_semantics::reference_storage_view_is_compatible(
+                observed.stored_scalar,
+                observed.logical_scalar,
+            )
+        {
+            return Err(malformed());
         }
-        Ok((storage, observed, shared_view))
+        if stored.stored_scalar != stored.logical_scalar
+            || observed.logical_scalar != stored.logical_scalar
+            || observed.stored_scalar != stored.stored_scalar
+        {
+            storage.encoding = Some(PrimitiveStorageEncoding {
+                source: stored.stored_scalar,
+                view: observed.stored_scalar,
+            });
+        }
+        Ok((storage, observed.logical_scalar, shared_view))
     }
 
     pub(crate) fn capture_primitive_home(
@@ -871,10 +924,10 @@ impl TerminalExecution<'_> {
             // access and logical path. Translate that path into its retained
             // supplying declaration, exactly as a descriptor crossing does.
             let (storage, scalar_type, _) = self.aggregate_view_primitive_access(
-                backing,
+                &backing.value,
                 crate::reference::AggregateViewTip::Aggregate {
-                    view: structural_type,
-                    backing: backing.structural_type,
+                    view: backing.region,
+                    backing: backing.value.structural_type,
                 },
                 path,
             )?;
@@ -1360,7 +1413,7 @@ impl TerminalExecution<'_> {
     /// active-tag validation; common members and payload fields never alias.
     pub(crate) fn scalar_field_at_carrier(
         &self,
-        carrier: TerminalStructuralValue,
+        mut carrier: TerminalStructuralValue,
         view: Option<crate::reference::AggregateViewTip>,
         field_path: &[StructuralPathSegment],
         scalar_type: ScalarType,
@@ -1385,11 +1438,19 @@ impl TerminalExecution<'_> {
                 else {
                     return Ok(None);
                 };
-                if observed != scalar_type {
+                if observed.logical_scalar != scalar_type {
                     return Err(malformed());
                 }
-                translated = path;
-                (translated.as_slice(), stored)
+                let Some((prefix, namespace)) = scalar_field_projection(&path) else {
+                    return Ok(None);
+                };
+                carrier = crate::custody::project_shared_structural_observation(
+                    &self.program.structural_types(),
+                    &carrier,
+                    prefix,
+                )?;
+                translated = namespace.to_vec();
+                (translated.as_slice(), stored.logical_scalar)
             }
             Some(_) => return Err(malformed()),
         };
@@ -1450,6 +1511,13 @@ impl TerminalExecution<'_> {
         };
         let (carrier, view) =
             self.resolve_live_view_projection(source, prefix, StructuralAccess::SharedBorrow)?;
+        if let Some(view) = view {
+            let (storage, logical_scalar, shared_view) =
+                self.aggregate_view_primitive_access(&carrier, view, field_path)?;
+            return self
+                .read_primitive_storage(source, storage, logical_scalar, scalar_type, shared_view)
+                .map(Some);
+        }
         let Some(observed) =
             self.scalar_field_at_carrier(carrier, view, field_path, scalar_type)?
         else {
@@ -1538,8 +1606,23 @@ impl TerminalExecution<'_> {
         if expected != scalar_type {
             return Err(malformed());
         }
-        if let Some(stored_scalar) = storage.stored_scalar {
-            return self.read_encoded_primitive(source, &storage.endpoint, stored_scalar, expected);
+        if let Some(encoding) = storage.encoding {
+            if encoding.view != encoding.source {
+                let stored = self.read_encoded_primitive(
+                    source,
+                    &storage.endpoint,
+                    encoding.source,
+                    encoding.source,
+                )?;
+                let viewed = scalar_reference_observation(stored, encoding.view)?;
+                return encoding::convert_scalar(viewed, expected);
+            }
+            return self.read_encoded_primitive(
+                source,
+                &storage.endpoint,
+                encoding.source,
+                expected,
+            );
         }
         let scalar = match storage.endpoint {
             PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
@@ -1655,11 +1738,16 @@ impl TerminalExecution<'_> {
         if scalar.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(scalar) {
             return Err(malformed());
         }
-        if let Some(stored_scalar) = storage.stored_scalar {
+        if let Some(encoding) = storage.encoding {
+            let scalar = if encoding.view != encoding.source {
+                encoding.source_value(scalar, encoding.source)?
+            } else {
+                scalar
+            };
             return self.store_encoded_primitive(
                 destination,
                 &storage.endpoint,
-                stored_scalar,
+                encoding.source,
                 scalar,
             );
         }

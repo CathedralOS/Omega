@@ -338,33 +338,18 @@ pub(super) fn account(
                     )
                 )
         };
-        // Closed-case return establishments are retained among the state's
-        // operation dependencies as well as in the terminator roster. Count
-        // their one exact reborrow here so an unrestricted shared view does
-        // not also claim a synthetic dominance owner. A partition containing
-        // only successor transfers has no such reborrow and keeps the
-        // unrestricted value's ordinary dominance disposition instead.
-        let reference_reborrows = if view_source.is_some() {
-            operations
-                .iter()
-                .enumerate()
-                .skip(producer_index + 1)
-                .filter(|(index, operation)| {
-                    operation
-                        .established_reference_source(&facts.values.structural_values)
-                        .is_some_and(|source| exact_view_reborrow(source, *index))
-                })
-                .count()
-        } else {
-            0
-        };
+        // Forming a child does not transfer or retire its parent carrier.
+        // The release scheduler retains complete parent/child lineage and
+        // waits for actual holder retirement. Reference-return arms below
+        // still validate their exact returned source independently; counting
+        // all child establishments here would charge observations (and
+        // mutually exclusive returns) as competing parent dispositions.
         // The release (`view_releases` below) owns an affine view. An edge
         // carrying the view whole continues that same loan in its target:
         // the carry is checked as at most one move per edge, and the
         // ordinary transfer count below must not book it as a second owner.
-        let release_owned_view = view_source.is_some()
-            && result.multiplicity == Multiplicity::Affine
-            && reference_reborrows == 0;
+        let release_owned_view =
+            view_source.is_some() && result.multiplicity == Multiplicity::Affine;
         if release_owned_view
             && terminator
                 .successors()
@@ -541,7 +526,6 @@ pub(super) fn account(
                             && occurrence_end.is_none()
                             && !stored
                             && result.multiplicity == Multiplicity::Unrestricted
-                            && reference_reborrows == 0
                     } else {
                         has_normal_exit && complete_partition
                     }
@@ -636,9 +620,6 @@ pub(super) fn account(
         // release. Only a loan-bound result needs the owner: an
         // Unrestricted view is admitted by its dominance permit, and
         // counting its release beside that permit would double-book.
-        // A counted reborrow already owns the custody — the release the
-        // permissions still record is the same loan's lexical end, not a
-        // second owner, so it does not book twice beside the reborrow.
         // An exact rebind ends the anonymous producer's residence. The
         // receiving home keeps the same loan until its later weakening;
         // that weakening cannot also dispose the transferred producer.
@@ -725,7 +706,6 @@ pub(super) fn account(
             + cleanup_discards
             + construction_transfers
             + reference_releases
-            + reference_reborrows
             + view_releases;
         if total != 1 && !(total == 0 && abandons_custody) {
             trace.phase(if total == 0 {

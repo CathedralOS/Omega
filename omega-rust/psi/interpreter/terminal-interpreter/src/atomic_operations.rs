@@ -61,7 +61,7 @@ impl TerminalExecution<'_> {
             Some(crate::reference::AggregateViewTip::Aggregate { view, backing })
                 if backing == parent.structural_type =>
             {
-                view
+                view.structural_type
             }
             Some(_) => return Err(malformed()),
         };

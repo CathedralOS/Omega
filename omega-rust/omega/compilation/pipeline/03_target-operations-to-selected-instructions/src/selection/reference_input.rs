@@ -312,7 +312,8 @@ pub(super) fn store_destination<'path>(
 /// address. Exact target metadata must retain the authored carrier and path.
 /// Reconstruct the address independently of the destination ABI. Internal
 /// calls validate their descriptor placement; normalized foreign calls validate
-/// their evaluated pointer placement and reject scalar codec descriptors.
+/// their evaluated thin-pointer placement and prove the exported footprint
+/// before discarding a scalar codec descriptor.
 pub(super) fn borrowed_argument(
     function: &LegalizedScalarFunction,
     argument: &terminal_psi::StructuralArgument,
@@ -372,6 +373,8 @@ pub(super) fn borrowed_argument(
                 declarations,
             )
             .is_some()
+                && target.destination.shape.class
+                    == calling_conventions::ValueClass::BorrowedScalarReference
             {
                 ValueShape::borrowed_scalar_reference()
             } else {

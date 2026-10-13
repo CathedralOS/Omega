@@ -70,6 +70,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::PrimitiveScalarRead { .. }
                 | AbstractOperation::WriteOnlyPrimitiveStore { .. }
                 | AbstractOperation::StructuralScalarFieldRead { .. }
+                | AbstractOperation::StructuralScalarFieldStore { .. }
                 | abstract_operations::byte_len_or_field_read_pattern!(..)
                 | abstract_operations::byte_sequence_store_pair_pattern!(..)
                 | AbstractOperation::StructuralByteViewFieldStore { .. }
@@ -509,16 +510,12 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 // no separate call, storage access or external relocation for
                 // publication to account for; the original call stays intact.
                 | AbstractOperation::FloatResultPolicy { .. } => true,
-                // A static store writes one exact place row; a store through
-                // runtime-selected elements publishes one row per element.
+                // Logical field stores can use runtime codecs and several
+                // physical accesses, just like primitive referent stores.
+                // Account for their exact retained operation; graph replay
+                // owns actual byte geometry, selectors and pointer traversal.
                 AbstractOperation::StructuralScalarFieldStore { .. } => {
-                    if operation.runtime_indices().is_empty() {
-                        structural_fields::scalar_store_footprints_retained(
-                            abstracted, operation, targeted, &selected.memory_accesses,
-                        )
-                    } else {
-                        structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
-                    }
+                    structural_fields::scalar_store_retained(abstracted, operation, targeted)
                 }
                 AbstractOperation::Jump { .. }
                 | AbstractOperation::Conditional { .. } => control_flow::retained(operation, targeted),

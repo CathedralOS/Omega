@@ -86,7 +86,7 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
-    pub(crate) aggregate_argument_backings: BTreeMap<PlaceId, TerminalStructuralValue>,
+    pub(crate) aggregate_argument_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
     /// A reference carrier owns this descriptor, never the referent's backing.
     /// Carrier identities survive structural call/return moves across frames.
     pub(crate) reference_referents:
@@ -158,7 +158,7 @@ pub(crate) struct SuspendedCall {
     pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
     pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
-    pub(crate) aggregate_argument_backings: BTreeMap<PlaceId, TerminalStructuralValue>,
+    pub(crate) aggregate_argument_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
     pub(crate) scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     pub(crate) byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
     pub(crate) primitive_loan_values: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
@@ -242,7 +242,7 @@ pub(crate) enum SuspendedCallResult {
     Structural {
         result: StructuralOperationResult,
         claim_origin: ResultClaimOrigin,
-        expected_reference_backings: Vec<Vec<TerminalStructuralValue>>,
+        expected_reference_backings: Vec<Vec<crate::reference::ReferenceBacking>>,
     },
     NominalCleanups {
         completed: (NominalAffineCleanup, TerminalStructuralValue),

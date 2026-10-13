@@ -20,7 +20,9 @@ use terminal_psi::{
 use crate::effects::TerminalEffectRejection;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
-use crate::primitive_storage::{PrimitiveStorage, PrimitiveStorageEndpoint};
+use crate::primitive_storage::{
+    PrimitiveStorage, PrimitiveStorageEncoding, PrimitiveStorageEndpoint,
+};
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{
     StructuralFieldNamespace, StructuralRuntimePlace, TerminalScalarValue, TerminalStructuralValue,
@@ -37,6 +39,7 @@ pub struct TerminalBoundaryScalarBuffer {
     value: TerminalScalarValue,
     restriction: Option<StructuralFieldType>,
     stored_scalar: Option<ScalarType>,
+    encoding: Option<PrimitiveStorageEncoding>,
 }
 
 impl TerminalBoundaryScalarBuffer {
@@ -76,7 +79,7 @@ impl TerminalBoundaryScalarBuffer {
             || self
                 .restriction
                 .as_ref()
-                .is_some_and(|field| !value.satisfies_field(field))
+                .is_some_and(|field| !satisfies_source_restriction(value, field, self.encoding))
         {
             return Err(TerminalEffectRejection::new(
                 "boundary scalar replacement violates access, carrier or original field restriction",
@@ -98,6 +101,24 @@ struct ScalarLoanBinding {
     shared_view: bool,
     original: TerminalScalarValue,
     restriction: Option<StructuralFieldType>,
+}
+
+/// Preserve the original receiving predicate across an admitted representation
+/// view. Applying an i64 predicate directly to observed u8 bytes would reject
+/// valid loans; discarding that predicate would permit invalid replacement.
+pub(crate) fn satisfies_source_restriction(
+    value: TerminalScalarValue,
+    field: &StructuralFieldType,
+    encoding: Option<PrimitiveStorageEncoding>,
+) -> bool {
+    let source = match encoding {
+        Some(encoding) => field
+            .scalar_type()
+            .ok_or_else(malformed)
+            .and_then(|scalar| encoding.source_value(value, scalar)),
+        None => Ok(value),
+    };
+    source.is_ok_and(|source| source.satisfies_field(field))
 }
 
 #[derive(Default)]
@@ -176,9 +197,18 @@ impl BoundaryScalarLoans {
             shared_view,
         )?;
         let restriction = execution.captured_scalar_restriction(&storage, access)?;
+        if let (Some(field), Some(encoding)) = (&restriction, storage.encoding) {
+            let source_type = field.scalar_type().ok_or_else(malformed)?;
+            let source_value = encoding.source_value(original, source_type)?;
+            // The inverse image used for replacement must agree with the
+            // actual pinned resident before host code sees any buffer.
+            if source_value != execution.endpoint_scalar(source, &storage.endpoint)? {
+                return Err(malformed());
+            }
+        }
         if restriction
             .as_ref()
-            .is_some_and(|field| !original.satisfies_field(field))
+            .is_some_and(|field| !satisfies_source_restriction(original, field, storage.encoding))
         {
             return Err(malformed());
         }
@@ -190,7 +220,8 @@ impl BoundaryScalarLoans {
             access,
             value: original,
             restriction: restriction.clone(),
-            stored_scalar: storage.stored_scalar,
+            stored_scalar: storage.storage_scalar(),
+            encoding: storage.encoding,
         });
         self.bindings.push(ScalarLoanBinding {
             identity,
@@ -222,16 +253,16 @@ impl BoundaryScalarLoans {
                 || buffer.access != binding.access
                 || buffer.value.scalar_type() != binding.scalar_type
                 || !terminal_scalar_belongs_to_type(buffer.value)
-                || buffer.stored_scalar != binding.storage.stored_scalar
-                || binding.storage.stored_scalar.is_some_and(|stored| {
+                || buffer.stored_scalar != binding.storage.storage_scalar()
+                || buffer.encoding != binding.storage.encoding
+                || binding.storage.storage_scalar().is_some_and(|stored| {
                     !crate::primitive_storage::scalar_fits_storage(stored, buffer.value)
                 })
                 || (binding.access == StructuralAccess::SharedBorrow
                     && buffer.value != binding.original)
-                || binding
-                    .restriction
-                    .as_ref()
-                    .is_some_and(|field| !buffer.value.satisfies_field(field))
+                || binding.restriction.as_ref().is_some_and(|field| {
+                    !satisfies_source_restriction(buffer.value, field, binding.storage.encoding)
+                })
             {
                 return Err(malformed());
             }

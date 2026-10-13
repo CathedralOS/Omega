@@ -135,7 +135,19 @@ exact. A mutable view's direct field store rejoins the same leaf in stage 04
 integer leaf of the other sign (`i16` seen as `u16`) reads its declared
 carrier and takes the modular image, and a store writes the image of the
 view's value. A leaf of another carrier kind (`f32` seen as `u32`) uses the
-same scalar representation-view replay. Nested view paths remain unsupported.
+same scalar representation-view replay. Terminal interpretation composes nested
+record and fixed-array selections as byte windows of the original backing;
+equal geometry does not require equal field ordinals or nesting. A selected
+scalar region must identify exactly one original cell, retaining both its
+storage codec and the view interpretation. Calls, successor states and returned
+references with an unchanged presentation carry that association instead of
+copying or relabelling the source. Publishing a new presentation from a callee
+still requires the result-origin contract to retain its admitted formation
+separately from the original source coordinates.
+Host replacement checks the original field predicate against the inverse byte
+image. A foreign thin pointer discards the codec only when the shared scalar
+export-width judgment establishes its entire footprint for every admitted
+backing; logical width alone does not authorize exposure of adjacent bytes.
 
 Byte-backed record observations and stores compose nested record and fixed-array
 paths with runtime selectors. The shared normalized layout retains a constant

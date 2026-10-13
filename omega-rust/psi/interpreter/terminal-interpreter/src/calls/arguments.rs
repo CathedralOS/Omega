@@ -21,7 +21,7 @@ pub(crate) struct StructuralCallArguments {
     pub(crate) values: BTreeMap<PlaceId, TerminalStructuralValue>,
     /// Borrowed re-views keep their original storage declaration beside the
     /// logical ingress carrier. Field projection consumes this association.
-    pub(crate) aggregate_backings: BTreeMap<PlaceId, TerminalStructuralValue>,
+    pub(crate) aggregate_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
     pub(crate) byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     pub(crate) primitive_loans: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
     pub(crate) scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,

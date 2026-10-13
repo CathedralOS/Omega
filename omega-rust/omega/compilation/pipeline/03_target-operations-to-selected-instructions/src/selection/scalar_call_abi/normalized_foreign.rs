@@ -344,42 +344,55 @@ pub(crate) fn validate(
             crate::structural_inputs::structural_reference_input::borrowed_byte_view_presentation(
                 &root, &semantic, argument.structural_type, &signature.structural_types,
             )).flatten();
-        let (projected_type, source_byte_offset, elements) =
-            if let Some((offset, _, _)) = presentation {
-                if presentation_debt {
-                    return Err(invalid());
-                }
-                (argument.structural_type, offset, Vec::new())
-            } else if argument
-                .path
-                .contains(&terminal_psi::StructuralPathSegment::Referent)
-            {
-                let address = crate::selection::reference_input::borrowed_argument(
-                    source,
-                    &semantic,
-                    argument,
-                    &[],
-                )
-                .ok_or_else(invalid)?;
-                // Foreign thin pointers cannot transport a runtime scalar
-                // codec. An explicitly checked physical aggregate view carries
-                // its canonical bytes and uses the ordinary pointer geometry.
-                if address.scalar_descriptor {
-                    return Err(invalid());
-                }
-                (
+        let (projected_type, source_byte_offset, elements) = if let Some((offset, _, _)) =
+            presentation
+        {
+            if presentation_debt {
+                return Err(invalid());
+            }
+            (argument.structural_type, offset, Vec::new())
+        } else if argument
+            .path
+            .contains(&terminal_psi::StructuralPathSegment::Referent)
+        {
+            let address = crate::selection::reference_input::borrowed_argument(
+                source, &semantic, argument, indices,
+            )
+            .ok_or_else(invalid)?;
+            // A thin pointer exports the original address and omits the
+            // codec. The checked loan must admit only this byte footprint,
+            // independently of the descriptor's source arrangement.
+            if address.scalar_descriptor {
+                let exported_width = crate::structural_inputs::structural_reference_input::scalar_reference_export_width(
                     argument.structural_type,
-                    address.referent_offset,
-                    Vec::new(),
-                )
-            } else {
-                crate::structural_inputs::structural_reference_input::runtime_projection(
+                    argument.access,
+                    &signature.structural_types,
+                );
+                if exported_width != Some(argument.shape.byte_size) {
+                    return Err(invalid());
+                }
+            }
+            let projection =
+                crate::structural_inputs::structural_reference_input::reference_projection(
                     argument.root_structural_type,
                     &argument.path,
+                    argument.access,
                     &signature.structural_types,
                 )
-                .ok_or_else(invalid)?
-            };
+                .ok_or_else(invalid)?;
+            (
+                argument.structural_type,
+                address.referent_offset,
+                projection.elements,
+            )
+        } else {
+            crate::structural_inputs::structural_reference_input::runtime_projection(
+                argument.root_structural_type,
+                &argument.path,
+                &signature.structural_types,
+            )
+            .ok_or_else(invalid)?
+        };
         let projected_shape = crate::structural_inputs::structural_reference_input::shape(
             projected_type,
             &signature.structural_types,

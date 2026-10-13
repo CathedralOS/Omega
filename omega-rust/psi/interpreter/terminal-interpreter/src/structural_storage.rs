@@ -177,19 +177,20 @@ impl crate::execution::TerminalExecution<'_> {
         for occurrence in self.placed_view_occurrences.values() {
             roots.insert(occurrence.referent.opaque_identity);
         }
-        for value in self
-            .structural_values
-            .values()
-            .chain(self.aggregate_argument_backings.values())
-        {
+        for value in self.structural_values.values().chain(
+            self.aggregate_argument_backings
+                .values()
+                .map(|backing| &backing.value),
+        ) {
             roots.insert(value.opaque_identity);
         }
         for frame in &self.call_stack {
-            for value in frame
-                .structural_values
-                .values()
-                .chain(frame.aggregate_argument_backings.values())
-            {
+            for value in frame.structural_values.values().chain(
+                frame
+                    .aggregate_argument_backings
+                    .values()
+                    .map(|backing| &backing.value),
+            ) {
                 roots.insert(value.opaque_identity);
             }
             if let SuspendedCallResult::Structural {
@@ -198,7 +199,7 @@ impl crate::execution::TerminalExecution<'_> {
             } = &frame.result
             {
                 for value in expected_reference_backings.iter().flatten() {
-                    roots.insert(value.opaque_identity);
+                    roots.insert(value.value.opaque_identity);
                 }
             }
         }

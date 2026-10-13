@@ -202,6 +202,48 @@ pub(in crate::selection::construction::scalar_graph) fn load_pointer_word(
     Ok(pointer)
 }
 
+/// Export the address word of an already-positioned scalar descriptor. Its
+/// instruction displacement is zero, but retained memory custody names the
+/// original slot and selectors. Reapplying that slot's offset would load a
+/// different word; recording zero would attribute a padded field to its parent.
+pub(in crate::selection::construction::scalar_graph) fn load_scalar_referent(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: semantic_vocabulary::PlaceId,
+    descriptor: selected_instructions::VirtualRegisterId,
+    reference: Option<&crate::selection::reference_input::BorrowedReferenceAddress>,
+) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
+    let (byte_offset, indices) = match reference {
+        Some(reference) => {
+            let slot = reference
+                .pointer_slots
+                .last()
+                .filter(|slot| slot.scalar_descriptor)
+                .ok_or_else(invalid)?;
+            (
+                slot.byte_offset,
+                reference
+                    .indices
+                    .get(slot.indices.clone())
+                    .ok_or_else(invalid)?,
+            )
+        }
+        None => (0, &[][..]),
+    };
+    let pointer = transport_register(builder, place, byte_offset)?;
+    super::runtime_address::footprint(
+        builder,
+        row,
+        place,
+        byte_offset,
+        8,
+        indices,
+        super::runtime_address::Written::None,
+    )?;
+    builder.emit_load64(0, descriptor, pointer, provenance(row))?;
+    Ok(pointer)
+}
+
 pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,

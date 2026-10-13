@@ -26,7 +26,7 @@ use writeback::{BoundaryByteBufferBinding, BoundaryByteWriteScope};
 pub(crate) struct BoundaryArguments {
     local_identity_cursor: Option<u64>,
     pub(crate) values: Vec<TerminalStructuralValue>,
-    aggregate_backings: Vec<Option<TerminalStructuralValue>>,
+    aggregate_backings: Vec<Option<crate::reference::AggregateBacking>>,
     pub(crate) bytes: Vec<Option<Vec<u8>>>,
     pub(crate) buffers: Vec<TerminalBoundaryByteBuffer>,
     pub(crate) storage_loans: BoundaryStorageLoans,

@@ -24,6 +24,18 @@ pub(crate) fn scalar_storage_type(
     runtime_abi::ScalarStorageCodec::from_scalar(scalar).map(|_| scalar)
 }
 
+/// A thin boundary pointer discards the codec, so its entire logical footprint
+/// must be valid for every backing the checked loan can denote. This is not
+/// source authority: callers still retain the exact reference path and access.
+pub(crate) fn scalar_reference_export_width(
+    selected: StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<u32> {
+    let scalar = scalar_storage_type(selected, declarations)?;
+    terminal_semantics::reference_storage_export_byte_width(scalar, access).map(u32::from)
+}
+
 /// Locate stack pointer bits after the caller has established pointer transport.
 ///
 /// Internal reference plans retain a borrowed-reference class, while foreign
