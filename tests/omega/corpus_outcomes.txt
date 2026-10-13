@@ -5872,6 +5872,7 @@ pass/providers/checked_boundary_requirement_dispatch_exit checked 8590ms check-t
 pass/providers/checked_fixed_operator_dispatch_exit checked 12029ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/checked_fixed_operator_physical_custody checked 11307ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/component_owner_provider_override_compile checked 11504ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/const_generic_entry_record_field_exit checked 2988ms check-target:macos_arm64 @b016b7e0a226
 pass/providers/direct_boundary_array_snapshot_exit checked 12346ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/external_boundary_requirement_via_exit checked 11623ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/external_leaf_dllimport_compile checked 11105ms check-target:macos_arm64 @a9ae30e1c334+wt
