@@ -96,7 +96,10 @@ Compiler work is one loop, and its unit is a sample: a runnable program under
 1. **Take a failing sample.** `python3 tools/sample_queue.py` lists the
    samples that fail on this host in the latest sample-gate run, smallest
    first, with each one's refusal; run `python3 tools/sample_native_gate.py`
-   first when no recent run exists. A sample the user names comes first.
+   first when no recent run exists. A sample the user names comes first. A
+   sample that cannot run until the owner decides something says so in its
+   README, citing the `OWNER_QUESTIONS.md` entry; the queue lists it apart
+   from the work.
 2. **Make it run.** Done means the sample compiles and runs natively with its
    authored result on main, with every compiler, library and fixture repair
    it needed landed with it, and its invalid controls still rejecting.
@@ -117,6 +120,11 @@ Compiler work is one loop, and its unit is a sample: a runnable program under
 The repair inside the loop is ordinary compiler engineering and follows every
 rule below: generalize the operation, check mechanical variants, pin the
 behavior with fixtures under `tests/omega/`, and keep main green.
+
+A change that makes the language reject source it used to accept migrates
+every sample and fixture it breaks in the same change. Run the sample gate on
+the affected samples before landing; a sample left failing by a language
+change becomes someone else's queue entry with no compiler work in it.
 
 ## Commands
 
