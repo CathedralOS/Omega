@@ -16,9 +16,11 @@ The oracle is the sample's own header, which the corpus already documents:
     // Expected exit: 0.
     // Expected output contains: 150
 
-Both lines are optional; a sample with neither is built without being
-launched, since it may wait for input, and is reported as `no-oracle` and not
-scored. Nothing here is committed: `omega.lock` and `build/` are
+Both lines are optional; a sample with neither is reported as `no-oracle` and
+not scored. A program is still built natively without being launched, so a
+native-build failure stays visible. A probe under `probes/` with no oracle is
+not reviewed or built at all: nothing scores it and package review dominates
+gate time. `--build-unscored` builds those probes too. Nothing here is committed: `omega.lock` and `build/` are
 ignored, so the acceptance stays local to this checkout, which is what
 "review each checkout's package inputs rather than borrowing another
 checkout's accepted lock" requires.
@@ -117,6 +119,14 @@ def nested_groups(samples):
     return list(groups.values())
 
 
+def unscored_fixture_oracles(sample, target):
+    """Whether `input.txt` plus authored expected files score this sample."""
+    if not os.path.isfile(os.path.join(sample, "input.txt")):
+        return False
+    authored = fixture_oracles(sample, target)
+    return authored is not None and any(authored.values())
+
+
 def oracle(sample, entry=None):
     text = Path(entry or os.path.join(sample, "main.omg")).read_text(encoding="utf-8", errors="ignore")
     exit_match = EXPECT_EXIT.search(text)
@@ -193,7 +203,7 @@ def clear_package_state(sample):
             os.remove(path)
 
 
-def timed_measure(cli, sample, target, timeout):
+def timed_measure(cli, sample, target, timeout, build_unscored=False):
     """`measure` plus the wall time it took and where that time went.
 
     A failure caused by stale local package state is measured once more from
@@ -203,11 +213,11 @@ def timed_measure(cli, sample, target, timeout):
     _phases.times = {}
     start = time.monotonic()
     try:
-        result = measure(cli, sample, target, timeout)
+        result = measure(cli, sample, target, timeout, build_unscored)
         first = result.get("diagnostic") or result.get("detail", "")
         if result["state"] in ("no-native-build", "error") and STALE_PACKAGE_STATE.search(first):
             clear_package_state(sample)
-            result = measure(cli, sample, target, timeout)
+            result = measure(cli, sample, target, timeout, build_unscored)
             result["retried"] = first
     finally:
         times, _phases.times = _phases.times, None
@@ -378,7 +388,7 @@ def check_refusal(cli, sample, timeout):
     return completed.stdout + completed.stderr
 
 
-def measure(cli, sample, target, timeout):
+def measure(cli, sample, target, timeout, build_unscored=False):
     project = project_at(Path(sample), ROOT)
     if project.entry is None:
         return {"sample": sample, "state": "discovery-error", "detail": "missing unambiguous entry; declare sample.json entry"}
@@ -406,6 +416,15 @@ def measure(cli, sample, target, timeout):
             "detail": f"binds ProgramEntry only for {', '.join(sorted(targets))}",
         }
     expected_exit, expected_output = oracle(sample, project.entry)
+    if (not build_unscored and "probes" in Path(sample).parts
+            and project.role not in ("check-only", "library")
+            and expected_exit is None and expected_output is None
+            and not unscored_fixture_oracles(sample, target)):
+        # A probe with no oracle pins nothing the gate can score; its package
+        # review and native build cost minutes and decided nothing. A program
+        # outside probes/ is still built so a native-build failure shows.
+        return {"sample": sample, "state": "no-oracle",
+                "detail": "probe states no oracle; not built (--build-unscored builds it)"}
     reason, review_output = accept_review(cli, sample, target, timeout)
     if reason == "review-failed":
         # A candidate that fails checking cannot build natively; report why.
@@ -527,6 +546,9 @@ def main():
     parser.add_argument("--programs-only", action="store_true",
                         help="discover application work without probe/control trees; "
                              "not a full release gate")
+    parser.add_argument("--build-unscored", action="store_true",
+                        help="review and natively build samples that state no oracle "
+                             "(default: report them as no-oracle without compiling)")
     parser.add_argument("--jobs", type=int, default=4)
     parser.add_argument("--timeout", type=int, default=300, help="seconds per CLI call")
     parser.add_argument("--write-results", metavar="PATH")
@@ -559,7 +581,8 @@ def main():
     wall_start = time.monotonic()
     with ThreadPoolExecutor(max_workers=arguments.jobs) as pool:
         grouped = pool.map(
-            lambda group: [timed_measure(arguments.cli, s, arguments.target, arguments.timeout)
+            lambda group: [timed_measure(arguments.cli, s, arguments.target, arguments.timeout,
+                                         arguments.build_unscored)
                            for s in group],
             nested_groups(samples),
         )

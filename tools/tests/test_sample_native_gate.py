@@ -113,6 +113,48 @@ class FixtureOracleTests(unittest.TestCase):
         self.run_directories = [cwd for command, stdin, cwd in calls if "run" in command]
         return result, runs
 
+    def test_program_without_an_oracle_is_still_built(self):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "main.omg").write_text("machine main() {}\n")
+            calls = []
+
+            def fake_run(command, timeout, stdin=subprocess.DEVNULL, cwd=None):
+                calls.append(command)
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            root = Path(directory)
+            project = sample_projects.Project(
+                directory=root, entry=root / "main.omg", role="program")
+            with patch.object(gate, "run", side_effect=fake_run), \
+                    patch.object(gate, "project_at", return_value=project):
+                result = gate.measure("omega", directory, "macos_arm64", 10)
+            self.assertEqual(result["state"], "no-oracle")
+            self.assertTrue(calls)
+
+    def test_probe_without_an_oracle_is_not_compiled(self):
+        with tempfile.TemporaryDirectory() as parent:
+            directory = str(Path(parent, "probes", "gap"))
+            Path(directory).mkdir(parents=True)
+            Path(directory, "main.omg").write_text("machine main() {}\n")
+            calls = []
+
+            def fake_run(command, timeout, stdin=subprocess.DEVNULL, cwd=None):
+                calls.append(command)
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            root = Path(directory)
+            project = sample_projects.Project(
+                directory=root, entry=root / "main.omg", role="program")
+            with patch.object(gate, "run", side_effect=fake_run), \
+                    patch.object(gate, "project_at", return_value=project):
+                result = gate.measure("omega", directory, "macos_arm64", 10)
+                self.assertEqual(result["state"], "no-oracle")
+                self.assertEqual(calls, [])
+                built = gate.measure("omega", directory, "macos_arm64", 10,
+                                     build_unscored=True)
+            self.assertEqual(built["state"], "no-oracle")
+            self.assertTrue(calls)
+
     def test_input_fixture_feeds_input_and_scores_files(self):
         with tempfile.TemporaryDirectory() as directory:
             root = self.project(directory)
@@ -271,7 +313,7 @@ class TimingTests(unittest.TestCase):
             gate.time.sleep(0.05)
             return subprocess.CompletedProcess(command, 0, "", "")
 
-        def fake_measure(cli, sample, target, timeout):
+        def fake_measure(cli, sample, target, timeout, build_unscored=False):
             gate.run([cli, "update", "--project", sample], timeout)
             gate.run([cli, "--check", "main.omg"], timeout)
             gate.run([cli, "run", "main.omg"], timeout)
@@ -412,7 +454,7 @@ class RunHistoryTests(unittest.TestCase):
                 with self.subTest(scope=scope):
                     arguments = ["sample_native_gate.py", "--cli", "omega", "--jobs", "1",
                                  "--history-dir", directory, *flags]
-                    def result(_cli, sample, _target, _timeout):
+                    def result(_cli, sample, _target, _timeout, _build_unscored=False):
                         return {"sample": sample, "state": "pass", "detail": "", "seconds": 0}
                     with patch.object(sys, "argv", arguments), \
                             patch.object(gate, "discover", return_value=samples), \
