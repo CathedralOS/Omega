@@ -596,6 +596,37 @@ def main() -> None:
         "AnonymousFraction",
         b"7 / 2",
     )
+    # Wholly anonymous arithmetic denotes an exact rational; landing needs an
+    # integral value (wiki/spec/language/numeric_values.md).
+    accepted(
+        program,
+        "anonymous-rationals-land-when-integral",
+        b"machine f(x: i32) -> i32 { x * (7 / 2 * 2) }\n"
+        b"machine g() -> u32 { let value: u32 = (4097 / 4096) * 4096; value }\n"
+        b"machine h() -> i32 { (1 / 3 + 2 / 3) * 5 }",
+        ((b"7 / 2 * 2", "i32"),),
+    )
+    rejected(
+        program,
+        "anonymous-fraction-rejects-at-landing",
+        b"machine f() -> u8 { 7 / 2 + 1 }",
+        "AnonymousFraction",
+        b"7 / 2 + 1",
+    )
+    rejected(
+        program,
+        "anonymous-fraction-rejects-at-a-cast",
+        b"machine f() -> u8 { (7 / 2) as u8 }",
+        "AnonymousFraction",
+        b"(7 / 2) as u8",
+    )
+    rejected(
+        program,
+        "anonymous-division-by-zero-has-no-value",
+        b"machine f() -> u8 { 7 / 0 * 0 }",
+        "AnonymousFraction",
+        b"7 / 0",
+    )
     rejected(
         program,
         "anonymous-remainder-needs-a-typed-operand",

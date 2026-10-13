@@ -299,3 +299,149 @@ pub machine ExactInteger::remainder(left: ExactInteger, right: ExactInteger) -> 
         ExactResult { valid: false, value: left }
     }
 }
+
+// Exact rationals of wholly anonymous arithmetic
+// (wiki/spec/language/numeric_values.md): a numerator and a positive
+// denominator with common factors removed, zero as `0/1`. Arithmetic is
+// exact; `valid` fails when a numerator or denominator leaves the magnitude
+// range, or a divisor is zero. An integral value has denominator 1.
+pub data Rational [copy] {
+    numerator: ExactInteger;
+    denominator: u64 in Wrapping;
+}
+
+pub data RationalResult [copy] {
+    valid: bool;
+    value: Rational;
+}
+
+pub machine Rational::of(value: ExactInteger) -> Rational {
+    Rational { numerator: value, denominator: 1 }
+}
+
+// The greatest common divisor of two magnitudes, at least one nonzero.
+pub machine Rational::common_divisor(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
+    transition right == 0 {
+        true -> found(left)
+        _ -> step(right, left % right)
+    }
+
+    state step(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
+        transition right == 0 {
+            true -> found(left)
+            _ -> step(right, left % right)
+        }
+    }
+
+    state found(divisor: u64 in Wrapping) -> u64 in Wrapping {
+        divisor
+    }
+}
+
+// `numerator / denominator` in lowest terms; a zero denominator is invalid.
+pub machine Rational::reduced(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
+    transition denominator == 0 {
+        true -> invalid()
+        _ -> nonzero(numerator, denominator)
+    }
+
+    state nonzero(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
+        let divisor: u64 in Wrapping = Rational::common_divisor(numerator.magnitude, denominator);
+        transition numerator.magnitude == 0 {
+            true -> zero()
+            _ -> divided(numerator, denominator, divisor)
+        }
+    }
+
+    state divided(numerator: ExactInteger, denominator: u64 in Wrapping, divisor: u64 in Wrapping) -> RationalResult {
+        transition divisor > 0 {
+            true -> lowest(numerator, denominator, divisor)
+            _ -> invalid()
+        }
+    }
+
+    state lowest(numerator: ExactInteger, denominator: u64 in Wrapping, divisor: u64 in Wrapping) -> RationalResult {
+        RationalResult {
+            valid: true,
+            value: Rational {
+                numerator: ExactInteger { negative: numerator.negative, magnitude: numerator.magnitude / divisor },
+                denominator: denominator / divisor
+            }
+        }
+    }
+
+    state zero() -> RationalResult {
+        RationalResult { valid: true, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
+    }
+
+    state invalid() -> RationalResult {
+        RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
+    }
+}
+
+// (a/b) + (c/d) = (a*d + c*b) / (b*d).
+pub machine Rational::add(left: Rational, right: Rational) -> RationalResult {
+    let left_scaled: ExactResult = ExactInteger::multiply(left.numerator, ExactInteger::of(right.denominator));
+    let right_scaled: ExactResult = ExactInteger::multiply(right.numerator, ExactInteger::of(left.denominator));
+    let sum: ExactResult = ExactInteger::add(left_scaled.value, right_scaled.value);
+    let scale: ExactResult = ExactInteger::multiply(ExactInteger::of(left.denominator), ExactInteger::of(right.denominator));
+    transition left_scaled.valid && right_scaled.valid && sum.valid && scale.valid {
+        true -> reduced(sum.value, scale.value.magnitude)
+        _ -> invalid()
+    }
+
+    state reduced(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
+        let result: RationalResult = Rational::reduced(numerator, denominator);
+        result
+    }
+
+    state invalid() -> RationalResult {
+        RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
+    }
+}
+
+pub machine Rational::subtract(left: Rational, right: Rational) -> RationalResult {
+    let negated: Rational = Rational { numerator: ExactInteger::negate(right.numerator), denominator: right.denominator };
+    let result: RationalResult = Rational::add(left, negated);
+    result
+}
+
+// (a/b) * (c/d) = (a*c) / (b*d).
+pub machine Rational::multiply(left: Rational, right: Rational) -> RationalResult {
+    let product: ExactResult = ExactInteger::multiply(left.numerator, right.numerator);
+    let scale: ExactResult = ExactInteger::multiply(ExactInteger::of(left.denominator), ExactInteger::of(right.denominator));
+    transition product.valid && scale.valid {
+        true -> reduced(product.value, scale.value.magnitude)
+        _ -> invalid()
+    }
+
+    state reduced(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
+        let result: RationalResult = Rational::reduced(numerator, denominator);
+        result
+    }
+
+    state invalid() -> RationalResult {
+        RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
+    }
+}
+
+// (a/b) / (c/d) = (a*d) / (b*c), the sign on the numerator; a zero divisor
+// has no value.
+pub machine Rational::divide(left: Rational, right: Rational) -> RationalResult {
+    let numerator: ExactResult = ExactInteger::multiply(left.numerator, ExactInteger::of(right.denominator));
+    let scale: ExactResult = ExactInteger::multiply(ExactInteger::of(left.denominator), ExactInteger::of(right.numerator.magnitude));
+    let signed: ExactInteger = ExactInteger { negative: numerator.value.negative != right.numerator.negative && numerator.value.magnitude > 0, magnitude: numerator.value.magnitude };
+    transition right.numerator.magnitude > 0 && numerator.valid && scale.valid {
+        true -> reduced(signed, scale.value.magnitude)
+        _ -> invalid()
+    }
+
+    state reduced(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
+        let result: RationalResult = Rational::reduced(numerator, denominator);
+        result
+    }
+
+    state invalid() -> RationalResult {
+        RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
+    }
+}

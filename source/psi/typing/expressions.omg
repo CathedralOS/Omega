@@ -1161,38 +1161,49 @@ crashes Trap
         let admitted: bool = Typer::admit(typer, syntax, carrier, expression.right, false);
     }
 
+    // Wholly anonymous arithmetic denotes an exact rational, division
+    // included; landing requires an integral value
+    // (wiki/spec/language/numeric_values.md). A result beyond the magnitude
+    // range is out of range; a zero divisor has no value.
     state fold(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
-        let left: ExactInteger = Typing::value(&typer.output, expression.left);
-        let right: ExactInteger = Typing::value(&typer.output, expression.right);
-        let sum: ExactResult = ExactInteger::add(left, right);
-        let difference: ExactResult = ExactInteger::subtract(left, right);
-        let product: ExactResult = ExactInteger::multiply(left, right);
-        let quotient: ExactResult = ExactInteger::divide(left, right);
+        let left: Rational = Typing::rational(&typer.output, expression.left);
+        let right: Rational = Typing::rational(&typer.output, expression.right);
+        let sum: RationalResult = Rational::add(left, right);
+        let difference: RationalResult = Rational::subtract(left, right);
+        let product: RationalResult = Rational::multiply(left, right);
+        let quotient: RationalResult = Rational::divide(left, right);
         let anonymous_type: u64 in Trapping = typer.output.anonymous;
         Typing::set_expression_type(&mut typer.output, index, anonymous_type);
         transition expression.operator {
             OperatorKind::Add -> folded(typer, index, expression, sum)
             OperatorKind::Subtract -> folded(typer, index, expression, difference)
             OperatorKind::Multiply -> folded(typer, index, expression, product)
-            OperatorKind::Divide -> divided(typer, index, expression, quotient)
+            OperatorKind::Divide -> divided(typer, index, expression, quotient, right)
             OperatorKind::Modulo -> remainder(typer, expression)
             _ -> mismatch(typer, expression)
         }
     }
 
-    state folded(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: ExactResult) {
-        Typing::set_value(&mut typer.output, index, result.value);
+    state folded(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: RationalResult) {
+        Typing::set_rational(&mut typer.output, index, result.value);
         transition result.valid {
             true -> done()
             _ -> out_of_range(typer, expression)
         }
     }
 
-    state divided(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: ExactResult) {
-        Typing::set_value(&mut typer.output, index, result.value);
+    state divided(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: RationalResult, divisor: Rational) {
+        Typing::set_rational(&mut typer.output, index, result.value);
         transition result.valid {
             true -> done()
-            _ -> fraction(typer, expression)
+            _ -> undivided(typer, expression, divisor)
+        }
+    }
+
+    state undivided(typer: &mut Typer, expression: Expression, divisor: Rational) {
+        transition divisor.numerator.magnitude == 0 {
+            true -> fraction(typer, expression)
+            _ -> out_of_range(typer, expression)
         }
     }
 
@@ -1360,12 +1371,24 @@ crashes Trap
 
     state land(typer: &mut Typer, expression: Expression, target: u64 in Trapping) {
         let value: ExactInteger = Typing::value(&typer.output, expression.left);
+        let denominator: u64 in Trapping = Typing::denominator(&typer.output, expression.left);
         let row: TypeRow = TypeTable::row(&typer.output.types, target);
         let fits: bool = ExactInteger::fits(row.builtin, value);
+        transition denominator == 1 {
+            true -> integral(typer, expression, target, fits)
+            _ -> fractional(typer, expression)
+        }
+    }
+
+    state integral(typer: &mut Typer, expression: Expression, target: u64 in Trapping, fits: bool) {
         transition fits {
             true -> landed(typer, expression, target)
             _ -> out_of_range(typer, expression)
         }
+    }
+
+    state fractional(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::AnonymousFraction, expression.source_span);
     }
 
     state landed(typer: &mut Typer, expression: Expression, target: u64 in Trapping) {

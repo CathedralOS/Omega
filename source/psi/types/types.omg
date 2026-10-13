@@ -185,6 +185,9 @@ where
     selections: [Selection; 131072];
     adaptations: [Adaptation; 131072];
     values: [ExactInteger; 131072];
+    // The denominator of an anonymous expression's exact rational value, in
+    // lowest terms; zero (the absence state) or one is integral.
+    denominators: [u64; 131072];
     expression_count: u64;
     binder_types: [u64; 2048];
     // Each pattern field's member, indexed like `binder_types`.
@@ -363,6 +366,63 @@ crashes Trap
     }
 }
 
+// An anonymous expression's exact rational: its value over its denominator.
+pub machine Typing::rational(typing: &Typing, index: u64 in Trapping) -> Rational
+crashes Trap
+{
+    let numerator: ExactInteger = Typing::value(typing, index);
+    let denominator: u64 in Trapping = Typing::denominator(typing, index);
+    Rational { numerator: numerator, denominator: denominator as u64 in Wrapping }
+}
+
+// The denominator of an anonymous expression's value, at least one.
+pub machine Typing::denominator(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition index < typing.expression_count {
+        true -> read(typing, index)
+        _ -> invalid()
+    }
+
+    state read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
+        let stored: u64 = typing.denominators[index];
+        transition stored > 1 {
+            true -> fraction(stored)
+            _ -> integral()
+        }
+    }
+
+    state fraction(stored: u64) -> u64 in Trapping {
+        stored as u64 in Trapping
+    }
+
+    state integral() -> u64 in Trapping {
+        1
+    }
+
+    state invalid() -> u64 in Trapping {
+        crash Trap;
+    }
+}
+
+pub machine Typing::set_rational(typing: &mut Typing, index: u64 in Trapping, value: Rational)
+crashes Trap
+{
+    transition index < typing.expression_count {
+        true -> write(typing, index, value)
+        _ -> invalid()
+    }
+
+    state write(typing: &mut Typing, index: u64 in Trapping, value: Rational) {
+        typing.values[index] = value.numerator;
+        typing.denominators[index] = value.denominator as u64;
+    }
+
+    state invalid() {
+        crash Trap;
+    }
+}
+
 pub machine Typing::set_value(typing: &mut Typing, index: u64 in Trapping, value: ExactInteger)
 crashes Trap
 {
@@ -373,6 +433,7 @@ crashes Trap
 
     state write(typing: &mut Typing, index: u64 in Trapping, value: ExactInteger) {
         typing.values[index] = value;
+        typing.denominators[index] = 0;
     }
 
     state invalid() {

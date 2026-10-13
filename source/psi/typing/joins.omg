@@ -81,8 +81,9 @@ crashes Trap
 
     state incompatible(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, admission: Admission) {
         let value: Expression = SyntaxTrees::expression(syntax, handle);
-        transition admission == Admission::OutOfRange {
-            true -> rejected(typer, value, TypeDiagnosticCode::LiteralOutOfRange)
+        transition admission {
+            Admission::OutOfRange -> rejected(typer, value, TypeDiagnosticCode::LiteralOutOfRange)
+            Admission::Fraction -> rejected(typer, value, TypeDiagnosticCode::AnonymousFraction)
             _ -> rejected(typer, value, TypeDiagnosticCode::MismatchedTypes)
         }
     }

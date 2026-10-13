@@ -38,6 +38,8 @@ pub data Admission [copy] {
     case SharedLend;
     case Qualified;
     case Read;
+    // An anonymous value with a fractional part at an integer destination.
+    case Fraction;
 }
 
 pub machine Typer::admission(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission
@@ -258,21 +260,35 @@ crashes Trap
         }
     }
 
+    // Integer landing requires an integral, in-range value
+    // (wiki/spec/language/numeric_values.md).
     state anonymous(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission {
         let value: ExactInteger = Typing::value(&typer.output, expression);
+        let denominator: u64 in Trapping = Typing::denominator(&typer.output, expression);
         let fixed: bool = Typer::fixed_integer(wanted.builtin);
         let fits: bool = ExactInteger::fits(wanted.builtin, value);
         transition wanted.kind == TypeKind::Builtin && fixed {
-            true -> landing(fits)
+            true -> landing(fits, denominator == 1)
             _ -> rejected()
         }
     }
 
-    state landing(fits: bool) -> Admission {
+    state landing(fits: bool, integral: bool) -> Admission {
+        transition integral {
+            true -> ranged(fits)
+            _ -> fraction()
+        }
+    }
+
+    state ranged(fits: bool) -> Admission {
         transition fits {
             true -> landed()
             _ -> out_of_range()
         }
+    }
+
+    state fraction() -> Admission {
+        Admission::Fraction
     }
 
     state landed() -> Admission {
@@ -308,6 +324,7 @@ crashes Trap
         Admission::Qualified -> qualified(typer, expression)
         Admission::Read -> read(typer, expression)
         Admission::OutOfRange -> reject(typer, written, TypeDiagnosticCode::LiteralOutOfRange)
+        Admission::Fraction -> reject(typer, written, TypeDiagnosticCode::AnonymousFraction)
         Admission::NotAValue -> reject(typer, written, TypeDiagnosticCode::NotAValue)
         Admission::Rejected -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
     }

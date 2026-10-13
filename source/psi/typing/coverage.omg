@@ -480,7 +480,10 @@ crashes Trap
     state valued(typer: &Typer, left_handle: u64 in Trapping, right_handle: u64 in Trapping) -> bool {
         let left_value: ExactInteger = Typing::value(&typer.output, left_handle);
         let right_value: ExactInteger = Typing::value(&typer.output, right_handle);
-        let same: bool = left_value.negative == right_value.negative && left_value.magnitude == right_value.magnitude;
+        let left_denominator: u64 in Trapping = Typing::denominator(&typer.output, left_handle);
+        let right_denominator: u64 in Trapping = Typing::denominator(&typer.output, right_handle);
+        let same: bool = left_value.negative == right_value.negative && left_value.magnitude == right_value.magnitude
+            && left_denominator == right_denominator;
         transition { _ -> answer(same) }
     }
 
