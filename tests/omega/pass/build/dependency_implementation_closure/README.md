@@ -20,6 +20,11 @@ layout policy discovered in the same forest. A sibling file defines an invalid
 helper with the same leaf name as the selected array helper: exact source-owned
 call identity, not a global spelling lookup, must select the valid declaration.
 
+The selected array helper is public because a public declaration's array
+extent is part of its public interface: an extent selecting a private machine
+is refused (`public interface selects private machine`) when the dependency's
+own Build occurrence prepares the package.
+
 Run `omega --check tests/omega/pass/build/dependency_implementation_closure/main.omg`
 to exercise dependency Build preparation through package orchestration. The
 corpus native route exercises the imported module and must exit 0, but does

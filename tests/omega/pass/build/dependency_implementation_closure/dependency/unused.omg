@@ -53,7 +53,7 @@ pub data UnusedRegisters {
     nested: InnerPlacement<InnerRegisters>;
 }
 
-machine placed_byte_count() -> u64 { unused_slot_count() }
+pub machine placed_byte_count() -> u64 { unused_slot_count() }
 
 pub data InnerRegisters { status: u32; }
 pub data InnerPlacement {}
