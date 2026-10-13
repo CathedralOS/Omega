@@ -3,16 +3,76 @@
 // caller binds must not depend on which arm ran. Both arms'
 // members project and consume the same way.
 //
-//   * `boundary requirement Receipt::ack` consuming contract.
 //   * `-> left_first(f, s)` vs `-> right_first(f, s)` — field
 //     order differs per arm.
+//   * `Acknowledgement::ack` is a one-member boundary trait requirement
+//     with a consuming contract. `Receipt` declares no `Receipt::drop`
+//     plan, so each projected member must reach the requirement.
+//   * The selected provider is an external sink: each bound target's C
+//     library `abs` takes one 32-bit integer, which is exactly how SysV
+//     x86-64, AAPCS64 and Windows x64 pass a one-field `i32` record by
+//     value, and returns its magnitude — the receipt's code. The
+//     acknowledged codes show which arm placed which input.
 //
-// Compile-checked only: declaration surface, no standard-library
-// dependency.
+// No standard-library dependency.
+//
+// Expected exit: 0.
+use omega::language::core::external_binding;
 
-data Receipt [linear] { code: i32; }
+pub data Receipt [linear] { code: i32; }
 
-boundary requirement Receipt::ack(receipt: Receipt);
+pub boundary trait Acknowledgement {
+    machine ack(receipt: Receipt) -> i32;
+}
+
+pub data ReceiptSink {}
+
+pub windows_x86_64 machine windows_x86_64_receipt_sink_binding() -> ForeignBinding<10, 3, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "abs",
+        },
+    }
+}
+
+pub linux_x86_64 machine linux_x86_64_receipt_sink_binding() -> ForeignBinding<9, 3, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+pub linux_arm64 machine linux_arm64_receipt_sink_binding() -> ForeignBinding<9, 3, 10> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.17",
+        },
+    }
+}
+
+pub macos_arm64 machine macos_arm64_receipt_sink_binding() -> ForeignBinding<17, 4, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "_abs",
+        },
+    }
+}
+
+windows_x86_64 boundary machine ReceiptSink::ack(receipt: Receipt) -> i32
+    satisfies Acknowledgement::ack via windows_x86_64_receipt_sink_binding();
+linux_x86_64 boundary machine ReceiptSink::ack(receipt: Receipt) -> i32
+    satisfies Acknowledgement::ack via linux_x86_64_receipt_sink_binding();
+linux_arm64 boundary machine ReceiptSink::ack(receipt: Receipt) -> i32
+    satisfies Acknowledgement::ack via linux_arm64_receipt_sink_binding();
+macos_arm64 boundary machine ReceiptSink::ack(receipt: Receipt) -> i32
+    satisfies Acknowledgement::ack via macos_arm64_receipt_sink_binding();
 
 data Pair { left: Receipt; right: Receipt; }
 
@@ -33,10 +93,24 @@ machine pack(first: i32, second: i32, swap: bool) -> Pair {
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine verify(correct: bool) crashes Trap {
+    transition correct {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine Main::main(main: &mut Main) reaches Acknowledgement crashes Trap {
     main.hits = 0;
-    let pair: Pair = pack(1, 2, true);
-    Receipt::ack(pair.left);
-    Receipt::ack(pair.right);
+    let straight: Pair = pack(1, 2, true);
+    let first_left: i32 = Acknowledgement::ack(straight.left);
+    let first_right: i32 = Acknowledgement::ack(straight.right);
+    let swapped: Pair = pack(1, 2, false);
+    let second_left: i32 = Acknowledgement::ack(swapped.left);
+    let second_right: i32 = Acknowledgement::ack(swapped.right);
     main.hits = 1;
+    verify(first_left == 1 && first_right == 2
+        && second_left == 2 && second_right == 1);
 }

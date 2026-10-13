@@ -5,21 +5,36 @@
 // `ensures value >= 0`, so `prepare(&mut value) == value`
 // proves the right operand after the effect lands.
 //
-//   * Boundary operator decl + `requires right >= 0`.
+//   * Boundary operator decl + `requires right >= 0`. The token
+//     resolves the public slot; `CheckedEquality::equal` is the
+//     selected checked satisfier, so `==` on these operands runs its
+//     body rather than primitive equality.
 //   * `prepare` mutates through `&mut` while returning —
 //     operand evaluation order: effect first, then `value`
-//     read.
+//     read. `prepare` stores 1 and returns 1, so the comparison
+//     holds only when the right operand observes the effect;
+//     reading `value` first would compare 1 with 5 and trap.
 //
-// Compile-checked only: no standard-library dependency, no
-// ProcessExit provider.
+// No standard-library dependency.
+//
+// Expected exit: 0.
 
 boundary machine == Integer::equal(left: i32, right: i32) -> bool
 requires right >= 0;
 
+data CheckedEquality {}
+
+machine CheckedEquality::equal(left: i32, right: i32) -> bool
+satisfies Integer::equal
+requires right >= 0
+{
+    left <= right && left >= right
+}
+
 machine prepare(value: &mut i32) -> i32
 ensures value >= 0 {
     value = 1;
-    0
+    1
 }
 
 machine compare(mut value: i32) -> bool {
@@ -28,7 +43,7 @@ machine compare(mut value: i32) -> bool {
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: &mut Main) crashes Trap {
     main.hits = 0;
     let flag: bool = compare(5);
     transition flag {
@@ -36,5 +51,8 @@ machine Main::main(main: &mut Main) {
         _ -> fail(main)
     }
     state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    state fail(main: &mut Main) {
+        main.hits = -1;
+        crash Trap;
+    }
 }

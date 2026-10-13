@@ -1,20 +1,14 @@
 # arm field variance
 
-Compile-scope probe. No standard-library dependency.
+Runnable probe; no standard-library dependency. `omega run main.omg` must exit 0
+natively after `omega update --project .` reviews the local package inputs.
 
-- member_projection_consume: path-indexed linear claims —
-  `consume(pair.left)` projects one member while the sibling
-  keeps its claim.
-- owner_snapshot_restore: read-before-drop + whole-record
-  re-establishment (`g = Guard{...}`) + read-after.
-- linear_branch_transfer: transition arms are alternatives —
-  both transfer the same linear obligation into consuming states.
-- arm_field_variance: `pack` places inputs in DIFFERENT fields
-  per arm; the claim map is arm-independent.
+`pack` places its inputs in different fields on each transition arm; the claim
+map a caller binds does not depend on which arm ran. Both projected members are
+consumed by `Acknowledgement::ack`, a one-member boundary trait requirement
+whose selected provider `ReceiptSink` is an external sink (each target's C
+library `abs`). The acknowledged codes show which arm placed which input.
 
-Compile-checked only (no ProcessExit provider):
-
-```sh
-mbx run -p omega -- --check samples/cli/probes/arm_field_variance/main.omg
-mbx run -p omega -- update --project samples/cli/probes/arm_field_variance
-```
+Without a selected provider, native closure review refuses the program
+(`reachable requirement ... resolves to 0 selected provider rows`), pinned by
+`tests/omega/fail/providers/consuming_trait_requirement_without_provider`.

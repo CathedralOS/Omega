@@ -3,35 +3,109 @@
 // a consuming state; the checker joins them as one live claim,
 // not two sequential copies.
 //
-//   * `true -> consume_first(receipt)` / `_ -> consume_second(receipt)`
-//     — same obligation, two destinations.
-//   * `boundary requirement Receipt::ack` consuming contract.
+//   * `true -> consume_first(main, receipt)` /
+//     `_ -> consume_second(main, receipt)` — same obligation, two
+//     destinations.
+//   * `Acknowledgement::ack` is a one-member boundary trait requirement
+//     with a consuming contract. `Receipt` declares no `Receipt::drop`
+//     plan, so no edge cleanup may retire the claim: each arm must hand
+//     the receipt to the requirement.
+//   * The selected provider is an external sink: each bound target's C
+//     library `abs` takes one 32-bit integer, which is exactly how SysV
+//     x86-64, AAPCS64 and Windows x64 pass a one-field `i32` record by
+//     value, and returns its magnitude — the receipt's code.
+//   * `choose_first` picks the first arm, which checks the acknowledged
+//     code; reaching the second arm traps.
 //
-// Compile-checked only: declaration surface (requirement has no
-// provider here), no standard-library dependency.
+// No standard-library dependency.
+//
+// Expected exit: 0.
+use omega::language::core::external_binding;
 
-data Receipt [linear] { code: i32; }
+pub data Receipt [linear] { code: i32; }
 
-boundary requirement Receipt::ack(receipt: Receipt);
+pub boundary trait Acknowledgement {
+    machine ack(receipt: Receipt) -> i32;
+}
+
+pub data ReceiptSink {}
+
+pub windows_x86_64 machine windows_x86_64_receipt_sink_binding() -> ForeignBinding<10, 3, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "abs",
+        },
+    }
+}
+
+pub linux_x86_64 machine linux_x86_64_receipt_sink_binding() -> ForeignBinding<9, 3, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+pub linux_arm64 machine linux_arm64_receipt_sink_binding() -> ForeignBinding<9, 3, 10> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.17",
+        },
+    }
+}
+
+pub macos_arm64 machine macos_arm64_receipt_sink_binding() -> ForeignBinding<17, 4, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "_abs",
+        },
+    }
+}
+
+windows_x86_64 boundary machine ReceiptSink::ack(receipt: Receipt) -> i32
+    satisfies Acknowledgement::ack via windows_x86_64_receipt_sink_binding();
+linux_x86_64 boundary machine ReceiptSink::ack(receipt: Receipt) -> i32
+    satisfies Acknowledgement::ack via linux_x86_64_receipt_sink_binding();
+linux_arm64 boundary machine ReceiptSink::ack(receipt: Receipt) -> i32
+    satisfies Acknowledgement::ack via linux_arm64_receipt_sink_binding();
+macos_arm64 boundary machine ReceiptSink::ack(receipt: Receipt) -> i32
+    satisfies Acknowledgement::ack via macos_arm64_receipt_sink_binding();
 
 data Main { hits: i32 in Wrapping; choose_first: bool; }
 
-machine Main::main(main: &mut Main) {
+machine verify(correct: bool) crashes Trap {
+    transition correct {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine Main::main(main: &mut Main) reaches Acknowledgement crashes Trap {
     main.hits = 0;
     main.choose_first = true;
     let receipt: Receipt = Receipt { code: 7 };
     transition main.choose_first {
-        true -> consume_first(receipt)
-        _ -> consume_second(receipt)
+        true -> consume_first(main, receipt)
+        _ -> consume_second(main, receipt)
     }
 
-    state consume_first(receipt: Receipt) {
-        Receipt::ack(receipt);
-        let value: i32 = 0;
+    state consume_first(main: &mut Main, receipt: Receipt) {
+        let code: i32 = Acknowledgement::ack(receipt);
+        main.hits = 1;
+        verify(code == 7);
     }
 
-    state consume_second(receipt: Receipt) {
-        Receipt::ack(receipt);
-        let value: i32 = 0;
+    state consume_second(main: &mut Main, receipt: Receipt) {
+        let code: i32 = Acknowledgement::ack(receipt);
+        main.hits = 2;
+        verify(false);
     }
 }
