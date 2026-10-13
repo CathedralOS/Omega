@@ -2,7 +2,7 @@ use omega::language::core::float_operations;
 // Floating match subjects dispatch through ordinary value patterns in
 // both formats; a parameter name used as a pattern means "subject equals
 // this value", `_` catches the rest.
-data Narrow { left: f32; right: f32; }
+data Narrow [copy] { left: f32; right: f32; }
 data Wide { left: f64; right: f64; }
 machine choose_projected32(pair: Narrow, first: f32, second: f32) -> i64 {
     match pair.left { first -> 7, second -> 9, _ -> 11 }
