@@ -535,9 +535,12 @@ bare `items[start..end]` itself selects shared or source-inherited access.
 
 Current elaboration accepts `let middle: &mut [u8] = view[2..4]`, including
 `samples/cli/probes/subslice_element_ops` and existing executable customers.
-It also accepts a bare range from a mutable source at a state transfer, while
-`shared_subslice_state_cannot_lend_mutable` expects that transfer to reject.
-Owned collection ranges additionally consult the destination access.
+Since `e678c5aaea1` a bare range at a call, state transfer or constructed
+field is the shared loan; `shared_subslice_state_cannot_lend_mutable` and
+`bare_subslice_call_cannot_lend_mutable` pin that. Only the
+declaration-binding rule (`let held: &mut [T] = coll[a..b]`, 24 current
+customers) remains to decide; the first option below would migrate those
+customers to `&mut coll[a..b]`.
 
 **Decision needed:** require explicit `&mut` for every newly formed mutable
 range, inherit the source view's access consistently, or explicitly authorize

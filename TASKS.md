@@ -3385,10 +3385,9 @@ of a check the same flow already performed, not the check itself.
   constant-recipe failure still masks its intended obligation; resolve it without
   repinning to that failure. Its portable recipe dependency remains with
   **PROVIDER-SELECTION-AFTER-TERMINAL**; target-selected folds must not become
-  checking inputs. The accepted
-  `shared_subslice_state_cannot_lend_mutable` depends on
-  `bare-range-reference-access` in `OWNER_QUESTIONS.md`; only that language rule
-  is OWNER-BLOCKED, not the remaining qualification.
+  checking inputs. `shared_subslice_state_cannot_lend_mutable` rejects again (`e678c5aaea1`);
+  only the declaration-binding half of `bare-range-reference-access` in
+  `OWNER_QUESTIONS.md` remains OWNER-BLOCKED, not the remaining qualification.
   Keep portable callback refinement with
   **PSI-TARGET-FAMILIES**. Full qualification must retain the portable callback's
   first-member-only guarantee refusal and the inverted-distance
