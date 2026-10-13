@@ -3377,9 +3377,11 @@ fail/termination/computed_measure_rank_range_overflow rejected 1757ms expected @
 	terminating machine walk: cannot prove rank range `0..=400` for the rank produced by the selected view
 fail/termination/computed_result_rank_alternative_results rejected 1578ms expected @a9ae30e1c334+wt
 	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
-fail/termination/computed_result_rank_arithmetic_policies rejected 1492ms expected @a9ae30e1c334+wt
-	terminating machine wrapping_countdown: cannot prove rank range `0..=255` for the rank produced by the selected view
-	terminating machine saturating_countdown: cannot prove rank range `0..=255` for the rank produced by the selected view
+fail/termination/computed_result_rank_arithmetic_policies rejected 541ms expected @3e63a17a5fea+wt
+	terminating machine wrapping_countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `wrapping_countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	terminating machine saturating_countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `saturating_countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `saturating_countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+	machine call cycle: `wrapping_countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/computed_result_rank_intermediate_overflow rejected 871ms expected @a9ae30e1c334+wt
 	exact arithmetic in machine `CheckedReader::observe` ensures contract may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `CheckedReader::observe` state `observe` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
@@ -3537,6 +3539,9 @@ fail/termination/stored_reference_endpoint_reseat rejected 1746ms expected @a9ae
 	terminating machine walk: cannot prove rank range `0..=indirect.target.remaining` for the rank produced by the selected view
 fail/termination/unproved_state_rank_arrival_rejected rejected 1590ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call hold from Main::count: remaining > 0 && remaining <= 9 (needs fact `pending > 0 && pending <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/termination/wrapping_subject_unguarded_decrement rejected 548ms expected @3e63a17a5fea+wt
+	cannot prove the `terminates by` ranking for machine Main::drain
+	machine call cycle: `Main::drain` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/text/borrowed_bounded_byte_invariant_write rejected 3611ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call write from corrupt: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii)
 	cannot prove default-domain field requirement for return from corrupt at statement 2: bytes requires [u8; N]::Ascii
@@ -5785,8 +5790,7 @@ pass/proofs/proof_bignum_constant_fold checked 1802ms @a9ae30e1c334+wt
 pass/proofs/proof_congruence_add_constant checked 1615ms @a9ae30e1c334+wt
 pass/proofs/proof_constant_arithmetic_identity checked 1602ms @a9ae30e1c334+wt
 pass/proofs/proof_inductive_climbing_sum checked 1615ms @a9ae30e1c334+wt
-pass/proofs/proof_inductive_gauss_sum rejected 1626ms regressed-from:checked @a9ae30e1c334+wt
-	cannot prove the `terminates by` ranking for machine Main::gauss_sum
+pass/proofs/proof_inductive_gauss_sum checked 1618ms @3e63a17a5fea+wt
 pass/proofs/proof_integer_embedding checked 1608ms @a9ae30e1c334+wt
 pass/proofs/proof_integer_embedding_denotational_call checked 1877ms @a9ae30e1c334+wt
 pass/proofs/proof_integer_quotient_remainder checked 1821ms @a9ae30e1c334+wt
@@ -5820,8 +5824,7 @@ pass/proofs/ring_law_conformance rejected 4488ms check-target:macos_arm64 regres
 pass/proofs/runtime_byte_predicate_state_contract_exit checked 11690ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_decreases_u64_measure_exit checked 11603ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_inductive_climbing_sum_exit checked 12046ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/proofs/runtime_inductive_gauss_sum_exit rejected 5529ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	cannot prove the `terminates by` ranking for machine Main::gauss_sum
+pass/proofs/runtime_inductive_gauss_sum_exit checked 6282ms check-target:macos_arm64 @3e63a17a5fea+wt
 pass/proofs/runtime_mutable_ranked_accumulator_exit checked 11998ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_nat_structural_recursion_exit checked 11942ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_ranked_accumulator_early_exit checked 11627ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6325,6 +6328,7 @@ pass/termination/slice_rank_unrelated_float_operator checked 1677ms @a9ae30e1c33
 pass/termination/stored_reference_endpoint_arrivals checked 1967ms @a9ae30e1c334+wt
 pass/termination/symbolic_quotient_endpoints checked 2150ms @a9ae30e1c334+wt
 pass/termination/unsigned_identity_measure_rank_range checked 1684ms @a9ae30e1c334+wt
+pass/termination/wrapping_subject_guarded_descent checked 1623ms @3e63a17a5fea+wt
 pass/text/borrowed_bounded_byte_indexed_write_exit checked 11779ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/byte_content_store_continuation_exit checked 11423ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/copy_record_view_field_state_transfer_exit checked 12002ms check-target:macos_arm64 @a9ae30e1c334+wt

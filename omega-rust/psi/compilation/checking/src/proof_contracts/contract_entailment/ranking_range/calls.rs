@@ -8,8 +8,8 @@ use super::super::{StrictArithmeticExpressionBinding, StrictArithmeticSymbolBind
 use super::{
     BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
     MeasureBodyShape, Polynomial, RankingRangeMeasure, State, collect_guard, entry_comparisons,
-    exact_integer_parameter, field_coordinates, fields, find_declared_measure, integer_bindings,
-    lengths, meanings, measure_body_shape, parameter_comparisons, projections, saved_arguments,
+    field_coordinates, fields, find_declared_measure, integer_bindings, integer_parameter, lengths,
+    meanings, measure_body_shape, parameter_comparisons, projections, saved_arguments,
     validate_mapping,
 };
 use symbols::SymbolHandle;
@@ -1324,11 +1324,14 @@ fn scalar_entry<'program>(
     Some((state, measure))
 }
 
-/// A scalar view subject must arrive as the machine's own exact integer
+/// A scalar view subject must arrive as the machine's own fixed-integer
 /// entry input: a bare (possibly atomically wrapped) name bound to a
 /// non-const formal, or an exact member chain rooted at such a formal whose
-/// declared leaf has Exact integer meaning. Natural formation is proved by
-/// the edge judgment, never inferred from unsigned-only storage eligibility.
+/// declared leaf is a fixed integer. The leaf's arithmetic policy is not a
+/// coordinate property: a `u64 in Wrapping` formal holds one carrier value
+/// per arrival exactly as an Exact one does, and the edge judgment proves
+/// every update's no-wrap premise and natural formation under the site's
+/// guards. Nothing is inferred from unsigned-only storage eligibility.
 fn entry_scalar_parameter(
     program: &dyn crate::CheckingInput,
     state: &State,
@@ -1348,14 +1351,14 @@ fn entry_scalar_parameter(
         // step is an exact declared field of a non-self, non-const entry
         // formal's record.
         let reference = fields::projected_type(program, state, subject)?;
-        return exact_integer_parameter(program, reference).map(|_| ());
+        return integer_parameter(program, reference).map(|_| ());
     }
     let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, subject)
     else {
         return None;
     };
     let parameter = program.state_parameter_by_symbol(state, symbol)?;
-    if parameter.is_const || exact_integer_parameter(program, parameter.type_reference).is_none() {
+    if parameter.is_const || integer_parameter(program, parameter.type_reference).is_none() {
         return None;
     }
     Some(())

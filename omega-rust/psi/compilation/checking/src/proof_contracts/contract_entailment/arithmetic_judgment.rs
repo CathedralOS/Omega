@@ -1106,17 +1106,18 @@ impl<'program> Engine<'program> {
                 BinaryOperator::Add => {
                     let left = self.normalize(binary.left)?;
                     let right = self.normalize(binary.right)?;
-                    Some(left.add(&right))
+                    self.selected_policy_result(expression, left.add(&right))
                 }
                 BinaryOperator::Subtract => {
                     let left = self.normalize(binary.left)?;
                     let right = self.normalize(binary.right)?;
-                    Some(left.sub(&right))
+                    self.selected_policy_result(expression, left.sub(&right))
                 }
                 BinaryOperator::Multiply => {
                     let left = self.normalize(binary.left)?;
                     let right = self.normalize(binary.right)?;
-                    left.checked_mul(&right)
+                    let product = left.checked_mul(&right)?;
+                    self.selected_policy_result(expression, product)
                 }
                 BinaryOperator::Divide | BinaryOperator::Modulo => {
                     let dividend = self.normalize(binary.left)?;
@@ -1241,6 +1242,50 @@ impl<'program> Engine<'program> {
                 self.normalize(cast.value)
             }
             _ => None,
+        }
+    }
+
+    /// A builtin `+ - *` over a fixed integer carrier denotes its
+    /// mathematical result `M` only under the operation's selected policy
+    /// (`proofs/contracts.md`, total arithmetic). An Exact result is `M`: the
+    /// arithmetic-domain checker discharged its representability before any
+    /// proof term formed. A Wrapping result is the width-specific wrapping of
+    /// `M` and a Saturating result is `M` clamped, so each equals `M` exactly
+    /// when `M` lands in the result carrier; that no-wrap premise is proved
+    /// here from the hypotheses already installed (a dominating guard such as
+    /// `n > 0` beside the formal's carrier bounds), never assumed from the
+    /// descent or contract the engine is asked to establish
+    /// (`numeric_values.md`: "Wrapping loop updates need an independent
+    /// no-wrap proof before monotonicity can be inferred"). A value that may
+    /// cross the carrier stays outside the engine's language. Strict binary
+    /// meaning already refused Trapping results and non-integer carriers.
+    fn selected_policy_result(
+        &self,
+        expression: ExpressionHandle,
+        value: Polynomial,
+    ) -> Option<Polynomial> {
+        use numerics::arithmetic::ArithmeticDomain;
+        if self.strict_symbol_bindings.is_none()
+            || self.proof_integer_formation
+            || proof_integer_expression(self.program, expression)
+        {
+            return Some(value);
+        }
+        let reference = self.source_result_type(expression)?;
+        match self.program.arithmetic_domain_for_type_reference(reference) {
+            ArithmeticDomain::Exact => Some(value),
+            ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating => {
+                let primitive = self.program.primitive_type_reference(reference)?;
+                let (minimum, maximum) = super::ranking_range::integer_carrier_bounds(primitive)?;
+                let landed = self.substituted(&value);
+                let lands = self.prove_at_least(&landed, &minimum)
+                    && self.prove_at_least(
+                        &Polynomial::constant(maximum).sub(&landed),
+                        &BigInt::zero(),
+                    );
+                lands.then_some(value)
+            }
+            ArithmeticDomain::Trapping => None,
         }
     }
 

@@ -1669,8 +1669,29 @@ fn parameter_comparisons(
     let admit = |expression| meanings::admitted_carrier(program, machine, root, expression, 0);
     let mut comparisons = Vec::new();
     for parameter in program.state_parameters(root).iter() {
-        if integer_parameter(program, parameter.type_reference).is_none() {
+        let Some(primitive) = integer_parameter(program, parameter.type_reference) else {
             continue;
+        };
+        // A bound fixed-integer formal holds a value of its carrier at every
+        // evaluation, whatever its arithmetic policy: storage enforces the
+        // width. Both carrier endpoints are facts of this frame; a Wrapping
+        // update's no-wrap proof reads the upper one beside the edge guard.
+        if let Some(StrictArithmeticBindingValue::Atom { identity, .. }) = bindings
+            .iter()
+            .find(|binding| binding.symbol == parameter.symbol)
+            .map(|binding| &binding.value)
+            && let Some((minimum, maximum)) = integer_carrier_bounds(primitive)
+        {
+            comparisons.push((
+                BinaryOperator::GreaterOrEqual,
+                Polynomial::atom(identity.clone()),
+                Polynomial::constant(minimum),
+            ));
+            comparisons.push((
+                BinaryOperator::LessOrEqual,
+                Polynomial::atom(identity.clone()),
+                Polynomial::constant(maximum),
+            ));
         }
         for (minimum, maximum, end_inclusive) in
             crate::value_custody::type_shapes::range_constraints(program, parameter.type_reference)

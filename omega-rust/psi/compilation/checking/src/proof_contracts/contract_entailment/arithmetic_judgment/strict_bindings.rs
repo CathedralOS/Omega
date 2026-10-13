@@ -209,7 +209,7 @@ impl<'program> Engine<'program> {
 
     /// Source types come from the exact declaration, independently of scoped
     /// substitutions. A polynomial cannot lend its type to a selected node.
-    fn source_result_type(
+    pub(super) fn source_result_type(
         &self,
         expression: ExpressionHandle,
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -242,8 +242,12 @@ impl<'program> Engine<'program> {
     }
 
     /// Interpret only the selected builtin operation. Fixed-carrier arithmetic
-    /// additionally retains its actual Exact policy; a coercion around a
-    /// Wrapping or Saturating result cannot replace the operation's payload.
+    /// additionally retains its actual policy: an Exact `+ - *` result is
+    /// its mathematical value, a Wrapping or Saturating one is that value only
+    /// under the carrier-landing proof `selected_policy_result` owes, and a
+    /// Trapping one can transfer control and forms no term. Division keeps
+    /// its Exact requirement. A coercion around a Wrapping or Saturating
+    /// result cannot replace the operation's payload.
     pub(super) fn strict_binary_meaning(
         &self,
         expression: ExpressionHandle,
@@ -271,11 +275,25 @@ impl<'program> Engine<'program> {
                 || self
                     .source_result_type(expression)
                     .is_some_and(|reference| {
+                        use numerics::arithmetic::ArithmeticDomain;
+                        let admitted_policies: &[ArithmeticDomain] = if matches!(
+                            binary.operator,
+                            BinaryOperator::Divide | BinaryOperator::Modulo
+                        ) {
+                            &[ArithmeticDomain::Exact]
+                        } else {
+                            &[
+                                ArithmeticDomain::Exact,
+                                ArithmeticDomain::Wrapping,
+                                ArithmeticDomain::Saturating,
+                            ]
+                        };
                         self.program
                             .primitive_type_reference(reference)
                             .is_some_and(|primitive| primitive.is_fixed_integer())
-                            && self.program.arithmetic_domain_for_type_reference(reference)
-                                == numerics::arithmetic::ArithmeticDomain::Exact
+                            && admitted_policies.contains(
+                                &self.program.arithmetic_domain_for_type_reference(reference),
+                            )
                     }))
         } else {
             let Some(spelling) =

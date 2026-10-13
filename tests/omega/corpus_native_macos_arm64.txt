@@ -1453,7 +1453,7 @@ pass/proofs/proof_bignum_constant_fold checked 188ms
 pass/proofs/proof_congruence_add_constant checked 196ms
 pass/proofs/proof_constant_arithmetic_identity checked 187ms
 pass/proofs/proof_inductive_climbing_sum checked 205ms
-pass/proofs/proof_inductive_gauss_sum checked 190ms
+pass/proofs/proof_inductive_gauss_sum checked 1623ms @3e63a17a5fea+wt
 pass/proofs/proof_integer_embedding checked 187ms
 pass/proofs/proof_integer_quotient_remainder checked 186ms
 pass/proofs/proof_linear_range_sum checked 182ms
@@ -1472,7 +1472,7 @@ pass/proofs/ring_law_conformance built 1166ms exit:70 @bed5f45e9185+wt
 pass/proofs/runtime_byte_predicate_state_contract_exit built 1294ms exit:70 @767b982de12c+wt
 pass/proofs/runtime_decreases_u64_measure_exit built 680ms exit:70
 pass/proofs/runtime_inductive_climbing_sum_exit built 932ms exit:70 @08b483f23366+wt
-pass/proofs/runtime_inductive_gauss_sum_exit built 6698ms exit:70 @72a43a5bee12+wt
+pass/proofs/runtime_inductive_gauss_sum_exit built 6360ms exit:70 @3e63a17a5fea+wt
 pass/proofs/runtime_mutable_ranked_accumulator_exit built 955ms exit:70 @6571128ff286
 pass/proofs/runtime_nat_structural_recursion_exit built 573ms exit:70
 pass/proofs/runtime_ranked_accumulator_early_exit built 578ms exit:70
@@ -1803,6 +1803,7 @@ pass/termination/runtime_stored_exclusive_endpoint_exit built 1525ms exit:0 @82e
 pass/termination/stored_reference_endpoint_arrivals checked 195ms
 pass/termination/symbolic_quotient_endpoints checked 224ms
 pass/termination/unsigned_identity_measure_rank_range checked 217ms
+pass/termination/wrapping_subject_guarded_descent checked 1636ms @3e63a17a5fea+wt
 pass/text/borrowed_bounded_byte_indexed_write_exit built 2723ms exit:70 @9beb2be72f2d+wt
 pass/text/byte_content_store_continuation_exit built 1222ms exit:70 @381ab55e53d2+wt
 pass/text/copy_record_view_field_state_transfer_exit built 1444ms exit:70 @ef2ef25a3ab8+wt
