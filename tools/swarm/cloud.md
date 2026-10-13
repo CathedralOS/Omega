@@ -263,6 +263,63 @@ builds and publication. Existing lifecycle/recovery gates still apply.
 Repository tooling cannot intercept the external direct `send_message` API;
 calls that bypass this adapter are outside its enforcement coverage.
 
+### Existing owner without historical controller state
+
+Locate the parent journal first. An owner-side context packet is not a managed
+dispatch receipt. `bind-existing` requires actual original create/pool and prior
+settlement evidence; do not fabricate those fields to adopt an ongoing legacy
+outcome. If that history is unavailable, use the separate one-continuation
+bootstrap `legacy_context.py`. It creates no session and grants no managed
+rollout credit or final-candidate acceptance.
+
+Prepare input contains `thread`, `binding_evidence` (the parent's actual existing
+owner mapping), `authorization_evidence` (continue that same authorized outcome),
+`outcome`, `repository`, `owner_packet`, `owner_packet_sha256`, and reported
+`owner_worktree_status` (`uncommitted`, `clean`, or `unknown`). Paths identify a
+context checkout at the packet's recorded HEAD and the exact materialized owner
+packet. That checkout may be the owner worktree or an explicitly identified
+parent snapshot; its clean status does not certify the owner's working changes.
+The supplied packet must be an implementation/continuation semantic handoff.
+Preparation revalidates its passages/blobs/fingerprint and accepted main authority,
+then emits the full context with `prior_context_retained:false`. `changed_paths`
+still describes committed HEAD only. Preserve uncommitted work and pending owner
+decisions; this is context adoption, never new semantic authority.
+
+```text
+python tools/swarm/legacy_context.py prepare --state LEGACY_JOURNAL_JSON --input ADOPTION_JSON
+python tools/swarm/legacy_context.py reserve --state LEGACY_JOURNAL_JSON --revision 0 --input FRESH_READ_JSON
+python tools/swarm/legacy_context.py record-result --state LEGACY_JOURNAL_JSON --revision 1 --input ACTUAL_RESULT_JSON
+```
+
+`prepare` returns `inspect_only` plus **`request.prompt`** and
+`request.runtime_arguments`; save that output. It does not authorize invocation.
+Reserve input is `{"tool":"cloud_threads.read","observed_utc":"ACTUAL_UTC",
+"evidence":"ACTUAL_RECEIPT_LOCATOR","structuredContent":ACTUAL_RAW_READ}`.
+The raw read must identify the same thread and an error-free completed latest
+turn. A fresh read is not process-clearance evidence; the generated prompt tells
+the same owner to reconcile its processes/recovery before commands. A parent
+without an actual read preserves the prepared journal rather than guessing.
+Reserve rechecks source/spec context and durably reserves the sole invocation,
+then returns `action:"invoke_once"` and the exact same `request.runtime_arguments`.
+For the supplied runtime, forward those arguments to the exposed
+`cloud_threads.send_message` once. Verify the actual tool schema first. External
+direct calls remain outside repository enforcement.
+
+Record the actual result with `operation`, `execution_id`, `effect`
+(`applied`, `not_applied`, `unknown`), `evidence`, and `result`. An applied enqueue
+result must report the exact `threadId`. Success means enqueue recorded, not
+compiler completion or spec compliance. Reserve cannot replay after a crash,
+unknown result or known failure; preserve the journal and reconcile using actual
+reads. Do not erase it or create another journal as a retry loophole.
+`status --state LEGACY_JOURNAL_JSON` remains read-only. No executor, generation,
+original creation, process clearance or previous delivery is invented.
+
+If the owner cannot fast-forward because its repair is uncommitted, load this
+tool from a separate checkout of fetched main and point `repository` at the
+preserved owner checkout. Installing metadata tooling does not require committing,
+rebasing or editing the pending repair. The caller forwards the generated prompt;
+it does not require the owner to invent a full controller journal.
+
 ### Durable adapter steps
 
 For a restartable coordinator, use `prepare-step` instead of a bare `intent`.

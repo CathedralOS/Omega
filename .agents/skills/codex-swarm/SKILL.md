@@ -25,6 +25,11 @@ receipt and fresh read establish retained context. Genuine non-semantic work
 requires an explicit classification and reason; status reads remain usable.
 Follow [required work context](../../../tools/swarm/cloud.md#required-work-context).
 External direct message APIs are outside repository enforcement.
+When an existing owner has no historical controller journal, locate the parent's
+journal first. If unavailable, use the explicit
+[legacy continuation bootstrap](../../../tools/swarm/cloud.md#existing-owner-without-historical-controller-state).
+It binds the existing thread and freshly validated packet without inventing
+create provenance, managed credit or prior delivery; preserve uncommitted work.
 
 Apply the [law of completion](../../../AGENTS.md#law-of-completion).
 Each implementation owner retains context through full acceptance, required

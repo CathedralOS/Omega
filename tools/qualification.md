@@ -139,6 +139,12 @@ runtime's prompt field. External direct `send_message` calls cannot be controlle
 by repository tooling. The independent reviewer must judge
 coverage, semantic authority and the completeness of the test closure.
 
+An existing owner with only this packet does not have managed dispatch provenance.
+If its parent's historical journal cannot be located, use the explicit
+[legacy continuation bootstrap](swarm/cloud.md#existing-owner-without-historical-controller-state)
+to obtain a generated same-thread prompt. It repeats focused context and records
+the missing history without declaring uncommitted repairs accepted or clean.
+
 ## Run once, then integrate
 
 All mutations require the latest returned state `revision`; a concurrent writer
