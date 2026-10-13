@@ -6927,3 +6927,5 @@ fail/generics/const_extent_guard_weak_floor rejected 623ms expected @d80baff24c7
 fail/generics/const_extent_guard_wrong_arm rejected 1061ms expected @d80baff24c7e+wt
 	cannot prove index `0` is within const extent `Count` of `moments` in first::entry
 pass/generics/runtime_const_extent_guard_floors_exit checked 11328ms check-target:macos_arm64 @d80baff24c7e+wt
+pass/contracts/call_write_keeps_disjoint_guard_assert_exit checked 2820ms check-target:linux_x86_64 @fce0c29a3681+wt
+pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit checked 2927ms check-target:linux_x86_64 @fce0c29a3681+wt

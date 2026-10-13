@@ -324,3 +324,5 @@ pass/comptime/selected_float_array_length_layout_query_exit built 19640ms exit:7
 pass/generics/runtime_const_data_array_length_exit built 8700ms exit:70 interpreter-exit:70 interpreter:agrees @77cde1c51efd+wt
 pass/generics/runtime_const_data_machine_call_exit built 8647ms exit:70 interpreter-exit:70 interpreter:agrees @77cde1c51efd+wt
 pass/generics/runtime_const_extent_guard_floors_exit built 11972ms exit:0 interpreter-exit:0 interpreter:agrees @d80baff24c7e+wt
+pass/contracts/call_write_keeps_disjoint_guard_assert_exit built 3929ms exit:0 interpreter-exit:0 interpreter:agrees @fce0c29a3681+wt
+pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit built 3218ms exit:0 interpreter-exit:0 interpreter:agrees @fce0c29a3681+wt

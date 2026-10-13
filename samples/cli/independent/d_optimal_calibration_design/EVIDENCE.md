@@ -186,33 +186,46 @@ all exact dependency hashes before replay; a captured dependency-drift refusal
 was retained rather than bypassed.
 
 Final qualification integrates main
-`0af7c11c3c7634237d5be7a2e3e1e8daa2a0bf89`. Incoming reference-transfer
-and scalar-snapshot rules affect mutable carriers combined with field/index
-observations, so a fresh producer qualified the entire46-case numerical suite.
-All30 frozen source controls passed:18 repair checks, five captured-length
-checks and seven borrowing refusals. Eight native/Terminal programs passed their
-authored value assertions, including the incoming scalar-snapshot witness;
-independent review reran all eight retained native images. Returning-call
-exclusive loans, live child/retained loans, duplicated reference leaves,
-shared/mutable access and write-only carrier reads retain their required
-refusals. Scoped Clippy passed with existing warnings. No package policy or
-runtime/filesystem authority was widened.
+`185ea6bba8a842cd8a4a4d576935f63693a08bea`. Incoming guard facts now
+survive writes that cannot overlap their places. This affects the sample's
+mutable fields and chained bounds guards, so the fixed integrated producer
+requalified all46 numerical cases against the unchanged integer/Fraction oracles.
+All34 frozen source controls passed:18 repair checks, five captured-length
+checks, seven borrowing refusals and four incoming guard controls. Ten programs
+passed actual native/Terminal value assertions, including two package-free disjoint-write
+variants with all original7/5 assertions and eight existing generic, captured-length,
+returning-reference and scalar-snapshot witnesses. The overlapping writes still
+refuse for their authored requires-contract diagnostics. Scoped Clippy and the
+normal sample/invalid native gate passed. Package policy and runtime/filesystem
+authority remain intact.
 
-Publication integration through main
-`d8ee64cf16abec5b10b98ae216730b7439cd29b9` preserves the qualified
-operation schedule: the shared frame's dense scalar-array construction, source
-operand staging, tail cleanup and local binding match the removed copy. Composed
-graph emission and needed derivations remain; removed rejection-only rechecks
-had already accepted these programs. Discarded provider selection is absent.
-Independent review supports reusing actual90/76bfa observations.
+The previous actual90 producer, its complete source bundle,159 compiled libraries,
+raw46-case observations and eight images remain immutable. A separate historical
+custody validator checks its repair hashes against actual Git90 blobs; it makes
+no equality claim against newly integrated guard source. A new producer capture
+records the integrated compiler, exact library identities, raw observations,
+34 control sources/diagnostics, ten native images and incremental source bundle.
+The two incoming std/Console fixtures are not claimed as executed: one fresh
+audit requires a separate inventory review. Mechanical package-free variants
+preserve every guard, mutation, state transfer and value assertion. Only success
+reporting completes the unit entry; failure traps. No inventory is accepted or
+transplanted. Unchanged library bytes are shared by their independently checked SHA256 values.
 
-The newly introduced qualification runner captures a fresh custody-validation
-check over saved observations and immutable copies of the complete historical
-Git/build/library/artifact closure. This records no new native execution and
-no d8-built producer. Its final review check binds the exact candidate, base,
-full tree and five canonical passage mappings, with explicit continuation timing
-after the tool's introduction. The original semantic repair predates this tool;
-current context capture supplies no retroactive language authority. Source and
-artifact replacement checks, independent review and normal exact-SHA landing
-verification remain active. The normal native gate passed the sample and matched
-its intended-invalid control with the qualified90 producer.
+The qualification runner captures custody revalidation over both preserved
+observation sets, followed by independent final review bound to the exact
+candidate, base, full tree and five canonical passage mappings. Its commands
+revalidate saved runtime values and claim no new execution. The original
+semantic repair predates the tool; current continuation context supplies no
+retroactive language authority. Source/artifact replacement checks and normal
+exact-SHA landing verification remain active. Historical results retain their
+original producer identities.
+
+Publication integration through main `7908c48eec3` preserves the exercised
+operations. Independent exact-diff review verified equivalent concrete scalar
+and plain byte Console signature plans, absent target-dependent layout queries
+and family-specialized trait maps, unchanged scalar-length guarantees, and the
+single `.len == 4` collection predicate without disjunctions/element reads.
+All ten repair source hashes and execution/oracle inputs remain unchanged.
+Actual fce/185 runtime observations remain bound to their producer; integrated
+custody and exact candidate review are fresh checks rather than new compiler
+execution claims. The normal root exact-SHA landing build remains mandatory.
