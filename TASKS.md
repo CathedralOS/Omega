@@ -4297,6 +4297,10 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   Preserve `borrow/runtime_write_only_{indexed_record,captured_record,sum}_copy_exit`
   (0): whole-value installation, untouched neighbors, copied sources and
   captured selectors, with child-before-parent reference retirement.
+  Keep `borrow/runtime_write_only_array_{indexed_calls,selector_snapshot}_exit`
+  and `borrow/runtime_write_only_record_array_argument_exit` (0): indexed calls
+  and captured write-only descriptors retain original backing and selector
+  values, with one descriptor lifetime and unchanged neighboring fields.
   Keep `borrow/runtime_write_only_aggregate_selector_snapshot_exit` and
   `operators/runtime_generic_reference_selector_snapshot_exit` (0): capture
   scalar indices before later writes, including observations of returned

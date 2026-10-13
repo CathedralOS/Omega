@@ -2421,8 +2421,9 @@ pub fn result_multiplicity(
         }
         _ => {}
     }
-    if parts(program, reference).is_some()
-        || shared_borrowed_parts(program, reference).is_some()
+    // Stored pointer custody is independent of shared, mutable or write-only
+    // access. Mutable slice/byte views retain their separate affine carrier.
+    if stored_loan_parts(program, reference).is_some()
         || mutable_borrowed_parts(program, reference).is_some()
     {
         Multiplicity::Affine
