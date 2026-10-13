@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // A cyclic machine may take a SHARED borrow of a plain fixed array.
 //
 // `scan`'s states form a cycle (`step` -> `body` -> `step`) and nothing proves
@@ -33,7 +35,7 @@ machine scan(numbers: &[i32; 3]) -> i32 {
     requires index >= 0
     requires index < 3 {
         transition {
-            _ -> step(numbers, index + 1, max(best, numbers[index]))
+            _ -> step(numbers, index + 1, max_i32(best, numbers[index]))
         }
     }
 

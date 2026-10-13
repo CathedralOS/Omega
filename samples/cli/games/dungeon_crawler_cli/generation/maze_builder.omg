@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 use enemies::enemies;
 use events::room_events;
 use events::events;
@@ -147,7 +149,7 @@ machine MazeBuilder::build(
     ) {
         MazeBuilder::build_segment(maze_builder, level, random, CellId::R03, CellId::R04, 4, 0, Direction::North);
         level.room_count = 8;
-        level.deepest_depth = max(level.deepest_depth, 4);
+        level.deepest_depth = max_u32(level.deepest_depth as u32, 4) as u32 in Wrapping;
     }
 }
 
@@ -271,7 +273,7 @@ machine MazeBuilder::should_carve(
     random: &mut RandomState,
     depth: u32 in Wrapping
     ) -> bool {
-    let chance: u32 in Wrapping = max(15, 80 - depth * 6);
+    let chance: u32 in Wrapping = max_u32(15, (80 - depth * 6) as u32) as u32 in Wrapping;
     let rolled: bool = Random::chance(&mut maze_builder.rng, random, chance, 100);
 
     transition {
@@ -300,8 +302,8 @@ machine MazeBuilder::carve_room(
     room.exit_count = 0;
     room.discovered = cell == start_cell;
     RoomEvents::roll_event(&mut maze_builder.events, depth, random, &mut room.event);
-    level.room_count = max(level.room_count, index + 1);
-    level.deepest_depth = max(level.deepest_depth, depth);
+    level.room_count = max_u64(level.room_count, index + 1);
+    level.deepest_depth = max_u32(level.deepest_depth as u32, depth as u32) as u32 in Wrapping;
 }
 
 machine MazeBuilder::connect(

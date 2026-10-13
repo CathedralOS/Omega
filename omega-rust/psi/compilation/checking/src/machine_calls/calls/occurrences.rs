@@ -90,8 +90,7 @@ pub fn call_is_unconditional(
         return None;
     }
     let statement = statements.get(statement_index)?;
-    let mut traversal =
-        CallSiteTraversal::new(program, machine, state, statement_index, call_ordinal);
+    let mut traversal = CallSiteTraversal::new(program, machine, state, call_ordinal);
     find_call_site_in_statement(&mut traversal, statement)?;
     (!traversal.matched_conditionally).then_some(())
 }
@@ -109,8 +108,7 @@ pub fn find_call_site_in_state<'program>(
     let statement = program
         .statement_table
         .statement_at(state, statement_index)?;
-    let mut traversal =
-        CallSiteTraversal::new(program, machine, state, statement_index, call_ordinal);
+    let mut traversal = CallSiteTraversal::new(program, machine, state, call_ordinal);
     find_call_site_in_statement(&mut traversal, statement)
 }
 
@@ -127,8 +125,7 @@ pub fn collect_call_sites_in_statement<'program>(
     let Some(statement) = program.statement_table.statement_at(state, statement_index) else {
         return collected;
     };
-    let mut traversal =
-        CallSiteTraversal::collecting(program, machine, state, statement_index, &mut collected);
+    let mut traversal = CallSiteTraversal::collecting(program, machine, state, &mut collected);
     let _ = find_call_site_in_statement(&mut traversal, statement);
     collected
 }
@@ -146,8 +143,7 @@ pub fn transition_call_target(
         .statement_table
         .statement_at(state, statement_index)?
         .as_transition()?;
-    let mut traversal =
-        CallSiteTraversal::new(program, machine, state, statement_index, call_ordinal);
+    let mut traversal = CallSiteTraversal::new(program, machine, state, call_ordinal);
     traversal::transition_call_target(&mut traversal, transition)
 }
 

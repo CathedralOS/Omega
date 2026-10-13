@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // Expected exit: 0.
 // Expected output contains: antenna_array_pattern complete
 use omega_language_std::console;
@@ -111,8 +113,8 @@ machine Main::main(main: &mut Main) reaches Console {
     state verify(main: &mut Main) {
         let expected_power: f64 = Expected::power(main.selection, main.sample);
         let expected_normalized: f64 = Expected::normalized(main.selection, main.sample);
-        let power_error: f64 = abs(main.power - expected_power);
-        let normalized_error: f64 = abs(main.normalized - expected_normalized);
+        let power_error: f64 = abs_f64(main.power - expected_power);
+        let normalized_error: f64 = abs_f64(main.normalized - expected_normalized);
         transition power_error <= 0.00000002 && normalized_error <= 0.000000002 {
             true -> report(main)
             false -> numerical_failure(main)
@@ -142,8 +144,8 @@ machine Main::main(main: &mut Main) reaches Console {
         transition index >= 0 && index < 4 { true -> symmetry_pair(main, index) false -> diagnostic(main) }
     }
     state symmetry_pair(main: &mut Main, index: i32) {
-        let difference: f64 = abs(main.powers[index] - main.powers[8 - index]);
-        main.symmetry = max(main.symmetry, difference);
+        let difference: f64 = abs_f64(main.powers[index] - main.powers[8 - index]);
+        main.symmetry = max_f64(main.symmetry, difference);
         transition { _ -> symmetry_guard(main, index + 1) }
     }
     state diagnostic(main: &mut Main) {

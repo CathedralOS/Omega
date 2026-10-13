@@ -77,12 +77,6 @@ pub(super) fn proves<'program>(
     {
         return false;
     }
-    if evaluator.proves_boolean_result(expression) == Some(true)
-        || evaluator.proves_immutable_result_comparison(expression)
-        || evaluator.proves_return_arithmetic(expression)
-    {
-        return true;
-    }
     let cases = super::cases::CaseObservation::for_requirement(
         program,
         facts,
@@ -104,10 +98,17 @@ pub(super) fn proves<'program>(
                     // A current predicate can be known without fixing its scalar
                     // operands to single values. Use the same exit premises as the
                     // whole-contract prover; failed search never supplies false.
-                    (evaluator.proves_result_field_equality(atom)
-                        || evaluator.current_predicate(atom)
+                    // Each atom uses the same return and current-value
+                    // judgments. Proving only whole expressions with these
+                    // owners loses facts when a contract combines a returned
+                    // value equation with an independently observed guard.
+                    (evaluator.proves_boolean_result(atom) == Some(true)
+                        || evaluator.proves_immutable_result_comparison(atom)
+                        || evaluator.proves_return_arithmetic(atom)
+                        || evaluator.proves_result_field_equality(atom)
                         || evaluator.write_transported_equality(atom))
                     .then_some(true)
+                    .or_else(|| evaluator.current_predicate(atom))
                 })
         },
     ) == Some(ScalarValue::Boolean(true))
@@ -188,7 +189,7 @@ impl ExitScalars<'_, '_> {
         Some(place)
     }
 
-    fn current_predicate(&self, expression: ExpressionHandle) -> bool {
+    fn current_predicate(&self, expression: ExpressionHandle) -> Option<bool> {
         // Non-scalar propositions retain their existing semantic owner. It
         // speaks directly in declaration symbols only while those binders
         // still agree with the exit namespace; rebased scalar observations
@@ -222,7 +223,7 @@ impl ExitScalars<'_, '_> {
                 expression,
             )
         {
-            return true;
+            return Some(true);
         }
         let caller = self
             .facts
@@ -278,7 +279,7 @@ impl ExitScalars<'_, '_> {
                 },
             )
         {
-            return true;
+            return Some(true);
         }
         let Some(expression) = crate::values::lower_scalar_contract_predicate(
             self.program,
@@ -288,18 +289,18 @@ impl ExitScalars<'_, '_> {
             true,
             &mut 4096,
         ) else {
-            return false;
+            return None;
         };
         let Some(mut required) = crate::facts::boolean_predicates::bind_entry(
             self.program,
             self.machine.symbol,
             expression,
         ) else {
-            return false;
+            return None;
         };
         for binding in &mut required.bindings {
             let Some(place) = self.contract_place_at_exit(binding.place.clone()) else {
-                return false;
+                return None;
             };
             binding.place = place;
         }
@@ -320,7 +321,7 @@ impl ExitScalars<'_, '_> {
                 frames,
             ));
         }
-        crate::facts::boolean_predicates::proves(&predicates, &required, |place| {
+        crate::facts::boolean_predicates::truth(&predicates, &required, |place| {
             super::super::prover::boolean_value_at_place(
                 self.program,
                 &self.facts.semantic,

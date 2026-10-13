@@ -4,7 +4,6 @@ pub(in crate::machine_calls::calls::occurrences) struct CallSiteTraversal<'progr
     pub(super) program: &'program dyn crate::CheckingInput,
     pub(super) machine: &'program typed_trees::machine::Machine,
     pub(super) state: &'program typed_trees::state::State,
-    pub(super) statement_index: usize,
     pub(super) target_call_ordinal: usize,
     pub(super) current_ordinal: usize,
     /// When set, every reached call site is pushed in ordinal order instead
@@ -24,14 +23,12 @@ impl<'program> CallSiteTraversal<'program, '_> {
         program: &'program dyn crate::CheckingInput,
         machine: &'program typed_trees::machine::Machine,
         state: &'program typed_trees::state::State,
-        statement_index: usize,
         target_call_ordinal: usize,
     ) -> CallSiteTraversal<'program, 'ordinal> {
         CallSiteTraversal {
             program,
             machine,
             state,
-            statement_index,
             target_call_ordinal,
             current_ordinal: 0,
             collected: None,
@@ -47,14 +44,12 @@ impl<'program> CallSiteTraversal<'program, '_> {
         program: &'program dyn crate::CheckingInput,
         machine: &'program typed_trees::machine::Machine,
         state: &'program typed_trees::state::State,
-        statement_index: usize,
         collected: &'ordinal mut Vec<super::super::CallSite<'program>>,
     ) -> CallSiteTraversal<'program, 'ordinal> {
         CallSiteTraversal {
             program,
             machine,
             state,
-            statement_index,
             target_call_ordinal: usize::MAX,
             current_ordinal: 0,
             collected: Some(collected),

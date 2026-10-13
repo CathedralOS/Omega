@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 data Counter {
     calls: u32 in Wrapping;
     value: i32 [-1..=1];
@@ -10,7 +12,7 @@ machine step(counter: &mut Counter) -> i32 [-2..=-2] {
 }
 
 machine magnitude(counter: &mut Counter) -> i32 [2..=2] {
-    abs(step(counter))
+    abs_i32(step(counter))
 }
 
 machine ordered_second(counter: &mut Counter, expected: u32) -> i32 [1..=1] crashes Trap {
@@ -28,15 +30,15 @@ machine ordered_second(counter: &mut Counter, expected: u32) -> i32 [1..=1] cras
 
 machine main() crashes Trap {
     let mut counter: Counter = Counter { calls: 0u32, value: -1i32 };
-    let direct: i32 = abs(step(&mut counter));
-    let minimum: i32 = min(step(&mut counter), step(&mut counter));
-    let maximum: i32 = max(step(&mut counter), ordered_second(&mut counter, 4u32));
-    let clamped: i32 = clamp(step(&mut counter), -1i32, 1i32);
+    let direct: i32 = abs_i32(step(&mut counter));
+    let minimum: i32 = min_i32(step(&mut counter), step(&mut counter));
+    let maximum: i32 = max_i32(step(&mut counter), ordered_second(&mut counter, 4u32));
+    let clamped: i32 = clamp_i32(step(&mut counter), -1i32, 1i32);
     let first: i32 = magnitude(&mut counter);
     let second: i32 = magnitude(&mut counter);
-    let skipped: bool = false && abs(step(&mut counter)) == 2i32;
+    let skipped: bool = false && abs_i32(step(&mut counter)) == 2i32;
     counter.value = -1i32;
-    let snapshot: i32 = abs(counter.value + step(&mut counter));
+    let snapshot: i32 = abs_i32(counter.value + step(&mut counter));
     let calls: u32 in Wrapping = counter.calls;
     transition direct == 2i32 && minimum == -2i32 && maximum == 1i32
         && clamped == -1i32 && first == 2i32 && second == 2i32

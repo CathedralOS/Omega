@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // A static entry forwards its lent `context: &mut Main` into a state, and the
 // state lends fixed-array fields of that context as borrowed views. Across
 // the edge `context` carries the record's address, not a copy, so each view
@@ -50,7 +52,7 @@ machine peek(bytes: &[u8], position: u64) -> u64 {
 
 machine largest(values: &[i32], current: i32) -> i32 {
     transition values.len > 0 {
-        true -> largest(values[1..], max(current, values[0]))
+        true -> largest(values[1..], max_i32(current, values[0]))
         false -> (current)
     }
 }

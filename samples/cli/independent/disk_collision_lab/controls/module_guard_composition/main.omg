@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 use omega::language::core::float_operations;
 use model;
 use helper;
@@ -6,10 +8,10 @@ machine Probe::main(probe:&mut Probe) {
  transition { _ -> check(probe) }
  state check(probe:&mut Probe) {
   observe(&mut probe.lab);
-  transition accepted(&probe.lab,probe.choice) && abs(probe.lab.px-probe.lab.initial_x) <= 0.000000001
-   && abs(probe.lab.py-probe.lab.initial_y) <= 0.000000001
-   && abs(probe.lab.energy+probe.lab.loss-probe.lab.initial_energy) <= 0.000000001
-   && abs(probe.lab.contact_error) <= 0.000000001 {
+  transition accepted(&probe.lab,probe.choice) && abs_f64(probe.lab.px-probe.lab.initial_x) <= 0.000000001
+   && abs_f64(probe.lab.py-probe.lab.initial_y) <= 0.000000001
+   && abs_f64(probe.lab.energy+probe.lab.loss-probe.lab.initial_energy) <= 0.000000001
+   && abs_f64(probe.lab.contact_error) <= 0.000000001 {
    true -> passed(probe) _ -> failed(probe)
   }
  }

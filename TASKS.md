@@ -129,27 +129,6 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
-- **REMOVE-NUMERIC-HELPER-BUILTINS.** (new-scope) **Urgent owner-directed removal.**
-  Move `min`, `max`, `abs`, `clamp` and `sqrt` to ordinary `std` math machines
-  under [library numeric helpers](wiki/spec/language/numeric_values.md#library-numeric-helpers).
-  Delete their builtin symbol registration, intrinsic-call rewrites and
-  name-specific typing/proof/evaluation paths; no legacy aliases, implicit
-  imports or privileged qualified-name replacement. Start with
-  `omega-rust/psi/foundation/symbols/src/builtin` and stage 02's
-  `lowering/intrinsic_calls.rs`. Migrate library, samples and corpus callers
-  together. `core/numeric_conversion.omg` currently uses builtin `clamp`;
-  keep core conversions self-contained with ordinary checked arithmetic/control
-  flow rather than creating a `core -> std` dependency. State and prove helper
-  contracts for supported carriers, including signed-minimum absolute value,
-  inverted clamp bounds, float NaNs/signed zeros and square-root domain/rounding.
-  Retain existing specified float meanings; do not bless the old rewrites as
-  contracts. Acceptance: imported helpers execute with matching native/Terminal
-  results, narrowing follows ordinary `ensures`, and calls without any visible
-  declaration reject. An unrelated same-named machine retains its own behavior.
-  Both compilers use ordinary selected calls; remove the superseded source
-  builtin route completely, preserving only independently justified lower-level
-  numeric operations and optional semantics-preserving instruction selection.
-
 - **CHECKED-PACKAGE-REUSE.** (new-scope) A dependent's check re-judges its
   dependencies' bodies: on Windows (opt-level 1, `90dcfa2bcbe`) a 10-line std
   program checks in 15.6 s, std's package step 5.8 s plus 7.1 s of Stage 05
@@ -6644,8 +6623,6 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     than acquire independent storage facts. Track payload paths on held-loan
     rows so projected carriers retain only their own backing loans; the
     current root-based transfer conservatively retains sibling loans.
-    **REMOVE-NUMERIC-HELPER-BUILTINS** owns the std migration; derive helper
-    bounds through ordinary machine contracts, not special numeric-call rules.
     Implement [destination-first stores](wiki/spec/language/expressions.md#evaluation-schedule)
     in checking and ownership: capture collections, selectors and bounds once
     before RHS effects, then use that same place for displaced-value cleanup,

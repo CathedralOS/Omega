@@ -7,6 +7,7 @@
 //! finiteness and ordered bounds are not predicates about the same value after
 //! narrowing; destination annotations remain demands, never conversion premises.
 
+use crate::obligations::ProofConstraint;
 use crate::obligations::plan::ConstraintBuffer;
 use crate::obligations::ranges::{
     arithmetic_domain_from_constraints, constraints_prove_finite, float_binary_range,
@@ -14,7 +15,6 @@ use crate::obligations::ranges::{
     integer_constraints_are_exact, integer_constraints_are_wrapping,
     integer_range_from_constraints,
 };
-use crate::obligations::{IntegerRange, ProofConstraint};
 use crate::typed_expressions::{call_expression_return_type, expression_type_reference};
 use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, FloatLiteral};
@@ -61,12 +61,6 @@ pub(crate) fn expression_constraints(
             constraints
         }
         ExpressionNode::Call(call) => {
-            if let Some(constraints) =
-                derived_builtin_call_constraints(program, machine, state, call)
-            {
-                return constraints;
-            }
-
             if let Some(constraints) =
                 derived_float_operator_constraints(program, machine, state, call)
             {
@@ -476,26 +470,6 @@ pub(crate) fn derived_binary_constraints(
     constraints
 }
 
-fn derived_builtin_call_constraints(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    call: &typed_trees::expression::TableCallExpression,
-) -> Option<ConstraintBuffer> {
-    match program
-        .symbols
-        .builtin_function_for_symbol(call.target_symbol)
-    {
-        Some(symbols::BuiltinFunction::Max) => {
-            derived_extrema_call_constraints(program, machine, state, call, true)
-        }
-        Some(symbols::BuiltinFunction::Min) => {
-            derived_extrema_call_constraints(program, machine, state, call, false)
-        }
-        _ => None,
-    }
-}
-
 /// A call typed as a primitive `Float::<op>` operator composes its operands
 /// under the same saturation, range and finiteness rules as a scalar `Binary`
 /// node — the sealed operator declaration binds IEEE meaning to the spelling,
@@ -510,8 +484,7 @@ fn derived_float_operator_constraints(
     state: &State,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<ConstraintBuffer> {
-    // Leaf-name gate mirrors `derived_builtin_call_constraints`: only calls
-    // spelled like a `Float::<op>` leaf pay the declaration resolution; the
+    // Only calls spelled like a `Float::<op>` leaf pay declaration resolution; the
     // name alone admits nothing — `primitive_float_binary_semantics` still
     // re-validates the sealed namespace, spelling and parameters.
     if !matches!(
@@ -543,70 +516,6 @@ fn derived_float_operator_constraints(
         &left_constraints,
         &right_constraints,
     ))
-}
-
-fn derived_extrema_call_constraints(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    call: &typed_trees::expression::TableCallExpression,
-    is_max: bool,
-) -> Option<ConstraintBuffer> {
-    let [left, right] = program.expression_table.expression_handles(call.arguments) else {
-        return None;
-    };
-
-    let left_constraints = expression_constraints(program, machine, state, *left);
-    let right_constraints = expression_constraints(program, machine, state, *right);
-    let mut constraints = ConstraintBuffer::new();
-
-    if integer_constraints_are_exact(&left_constraints)
-        && integer_constraints_are_exact(&right_constraints)
-    {
-        constraints.push(ProofConstraint::Named(Identifier::generated_static(
-            "exact",
-        )));
-    }
-
-    if let Some(range) = extrema_integer_range(
-        is_max,
-        integer_range_from_constraints(&left_constraints),
-        integer_range_from_constraints(&right_constraints),
-    ) {
-        constraints.push(ProofConstraint::IntegerRange {
-            minimum: range.minimum,
-            maximum: range.maximum,
-        });
-    }
-
-    if constraints.is_empty() {
-        return None;
-    }
-
-    augment_constraints_with_named_facts(&mut constraints);
-    Some(constraints)
-}
-
-fn extrema_integer_range(
-    is_max: bool,
-    left: Option<IntegerRange>,
-    right: Option<IntegerRange>,
-) -> Option<IntegerRange> {
-    // One-sided cases FABRICATED the missing bound with an i64 sentinel --
-    // a false claim once real u64-magnitude values flow (the same class as
-    // the retired u64 range-fact cap). With exact bounds they are honest
-    // only as "no range"; the two-sided folds are exact.
-    match (is_max, left, right) {
-        (true, Some(left), Some(right)) => Some(IntegerRange {
-            minimum: left.minimum.max(right.minimum),
-            maximum: left.maximum.max(right.maximum),
-        }),
-        (false, Some(left), Some(right)) => Some(IntegerRange {
-            minimum: left.minimum.min(right.minimum),
-            maximum: left.maximum.min(right.maximum),
-        }),
-        _ => None,
-    }
 }
 
 fn augment_constraints_with_named_facts(constraints: &mut ConstraintBuffer) {

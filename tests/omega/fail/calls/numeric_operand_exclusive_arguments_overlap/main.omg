@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 data Counter { calls: u32 in Wrapping; }
 
 machine pair(left: &mut Counter, right: &mut Counter) -> i32 [-2..=-2] {
@@ -8,5 +10,5 @@ machine pair(left: &mut Counter, right: &mut Counter) -> i32 [-2..=-2] {
 
 machine main() {
     let mut counter: Counter = Counter { calls: 0u32 };
-    let observed: i32 = abs(pair(&mut counter, &mut counter) + 1i32);
+    let observed: i32 = abs_i32(pair(&mut counter, &mut counter) + 1i32);
 }

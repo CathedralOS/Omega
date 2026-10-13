@@ -12,7 +12,7 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionOccurrenceId,
 };
-use symbols::{BuiltinFunction, SymbolHandle};
+use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use validation::declaration_type_reference;
 use validation::expression_owners::reachable_expressions;
@@ -576,26 +576,9 @@ pub(crate) fn authored_operand_type(
             program,
             validation::effective_member_symbol(program, member.receiver, member),
         ),
-        ExpressionNode::Call(call) => exact_named_operator_call(program, call)
-            .map(|operator| operator.return_type)
-            // A builtin `min`, `max` or `sqrt` returns its operands' carrier,
-            // as `validation::expression_type_reference_for_origin` reads it.
-            .or_else(|| {
-                matches!(
-                    program
-                        .symbols
-                        .builtin_function_for_symbol(call.target_symbol),
-                    Some(BuiltinFunction::Min | BuiltinFunction::Max | BuiltinFunction::Sqrt)
-                )
-                .then(|| {
-                    program
-                        .expression_table
-                        .expression_handles(call.arguments)
-                        .iter()
-                        .find_map(|argument| authored_operand_type(program, *argument))
-                })
-                .flatten()
-            }),
+        ExpressionNode::Call(call) => {
+            exact_named_operator_call(program, call).map(|operator| operator.return_type)
+        }
         ExpressionNode::Name(path) => declaration_type_reference(program, path.symbol)
             .or_else(|| operator_contract_value_type(program, expression, path)),
         _ => None,

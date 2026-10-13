@@ -400,7 +400,6 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
     )
     .map_err(|diagnostic| vec![diagnostic])?;
     body_completion::complete_initializer_receipt_dependencies(lowerer, syntax)?;
-    lowering::intrinsic_calls::normalize(lowerer)?;
     crate::symbols::reject_unqualified_case_values(&lowerer.symbol_resolved_trees)?;
     // A token-bearing machine attached to a domain gives that domain its
     // denotation role before the selections below classify predicate-only

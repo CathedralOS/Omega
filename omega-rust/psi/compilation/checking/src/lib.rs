@@ -225,9 +225,9 @@ pub use declarations::operators::{
     validate_closed_operator_application, validate_named_operator_application,
 };
 pub use declarations::operators::{
-    build_operator_uses, builtin_float_operator_selection, checked_operator_candidate,
-    collect_named_requirement_uses, collect_pre_specialization_operator_selections,
-    comparison_operator_spelling, expression_type_reference_for_origin, indexed_operand_types,
+    build_operator_uses, checked_operator_candidate, collect_named_requirement_uses,
+    collect_pre_specialization_operator_selections, comparison_operator_spelling,
+    expression_type_reference_for_origin, indexed_operand_types,
     select_pending_domain_operator_meanings, token_bound_machine_call_target,
 };
 pub use declarations::traits::{
@@ -461,12 +461,12 @@ pub use expression_traversal::{
 pub use machine_calls::calls::{
     CallSite, call_is_unconditional, call_receiver_parts, call_site_argument_expressions,
     call_site_evidence_arguments, call_target_parameters, call_target_return_type,
-    call_target_state, call_target_symbol, call_target_symbol_for_origin,
-    call_target_type_parameters, collect_call_sites_in_statement, find_call_site,
-    find_call_site_in_state, find_machine, find_machine_by_entry_state, find_machine_head,
-    find_state, find_state_for_exit, find_state_in_machine, find_state_on_machine,
-    machine_parameter_signature_symbol, machine_state_by_symbols, machine_state_count,
-    receiver_can_dispatch_to_machine, resolve_name_path_member_symbol, resolve_state_call_target,
+    call_target_state, call_target_symbol, call_target_type_parameters,
+    collect_call_sites_in_statement, find_call_site, find_call_site_in_state, find_machine,
+    find_machine_by_entry_state, find_machine_head, find_state, find_state_for_exit,
+    find_state_in_machine, find_state_on_machine, machine_parameter_signature_symbol,
+    machine_state_by_symbols, machine_state_count, receiver_can_dispatch_to_machine,
+    resolve_name_path_member_symbol, resolve_state_call_target,
     statement_call_can_dispatch_to_machine, statement_call_receiver_members,
     statement_call_receiver_path, terminal_callable_target, trait_machine_signature_symbol,
     transition_call_target,

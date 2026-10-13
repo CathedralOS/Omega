@@ -28,17 +28,7 @@ pub(super) fn collect_expression_borrow_calls(
                 call_receiver_parts(collection.program, call.receiver);
             let selected_operator =
                 typed_trees::operator::resolve_named_expression_call(collection.program, call);
-            let selected_target = validation::call_target_symbol_for_origin(
-                program,
-                expression,
-                checked_trees::CheckedValueOrigin::StateStatement {
-                    machine_symbol: collection.machine.symbol,
-                    state_symbol: collection.state.symbol,
-                    statement_index: collection.statement_index,
-                    role: checked_trees::CheckedValueStatementRole::Expression,
-                },
-                call,
-            );
+            let selected_target = validation::call_target_symbol(program, call);
             let resolved_target = resolve_state_call_target(
                 collection.program,
                 collection.machine,

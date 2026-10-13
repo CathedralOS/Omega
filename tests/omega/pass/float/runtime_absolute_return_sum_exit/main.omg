@@ -1,10 +1,12 @@
+use omega_language_std::math;
+
 use omega::language::core::float_operations;
 use omega::language::core::binding;
 use omega_language_std::console;
 data Storage { weights: [f64; 4]; }
 data Main { console: Binding<Console>; storage: Storage; }
 machine amplitude(storage: &Storage) -> f64 {
-    abs(storage.weights[0]) + abs(storage.weights[1]) + abs(storage.weights[2]) + abs(storage.weights[3])
+    abs_f64(storage.weights[0]) + abs_f64(storage.weights[1]) + abs_f64(storage.weights[2]) + abs_f64(storage.weights[3])
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.storage.weights[0] = -1.0;

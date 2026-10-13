@@ -230,25 +230,6 @@ impl Builder<'_, '_> {
                 })
             }
             ExpressionNode::Call(call) => {
-                // A builtin `min`/`max` selection is an ordinary integer
-                // computation, and `expression` already builds one at the top
-                // of an assignment. Without this arm a selection composes only
-                // as a whole assigned value: the moment it becomes an operand
-                // of arithmetic, the entry-state lookup below declines it,
-                // because a builtin function has no machine to find. A
-                // selection returns one of its operands unchanged and performs
-                // no arithmetic, so it carries no overflow policy of its own.
-                if let Some(primitive_type) = expected
-                    && let Some(computation) =
-                        self.integer_min_max(expression, &call, primitive_type)
-                {
-                    return Some(IntegerOperand {
-                        value: parameter(0, primitive_type),
-                        value_source: ExpressionHandle::invalid(),
-                        domain: ArithmeticDomain::Exact,
-                        computation,
-                    });
-                }
                 // The resolved callee owns both the result carrier and its policy.
                 // A destination carrier is not evidence for either one.
                 // Static bodies, boundary requirements and implementation
@@ -546,89 +527,5 @@ fn parameter(position: usize, primitive_type: PrimitiveType) -> CheckedScalarExp
     CheckedScalarExpression::Parameter {
         position,
         primitive_type,
-    }
-}
-
-impl Builder<'_, '_> {
-    /// The `min`/`max` integer shorthand names a pure builtin, so no machine
-    /// or flow call owns it: the computation is the authored comparison
-    /// `a <= b` (or `a >= b` for `max`) selecting between its operands. Each
-    /// operand computation is shared between the comparison's application and
-    /// the winning selection arm. Selection carries the completed comparison
-    /// prefix, including effectful operands, instead of evaluating the chosen
-    /// operand again. Source normalization retains operand handles, so their
-    /// repeated references also retain one computation within this statement.
-    pub(super) fn integer_min_max(
-        &mut self,
-        source_expression: ExpressionHandle,
-        call: &typed_trees::expression::TableCallExpression,
-        expected_type: PrimitiveType,
-    ) -> Option<CheckedScalarComputationHandle> {
-        if !is_integer(expected_type)
-            || call.receiver.is_valid()
-            || !call.carries_only_positional_arguments()
-            || !call.selects_only_nominal_route()
-        {
-            return None;
-        }
-        let function = self
-            .program
-            .symbols
-            .builtin_function_for_symbol(call.target_symbol)?;
-        let ordering = match function {
-            symbols::BuiltinFunction::Min => BinaryOperator::LessOrEqual,
-            symbols::BuiltinFunction::Max => BinaryOperator::GreaterOrEqual,
-            _ => return None,
-        };
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
-        let [left_expression, right_expression] = *arguments else {
-            return None;
-        };
-        let (left, right) = self.integer_operands(
-            &typed_trees::expression::TableBinaryExpression {
-                left: left_expression,
-                operator: ordering,
-                right: right_expression,
-            },
-            Some(expected_type),
-        )?;
-        if scalar_expression_type(&left.value)? != expected_type {
-            return None;
-        }
-        let left = self.materialize_integer(left)?;
-        if scalar_expression_type(&right.value)? != expected_type {
-            return None;
-        }
-        let right = self.materialize_integer(right)?;
-        let operands = self.plans.operands.insert_many([left, right]);
-        let template = construct_integer_comparison(
-            ordering,
-            parameter(0, expected_type),
-            parameter(1, expected_type),
-        )?;
-        let condition = self.insert(
-            PrimitiveType::Bool,
-            CheckedScalarComputationKind::Apply {
-                source_expression,
-                expression: CheckedScalarExpression::Boolean(Box::new(template)),
-                operands,
-            },
-        );
-        // The selection scheduler carries this condition's completed operand
-        // prefix into either arm. Reusing these exact handles therefore keeps
-        // calls and mutable observations ordered and single-evaluated; call
-        // presence is not a separate admission condition.
-        Some(self.insert(
-            expected_type,
-            CheckedScalarComputationKind::Select {
-                source_expression,
-                condition,
-                when_true: left,
-                when_false: right,
-            },
-        ))
     }
 }

@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 use omega_language_std::console;
 use omega::language::core::binding;
 use omega::language::core::float_operations;
@@ -8,7 +10,7 @@ machine Main::main(main:&mut Main) reaches Console {
  transition byte {ByteRead::Byte{value} -> compute(main,value) _ -> fail(main)}
  state compute(main:&mut Main,value:i32) {
   main.value=F64::from_i32(value)-48.0;
-  transition max(main.value,2.0) == 3.0 && abs(main.value-1.0) <= 0.000000001 {
+  transition max(main.value,2.0) == 3.0 && abs_f64(main.value-1.0) <= 0.000000001 {
    true -> good(main) _ -> fail(main)
   }
  }

@@ -617,9 +617,6 @@ impl Builder<'_, '_> {
         }
         match self.program.expression_table.expression(expression).clone() {
             ExpressionNode::Call(call) => {
-                if let Some(selection) = self.integer_min_max(expression, &call, expected_type) {
-                    return Some(selection);
-                }
                 if self
                     .program
                     .dynamic_slot_by_symbol(call.target_symbol)
@@ -679,7 +676,7 @@ impl Builder<'_, '_> {
                 if static_requirement_dispatch.is_none()
                     && let Some(target) = boundary_calls::bodyless_boundary_target(
                         self.program,
-                        self.selected_call_target(expression, &call),
+                        validation::call_target_symbol(self.program, &call),
                     )
                 {
                     return self.boundary_call(expression, &call, target, expected_type);

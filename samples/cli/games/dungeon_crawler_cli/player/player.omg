@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 use inventory::inventory;
 use player::player_state;
 use rewards::rewards;
@@ -23,14 +25,14 @@ machine PlayerSystem::create(
 
 machine PlayerSystem::heal(player: &mut Player,
     amount: i32 in Wrapping) {
-    player.health = min(player.max_health, player.health + amount);
+    player.health = min_i32(player.max_health as i32, (player.health + amount) as i32) as i32 in Wrapping;
 }
 
 machine PlayerSystem::take_damage(player: &mut Player,
     amount: i32 in Wrapping) {
-    let prevented: i32 in Wrapping = min(amount, player.defense);
+    let prevented: i32 in Wrapping = min_i32(amount as i32, player.defense as i32) as i32 in Wrapping;
     let actual: i32 in Wrapping = amount - prevented;
-    player.health = max(0, player.health - actual);
+    player.health = max_i32(0, (player.health - actual) as i32) as i32 in Wrapping;
 }
 
 machine PlayerSystem::grant_reward(
@@ -58,7 +60,7 @@ machine PlayerSystem::grant_xp(
         player_system: &mut PlayerSystem,
         player: &mut Player
     ) {
-        player.xp = max(0, player.xp - (PlayerSystem::xp_required(player.level) as u32 in Wrapping));
+        player.xp = max_u32(0, (player.xp - (PlayerSystem::xp_required(player.level) as u32 in Wrapping)) as u32) as u32 in Wrapping;
         player.level = player.level + 1;
         player.max_health = player.max_health + 5;
         player.attack = player.attack + 1;

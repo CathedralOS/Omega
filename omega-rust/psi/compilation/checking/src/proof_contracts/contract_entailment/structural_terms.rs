@@ -16,7 +16,7 @@ mod equality;
 mod indexed;
 pub(super) use indexed::indexed_term_in_scope;
 mod scalar_operands;
-pub(super) use binary::binary_term_in_scope;
+pub(super) use binary::{binary_term_in_scope, logical_not_term_in_scope};
 pub(super) use constructors::{
     case_classifier, case_guard_classifier, case_value_term, constructor_literal_term,
     is_case_observation, zero_value_structural_term,
@@ -461,6 +461,13 @@ pub(super) fn structural_term(
             expression,
             structural_term(program, scope, frame, binary.left, bindings)?,
             structural_term(program, scope, frame, binary.right, bindings)?,
+        ),
+        ExpressionNode::Unary(unary) => logical_not_term_in_scope(
+            program,
+            scope,
+            frame,
+            expression,
+            structural_term(program, scope, frame, unary.operand, bindings)?,
         ),
         ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
         // A determinate float literal carries its exact decimal spelling; the

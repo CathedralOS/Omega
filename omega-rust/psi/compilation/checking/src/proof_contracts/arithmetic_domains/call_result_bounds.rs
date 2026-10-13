@@ -82,17 +82,46 @@ fn project(
     expression: ExpressionHandle,
     formal: Option<&typed_trees::signature::StateParameter>,
 ) -> Interval {
+    project_possible(program, callee, environment, lengths, expression, formal)
+        .unwrap_or(Interval::UNBOUNDED)
+}
+
+/// A disjunct proven impossible contributes no possible result, rather than
+/// an unbounded result that erases its live sibling. Unknown propositions still
+/// contribute the full interval. Facts stay in the callee's immutable argument
+/// environment; caller expressions are never evaluated again here.
+fn project_possible(
+    program: &dyn crate::CheckingInput,
+    callee: &CalleeContract<'_>,
+    environment: &ValueEnvironment,
+    lengths: &[(SymbolHandle, Interval)],
+    expression: ExpressionHandle,
+    formal: Option<&typed_trees::signature::StateParameter>,
+) -> Option<Interval> {
     let Some(binary) = program.expression_table.binary_node(expression) else {
-        return Interval::UNBOUNDED;
+        return Some(Interval::UNBOUNDED);
     };
     if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
         // These two selective connectives have no declared operator spelling.
-        let left = project(program, callee, environment, lengths, binary.left, formal);
-        let right = project(program, callee, environment, lengths, binary.right, formal);
-        return if binary.operator == BinaryOperator::And {
-            left.intersect(right)
-        } else {
-            left.union(right)
+        let left = project_possible(program, callee, environment, lengths, binary.left, formal);
+        if binary.operator == BinaryOperator::And {
+            let left = left?;
+            let continuing = condition_environment(program, callee, environment, binary.left);
+            if continuing.intervals.values().any(|interval| {
+                interval
+                    .low
+                    .zip(interval.high)
+                    .is_some_and(|(low, high)| low > high)
+            }) {
+                return None;
+            }
+            return project_possible(program, callee, &continuing, lengths, binary.right, formal)
+                .map(|right| left.intersect(right));
+        }
+        let right = project_possible(program, callee, environment, lengths, binary.right, formal);
+        return match (left, right) {
+            (Some(left), Some(right)) => Some(left.union(right)),
+            (left, right) => left.or(right),
         };
     }
     let result = |expression| {
@@ -110,7 +139,7 @@ fn project(
     } else if result(binary.right) {
         (binary.left, false)
     } else {
-        return Interval::UNBOUNDED;
+        return Some(Interval::UNBOUNDED);
     };
     let Some((operand, operand_type)) = operand_interval(
         program,
@@ -120,7 +149,7 @@ fn project(
         other,
         formal.is_none(),
     ) else {
-        return Interval::UNBOUNDED;
+        return Some(Interval::UNBOUNDED);
     };
     let subject_type = formal.map_or(callee.return_type, |parameter| {
         crate::reference_shell(program, parameter.type_reference)
@@ -138,9 +167,32 @@ fn project(
         binary.operator,
         &operand_types,
     ) {
-        return Interval::UNBOUNDED;
+        return Some(Interval::UNBOUNDED);
     }
-    guard_narrowing::comparison_interval(binary.operator, operand, subject_on_left)
+    Some(guard_narrowing::comparison_interval(
+        binary.operator,
+        operand,
+        subject_on_left,
+    ))
+}
+
+fn condition_environment(
+    program: &dyn crate::CheckingInput,
+    callee: &CalleeContract<'_>,
+    environment: &ValueEnvironment,
+    condition: ExpressionHandle,
+) -> ValueEnvironment {
+    let Some(machine) = program.machine_by_symbol(callee.callable) else {
+        return environment.clone();
+    };
+    guard_narrowing::evaluated_condition_environment(
+        program,
+        machine,
+        program.machine_states(machine).first(),
+        condition,
+        true,
+        environment,
+    )
 }
 
 /// A checked normal-return guarantee over one scalar referent. Arrival
@@ -211,6 +263,40 @@ fn operand_interval(
     }
     if !allow_formals {
         return None;
+    }
+    if let Some(binary) = program.expression_table.binary_node(expression) {
+        // Admit only expressions over the captured immutable operands. The
+        // ordinary arithmetic owner then supplies selected-operator and policy
+        // semantics, including formation failures, rather than duplicating an
+        // arithmetic interpreter in contract projection.
+        operand_interval(program, callee, environment, lengths, binary.left, true)?;
+        operand_interval(program, callee, environment, lengths, binary.right, true)?;
+        let machine = program.machine_by_symbol(callee.callable)?;
+        let reference = crate::parameter_expression_result_type_reference(
+            program,
+            callee.callable,
+            callee.parameters,
+            expression,
+        )?;
+        program
+            .primitive_type_reference(reference)
+            .and_then(primitive_range)?;
+        let mut diagnostics = Vec::new();
+        let analysis = super::expression_analysis::analyze(
+            program,
+            machine,
+            program.machine_states(machine).first(),
+            expression,
+            environment,
+            None,
+            super::ArithmeticDomain::Exact,
+            "normal-return contract",
+            false,
+            &mut diagnostics,
+        );
+        return diagnostics
+            .is_empty()
+            .then_some((analysis.value.interval, Some(reference)));
     }
     if let Some(member) = program.expression_table.member_node(expression) {
         use crate::value_custody::places::collection_operations::{

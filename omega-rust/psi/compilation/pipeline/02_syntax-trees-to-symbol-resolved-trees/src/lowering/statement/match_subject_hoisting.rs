@@ -2,8 +2,7 @@
 
 use crate::lowering::statement::hoist_temps::mint_hoist_temp;
 use crate::lowering::statement::indexed_read_hoisting::{
-    OperandHoisting, hoist_operand_indexed_reads, is_hoistable_builtin_guard_call,
-    is_runtime_indexed_read,
+    OperandHoisting, hoist_operand_indexed_reads, is_runtime_indexed_read,
 };
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
@@ -105,29 +104,13 @@ pub(crate) fn hoist_membership_match_subject(
     );
 }
 
-/// Hoists a bool-arm dispatch SUBJECT that contains a hoistable read/call into a
-/// SINGLE shared temp, so a `{ true -> .. false -> .. }` pair still shares one
-/// subject and exhaustiveness pairs the arms.
-///
-/// A `transition min(self.a, self.b) == 3 { true -> A false -> B }` lowers (per
-/// arm) to the wrapper `(min(self.a, self.b) == 3) == <bool>`. The operand hoist
-/// would pull `min(self.a, self.b)` into a DISTINCT temp per arm (each arm
-/// re-lowers the subject to its own handle), so the two arms no longer test a
-/// structurally-equal subject and the dispatch is rejected as non-exhaustive
-/// (`arr[i] > 5 { true/false }` fails identically -- this is not builtin-specific).
-/// Instead this keys the shared `match_subject_temps` memo on the SYNTAX subject
-/// handle (the parser reuses `subject[0]` across every arm's guard, guards.rs):
-/// the first arm mints `let __hoist_N: bool = <subject>` and the siblings reuse
-/// it, so all arms test one local. Only fires when the subject is a COMPARISON
-/// CONTAINING a builtin/indexed read (exactly the shapes the operand hoist would
-/// otherwise break); a bare-place subject (`self.flag`, `self.a > self.b`) is
-/// structurally equal across arms already and is left untouched. Returns whether
-/// it hoisted, so the caller skips the operand hoist.
-///
-/// Handles both a pure-BUILTIN subject (min/max/sqrt, which lowers directly in the
-/// let value) and a runtime-INDEXED subject (`arr[i] > 5 { true/false }`, whose
-/// read is hoisted INSIDE the shared temp -- `let __t = arr[i]; let __b = __t >
-/// 5`; `__t` keeps its slot as a compare operand, so it reads correctly).
+/// Capture a comparison's hoistable storage reads once for Boolean dispatch.
+/// The parser shares one syntax subject across its true/false arms, but each
+/// arm gets its own lowered expression. Independently hoisting `values[index]`
+/// or a reference-backed field would give the arms different locals and lose
+/// their common exhaustive subject. Key the shared Boolean local by that syntax
+/// subject; its initializer owns the storage-read preparation. Ordinary call
+/// sequencing stays with the common computation owner, not a builtin-name rule.
 pub(crate) fn hoist_comparison_match_subject(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
@@ -163,7 +146,7 @@ pub(crate) fn hoist_comparison_match_subject(
     ) {
         return false;
     }
-    // The SUBJECT must be a comparison that CONTAINS a hoistable read/call.
+    // The subject must be a comparison containing a hoistable storage read.
     let subject_is_comparison = matches!(
         lowerer
             .symbol_resolved_trees
@@ -189,14 +172,9 @@ pub(crate) fn hoist_comparison_match_subject(
     };
     let subject_key = syntax_outer.left;
 
-    // Reuse the sibling arm's temp, or mint `let __hoist_N: bool = <subject>`.
-    // The subject is a comparison, so the temp is `bool` -- known here (unlike the
-    // indexed/builtin operand hoists, whose element type needs the resolved field
-    // types via `infer_hoist_temp_type`). A pure-builtin subject lowers directly in
-    // the let value (`let __b = min(a, b) == 3`); a runtime-INDEXED subject needs
-    // its read hoisted INSIDE the temp first (`let __t = arr[i]; let __b = __t >
-    // 5`), which the let-value operand hoist does -- `__t` (an indexed-read local
-    // used as a compare operand) keeps its slot, so `__t > 5` reads correctly.
+    // The comparison's result carrier is already Boolean. Prepare its indexed
+    // operands inside that shared initializer, then reuse the same Boolean
+    // observation for every arm instead of rereading the source place.
     let declared_bool = TypeReference::Named {
         supplied_operand_owner: Default::default(),
         symbol: SymbolHandle::invalid(),
@@ -239,10 +217,6 @@ fn is_comparison_operator(operator: BinaryOperator) -> bool {
     )
 }
 
-/// Whether `expression` contains (transitively through comparison/arith/cast
-/// operands) a hoistable pure-builtin call OR a runtime-indexed read -- the shapes
-/// the shared-subject hoist handles (both would otherwise be pulled into per-arm
-/// temps by the operand hoist, breaking the true/false pairing).
 /// Whether `expression` is a member read through a SHARED reference-to-struct
 /// parameter of the current state (`table.con_out` with `table:
 /// &EfiSystemTable`) -- the shape whose flat fold reads frame garbage. The
@@ -273,8 +247,7 @@ pub(crate) fn is_reference_struct_parameter_member(
 }
 
 fn subject_contains_hoistable(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
-    if is_hoistable_builtin_guard_call(lowerer, expression)
-        || is_runtime_indexed_read(lowerer, expression)
+    if is_runtime_indexed_read(lowerer, expression)
         || is_reference_struct_parameter_member(lowerer, expression)
     {
         return true;

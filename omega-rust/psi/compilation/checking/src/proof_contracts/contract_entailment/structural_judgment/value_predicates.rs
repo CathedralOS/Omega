@@ -13,6 +13,54 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::PrimitiveType;
 
 impl StructuralJudge<'_> {
+    /// An observed Boolean equality against a literal determines the other
+    /// operand. This is the inverse of Boolean folding, not an equality law
+    /// for the values an operand's predicate may compare.
+    pub(super) fn boolean_equality_operand(
+        &self,
+        predicate: &StructuralTerm,
+        truth: &StructuralTerm,
+    ) -> Option<(StructuralTerm, StructuralTerm)> {
+        let StructuralTerm::ScalarBinary {
+            references,
+            operator,
+            meaning,
+            left,
+            right,
+        } = predicate
+        else {
+            return None;
+        };
+        if !meaning
+            .iter()
+            .all(|(primitive, _)| *primitive == PrimitiveType::Bool)
+            || !matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
+            || !super::super::structural_terms::scalar_operand_is_observed(
+                self.program,
+                references[0],
+                left,
+            )
+            || !super::super::structural_terms::scalar_operand_is_observed(
+                self.program,
+                references[1],
+                right,
+            )
+        {
+            return None;
+        }
+        let truth = boolean_value(truth)?;
+        let (operand, known) = if let Some(known) = boolean_value(right) {
+            (left.as_ref(), known)
+        } else {
+            (right.as_ref(), boolean_value(left)?)
+        };
+        let equal = truth == (*operator == BinaryOperator::Equal);
+        Some((
+            operand.clone(),
+            boolean_term(if equal { known } else { !known }),
+        ))
+    }
+
     /// Logical conjunction/disjunction have no overloadable operator spelling.
     /// The retained connective decomposes predicates; every leaf still owes
     /// its own exact selected meaning and truth judgment. A scalar result-type
@@ -170,6 +218,22 @@ impl StructuralJudge<'_> {
         value: &StructuralTerm,
         depth: usize,
     ) -> Option<StructuralTerm> {
+        if depth >= 32 {
+            return None;
+        }
+        let (comparison, left, right) = self.selected_float_comparison(value)?;
+        self.float_comparison_truth(comparison, left, right, depth + 1)
+            .map(boolean_term)
+    }
+
+    fn selected_float_comparison<'term>(
+        &self,
+        value: &'term StructuralTerm,
+    ) -> Option<(
+        FloatSemanticComparison,
+        &'term StructuralTerm,
+        &'term StructuralTerm,
+    )> {
         let StructuralTerm::Application {
             target,
             result_type,
@@ -180,7 +244,7 @@ impl StructuralJudge<'_> {
         else {
             return None;
         };
-        if depth >= 32 || !selections.is_empty() {
+        if !selections.is_empty() {
             return None;
         }
         let operator = self.program.operator_definition_by_symbol(*target)?;
@@ -201,8 +265,7 @@ impl StructuralJudge<'_> {
         {
             return None;
         }
-        self.float_comparison_truth(comparison, left, right, depth + 1)
-            .map(boolean_term)
+        Some((comparison, left, right))
     }
 
     fn float_comparison_truth(
@@ -214,6 +277,38 @@ impl StructuralJudge<'_> {
     ) -> Option<bool> {
         if depth >= 32 {
             return None;
+        }
+        // IEEE equality and inequality are exact Boolean complements even
+        // for NaNs and signed zeros. Use only a completed predicate over the
+        // same meanings and an authenticated core comparison declaration.
+        // Ordered comparisons deliberately gain no complement law: !(a < b)
+        // does not establish a >= b when either operand may be NaN.
+        let complement = match comparison {
+            FloatSemanticComparison::Equal => Some(FloatSemanticComparison::NotEqual),
+            FloatSemanticComparison::NotEqual => Some(FloatSemanticComparison::Equal),
+            _ => None,
+        };
+        if let Some(complement) = complement {
+            for (predicate, truth) in self.rewrites.iter() {
+                let Some((observed, observed_left, observed_right)) =
+                    self.selected_float_comparison(predicate)
+                else {
+                    continue;
+                };
+                if observed != complement
+                    || self.resolve_at(observed_left.clone(), depth + 1) != *left
+                    || self.resolve_at(observed_right.clone(), depth + 1) != *right
+                {
+                    continue;
+                }
+                let truth = self.resolve_at(truth.clone(), depth + 1);
+                if truth == boolean_term(true) {
+                    return Some(false);
+                }
+                if truth == boolean_term(false) {
+                    return Some(true);
+                }
+            }
         }
         let nan_truth = |meaning: &StructuralTerm| {
             let predicate = nan_predicate(self.program, meaning.clone())?;
@@ -250,6 +345,16 @@ pub(super) fn boolean_term(value: bool) -> StructuralTerm {
         case: value.to_string(),
         fields: Vec::new(),
     }
+}
+
+fn boolean_value(value: &StructuralTerm) -> Option<bool> {
+    let StructuralTerm::Constructor { data, case, fields } = value.semantic_value() else {
+        return None;
+    };
+    if data != "bool" || !fields.is_empty() {
+        return None;
+    }
+    language_semantics::const_value::boolean_literal_spelling(case)
 }
 
 fn projected_meaning(

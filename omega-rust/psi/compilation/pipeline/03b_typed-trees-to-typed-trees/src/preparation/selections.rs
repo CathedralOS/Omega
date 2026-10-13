@@ -210,20 +210,6 @@ pub(crate) fn bind_pre_specialization_authored_selections(
                         AuthoredSelectionResolutionTarget::Intrinsic(measure.intrinsic())
                     }
                 }),
-                // Shorthand still naming a builtin has not acquired its
-                // checked operand-directed float meaning. Keep its occurrence
-                // open until call binding; integer uses finalize normally at
-                // the end of checking. Named authored overrides are unaffected.
-                (
-                    AuthoredDeclarationSelectionLateBinding::CheckedCall,
-                    ExpressionNode::Call(call),
-                ) if program
-                    .symbols
-                    .builtin_function_for_symbol(call.target_symbol)
-                    .is_some_and(symbols::BuiltinFunction::is_float_shorthand) =>
-                {
-                    None
-                }
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
                     ExpressionNode::Call(call),

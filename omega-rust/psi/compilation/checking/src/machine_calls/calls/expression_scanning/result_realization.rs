@@ -10,7 +10,6 @@
 
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionViewOperation;
-use symbols::BuiltinFunction;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
@@ -333,6 +332,9 @@ fn unit_type(
 /// source-shape recognizer cannot establish it. This only retires the legacy
 /// nested-result fence: type, effect and custody checks still run, and missing
 /// operand plans fail product construction rather than supplying a value.
+/// A receiving range refinement changes its proof obligation, not the operand
+/// evaluation owner; requiring identical qualified types would reject a call
+/// whose ordinary ensures establish the narrower destination.
 fn local_initializer_has_operand_evaluation(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -348,20 +350,16 @@ fn local_initializer_has_operand_evaluation(
         return false;
     }
     program.machine_states(machine).iter().any(|state| {
-        let Some(result_type) =
-            crate::expression_result_type_reference(program, machine, state, value)
-        else {
+        if crate::expression_result_type_reference(program, machine, state, value).is_none() {
             return false;
-        };
+        }
         program
             .statement_table
             .statements(state.statement_nodes)
             .iter()
             .any(|statement| {
                 matches!(statement, StatementNode::LocalData(local)
-                if local.initial_value == value
-                    && program.normalized_type_identity(local.type_reference)
-                        == program.normalized_type_identity(result_type))
+                if local.initial_value == value)
             })
     })
 }
@@ -385,11 +383,9 @@ pub(crate) fn report_nested_call_in_bound_value_call(
     let Some(call) = program.expression_table.call_node(value) else {
         return;
     };
-    // A BUILTIN outer call (`let v = max(self.range(..), floor)`) composes:
-    // builtin arguments materialize as operands through the call-result-local
-    // machinery (canaried). Only a MACHINE outer call's argument context is
-    // broken.
-    if call_is_composing_builtin(program, call) {
+    // Collection views retain their own operand materialization. Ordinary
+    // machine calls use the receiving operation admitted above.
+    if call_is_collection_view(call) {
         return;
     }
     for argument in program.expression_table.expression_handles(call.arguments) {
@@ -465,8 +461,7 @@ pub fn nested_boundary_applications_compose(
         }
         match program.expression_table.expression(expression) {
             ExpressionNode::Call(call) => {
-                (call_is_composing_builtin(program, call)
-                    || scalar_boundary_application(program, call))
+                (call_is_collection_view(call) || scalar_boundary_application(program, call))
                     && program
                         .expression_table
                         .expression_handles(call.arguments)
@@ -492,25 +487,17 @@ pub fn nested_boundary_applications_compose(
         && composes(program, value)
 }
 
-/// Selected scalar intrinsics compose as operands; authored lookalikes retain
-/// ordinary call-result realization. Collection views have no callable symbol,
-/// so their vocabulary applies only when no authored declaration was selected.
-fn call_is_composing_builtin(
-    program: &dyn crate::CheckingInput,
-    call: &TableCallExpression,
-) -> bool {
-    program
-        .symbols
-        .builtin_function_for_symbol(call.target_symbol)
-        .is_some_and(BuiltinFunction::is_scalar_computation)
-        || (!call.target_symbol.is_valid()
-            && CollectionViewOperation::from_authored_spelling(call.target.as_str()).is_some())
+/// Collection views have no callable symbol; their vocabulary applies only
+/// when no authored declaration was selected. Other calls retain ordinary
+/// call-result realization.
+fn call_is_collection_view(call: &TableCallExpression) -> bool {
+    !call.target_symbol.is_valid()
+        && CollectionViewOperation::from_authored_spelling(call.target.as_str()).is_some()
 }
 
 /// The first NON-BUILTIN machine call nested anywhere inside `expression`
-/// (its target name, for the diagnostic), or None. Reserved value builtins
-/// (`min`/`max`/`sqrt`) and the view builtins (`as_slice`/`as_mut_slice`/
-/// `as_view`/`bytes`) compose in arguments and are exempt.
+/// (its target name, for the diagnostic), or None. Collection view operations
+/// compose in arguments and retain their own value route.
 fn first_non_builtin_call(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
@@ -521,7 +508,7 @@ fn first_non_builtin_call(
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => first_non_builtin_call(program, atomic.value),
         ExpressionNode::Call(call) => {
-            if !call_is_composing_builtin(program, call) {
+            if !call_is_collection_view(call) {
                 return Some(call.target.clone());
             }
             program

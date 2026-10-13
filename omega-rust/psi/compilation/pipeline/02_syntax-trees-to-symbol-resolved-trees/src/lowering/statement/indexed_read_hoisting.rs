@@ -12,7 +12,6 @@ use symbol_resolved_trees::expression::{
     TableMembershipExpression, TableRangeExpression, TableUnaryExpression,
 };
 use symbol_resolved_trees::statement::Statement;
-use symbols::BuiltinFunction;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OperandHoisting {
@@ -209,37 +208,14 @@ fn rewrite_children(
 }
 
 /// Whether a direct call beneath a non-recast value cast can use the let-bound
-/// value-call result path. Pure compiler builtins keep their existing
-/// expression lowering because their synthetic result type is inferred from an
-/// operand rather than a declared machine return.
+/// value-call result path. Proof-only integer embedding stays in its proof
+/// expression because it has no runtime result slot.
 fn is_hoistable_value_cast_call(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let Some(call) = expressions.call_node(expression) else {
         return false;
     };
-    !call.receiver.is_valid()
-        && !is_integer_embedding_call(lowerer, call)
-        && !spells_scalar_computation_builtin(call)
-}
-
-/// Whether a call is spelled like one of the composing scalar builtins
-/// (`BuiltinFunction::is_scalar_computation`) or a source normalization. This
-/// is a lowering-shape choice, never a builtin classification. Statement
-/// lowering runs in `lower_items` before `symbols::assign` builds the table, so
-/// no call has a resolved identity yet, and a same-spelled authored machine
-/// shadows the builtin once resolution runs. Such a call keeps its expression
-/// position: the builtin needs that because its result type comes from an
-/// operand rather than a declared return, a normalized operation has no
-/// machine signature from which a synthetic result local could be typed, and
-/// an authored callee is served in place as well. Every semantic consumer --
-/// hoisted temporary typing, call fences, contracts, proofs and interpretation
-/// -- asks the resolved symbol through `SymbolTable::builtin_function_for_symbol`.
-pub(crate) fn spells_scalar_computation_builtin(
-    call: &symbol_resolved_trees::expression::TableCallExpression,
-) -> bool {
-    BuiltinFunction::from_name(call.target.as_str()).is_some_and(|function| {
-        function.is_scalar_computation() || function.is_source_normalization()
-    })
+    !call.receiver.is_valid() && !is_integer_embedding_call(lowerer, call)
 }
 
 /// A compiler proof term has no runtime call-result slot to materialize.
@@ -306,18 +282,6 @@ pub(crate) fn hoist_child(
         return hoist_into_temp(lowerer, child, hoisted);
     }
 
-    // In guard position, a pure-builtin call subject (`min(self.a, self.b)`) is
-    // hoisted whole into a temp so the guard compares a materialized local. The
-    // builtins are effect-free, so this never changes an effectful evaluation
-    // count (unlike a general value-call hoist). Only calls whose first argument
-    // is a `self.<field>` place are hoisted -- the symbol-resolved->typed lowering
-    // types the temp from that field (`infer_hoist_temp_type`); a non-place first
-    // argument (a nested call, a literal) is left for the "bind to a local first"
-    // diagnostic, unchanged.
-    if mode == OperandHoisting::Guard && is_hoistable_builtin_guard_call(lowerer, child) {
-        return hoist_into_temp(lowerer, child, hoisted);
-    }
-
     // Not a runtime-indexed read: descend so deeper operand-position runtime
     // indexed reads (`(a + arr[i]) * b`) are still hoisted.
     rewrite_children(lowerer, child, hoisted, mode);
@@ -375,48 +339,5 @@ pub(crate) fn is_runtime_indexed_read(lowerer: &Lowerer, expression: ExpressionH
     !matches!(
         expressions.expression(indexed.index),
         ExpressionNode::Integer(_)
-    )
-}
-
-/// Whether `expression` is a pure-builtin call (`min`/`max`/`sqrt`; `abs`/`clamp`
-/// are already desugared to these) that Phase-1 guard hoisting materializes: a
-/// free call (no receiver) whose FIRST argument is a `self.<field>` place, so the
-/// synthetic temp's type is resolvable from that field. `abs(self.x)` desugars to
-/// `max(self.x, 0 - self.x)` (first arg `self.x`, hoisted); `clamp(self.x, ..)`
-/// desugars to `min(max(self.x, ..), ..)` whose first arg is a call, so it is
-/// left alone (not hoisted) -- the temp would be untypeable. The test is the
-/// pre-resolution spelling (`spells_scalar_computation_builtin`); typing
-/// classifies the temp's initializer by its resolved symbol, so a same-spelled
-/// authored callee hoisted here takes its declared return type.
-pub(super) fn is_hoistable_builtin_guard_call(
-    lowerer: &Lowerer,
-    expression: ExpressionHandle,
-) -> bool {
-    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
-    let Some(call) = expressions.call_node(expression) else {
-        return false;
-    };
-    if call.receiver.is_valid() {
-        return false; // a method call, not a free builtin
-    }
-    if !spells_scalar_computation_builtin(call) {
-        return false;
-    }
-    let arguments = expressions.expression_handles(call.arguments);
-    let Some(&first) = arguments.first() else {
-        return false;
-    };
-    // The first argument must be a `self.<field>` member access -- the only place
-    // shape `infer_hoist_temp_type` can type the temp from.
-    let Some(member) = expressions.member_node(first) else {
-        return false;
-    };
-    matches!(
-        expressions.expression(member.receiver),
-        ExpressionNode::Name(path)
-            if expressions
-                .name_path_members(path.members)
-                .first()
-                .is_some_and(|name| name.is_self_receiver())
     )
 }

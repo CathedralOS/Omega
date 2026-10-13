@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // Nested float operator applications compose in authored grouping and order
 // (exit 70).
 //
@@ -93,7 +95,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state extrema(main: &mut Main) {
         let bounded: f64 = F64::maximum(main.c - main.a, 0.5);
-        main.difference = min(main.a * main.b, 11.5);
+        main.difference = min_f64(main.a * main.b, 11.5);
         transition main.difference == 11.5 && bounded == 0.5 {
             true -> pass(main)
             _ -> fail(main, 78)

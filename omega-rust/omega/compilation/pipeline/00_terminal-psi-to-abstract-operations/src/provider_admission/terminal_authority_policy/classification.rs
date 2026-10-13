@@ -136,11 +136,9 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         BuiltinFunction::AsmPortOut | BuiltinFunction::AsmPortIn => {
             disposition([TerminalAuthorityClass::PortIo])
         }
-        BuiltinFunction::Max
-        | BuiltinFunction::Min
-        | BuiltinFunction::Sqrt
-        | BuiltinFunction::Abs
-        | BuiltinFunction::Clamp
+        BuiltinFunction::FloatMaximum
+        | BuiltinFunction::FloatMinimum
+        | BuiltinFunction::FloatSquareRoot
         | BuiltinFunction::AsmLoadFence
         | BuiltinFunction::AsmStoreFence
         | BuiltinFunction::AsmFullFence

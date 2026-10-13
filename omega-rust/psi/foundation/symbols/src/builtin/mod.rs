@@ -200,12 +200,11 @@ impl BuiltinType {
 /// only.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BuiltinFunction {
-    Max,
-    Min,
-    /// `sqrt(x)`: a UNARY float intrinsic. It reuses the binary float
-    /// value-write path with both operands set to `x` (the encoder's Sqrt
-    /// arm reads the first SSE register only).
-    Sqrt,
+    /// Unnameable execution identities selected only by admitted floating
+    /// requirements. Ordinary library helpers have no builtin source identity.
+    FloatMaximum,
+    FloatMinimum,
+    FloatSquareRoot,
     /// `asm { hlt }`: the x86 privileged halt instruction as a known-contract
     /// asm intrinsic (wiki/spec/build/permissions.md). Reaches the
     /// canonical `MachineControl` service. The `#` in the symbol name is not an
@@ -354,32 +353,15 @@ pub enum BuiltinFunction {
     /// Total, proof-only projection of a fixed-width integer or address into
     /// mathematical Int. This has no callable implementation or runtime ABI.
     IntegerEmbed,
-    /// Source arithmetic intrinsics normalized after callee resolution. They
-    /// have identities so authored callbacks can shadow their spellings; they
-    /// never reach typing as executable operations.
-    Abs,
-    Clamp,
 }
 
 impl BuiltinFunction {
-    /// The float shorthand intrinsics — `min`, `max`, `sqrt` calls whose
-    /// operand-directed float meaning is selected during call binding.
-    pub const fn is_float_shorthand(self) -> bool {
-        matches!(self, Self::Min | Self::Max | Self::Sqrt)
-    }
-
-    /// These source operations are expanded after resolution and never name
-    /// a runtime intrinsic in Terminal Psi or a target backend.
-    pub const fn is_source_normalization(self) -> bool {
-        matches!(self, Self::Abs | Self::Clamp)
-    }
-
-    pub const COUNT: usize = 102;
+    pub const COUNT: usize = 100;
 
     pub const ALL: [Self; Self::COUNT] = [
-        Self::Max,
-        Self::Min,
-        Self::Sqrt,
+        Self::FloatMaximum,
+        Self::FloatMinimum,
+        Self::FloatSquareRoot,
         Self::AsmHlt,
         Self::AsmPortOut,
         Self::AsmPortIn,
@@ -477,8 +459,6 @@ impl BuiltinFunction {
         Self::AsmWriteMairEl1,
         Self::AsmWriteVbarEl1,
         Self::AsmWriteTpidrEl1,
-        Self::Abs,
-        Self::Clamp,
     ];
 
     pub fn from_ordinal(ordinal: usize) -> Option<Self> {
@@ -490,19 +470,6 @@ impl BuiltinFunction {
     /// spelling ask here instead of keeping their own copy of the names.
     pub fn from_name(name: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|builtin| builtin.name() == name)
-    }
-
-    /// Whether this builtin is one of the composing scalar computations
-    /// (`min`/`max`/`sqrt`; `abs` and `clamp` desugar to them). A targetless
-    /// call to one of these is not a machine call: it has no declared return
-    /// (its result type is inferred from its first operand), no dispatch
-    /// return route, and it composes inside operands and call arguments. The
-    /// lowering stages therefore leave such calls in expression position
-    /// rather than hoisting them into call-result locals, the checkers exempt
-    /// them from the unresolved-machine-call and nested-argument-call fences,
-    /// and the interpreter evaluates them directly.
-    pub const fn is_scalar_computation(self) -> bool {
-        matches!(self, Self::Min | Self::Max | Self::Sqrt)
     }
 
     /// Whether this builtin is one of the value-position asm intrinsics
@@ -524,9 +491,9 @@ impl BuiltinFunction {
 
     pub fn name(self) -> &'static str {
         match self {
-            Self::Max => "max",
-            Self::Min => "min",
-            Self::Sqrt => "sqrt",
+            Self::FloatMaximum => "float#maximum",
+            Self::FloatMinimum => "float#minimum",
+            Self::FloatSquareRoot => "float#square_root",
             Self::AsmHlt => "asm#hlt",
             Self::AsmPortOut => "asm#port_out",
             Self::AsmPortIn => "asm#port_in",
@@ -632,16 +599,14 @@ impl BuiltinFunction {
             Self::ContentOld => "old",
             Self::ContentSeparate => "separate",
             Self::IntegerEmbed => "embed",
-            Self::Abs => "abs",
-            Self::Clamp => "clamp",
         }
     }
 
     pub fn ordinal(self) -> usize {
         match self {
-            Self::Max => 0,
-            Self::Min => 1,
-            Self::Sqrt => 2,
+            Self::FloatMaximum => 0,
+            Self::FloatMinimum => 1,
+            Self::FloatSquareRoot => 2,
             Self::AsmHlt => 3,
             Self::AsmPortOut => 4,
             Self::AsmPortIn => 5,
@@ -739,8 +704,6 @@ impl BuiltinFunction {
             Self::AsmWriteMairEl1 => 97,
             Self::AsmWriteVbarEl1 => 98,
             Self::AsmWriteTpidrEl1 => 99,
-            Self::Abs => 100,
-            Self::Clamp => 101,
         }
     }
 
@@ -804,18 +767,15 @@ impl BuiltinFunction {
         }
     }
 
-    /// The floating-point value family: the math intrinsics (`max`, `min`,
-    /// `sqrt`, `abs`, `clamp`), the float predicates and classifications, and
+    /// Unnameable selected floating operations, predicates, classifications, and
     /// every directed-rounding arithmetic and fused-multiply-add spelling.
     /// Classifiers list the family once; consumers select membership only.
     pub const fn is_float_family(self) -> bool {
         matches!(
             self,
-            Self::Max
-                | Self::Min
-                | Self::Sqrt
-                | Self::Abs
-                | Self::Clamp
+            Self::FloatMaximum
+                | Self::FloatMinimum
+                | Self::FloatSquareRoot
                 | Self::FloatIsNan
                 | Self::FloatMultiplyThenAddF32
                 | Self::FloatMultiplyThenAddF64
@@ -872,8 +832,7 @@ impl BuiltinFunction {
     /// of an unresolved call. Machine-control and port intrinsics, content
     /// custody builtins, and `embed` are excluded: their effects are their own
     /// custody axes, not value reads.
-    /// The numeric family includes integer `min`/`max` as well as floating
-    /// operations. Floating control-state effects do not write caller storage;
+    /// Floating control-state effects do not write caller storage;
     /// their separate admission rules remain attached to the numeric operation.
     pub const fn has_empty_write_frame(self) -> bool {
         self.is_float_family()
@@ -1195,30 +1154,9 @@ mod builtin_ordinal_tests {
         }
         assert_eq!(BuiltinFunction::from_name(""), None);
         assert_eq!(BuiltinFunction::from_name("Min"), None);
-        assert_eq!(
-            BuiltinFunction::from_name("abs"),
-            Some(BuiltinFunction::Abs)
-        );
-        assert_eq!(
-            BuiltinFunction::from_name("clamp"),
-            Some(BuiltinFunction::Clamp)
-        );
-    }
-
-    #[test]
-    fn scalar_computation_builtins_are_exactly_min_max_sqrt() {
-        let scalar: Vec<BuiltinFunction> = BuiltinFunction::ALL
-            .into_iter()
-            .filter(|function| function.is_scalar_computation())
-            .collect();
-        assert_eq!(
-            scalar,
-            [
-                BuiltinFunction::Max,
-                BuiltinFunction::Min,
-                BuiltinFunction::Sqrt
-            ]
-        );
+        for name in ["min", "max", "abs", "clamp", "sqrt"] {
+            assert_eq!(BuiltinFunction::from_name(name), None);
+        }
     }
 
     #[test]

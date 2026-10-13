@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // Direct element summation; co-located elements remain separate excitations.
 // Negative real weights encode a pi phase reversal. Zero excitation is valid.
 use omega::language::core::float_operations;
@@ -46,7 +48,7 @@ pub machine Pattern::power(geometry: &Geometry, direction: f64) -> f64 {
     }
 }
 pub machine Geometry::amplitude(geometry: &Geometry) -> f64 {
-    abs(geometry.weights[0]) + abs(geometry.weights[1]) + abs(geometry.weights[2]) + abs(geometry.weights[3])
+    abs_f64(geometry.weights[0]) + abs_f64(geometry.weights[1]) + abs_f64(geometry.weights[2]) + abs_f64(geometry.weights[3])
 }
 pub machine Geometry::duplicates(geometry: &Geometry) -> i32 {
     transition { _ -> pair(geometry, 0, 1, 0) }

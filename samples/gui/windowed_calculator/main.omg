@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // A persistent software-rendered windowed calculator.
 //
 // It deliberately combines the hardest currently-live Omega surfaces in one
@@ -380,8 +382,8 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition main.i >= 0 && main.i < 4096 { true -> fill_cell(main, window) _ -> present(main, window) }
     }
     state fill_cell(main: &mut Main, window: Window) {
-        main.row = min(max(main.i / 64, 0), 63);
-        main.col = min(max(main.i % 64, 0), 63);
+        main.row = min_i32(max_i32(main.i / 64, 0), 63);
+        main.col = min_i32(max_i32(main.i % 64, 0), 63);
         main.px = 1318440 + ((main.frame % 32) * 1024);
         transition main.row < 16 { true -> display_pixel(main, window) _ -> keypad_region(main, window) }
     }
@@ -553,8 +555,8 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition main.row >= 18 && main.row < 63 { true -> button_prepare(main, window) _ -> write_pixel_guard(main, window) }
     }
     state button_prepare(main: &mut Main, window: Window) {
-        main.button_row = min(max((main.row - 18) / 9, 0), 4);
-        main.button_col = min(max(main.col / 16, 0), 3);
+        main.button_row = min_i32(max_i32((main.row - 18) / 9, 0), 4);
+        main.button_col = min_i32(max_i32(main.col / 16, 0), 3);
         main.button_lx = main.col % 16;
         main.button_ly = (main.row - 18) % 9;
         transition main.button_row == 0 { true -> button_row0(main, window) _ -> button_row1_check(main, window) }

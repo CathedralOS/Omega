@@ -26,7 +26,7 @@ corpus native route exercises the imported module and must exit 0, but does
 not run dependency Builds and cannot establish the source-closure acceptance.
 
 This intentionally invalid full dependency is a frontend selection probe,
-not an accepted-package fixture: full review must reject the malformed builtin,
+not an accepted-package fixture: full review must reject the undeclared call,
 and adding `use closure_dependency::unused` to the consumer must reject too.
 The fixture does not claim that invalid source can receive package acceptance
 or that an unaccepted project can execute through the CLI.

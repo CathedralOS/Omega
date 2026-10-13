@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // Expected exit: 0.
 // Expected output contains: trace rows ambiguous plateaus reversals max_width 0 0 0 0 0
 use omega_language_std::console;
@@ -57,7 +59,7 @@ machine Instrument::run(instrument: &mut Instrument) reaches Console {
         let reverse: i32 in Wrapping = interpolate(&instrument.calibration.reverse, stimulus);
         let width: i32 in Wrapping = reverse - forward;
         identify(&mut instrument.trace, stimulus);
-        instrument.trace.width_max = max(instrument.trace.width_max, width);
+        instrument.trace.width_max = max_i32(instrument.trace.width_max as i32, width as i32) as i32 in Wrapping;
         number(&instrument.console, instrument.trace.rows);
         field(&instrument.console, stimulus);
         transition instrument.trace.branch {

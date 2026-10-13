@@ -82,9 +82,9 @@ pub(crate) fn named_float_realization_for(
     }
     let builtin = NamedFloatRealization::Builtin;
     match requirement {
-        "minimum" => Some(builtin(BuiltinFunction::Min)),
-        "maximum" => Some(builtin(BuiltinFunction::Max)),
-        "square_root" => Some(builtin(BuiltinFunction::Sqrt)),
+        "minimum" => Some(builtin(BuiltinFunction::FloatMinimum)),
+        "maximum" => Some(builtin(BuiltinFunction::FloatMaximum)),
+        "square_root" => Some(builtin(BuiltinFunction::FloatSquareRoot)),
         "negate" => Some(NamedFloatRealization::Negate(format)),
         "multiply_then_add" => Some(NamedFloatRealization::MultiplyThenAdd(format)),
         "fused_multiply_add" => Some(NamedFloatRealization::FusedMultiplyAdd(format)),

@@ -272,8 +272,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         if builtin == Some(BuiltinFunction::AsmSnapshotFlags) && !call.receiver.is_valid() {
             return Ok(Value::Int(2));
         }
-        // Builtins: max / min over two integer/float operands.
-        if let Some(builtin @ (BuiltinFunction::Max | BuiltinFunction::Min)) = builtin {
+        // Only admitted float requirements select these unnameable operations.
+        if let Some(builtin @ (BuiltinFunction::FloatMaximum | BuiltinFunction::FloatMinimum)) =
+            builtin
+        {
             let arguments = self
                 .program
                 .expression_table
@@ -282,13 +284,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             if arguments.len() == 2 {
                 let left = self.eval_expression(arguments[0], frame)?;
                 let right = self.eval_expression(arguments[1], frame)?;
-                // A u64-classed operand selects the UNSIGNED min/max witness (the
-                // same test the binary div/mod/shr path uses): `max(u64::MAX, 5)`
-                // must pick u64::MAX, not the signed -1. Native lowers these to
-                // MaxUnsigned/MinUnsigned for unsigned targets.
-                let unsigned = self.expression_is_unsigned64(arguments[0], frame)
-                    || self.expression_is_unsigned64(arguments[1], frame);
-                return self.eval_min_max(builtin, left, right, unsigned);
+                return self.eval_float_extremum(builtin, left, right);
             }
         }
         if matches!(
@@ -388,7 +384,9 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         // Builtin: sqrt over a single float operand. The interpreter consumes
         // the same exact semantic function used as the native
         // sqrtsd/sqrtss contract oracle.
-        if builtin == Some(BuiltinFunction::Sqrt) && call.receiver == ExpressionHandle::invalid() {
+        if builtin == Some(BuiltinFunction::FloatSquareRoot)
+            && call.receiver == ExpressionHandle::invalid()
+        {
             if let Some((value, format)) = self.unary_float_argument(call, frame)? {
                 return match value {
                     value if value.is_float() => {

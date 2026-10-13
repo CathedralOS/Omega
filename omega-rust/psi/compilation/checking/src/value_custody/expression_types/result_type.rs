@@ -257,35 +257,6 @@ fn result_type(
                         })
                     })
                 })
-                .or_else(|| {
-                    if selected_operator.is_some() {
-                        return None;
-                    }
-                    program
-                        .symbols
-                        .builtin_function_for_symbol(call.target_symbol)
-                        .filter(|function| function.is_scalar_computation())?;
-                    let arguments = program.expression_table.expression_handles(call.arguments);
-                    let references: Vec<_> = operands
-                        .iter()
-                        .map(|reference| {
-                            reference.and_then(|reference| {
-                                arithmetic_result_type_reference(program, reference)
-                            })
-                        })
-                        .collect();
-                    let anonymous: Vec<_> = arguments
-                        .iter()
-                        .map(|argument| {
-                            crate::value_custody::literals::has_anonymous_numeric_results(
-                                program, *argument,
-                            )
-                        })
-                        .collect();
-                    // Computation preserves the carrier and arithmetic policy,
-                    // not the operand's range or refinement predicates.
-                    join_result_type_references(program, &references, &anonymous)
-                })
                 .and_then(|result| {
                     // A numeric `as` retains the source operand's operation
                     // policy beneath its selected raw conversion. The authored

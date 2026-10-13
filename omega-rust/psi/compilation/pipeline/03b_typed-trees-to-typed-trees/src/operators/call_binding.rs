@@ -1,9 +1,4 @@
-//! Bind selected token machines and float shorthand to ordinary call edges.
-//!
-//! The shared selection pass also resolves float shorthand through
-//! `float_shorthand_calls`, using the same named-use facts. It must happen
-//! before validation so alias calls expose the requirement's signature and
-//! effects instead of leaking builtin symbols into execution planning.
+//! Bind selected token machines to ordinary call edges.
 //!
 //! The executable-supply contract in wiki/spec/language/expressions.md says an
 //! ordinary direct `machine + Name(...) { ... }` is supplied by its own checked
@@ -86,7 +81,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 use std::collections::HashSet;
 use validation::expression_type_reference_for_origin;
 
-/// Bind resolved token machines and float shorthand to calls, retaining
+/// Bind resolved token machines to calls, retaining
 /// canonical bodyless float comparisons on their selected-comparison route.
 pub(crate) fn bind_selected_operator_calls(
     program: &mut TypedTrees,
@@ -110,7 +105,6 @@ pub(crate) fn bind_selected_operator_calls(
     let values = validation::collect_executable_value_origins(program, roots);
     let mut facts = validation::build_operator_uses(program, &values);
     let named = validation::collect_named_requirement_uses(program, &values);
-    let shorthand_count = super::float_shorthand_calls::bind(program, &facts, &named)?;
     // A domain-homed binding (`machine + Quantity::Additive::add`) is a
     // `DomainPending` candidate until binding-site selection settles it. That
     // selection reads only static operand qualifications, mints, and
@@ -209,7 +203,7 @@ pub(crate) fn bind_selected_operator_calls(
         bindings.push((expression, target, origin));
     }
 
-    let mut bound_count = bindings.len() + shorthand_count;
+    let mut bound_count = bindings.len();
     // Generic requirement calls already have exact typed destinations before
     // their closed-use facts exist. Normalize their namespace at that point;
     // specializing first changes the diagnostic leaf but not the authored

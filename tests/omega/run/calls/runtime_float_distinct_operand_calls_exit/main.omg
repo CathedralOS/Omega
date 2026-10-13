@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 module numeric_distinct;
 use omega_language_std::console;
 use omega::language::core::binding;
@@ -21,7 +23,7 @@ crashes Trap
         _ -> bad(application)
     }
     state observe(application: &mut Main, value: i32) {
-        let observed: f64 = min(step(&mut application.counter, value), step(&mut application.counter, value));
+        let observed: f64 = min_f64(step(&mut application.counter, value), step(&mut application.counter, value));
         let converted: i32 in Saturating = I32::from_f64(observed);
         transition converted == 65 && application.counter.calls == 2u32 {
             true -> done(application)

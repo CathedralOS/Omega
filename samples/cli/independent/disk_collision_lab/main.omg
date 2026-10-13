@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // Expected exit: 2 (closed stdin).
 // Expected output contains: invalid input: one digit 0..9 and LF required
 use omega_language_std::console;
@@ -44,10 +46,10 @@ machine Main::main(main:&mut Main) reaches Console {
  state event(main:&mut Main) {
   let delay:f64=main.lab.delay;advance(&mut main.lab,delay);resolve(&mut main.lab);totals(&mut main.lab);
   contact_row(&mut main.console,&main.lab);totals_row(&mut main.console,&main.lab);
-  transition expected_contact(&main.lab,main.choice) && abs(main.lab.momentum_x-main.lab.initial_x) <= 0.000000001
-   && abs(main.lab.momentum_y-main.lab.initial_y) <= 0.000000001
-   && abs(main.lab.energy+main.lab.loss-main.lab.initial_energy) <= 0.000000001
-   && abs(main.lab.contact_error) <= 0.000000001 {
+  transition expected_contact(&main.lab,main.choice) && abs_f64(main.lab.momentum_x-main.lab.initial_x) <= 0.000000001
+   && abs_f64(main.lab.momentum_y-main.lab.initial_y) <= 0.000000001
+   && abs_f64(main.lab.energy+main.lab.loss-main.lab.initial_energy) <= 0.000000001
+   && abs_f64(main.lab.contact_error) <= 0.000000001 {
    true -> next(main) _ -> failed(main)
   }
  }

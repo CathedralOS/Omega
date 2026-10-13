@@ -730,62 +730,27 @@ impl<'program> Evaluator<'program> {
         })
     }
 
-    /// Two-operand pick for the `max`/`min` builtins. The caller's dispatch
-    /// pattern admits only `Max` and `Min`; `Max` picks the greater operand
-    /// and everything else the lesser.
-    pub(in crate::interpreter::evaluator) fn eval_min_max(
+    /// Admitted minimum/maximum preserves the selected operand's runtime bits.
+    /// IEEE equality and unordered comparisons select the right operand; host
+    /// min/max helpers have different NaN behavior and cannot implement this.
+    pub(in crate::interpreter::evaluator) fn eval_float_extremum(
         &self,
         builtin: BuiltinFunction,
         left: Value,
         right: Value,
-        unsigned: bool,
     ) -> EvalResult<Value> {
-        let pick_max = builtin == BuiltinFunction::Max;
-        if left.is_float() || right.is_float() {
-            let left_meaning = left
-                .float_meaning()
-                .ok_or_else(|| Halt::Trap("min/max float".to_owned()))?;
-            let right_meaning = right
-                .float_meaning()
-                .ok_or_else(|| Halt::Trap("min/max float".to_owned()))?;
-            // Match the native SSE semantics exactly: `maxsd a, b` returns b
-            // when the values are unordered (any NaN) or equal, and the larger
-            // otherwise -- i.e. `if a > b { a } else { b }` (partial `>` is
-            // false for NaN). `minsd` is the mirror. Rust's `f64::max`/`min`
-            // differ (they return the non-NaN operand), which would diverge
-            // from the backend on a NaN second operand.
-            let pick_left = if pick_max {
-                FloatSemantics::greater(&left_meaning, &right_meaning)
-            } else {
-                FloatSemantics::less(&left_meaning, &right_meaning)
-            };
-            // Preserve the selected runtime operand's honest NaN bits even
-            // though the base FloatMeaning contract erases their payload.
-            let selected = if pick_left { left } else { right };
-            return Ok(match selected {
-                Value::Int(value) => Value::Float(value as f64),
-                value => value,
-            });
-        }
-        let l = left
-            .as_int()
-            .ok_or_else(|| Halt::Trap("min/max int".to_owned()))?;
-        let r = right
-            .as_int()
-            .ok_or_else(|| Halt::Trap("min/max int".to_owned()))?;
-        // Compare as u64 when a u64-classed operand is present (the larger/smaller
-        // u64 bit pattern IS one of {l, r}, reinterpreted back to i64); signed
-        // otherwise. Without this `max`/`min` on an msb-set u64 picks the wrong
-        // operand (u64::MAX reads as -1 under signed compare).
-        let picked = if unsigned {
-            let (lu, ru) = (l as u64, r as u64);
-            (if pick_max { lu.max(ru) } else { lu.min(ru) }) as i64
-        } else if pick_max {
-            l.max(r)
-        } else {
-            l.min(r)
+        let left_meaning = left
+            .float_meaning()
+            .ok_or_else(|| Halt::Trap("floating extremum requires a float operand".to_owned()))?;
+        let right_meaning = right
+            .float_meaning()
+            .ok_or_else(|| Halt::Trap("floating extremum requires a float operand".to_owned()))?;
+        let pick_left = match builtin {
+            BuiltinFunction::FloatMaximum => FloatSemantics::greater(&left_meaning, &right_meaning),
+            BuiltinFunction::FloatMinimum => FloatSemantics::less(&left_meaning, &right_meaning),
+            _ => return unsupported("not an admitted floating extremum"),
         };
-        Ok(Value::Int(picked))
+        Ok(if pick_left { left } else { right })
     }
 
     fn values_equal(&self, left: &Value, right: &Value) -> EvalResult<bool> {

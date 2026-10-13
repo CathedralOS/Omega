@@ -108,18 +108,15 @@ pub fn named_expression_call_candidates<'program>(
         .collect()
 }
 
-/// Classify a qualifier of one already selected declaration without reselecting
-/// an operator by spelling. A value receiver, altered namespace, wrong arity or
+/// Classify a qualifier using the shared ambiguity-checked declaration selection.
+/// A value receiver, altered namespace, wrong arity or
 /// implicit self keeps its runtime observations. Nested boundary operators have
 /// no machine body to supply the ordinary machine receiver query.
 pub fn selected_named_expression_call_has_no_runtime_receiver(
     program: &TypedTrees,
     call: &crate::expression::TableCallExpression,
 ) -> bool {
-    if !call.target_symbol.is_valid() {
-        return false;
-    }
-    let Some(operator) = super::declaration_by_symbol(program, call.target_symbol) else {
+    let Some(operator) = resolve_named_expression_call(program, call) else {
         return false;
     };
     let parameters = program.operator_parameters(operator);

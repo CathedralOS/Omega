@@ -49,6 +49,13 @@ zero normalization, duplicate handling and symmetry diagnostics.
 
 From the repository root, with a compiler built from the same base:
 
+Current frontier: package review on `linux_x86_64` rejects
+`Main::main::select` with a transition-dispatch fall-through diagnostic, before
+native production. An isolated compiler build of `1f63ee648905` reproduces this
+refusal; migrating the numeric helpers to ordinary `std` calls does not remove
+it. The commands below remain the acceptance route, not a claim of current
+runtime acceptance.
+
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 OMEGA=/absolute/path/to/omega

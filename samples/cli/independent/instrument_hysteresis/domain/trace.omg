@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // Direction uses the last nonzero stimulus change. A plateau inherits it;
 // without a prior change direction remains ambiguous. At a reversal the new
 // branch applies immediately. The first row is always ambiguous.
@@ -79,11 +81,11 @@ machine residual_statistics(trace: &mut Trace, residual: i32 in Wrapping) {
     state forward(trace: &mut Trace, absolute: i32 in Wrapping) {
         trace.forward_count = trace.forward_count + 1;
         trace.forward_sum = trace.forward_sum + absolute;
-        trace.forward_max = max(trace.forward_max, absolute);
+        trace.forward_max = max_i32(trace.forward_max as i32, absolute as i32) as i32 in Wrapping;
     }
     state reverse(trace: &mut Trace, absolute: i32 in Wrapping) {
         trace.reverse_count = trace.reverse_count + 1;
         trace.reverse_sum = trace.reverse_sum + absolute;
-        trace.reverse_max = max(trace.reverse_max, absolute);
+        trace.reverse_max = max_i32(trace.reverse_max as i32, absolute as i32) as i32 in Wrapping;
     }
 }

@@ -495,9 +495,9 @@ fn compiler_builtin_execution(
                 _ => {}
             }
             let operation = match function {
-                symbols::BuiltinFunction::Min => Arithmetic::Minimum,
-                symbols::BuiltinFunction::Max => Arithmetic::Maximum,
-                symbols::BuiltinFunction::Sqrt => Arithmetic::SquareRoot,
+                symbols::BuiltinFunction::FloatMinimum => Arithmetic::Minimum,
+                symbols::BuiltinFunction::FloatMaximum => Arithmetic::Maximum,
+                symbols::BuiltinFunction::FloatSquareRoot => Arithmetic::SquareRoot,
                 symbols::BuiltinFunction::FloatIsNan => Arithmetic::IsNan,
                 symbols::BuiltinFunction::FloatIsInfinite => Arithmetic::IsInfinite,
                 symbols::BuiltinFunction::FloatIsFinite => Arithmetic::IsFinite,

@@ -267,17 +267,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         // retain a builtin in syntax and a boundary requirement
                         // in execution; neither an absent leaf nor that builtin
                         // withdraws the checked invocation or its live facts.
-                        let selected_target = validation::call_target_symbol_for_origin(
-                            program,
-                            expression,
-                            checked_trees::CheckedValueOrigin::StateStatement {
-                                machine_symbol: machine.symbol,
-                                state_symbol: state.symbol,
-                                statement_index,
-                                role: checked_trees::CheckedValueStatementRole::Expression,
-                            },
-                            source,
-                        );
+                        let selected_target = validation::call_target_symbol(program, source);
                         let target = validation::resolve_state_call_target(
                             program,
                             machine,

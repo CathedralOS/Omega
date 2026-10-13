@@ -1,4 +1,5 @@
 module spectrometer::regions;
+use omega_language_std::math;
 use spectrometer::model::Spectrum;
 use spectrometer::model::Regions;
 use omega::language::core::float_operations;
@@ -24,7 +25,7 @@ pub machine find_regions(spectrum: &Spectrum, regions: &mut Regions) -> bool {
         // All accepted values are integers. Multiplying by fifteen keeps
         // linear-baseline residuals exact, including an inclusive threshold.
         let offset: f64 = F64::from_i32(index as i32);
-        let weight: f64 = max(0.0, spectrum.samples[index] * 15.0 -
+        let weight: f64 = max_f64(0.0, spectrum.samples[index] * 15.0 -
             spectrum.baseline_start * (15.0 - offset) - spectrum.baseline_end * offset);
         transition weight >= spectrum.threshold * 15.0 {
             true -> retained(spectrum, regions, index, weight)

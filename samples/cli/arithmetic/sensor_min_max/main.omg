@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // Running min/max/range over a stream of float readings -- the everyday shape
 // of sensor telemetry (thermostat, ADC, gauge). It exercises the numeric
 // intrinsics that `vector_distance` does NOT drive directly: `min` and `max`
@@ -64,8 +66,8 @@ machine Main::main(main: &mut Main) reaches Console {
     // straight to floats (the minsd/maxsd path, not an abs/clamp desugar).
     state body(main: &mut Main) {
         main.cur = main.nums[main.i];
-        main.lo = min(main.lo, main.cur);
-        main.hi = max(main.hi, main.cur);
+        main.lo = min_f64(main.lo, main.cur);
+        main.hi = max_f64(main.hi, main.cur);
         transition {
             _ -> advance(main)
         }
@@ -91,7 +93,7 @@ machine Main::main(main: &mut Main) reaches Console {
         // range = hi - lo = 26 - 18 = 8.
         main.range = main.hi - main.lo;
         // A float clamp with float bounds: clamp(26, 0, 25) = 25 (clamps down).
-        main.banded = clamp(main.hi, 0.0, 25.0);
+        main.banded = clamp_f64(main.hi, 0.0, 25.0);
         // Sum both so the exit reflects the min/max fold AND the float clamp.
         main.total = main.range + main.banded;
         // A named saturating conversion truncates the float, then the policy erases.

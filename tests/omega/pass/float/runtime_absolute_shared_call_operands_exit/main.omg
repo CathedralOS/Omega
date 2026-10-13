@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // The std package route binds float operators to boundary calls. The shared
 // operand of absolute value must finish once across those call actuals.
 use omega::language::core::float_operations;
@@ -13,8 +15,8 @@ machine Main::main(main: &mut Main) reaches Console {
     main.counter.calls = 0u32;
     main.counter.voltage = -3.0;
     main.positive = 4.0;
-    let magnitude: f64 = abs(step(&mut main.counter) - 2.0);
-    let positive: f64 = abs(main.positive - 1.0);
+    let magnitude: f64 = abs_f64(step(&mut main.counter) - 2.0);
+    let positive: f64 = abs_f64(main.positive - 1.0);
     transition magnitude == 5.0 && positive == 3.0 && main.counter.calls == 1u32 {
         true -> pass(main)
         false -> fail(main)

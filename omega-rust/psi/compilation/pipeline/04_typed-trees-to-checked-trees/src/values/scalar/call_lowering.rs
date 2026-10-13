@@ -86,18 +86,8 @@ pub(crate) fn lower_call_arguments(
 ) -> Option<LoweredCallArguments> {
     let target_symbol = match call_site {
         validation::CallSite::Statement(call) => call.target_symbol,
-        validation::CallSite::Expression { expression, call } => {
-            validation::call_target_symbol_for_origin(
-                program,
-                *expression,
-                checked_trees::CheckedValueOrigin::StateStatement {
-                    machine_symbol: program.machine_holding_state(state.symbol)?.symbol,
-                    state_symbol: state.symbol,
-                    statement_index: statement_ordinal as usize,
-                    role: checked_trees::CheckedValueStatementRole::Expression,
-                },
-                call,
-            )
+        validation::CallSite::Expression { call, .. } => {
+            validation::call_target_symbol(program, call)
         }
         validation::CallSite::TransitionNamed { .. } => return None,
     };
@@ -258,23 +248,16 @@ pub(crate) fn lower_call_arguments(
     if arity != binders.len() || machine_arguments.len() != arity {
         return None;
     }
-    for (family_ordinal, (argument, binder)) in machine_arguments
-        .iter()
-        .zip(binders.iter())
-        .enumerate()
+    for (family_ordinal, (argument, binder)) in
+        machine_arguments.iter().zip(binders.iter()).enumerate()
     {
         let expected_type = program.primitive_type_reference(match binder.kind {
             typed_trees::data::TypeParameterKind::Const { type_reference }
             | typed_trees::data::TypeParameterKind::Value { type_reference } => type_reference,
             _ => return None,
         })?;
-        let expression = family_argument_expression(
-            program,
-            argument,
-            parameters,
-            locals,
-            expected_type,
-        )?;
+        let expression =
+            family_argument_expression(program, argument, parameters, locals, expected_type)?;
         output.push((
             typed_trees::expression::ExpressionHandle::default(),
             CheckedLocatedScalarExpression {
@@ -315,7 +298,9 @@ fn family_argument_expression(
             }),
         });
     }
-    if !validation::static_arguments::is_runtime_value_subject(program, argument) || !argument.symbol.is_valid() {
+    if !validation::static_arguments::is_runtime_value_subject(program, argument)
+        || !argument.symbol.is_valid()
+    {
         return None;
     }
     if let Some(position) = scalar_parameters

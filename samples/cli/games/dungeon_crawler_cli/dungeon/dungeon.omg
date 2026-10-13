@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 use enemies::enemies;
 use events::event_runtime;
 use events::events;
@@ -85,7 +87,7 @@ ensures line in Utf8
         dungeon: &mut Dungeon,
         line: &mut [u8; 128] in Utf8
     ) {
-        dungeon.player.health = min(dungeon.player.max_health, dungeon.player.health + 12);
+        dungeon.player.health = min_i32(dungeon.player.max_health as i32, (dungeon.player.health + 12) as i32) as i32 in Wrapping;
         dungeon.fountain_used = true;
         line = "The fountain heals your wounds.";
     }

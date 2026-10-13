@@ -79,13 +79,15 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                     }
                     continue;
                 }
-                // A legacy named operator (`F64::minimum(value, 2.5)`, or a
-                // bound `min`/`clamp` shorthand) is a requirement, not a
-                // stored state: its formals are the destination of each
+                // A named operator is a requirement, not a stored state.
+                // Use the same ambiguity-checked selection as call checking:
+                // contract calls need not carry an early target symbol, but
+                // their selected formals still supply the destination of each
                 // literal operand. A receiver-spelled call supplies the first
                 // formal through its receiver, exactly as its operand roster
                 // does.
-                let Some(operator) = program.operator_definition_by_symbol(call.target_symbol)
+                let Some(operator) =
+                    typed_trees::operator::resolve_named_expression_call(program, call)
                 else {
                     continue;
                 };

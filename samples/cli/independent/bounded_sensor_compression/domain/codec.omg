@@ -1,4 +1,5 @@
 module domain::codec;
+use omega_language_std::math;
 use domain::model::SensorBlock;
 use domain::model::SensorStream;
 use domain::model::InputBuffer;
@@ -11,7 +12,7 @@ requires value >= 0 && value <= 4095 && tolerance >= 0 && tolerance <= 7
 {
     let step: i32 = tolerance * 2 + 1;
     let rounded: i32 = ((value + tolerance) / step) * step;
-    min(rounded, 4095)
+    min_i32(rounded, 4095)
 }
 
 pub machine encode(records: &SensorBlock, stream: &mut SensorStream) -> bool {
@@ -168,13 +169,13 @@ pub machine certify(original: &SensorBlock, decoded: &SensorBlock) -> i32 {
         let first: i32 = original.values[index];
         let second: i32 = decoded.values[index];
         transition first >= 0 && first <= 4095 && second >= 0 && second <= 4095 {
-            true -> error(original, decoded, index, maximum, abs(first - second))
+            true -> error(original, decoded, index, maximum, abs_i32(first - second))
             _ -> invalid()
         }
     }
     state error(original: &SensorBlock, decoded: &SensorBlock, index: i32, maximum: i32, difference: i32) -> i32 {
         transition index >= 0 && index < 16 && difference <= original.tolerance {
-            true -> advance(original, decoded, index, max(maximum, difference))
+            true -> advance(original, decoded, index, max_i32(maximum, difference))
             _ -> invalid()
         }
     }

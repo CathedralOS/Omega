@@ -32,7 +32,6 @@ use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
-use symbols::BuiltinFunction;
 use typed_trees as typed;
 
 use resolved::expression::{ExpressionHandle, ExpressionNode};
@@ -66,31 +65,7 @@ pub(super) fn infer_hoist_temp_type(
         )));
     }
 
-    // A pure-builtin guard subject the syntax->symbol-resolved lowering hoisted
-    // (`let __hoist = min(self.a, self.b)`): the temp's type is its FIRST
-    // argument's type. min/max/sqrt all return their operand's type (abs desugars
-    // to `max(x, 0-x)`; clamp's outer call has a non-place first arg and is not
-    // hoisted). Resolve declared member chains through the same receiver type
-    // route for self, parameters, and locals. Explicit subjects must not become
-    // Unit merely because a computation was hoisted into a synthetic temporary.
-    let builtin_first_arg: Option<Option<ExpressionHandle>> = match expressions
-        .expression(initial_value)
-    {
-        ExpressionNode::Call(call)
-            if !call.receiver.is_valid()
-                && lowerer
-                    .source_trees
-                    .symbols
-                    .builtin_function_for_symbol(call.target_symbol)
-                    .is_some_and(BuiltinFunction::is_scalar_computation) =>
-        {
-            Some(
-                expressions
-                    .expression_handles(call.arguments)
-                    .first()
-                    .copied(),
-            )
-        }
+    match expressions.expression(initial_value) {
         // A `size_of<T>()`/`align_of<T>()` query hoisted out of a guard
         // comparison (`let __hoist = size_of<Row>()`): the compiler-owned
         // query has no callee signature to read a return type from, but its
@@ -252,17 +227,7 @@ pub(super) fn infer_hoist_temp_type(
             )?;
             return Ok(Some(declared_return));
         }
-        _ => None,
-    };
-    if let Some(first) = builtin_first_arg {
-        let Some(first) = first else {
-            return Ok(None);
-        };
-        let Some(place_type) = collection_type_reference(lowerer, attached_data, state, first)
-        else {
-            return Ok(None);
-        };
-        return Ok(Some(lower_type_reference_into_table(lowerer, &place_type)?));
+        _ => {}
     }
 
     // Scalar-place snapshots, fields and indexed elements follow the same

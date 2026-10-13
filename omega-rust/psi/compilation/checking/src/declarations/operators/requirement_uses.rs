@@ -7,7 +7,7 @@
 //! target's selected plan joins either spelling by requirement identity and
 //! the intrinsic execution bridge resolves both through one requirement view.
 
-use super::uses::{builtin_float_operator_selection, named_float_policy_adapter};
+use super::uses::named_float_policy_adapter;
 use arena::Arena;
 use checked_trees::{
     CheckedArithmeticPolicyAdapter, CheckedNamedRequirementUseFact, CheckedValueFacts,
@@ -98,15 +98,7 @@ fn named_requirement_use_fact(
     origin: CheckedValueOrigin,
     call: &TableCallExpression,
 ) -> Option<CheckedNamedRequirementUseFact> {
-    let requirement = directly_callable_requirement(program, call.target_symbol).or_else(|| {
-        // `min`/`max`/`sqrt` shorthand for a requirement-spelled
-        // `F32::minimum`-family slot retains the same use the direct call does.
-        let (selected, _) = builtin_float_operator_selection(program, expression, origin, call)?;
-        program.machines().iter().find(|machine| {
-            machine.symbol == selected
-                && machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-        })
-    })?;
+    let requirement = directly_callable_requirement(program, call.target_symbol)?;
     let entry = program.machine_states(requirement).first()?;
     let policy_adapter = match program.primitive_type_reference(entry.return_type) {
         Some(PrimitiveType::F32) => {

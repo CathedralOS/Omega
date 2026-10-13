@@ -671,6 +671,13 @@ impl<'program> StructuralJudge<'program> {
         }
         let left = left.into_semantic_value();
         let right = right.into_semantic_value();
+        if let Some((operand, truth)) = self
+            .boolean_equality_operand(&left, &right)
+            .or_else(|| self.boolean_equality_operand(&right, &left))
+        {
+            self.intake_equation(operand, truth, depth + 1);
+            return;
+        }
         match (&left, &right) {
             (
                 StructuralTerm::Constructor {
@@ -1576,13 +1583,27 @@ impl<'program> StructuralJudge<'program> {
                     )
                 })
             }
+            ExpressionNode::Unary(unary) => super::structural_terms::logical_not_term_in_scope(
+                program,
+                scope,
+                None,
+                expression,
+                self.callee_term(
+                    unary.operand,
+                    environment,
+                    machine_environment,
+                    scope,
+                    depth + 1,
+                )?,
+            ),
             ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
             ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
             ExpressionNode::ZeroValue(type_reference) => {
                 super::structural_terms::zero_value_structural_term(program, *type_reference)
             }
             ExpressionNode::Call(call) => {
-                if self.runtime_body_values
+                if (self.runtime_body_values
+                    && !normal_returns::call_has_mathematical_denotation(program, call))
                     || (call.receiver.is_valid()
                         && !super::structural_terms::static_call_receiver(program, call))
                     || !call.evidence_arguments.is_empty()

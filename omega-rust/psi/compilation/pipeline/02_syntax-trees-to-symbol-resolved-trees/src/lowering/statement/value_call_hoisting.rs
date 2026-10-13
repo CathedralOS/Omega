@@ -1,9 +1,7 @@
 //! Hoisting scalar value calls and terminal value machine calls.
 
 use crate::lowering::statement::hoist_temps::{hoist_into_temp, mint_hoist_temp};
-use crate::lowering::statement::indexed_read_hoisting::{
-    is_integer_embedding_call, spells_scalar_computation_builtin,
-};
+use crate::lowering::statement::indexed_read_hoisting::is_integer_embedding_call;
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
 use symbol_resolved_trees::expression::{
@@ -17,7 +15,7 @@ use syntax_trees::{self as syntax, SyntaxTrees};
 /// `self.next() == expected` becomes
 /// `let __hoist_N = self.next(); __hoist_N == expected`. Fires only when the
 /// guard ROOT is a comparison with one user Call side and one non-user-Call
-/// side (builtin min/max/sqrt calls keep their own dedicated hoist below). The
+/// side. The
 /// temp's type is resolved from the callee's DECLARED return by the
 /// symbol-resolved -> typed lowering
 /// (`infer_hoist_temp_type`); an inferred-return callee gets a clear
@@ -84,9 +82,7 @@ pub(crate) fn hoist_scalar_value_call_comparison(
     }
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let side_is_user_call = |handle: ExpressionHandle| match expressions.expression(handle) {
-        ExpressionNode::Call(call) => {
-            !is_integer_embedding_call(lowerer, call) && !spells_scalar_computation_builtin(call)
-        }
+        ExpressionNode::Call(call) => !is_integer_embedding_call(lowerer, call),
         _ => false,
     };
     let call_is_left = side_is_user_call(binary.left) && !side_is_user_call(binary.right);
@@ -170,7 +166,7 @@ pub(crate) fn hoist_scalar_value_call_comparison(
 }
 
 /// A free or direct-self value-machine call (`sin(x)` or `self.finish()`; not a
-/// pure builtin) as a transition's TERMINAL VALUE (or a state's trailing
+/// proof-only operation) as a transition's TERMINAL VALUE (or a state's trailing
 /// implicit return) has no dispatch return route: an acyclic callee poisons at the
 /// unlowered-terminal fence and a cyclic one refuses at the
 /// binding-substitution depth cap (neither ever lowered -- probed 2026-07-11,
@@ -192,7 +188,7 @@ pub(crate) fn hoist_terminal_value_machine_call(
     let Some(call) = expressions.call_node(expression) else {
         return expression;
     };
-    if is_integer_embedding_call(lowerer, call) || spells_scalar_computation_builtin(call) {
+    if is_integer_embedding_call(lowerer, call) {
         return expression;
     }
     if call.receiver.is_valid() {
@@ -333,7 +329,5 @@ pub(crate) fn is_scalar_return_computation(
     // Static arguments belong to ordinary checked specialization, not a
     // different expression schedule. Hoisting them here loses the scalar
     // constant probe before its complete application can be checked.
-    !call.receiver.is_valid()
-        && !is_integer_embedding_call(lowerer, call)
-        && !spells_scalar_computation_builtin(call)
+    !call.receiver.is_valid() && !is_integer_embedding_call(lowerer, call)
 }

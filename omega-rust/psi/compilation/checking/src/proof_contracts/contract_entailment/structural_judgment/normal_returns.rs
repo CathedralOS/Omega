@@ -1006,12 +1006,26 @@ impl NormalReturnPath<'_> {
 /// The shared proof-only classifier, rather than a carrier spelling or
 /// source position, establishes which calls have no runtime observation or
 /// caller-storage event. Runtime calls still require complete write frames.
-fn call_has_mathematical_denotation(
+pub(super) fn call_has_mathematical_denotation(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
-    matches!(selected_call_contract(program, call), Some(SelectedCallContract::Concrete(machine, _))
-        if crate::proof_only_classification(program).is_proof_machine(program, machine))
+    match selected_call_contract(program, call) {
+        Some(SelectedCallContract::Concrete(machine, _)) => {
+            crate::proof_only_classification(program).is_proof_machine(program, machine)
+        }
+        Some(SelectedCallContract::Operator(operator)) => {
+            // A sealed total proof-value operator has the same erased
+            // denotation as a computed proof machine. Retain its selected
+            // identity; an unresolved or ordinary runtime operator must still
+            // establish its write frame and capture its own result occurrence.
+            crate::proof_only_classification(program)
+                .proof_only_mention(program, operator.return_type)
+                .is_some()
+                && crate::machine_calls::denotational_calls::selected_operator_has_closed_value_denotation(program, operator)
+        }
+        _ => false,
+    }
 }
 
 fn program_expression_is_live(

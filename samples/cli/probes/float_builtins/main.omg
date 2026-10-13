@@ -1,14 +1,14 @@
-// Builtin float extrema and roots: `min`, `max`, `sqrt` are builtin
-// machines on `f32`/`f64` — no import. Explicit operands select
-// their format; anonymous literals land at the annotation's format.
+use omega_language_std::math;
+
+// Ordinary float extrema and roots imported from std math. Carrier-specific
+// declarations select f32 or f64, including for anonymous literal operands.
 //
 //   * `min`/`max`/`sqrt` on stored f32 and f64 fields.
 //   * `min(4.0, 9.0)` / `sqrt(4.0)` — anonymous operands selecting
 //     f32 at the annotation.
 //   * `hits` records the reached arm.
 //
-// Compile-checked only: no standard-library dependency, no ProcessExit
-// provider.
+// The state field records the reached arm; no ProcessExit provider is used.
 
 data Main {
     left32: f32;
@@ -24,11 +24,11 @@ machine Main::main(main: &mut Main) {
     main.right32 = 4.0f32;
     main.left64 = 9.0;
     main.right64 = 4.0;
-    let low32: f32 = min(main.left32, main.right32);
-    let high32: f32 = max(main.left32, main.right32);
-    let root32: f32 = sqrt(low32);
-    let root64: f64 = sqrt(min(main.left64, main.right64));
-    let anon: f32 = min(4.0, 9.0);
+    let low32: f32 = min_f32(main.left32, main.right32);
+    let high32: f32 = max_f32(main.left32, main.right32);
+    let root32: f32 = sqrt_f32(low32);
+    let root64: f64 = sqrt_f64(min_f64(main.left64, main.right64));
+    let anon: f32 = min_f32(4.0, 9.0);
     transition low32 == 4.0f32 && high32 == 9.0f32 && root32 == 2.0f32
         && root64 == 2.0 && anon == 4.0f32 {
         true -> pass(main)

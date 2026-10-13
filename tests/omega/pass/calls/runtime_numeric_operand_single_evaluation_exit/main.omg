@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 data Counter { calls: u32 in Wrapping; }
 
 machine step(counter: &mut Counter) -> i32 [-2..=-2] {
@@ -7,7 +9,7 @@ machine step(counter: &mut Counter) -> i32 [-2..=-2] {
 
 machine main() crashes Trap {
     let mut counter: Counter = Counter { calls: 0u32 };
-    let observed: i32 = abs(step(&mut counter) + 1i32);
+    let observed: i32 = abs_i32(step(&mut counter) + 1i32);
     let calls: u32 in Wrapping = counter.calls;
     transition observed == 1i32 && calls == 1u32 {
         true -> done()

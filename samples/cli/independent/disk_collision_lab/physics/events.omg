@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // Recompute all pair candidates after each impulse. Scan lexicographically;
 // strict replacement preserves pair order for equal times. Tangencies record
 // zero impulse once; their subsequent radial speed is zero and is skipped.
@@ -17,7 +19,7 @@ pub machine contact(a:Disk,b:Disk)->f64 {
   let time:f64=(0.0-radial-F64::square_root(discriminant))/speed;
   transition time >= -0.000000001 {true -> found(time) _ -> absent()}
  }
- state found(time:f64)->f64 {max(0.0,time)}
+ state found(time:f64)->f64 {max_f64(0.0,time)}
  state absent()->f64 {100.0}
 }
 pub machine select_event(lab:&mut Lab) {

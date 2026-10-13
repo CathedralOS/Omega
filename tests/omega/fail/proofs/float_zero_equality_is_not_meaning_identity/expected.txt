@@ -1,0 +1,1 @@
+machine `zero_does_not_fix_sign` ensures contract proof fact

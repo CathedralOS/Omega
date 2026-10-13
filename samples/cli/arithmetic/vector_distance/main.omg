@@ -1,14 +1,15 @@
-// Euclidean magnitude with the `sqrt` intrinsic over floats: for a classic
+// Euclidean magnitude with ordinary standard-library math: for a classic
 // 3-4-5 right triangle, |(3, 4)| = sqrt(3*3 + 4*4) = sqrt(25) = 5. The legs
 // come from `abs` (distance is direction-agnostic, so a negative delta gives
 // the same length), and the result is pinned into a display band with
-// `clamp` -- so the sample exercises all three numeric intrinsics AND float
-// min/max (abs/clamp desugar to them) together in one realistic computation.
+// `clamp` -- so the sample composes imported numeric helpers with ordinary
+// floating arithmetic and a named conversion in one realistic computation.
 // Exits with the magnitude as its code.
 // Expected exit: 5.
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega_language_std::math;
 use omega::language::core::binding;
 
 data Main {
@@ -29,18 +30,18 @@ machine Main::main(main: &mut Main) reaches Console {
     // Direction-agnostic legs: |dx|, |dy| (a negative delta has the same length).
     main.dx = 0.0 - 3.0;
     main.dy = 4.0;
-    main.ax = abs(main.dx);
-    main.ay = abs(main.dy);
+    main.ax = abs_f64(main.dx);
+    main.ay = abs_f64(main.dy);
 
     // Magnitude = sqrt(ax*ax + ay*ay) = sqrt(9 + 16) = sqrt(25) = 5.
-    main.mag = sqrt(main.ax * main.ax + main.ay * main.ay);
+    main.mag = sqrt_f64(main.ax * main.ax + main.ay * main.ay);
     // A named saturating conversion truncates the float, then the policy erases.
     let converted: i32 in Saturating = I32::from_f64(main.mag);
     main.magi = converted as i32;
 
     // A clamped display value (the magnitude pinned to a [0, 255] band, as a
     // colour or coordinate would be): clamp(5, 0, 255) = 5.
-    main.shown = clamp(main.magi, 0, 255);
+    main.shown = clamp_i32(main.magi, 0, 255);
 
     main.console.write_line("result: the magnitude, 5 for a 3-4-5 triangle (the exit code)");
     main.console.write_line("[press Enter to close]");

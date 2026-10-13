@@ -123,16 +123,7 @@ pub(super) fn value_class(
         {
             return Some(ValueClass::of_primitive(primitive));
         }
-        // Anonymous numeric literals need no chosen width to establish that a
-        // resolved scalar computation produces a numeric value.
-        if typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
-            return None;
-        }
-        return program
-            .symbols
-            .builtin_function_for_symbol(call.target_symbol)
-            .filter(|function| function.is_scalar_computation())
-            .map(|_| ValueClass::Numeric);
+        return None;
     }
     // A place RHS (`self.field`, a local) needs the machine/state to resolve its
     // declared type. Without a machine context (e.g. a data field DEFAULT, which is

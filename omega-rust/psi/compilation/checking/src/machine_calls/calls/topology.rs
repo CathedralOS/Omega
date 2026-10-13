@@ -322,23 +322,6 @@ pub fn call_target_symbol(
         .map_or(call.target_symbol, |operator| operator.symbol)
 }
 
-/// Resolve the executable requirement selected by a value call at its exact
-/// source origin. Floating min/max/sqrt are catalog applications, not integer
-/// value primitives: their builtin identity selects a visible F32/F64 boundary
-/// requirement. Borrow inventory, call ordinals and execution must retain that
-/// same requirement rather than dropping the call because the builtin symbol
-/// itself owns no machine body. Authored lookalikes never enter this selection.
-/// Provider choice and numeric policy adaptation remain separate checked facts.
-pub fn call_target_symbol_for_origin(
-    program: &dyn crate::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-    origin: checked_trees::CheckedValueOrigin,
-    call: &typed_trees::expression::TableCallExpression,
-) -> SymbolHandle {
-    crate::builtin_float_operator_selection(program, expression, origin, call)
-        .map_or_else(|| call_target_symbol(program, call), |(target, _)| target)
-}
-
 /// The complete structural roster behind a generated portable interface.
 /// Consumers apply their own body/contract eligibility after this exact join;
 /// external members belong to the roster just as checked bodies do. This is

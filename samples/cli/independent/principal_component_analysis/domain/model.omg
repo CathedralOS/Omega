@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
 pub data Analysis {
@@ -49,7 +51,7 @@ pub machine analyze(a: &mut Analysis) {
   transition a.covariance[(column * 5) % 16] > 0.0 { true -> nonconstant(a, column) false -> constant(a) }
  }
  state nonconstant(a: &mut Analysis, column: u64 in Wrapping) {
-  a.scales[column % 4] = sqrt(a.covariance[(column * 5) % 16]);
+  a.scales[column % 4] = sqrt_f64(a.covariance[(column * 5) % 16]);
   transition { _ -> scale_column(a, column + 1) }
  }
  state unit_scale(a: &mut Analysis, column: u64 in Wrapping) { a.scales[column % 4] = 1.0; transition { _ -> scale_column(a, column + 1) } }
@@ -84,11 +86,11 @@ pub machine analyze(a: &mut Analysis) {
   let difference: f64 = (a.work[(right * 5) % 16] - a.work[(left * 5) % 16]) / 2.0;
   let norm: f64 = maximum(absolute(difference), absolute(cross));
   let d: f64 = difference / norm; let b: f64 = cross / norm;
-  let length: f64 = sqrt(d * d + b * b);
+  let length: f64 = sqrt_f64(d * d + b * b);
   transition d >= 0.0 { true -> tangent(a, iteration, left, right, b / (d + length)) false -> tangent(a, iteration, left, right, b / (d - length)) }
  }
  state tangent(a: &mut Analysis, iteration: u64 in Wrapping, left: u64 in Wrapping, right: u64 in Wrapping, tangent: f64) {
-  let cosine: f64 = 1.0 / sqrt(1.0 + tangent * tangent); let sine: f64 = tangent * cosine;
+  let cosine: f64 = 1.0 / sqrt_f64(1.0 + tangent * tangent); let sine: f64 = tangent * cosine;
   let cross: f64 = a.work[(left * 4 + right) % 16];
   a.work[(left * 5) % 16] = a.work[(left * 5) % 16] - tangent * cross;
   a.work[(right * 5) % 16] = a.work[(right * 5) % 16] + tangent * cross;

@@ -73,12 +73,7 @@ impl StructuralJudge<'_> {
             return None;
         }
         let program = self.program;
-        let key = (
-            self.machine_symbol,
-            *target,
-            *result_type,
-            arguments.len(),
-        );
+        let key = (self.machine_symbol, *target, *result_type, arguments.len());
         let memos = crate::frozen_program::frozen_program_memos(program);
         if let Some(memos) = memos
             && let Ok(carriers) = memos.selected_application_carriers.lock()
@@ -681,6 +676,22 @@ pub(super) fn bound_term(
                 )
             })
         }
+        ExpressionNode::Unary(unary) => super::super::structural_terms::logical_not_term_in_scope(
+            program,
+            None,
+            Some((scope, parameters)),
+            expression,
+            bound_term(
+                program,
+                unary.operand,
+                scope,
+                parameters,
+                callable,
+                bindings,
+                result,
+                depth + 1,
+            )?,
+        ),
         ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {
             super::super::structural_terms::structural_term(program, None, None, expression, None)
         }

@@ -1,10 +1,12 @@
+use omega_language_std::math;
+
 use omega::language::core::float_operations;
 data Measurements { reading:f64; initial:f64; }
 data Probe { lab:Measurements; choice:i32; observed:i32; }
 machine observe(lab:&mut Measurements) {lab.reading=lab.reading+0.0;}
 machine accepted(lab:&Measurements,choice:i32)->bool {
  transition choice {0 -> test(lab) _ -> rejected()}
- state test(lab:&Measurements)->bool {abs(lab.reading-1.0) <= 0.000000001}
+ state test(lab:&Measurements)->bool {abs_f64(lab.reading-1.0) <= 0.000000001}
  state rejected()->bool {false}
 }
 machine Probe::main(probe:&mut Probe) {
@@ -12,7 +14,7 @@ machine Probe::main(probe:&mut Probe) {
  transition { _ -> check(probe) }
  state check(probe:&mut Probe) {
   observe(&mut probe.lab);
-  transition accepted(&probe.lab,probe.choice) && abs(probe.lab.reading-probe.lab.initial) <= 0.000000001 {
+  transition accepted(&probe.lab,probe.choice) && abs_f64(probe.lab.reading-probe.lab.initial) <= 0.000000001 {
    true -> passed(probe) _ -> failed(probe)
   }
  }

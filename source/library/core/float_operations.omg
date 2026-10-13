@@ -45,6 +45,21 @@ pub data FloatClass [copy] {
 machine Float::meaning32(value: f32) -> FloatMeaning;
 machine Float::meaning64(value: f64) -> FloatMeaning;
 
+// Public proof views are ordinary machines. The sealed projections remain
+// private and keep their exact artifact contract; clients receive their
+// meaning through these checked library result guarantees.
+pub machine F32::meaning(value: f32) -> FloatMeaning
+ensures result == Float::meaning32(value)
+{
+    Float::meaning32(value)
+}
+
+pub machine F64::meaning(value: f64) -> FloatMeaning
+ensures result == Float::meaning64(value)
+{
+    Float::meaning64(value)
+}
+
 // The executable, representation-free semantic definitions. These are exact
 // compiler primitives from the closed float-semantics catalog: bare bodyless
 // machine signatures supplied because this sealed toolchain source declares

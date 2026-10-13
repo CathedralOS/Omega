@@ -10,6 +10,47 @@ use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
 
+/// Boolean negation is the builtin equality of its Boolean operand to false.
+/// Keep that typed value relationship so captured false guards survive both
+/// declaration substitution and runtime observation. An opaque source string
+/// cannot carry this relationship, and no numerical complement law is implied.
+pub(crate) fn logical_not_term_in_scope(
+    program: &dyn crate::CheckingInput,
+    scope: Option<(&Machine, &State, TypeReferenceHandle)>,
+    frame: Option<(SymbolHandle, &[StateParameter])>,
+    expression: ExpressionHandle,
+    operand: StructuralTerm,
+) -> Option<StructuralTerm> {
+    let ExpressionNode::Unary(unary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if unary.operator != typed_trees::expression::UnaryOperator::LogicalNot {
+        return None;
+    }
+    let reference = if let Some((owner, parameters)) = frame {
+        crate::parameter_expression_result_type_reference(program, owner, parameters, unary.operand)
+    } else {
+        let (machine, state, _) = scope?;
+        crate::expression_result_type_reference(program, machine, state, unary.operand)
+    }?;
+    if program.primitive_type_reference(reference) != Some(typed_trees::types::PrimitiveType::Bool)
+    {
+        return None;
+    }
+    let meaning = super::scalar_operand_meaning(program, reference, &operand)?;
+    Some(StructuralTerm::ScalarBinary {
+        references: [reference; 2],
+        operator: BinaryOperator::Equal,
+        meaning: [meaning; 2],
+        left: Box::new(operand),
+        right: Box::new(StructuralTerm::Constructor {
+            data: "bool".to_owned(),
+            case: "false".to_owned(),
+            fields: Vec::new(),
+        }),
+    })
+}
+
 /// Forms the congruence term for the selected binary operation, with an
 /// optional declaring `(machine, state)` fallback plus the expression's
 /// expected (landed) result type. Pure literal operands carry no `Name`, so

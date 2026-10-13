@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 use combat::combat_round;
 use events::events;
 use player::player;
@@ -20,8 +22,8 @@ machine CombatSystem::fight(
     random: &mut RandomState,
     round: &mut CombatRound
 ) {
-    round.player_damage = max(0, player.attack - event.enemy.defense + ((Random::range(&mut combat_system.rng, random, 3) as i32) as i32 in Wrapping));
-    event.enemy.health = max(0, event.enemy.health - round.player_damage);
+    round.player_damage = max_i32(0, (player.attack - event.enemy.defense + ((Random::range(&mut combat_system.rng, random, 3) as i32) as i32 in Wrapping)) as i32) as i32 in Wrapping;
+    event.enemy.health = max_i32(0, (event.enemy.health - round.player_damage) as i32) as i32 in Wrapping;
     round.enemy_defeated = event.enemy.health == 0;
 
     transition round.enemy_defeated {
@@ -55,7 +57,7 @@ machine CombatSystem::fight(
         random: &mut RandomState,
         round: &mut CombatRound
     ) {
-        round.enemy_damage = max(0, event.enemy.attack - player.defense + ((Random::range(&mut combat_system.rng, random, 3) as i32) as i32 in Wrapping));
+        round.enemy_damage = max_i32(0, (event.enemy.attack - player.defense + ((Random::range(&mut combat_system.rng, random, 3) as i32) as i32 in Wrapping)) as i32) as i32 in Wrapping;
         PlayerSystem::take_damage(player, round.enemy_damage);
         round.player_defeated = player.health == 0;
     }

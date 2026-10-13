@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // RUN CANARY (exit 77, differential) -- CR4a: a width-SUFFIXED literal is
 // BORN LANDED (ch5 two-phase law: the type is chosen at the spelling), so
 // the landing rides into anonymous positions exactly like a CR3-stamped
@@ -13,7 +15,7 @@ data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) reaches Console {
     let z: u64 in Wrapping = 0;
     let big: u64 in Wrapping = z - 1u64;
-    let m: u64 in Wrapping = max(big, 5) + 0;
+    let m: u64 in Wrapping = (max_u64(big as u64, 5) as u64 in Wrapping) + 0;
     transition m == big {
         true -> good(main)
         false -> bad(main)

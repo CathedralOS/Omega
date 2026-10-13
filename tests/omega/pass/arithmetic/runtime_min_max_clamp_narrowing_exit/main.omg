@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // RUN canary (decision 17 S4 narrowing): min/max clamp narrowing lets a clamped
 // value feed EXACT arithmetic. `main.seed` is a full-range i32 (opaque). `max(_, 0)`
 // lower-bounds it at 0, `min(_, 60)` upper-bounds it at 60, so `bounded` is in
@@ -18,8 +20,8 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let lo: i32 = max(main.seed, 0);   // [0, i32::MAX]   (max lower-bounds)
-    let bounded: i32 = min(lo, 60);    // [0, 60]         (min upper-bounds)
+    let lo: i32 = max_i32(main.seed, 0);   // [0, i32::MAX]   (max lower-bounds)
+    let bounded: i32 = min_i32(lo, 60);    // [0, 60]         (min upper-bounds)
     let s: i32 = bounded + 70;         // [70, 130] in i32 -> EXACT only because bounded
 
     transition s == 70 {

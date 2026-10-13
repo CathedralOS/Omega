@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // A visual binary search: each step prints one row of a 31-cell strip, so the search's
 // history builds downward as a scrolling trace. A row shows the active `[lo, hi]` range
 // as '-', the goal cell as '*', and the current midpoint probe as '#'. Watching the rows,
@@ -65,7 +67,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         // The min/max clamps are the identity for the search's real values
         // (lo in [0,31], hi in [-1,30] whenever this state runs) while giving
         // the fold provable bounds, so the midpoint math is Exact -- no domain.
-        main.mid = (min(max(main.lo, 0), 31) + min(max(main.hi, 0 - 1), 30)) / 2;
+        main.mid = (min_i32(max_i32(main.lo, 0), 31) + min_i32(max_i32(main.hi, 0 - 1), 30)) / 2;
         transition main.mid >= 0 && main.mid < 31 { true -> render_init(main) _ -> bad(main) }
     }
 
@@ -122,11 +124,11 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     // The clamp on `mid` is the identity (mid is always in [0,30] here) and
     // bounds the +1 / -1 folds, keeping the narrowing steps Exact.
     state go_right(main: &mut Main) {
-        main.lo = min(max(main.mid, 0), 30) + 1;
+        main.lo = min_i32(max_i32(main.mid, 0), 30) + 1;
         transition { _ -> search(main) }
     }
     state go_left(main: &mut Main) {
-        main.hi = min(max(main.mid, 0), 30) - 1;
+        main.hi = min_i32(max_i32(main.mid, 0), 30) - 1;
         transition { _ -> search(main) }
     }
 

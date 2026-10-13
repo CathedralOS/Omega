@@ -15,7 +15,7 @@ use checked_trees::{
 use language_core::operator_spelling::OperatorSpelling;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::float_semantics::FloatFormat;
-use symbols::{BuiltinFunction, SymbolHandle};
+use symbols::SymbolHandle;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableIndexedExpression,
 };
@@ -304,9 +304,7 @@ fn collect_expression_operator_use(
             );
         }
         ExpressionNode::Call(call) => {
-            if let Some(named_use) = named_operator_use_fact(program, expression, origin, call)
-                .or_else(|| builtin_float_operator_use_fact(program, expression, origin, call))
-            {
+            if let Some(named_use) = named_operator_use_fact(program, expression, origin, call) {
                 named_uses.append(named_use);
             }
             collect_expression_operator_use(
@@ -389,159 +387,6 @@ fn collect_expression_operator_use(
         }
         typed_trees::literal_expression_pattern!() => {}
     }
-}
-
-/// `min`, `max`, and `sqrt` are the source shorthand for the corresponding
-/// primitive-format boundary requirements. Retain that semantic identity in
-/// Psi exactly as an explicitly named call would. Omega can then attach and
-/// execute the selected ProviderPlan without reconstructing one during
-/// lowering. This also covers compiler-synthesized calls from `abs` and
-/// `clamp`, whose acknowledgement records their generated origin.
-fn builtin_float_operator_use_fact(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    origin: CheckedValueOrigin,
-    call: &TableCallExpression,
-) -> Option<CheckedNamedOperatorUseFact> {
-    let (selected_operator_symbol, format) =
-        builtin_float_operator_selection(program, expression, origin, call)?;
-    // The shorthand resolved to a top-level `boundary requirement`; that
-    // species retains its own named requirement use.
-    typed_trees::operator::declaration_by_symbol(program, selected_operator_symbol)?;
-
-    Some(CheckedNamedOperatorUseFact {
-        expression,
-        origin,
-        selected_operator_symbol,
-        policy_adapter: named_float_policy_adapter(program, call, origin, format),
-    })
-}
-
-/// The requirement one `min`/`max`/`sqrt` shorthand selects: the visible
-/// tokenless `F32::`/`F64::` boundary operator of that name, or, when core
-/// spells it as a top-level `boundary requirement`, that requirement machine.
-/// Both are the same slot; the returned symbol tells the species apart.
-pub fn builtin_float_operator_selection(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    origin: CheckedValueOrigin,
-    call: &TableCallExpression,
-) -> Option<(SymbolHandle, FloatFormat)> {
-    let (_, requirement, arity) = [
-        (BuiltinFunction::Min, "minimum", 2),
-        (BuiltinFunction::Max, "maximum", 2),
-        (BuiltinFunction::Sqrt, "square_root", 1),
-    ]
-    .into_iter()
-    .find(|(function, _, _)| {
-        program.symbols.builtin_function_symbol(*function) == Some(call.target_symbol)
-    })?;
-    let arguments = program.expression_table.expression_handles(call.arguments);
-    if arguments.len() != arity {
-        return None;
-    }
-
-    let mut format = None;
-    for argument in arguments {
-        let Some(type_reference) = expression_type_reference_for_origin(program, *argument, origin)
-        else {
-            continue;
-        };
-        let candidate = match program.primitive_type_reference(type_reference) {
-            Some(PrimitiveType::F32) => FloatFormat::BINARY32,
-            Some(PrimitiveType::F64) => FloatFormat::BINARY64,
-            _ => continue,
-        };
-        if format.is_some_and(|format| format != candidate) {
-            return None;
-        }
-        format = Some(candidate);
-    }
-    // An explicit catalog call can select its format from the destination;
-    // anonymous arithmetic operands cannot. Query the call, not each literal.
-    let format = format.or_else(|| {
-        expression_type_reference_for_origin(program, expression, origin)
-            .and_then(|reference| program.primitive_type_reference(reference))
-            .and_then(|primitive| match primitive {
-                PrimitiveType::F32 => Some(FloatFormat::BINARY32),
-                PrimitiveType::F64 => Some(FloatFormat::BINARY64),
-                _ => None,
-            })
-    })?;
-    let (namespace, primitive) = if format == FloatFormat::BINARY32 {
-        ("F32", PrimitiveType::F32)
-    } else if format == FloatFormat::BINARY64 {
-        ("F64", PrimitiveType::F64)
-    } else {
-        return None;
-    };
-    let reference_span = origin_machine_symbol(origin)
-        .and_then(|machine| program.symbols.symbol_source_span(machine))
-        .unwrap_or_else(|| program.expression_table.source_span(expression));
-    let matching = program
-        .operators()
-        .iter()
-        .filter(|operator| {
-            operator.is_boundary
-                && operator.spelling.is_none()
-                && operator.lifetime_parameters.is_empty()
-                && program.operator_type_parameters(operator).is_empty()
-                && program
-                    .symbols
-                    .source_reference_can_see_symbol(reference_span, operator.symbol)
-        })
-        .filter(|operator| {
-            let path = program.operator_path_members(operator.name);
-            matches!(path, [candidate_namespace, candidate_requirement]
-                if candidate_namespace.as_str() == namespace
-                    && candidate_requirement.as_str() == requirement)
-        })
-        .filter(|operator| {
-            let parameters = program.operator_parameters(operator);
-            parameters.len() == arity
-                && parameters.iter().all(|parameter| {
-                    program.primitive_type_reference(parameter.type_reference) == Some(primitive)
-                })
-                && program.primitive_type_reference(operator.return_type) == Some(primitive)
-        })
-        .collect::<Vec<_>>();
-    match matching.as_slice() {
-        [operator] => return Some((operator.symbol, format)),
-        [] => {}
-        _ => return None,
-    }
-    let path = format!("{namespace}::{requirement}");
-    let matching = program
-        .machines()
-        .iter()
-        .filter(|machine| {
-            machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && machine.is_public
-                && !machine.body_is_present
-                && machine.lifetime_parameters.is_empty()
-                && program.machine_type_parameters(machine).is_empty()
-                && machine.name.as_str() == path
-                && program
-                    .symbols
-                    .source_reference_can_see_symbol(reference_span, machine.symbol)
-        })
-        .filter(|machine| {
-            matches!(program.machine_states(machine), [entry]
-            if {
-                let parameters = program.state_parameters(entry);
-                parameters.len() == arity
-                    && parameters.iter().all(|parameter| {
-                        program.primitive_type_reference(parameter.type_reference)
-                                == Some(primitive)
-                    })
-                    && program.primitive_type_reference(entry.return_type) == Some(primitive)
-            })
-        })
-        .collect::<Vec<_>>();
-    let [machine] = matching.as_slice() else {
-        return None;
-    };
-    Some((machine.symbol, format))
 }
 
 /// Retain the selected identity of one unambiguously resolved named operator

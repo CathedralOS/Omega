@@ -157,8 +157,8 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.index = application.index + 1; transition { _ -> report(application) }
     }
     state totals(application: &mut Application) {
-        field(&mut application.reader, "residual_norm=", sqrt(application.residual_norm));
-        field(&mut application.reader, "roughness=", sqrt(application.roughness));
+        field(&mut application.reader, "residual_norm=", sqrt_f64(application.residual_norm));
+        field(&mut application.reader, "roughness=", sqrt_f64(application.roughness));
         field(&mut application.reader, "objective=", application.residual_norm + application.regularization * application.roughness);
         application.reader.console.exit_process(0);
     }

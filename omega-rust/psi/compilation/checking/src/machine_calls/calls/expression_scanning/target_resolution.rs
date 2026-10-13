@@ -155,9 +155,7 @@ pub(super) fn report_unresolved_value_call(
         if program
             .symbols
             .builtin_function_for_symbol(call.target_symbol)
-            .is_some_and(|builtin| {
-                builtin.is_scalar_computation() || builtin.is_value_position_asm_intrinsic()
-            })
+            .is_some_and(|builtin| builtin.is_value_position_asm_intrinsic())
             || language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(target)
                 .is_some()
             || language_core::inline_assembly::AsmSystemRegister::from_read_intrinsic_name(target)

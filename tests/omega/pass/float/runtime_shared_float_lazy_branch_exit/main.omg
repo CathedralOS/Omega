@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // Runtime predicates leave both effectful operands unselected.
 use omega_language_std::console;
 use omega::language::core::binding;
@@ -10,8 +12,8 @@ machine Main::main(main:&mut Main) reaches Console {
  transition byte {ByteRead::Byte{value} -> lazy(main,value) _ -> fail(main)}
  state lazy(main:&mut Main,value:i32) {
   main.values.value=F64::from_i32(value)-49.0;
-  let left:bool=main.values.value < 0.0 && abs(tick(&mut main.values)) > 0.0;
-  let right:bool=main.values.value >= 0.0 || abs(tick(&mut main.values)) > 0.0;
+  let left:bool=main.values.value < 0.0 && abs_f64(tick(&mut main.values)) > 0.0;
+  let right:bool=main.values.value >= 0.0 || abs_f64(tick(&mut main.values)) > 0.0;
   transition !left && right && main.values.value == 0.0 {true -> good(main) _ -> fail(main)}
  }
  state good(main:&mut Main) {main.console.exit_process(70);}

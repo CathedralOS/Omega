@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // Maximum of a slice by tail recursion over a shrinking window. find_max walks
 // the slice, carrying the largest value seen so far; for [3, 7, 2, 9, 4] the answer
 // is 9. Showcases three things: the `max` builtin, slice iteration via the
@@ -10,7 +12,7 @@ use omega_language_std::console;
 
 machine find_max(s: &[i32], current: i32) -> i32 {
     transition s.len > 0 {
-        true -> find_max(s[1..], max(current, s[0]))
+        true -> find_max(s[1..], max_i32(current, s[0]))
         false -> (current)
     }
 }

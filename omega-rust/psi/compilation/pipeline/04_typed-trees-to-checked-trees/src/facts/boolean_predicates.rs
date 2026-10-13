@@ -77,8 +77,7 @@ pub(crate) fn entry_scalar(
     primitive: PrimitiveType,
 ) -> Option<Scalar> {
     let owner = program.machine_by_symbol(machine)?;
-    let entry_position =
-        validation::activation_target_state_index(program, owner, machine)?;
+    let entry_position = validation::activation_target_state_index(program, owner, machine)?;
     let entry = program.machine_states(owner).get(entry_position)?;
     let parameters = program.state_parameters(entry);
     if !path.is_empty() {
@@ -115,8 +114,7 @@ pub(crate) fn bind_entry(
     expression: Boolean,
 ) -> Option<BoundPredicate> {
     let owner = program.machine_by_symbol(machine)?;
-    let entry =
-        validation::activation_target_state_index(program, owner, machine)?;
+    let entry = validation::activation_target_state_index(program, owner, machine)?;
     let state = program.machine_states(owner).get(entry)?;
     bind_parameters(
         program,
@@ -847,16 +845,26 @@ pub(crate) fn map_scalar(
 pub(crate) fn proves(
     predicates: &[BoundPredicate],
     required: &BoundPredicate,
-    mut ordinary: impl FnMut(&CanonicalPlace) -> Option<ScalarValue>,
+    ordinary: impl FnMut(&CanonicalPlace) -> Option<ScalarValue>,
 ) -> bool {
+    truth(predicates, required, ordinary) == Some(true)
+}
+
+/// Recover either truth from the same current-observation closure. Unknown
+/// remains absent; a failed positive judgment never supplies a false premise.
+pub(crate) fn truth(
+    predicates: &[BoundPredicate],
+    required: &BoundPredicate,
+    mut ordinary: impl FnMut(&CanonicalPlace) -> Option<ScalarValue>,
+) -> Option<bool> {
     let mut all = predicates.to_vec();
     all.push(required.clone());
     let Some((mut expressions, observations)) = normalize(&all) else {
-        return false;
+        return None;
     };
     let normalized_required = expressions.pop().expect("required formula");
     let Some(truths) = formula_closure(&expressions, &observations, &mut ordinary) else {
-        return false;
+        return None;
     };
     fn known(expression: &Boolean, truths: &[(Boolean, bool)]) -> Option<bool> {
         if let Some((_, value)) = truths.iter().find(|(known, _)| known == expression) {
@@ -887,6 +895,5 @@ pub(crate) fn proves(
             _ => None,
         }
     }
-    known(&normalized_required, &truths) == Some(true)
-        || evaluate(required, &mut ordinary) == Some(true)
+    known(&normalized_required, &truths).or_else(|| evaluate(required, &mut ordinary))
 }

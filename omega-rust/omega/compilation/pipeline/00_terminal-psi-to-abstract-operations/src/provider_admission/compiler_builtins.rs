@@ -467,9 +467,9 @@ fn compiler_intrinsic_execution_identity(
                         Relation::GreaterOrEqual => Primitive::GreaterOrEqual,
                     })
                 }
-                Arithmetic::Minimum => builtin(symbols::BuiltinFunction::Min),
-                Arithmetic::Maximum => builtin(symbols::BuiltinFunction::Max),
-                Arithmetic::SquareRoot => builtin(symbols::BuiltinFunction::Sqrt),
+                Arithmetic::Minimum => builtin(symbols::BuiltinFunction::FloatMinimum),
+                Arithmetic::Maximum => builtin(symbols::BuiltinFunction::FloatMaximum),
+                Arithmetic::SquareRoot => builtin(symbols::BuiltinFunction::FloatSquareRoot),
                 Arithmetic::IsNan => builtin(symbols::BuiltinFunction::FloatIsNan),
                 Arithmetic::IsInfinite => builtin(symbols::BuiltinFunction::FloatIsInfinite),
                 Arithmetic::IsFinite => builtin(symbols::BuiltinFunction::FloatIsFinite),

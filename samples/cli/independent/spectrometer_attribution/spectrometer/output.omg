@@ -1,4 +1,5 @@
 module spectrometer::output;
+use omega_language_std::math;
 use spectrometer::model::Spectrometer;
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
@@ -111,7 +112,7 @@ invokes Console;
     }
     state candidate(application: &mut Spectrometer, index: i32 in Wrapping,
                     reference: i32 in Wrapping) {
-        let distance: f64 = abs(application.regions.centroids[index] - application.spectrum.lines[reference]);
+        let distance: f64 = abs_f64(application.regions.centroids[index] - application.spectrum.lines[reference]);
         transition distance <= application.spectrum.tolerance {
             true -> emit_id(application, index, reference)
             false -> identifiers(application, index, reference + 1)

@@ -21,7 +21,6 @@ use crate::proof_contracts::arithmetic_domains::{
     ArithmeticDomain, ExpressionHandle, Interval, TableCallExpression, call_return_type,
     range_constraint_interval,
 };
-use symbols::BuiltinFunction;
 
 pub(super) fn analyze(
     walk: &ExpressionWalk,
@@ -31,24 +30,22 @@ pub(super) fn analyze(
     // The shared expression walk has checked receiver and argument formation,
     // including calls whose result folds before reaching this result query.
     // Speculative interval queries below must not repeat those diagnostics.
-    let analysis = named_operator_result(walk, call)
-        .or_else(|| bounding_builtin_result(walk, call))
-        .unwrap_or_else(|| {
-            [
-                selected_const_call_result(walk, expression),
-                declared_return_range(walk, call),
-                inferred_return_range(walk, call),
-                returned_referent_range(walk, expression, call),
-            ]
-            .into_iter()
-            .flatten()
-            .reduce(|accepted, additional| Analysis {
-                recipe: accepted.recipe.or(additional.recipe),
-                interval: accepted.interval.intersect(additional.interval),
-                ..accepted
-            })
-            .unwrap_or(NEUTRAL)
-        });
+    let analysis = named_operator_result(walk, call).unwrap_or_else(|| {
+        [
+            selected_const_call_result(walk, expression),
+            declared_return_range(walk, call),
+            inferred_return_range(walk, call),
+            returned_referent_range(walk, expression, call),
+        ]
+        .into_iter()
+        .flatten()
+        .reduce(|accepted, additional| Analysis {
+            recipe: accepted.recipe.or(additional.recipe),
+            interval: accepted.interval.intersect(additional.interval),
+            ..accepted
+        })
+        .unwrap_or(NEUTRAL)
+    });
     let mut analysis = with_result_carrier(walk, expression, analysis);
     if call.layout_query.is_some() {
         analysis.recipe = Some(checked_trees::IntegerRangeRecipe::observation(
@@ -276,56 +273,6 @@ fn selected_const_call_result(
         }
         .intersect(carrier),
         primitive: Some(primitive),
-    })
-}
-
-/// S4: the `min`/`max` builtins bound their result by their operands' intervals
-/// (`max(0, x)` is >= 0, `min(x, 100)` is <= 100), so a clamped value can feed
-/// exact arithmetic instead of poisoning the enclosing op. Reserved-builtin
-/// identity + a free (receiverless) call + exactly two arguments. A same-named
-/// authored machine contributes its own checked result, not an operand bound.
-/// The caller checks all arguments before result inference. This query requires
-/// clean operand analyses before using their intervals, without duplicating
-/// the diagnostics already emitted by that common argument walk.
-fn bounding_builtin_result(walk: &ExpressionWalk, call: &TableCallExpression) -> Option<Analysis> {
-    let builtin = walk
-        .program
-        .symbols
-        .builtin_function_for_symbol(call.target_symbol);
-    if call.receiver.is_valid()
-        || !matches!(builtin, Some(BuiltinFunction::Min | BuiltinFunction::Max))
-    {
-        return None;
-    }
-    let [left, right] = walk
-        .program
-        .expression_table
-        .expression_handles(call.arguments)
-    else {
-        return None;
-    };
-    let mut throwaway = Vec::new();
-    let mut cast_queries = super::ArithmeticDecisions::default();
-    let left = walk.analyze(*left, &mut throwaway, &mut cast_queries);
-    let right = walk.analyze(*right, &mut throwaway, &mut cast_queries);
-    if !throwaway.is_empty() {
-        return None;
-    }
-    let interval = if builtin == Some(BuiltinFunction::Max) {
-        left.interval.max_with(right.interval)
-    } else {
-        left.interval.min_with(right.interval)
-    };
-    let domain = match (left.domain, right.domain) {
-        (Some(left_domain), Some(right_domain)) if left_domain == right_domain => Some(left_domain),
-        (Some(domain), None) | (None, Some(domain)) => Some(domain),
-        _ => None,
-    };
-    Some(Analysis {
-        recipe: None,
-        domain,
-        interval,
-        primitive: left.primitive.or(right.primitive),
     })
 }
 

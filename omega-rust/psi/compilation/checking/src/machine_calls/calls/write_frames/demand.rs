@@ -1112,6 +1112,12 @@ pub(super) fn collect_expression_call_written_paths(
             for argument in program.expression_table.expression_handles(call.arguments) {
                 visit(*argument)?;
             }
+            // Named operators may acquire their exact identity after initial
+            // symbol resolution. Reuse ordinary call selection before asking
+            // the signature owner for its write ceiling; a namespace is not
+            // mutable caller storage, and an unresolved call stays opaque.
+            let target_symbol = typed_trees::operator::resolve_named_expression_call(program, call)
+                .map_or(call.target_symbol, |operator| operator.symbol);
             let receiver_members = if call.receiver.is_valid() {
                 receiver_member_chain(program, call.receiver)
             } else {
@@ -1195,7 +1201,7 @@ pub(super) fn collect_expression_call_written_paths(
             let argument_types = super::call_targets::call_argument_types(
                 program,
                 current_machine,
-                call.target_symbol,
+                target_symbol,
                 call.target.as_str(),
                 &receiver_members,
                 CallerWriteSite::Expression(expression),
@@ -1228,7 +1234,7 @@ pub(super) fn collect_expression_call_written_paths(
             };
             let paths = known_call_written_paths_for_parts(
                 program,
-                call.target_symbol,
+                target_symbol,
                 call.target.as_str(),
                 &receiver_members,
                 &receiver_origins,

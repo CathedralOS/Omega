@@ -1,4 +1,5 @@
 module spectrometer::matching;
+use omega_language_std::math;
 use spectrometer::model::Spectrum;
 use spectrometer::model::Regions;
 use omega::language::core::float_operations;
@@ -28,7 +29,7 @@ pub machine match_regions(spectrum: &Spectrum, regions: &mut Regions) {
     }
     state distance(spectrum: &Spectrum, regions: &mut Regions, index: i32 in Wrapping,
                    reference: i32 in Wrapping, best: f64) {
-        let difference: f64 = abs(regions.centroids[index] - spectrum.lines[reference]);
+        let difference: f64 = abs_f64(regions.centroids[index] - spectrum.lines[reference]);
         transition difference <= spectrum.tolerance {
             true -> candidate(spectrum, regions, index, reference, best, difference)
             false -> line(spectrum, regions, index, reference + 1, best)

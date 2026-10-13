@@ -19,7 +19,7 @@ pub use receiver::expression_type_reference_for_origin;
 pub use requirement_uses::{collect_named_requirement_uses, token_bound_machine_call_target};
 pub use selection::select_pending_domain_operator_meanings;
 pub use uses::{
-    build_operator_uses, builtin_float_operator_selection, checked_operator_candidate,
+    build_operator_uses, checked_operator_candidate,
     collect_pre_specialization_operator_selections, indexed_operand_types,
 };
 

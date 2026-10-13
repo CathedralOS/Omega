@@ -8,7 +8,7 @@
 
 use checked_trees::CheckedValueOrigin;
 use numerics::literals::FloatFormat;
-use symbols::{BuiltinFunction, SymbolHandle};
+use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -105,39 +105,6 @@ fn expression_type_reference_in_state(
             .or_else(|| {
                 typed_trees::operator::resolve_named_expression_call(program, call)
                     .map(|operator| operator.return_type)
-            })
-            .or_else(|| {
-                [
-                    BuiltinFunction::Min,
-                    BuiltinFunction::Max,
-                    BuiltinFunction::Sqrt,
-                ]
-                .into_iter()
-                .any(|function| {
-                    program.symbols.builtin_function_symbol(function) == Some(call.target_symbol)
-                })
-                .then(|| {
-                    program
-                        .expression_table
-                        .expression_handles(call.arguments)
-                        .iter()
-                        .find_map(|argument| {
-                            expression_type_reference_in_state(
-                                program,
-                                state_symbol,
-                                statement_index,
-                                *argument,
-                            )
-                        })
-                        .or_else(|| {
-                            contextual_type_reference_in_state(
-                                program,
-                                state_symbol,
-                                statement_index,
-                            )
-                        })
-                })
-                .flatten()
             }),
         ExpressionNode::Binary(binary) => {
             let operands = [
@@ -219,29 +186,6 @@ fn expression_type_reference_in_state(
 
 /// Explicit catalog calls may select a format from their destination. That
 /// context does not type anonymous operands of an ordinary arithmetic tree.
-fn contextual_type_reference_in_state(
-    program: &dyn crate::CheckingInput,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-) -> Option<TypeReferenceHandle> {
-    let state = program.state_by_symbol(state_symbol)?;
-    match program
-        .statement_table
-        .statement_at(state, statement_index)?
-    {
-        typed_trees::statement::StatementNode::Assignment(assignment) => {
-            expression_type_reference_in_state(
-                program,
-                state_symbol,
-                statement_index,
-                assignment.target,
-            )
-        }
-        typed_trees::statement::StatementNode::LocalData(local) => Some(local.type_reference),
-        _ => None,
-    }
-}
-
 fn float_type_reference(
     program: &dyn crate::CheckingInput,
     format: FloatFormat,

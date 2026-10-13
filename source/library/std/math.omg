@@ -1,13 +1,391 @@
-// std math: sin/cos as PURE OMEGA (numeric-intrinsics remainder,
-// 2026-07-11). No ISA carries a usable sin instruction, so instead of a
-// per-target encoder arm the implementations are ordinary f64 machines --
-// both engines then execute the IDENTICAL IEEE op sequence, so native and
-// interpreter agree bit-for-bit by construction (the property the task
-// named "a polynomial matching interp precision"). Exercised natively by
-// tests/omega/pass/calls/runtime_std_math_sin_cos_exit.
+// Standard-library numeric helpers with explicit carrier names.
+//
+// Fixed integers retain Exact arithmetic and ordinary bounds contracts. Floats
+// retain their selected core meaning, including operand-order-dependent NaNs,
+// signed zeros and nearest-even square root; these names have no compiler role.
 
 use omega::language::core::float_operations;
-//
+
+// Fixed-width integer helpers use Exact arithmetic. Signed absolute value
+// excludes the unrepresentable minimum; clamp rejects inverted bounds. The
+// piecewise guarantees and bounds are ordinary facts available to callers.
+
+pub machine min_i8(left: i8, right: i8) -> i8
+ensures result <= left && result <= right &&
+    ((left < right && result == left) || (left >= right && result == right))
+{
+    transition { left < right -> (left) _ -> (right) }
+}
+
+pub machine max_i8(left: i8, right: i8) -> i8
+ensures result >= left && result >= right &&
+    ((left > right && result == left) || (left <= right && result == right))
+{
+    transition { left > right -> (left) _ -> (right) }
+}
+
+pub machine clamp_i8(value: i8, lower: i8, upper: i8) -> i8
+requires lower <= upper
+ensures result >= lower && result <= upper &&
+    ((value < lower && result == lower) ||
+     (value > upper && result == upper) ||
+     (value >= lower && value <= upper && result == value))
+{
+    transition {
+        value < lower -> (lower)
+        value > upper -> (upper)
+        _ -> (value)
+    }
+}
+
+pub machine abs_i8(value: i8) -> i8
+requires value > -128
+ensures result >= 0 &&
+    ((value < 0 && result == 0 - value) || (value >= 0 && result == value))
+{
+    transition { value < 0 -> (0 - value) _ -> (value) }
+}
+
+pub machine min_i16(left: i16, right: i16) -> i16
+ensures result <= left && result <= right &&
+    ((left < right && result == left) || (left >= right && result == right))
+{
+    transition { left < right -> (left) _ -> (right) }
+}
+
+pub machine max_i16(left: i16, right: i16) -> i16
+ensures result >= left && result >= right &&
+    ((left > right && result == left) || (left <= right && result == right))
+{
+    transition { left > right -> (left) _ -> (right) }
+}
+
+pub machine clamp_i16(value: i16, lower: i16, upper: i16) -> i16
+requires lower <= upper
+ensures result >= lower && result <= upper &&
+    ((value < lower && result == lower) ||
+     (value > upper && result == upper) ||
+     (value >= lower && value <= upper && result == value))
+{
+    transition {
+        value < lower -> (lower)
+        value > upper -> (upper)
+        _ -> (value)
+    }
+}
+
+pub machine abs_i16(value: i16) -> i16
+requires value > -32768
+ensures result >= 0 &&
+    ((value < 0 && result == 0 - value) || (value >= 0 && result == value))
+{
+    transition { value < 0 -> (0 - value) _ -> (value) }
+}
+
+pub machine min_i32(left: i32, right: i32) -> i32
+ensures result <= left && result <= right &&
+    ((left < right && result == left) || (left >= right && result == right))
+{
+    transition { left < right -> (left) _ -> (right) }
+}
+
+pub machine max_i32(left: i32, right: i32) -> i32
+ensures result >= left && result >= right &&
+    ((left > right && result == left) || (left <= right && result == right))
+{
+    transition { left > right -> (left) _ -> (right) }
+}
+
+pub machine clamp_i32(value: i32, lower: i32, upper: i32) -> i32
+requires lower <= upper
+ensures result >= lower && result <= upper &&
+    ((value < lower && result == lower) ||
+     (value > upper && result == upper) ||
+     (value >= lower && value <= upper && result == value))
+{
+    transition {
+        value < lower -> (lower)
+        value > upper -> (upper)
+        _ -> (value)
+    }
+}
+
+pub machine abs_i32(value: i32) -> i32
+requires value > -2147483648
+ensures result >= 0 &&
+    ((value < 0 && result == 0 - value) || (value >= 0 && result == value))
+{
+    transition { value < 0 -> (0 - value) _ -> (value) }
+}
+
+pub machine min_i64(left: i64, right: i64) -> i64
+ensures result <= left && result <= right &&
+    ((left < right && result == left) || (left >= right && result == right))
+{
+    transition { left < right -> (left) _ -> (right) }
+}
+
+pub machine max_i64(left: i64, right: i64) -> i64
+ensures result >= left && result >= right &&
+    ((left > right && result == left) || (left <= right && result == right))
+{
+    transition { left > right -> (left) _ -> (right) }
+}
+
+pub machine clamp_i64(value: i64, lower: i64, upper: i64) -> i64
+requires lower <= upper
+ensures result >= lower && result <= upper &&
+    ((value < lower && result == lower) ||
+     (value > upper && result == upper) ||
+     (value >= lower && value <= upper && result == value))
+{
+    transition {
+        value < lower -> (lower)
+        value > upper -> (upper)
+        _ -> (value)
+    }
+}
+
+pub machine abs_i64(value: i64) -> i64
+requires value > -9223372036854775808
+ensures result >= 0 &&
+    ((value < 0 && result == 0 - value) || (value >= 0 && result == value))
+{
+    transition { value < 0 -> (0 - value) _ -> (value) }
+}
+
+pub machine min_u8(left: u8, right: u8) -> u8
+ensures result <= left && result <= right &&
+    ((left < right && result == left) || (left >= right && result == right))
+{
+    transition { left < right -> (left) _ -> (right) }
+}
+
+pub machine max_u8(left: u8, right: u8) -> u8
+ensures result >= left && result >= right &&
+    ((left > right && result == left) || (left <= right && result == right))
+{
+    transition { left > right -> (left) _ -> (right) }
+}
+
+pub machine clamp_u8(value: u8, lower: u8, upper: u8) -> u8
+requires lower <= upper
+ensures result >= lower && result <= upper &&
+    ((value < lower && result == lower) ||
+     (value > upper && result == upper) ||
+     (value >= lower && value <= upper && result == value))
+{
+    transition {
+        value < lower -> (lower)
+        value > upper -> (upper)
+        _ -> (value)
+    }
+}
+
+pub machine abs_u8(value: u8) -> u8
+ensures result == value
+{
+    value
+}
+
+pub machine min_u16(left: u16, right: u16) -> u16
+ensures result <= left && result <= right &&
+    ((left < right && result == left) || (left >= right && result == right))
+{
+    transition { left < right -> (left) _ -> (right) }
+}
+
+pub machine max_u16(left: u16, right: u16) -> u16
+ensures result >= left && result >= right &&
+    ((left > right && result == left) || (left <= right && result == right))
+{
+    transition { left > right -> (left) _ -> (right) }
+}
+
+pub machine clamp_u16(value: u16, lower: u16, upper: u16) -> u16
+requires lower <= upper
+ensures result >= lower && result <= upper &&
+    ((value < lower && result == lower) ||
+     (value > upper && result == upper) ||
+     (value >= lower && value <= upper && result == value))
+{
+    transition {
+        value < lower -> (lower)
+        value > upper -> (upper)
+        _ -> (value)
+    }
+}
+
+pub machine abs_u16(value: u16) -> u16
+ensures result == value
+{
+    value
+}
+
+pub machine min_u32(left: u32, right: u32) -> u32
+ensures result <= left && result <= right &&
+    ((left < right && result == left) || (left >= right && result == right))
+{
+    transition { left < right -> (left) _ -> (right) }
+}
+
+pub machine max_u32(left: u32, right: u32) -> u32
+ensures result >= left && result >= right &&
+    ((left > right && result == left) || (left <= right && result == right))
+{
+    transition { left > right -> (left) _ -> (right) }
+}
+
+pub machine clamp_u32(value: u32, lower: u32, upper: u32) -> u32
+requires lower <= upper
+ensures result >= lower && result <= upper &&
+    ((value < lower && result == lower) ||
+     (value > upper && result == upper) ||
+     (value >= lower && value <= upper && result == value))
+{
+    transition {
+        value < lower -> (lower)
+        value > upper -> (upper)
+        _ -> (value)
+    }
+}
+
+pub machine abs_u32(value: u32) -> u32
+ensures result == value
+{
+    value
+}
+
+pub machine min_u64(left: u64, right: u64) -> u64
+ensures result <= left && result <= right &&
+    ((left < right && result == left) || (left >= right && result == right))
+{
+    transition { left < right -> (left) _ -> (right) }
+}
+
+pub machine max_u64(left: u64, right: u64) -> u64
+ensures result >= left && result >= right &&
+    ((left > right && result == left) || (left <= right && result == right))
+{
+    transition { left > right -> (left) _ -> (right) }
+}
+
+pub machine clamp_u64(value: u64, lower: u64, upper: u64) -> u64
+requires lower <= upper
+ensures result >= lower && result <= upper &&
+    ((value < lower && result == lower) ||
+     (value > upper && result == upper) ||
+     (value >= lower && value <= upper && result == value))
+{
+    transition {
+        value < lower -> (lower)
+        value > upper -> (upper)
+        _ -> (value)
+    }
+}
+
+pub machine abs_u64(value: u64) -> u64
+ensures result == value
+{
+    value
+}
+
+// Float min/max retain the selected core meanings: the second operand wins
+// equality and unordered comparison. Clamp composes those operations, so a
+// NaN value selects lower, while unordered bounds fail its precondition.
+
+pub machine min_f32(left: f32, right: f32) -> f32
+ensures F32::meaning(result) == FloatSemantics::minimum(
+    F32::meaning(left), F32::meaning(right))
+{
+    F32::minimum(left, right)
+}
+
+pub machine max_f32(left: f32, right: f32) -> f32
+ensures F32::meaning(result) == FloatSemantics::maximum(
+    F32::meaning(left), F32::meaning(right))
+{
+    F32::maximum(left, right)
+}
+
+pub machine clamp_f32(value: f32, lower: f32, upper: f32) -> f32
+requires lower <= upper
+ensures F32::meaning(result) == FloatSemantics::minimum(
+    FloatSemantics::maximum(F32::meaning(value), F32::meaning(lower)),
+    F32::meaning(upper))
+{
+    F32::minimum(F32::maximum(value, lower), upper)
+}
+
+pub machine sqrt_f32(value: f32) -> f32
+ensures F32::meaning(result) == FloatSemantics::square_root(
+    FloatFormat::BINARY32, F32::meaning(value))
+{
+    F32::square_root(value)
+}
+
+pub machine abs_f32(value: f32) -> f32
+ensures
+    (value == 0.0 && F32::meaning(result) == F32::meaning(0.0)) ||
+    (value < 0.0 && F32::meaning(result) == FloatSemantics::negate(FloatFormat::BINARY32, F32::meaning(value))) ||
+    (value != 0.0 && !(value < 0.0) && F32::meaning(result) == F32::meaning(value))
+{
+    transition {
+        value == 0.0 -> (0.0)
+        value < 0.0 -> (F32::negate(value))
+        _ -> (value)
+    }
+}
+
+pub machine min_f64(left: f64, right: f64) -> f64
+ensures F64::meaning(result) == FloatSemantics::minimum(
+    F64::meaning(left), F64::meaning(right))
+{
+    F64::minimum(left, right)
+}
+
+pub machine max_f64(left: f64, right: f64) -> f64
+ensures F64::meaning(result) == FloatSemantics::maximum(
+    F64::meaning(left), F64::meaning(right))
+{
+    F64::maximum(left, right)
+}
+
+pub machine clamp_f64(value: f64, lower: f64, upper: f64) -> f64
+requires lower <= upper
+ensures F64::meaning(result) == FloatSemantics::minimum(
+    FloatSemantics::maximum(F64::meaning(value), F64::meaning(lower)),
+    F64::meaning(upper))
+{
+    F64::minimum(F64::maximum(value, lower), upper)
+}
+
+// Quiet binary64 square root: nearest-even in binary64, preserving signed
+// zero and positive infinity; negative inputs and NaNs produce NaN. The
+// selected ordinary boundary operator owns this meaning on every target.
+pub machine sqrt_f64(value: f64) -> f64
+ensures F64::meaning(result) == FloatSemantics::square_root(
+    FloatFormat::BINARY64, F64::meaning(value))
+{
+    F64::square_root(value)
+}
+
+// Both zeros become positive zero. Negative nonzero values are negated;
+// positive values and NaNs are returned unchanged, retaining NaN payloads.
+pub machine abs_f64(value: f64) -> f64
+ensures
+    (value == 0.0 && F64::meaning(result) == F64::meaning(0.0)) ||
+    (value < 0.0 && F64::meaning(result) == FloatSemantics::negate(FloatFormat::BINARY64, F64::meaning(value))) ||
+    (value != 0.0 && !(value < 0.0) && F64::meaning(result) == F64::meaning(value))
+{
+    transition {
+        value == 0.0 -> (0.0)
+        value < 0.0 -> (F64::negate(value))
+        _ -> (value)
+    }
+}
+
+// Sine/cosine use the same ordinary IEEE operation sequence on both engines.
 // Shape: a binary-ladder range reduction into [-pi, pi] (conditional
 // subtraction of 2pi * 2^k -- pure compares and subtracts, no
 // float-to-int cast, which is still owner-gated), a quadrant fold into

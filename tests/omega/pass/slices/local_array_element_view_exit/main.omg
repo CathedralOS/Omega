@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // A static machine lends its own local fixed arrays through element views.
 // `&values[..]` establishes a shared `&[i32]` descriptor over the local
 // array's home, `&values` presents the same backing directly as a call
@@ -9,7 +11,7 @@ use omega_language_std::console;
 
 machine largest(values: &[i32], current: i32) -> i32 {
     transition values.len > 0 {
-        true -> largest(values[1..], max(current, values[0]))
+        true -> largest(values[1..], max_i32(current, values[0]))
         false -> (current)
     }
 }

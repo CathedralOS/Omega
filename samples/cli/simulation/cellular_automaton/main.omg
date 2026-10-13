@@ -1,3 +1,5 @@
+use omega_language_std::math;
+
 // An elementary cellular automaton (Wolfram Rule 90) rendered as a scrolling space-time
 // diagram -- each generation is one printed row, so the history builds downward. From a
 // single live cell in the centre, Rule 90 (next = left XOR right) draws the SIERPINSKI
@@ -131,7 +133,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         // while giving both operands a provable bound; the `% 8` then keeps the
         // fold inside [0,7] --
         // (w*2 + c) % 8 == ((w << 1) | c) & 7 for w in [0,7], c in {0,1}.
-        main.window = (min(max(main.window, 0), 7) * 2 + min(max(main.cell, 0), 1)) % 8;
+        main.window = (min_i32(max_i32(main.window, 0), 7) * 2 + min_i32(max_i32(main.cell, 0), 1)) % 8;
         transition { _ -> scan_write(main) }
     }
     state scan_write(main: &mut Main) {
@@ -140,7 +142,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     state scan_do(main: &mut Main) {
         // The clamp is the identity on the [0,7] window and proves the shift
         // count below 32.
-        main.nv = (90i32 >> min(max(main.window, 0), 7)) & 1; // Rule 90: next = left XOR right
+        main.nv = (90i32 >> min_i32(max_i32(main.window, 0), 7)) & 1; // Rule 90: next = left XOR right
         main.next[main.op] = main.nv;
         transition { _ -> scan_advance(main) }
     }

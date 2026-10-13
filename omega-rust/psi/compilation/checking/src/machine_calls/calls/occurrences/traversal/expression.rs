@@ -67,17 +67,7 @@ pub(super) fn find_call_site_in_expression<'program>(
         ExpressionNode::Call(call) => {
             let (receiver_symbol, receiver_path) =
                 call_receiver_parts(traversal.program, call.receiver);
-            let selected_target = crate::call_target_symbol_for_origin(
-                traversal.program,
-                expression,
-                checked_trees::CheckedValueOrigin::StateStatement {
-                    machine_symbol: traversal.machine.symbol,
-                    state_symbol: traversal.state.symbol,
-                    statement_index: traversal.statement_index,
-                    role: checked_trees::CheckedValueStatementRole::Expression,
-                },
-                call,
-            );
+            let selected_target = crate::call_target_symbol(traversal.program, call);
             let is_machine_call = resolve_state_call_target(
                 traversal.program,
                 traversal.machine,

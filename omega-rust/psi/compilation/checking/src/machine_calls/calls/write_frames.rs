@@ -172,8 +172,7 @@ fn known_call_written_paths_for_parts(
         // The resolved requirement, not its namespace spelling or selected
         // provider, owns the caller-storage ceiling. Use the same ownership
         // projection as signature-only machines.
-        if !operator.is_boundary
-            || !operator.lifetime_parameters.is_empty()
+        if !operator.lifetime_parameters.is_empty()
             || !program.operator_type_parameters(operator).is_empty()
         {
             return None;
