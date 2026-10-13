@@ -104,6 +104,85 @@ pub(super) fn validate_symbolic_array_length(
     diagnostics: &mut Vec<Diagnostic>,
     owner: TypeReferenceOwner<'_>,
 ) {
+    if let FixedArrayLength::Expression(value) = length {
+        let TypeReferenceNode::ConstExpression(root) =
+            program.type_reference_table.type_reference(*value)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} has an unclosed array extent without its expression recipe"
+            )));
+            return;
+        };
+        let parameters = type_parameter_scope
+            .type_parameters
+            .iter()
+            .filter_map(|parameter| {
+                let type_reference = match parameter.kind {
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference } => type_reference,
+                    _ => return None,
+                };
+                Some(typed_trees::signature::StateParameter {
+                    symbol: parameter.symbol,
+                    name: parameter.name.clone(),
+                    type_reference,
+                    is_const: matches!(parameter.kind, TypeParameterKind::Const { .. }),
+                    ..Default::default()
+                })
+            })
+            .collect::<Vec<_>>();
+        let prior = program
+            .data_definition_by_symbol(type_parameter_scope.lexical_owner)
+            .map(|definition| {
+                program
+                    .proof_facts
+                    .span_or_empty(definition.where_facts)
+                    .iter()
+                    .filter_map(typed_trees::domain::ProofFact::as_expression)
+                    .copied()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        crate::proof_contracts::contract_entailment::specification_calls::validate_declaration_expression_formation(
+            program, type_parameter_scope.lexical_owner, &parameters, *root, &prior, &owner.to_string(), diagnostics,
+        );
+        let natural = crate::parameter_expression_result_type_reference(
+            program,
+            type_parameter_scope.lexical_owner,
+            &[],
+            *root,
+        )
+        .and_then(|result| program.primitive_type_reference(result));
+        let integer = natural.is_some_and(|primitive| primitive.accepts_integer_literal());
+        let anonymous = crate::has_anonymous_numeric_results(program, *root)
+            && crate::evaluate_anonymous_numeric_expression(program, *root, &[], |expression| {
+                match program.expression_table.expression(expression) {
+                    typed_trees::expression::ExpressionNode::Binary(binary) => {
+                        typed_trees::operator::binary_operator_spelling(binary.operator).is_none_or(
+                            |spelling| {
+                                typed_trees::operator::has_builtin_spelled_expression_meaning(
+                                    program,
+                                    type_parameter_scope.lexical_owner,
+                                    expression,
+                                    spelling,
+                                    &[None, None],
+                                )
+                            },
+                        )
+                    }
+                    typed_trees::expression::ExpressionNode::Unary(_) => true,
+                    _ => false,
+                }
+            })
+            .and_then(|value| value.to_integer_exact())
+            .and_then(|value| value.to_u64())
+            .is_some();
+        if !integer && !anonymous {
+            diagnostics.push(Diagnostic::error(format!("{owner} array extent expression requires a well-typed integer result or exact nonnegative anonymous integer"))
+                .with_source_span(program.expression_table.source_span(*root)));
+        }
+        return;
+    }
     let FixedArrayLength::ConstParameter { symbol, name } = length else {
         return;
     };

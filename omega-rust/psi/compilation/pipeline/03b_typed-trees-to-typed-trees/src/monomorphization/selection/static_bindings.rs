@@ -305,7 +305,8 @@ pub(crate) fn infer_fixed_array_length_binding(
                         && *candidate_name == name.as_str())
             })
             .map(|(handle, _, _)| handle),
-        typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
+        typed_trees::types::FixedArrayLength::Expression(_)
+        | typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
     };
     if let Some(binding) = binding {
         const_proposals.push((candidate_index, parameter_index, binding));

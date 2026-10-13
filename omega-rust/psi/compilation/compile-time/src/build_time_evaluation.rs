@@ -198,9 +198,26 @@ pub fn evaluate_pre_resolution(
     )?;
     let mut syntax_trees = crate::syntax_probes::normalize_generic_data(
         syntax_trees,
-        sources,
+        sources.clone(),
         source_scoped_top_level_bindings,
         retained_base,
+    )?;
+    // Generic field extents become owned constant uses only after their exact
+    // instance tuple has been copied. Close them through the same expression
+    // and invocation admission used by ordinary static arguments.
+    syntax_trees = const_generic_expressions::evaluate(
+        syntax_trees,
+        sources.clone(),
+        source_scoped_top_level_bindings,
+        selection_authority.as_deref(),
+    )?;
+    syntax_trees = const_generic_calls::evaluate_const_generic_calls(
+        syntax_trees,
+        BuildTimeSources {
+            sources: sources.clone(),
+            source_scoped_top_level_bindings,
+            selection_authority: selection_authority.clone(),
+        },
     )?;
     let plan_laid_records = plan_laid::desugar_plan_laid_value_types(&mut syntax_trees)?;
     Ok(PreResolutionEvaluation {

@@ -1,39 +1,75 @@
+use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
 pub(crate) fn validate_package_type_identity_input(
+    compilation: &PackageReviewInput<'_>,
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Result<(), Vec<Diagnostic>> {
-    validate_package_type_identity_input_inner(program, type_reference, binders, false)
+    validate_package_type_identity_input_inner(
+        compilation,
+        program,
+        type_reference,
+        binders,
+        false,
+        None,
+    )
 }
 
 pub(crate) fn validate_package_type_identity_input_inner(
+    compilation: &PackageReviewInput<'_>,
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     allow_const_value: bool,
+    extent_exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<(), Vec<Diagnostic>> {
     use typed_trees::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
 
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            validate_package_type_identity_input_inner(program, *referee, binders, false)
-        }
+        TypeReferenceNode::Reference { referee, .. } => validate_package_type_identity_input_inner(
+            compilation,
+            program,
+            *referee,
+            binders,
+            false,
+            extent_exposure,
+        ),
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            validate_package_type_identity_input_inner(program, *base_type, binders, false)?;
+            validate_package_type_identity_input_inner(
+                compilation,
+                program,
+                *base_type,
+                binders,
+                false,
+                extent_exposure,
+            )?;
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
                     TypeConstraintNode::Range {
                         minimum, maximum, ..
                     } => {
-                        validate_package_index_expression(program, *minimum, binders)?;
-                        validate_package_index_expression(program, *maximum, binders)?;
+                        validate_package_index_expression(
+                            compilation,
+                            program,
+                            *minimum,
+                            binders,
+                            None,
+                        )?;
+                        validate_package_index_expression(
+                            compilation,
+                            program,
+                            *maximum,
+                            binders,
+                            None,
+                        )?;
                     }
                     TypeConstraintNode::Domain(domain) => {
                         use typed_trees::types::DomainConstraintSubject;
@@ -86,7 +122,12 @@ pub(crate) fn validate_package_type_identity_input_inner(
                                     )
                                 });
                             validate_package_type_identity_input_inner(
-                                program, *argument, binders, is_const,
+                                compilation,
+                                program,
+                                *argument,
+                                binders,
+                                is_const,
+                                extent_exposure,
                             )?;
                         }
                     }
@@ -99,20 +140,48 @@ pub(crate) fn validate_package_type_identity_input_inner(
             element_type,
             length,
         } => {
-            validate_package_type_identity_input_inner(program, *element_type, binders, false)?;
+            validate_package_type_identity_input_inner(
+                compilation,
+                program,
+                *element_type,
+                binders,
+                false,
+                extent_exposure,
+            )?;
             match length {
                 FixedArrayLength::Literal(_) => Ok(()),
                 FixedArrayLength::ConstParameter { symbol, name } => {
                     validate_package_const_binder(program, *symbol, name.as_str(), binders)
+                }
+                FixedArrayLength::Expression(value) => {
+                    let typed_trees::types::TypeReferenceNode::ConstExpression(expression) =
+                        program.type_reference_table.type_reference(*value)
+                    else {
+                        return Err(vec![Diagnostic::error(
+                            "package review rejects a malformed array extent recipe",
+                        )]);
+                    };
+                    validate_package_index_expression(
+                        compilation,
+                        program,
+                        *expression,
+                        binders,
+                        extent_exposure,
+                    )
                 }
                 FixedArrayLength::ConstCall { .. } => Err(vec![Diagnostic::error(
                     "package review rejects an unevaluated const call in structural type identity",
                 )]),
             }
         }
-        TypeReferenceNode::Slice { element_type } => {
-            validate_package_type_identity_input_inner(program, *element_type, binders, false)
-        }
+        TypeReferenceNode::Slice { element_type } => validate_package_type_identity_input_inner(
+            compilation,
+            program,
+            *element_type,
+            binders,
+            false,
+            extent_exposure,
+        ),
         TypeReferenceNode::Generic {
             base_symbol,
             arguments,
@@ -135,7 +204,14 @@ pub(crate) fn validate_package_type_identity_input_inner(
                             typed_trees::data::TypeParameterKind::Const { .. }
                         )
                     });
-                validate_package_type_identity_input_inner(program, *argument, binders, is_const)?;
+                validate_package_type_identity_input_inner(
+                    compilation,
+                    program,
+                    *argument,
+                    binders,
+                    is_const,
+                    extent_exposure,
+                )?;
             }
             Ok(())
         }
@@ -145,7 +221,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
                     "package review rejects a const expression outside one exact declared const-parameter slot",
                 )]);
             }
-            validate_package_index_expression(program, *expression, binders)
+            validate_package_index_expression(compilation, program, *expression, binders, None)
         }
         TypeReferenceNode::Named { symbol, name } => validate_package_named_type_leaf(
             program,
@@ -211,12 +287,34 @@ fn validate_package_const_binder(
 }
 
 fn validate_package_index_expression(
+    compilation: &PackageReviewInput<'_>,
     program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     binders: &[(SymbolHandle, String)],
+    builtin_exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<(), Vec<Diagnostic>> {
     use typed_trees::expression::ExpressionNode;
 
+    // Declaration selection alone does not freeze arithmetic or call arguments.
+    // Retained array recipes must preserve their exact original node and edges;
+    // projection-local type substitutions are handled by the identity context.
+    if builtin_exposure.is_some()
+        && (!compilation
+            .custody
+            .typed
+            .expression_table
+            .expression_is_valid(expression)
+            || compilation
+                .custody
+                .typed
+                .expression_table
+                .expression(expression)
+                != program.expression_table.expression(expression))
+    {
+        return Err(vec![Diagnostic::error(
+            "package review array extent differs from its retained original expression and use edges",
+        )]);
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
@@ -237,25 +335,148 @@ fn validate_package_index_expression(
             }
         }
         ExpressionNode::Integer(_) => Ok(()),
-        ExpressionNode::Unary(unary) => {
-            validate_package_index_expression(program, unary.operand, binders)
-        }
+        ExpressionNode::Unary(unary) => validate_package_index_expression(
+            compilation,
+            program,
+            unary.operand,
+            binders,
+            builtin_exposure,
+        ),
         ExpressionNode::Binary(binary) => {
-            let Some(selection) = program.expression_table.open_index_operation(expression) else {
-                return Err(vec![Diagnostic::error(
-                    "package review rejects an open index operation without exact checked selection",
-                )]);
+            if let Some(selection) = program.expression_table.open_index_operation(expression) {
+                if !selection.operator.is_valid()
+                    || !selection.provider.is_valid()
+                    || !selection.algebra_trait.is_valid()
+                {
+                    return Err(vec![Diagnostic::error(
+                        "package review rejects an open index operation with incomplete semantic authority",
+                    )]);
+                }
+            } else {
+                let Some(exposure) = builtin_exposure else {
+                    return Err(vec![Diagnostic::error(
+                        "package review rejects an open index operation without exact checked algebra selection",
+                    )]);
+                };
+                use language_semantics::declaration_selection::{
+                    AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionTarget,
+                };
+                let selection = crate::capture::contracts::expressions::operators::exact_checked_operator_selection(
+                    compilation, program, expression, Some(exposure),
+                )?;
+                if selection.target()
+                    != AuthoredDeclarationSelectionTarget::Intrinsic(
+                        AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                    )
+                {
+                    return Err(vec![Diagnostic::error(
+                        "package review rejects an open index operation without exact checked builtin or algebra selection",
+                    )]);
+                }
+                // Builtin selection licenses this exact operation only. No
+                // conformance laws or algebraic rewriting are manufactured.
+            }
+            validate_package_index_expression(
+                compilation,
+                program,
+                binary.left,
+                binders,
+                builtin_exposure,
+            )?;
+            validate_package_index_expression(
+                compilation,
+                program,
+                binary.right,
+                binders,
+                builtin_exposure,
+            )
+        }
+        ExpressionNode::Call(call) if builtin_exposure.is_some() => {
+            use language_semantics::declaration_selection::{
+                AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
             };
-            if !selection.operator.is_valid()
-                || !selection.provider.is_valid()
-                || !selection.algebra_trait.is_valid()
+            // The canonical call production carries an ordinary monomorphic
+            // target and value arguments. Other semantic applications must not
+            // collapse into that identity by dropping their static components.
+            if call.authored_machine_application.is_valid()
+                || call.exact_coercion_target.is_valid()
+                || call.static_machine_parameter.is_valid()
+                || call.static_requirement_dispatch.is_some()
+                || !call.machine_arguments.is_empty()
+                || !call.evidence_arguments.is_empty()
+                || call.quotient_operation.is_some()
+                || call.private_layout_operation.is_some()
+                || call.layout_query.is_some()
             {
                 return Err(vec![Diagnostic::error(
-                    "package review rejects an open index operation with incomplete semantic authority",
+                    "package review array extent call requires an exact represented ordinary application identity",
                 )]);
             }
-            validate_package_index_expression(program, binary.left, binders)?;
-            validate_package_index_expression(program, binary.right, binders)
+            let selection = crate::capture::contracts::expressions::operators::exact_checked_expression_selection(
+                compilation, program, expression, AuthoredDeclarationSelectionKind::Call, builtin_exposure,
+            )?;
+            let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
+                return Err(vec![Diagnostic::error(
+                    "package review array extent call has no exact resolved declaration",
+                )]);
+            };
+            if target.selected_symbol() != call.target_symbol || call.receiver.is_valid() {
+                return Err(vec![Diagnostic::error(
+                    "package review array extent call differs from its retained exact declaration",
+                )]);
+            }
+            // A HandleSpan is a roster address, not the roster's contents.
+            if program.expression_table.expression_handles(call.arguments)
+                != compilation
+                    .custody
+                    .typed
+                    .expression_table
+                    .expression_handles(call.arguments)
+            {
+                return Err(vec![Diagnostic::error(
+                    "package review array extent call arguments differ from the retained original roster",
+                )]);
+            }
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                validate_package_index_expression(
+                    compilation,
+                    program,
+                    *argument,
+                    binders,
+                    builtin_exposure,
+                )?;
+            }
+            Ok(())
+        }
+        ExpressionNode::Cast(cast) if builtin_exposure.is_some() => {
+            if cast.form != language_core::cast_form::CastForm::Value
+                || cast.semantic_domain_symbol.is_valid()
+                || !cast.semantic_domain_arguments.is_empty()
+                || cast.semantic_domain.count() != 0
+                || validation::arithmetic_result_type_reference(program, cast.result_type).is_none()
+                || program.primitive_type_reference(cast.target_type)
+                    != program.primitive_type_reference(cast.result_type)
+                || program.arithmetic_domain_for_type_reference(cast.result_type) != cast.domain
+            {
+                return Err(vec![Diagnostic::error(
+                    "package review array extent cast requires its exact represented scalar carrier and policy identity",
+                )]);
+            }
+            validate_package_type_identity_input_inner(
+                compilation,
+                program,
+                cast.target_type,
+                binders,
+                false,
+                builtin_exposure,
+            )?;
+            validate_package_index_expression(
+                compilation,
+                program,
+                cast.value,
+                binders,
+                builtin_exposure,
+            )
         }
         ExpressionNode::Match(_)
         | ExpressionNode::ArrayLiteral(_)

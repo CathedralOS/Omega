@@ -10,8 +10,8 @@ use crate::capture::semantics::facts::exactly_one;
 use crate::capture::semantics::signatures::policy_crashes;
 use crate::capture::semantics::types::signature_type_identity;
 use crate::record::{
-    PackagePolicyTraitRequirement, PackagePolicyTraitShape, PackageReviewTraitRequirement,
-    PackageReviewSignatureParameter,
+    PackagePolicyTraitRequirement, PackagePolicyTraitShape, PackageReviewSignatureParameter,
+    PackageReviewTraitRequirement,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -121,6 +121,7 @@ fn project_requirement(
             Ok(PackageReviewSignatureParameter {
                 name: parameter.name.as_str().to_owned(),
                 type_identity: signature_type_identity(
+                    compilation,
                     &prepared.typed,
                     compilation.custody.sources().exact_toolchain_sources(),
                     parameter.type_reference,
@@ -129,6 +130,7 @@ fn project_requirement(
                     &[],
                     &[],
                     false,
+                    language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
                 )?,
                 is_const: parameter.is_const,
                 is_mutable: parameter.is_mutable,
@@ -140,6 +142,7 @@ fn project_requirement(
         .is_valid()
         .then(|| {
             signature_type_identity(
+                compilation,
                 &prepared.typed,
                 compilation.custody.sources().exact_toolchain_sources(),
                 prepared.signature.return_type,
@@ -148,6 +151,7 @@ fn project_requirement(
                 &[],
                 &[],
                 false,
+                language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
             )
         })
         .transpose()?;

@@ -250,6 +250,21 @@ pub(crate) fn normalize_array_length(
         {
             substitution::index_name(program, *symbol, name.as_str(), context)
         }
+        FixedArrayLength::Expression(value) => {
+            let TypeReferenceNode::ConstExpression(expression) =
+                program.type_reference_table.type_reference(*value)
+            else {
+                return atom("invalid-array-expression", "missing constant recipe");
+            };
+            compound(
+                "const-expression",
+                [super::identity_context::normalize_index_expression(
+                    program,
+                    *expression,
+                    context,
+                )],
+            )
+        }
         FixedArrayLength::Literal(value) => atom("literal", &value.to_string()),
         FixedArrayLength::ConstParameter { symbol, name } => {
             substitution::array_length(program, *symbol, name.as_str(), context).unwrap_or_else(

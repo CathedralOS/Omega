@@ -7,6 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
+# Scoped fixed-array-expression qualification; unobserved rows retained verbatim.
 fail/contracts/call_write_retires_overlapping_guard rejected 612ms expected @a036414cf2c9
 	cannot prove requires contract for call pop from Main::main: main.a.count >= 1 && main.a.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `twice`
 fail/contracts/state_write_retires_overlapping_guard_conjunct rejected 613ms expected @a036414cf2c9
@@ -1240,14 +1241,14 @@ fail/collections/wrapping_member_decrement_index_unproven rejected 1554ms expect
 fail/collections/wrapping_range_index_unproven rejected 2914ms expected @a9ae30e1c334+wt
 	data `Main` field `i` declares a range constraint together with the `Wrapping` domain: ranges are only enforced under Exact arithmetic, so the combination is ill-formed (a store outside the range would be silently accepted). Keep the range and drop the domain, or keep the domain and drop the range
 	machine `Main::main` state `read` local data `__hoist_30` declares a range constraint together with the `Wrapping` domain: ranges are only enforced under Exact arithmetic, so the combination is ill-formed (a store outside the range would be silently accepted). Keep the range and drop the domain, or keep the domain and drop the range
-fail/comptime/const_array_length_dependency_cycle rejected 85ms expected @a9ae30e1c334+wt
+fail/comptime/const_array_length_dependency_cycle rejected 114ms expected @77cde1c51efd+wt
 	fixed-array length `[u8; first_size()]`: const evaluation of `first_size` failed: fixed-array length `[u8; second_size()]`: const evaluation of `second_size` failed: fixed-array length dependency cycle: first_size at Handle { arena_index: 2, generation: 1 } -> second_size at Handle { arena_index: 8, generation: 1 } -> first_size at Handle { arena_index: 2, generation: 1 }
 	fixed-array length `[u8; second_size()]`: const evaluation of `second_size` failed: fixed-array length `[u8; first_size()]`: const evaluation of `first_size` failed: fixed-array length dependency cycle: first_size at Handle { arena_index: 2, generation: 1 } -> first_size at Handle { arena_index: 2, generation: 1 }
-fail/comptime/effectful_const_array_length rejected 1801ms expected @a9ae30e1c334+wt
-	fixed-array length `[i64; loud_size()]`: const evaluation of `loud_size` failed: machine `loud_size` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
-fail/comptime/fuel_exhausted_const_array_length rejected 1929ms expected @a9ae30e1c334+wt
+fail/comptime/effectful_const_array_length rejected 883ms expected @77cde1c51efd+wt
+	fixed-array length `[i64; loud_size()]`: const evaluation of `loud_size` failed: machine `@array-extent-2-4` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/comptime/fuel_exhausted_const_array_length rejected 926ms expected @77cde1c51efd+wt
 	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: step budget exceeded
-fail/comptime/negative_const_array_length rejected 1761ms expected @a9ae30e1c334+wt
+fail/comptime/negative_const_array_length rejected 881ms expected @77cde1c51efd+wt
 	fixed-array length `[i64; shrunk_size()]`: const evaluation of `shrunk_size` failed: the call returned -5, but an array length must be a non-negative integer
 fail/comptime/recipe_endpoint_membership_refused_at_closure rejected 4255ms expected @4ffd613e37f1
 	call argument for parameter `value` of `take_bounded` (declared maximum): requires 9 <= `limit`, but the selected target realization closes `limit` to 7
@@ -4577,7 +4578,7 @@ pass/calls/runtime_selected_reference_field_result_exit checked 11346ms check-ta
 pass/calls/runtime_selected_trivial_local_cleanup_exit checked 11062ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_shared_ref_param_member_exit checked 12295ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_state_reference_field_result_exit checked 12592ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_static_entry_context_exit checked 11666ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_static_entry_context_exit checked 9819ms check-target:macos_arm64 @77cde1c51efd+wt
 pass/calls/runtime_static_proof_only_namespace_exit checked 12468ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_static_tail_local_custody_exit checked 11726ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_static_tail_reordered_local_custody_exit checked 11934ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4772,11 +4773,11 @@ pass/collections/view_record_element_member_read_exit checked 10959ms check-targ
 pass/collections/zero_length_byte_array_admission checked 3145ms @a9ae30e1c334+wt
 pass/comptime/provider_boundary_range_endpoint_exit checked 21562ms check-target:macos_arm64 @4ffd613e37f1
 pass/comptime/range_endpoint_requires_discharge_exit checked 26944ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/comptime/runtime_const_array_length_dependency_order_exit checked 22623ms check-target:macos_arm64 @4ffd613e37f1
-pass/comptime/runtime_const_array_length_transitive_exit checked 11031ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/comptime/runtime_const_measured_recursion_exit checked 12401ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/comptime/selected_float_array_length_exit checked 21625ms check-target:macos_arm64 @4ffd613e37f1
-pass/comptime/selected_float_array_length_layout_query_exit checked 8492ms check-target:macos_arm64 @b016b7e0a226
+pass/comptime/runtime_const_array_length_dependency_order_exit checked 20824ms check-target:macos_arm64 @77cde1c51efd+wt
+pass/comptime/runtime_const_array_length_transitive_exit checked 8477ms check-target:macos_arm64 @77cde1c51efd+wt
+pass/comptime/runtime_const_measured_recursion_exit checked 8727ms check-target:macos_arm64 @77cde1c51efd+wt
+pass/comptime/selected_float_array_length_exit checked 18178ms check-target:macos_arm64 @77cde1c51efd+wt
+pass/comptime/selected_float_array_length_layout_query_exit checked 18685ms check-target:macos_arm64 @77cde1c51efd+wt
 pass/concurrency/boundary_suspension_inline_completion_exit checked 11498ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/runtime_array_loan_suspension_exit checked 10498ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/runtime_retained_reference_boundary_exit checked 4943ms check-target:macos_arm64 @46b51224f047+wt
@@ -5498,8 +5499,8 @@ pass/generics/runtime_borrowed_value_inference_exit checked 16121ms check-target
 pass/generics/runtime_case_qualified_reference_storage_exit checked 16232ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_closed_case_array_payload_exit checked 14309ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_const_container_methods_exit checked 15682ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/generics/runtime_const_data_array_length_exit checked 11648ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/generics/runtime_const_data_machine_call_exit checked 12845ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/runtime_const_data_array_length_exit checked 8449ms check-target:macos_arm64 @77cde1c51efd+wt
+pass/generics/runtime_const_data_machine_call_exit checked 8535ms check-target:macos_arm64 @77cde1c51efd+wt
 pass/generics/runtime_const_data_multiple_instances_exit checked 13876ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_const_data_symbolic_expression_exit checked 12716ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_const_data_where_fact_exit checked 12969ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5519,7 +5520,7 @@ pass/generics/runtime_generic_multiple_specializations_exit checked 11798ms chec
 pass/generics/runtime_generic_qualified_constructor_shadow_exit checked 5707ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/generics/runtime_generic_selected_extent_fields_exit checked 5782ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/generics/runtime_grouped_decimal_const_argument_exit checked 11028ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit checked 11243ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit checked 9250ms check-target:macos_arm64 @77cde1c51efd+wt
 pass/generics/runtime_inherited_composite_requirement_exit checked 12296ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_linear_constructor_instances_exit checked 11286ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_machine_equation_nested_boolean_exit checked 5659ms check-target:macos_arm64 @589aedee8ebc+wt
@@ -6743,15 +6744,15 @@ run/calls/fixed_dividend_across_console_calls checked 8916ms check-target:macos_
 run/calls/outcome_specific_selected_guarantee_exit rejected 11486ms check-target:macos_arm64 @a9ae30e1c334+wt
 	terminal-artifact production failed: Lowering(Unsupported("outcome-specific guarantees require guarded exit and caller-arm lowering"))
 run/calls/resultless_scalar_parameters checked 11475ms check-target:macos_arm64 @a9ae30e1c334+wt
-run/calls/runtime_float_distinct_operand_calls_exit checked 10577ms check-target:macos_arm64 @589aedee8ebc+wt
+run/calls/runtime_float_distinct_operand_calls_exit checked 16080ms check-target:macos_arm64 @77cde1c51efd+wt
 run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 9856ms check-target:macos_arm64 @589aedee8ebc+wt
 run/calls/table_report_call_survival checked 5492ms check-target:macos_arm64 @589aedee8ebc+wt
 run/contained_health_loop_command_branch checked 1918ms @a9ae30e1c334+wt
 run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:macos_arm64 @9c4d1c444502
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
-run/providers/module_named_float_conversion_family_exit checked 79121ms check-target:macos_arm64 @16ed47526a08
-run/stores/runtime_float_indexed_call_result_exit checked 8854ms check-target:macos_arm64 @589aedee8ebc+wt
-run/stores/runtime_float_store_selector_snapshot_exit checked 8082ms check-target:macos_arm64 @589aedee8ebc+wt
+run/providers/module_named_float_conversion_family_exit checked 16353ms check-target:macos_arm64 @77cde1c51efd+wt
+run/stores/runtime_float_indexed_call_result_exit checked 16446ms check-target:macos_arm64 @77cde1c51efd+wt
+run/stores/runtime_float_store_selector_snapshot_exit checked 16333ms check-target:macos_arm64 @77cde1c51efd+wt
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/layouts/runtime_constant_layout_contract_exit checked 5329ms check-target:macos_arm64 @e63c4b1e202d+wt
@@ -6864,3 +6865,29 @@ fail/arithmetic/relative_midpoint_zero_divisor rejected 234ms expected @4c1d863a
 fail/ranges/relative_midpoint_at_slice_end rejected 526ms expected @4c1d863a7eae+wt
 	cannot prove index `position` is within unknown slice length of `values` in read::entry
 pass/arithmetic/relative_midpoint_values_exit checked 5624ms check-target:macos_arm64 @4c1d863a7eae+wt
+fail/comptime/array_expression_fractional rejected 40ms expected @77cde1c51efd+wt
+	const argument expression: anonymous constant expression cannot land exactly at the selected integer carrier
+fail/comptime/array_expression_negative rejected 36ms expected @77cde1c51efd+wt
+	const argument expression: anonymous constant expression cannot land exactly at the selected integer carrier
+fail/comptime/array_expression_runtime_local rejected 18ms expected @77cde1c51efd+wt
+	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
+fail/comptime/array_expression_runtime_parameter rejected 19ms expected @77cde1c51efd+wt
+	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
+fail/comptime/array_expression_u32_intermediate_overflow rejected 57ms expected @77cde1c51efd+wt
+	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
+fail/comptime/array_expression_unused_invalid_call rejected 1911ms expected @77cde1c51efd+wt
+	data `Bad` field `bytes` constant expression call argument `false` does not form parameter `value` of `size`
+fail/comptime/array_expression_unused_invalid_call_operand rejected 1740ms expected @77cde1c51efd+wt
+	data `Bad` field `bytes` constant expression call argument `R + false` does not form parameter `value` of `size`
+fail/comptime/array_expression_unused_invalid_operands rejected 1555ms expected @77cde1c51efd+wt
+	data `Matrix` field `cells` array extent expression requires a well-typed integer result or exact nonnegative anonymous integer
+fail/comptime/array_product_nominal_dimensions rejected 3788ms expected @77cde1c51efd+wt
+	machine `main` state `entry` local `right` expects the `Matrix<4, 2>` data type but got `Matrix<2, 4>` in the `local` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+pass/comptime/runtime_const_array_anonymous_expression_exit checked 9972ms check-target:macos_arm64 @77cde1c51efd+wt
+pass/comptime/runtime_const_array_call_arguments_exit checked 18287ms check-target:macos_arm64 @77cde1c51efd+wt
+pass/comptime/runtime_const_array_cast_expression_exit checked 9015ms check-target:macos_arm64 @77cde1c51efd+wt
+pass/comptime/runtime_const_array_product_exit checked 16849ms check-target:macos_arm64 @77cde1c51efd+wt
+pass/comptime/runtime_const_array_product_specializations_exit checked 16810ms check-target:macos_arm64 @77cde1c51efd+wt
+pass/comptime/runtime_const_array_product_u32_exit checked 16836ms check-target:macos_arm64 @77cde1c51efd+wt
+pass/comptime/runtime_const_array_saturating_result_exit checked 9084ms check-target:macos_arm64 @77cde1c51efd+wt
+pass/comptime/runtime_const_array_wrapping_result_exit checked 8669ms check-target:macos_arm64 @77cde1c51efd+wt

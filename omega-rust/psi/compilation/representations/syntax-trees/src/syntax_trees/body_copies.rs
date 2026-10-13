@@ -308,8 +308,16 @@ impl SyntaxCopy<'_> {
                 length,
             } => {
                 let element_type = self.copy_type_reference_handle(other, *element_type);
+                let length = match length {
+                    crate::types::FixedArrayLength::Expression(use_type) => {
+                        crate::types::FixedArrayLength::Expression(
+                            self.copy_type_reference_handle(other, *use_type),
+                        )
+                    }
+                    length => length.clone(),
+                };
                 self.type_references
-                    .insert_fixed_array(element_type, length.clone())
+                    .insert_fixed_array(element_type, length)
             }
             TypeReferenceNode::Slice { element_type } => {
                 let element_type = self.copy_type_reference_handle(other, *element_type);

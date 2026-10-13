@@ -160,6 +160,9 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
         TypeReference::Reference(reference) => child(reference.referee),
         TypeReference::FixedArray(array) => {
             child(array.element_type);
+            if let FixedArrayLength::Expression(value) = array.length {
+                child(value);
+            }
             if let FixedArrayLength::ConstParameter { symbol, name } = &mut array.length {
                 // Type syntax retains the complete occurrence span, not
                 // individual token spans. Preserve that source authority for

@@ -41,6 +41,7 @@ pub(crate) fn fixed_array_length(
             const_argument_value(program, binding.argument, bindings, 0)
         }
         // A retained recipe has its value only in a closed program copy.
+        FixedArrayLength::Expression(_) => None,
         FixedArrayLength::ConstCall { .. } => program.closed_fixed_array_length(type_reference),
     }
 }

@@ -123,6 +123,7 @@ fn application(
     Ok(PackagePolicyCallbackLayoutApplication {
         policy: nominal_identity(compilation, plan.policy_symbol)?,
         schema: signature_type_identity(
+            compilation,
             &projected,
             compilation.custody.sources().exact_toolchain_sources(),
             reference,
@@ -131,6 +132,7 @@ fn application(
             &[],
             &[],
             false,
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
         )?,
         byte_size: quantity(layout.physical.size)?,
         alignment: quantity(layout.physical.alignment)?,

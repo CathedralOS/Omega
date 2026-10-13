@@ -268,8 +268,16 @@ fn collect_type_expression_handles(
         TypeReferenceNode::Reference { referee, .. } => {
             collect_type_expression_handles(syntax, *referee, expressions, type_references)
         }
-        TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            collect_type_expression_handles(syntax, *element_type, expressions, type_references);
+            if let syntax_trees::types::FixedArrayLength::Expression(value) = length {
+                collect_type_expression_handles(syntax, *value, expressions, type_references);
+            }
+        }
+        TypeReferenceNode::Slice { element_type } => {
             collect_type_expression_handles(syntax, *element_type, expressions, type_references)
         }
         TypeReferenceNode::Generic { arguments, .. }
@@ -639,8 +647,28 @@ fn visit_type_positions(
                 }
             }
         }
-        TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => visit_type_positions(
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            visit_type_positions(
+                syntax,
+                *element_type,
+                positions,
+                include_domain_arguments,
+                traversal,
+            );
+            if let syntax_trees::types::FixedArrayLength::Expression(value) = length {
+                visit_type_positions(
+                    syntax,
+                    *value,
+                    positions,
+                    include_domain_arguments,
+                    traversal,
+                );
+            }
+        }
+        TypeReferenceNode::Slice { element_type } => visit_type_positions(
             syntax,
             *element_type,
             positions,

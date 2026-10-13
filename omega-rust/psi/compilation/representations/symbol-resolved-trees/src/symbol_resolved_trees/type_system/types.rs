@@ -106,6 +106,8 @@ pub struct FixedArrayTypeReferenceStorage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedArrayLength {
     Literal(usize),
+    /// Exact symbolic constant-position use, pending owned evaluation.
+    Expression(Handle<TypeReference>),
     ConstParameter {
         symbol: SymbolHandle,
         name: DiagnosticName,
@@ -134,6 +136,7 @@ impl fmt::Display for FixedArrayLength {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Literal(value) => write!(formatter, "{value}"),
+            Self::Expression(_) => formatter.write_str("<constant expression>"),
             Self::ConstParameter { name, .. } => write!(formatter, "{name}"),
             Self::ConstCall { name, .. } => write!(formatter, "{name}()"),
         }

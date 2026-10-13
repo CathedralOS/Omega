@@ -838,6 +838,9 @@ fn case_fact_type_mentions(
             case_fact_type_mentions(syntax_trees, *element_type, gate)
                 || match length {
                     FixedArrayLength::Literal(_) => false,
+                    FixedArrayLength::Expression(value) => {
+                        case_fact_type_mentions(syntax_trees, *value, gate)
+                    }
                     FixedArrayLength::ConstParameter(name) | FixedArrayLength::ConstCall(name) => {
                         gate.mentions(name.as_str())
                     }

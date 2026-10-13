@@ -47,6 +47,9 @@ pub struct SyntaxTreeTables {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SyntaxTreeRoots {
     pub items: Vec<ItemHandle>,
+    /// Closed compiler-private extent entries retain the consuming type's
+    /// exposure on their exact authored expression root.
+    pub constant_extent_probes: Vec<(ExpressionHandle, bool)>,
     /// Parsed top-level `let`/`boundary let` mathematical declarations in
     /// source order. They sit beside `items`, not inside it: the
     /// symbol-resolution lowering that admits declarations is a separately
@@ -266,6 +269,7 @@ impl SyntaxTreeRoots {
     fn new_with_generation(_generation: u32) -> Self {
         Self {
             items: Vec::new(),
+            constant_extent_probes: Vec::new(),
             mathematical_definitions: Vec::new(),
         }
     }

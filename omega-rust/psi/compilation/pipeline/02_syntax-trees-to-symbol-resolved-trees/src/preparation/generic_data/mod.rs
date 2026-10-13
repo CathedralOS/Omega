@@ -111,6 +111,68 @@ pub fn closed_data_const_argument_expressions(
     ))
 }
 
+/// Reachable concrete array-extent uses share ordinary constant-expression
+/// admission. The use is an owned child, not a source span or a fabricated
+/// generic application; open data/machine telescopes are excluded by discovery.
+pub fn closed_array_extent_expressions(
+    syntax: &mut SyntaxTrees,
+) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
+    let mut positions = collect_data_type_reference_positions(syntax, false);
+    let mut public = collect_data_type_reference_positions(syntax, true);
+    let (machine, public_machine) = collect_machine_type_reference_positions(syntax);
+    positions.extend(machine);
+    public.extend(public_machine);
+    let destination = syntax
+        .type_references
+        .insert_named(Identifier::generated("u64"));
+    let mut uses = Vec::new();
+    for owner in positions {
+        let TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Expression(value),
+            ..
+        } = syntax.type_references.type_reference(owner)
+        else {
+            continue;
+        };
+        if matches!(
+            syntax.type_references.type_reference(*value),
+            TypeReferenceNode::ConstExpression(_)
+        ) && !uses.iter().any(|(existing, _, _)| existing == value)
+        {
+            uses.push((*value, destination, public.contains(&owner)));
+        }
+    }
+    uses
+}
+
+/// Publish a validated deferred job as an ordinary closed private entry.
+/// Only reachable concrete owners of this exact use change representation.
+pub fn retain_deferred_array_extent(
+    syntax: &mut SyntaxTrees,
+    argument: TypeReferenceHandle,
+    entry: Identifier,
+) {
+    let mut owners = collect_data_type_reference_positions(syntax, false);
+    owners.extend(collect_machine_type_reference_positions(syntax).0);
+    for owner in owners {
+        let node = syntax.type_references.type_reference(owner).clone();
+        if let TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Expression(value),
+        } = node
+            && value == argument
+        {
+            syntax.type_references.replace_type_reference(
+                owner,
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::ConstCall(entry.clone()),
+                },
+            );
+        }
+    }
+}
+
 /// Authored constant arguments in nongeneric machine type owners. Discovery
 /// supplies destinations, not value-selection authority: callers must resolve
 /// each expression in its original machine and state scope before evaluation.

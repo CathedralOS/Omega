@@ -13,27 +13,15 @@ pub(crate) fn exact_checked_contract_operator_meaning(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Result<PackageReviewContractOperatorMeaning, Vec<Diagnostic>> {
     use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
-        AuthoredDeclarationSelectionTarget,
+        AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionTarget,
     };
 
-    let selections = compilation
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            compilation
-                .authored_declaration_selections()
-                .get(occurrence)
-        })
-        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Operator)
-        .collect::<Vec<_>>();
-    let [selection] = selections.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract operator has {} exact checked selection rows; expected one",
-            context.subject_kind,
-            context.subject_name,
-            selections.len()
-        ))]);
-    };
+    let selection = exact_checked_operator_selection(
+        compilation,
+        compilation.checking_input,
+        expression,
+        Some(context.selection_exposure),
+    )?;
     if selection.exposure() != context.selection_exposure {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` contract operator has the wrong retained selection exposure",
@@ -66,6 +54,93 @@ pub(crate) fn exact_checked_contract_operator_meaning(
             context.subject_kind, context.subject_name
         ))]),
     }
+}
+
+/// A projection can clone expression handles, but its selection occurrences
+/// must still join the unchanged compiler custody. This query issues no grant.
+pub(in crate::capture) fn exact_checked_operator_selection(
+    compilation: &PackageReviewInput<'_>,
+    program: &dyn validation::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+    expected_exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+) -> Result<language_semantics::declaration_selection::AuthoredDeclarationSelection, Vec<Diagnostic>>
+{
+    exact_checked_expression_selection(
+        compilation,
+        program,
+        expression,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Operator,
+        expected_exposure,
+    )
+}
+
+pub(in crate::capture) fn exact_checked_expression_selection(
+    compilation: &PackageReviewInput<'_>,
+    program: &dyn validation::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+    kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+    expected_exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+) -> Result<language_semantics::declaration_selection::AuthoredDeclarationSelection, Vec<Diagnostic>>
+{
+    let mut selections = Vec::new();
+    for occurrence in program
+        .expression_table
+        .authored_selection_occurrences(expression)
+    {
+        let selection = program
+            .authored_declaration_selections()
+            .get(occurrence)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "package review expression has a dangling selection occurrence",
+                )]
+            })?;
+        if selection.kind() == kind {
+            selections.push(selection);
+        }
+    }
+    let [selection] = selections.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "package review operator has {} exact checked selection rows; expected one",
+            selections.len()
+        ))]);
+    };
+    if !compilation
+        .custody
+        .typed
+        .expression_table
+        .expression_is_valid(expression)
+        || !compilation
+            .custody
+            .typed
+            .expression_table
+            .authored_selection_occurrences(expression)
+            .any(|occurrence| occurrence == selection.occurrence_id())
+    {
+        return Err(vec![Diagnostic::error(
+            "package review operator occurrence is not attached to its retained original expression",
+        )]);
+    }
+    if compilation
+        .custody
+        .authored_declaration_selections()
+        .get(selection.occurrence_id())
+        != Some(*selection)
+    {
+        return Err(vec![Diagnostic::error(
+            "package review operator selection differs from immutable compiler custody",
+        )]);
+    }
+    if expected_exposure.is_some_and(|exposure| selection.exposure() != exposure) {
+        return Err(vec![Diagnostic::error(
+            "package review operator has the wrong retained structural exposure",
+        )]);
+    }
+    Ok(**selection)
 }
 
 pub(crate) const fn project_contract_binary_operator(

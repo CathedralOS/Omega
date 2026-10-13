@@ -384,6 +384,7 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
             .filter_map(|(_, length)| match length {
                 typed_trees::types::FixedArrayLength::Literal(value) => Some(value.to_string()),
                 typed_trees::types::FixedArrayLength::ConstParameter { .. }
+                | typed_trees::types::FixedArrayLength::Expression(_)
                 | typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
             }),
     );

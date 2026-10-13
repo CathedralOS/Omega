@@ -214,7 +214,16 @@ pub(super) fn collect(
     public: bool,
     syntax: &SyntaxTrees,
 ) -> Result<Custody, String> {
-    collect_internal(program, machine, state, &[root], public, Some(syntax), true)
+    collect_internal(
+        program,
+        machine,
+        state,
+        &[root],
+        public,
+        Some(syntax),
+        true,
+        true,
+    )
 }
 
 /// The same closure walk over several expression roots: a structured leaf
@@ -229,7 +238,40 @@ pub(super) fn collect_roots(
     public: bool,
     syntax: &SyntaxTrees,
 ) -> Result<Custody, String> {
-    collect_internal(program, machine, state, roots, public, Some(syntax), true)
+    collect_internal(
+        program,
+        machine,
+        state,
+        roots,
+        public,
+        Some(syntax),
+        true,
+        true,
+    )
+}
+
+/// Retention checks the original expression's declaration selections before
+/// provider closure. Callee implementations remain obligations of the existing
+/// checked length continuation; traversing their pending operators here would
+/// confuse absence of a realization with a malformed root selection.
+pub(super) fn collect_pending_roots(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    roots: &[ExpressionHandle],
+    public: bool,
+    syntax: &SyntaxTrees,
+) -> Result<Custody, String> {
+    collect_internal(
+        program,
+        machine,
+        state,
+        roots,
+        public,
+        Some(syntax),
+        true,
+        false,
+    )
 }
 
 pub(super) fn validate_retained(
@@ -295,6 +337,7 @@ fn validate(
         false,
         None,
         specialized_calls,
+        true,
     )?;
     if actual.call_targets.len() != expected.len()
         || actual
@@ -317,6 +360,7 @@ fn collect_internal(
     public: bool,
     syntax: Option<&SyntaxTrees>,
     specialized_calls: bool,
+    expand_callees: bool,
 ) -> Result<Custody, String> {
     let context = Context {
         machine,
@@ -328,6 +372,7 @@ fn collect_internal(
         syntax,
         public,
         specialized_calls,
+        expand_callees,
         custody: Custody::default(),
         expressions: roots.iter().rev().map(|root| (*root, context)).collect(),
         machines: Vec::new(),
@@ -369,6 +414,7 @@ struct Collector<'program> {
     syntax: Option<&'program SyntaxTrees>,
     public: bool,
     specialized_calls: bool,
+    expand_callees: bool,
     custody: Custody,
     expressions: Vec<(ExpressionHandle, Context<'program>)>,
     machines: Vec<SymbolHandle>,
@@ -526,12 +572,14 @@ impl<'program> Collector<'program> {
             self.custody.call_targets.push((reference, target));
         }
         let executable_symbol = self.program.symbols.get(executable);
-        self.machines
-            .push(if executable_symbol.kind == SymbolKind::State {
-                executable_symbol.parent
-            } else {
-                executable
-            });
+        if self.expand_callees {
+            self.machines
+                .push(if executable_symbol.kind == SymbolKind::State {
+                    executable_symbol.parent
+                } else {
+                    executable
+                });
+        }
         Ok(())
     }
 

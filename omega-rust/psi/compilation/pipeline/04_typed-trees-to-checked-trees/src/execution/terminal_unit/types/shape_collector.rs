@@ -667,6 +667,7 @@ impl<'program> ShapeCollector<'program> {
                         .find(|(parameter, _)| parameter == symbol)
                         .and_then(|(_, replacement)| self.const_length_extent(*replacement))
                 }
+                typed_trees::types::FixedArrayLength::Expression(_) => None,
                 typed_trees::types::FixedArrayLength::ConstCall { .. } => {
                     let recipe = self
                         .program

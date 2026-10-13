@@ -25,15 +25,15 @@ pub machine number(value: f64) reaches Console invokes Console; {
 pub machine emit(problem: &Problem) reaches Console invokes Console; {
     Console::write_line("status fitted; numbers in 1e-12 units");
     Console::write("rotation");
-    number(problem.rotation[0]);
-    number(problem.rotation[1]);
-    number(problem.rotation[2]);
-    number(problem.rotation[3]);
-    number(problem.rotation[4]);
-    number(problem.rotation[5]);
-    number(problem.rotation[6]);
-    number(problem.rotation[7]);
-    number(problem.rotation[8]);
+    number(problem.rotation.values[0]);
+    number(problem.rotation.values[1]);
+    number(problem.rotation.values[2]);
+    number(problem.rotation.values[3]);
+    number(problem.rotation.values[4]);
+    number(problem.rotation.values[5]);
+    number(problem.rotation.values[6]);
+    number(problem.rotation.values[7]);
+    number(problem.rotation.values[8]);
     Console::write_line(""); Console::write("translation");
     number(problem.translation[0]);
     number(problem.translation[1]);
@@ -43,11 +43,11 @@ pub machine emit(problem: &Problem) reaches Console invokes Console; {
         transition index < problem.count && index < 16 { true -> row(problem, index, objective) false -> total(problem, objective) }
     }
     state row(problem: &Problem, index: u64, objective: f64) requires index < 16 {
-        let transformed0: f64 = problem.translation[0] + problem.rotation[0] * problem.source[index * 3] + problem.rotation[1] * problem.source[index * 3 + 1] + problem.rotation[2] * problem.source[index * 3 + 2];
+        let transformed0: f64 = problem.translation[0] + problem.rotation.values[0] * problem.source[index * 3] + problem.rotation.values[1] * problem.source[index * 3 + 1] + problem.rotation.values[2] * problem.source[index * 3 + 2];
         let residual0: f64 = transformed0 - problem.target[index * 3 + 0];
-        let transformed1: f64 = problem.translation[1] + problem.rotation[3] * problem.source[index * 3] + problem.rotation[4] * problem.source[index * 3 + 1] + problem.rotation[5] * problem.source[index * 3 + 2];
+        let transformed1: f64 = problem.translation[1] + problem.rotation.values[3] * problem.source[index * 3] + problem.rotation.values[4] * problem.source[index * 3 + 1] + problem.rotation.values[5] * problem.source[index * 3 + 2];
         let residual1: f64 = transformed1 - problem.target[index * 3 + 1];
-        let transformed2: f64 = problem.translation[2] + problem.rotation[6] * problem.source[index * 3] + problem.rotation[7] * problem.source[index * 3 + 1] + problem.rotation[8] * problem.source[index * 3 + 2];
+        let transformed2: f64 = problem.translation[2] + problem.rotation.values[6] * problem.source[index * 3] + problem.rotation.values[7] * problem.source[index * 3 + 1] + problem.rotation.values[8] * problem.source[index * 3 + 2];
         let residual2: f64 = transformed2 - problem.target[index * 3 + 2];
         let weighted: f64 = F64::square_root(problem.weights[index]);
         let squared: f64 = problem.weights[index] * (residual0 * residual0 + residual1 * residual1 + residual2 * residual2);

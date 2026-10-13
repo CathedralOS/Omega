@@ -394,6 +394,7 @@ impl SymbolCopy<'_, '_> {
                         *symbol = self.symbol(*symbol)
                     }
                     FixedArrayLength::ConstCall { machine, .. } => *machine = self.symbol(*machine),
+                    FixedArrayLength::Expression(value) => *value = self.type_reference(*value),
                     FixedArrayLength::Literal(_) => {}
                 }
             }

@@ -649,6 +649,17 @@ fn assign_type_reference_symbol_with_context(
                 local_type_parameters,
                 fixed_array.element_type,
             );
+            if let symbol_resolved_trees::types::FixedArrayLength::Expression(value) =
+                fixed_array.length
+            {
+                assign_type_reference_handle_symbol_with_context(
+                    symbols,
+                    child_type_references,
+                    type_constraints,
+                    local_type_parameters,
+                    value,
+                );
+            }
             assign_fixed_array_length_symbol(
                 symbols,
                 local_type_parameters,
@@ -733,7 +744,8 @@ fn assign_fixed_array_length_symbol(
                 SymbolHandle::invalid()
             };
         }
-        symbol_resolved_trees::types::FixedArrayLength::Literal(_) => {}
+        symbol_resolved_trees::types::FixedArrayLength::Literal(_)
+        | symbol_resolved_trees::types::FixedArrayLength::Expression(_) => {}
     }
 }
 

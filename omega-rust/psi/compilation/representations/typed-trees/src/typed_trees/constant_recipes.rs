@@ -150,7 +150,7 @@ impl crate::TypedTrees {
             FixedArrayLength::Literal(length) => u64::try_from(*length)
                 .ok()
                 .map(DeclaredArrayExtent::Literal),
-            FixedArrayLength::ConstParameter { .. } => None,
+            FixedArrayLength::ConstParameter { .. } | FixedArrayLength::Expression(_) => None,
             FixedArrayLength::ConstCall { .. } => {
                 let recipe = self.constant_recipe_for_array_length(type_reference);
                 recipe
@@ -235,7 +235,7 @@ impl crate::TypedTrees {
         };
         match length {
             FixedArrayLength::Literal(length) => Some(*length),
-            FixedArrayLength::ConstParameter { .. } => None,
+            FixedArrayLength::ConstParameter { .. } | FixedArrayLength::Expression(_) => None,
             FixedArrayLength::ConstCall { .. } => self
                 .closed_constant_recipe_value(self.constant_recipe_for_array_length(type_reference))
                 .and_then(BigInt::to_u64)

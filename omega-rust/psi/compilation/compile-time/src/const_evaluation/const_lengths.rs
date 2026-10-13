@@ -1,20 +1,12 @@
 //! COMPTIME STAGE 1 -- const evaluation of FIXED-ARRAY LENGTHS.
 //!
-//! `[T; table_size()]` puts a build-time-admissible, zero-argument machine call
-//! in a constant position: the position makes it comptime, the contract system
-//! makes it legal (no keyword, no macro -- chapter 13's frozen direction).
-//! Length jobs evaluate before whole-application checking. Each demanded closure
-//! first settles its own type prerequisites and undergoes ordinary checking;
-//! unrelated pending product inputs supply no execution demand. Provider-dependent
-//! jobs retain the preliminary continuation until exact selected meanings arrive.
-//! The fold publishes a literal length, which final product checking consumes.
-//! The compile does not replay the fold against its own result.
-//!
-//! LEGALITY GATE: the callee's normalized effective service reach must be empty
-//! and its modular operational summary must neither suspend nor block. The
-//! callee must also take no parameters at all (stage 1 is zero-arg, which
-//! discharges the "no `&mut`/out params" half of the predicate). The remaining
-//! build-time contract axes are staged in the shared admission plan.
+//! Each closed extent expression is folded by checked scalar evaluation or
+//! retained as a compiler-private, zero-runtime-parameter entry. This entry
+//! carries the complete expression and its original selections; authored
+//! callees may take ordinary closed arguments. Length jobs use the existing
+//! admission, dependency and selected-provider continuation for that entry.
+//! A successful job publishes a literal extent. No unresolved recipe grants
+//! layout or execution, and final product checking retains ordinary duties.
 //!
 //! TERMINATION: no new rule -- the language's existing discipline (no general
 //! recursion, loops carry decreases) covers const callees. The interpreter

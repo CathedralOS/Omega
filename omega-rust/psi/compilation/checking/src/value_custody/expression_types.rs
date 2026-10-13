@@ -895,6 +895,7 @@ fn fixed_byte_array_capacity(
     match length {
         typed_trees::types::FixedArrayLength::Literal(capacity) => Some(*capacity),
         typed_trees::types::FixedArrayLength::ConstParameter { .. }
+        | typed_trees::types::FixedArrayLength::Expression(_)
         | typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
     }
 }

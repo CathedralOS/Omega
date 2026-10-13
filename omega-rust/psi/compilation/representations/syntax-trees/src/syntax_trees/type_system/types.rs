@@ -753,10 +753,12 @@ impl TypeReferenceNode {
 pub enum FixedArrayLength {
     Literal(usize),
     ConstParameter(Identifier),
-    /// A zero-argument machine call in length position (`[u8; table_size()]`):
-    /// the effect-free callee is CONST-EVALUATED by the reference interpreter
-    /// before layout (comptime stage 1).
+    /// A retained closed constant entry. Source expressions with calls use a
+    /// compiler-private entry carrying their complete original expression;
+    /// ordinary length jobs own its dependencies, admission and realization.
     ConstCall(Identifier),
+    /// An owned ordinary constant-expression use; its type node retains evaluation custody.
+    Expression(TypeReferenceHandle),
 }
 
 impl Default for FixedArrayLength {
@@ -777,6 +779,7 @@ impl fmt::Display for FixedArrayLength {
             Self::Literal(value) => write!(formatter, "{value}"),
             Self::ConstParameter(name) => write!(formatter, "{name}"),
             Self::ConstCall(name) => write!(formatter, "{name}()"),
+            Self::Expression(_) => formatter.write_str("<constant expression>"),
         }
     }
 }

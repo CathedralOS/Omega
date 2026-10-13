@@ -84,9 +84,20 @@ pub(crate) fn lower_private_expression_into_table(
     syntax_trees: &SyntaxTrees,
     expression: syntax::expression::ExpressionHandle,
 ) -> Result<ExpressionHandle, Diagnostic> {
-    let previous = lowerer.current_authored_expression_exposure.replace(
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-    );
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
+    let exposure = if syntax_trees
+        .roots
+        .constant_extent_probes
+        .iter()
+        .any(|(root, public)| *root == expression && *public)
+    {
+        Exposure::PublicInterface
+    } else {
+        Exposure::PrivateImplementation
+    };
+    let previous = lowerer
+        .current_authored_expression_exposure
+        .replace(exposure);
     let result = lower_expression_into_table(lowerer, syntax_trees, expression);
     lowerer.current_authored_expression_exposure = previous;
     result

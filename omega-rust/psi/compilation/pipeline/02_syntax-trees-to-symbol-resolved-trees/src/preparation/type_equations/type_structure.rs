@@ -495,7 +495,7 @@ impl Solver<'_, '_> {
     ) -> Result<Option<usize>, Diagnostic> {
         let integer = match length {
             FixedArrayLength::Literal(length) => return Ok(Some(*length)),
-            FixedArrayLength::ConstCall(_) => {
+            FixedArrayLength::ConstCall(_) | FixedArrayLength::Expression(_) => {
                 return Err(self.type_structure_error(
                     "requires an array length normalized by constant evaluation",
                     span,

@@ -43,6 +43,10 @@ pub(crate) fn evaluate(
             sources.clone(),
             bindings.to_vec(),
         )?;
+    let extent_arguments =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_array_extent_expressions(
+            &mut syntax,
+        );
     let machine_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
             &syntax,
@@ -64,6 +68,12 @@ pub(crate) fn evaluate(
             )
         })
         .collect::<Vec<_>>();
+    let extent_uses = extent_arguments
+        .iter()
+        .map(|(use_handle, ..)| *use_handle)
+        .collect::<Vec<_>>();
+    lexical_arguments.extend(extent_uses.iter().copied());
+    arguments.extend(extent_arguments);
     for (argument, destination, public) in machine_arguments {
         // This is probe routing, not builtin identity. The typed destination
         // must still resolve to the exact primitive before evaluation.
@@ -145,8 +155,10 @@ pub(crate) fn evaluate(
                 syntax.type_references.type_reference(*destination),
                 TypeReferenceNode::Named(name) if name.as_str() == "bool"
             );
-            (boolean_destination || requires_typed_expression_probe(&syntax, *expression))
-                .then_some((*argument, *expression, *destination, *public))
+            (extent_uses.contains(argument)
+                || boolean_destination
+                || requires_typed_expression_probe(&syntax, *expression))
+            .then_some((*argument, *expression, *destination, *public))
         })
         .collect::<Vec<_>>();
     if pending.is_empty() {
@@ -203,9 +215,13 @@ pub(crate) fn evaluate(
             TypeReferenceNode::Named(Identifier::generated(placeholder)),
         );
     }
-    for (ordinal, (_, expression, destination, _)) in pending.iter().enumerate() {
-        append_probe(&mut probe, ordinal, *expression, *destination);
-    }
+    let owners = pending
+        .iter()
+        .enumerate()
+        .map(|(ordinal, (_, expression, destination, _))| {
+            append_probe(&mut probe, ordinal, *expression, *destination)
+        })
+        .collect::<Vec<_>>();
     let probe =
         crate::syntax_probes::normalize_generic_data(probe, sources.clone(), bindings, None)?;
     let frontier = syntax_trees_to_symbol_resolved_trees::resolve_deferred(
@@ -215,16 +231,15 @@ pub(crate) fn evaluate(
             top_level_bindings: bindings.to_vec(),
         },
     )?;
-    let probe_sources = pending
+    let owner_symbols = owners
         .iter()
-        .map(|(_, expression, _, _)| syntax.expressions.source_span(*expression))
-        .collect::<Vec<_>>();
-    // Names and operator selections need the real declaration context, not
-    // every runtime implementation in the same source frontier. Use the same
-    // body demand as call probes while retaining exact scalar-selection checks.
-    let (typed, _) = crate::syntax_probes::prepare_evaluation(frontier, &probe_sources, &[], &[])?;
+        .map(|owner| owner.resolve(frontier.trees()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let prepared =
+        crate::syntax_probes::prepare_owned_probe_evaluation(frontier, &owner_symbols, &[])?;
+    let typed = prepared.typed;
 
-    for (argument, original, _, public) in pending {
+    for ((argument, original, _, public), owner) in pending.into_iter().zip(owner_symbols) {
         let reference = syntax.expressions.source_span(original);
         let failure = |reason| {
             vec![
@@ -241,8 +256,18 @@ pub(crate) fn evaluate(
             origins,
             operators,
             warnings,
-        } = evaluate_probe(&typed, reference, public, authority, expected, &syntax)
-            .map_err(&failure)?;
+        } = evaluate_probe_internal(
+            &typed,
+            reference,
+            public,
+            authority,
+            expected,
+            &syntax,
+            None,
+            Some(owner),
+            extent_uses.contains(&argument),
+        )
+        .map_err(&failure)?;
         let result = result.into_index().map_err(&failure)?;
         let replacement = match result.decode_encoding() {
             Some(DecodedCanonicalConstValue::Integer { value, .. }) => value.to_string(),
@@ -318,6 +343,36 @@ pub(super) fn exact_probe_destination(
     })
 }
 
+/// Array extents consume an integer value, retaining its ordinary arithmetic
+/// policy. Project only range predicates; arbitrary nominal domains refuse.
+pub(super) fn extent_integer_destination(
+    program: &typed_trees::TypedTrees,
+    result: typed_trees::types::TypeReferenceHandle,
+) -> Option<(
+    typed_trees::types::PrimitiveType,
+    numerics::arithmetic::ArithmeticDomain,
+)> {
+    let result = validation::arithmetic_result_type_reference(program, result)?;
+    let primitive = program.type_reference_table.primitive_type(result)?;
+    if !matches!(
+        primitive,
+        typed_trees::types::PrimitiveType::I8
+            | typed_trees::types::PrimitiveType::I16
+            | typed_trees::types::PrimitiveType::I32
+            | typed_trees::types::PrimitiveType::I64
+            | typed_trees::types::PrimitiveType::U8
+            | typed_trees::types::PrimitiveType::U16
+            | typed_trees::types::PrimitiveType::U32
+            | typed_trees::types::PrimitiveType::U64
+    ) {
+        return None;
+    }
+    Some((
+        primitive,
+        program.type_reference_table.arithmetic_domain(result),
+    ))
+}
+
 /// Scalar declaration probes additionally admit floating destinations. Keep the
 /// structural index predicate unchanged for generic and aggregate consumers.
 pub(super) fn scalar_probe_destination(
@@ -344,11 +399,49 @@ pub(super) fn append_probe(
     ordinal: usize,
     expression: ExpressionHandle,
     destination: TypeReferenceHandle,
-) {
+) -> ProbeOwner {
+    let reference = syntax.expressions.source_span(expression);
+    append_named_probe(
+        syntax,
+        Identifier::new(format!("@const-argument-{ordinal}"), reference),
+        expression,
+        destination,
+    )
+}
+
+pub(super) fn append_extent_probe(
+    syntax: &mut SyntaxTrees,
+    use_handle: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    destination: TypeReferenceHandle,
+    public: bool,
+) -> Identifier {
+    let reference = syntax.expressions.source_span(expression);
+    let name = Identifier::new(
+        format!(
+            "@array-extent-{}-{}",
+            use_handle.generation(),
+            use_handle.arena_index()
+        ),
+        reference,
+    );
+    append_named_probe(syntax, name.clone(), expression, destination);
+    syntax
+        .roots
+        .constant_extent_probes
+        .push((expression, public));
+    name
+}
+
+fn append_named_probe(
+    syntax: &mut SyntaxTrees,
+    name: Identifier,
+    expression: ExpressionHandle,
+    destination: TypeReferenceHandle,
+) -> ProbeOwner {
     let reference = syntax.expressions.source_span(expression);
     // This private name cannot be authored by the lexer. Its source coordinate
     // locates the owning package/module, not a manufactured declaration token.
-    let name = Identifier::new(format!("@const-argument-{ordinal}"), reference);
     let target = syntax
         .statements
         .insert_transition_target(TransitionTargetNode::Value(expression));
@@ -369,7 +462,7 @@ pub(super) fn append_probe(
     });
     let state = syntax.items.append_state_handle(state);
     syntax.push_root_item(Item::Machine(Machine {
-        name,
+        name: name.clone(),
         generic_data_template: Default::default(),
         default_body_trait: Default::default(),
         where_facts: HandleSpan::empty(),
@@ -402,6 +495,33 @@ pub(super) fn append_probe(
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state, 1),
     }));
+    ProbeOwner { name }
+}
+
+/// An unspellable private declaration name is allocated with its syntax owner;
+/// resolution selects that declaration and thereafter jobs use its symbol.
+pub(super) struct ProbeOwner {
+    name: Identifier,
+}
+
+impl ProbeOwner {
+    pub(super) fn resolve(
+        &self,
+        resolved: &symbol_resolved_trees::SymbolResolvedTrees,
+    ) -> Result<symbols::SymbolHandle, Vec<Diagnostic>> {
+        let mut owners = resolved.machines.iter().filter(|machine| {
+            resolved.symbols.name(machine.symbol) == self.name.as_str()
+                && resolved.symbols.symbol_source_span(machine.symbol)
+                    == Some(self.name.source_span())
+        });
+        match (owners.next(), owners.next()) {
+            (Some(owner), None) => Ok(owner.symbol),
+            _ => Err(vec![
+                Diagnostic::error("evaluation probe lost its exact private declaration")
+                    .with_source_span(self.name.source_span()),
+            ]),
+        }
+    }
 }
 
 /// Unary operators have no authored dispatch surface. Before checked-tree
@@ -638,6 +758,26 @@ pub(super) fn call_expressions(
 /// the scalar call path uses, kept together for aggregate destinations. The
 /// roots cover the probe's complete normalized body so a terminal call hoisted
 /// into a `let` initializer still contributes its invocation custody.
+pub(super) fn pending_leaf_call_custody(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    roots: &[typed_trees::expression::ExpressionHandle],
+    public: bool,
+    syntax: &SyntaxTrees,
+) -> Result<
+    (
+        Vec<ConstArgumentOrigin>,
+        Vec<SourceSpan>,
+        Vec<(SourceSpan, SourceSpan)>,
+    ),
+    String,
+> {
+    let custody =
+        call_custody::collect_pending_roots(program, machine, state, roots, public, syntax)?;
+    Ok((custody.origins, custody.operators, custody.calls))
+}
+
 pub(super) fn leaf_call_custody(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -706,6 +846,8 @@ pub(super) fn evaluate_probe(
         expected_origins,
         syntax,
         None,
+        None,
+        false,
     )
 }
 
@@ -727,6 +869,8 @@ pub(super) fn evaluate_probe_with_calls(
         expected_origins,
         syntax,
         Some((expected_calls, calls)),
+        None,
+        false,
     )
 }
 
@@ -738,11 +882,15 @@ fn evaluate_probe_internal(
     expected_origins: Option<&[ConstArgumentOrigin]>,
     syntax: &SyntaxTrees,
     calls: Option<(&[(SourceSpan, SourceSpan)], &dyn value::ConstantCalls)>,
+    owner: Option<symbols::SymbolHandle>,
+    extent: bool,
 ) -> Result<ScalarProbeResult, String> {
-    let mut machines = typed
-        .machines()
-        .iter()
-        .filter(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(reference));
+    let mut machines = typed.machines().iter().filter(|machine| {
+        owner.map_or_else(
+            || typed.symbols.symbol_source_span(machine.symbol) == Some(reference),
+            |owner| machine.symbol == owner,
+        )
+    });
     let machine = machines
         .next()
         .ok_or("typed probe lost its source custody")?;
@@ -762,8 +910,28 @@ fn evaluate_probe_internal(
     else {
         return Err("typed probe return is not a value".to_owned());
     };
-    let destination = scalar_probe_destination(typed, state.return_type)
-        .ok_or("constant destination requires an unconstrained builtin scalar carrier")?;
+    let result_type = extent
+        .then(|| validation::expression_result_type_reference(typed, machine, state, *expression))
+        .flatten();
+    let (destination, policy) = if extent {
+        if let Some(result) = result_type {
+            extent_integer_destination(typed, result)
+                .ok_or("array extent requires a supported integer carrier and policy")?
+        } else {
+            // Anonymous integer expressions land exactly at the extent carrier.
+            (
+                exact_probe_destination(typed, state.return_type)
+                    .ok_or("array extent has no integer landing carrier")?,
+                numerics::arithmetic::ArithmeticDomain::Exact,
+            )
+        }
+    } else {
+        (
+            scalar_probe_destination(typed, state.return_type)
+                .ok_or("constant destination requires an unconstrained builtin scalar carrier")?,
+            numerics::arithmetic::ArithmeticDomain::Exact,
+        )
+    };
     crate::machine_execution::admission::require_const_expression_selection(
         typed, machine, reference, authority,
     )?;
@@ -797,11 +965,15 @@ fn evaluate_probe_internal(
                 .to_owned(),
         );
     }
-    let (value, warnings) = if let Some((_, calls)) = calls {
-        value::evaluate_scalar(typed, machine, state, *expression, destination, Some(calls))?
-    } else {
-        value::evaluate_scalar(typed, machine, state, *expression, destination, None)?
-    };
+    let (value, warnings) = value::evaluate_scalar_with_policy(
+        typed,
+        machine,
+        state,
+        *expression,
+        destination,
+        policy,
+        calls.map(|(_, calls)| calls),
+    )?;
     if value.type_name() != destination.name() {
         return Err(format!(
             "landed `{}` result cannot initialize `{}`",

@@ -1097,6 +1097,9 @@ pub fn visit_type_reference(
                     visit_symbol(retained, *symbol);
                 }
                 FixedArrayLength::ConstCall { machine, .. } => visit_symbol(retained, *machine),
+                FixedArrayLength::Expression(value) => {
+                    visit_type_reference(program, retained, *value)
+                }
                 FixedArrayLength::Literal(_) => {}
             }
         }

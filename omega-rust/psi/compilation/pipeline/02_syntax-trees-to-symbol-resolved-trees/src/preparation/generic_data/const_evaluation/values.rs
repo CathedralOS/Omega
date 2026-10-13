@@ -761,6 +761,14 @@ pub(crate) fn closed_fixed_array_length(
                 "array extent constant is not a nonnegative host-sized integer".to_owned()
             })
         }
+        FixedArrayLength::Expression(value) => syntax
+            .type_references
+            .type_reference(*value)
+            .as_named()
+            .and_then(|value| value.as_str().parse::<usize>().ok())
+            .ok_or_else(|| {
+                "array extent expression requires completed constant evaluation".to_owned()
+            }),
         FixedArrayLength::ConstCall(_) => {
             Err("array extent call requires completed constant evaluation".to_owned())
         }

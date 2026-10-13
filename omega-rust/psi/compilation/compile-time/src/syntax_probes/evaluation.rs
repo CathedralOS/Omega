@@ -68,12 +68,49 @@ impl PreparedEvaluationInputs {
 }
 
 pub(crate) fn prepare_evaluation_inputs(
-    mut frontier: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    frontier: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
     probe_sources: &[SourceSpan],
     expression_sources: &[SourceSpan],
     declaration_roots: &[SymbolHandle],
 ) -> Result<PreparedEvaluationInputs, Vec<Diagnostic>> {
-    let mut roots = Vec::new();
+    prepare_evaluation_inputs_with_owners(
+        frontier,
+        probe_sources,
+        expression_sources,
+        declaration_roots,
+        &[],
+    )
+}
+
+/// Compiler-created probes retain exact resolved declaration identities. Their
+/// authored spans locate diagnostics and selections, never instance jobs.
+pub(crate) fn prepare_owned_probe_evaluation(
+    frontier: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    owners: &[SymbolHandle],
+    expression_sources: &[SourceSpan],
+) -> Result<PreparedEvaluationInputs, Vec<Diagnostic>> {
+    prepare_evaluation_inputs_with_owners(frontier, &[], expression_sources, &[], owners)
+}
+
+fn prepare_evaluation_inputs_with_owners(
+    mut frontier: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    probe_sources: &[SourceSpan],
+    expression_sources: &[SourceSpan],
+    declaration_roots: &[SymbolHandle],
+    owners: &[SymbolHandle],
+) -> Result<PreparedEvaluationInputs, Vec<Diagnostic>> {
+    let mut roots = owners.to_vec();
+    if owners.iter().any(|owner| {
+        !frontier
+            .trees()
+            .machines
+            .iter()
+            .any(|machine| machine.symbol == *owner)
+    }) {
+        return Err(vec![Diagnostic::error(
+            "evaluation probe lost its exact declaration owner",
+        )]);
+    }
     for reference in probe_sources {
         let mut candidates = frontier.trees().machines.iter().filter(|machine| {
             frontier.trees().symbols.symbol_source_span(machine.symbol) == Some(*reference)

@@ -50,7 +50,10 @@ positive residual; the solver never emits a reflection or reports false exact
 alignment. Jacobi skips off-diagonal terms below 1e-15 times the two diagonal
 magnitudes. Storage and iteration counts are fixed; no external numerical
 package, random initialization, variable iteration cutoff or point matching is
-used. Pair order is supplied by the caller.
+used. Pair order is supplied by the caller. The 3x3 covariance, scatter and rotation
+and 4x4 Jacobi matrices use one generic `Matrix<Rows, Columns>` record with
+`[f64; Rows * Columns]` storage. Dimensions remain part of nominal type identity;
+checked constant evaluation computes each extent before layout.
 
 Exit 0 emits `status fitted; numbers in 1e-12 units`, then:
 

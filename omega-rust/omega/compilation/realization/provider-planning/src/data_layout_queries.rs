@@ -238,6 +238,7 @@ fn reject_unresolved_layout_operands(
             } => {
                 match length {
                     FixedArrayLength::Literal(_) => {}
+                    FixedArrayLength::Expression(_) => return Err("`size_of`/`align_of` cannot measure an array with an unresolved extent expression".into()),
                     // `ConstCall` lengths must already have folded to
                     // `Literal` before settlement; a surviving non-literal
                     // length means the layout was never resolved.

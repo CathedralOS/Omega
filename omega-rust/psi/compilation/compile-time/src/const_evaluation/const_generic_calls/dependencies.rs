@@ -21,20 +21,18 @@ pub(super) fn ready_layer(
         TypeReferenceHandle,
         bool,
     )],
+    owners: &[symbols::SymbolHandle],
     syntax: &SyntaxTrees,
 ) -> Result<ReadyLayer, Vec<Diagnostic>> {
     let mut dependencies = Vec::with_capacity(applications.len());
-    for (_, expression, ..) in applications {
+    for ((_, expression, ..), owner) in applications.iter().zip(owners) {
         let reference = syntax.expressions.source_span(*expression);
-        let mut matching = preparation.typed.machines().iter().filter(|machine| {
-            preparation.typed.symbols.symbol_source_span(machine.symbol) == Some(reference)
-        });
-        let (Some(machine), None) = (matching.next(), matching.next()) else {
-            return Err(vec![
-                Diagnostic::error("application probe lost its unique source owner")
+        let machine = preparation.typed.machine(*owner).ok_or_else(|| {
+            vec![
+                Diagnostic::error("application probe lost its exact declaration owner")
                     .with_source_span(reference),
-            ]);
-        };
+            ]
+        })?;
         let domain = preparation.domain_for_roots(&[machine.symbol]);
         let mut required = Vec::new();
         for &(owner, argument) in &preparation.pending_type_inputs {

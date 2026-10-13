@@ -288,7 +288,9 @@ pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutab
                 parameters,
             );
             let length_is_substitutable = match length {
-                FixedArrayLength::Literal(_) | FixedArrayLength::ConstCall(_) => true,
+                FixedArrayLength::Literal(_)
+                | FixedArrayLength::ConstCall(_)
+                | FixedArrayLength::Expression(_) => true,
                 FixedArrayLength::ConstParameter(name) => {
                     let head = name
                         .as_str()

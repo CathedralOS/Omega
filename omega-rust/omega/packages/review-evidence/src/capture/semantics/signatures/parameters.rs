@@ -13,8 +13,8 @@ use super::super::types::project_data_properties;
 use crate::capture::PackageReviewInput;
 use crate::record::{
     PackageReviewCrashRoute, PackageReviewMachineParameterContract,
-    PackageReviewMachineParameterSignature, PackageReviewSignatureParameter,
-    PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
+    PackageReviewMachineParameterSignature, PackageReviewPropositionParameterSignature,
+    PackageReviewPropositionParameterValue, PackageReviewSignatureParameter,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
 use diagnostics::Diagnostic;
@@ -50,6 +50,7 @@ impl Projection<'_> {
         lifetimes: &[typed_trees::name::Identifier],
     ) -> Result<crate::record::PackageReviewTypeIdentity, Vec<Diagnostic>> {
         super::super::types::signature_type_identity(
+            compilation,
             typed,
             compilation.custody.sources().exact_toolchain_sources(),
             reference,
@@ -58,6 +59,7 @@ impl Projection<'_> {
             self.substitutions,
             &[],
             false,
+            self.selection_exposure,
         )
     }
 }

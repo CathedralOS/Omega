@@ -96,32 +96,43 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         let (element_type, input) = parse_type_reference_handle(syntax_trees, input)?;
         if input.at_punctuation(PunctuationKind::Semicolon) {
             let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-            let (length, input) = if input
-                .tokens
-                .first()
-                .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
-            {
-                let (name, input) = parse_static_name(input)?;
-                // `[T; table_size()]`: a zero-argument machine call in length
-                // position is CONST-EVALUATED at compile time (comptime stage 1).
-                if input.at_punctuation(PunctuationKind::LeftParen) {
-                    let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-                    if !input.at_punctuation(PunctuationKind::RightParen) {
-                        return Err(input.error_here(
-                            "const arguments in array-length calls are not supported yet; \
-                             the const-evaluated machine must take zero parameters",
-                        ));
+            // Extents are ordinary constant positions, not a second expression
+            // grammar. Retain non-leaf expressions for checked semantic evaluation.
+            let (expression, input) =
+                crate::expressions::parse_expression::parse_expression_handle(syntax_trees, input)?;
+            let length = match syntax_trees.expressions.expression(expression) {
+                ExpressionNode::Integer(value) => {
+                    // Preserve the existing literal extent representation when
+                    // its exact nonnegative magnitude is already known.
+                    let text = value.to_string();
+                    match text.parse::<usize>() {
+                        Ok(value) => FixedArrayLength::Literal(value),
+                        Err(_) => {
+                            let use_type = syntax_trees
+                                .type_references
+                                .insert(TypeReferenceNode::ConstExpression(expression));
+                            FixedArrayLength::Expression(use_type)
+                        }
                     }
-                    let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-                    (FixedArrayLength::ConstCall(name), input)
-                } else {
-                    (FixedArrayLength::ConstParameter(name), input)
                 }
-            } else {
-                let (length, input) = input.take_integer()?;
-                let length = usize::try_from(length)
-                    .map_err(|_| input.error_here("expected non-negative array length"))?;
-                (FixedArrayLength::Literal(length), input)
+                ExpressionNode::Name(path) => {
+                    let members = syntax_trees.expressions.identifier_path_members(*path);
+                    let name = Identifier::new(
+                        members
+                            .iter()
+                            .map(Identifier::as_str)
+                            .collect::<Vec<_>>()
+                            .join("::"),
+                        syntax_trees.expressions.source_span(expression),
+                    );
+                    FixedArrayLength::ConstParameter(name)
+                }
+                _ => {
+                    let use_type = syntax_trees
+                        .type_references
+                        .insert(TypeReferenceNode::ConstExpression(expression));
+                    FixedArrayLength::Expression(use_type)
+                }
             };
             let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
             let array = syntax_trees

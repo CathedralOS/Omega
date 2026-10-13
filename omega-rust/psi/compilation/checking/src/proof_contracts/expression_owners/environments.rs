@@ -184,6 +184,13 @@ pub(super) fn exact_owner_environments(
     collect_proposition_environments(program, expression, &mut environments);
     collect_measure_environments(program, expression, &mut environments);
     collect_parameter_constraint_environments(program, expression, &mut environments)?;
+    environments.extend(
+        data_type_environments(program)
+            .into_iter()
+            .filter_map(|(reached, environment)| {
+                reached.contains(&expression).then_some(environment)
+            }),
+    );
     collect_ranking_environments(program, expression, &mut environments);
     collect_executable_environments(program, expression, &mut environments)?;
     (!environments.is_empty()).then_some(environments)
@@ -389,4 +396,55 @@ pub(super) fn collect_executable_environments(
         }
     }
     Some(())
+}
+
+/// Embedded field recipes own the data declaration's static telescope. This
+/// supplies operand types for ordinary selected-meaning reconstruction, never
+/// a value for an open binder or permission to evaluate a runtime subject.
+pub(super) fn data_type_environments(
+    program: &dyn crate::CheckingInput,
+) -> Vec<(Vec<ExpressionHandle>, TypeEnvironment)> {
+    let mut environments = Vec::new();
+    for definition in program.data_definitions() {
+        let bindings = program
+            .data_type_parameters(definition)
+            .iter()
+            .filter_map(|parameter| {
+                let type_reference = match parameter.kind {
+                    typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                        type_reference
+                    }
+                    _ => return None,
+                };
+                Some(Binding {
+                    name: parameter.name.as_str().to_owned(),
+                    symbol: parameter.symbol,
+                    type_reference,
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut reached = Vec::new();
+        for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+            reached.extend(super::indexing::proof_fact_reachable_expressions(
+                program, fact,
+            ));
+        }
+        for field in program.data_member_fields(program.data_members(definition)) {
+            reached.extend(super::indexing::type_reference_reachable_expressions(
+                program,
+                field.type_reference,
+            ));
+        }
+        if !reached.is_empty() {
+            environments.push((
+                reached,
+                TypeEnvironment {
+                    bindings,
+                    ..Default::default()
+                },
+            ));
+        }
+    }
+    environments
 }

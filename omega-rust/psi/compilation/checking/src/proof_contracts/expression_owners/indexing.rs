@@ -52,6 +52,9 @@ pub(super) fn build_owner_environment_index(
     index_proposition_environments(program, &mut index);
     index_measure_environments(program, &mut index);
     index_parameter_constraint_environments(program, &mut index);
+    for (reached, environment) in super::environments::data_type_environments(program) {
+        index.add_all(reached, || environment);
+    }
     index_ranking_environments(program, &mut index);
     index_executable_environments(program, &mut index);
     index
@@ -141,8 +144,16 @@ pub(super) fn collect_type_reference_expressions(
                 }
             }
         }
-        TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            collect_type_reference_expressions(program, *element_type, visited, reached);
+            if let typed_trees::types::FixedArrayLength::Expression(value) = length {
+                collect_type_reference_expressions(program, *value, visited, reached);
+            }
+        }
+        TypeReferenceNode::Slice { element_type } => {
             collect_type_reference_expressions(program, *element_type, visited, reached)
         }
         TypeReferenceNode::Generic { arguments, .. } => {

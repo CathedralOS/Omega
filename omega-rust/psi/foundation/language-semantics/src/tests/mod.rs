@@ -5,3 +5,5 @@ mod external_bindings;
 mod machine_termination;
 mod semantic_domains;
 mod service_reach;
+
+mod array_extent_identity;

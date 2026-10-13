@@ -67,6 +67,26 @@ pub(super) fn expression(
                     }
                 }
             }
+            "call" => {
+                grammar::name_atom(reader, "target", visitor)?;
+                while reader.next(b',') {
+                    reader.expect(b',')?;
+                    expression(reader, visitor)?;
+                }
+            }
+            "cast" => {
+                expression(reader, visitor)?;
+                reader.expect(b',')?;
+                grammar::type_identity(reader, visitor)?;
+                reader.expect(b',')?;
+                let domain = reader.atom("domain", visitor)?;
+                if !matches!(
+                    domain.as_ref(),
+                    "Exact" | "Wrapping" | "Saturating" | "Trapping"
+                ) {
+                    return Err(Error::MalformedIdentity);
+                }
+            }
             _ => return Err(Error::MalformedIdentity),
         }
         reader.expect(b')')

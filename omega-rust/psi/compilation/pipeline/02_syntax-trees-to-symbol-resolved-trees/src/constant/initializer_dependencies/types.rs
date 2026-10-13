@@ -97,6 +97,7 @@ impl<'program> Collector<'program> {
                     {
                         self.constant(*symbol, name.source_span())?;
                     }
+                    FixedArrayLength::Expression(value) => self.type_child(*value)?,
                     FixedArrayLength::ConstCall { machine, name } => {
                         self.call(*machine, name.source_span())?;
                     }

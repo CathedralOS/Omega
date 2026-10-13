@@ -587,6 +587,12 @@ pub fn substituted_type_identity(
                         (*parameter == *symbol).then(|| identity.clone())
                     })
                     .unwrap_or_else(|| name.as_str().to_owned()),
+                FixedArrayLength::Expression(value) => substituted_type_identity(
+                    program,
+                    *value,
+                    substitutions,
+                    lifetime_substitutions,
+                ),
                 FixedArrayLength::ConstCall { name, .. } => format!("{}()", name.as_str()),
             };
             format!(

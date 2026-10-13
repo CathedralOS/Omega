@@ -643,7 +643,9 @@ fn substitute_member_type(
                         _ => return None,
                     }
                 }
-                FixedArrayLength::ConstCall { .. } => return None,
+                FixedArrayLength::Expression(_) | FixedArrayLength::ConstCall { .. } => {
+                    return None;
+                }
             };
             Some(
                 typed

@@ -173,7 +173,7 @@ pub(super) fn array_length_is_supported(
                         && parameter_is_supported(source, owner, parameter)
                 })
         }
-        FixedArrayLength::ConstCall { .. } => false,
+        FixedArrayLength::ConstCall { .. } | FixedArrayLength::Expression(_) => false,
     }
 }
 

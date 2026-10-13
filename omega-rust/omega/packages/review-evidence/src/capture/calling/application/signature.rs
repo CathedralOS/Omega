@@ -274,6 +274,7 @@ fn project_with_binders(
         semantic_parameters.push(PackageReviewSignatureParameter {
             name: parameter.name.as_str().to_owned(),
             type_identity: signature_type_identity(
+                compilation,
                 &projected,
                 compilation.custody.sources().exact_toolchain_sources(),
                 reference,
@@ -282,6 +283,7 @@ fn project_with_binders(
                 &substitutions,
                 &[],
                 false,
+                language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
             )?,
             is_mutable: parameter.is_mutable,
             is_const: parameter.is_const,
@@ -296,6 +298,7 @@ fn project_with_binders(
             0,
         )?;
         Some(signature_type_identity(
+            compilation,
             &projected,
             compilation.custody.sources().exact_toolchain_sources(),
             reference,
@@ -304,6 +307,7 @@ fn project_with_binders(
             &substitutions,
             &[],
             false,
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
         )?)
     } else {
         None

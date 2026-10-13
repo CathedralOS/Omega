@@ -51,8 +51,15 @@ pub(super) fn type_reference_contains_expression(
                         }
                     })
         }
-        TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            type_reference_contains_expression(program, *element_type, expression, visited)
+                || matches!(length, typed_trees::types::FixedArrayLength::Expression(value)
+                    if type_reference_contains_expression(program, *value, expression, visited))
+        }
+        TypeReferenceNode::Slice { element_type } => {
             type_reference_contains_expression(program, *element_type, expression, visited)
         }
         TypeReferenceNode::Generic { arguments, .. } => program

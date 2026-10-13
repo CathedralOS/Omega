@@ -224,7 +224,7 @@ fn lower_type_reference_node(
             storage: FixedArrayTypeReferenceStorage {
                 supplied_operand_owner: Default::default(),
                 element_type: lower_type_reference_child(lowerer, syntax_trees, *element_type)?,
-                length: lower_fixed_array_length(length),
+                length: lower_fixed_array_length(lowerer, syntax_trees, length)?,
             },
         })),
         syntax::types::TypeReferenceNode::Slice { element_type } => {
@@ -298,9 +298,32 @@ fn lower_type_reference_node(
 }
 
 pub(crate) fn lower_fixed_array_length(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
     length: &syntax::types::FixedArrayLength,
-) -> FixedArrayLength {
-    match length {
+) -> Result<FixedArrayLength, Diagnostic> {
+    Ok(match length {
+        syntax::types::FixedArrayLength::Expression(value) => {
+            // Lower the owned use even after closure: it validates retained
+            // normalization and carries declaration/operator custody forward.
+            let child = lower_type_reference_child(lowerer, syntax_trees, *value)?;
+            if syntax_trees
+                .type_references
+                .const_argument_normalization(*value)
+                .is_some()
+                && let Some(name) = syntax_trees
+                    .type_references
+                    .type_reference(*value)
+                    .as_named()
+            {
+                FixedArrayLength::Literal(name.as_str().parse::<usize>().map_err(|_| {
+                    Diagnostic::error("array extent must be a nonnegative host-sized integer")
+                        .with_source_span(name.source_span())
+                })?)
+            } else {
+                FixedArrayLength::Expression(child)
+            }
+        }
         syntax::types::FixedArrayLength::Literal(value) => FixedArrayLength::Literal(*value),
         syntax::types::FixedArrayLength::ConstParameter(name) => FixedArrayLength::ConstParameter {
             symbol: SymbolHandle::invalid(),
@@ -310,7 +333,7 @@ pub(crate) fn lower_fixed_array_length(
             machine: SymbolHandle::invalid(),
             name: crate::lowering::name::lower_name(name),
         },
-    }
+    })
 }
 
 fn lower_type_reference_child(

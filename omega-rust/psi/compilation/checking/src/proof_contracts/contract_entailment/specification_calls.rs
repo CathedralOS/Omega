@@ -100,6 +100,91 @@ impl<'program> SpecificationCaller<'program> {
     }
 }
 
+/// Type-bound constant recipes use their real declaration telescope. Result
+/// typing alone cannot establish an application's argument formation. This
+/// checks owned operands and selected contracts without executing open binders.
+pub(crate) fn validate_declaration_expression_formation(
+    program: &dyn crate::CheckingInput,
+    owner_symbol: SymbolHandle,
+    parameters: &[StateParameter],
+    root: ExpressionHandle,
+    prior_facts: &[ExpressionHandle],
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        let node = program.expression_table.expression(expression);
+        children(program, node, |child| pending.push(child));
+        let ExpressionNode::Call(call) = node else {
+            continue;
+        };
+        let Some(selected) =
+            selected_call_contract_for_parameters(program, call, owner_symbol, parameters)
+        else {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "{owner} constant expression call has no exact declared contract owner"
+                ))
+                .with_source_span(program.expression_table.source_span(expression)),
+            );
+            continue;
+        };
+        let Some(expected) = owner_parameter_scope(program, &selected) else {
+            continue;
+        };
+        let actual = program
+            .expression_table
+            .expression_handles(call.arguments)
+            .get(owner_leading_operands(&selected)..)
+            .unwrap_or(&[]);
+        if actual.len() != expected.len() {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "{owner} constant expression call has incompatible argument arity"
+                ))
+                .with_source_span(program.expression_table.source_span(expression)),
+            );
+            continue;
+        }
+        for (argument, parameter) in actual.iter().zip(expected.iter()) {
+            let natural = crate::parameter_expression_result_type_reference(
+                program,
+                owner_symbol,
+                parameters,
+                *argument,
+            );
+            let matches = natural.map_or_else(|| {
+                // Anonymous and literal structural operands keep the shared
+                // destination formation judgment. An unresolved computation
+                // never inherits a type from its expected destination.
+                (!matches!(program.expression_table.expression(*argument), ExpressionNode::Binary(_) | ExpressionNode::Unary(_) | ExpressionNode::Call(_))
+                    || crate::has_anonymous_numeric_results(program, *argument))
+                    && crate::value_custody::expression_types::argument_matches_type_reference_with_substitutions(program, *argument, parameter.type_reference, &[])
+            }, |actual| crate::value_custody::type_references::type_references_match(program, actual, parameter.type_reference));
+            if !matches {
+                diagnostics.push(Diagnostic::error(format!("{owner} constant expression call argument `{}` does not form parameter `{}` of `{}`",
+                    program.expression_table.display_name(*argument), parameter.name, owner_name(program, &selected)))
+                    .with_source_span(program.expression_table.source_span(*argument)));
+            }
+        }
+    }
+    validate_expression(
+        program,
+        SpecificationCaller::Declaration(owner_symbol, parameters),
+        root,
+        prior_facts,
+        owner,
+        diagnostics,
+        &mut Vec::new(),
+    );
+}
+
 /// Mathematical declarations reuse the same independently formed call
 /// precondition judgment under their own exact parameter telescope. They have
 /// no synthetic machine, entry state or operational binding environment.

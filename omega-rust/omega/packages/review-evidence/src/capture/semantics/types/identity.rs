@@ -12,7 +12,12 @@ pub(crate) fn review_type_identity_with_binders(
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
-    validate_package_type_identity_input(compilation.checking_input, type_reference, binders)?;
+    validate_package_type_identity_input(
+        compilation,
+        compilation.checking_input,
+        type_reference,
+        binders,
+    )?;
     let identity = compilation
         .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
             type_reference,
@@ -36,7 +41,12 @@ pub(crate) fn review_type_identity_with_binders_and_substitutions(
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
-    validate_package_type_identity_input(compilation.checking_input, type_reference, binders)?;
+    validate_package_type_identity_input(
+        compilation,
+        compilation.checking_input,
+        type_reference,
+        binders,
+    )?;
     let identity = compilation
         .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
             type_reference,
@@ -100,6 +110,7 @@ pub(crate) fn review_signature_type_identity_with_binders_and_substitutions_and_
     lifetime_substitutions: &[(typed_trees::name::Identifier, typed_trees::name::Identifier)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     signature_type_identity(
+        compilation,
         compilation.checking_input,
         compilation.custody.sources().exact_toolchain_sources(),
         type_reference,
@@ -108,6 +119,7 @@ pub(crate) fn review_signature_type_identity_with_binders_and_substitutions_and_
         substitutions,
         lifetime_substitutions,
         false,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     )
 }
 
@@ -118,6 +130,7 @@ pub(crate) fn review_signature_type_identity_with_binders_and_substitutions_and_
 /// A const-argument root is permitted only after the caller establishes its
 /// exact declared const telescope slot.
 pub(crate) fn signature_type_identity(
+    compilation: &PackageReviewInput<'_>,
     program: &dyn ::validation::CheckingInput,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     type_reference: typed_trees::types::TypeReferenceHandle,
@@ -126,12 +139,15 @@ pub(crate) fn signature_type_identity(
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     lifetime_substitutions: &[(typed_trees::name::Identifier, typed_trees::name::Identifier)],
     const_argument: bool,
+    selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     super::validation::validate_package_type_identity_input_inner(
+        compilation,
         program,
         type_reference,
         binders,
         const_argument,
+        Some(selection_exposure),
     )?;
     let runtime = program
         .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {

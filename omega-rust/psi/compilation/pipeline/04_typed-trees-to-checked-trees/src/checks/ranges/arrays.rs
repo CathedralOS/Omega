@@ -65,7 +65,9 @@ pub(in crate::checks) fn fixed_array_type_symbolic_extent(
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::FixedArray { length, .. } => match length {
             FixedArrayLength::ConstParameter { symbol, name } => Some((*symbol, name.clone())),
-            FixedArrayLength::Literal(_) | FixedArrayLength::ConstCall { .. } => None,
+            FixedArrayLength::Literal(_)
+            | FixedArrayLength::Expression(_)
+            | FixedArrayLength::ConstCall { .. } => None,
         },
         TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {

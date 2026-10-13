@@ -135,7 +135,7 @@ impl CheckedInitializers {
         Ok(self.calls(machine, state))
     }
 
-    pub(super) fn calls_for_symbol(
+    pub(crate) fn calls_for_symbol(
         &self,
         symbol: symbols::SymbolHandle,
     ) -> Result<Invocation<'_>, String> {
@@ -1083,6 +1083,7 @@ impl Invocation<'_> {
         reference: source::SourceSpan,
         public: bool,
         syntax: &syntax_trees::SyntaxTrees,
+        extent: bool,
     ) -> Result<ApplicationProbeEvaluation, String> {
         let typed = self.program.typed();
         let roots = self.probe_roots()?;
@@ -1097,7 +1098,10 @@ impl Invocation<'_> {
         )?;
         let destination = crate::const_evaluation::const_generic_expressions::exact_probe_destination(
             typed,
-            self.state.return_type,
+            if extent {
+                validation::expression_result_type_reference(typed, self.machine, self.state, expression)
+                    .unwrap_or(self.state.return_type)
+            } else { self.state.return_type },
         )
         .ok_or("application probe destination requires an unconstrained exact builtin integer or Boolean carrier")?;
         let (origins, operators, calls) =

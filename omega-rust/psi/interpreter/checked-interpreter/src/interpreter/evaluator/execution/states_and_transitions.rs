@@ -706,6 +706,11 @@ impl<'program> Evaluator<'program> {
                         .and_then(|argument| {
                             self.const_argument_value_with_bindings(argument, bindings, 0)
                         }),
+                    typed_trees::types::FixedArrayLength::Expression(_) => {
+                        return unsupported(
+                            "array extent expression has not completed checked constant evaluation",
+                        );
+                    }
                     typed_trees::types::FixedArrayLength::ConstCall { name, .. } => {
                         match self.program.closed_fixed_array_length(type_reference) {
                             Some(count) => Some(count),

@@ -350,7 +350,9 @@ pub(crate) fn validate_array_literal_elements(
     };
     let expected_len = match length {
         FixedArrayLength::Literal(length) => Some(*length),
-        FixedArrayLength::ConstParameter { .. } | FixedArrayLength::ConstCall { .. } => None,
+        FixedArrayLength::ConstParameter { .. }
+        | FixedArrayLength::Expression(_)
+        | FixedArrayLength::ConstCall { .. } => None,
     };
     validate_array_literal_elements_for_shape(
         program,

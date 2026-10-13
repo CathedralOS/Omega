@@ -92,6 +92,7 @@ pub(crate) fn project_checked_conformance_policy<'a>(
     }
     let project_type = |reference| {
         signature_type_identity(
+            compilation,
             &instantiated,
             compilation.custody.sources().exact_toolchain_sources(),
             reference,
@@ -100,6 +101,7 @@ pub(crate) fn project_checked_conformance_policy<'a>(
             &substitutions,
             &lifetime_substitutions,
             false,
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
         )
     };
     let mut type_arguments = Vec::with_capacity(application.type_arguments.len());

@@ -82,6 +82,7 @@ pub enum FixedArrayLengthSnapshot {
     Literal { value: usize },
     ConstParameter { name: IdentifierSnapshot },
     ConstCall { name: IdentifierSnapshot },
+    Expression { value: Box<TypeReferenceSnapshot> },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -260,7 +261,7 @@ pub(crate) fn snapshot_type_reference_handle(
             length,
         } => TypeReferenceSnapshot::FixedArray {
             element_type: Box::new(snapshot_type_reference_handle(syntax_trees, *element_type)),
-            length: snapshot_fixed_array_length(length),
+            length: snapshot_fixed_array_length(syntax_trees, length),
         },
         TypeReferenceNode::Slice { element_type } => TypeReferenceSnapshot::Slice {
             element_type: Box::new(snapshot_type_reference_handle(syntax_trees, *element_type)),
@@ -301,7 +302,10 @@ pub(crate) fn snapshot_type_reference_handle(
     }
 }
 
-fn snapshot_fixed_array_length(length: &FixedArrayLength) -> FixedArrayLengthSnapshot {
+fn snapshot_fixed_array_length(
+    syntax_trees: &SyntaxTrees,
+    length: &FixedArrayLength,
+) -> FixedArrayLengthSnapshot {
     match length {
         FixedArrayLength::Literal(value) => FixedArrayLengthSnapshot::Literal { value: *value },
         FixedArrayLength::ConstParameter(name) => FixedArrayLengthSnapshot::ConstParameter {
@@ -309,6 +313,9 @@ fn snapshot_fixed_array_length(length: &FixedArrayLength) -> FixedArrayLengthSna
         },
         FixedArrayLength::ConstCall(name) => FixedArrayLengthSnapshot::ConstCall {
             name: snapshot_identifier(name),
+        },
+        FixedArrayLength::Expression(value) => FixedArrayLengthSnapshot::Expression {
+            value: Box::new(snapshot_type_reference_handle(syntax_trees, *value)),
         },
     }
 }

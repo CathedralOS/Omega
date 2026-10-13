@@ -311,7 +311,7 @@ pub(super) fn fixed_array_binds_open_length(
                 required_declared,
             )
         }),
-        FixedArrayLength::ConstCall { .. } => false,
+        FixedArrayLength::Expression(_) | FixedArrayLength::ConstCall { .. } => false,
     }
 }
 

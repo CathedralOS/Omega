@@ -1,0 +1,3 @@
+// Refuse the authored extent obligation before execution.
+data Matrix<const R: u64> [copy] { cells: [u8; R + false]; }
+machine main() {}

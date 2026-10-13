@@ -786,7 +786,9 @@ fn call_bindings(
                         }
                         Polynomial::atom(format!("const:{symbol:?}"))
                     }
-                    FixedArrayLength::ConstCall { .. } => return None,
+                    FixedArrayLength::Expression(_) | FixedArrayLength::ConstCall { .. } => {
+                        return None;
+                    }
                 };
                 if let Some((_, previous)) =
                     bindings.iter().find(|(candidate, _)| *candidate == *symbol)

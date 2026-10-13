@@ -883,6 +883,8 @@ macro_rules! constrained_type_reference_pair {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedArrayLength {
     Literal(usize),
+    /// Exact symbolic constant-position use, pending owned evaluation.
+    Expression(TypeReferenceHandle),
     ConstParameter {
         symbol: SymbolHandle,
         name: Identifier,
@@ -915,6 +917,7 @@ impl fmt::Display for FixedArrayLength {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Literal(value) => write!(formatter, "{value}"),
+            Self::Expression(_) => formatter.write_str("<constant expression>"),
             Self::ConstParameter { name, .. } => write!(formatter, "{name}"),
             Self::ConstCall { name, .. } => write!(formatter, "{name}()"),
         }

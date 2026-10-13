@@ -118,10 +118,12 @@ pub(super) fn lower_type_reference_handle_with_context(
                 }))
         }
         resolved::types::TypeReference::ConstExpression(expression) => {
-            let expression = crate::expressions::expression::lower_expression_handle_from_table(
+            let expression = crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution(
+                Some(source_trees),
                 &source_trees.tables.bodies.expressions,
                 typed_trees,
                 *expression,
+                None,
             )?;
             Ok(typed_trees
                 .type_reference_table
@@ -247,10 +249,28 @@ pub(super) fn lower_fixed_array_type(
                 }
             }
         }
+        resolved::types::FixedArrayLength::Expression(value) => {
+            typed::types::FixedArrayLength::Expression(lower_type_reference_handle_with_context(
+                source_trees,
+                typed_trees,
+                source_trees.child_type_reference(*value),
+                exposure,
+            )?)
+        }
         resolved::types::FixedArrayLength::ConstCall { machine, name } => {
             typed::types::FixedArrayLength::ConstCall {
                 machine: *machine,
-                name: crate::lowerer::name::lower_name(name),
+                // Selection stays on the exact resolved entry symbol. The
+                // diagnostic label describes the authored extent, rather than
+                // exposing the compiler-private continuation entry's name.
+                name: typed::name::Identifier::generated({
+                    let authored = source_trees.symbols.source_text(name.source_span());
+                    if authored.is_empty() {
+                        name.as_str()
+                    } else {
+                        authored
+                    }
+                }),
                 source_span: name.source_span(),
             }
         }

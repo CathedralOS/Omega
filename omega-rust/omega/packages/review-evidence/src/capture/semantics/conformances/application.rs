@@ -267,6 +267,7 @@ pub(crate) fn project_selected_conformance_application(
         .iter()
         .map(|argument| {
             signature_type_identity(
+                compilation,
                 &instantiated,
                 compilation.custody.sources().exact_toolchain_sources(),
                 *argument,
@@ -275,6 +276,7 @@ pub(crate) fn project_selected_conformance_application(
                 &substitutions,
                 &lifetime_substitutions,
                 false,
+                language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;

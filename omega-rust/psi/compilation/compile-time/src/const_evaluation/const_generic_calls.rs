@@ -32,6 +32,7 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
 mod dependencies;
+mod extent_entries;
 
 pub fn evaluate_const_generic_calls(
     mut syntax: SyntaxTrees,
@@ -60,10 +61,38 @@ fn evaluate_application_group(
         source_scoped_top_level_bindings,
         selection_authority,
     } = context;
+    let mut const_arguments =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
+            &syntax, sources.clone(), source_scoped_top_level_bindings.to_vec(),
+        )?;
+    const_arguments.extend(
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
+            &syntax,
+            sources.clone(),
+            source_scoped_top_level_bindings.to_vec(),
+        )?,
+    );
+    let extent_arguments =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_array_extent_expressions(
+            &mut syntax,
+        );
+    let extent_uses = extent_arguments
+        .iter()
+        .map(|(use_handle, ..)| *use_handle)
+        .collect::<Vec<_>>();
+    const_arguments.extend(extent_arguments);
+    // Work belongs to reachable closed uses. Open templates and detached
+    // expression arena entries retain recipes without execution demand.
     let mut applications = Vec::new();
-    for (type_reference, expression) in syntax.type_references.const_expression_nodes() {
-        if contains_call(&syntax, expression) {
-            applications.push((type_reference, expression));
+    for (type_reference, ..) in &const_arguments {
+        if let TypeReferenceNode::ConstExpression(expression) =
+            syntax.type_references.type_reference(*type_reference)
+            && contains_call(&syntax, *expression)
+            && !applications
+                .iter()
+                .any(|(existing, _)| existing == type_reference)
+        {
+            applications.push((*type_reference, *expression));
         }
     }
     // Range endpoints nested in generic arguments also feed synthesis. Only
@@ -116,19 +145,6 @@ fn evaluate_application_group(
     // nothing to land on and is rejected rather than deferred.
     let mut application_destinations = Vec::new();
     if !applications.is_empty() {
-        let mut const_arguments =
-            syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-                &syntax,
-                sources.clone(),
-                source_scoped_top_level_bindings.to_vec(),
-            )?;
-        const_arguments.extend(
-            syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
-                &syntax,
-                sources.clone(),
-                source_scoped_top_level_bindings.to_vec(),
-            )?,
-        );
         for (type_reference, expression) in &applications {
             let Some((_, destination, public)) = const_arguments
                 .iter()
@@ -171,24 +187,24 @@ fn evaluate_application_group(
             .type_references
             .retain_pending_const_argument_uses(*type_reference);
     }
-    for (ordinal, (_, expression, destination, _)) in application_destinations.iter().enumerate() {
-        crate::const_evaluation::const_generic_expressions::append_probe(
-            &mut probe,
-            ordinal,
-            *expression,
-            *destination,
-        );
-    }
+    let owners = application_destinations
+        .iter()
+        .enumerate()
+        .map(|(ordinal, (_, expression, destination, _))| {
+            super::const_generic_expressions::append_probe(
+                &mut probe,
+                ordinal,
+                *expression,
+                *destination,
+            )
+        })
+        .collect::<Vec<_>>();
     let probe = crate::syntax_probes::normalize_generic_data(
         probe,
         sources.clone(),
         source_scoped_top_level_bindings,
         None,
     )?;
-    let probe_references = application_destinations
-        .iter()
-        .map(|(_, expression, ..)| syntax.expressions.source_span(*expression))
-        .collect::<Vec<_>>();
     let endpoint_references = endpoint_leaves
         .iter()
         .map(|(_, source)| *source)
@@ -200,13 +216,35 @@ fn evaluate_application_group(
             top_level_bindings: source_scoped_top_level_bindings.to_vec(),
         },
     )?;
-    let preparation = crate::syntax_probes::prepare_evaluation_inputs(
+    let owner_symbols = owners
+        .iter()
+        .map(|owner| owner.resolve(frontier.trees()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let preparation = crate::syntax_probes::prepare_owned_probe_evaluation(
         frontier,
-        &probe_references,
+        &owner_symbols,
         &endpoint_references,
-        &[],
     )?;
-    let layer = dependencies::ready_layer(&preparation, &application_destinations, &syntax)?;
+    // Every call-bearing extent belongs to the length continuation. Callee
+    // types may themselves depend on other extents: scalar application checks
+    // cannot replace the length owner's prerequisite and provider settlement.
+    if extent_entries::retain(
+        &mut syntax,
+        &preparation.typed,
+        &application_destinations,
+        &owner_symbols,
+        &extent_uses,
+        &lexical_selections,
+        selection_authority.as_deref(),
+    )? {
+        return Ok((syntax, true));
+    }
+    let layer = dependencies::ready_layer(
+        &preparation,
+        &application_destinations,
+        &owner_symbols,
+        &syntax,
+    )?;
     // This pre-resolution probe has no Omega provider plan. Keep authored
     // operator uses intact: visible satisfiers cannot authorize execution.
 
@@ -214,27 +252,10 @@ fn evaluate_application_group(
         // The appended probe machines are excluded from ordinary checking;
         // their expressions are evaluated by the exact scalar evaluator with
         // checked call admission, matching const-initializer invocations.
-        let references = layer
+        let probe_symbols = layer
             .arguments
             .iter()
-            .map(|ordinal| {
-                syntax
-                    .expressions
-                    .source_span(application_destinations[*ordinal].1)
-            })
-            .collect::<Vec<_>>();
-        let probe_symbols = preparation
-            .typed
-            .machines()
-            .iter()
-            .filter(|machine| {
-                preparation
-                    .typed
-                    .symbols
-                    .symbol_source_span(machine.symbol)
-                    .is_some_and(|span| references.contains(&span))
-            })
-            .map(|machine| machine.symbol)
+            .map(|ordinal| owner_symbols[*ordinal])
             .collect::<Vec<_>>();
         // Decide deferral before settled checking: a sibling fixed-array
         // length may need the same pending provider selection. No execution
@@ -274,14 +295,9 @@ fn evaluate_application_group(
                     .with_source_span(reference),
                 ]
             };
-            let mut matching = execution.machines().iter().filter(|machine| {
-                execution.symbols.symbol_source_span(machine.symbol) == Some(reference)
-            });
-            let (Some(machine), None) = (matching.next(), matching.next()) else {
-                return Err(failure(
-                    "application probe lost its unique source owner".into(),
-                ));
-            };
+            let machine = execution.machine(owner_symbols[*ordinal]).ok_or_else(|| {
+                failure("application probe lost its exact private declaration".into())
+            })?;
             // This pre-resolution probe has no Omega provider plan. Keep
             // authored applications whose reachable closure needs selected
             // execution intact: the typed continuation folds them under the
@@ -301,9 +317,14 @@ fn evaluate_application_group(
                     )?,
                 ),
             };
-            let invocation = checked.calls_for_source(reference).map_err(&failure)?;
+            let invocation = checked.calls_for_symbol(machine.symbol).map_err(&failure)?;
             let evaluated = invocation
-                .evaluate_application_probe(reference, *public, &syntax)
+                .evaluate_application_probe(
+                    reference,
+                    *public,
+                    &syntax,
+                    extent_uses.contains(argument),
+                )
                 .map_err(&failure)?;
             let (_, origins, calls) = lexical_selections
                 .iter()

@@ -681,6 +681,9 @@ pub(crate) fn substitute_type_reference(
                 warnings,
             );
             let substituted_length = match length {
+                FixedArrayLength::Expression(value) => {
+                    FixedArrayLength::Expression(syntax.copy_type_reference_handle(snapshot, value))
+                }
                 FixedArrayLength::ConstParameter(name) => substitution
                     .get(name.as_str())
                     .and_then(|argument| {

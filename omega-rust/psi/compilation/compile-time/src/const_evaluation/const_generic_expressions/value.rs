@@ -234,6 +234,25 @@ pub(crate) fn evaluate_scalar(
     )
 }
 
+pub(crate) fn evaluate_scalar_with_policy(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    policy: ArithmeticDomain,
+    calls: Option<&dyn ConstantCalls>,
+) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
+    evaluate_scalar_in(
+        program,
+        EvaluationContext::Machine(machine, state),
+        expression,
+        destination,
+        policy,
+        calls,
+    )
+}
+
 fn evaluate_scalar_in(
     program: &TypedTrees,
     context: EvaluationContext<'_>,

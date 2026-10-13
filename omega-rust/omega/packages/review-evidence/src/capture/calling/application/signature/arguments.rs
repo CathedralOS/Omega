@@ -38,6 +38,7 @@ pub(super) fn project(
         .map(|(parameter, argument)| {
             let const_argument = parameter.kind.is_const_or_value();
             signature_type_identity(
+                compilation,
                 typed,
                 compilation.custody.sources().exact_toolchain_sources(),
                 *argument,
@@ -46,6 +47,7 @@ pub(super) fn project(
                 substitutions,
                 &[],
                 const_argument,
+                language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
             )
         })
         .collect()
