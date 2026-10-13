@@ -32,23 +32,31 @@ impl PredicateTerms for FieldSubject {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &CheckedScalarExpression,
     ) -> Result<ScalarTerm, LoweringError> {
-        match expression {
-            CheckedScalarExpression::Parameter {
-                position: 0,
-                primitive_type,
-            } if terminal_scalar_type(*primitive_type)? == self.carrier => {
-                Ok(ScalarTerm::value(ScalarRefinement::SUBJECT, self.carrier))
-            }
-            CheckedScalarExpression::IntegerLiteral { literal } => {
-                let Some(integer) = self.carrier.as_integer() else {
-                    return unsupported("scalar field predicate has a noninteger literal carrier");
-                };
-                ScalarTerm::integer(integer, integer_value(literal, self.carrier)?)
-                    .map_err(LoweringError::InvalidCrashPredicate)
-            }
-            CheckedScalarExpression::Boolean(predicate) => self.boolean(identities, predicate),
-            _ => unsupported("scalar field predicate names a value outside its formal subject"),
-        }
+        // Arithmetic shares the same carrier/policy conversion as callable
+        // predicates. Only the leaves have a smaller, one-subject namespace.
+        crate::proofs::integer_predicates::lower(
+            expression,
+            &[],
+            &mut |expression| match expression {
+                CheckedScalarExpression::Parameter {
+                    position: 0,
+                    primitive_type,
+                } if terminal_scalar_type(*primitive_type)? == self.carrier => {
+                    Ok(ScalarTerm::value(ScalarRefinement::SUBJECT, self.carrier))
+                }
+                CheckedScalarExpression::IntegerLiteral { literal } => {
+                    let Some(integer) = self.carrier.as_integer() else {
+                        return unsupported(
+                            "scalar field predicate has a noninteger literal carrier",
+                        );
+                    };
+                    ScalarTerm::integer(integer, integer_value(literal, self.carrier)?)
+                        .map_err(LoweringError::InvalidCrashPredicate)
+                }
+                CheckedScalarExpression::Boolean(predicate) => self.boolean(identities, predicate),
+                _ => unsupported("scalar field predicate names a value outside its formal subject"),
+            },
+        )
     }
 
     fn boolean(

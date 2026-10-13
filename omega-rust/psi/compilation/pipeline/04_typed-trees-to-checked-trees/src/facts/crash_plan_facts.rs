@@ -323,7 +323,7 @@ fn build_structural_runtime_requirements(
                     primitive,
                 )?;
                 requirements.extend(validation::scalar_membership_predicates(
-                    program, operators, membership, &subject,
+                    program, membership, &subject,
                 )?);
                 subjects.push(checked_trees::CheckedRuntimeMembershipSubject {
                     fact_ordinal: u32::try_from(fact_ordinal).ok()?,

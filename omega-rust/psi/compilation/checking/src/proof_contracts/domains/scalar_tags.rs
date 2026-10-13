@@ -123,7 +123,7 @@ pub fn scalar_state_contracts_are_qualifications(
                         && parameter.symbol == path.symbol
                         && !parameter.is_mutable
                         && (arguments.is_empty()
-                            && scalar_interval_domains(program, parameter.type_reference)
+                            && scalar_predicate_domains(program, parameter.type_reference)
                                 .contains(&(membership.domain_symbol, membership.semantic_domain))
                             || scalar_type_tags(program, parameter.type_reference)
                                 .iter()
@@ -145,19 +145,17 @@ pub fn scalar_state_contracts_are_qualifications(
     })
 }
 
-/// The declared domains on an integer scalar type whose membership is exactly
-/// an interval. Such a qualification is not a tag: the parameter is retained
-/// as the closed entry range a bracketed `[low..=high]` produced
-/// (`exact_declared_domain_carrier_interval`), which states membership
-/// completely, so its restating `requires` row is carried by that range.
-pub fn scalar_interval_domains(
+/// Declared scalar domains whose complete meaning has a subject-bound
+/// predicate. Membership still needs proof at each arrival; this classification
+/// neither identifies equal theories nor grants a routed qualification.
+pub fn scalar_predicate_domains(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     constrained_scalar_domains(program, reference, |program, domain, primitive| {
-        crate::exact_declared_domain_carrier_interval(program, primitive, domain)
-            .filter(|(minimum, maximum)| minimum <= maximum)
-            .is_some()
+        domain.subject == DomainConstraintSubject::Declared
+            && !scalar_tag_constraint(program, domain, primitive)
+            && super::scalar_field_domain_predicate(program, domain, primitive).is_some()
     })
 }
 

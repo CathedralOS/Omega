@@ -116,7 +116,6 @@ fn validate_membership_source<'clause>(
     )?;
     let predicates = validation::scalar_membership_predicates(
         &checked.typed,
-        &checked.facts.operators,
         membership,
         &witness.subject,
     )

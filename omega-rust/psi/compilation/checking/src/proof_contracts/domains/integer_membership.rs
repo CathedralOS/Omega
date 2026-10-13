@@ -20,7 +20,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// The caller supplies the established integer denotation, either an exact
 /// value or independently checked bounds. It is never inferred from the
 /// qualification being requested.
-pub(crate) fn integer_domain_membership(
+pub fn integer_domain_membership(
     program: &dyn crate::CheckingInput,
     domain_symbol: SymbolHandle,
     arguments: &[TypeReferenceHandle],

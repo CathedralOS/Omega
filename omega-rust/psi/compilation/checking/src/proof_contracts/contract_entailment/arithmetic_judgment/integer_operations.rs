@@ -9,6 +9,36 @@ use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::types::PrimitiveType;
 
 impl Engine<'_> {
+    /// Bitwise denotation belongs to the selected fixed carrier, independently
+    /// of overflow policy. Substitute both operands before evaluation, but keep
+    /// their declaration's operator selection and reject unlanded magnitudes.
+    /// Non-singleton ranges remain unknown; endpoint evaluation is unsound.
+    pub(super) fn selected_closed_bitwise_value(
+        &mut self,
+        expression: typed_trees::expression::ExpressionHandle,
+        binary: &typed_trees::expression::TableBinaryExpression,
+    ) -> Option<Polynomial> {
+        use crate::proof_contracts::arithmetic_domains::{
+            admitted_integer, integer_magnitude, integer_type,
+        };
+        // AND/OR/XOR have no overloadable OperatorSpelling. The declaration's
+        // result query establishes compatible integer operands and contextual
+        // literals; a substituted number cannot supply that carrier itself.
+        let reference = self.source_result_type(expression)?;
+        let carrier = integer_type(self.program.primitive_type_reference(reference)?)?;
+        let left = self.normalize(binary.left)?;
+        let right = self.normalize(binary.right)?;
+        let left = admitted_integer(carrier, &self.substituted(&left).constant_value()?)?;
+        let right = admitted_integer(carrier, &self.substituted(&right).constant_value()?)?;
+        let value = match binary.operator {
+            BinaryOperator::BitwiseAnd => carrier.bitwise_and(left, right),
+            BinaryOperator::BitwiseOr => carrier.bitwise_or(left, right),
+            BinaryOperator::BitwiseXor => carrier.bitwise_xor(left, right),
+            _ => None,
+        }?;
+        Some(Polynomial::constant(integer_magnitude(value)))
+    }
+
     /// Shifts take width and overflow policy from the value, not the count.
     /// The count is an independently completed integer, including when its
     /// own arithmetic policy is Wrapping. Bitwise AND has no overflow policy;

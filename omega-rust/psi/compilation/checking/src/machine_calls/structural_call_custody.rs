@@ -52,13 +52,11 @@ pub enum StateScalarContractRow {
         maximum: typed_trees::expression::ExpressionHandle,
         end_inclusive: bool,
     },
-    /// A scalar parameter's exactly-interval domain:
-    /// `minimum <= parameter <= maximum`. The domain carries the same
-    /// independently checked arrival predicate as a closed bracketed range.
-    Interval {
+    /// A complete declared scalar domain, projected onto the destination
+    /// parameter only after its exact membership identity has been matched.
+    Domain {
         parameter: SymbolHandle,
-        minimum: numerics::bignum::BigInt,
-        maximum: numerics::bignum::BigInt,
+        constraint: typed_trees::types::DomainConstraint,
     },
     /// An internal state's IEEE parameter declared in the compiler-known
     /// `Finite` value domain: `-largest <= parameter <= largest` in its exact
@@ -106,8 +104,8 @@ pub fn restates_structural_parameter_qualification(
 /// restate parameter domain qualifications and the scalar rows a proof lane
 /// may carry. Membership rows must still match the exact declared
 /// qualifications. Declared integer ranges retain endpoint observations;
-/// exactly-interval memberships become closed interval rows. Every other
-/// contract shape remains out of scope.
+/// scalar memberships retain their complete declared predicates, including
+/// interval domains. Unsupported predicate theories remain out of scope.
 pub fn structural_state_contract_scalar_predicates(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
@@ -132,7 +130,7 @@ pub fn structural_state_contract_scalar_predicates(
         if program.primitive_type_reference(reference).is_some() {
             if !parameter.is_mutable {
                 expected.extend(
-                    crate::scalar_interval_domains(program, reference)
+                    crate::scalar_predicate_domains(program, reference)
                         .into_iter()
                         .chain(crate::scalar_type_tags(program, reference))
                         .map(|(_, domain)| (parameter.symbol, domain.0)),
@@ -177,11 +175,11 @@ pub fn structural_state_contract_scalar_predicates(
                         return None;
                     };
                     program.domain_definition(membership.domain_symbol)?;
-                    // A scalar parameter's interval membership is carried as its
-                    // closed interval; a scalar tag is carried by the qualified
+                    // A scalar parameter's predicate membership is carried as its
+                    // complete declaration; a scalar tag is carried by the qualified
                     // Terminal signature itself and needs no row. The
                     // qualification comparison below uses the exact applied
-                    // identity for both tags and interval domains. The family's
+                    // identity for both tags and predicate domains. The family's
                     // declaration identity cannot restate an indexed instance.
                     let parameter = program.state_parameter_by_symbol(state, path.symbol);
                     let tag = parameter.is_some_and(|parameter| {
@@ -193,20 +191,16 @@ pub fn structural_state_contract_scalar_predicates(
                     });
                     actual.push((symbol, membership.semantic_domain.0));
                     if let Some(parameter) = parameter
-                        && let Some(primitive) =
-                            program.primitive_type_reference(parameter.type_reference)
+                        && program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
                         && !tag
                     {
-                        let (minimum, maximum) = scalar_interval_bounds(
-                            program,
-                            parameter.type_reference,
-                            membership,
-                            primitive,
-                        )?;
-                        predicates.push(StateScalarContractRow::Interval {
+                        let constraint =
+                            scalar_declared_domain(program, parameter.type_reference, membership)?;
+                        predicates.push(StateScalarContractRow::Domain {
                             parameter: parameter.symbol,
-                            minimum,
-                            maximum,
+                            constraint,
                         });
                     }
                 }
@@ -344,14 +338,13 @@ fn retain_declared_integer_ranges(
     Some(())
 }
 
-/// The closed interval of the exactly-interval domain constraint on
-/// `reference` that `membership` restates.
-fn scalar_interval_bounds(
+/// The exact domain constraint on `reference` that `membership` restates.
+/// Predicate projection and arrival proof remain separate obligations.
+fn scalar_declared_domain(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     membership: &typed_trees::domain::ProofMembershipFact,
-    primitive: typed_trees::types::PrimitiveType,
-) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+) -> Option<typed_trees::types::DomainConstraint> {
     while let TypeReferenceNode::Constrained {
         base_type,
         constraints,
@@ -361,11 +354,8 @@ fn scalar_interval_bounds(
             if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint
                 && domain.symbol == membership.domain_symbol
                 && domain.semantic_id == membership.semantic_domain
-                && let Some(bounds) =
-                    crate::exact_declared_domain_carrier_interval(program, primitive, domain)
-                        .filter(|(minimum, maximum)| minimum <= maximum)
             {
-                return Some(bounds);
+                return Some(domain.clone());
             }
         }
         reference = *base_type;

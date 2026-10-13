@@ -352,6 +352,7 @@ pass/data/runtime_mixed_case_nested_common_fields_exit built 3565ms exit:0 inter
 pass/data/runtime_mixed_case_payload_dispatch_exit built 1553ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35
 pass/data/runtime_zeroed_first_case_enum_payload_exit built 1462ms exit:70 interpreter-exit:70 interpreter:agrees @194c7a0f42ea+wt
 pass/dependent/runtime_sibling_len_index_exit built 4665ms exit:7 interpreter-exit:7 interpreter:agrees @e477ee0294de+wt
+pass/domains/bitwise_live_membership_exit built 13956ms exit:0 interpreter-exit:0 interpreter:agrees @d1fa4738e67a+wt
 pass/domains/case_payload_call_restore_exit built 1232ms exit:70 interpreter-exit:70 interpreter:agrees @c15189f4e04b
 pass/domains/case_payload_predicate_domain_member_exit built 1130ms exit:70 interpreter-exit:70 interpreter:agrees @2efb222df04d
 pass/domains/record_interval_domain_member_exit built 1277ms exit:70 interpreter-exit:70 interpreter:agrees @3b6b4258b4af+wt

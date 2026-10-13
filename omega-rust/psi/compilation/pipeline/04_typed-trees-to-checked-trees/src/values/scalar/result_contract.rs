@@ -1226,31 +1226,34 @@ pub(crate) fn lower_state_declared_range_predicate(
     })
 }
 
-/// A non-entry state's scalar parameter membership in an exactly-interval
-/// domain, as the closed predicate its authored `requires` row would lower
-/// to: the same interval clause a bracketed range produces, indexed in the
-/// state's scalar parameter roster.
-pub(crate) fn lower_state_interval_predicate(
+/// A state's complete scalar parameter domain, projected into the dense scalar
+/// parameter namespace. Projection does not prove any incoming value satisfies it.
+pub(crate) fn lower_state_domain_predicate(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     parameter: symbols::SymbolHandle,
-    minimum: numerics::bignum::BigInt,
-    maximum: numerics::bignum::BigInt,
+    constraint: &typed_trees::types::DomainConstraint,
 ) -> Option<CheckedBooleanExpression> {
     let parameters = program.state_parameters(state);
     let index = parameters
         .iter()
         .position(|candidate| candidate.symbol == parameter)?;
     let authored = &parameters[index];
-    if authored.relevance.is_erased() {
+    if authored.relevance.is_erased() || authored.is_const {
         return None;
     }
     let position = parameters[..index]
         .iter()
         .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
         .count();
-    closed_integer_entry_range(program, authored, position, minimum, maximum)
-        .map(|(predicate, _)| predicate)
+    validation::scalar_domain_predicate(
+        program,
+        constraint,
+        CheckedScalarExpression::Parameter {
+            position,
+            primitive_type: program.primitive_type_reference(authored.type_reference)?,
+        },
+    )
 }
 
 /// The closed `low <= parameter && parameter <= high` clause and its roster

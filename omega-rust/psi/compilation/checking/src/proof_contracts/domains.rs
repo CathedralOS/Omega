@@ -10,7 +10,7 @@
 mod closed_instances;
 mod integer_membership;
 pub(crate) use closed_instances::closed_integer_index_bindings;
-pub(crate) use integer_membership::integer_domain_membership;
+pub use integer_membership::integer_domain_membership;
 
 mod runtime_predicates;
 pub use runtime_predicates::{
@@ -19,7 +19,7 @@ pub use runtime_predicates::{
 };
 mod scalar_tags;
 pub use scalar_tags::{
-    scalar_interval_domains, scalar_state_contracts_are_qualifications, scalar_type_tags,
+    scalar_predicate_domains, scalar_state_contracts_are_qualifications, scalar_type_tags,
 };
 
 use crate::declarations::symbols::TopLevelSymbols;

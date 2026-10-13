@@ -17,13 +17,13 @@
 //! truncated quotient takes its extrema at the endpoint pairs. The selected
 //! Exact shift and bitwise providers are the shared carrier kernels.
 
+use super::{admitted_integer, integer_magnitude, integer_type};
 use checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
 };
 use facts::IntegerRange;
 use numerics::bignum::BigInt;
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use symbols::SymbolHandle;
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -532,24 +532,4 @@ pub fn carrier_integer_range(primitive: PrimitiveType) -> Option<IntegerRange> {
         minimum: BigInt::from_i128(minimum),
         maximum: BigInt::from_i128(maximum),
     })
-}
-
-fn integer_type(primitive: PrimitiveType) -> Option<IntegerType> {
-    let (sign, bits) = primitive.integer_sign_bits()?;
-    IntegerType::new(sign, bits).ok()
-}
-
-fn admitted_integer(scalar_type: IntegerType, value: &BigInt) -> Option<IntegerValue> {
-    let value = match scalar_type.sign() {
-        IntegerSign::Signed => IntegerValue::Signed(i128::from(value.to_i64()?)),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(u128::from(value.to_u64()?)),
-    };
-    scalar_type.admits(value).then_some(value)
-}
-
-fn integer_magnitude(value: IntegerValue) -> BigInt {
-    match value {
-        IntegerValue::Signed(value) => BigInt::from_i128(value),
-        IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-    }
 }

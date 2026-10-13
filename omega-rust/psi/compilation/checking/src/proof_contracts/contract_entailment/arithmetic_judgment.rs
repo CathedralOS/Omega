@@ -1005,6 +1005,16 @@ impl<'program> Engine<'program> {
         {
             return Some(value.clone());
         }
+        // Closed constants keep their declaration's carrier and selected
+        // operation. This is not a runtime-value lookup or a body replay.
+        if self.strict_symbol_bindings.is_some()
+            && !self.proof_integer_formation
+            && let Some(value) = self
+                .program
+                .closed_integer_value_in(expression, self.source_owner)
+        {
+            return Some(Polynomial::constant(value.value));
+        }
         let node = self.program.expression_table.expression(expression).clone();
         match node {
             ExpressionNode::Member(_)
@@ -1108,6 +1118,16 @@ impl<'program> Engine<'program> {
             // The typed-tree unary operator is logical-not only (negative
             // literals fold into Integer), so unary nodes are never terms.
             ExpressionNode::Unary(_) => None,
+            ExpressionNode::Binary(binary)
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::BitwiseAnd
+                        | BinaryOperator::BitwiseOr
+                        | BinaryOperator::BitwiseXor
+                ) =>
+            {
+                self.selected_closed_bitwise_value(expression, &binary)
+            }
             ExpressionNode::Binary(binary) if !self.strict_binary_meaning(expression, &binary) => {
                 None
             }

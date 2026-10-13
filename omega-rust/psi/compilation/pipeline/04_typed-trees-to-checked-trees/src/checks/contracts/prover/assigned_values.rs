@@ -312,6 +312,39 @@ impl AssignedValues<'_> {
         if !domain.type_parameters.is_empty() || !domain.index_arguments.is_empty() {
             return false;
         }
+        // Integer predicates share qualification's typed, declaration-scoped
+        // judgment. The live value is captured independently of the requested
+        // domain; substituting its binder must not invent routed provenance.
+        if self
+            .program
+            .primitive_type_reference(domain.target_type)
+            .is_some_and(|primitive| primitive.is_fixed_integer())
+            && let Some(ScalarValue::Integer(value)) = scalar_value_at_place(
+                self.program,
+                self.semantic,
+                self.contexts
+                    .iter()
+                    .map(|context| self.semantic.contexts.get(*context)),
+                subject,
+            )
+        {
+            match validation::integer_domain_membership(
+                self.program,
+                symbol,
+                &[],
+                domain.semantic_id,
+                &validation::ScopedArithmeticValue::Integer(value),
+            ) {
+                validation::StrictArithmeticImplicationJudgment::Proven => return true,
+                validation::StrictArithmeticImplicationJudgment::Refuted => return false,
+                // Numerical evidence cannot supply a nested routed domain.
+                // The place evidence below may already carry that membership.
+                validation::StrictArithmeticImplicationJudgment::Unknown => {}
+            }
+        }
+        if !domain.establishment_routes.is_empty() || domain.semantic_roles != Default::default() {
+            return false;
+        }
         let facts = self.program.proof_facts.span_or_empty(domain.facts);
         if facts.is_empty() {
             return false;

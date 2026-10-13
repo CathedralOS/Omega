@@ -4,8 +4,8 @@
 //! membership. Both checked production and receiving replay use this owner.
 
 use checked_trees::{
-    CheckedBooleanExpression as Boolean, CheckedIntegerComparisonKind as Comparison,
-    CheckedOperatorFacts, CheckedScalarExpression as Scalar,
+    CheckedBooleanExpression as Boolean, CheckedIntegerBinaryKind,
+    CheckedIntegerComparisonKind as Comparison, CheckedScalarExpression as Scalar,
 };
 use typed_trees::domain::{DomainDefinition, ProofFact, ProofMembershipFact};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
@@ -44,18 +44,11 @@ pub fn scalar_membership_carrier(
 /// membership's source expression; this query grants no value or provenance.
 pub fn scalar_membership_predicates(
     program: &dyn crate::CheckingInput,
-    operators: &CheckedOperatorFacts,
     membership: &ProofMembershipFact,
     subject: &Scalar,
 ) -> Option<Vec<Boolean>> {
     let mut active = Vec::new();
-    project(program, membership, subject, &mut active, &|_, node| {
-        !operators.uses.iter().any(|(_, operator)| {
-            operator.expression == node
-                && operator.status
-                    != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-        })
-    })
+    project(program, membership, subject, &mut active)
 }
 
 fn project(
@@ -63,7 +56,6 @@ fn project(
     membership: &ProofMembershipFact,
     subject: &Scalar,
     active: &mut Vec<symbols::SymbolHandle>,
-    builtin_closed: &dyn Fn(&DomainDefinition, ExpressionHandle) -> bool,
 ) -> Option<Vec<Boolean>> {
     let primitive = scalar_membership_carrier(program, membership)?;
     if subject.primitive_type() != Some(primitive) || active.contains(&membership.domain_symbol) {
@@ -73,7 +65,6 @@ fn project(
     let domain = typed_trees::domain::domain_by_symbol(program, membership.domain_symbol)?;
     let spelling = Predicate {
         program,
-        builtin_closed,
         domain,
         subject,
         primitive,
@@ -86,7 +77,7 @@ fn project(
                 if crate::exact_domain_subject_type(program, domain, nested.value).is_none() {
                     return None;
                 }
-                predicates.extend(project(program, nested, subject, active, builtin_closed)?);
+                predicates.extend(project(program, nested, subject, active)?);
             }
             ProofFact::Proposition(_) => return None,
         }
@@ -97,7 +88,6 @@ fn project(
 
 struct Predicate<'program> {
     program: &'program dyn crate::CheckingInput,
-    builtin_closed: &'program dyn Fn(&DomainDefinition, ExpressionHandle) -> bool,
     domain: &'program DomainDefinition,
     subject: &'program Scalar,
     primitive: PrimitiveType,
@@ -196,8 +186,8 @@ impl Predicate<'_> {
                 };
                 let comparison = Boolean::IntegerComparison {
                     kind,
-                    left: Box::new(self.scalar(left)?),
-                    right: Box::new(self.scalar(right)?),
+                    left: Box::new(self.scalar(left, depth + 1)?),
+                    right: Box::new(self.scalar(right, depth + 1)?),
                 };
                 Some(if negated {
                     Boolean::Not(Box::new(comparison))
@@ -209,27 +199,63 @@ impl Predicate<'_> {
         }
     }
 
-    fn scalar(&self, expression: ExpressionHandle) -> Option<Scalar> {
-        if !self.primitive.accepts_integer_literal() || self.primitive == PrimitiveType::Addr {
+    fn scalar(&self, expression: ExpressionHandle, depth: usize) -> Option<Scalar> {
+        if depth >= 128
+            || !self.primitive.accepts_integer_literal()
+            || self.primitive == PrimitiveType::Addr
+        {
             return None;
         }
         if crate::exact_domain_subject_type(self.program, self.domain, expression).is_some() {
             return Some(self.subject.clone());
         }
-        crate::land_anonymous_integer_expression(
-            self.program,
-            expression,
-            self.primitive,
-            &[],
-            |node| (self.builtin_closed)(self.domain, node),
-        )
-        .map(|(literal, _)| Scalar::IntegerLiteral { literal })
+        if let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        {
+            // These operators have no authored overload and are total at the
+            // common fixed carrier. Preserve their children as expressions;
+            // a domain is not restricted to comparing its bare subject.
+            let kind = match binary.operator {
+                BinaryOperator::BitwiseAnd => Some(CheckedIntegerBinaryKind::BitwiseAnd),
+                BinaryOperator::BitwiseOr => Some(CheckedIntegerBinaryKind::BitwiseOr),
+                BinaryOperator::BitwiseXor => Some(CheckedIntegerBinaryKind::BitwiseXor),
+                _ => None,
+            };
+            if let Some(kind) = kind {
+                let reference = crate::value_custody::expression_types::domain_expression_result_type_reference(
+                    self.program, self.domain, expression,
+                )?;
+                if self.program.primitive_type_reference(reference) != Some(self.primitive) {
+                    return None;
+                }
+                return Some(Scalar::IntegerBinary {
+                    kind,
+                    primitive_type: self.primitive,
+                    left: Box::new(self.scalar(binary.left, depth + 1)?),
+                    right: Box::new(self.scalar(binary.right, depth + 1)?),
+                    formation_decided: false,
+                });
+            }
+        }
+        // Literals, typed constants and exact closed casts share the existing
+        // declaration-owned numeric query. Never relabel an already-landed
+        // incompatible carrier or evaluate a runtime name as a constant.
+        let value = self
+            .program
+            .closed_integer_value_in(expression, self.domain.symbol)?;
+        if value
+            .primitive
+            .is_some_and(|primitive| primitive != self.primitive)
+        {
+            return None;
+        }
+        Some(Scalar::IntegerLiteral {
+            literal: crate::land_integer_value(&value.value, self.primitive)?,
+        })
     }
 }
 
 /// Reconstruct a field restriction from its exact declaration. Closed numeric
-/// operands are anonymous, so overload lookup uses wildcard operand types;
-/// an applicable authored operator therefore prevents builtin interpretation.
+/// operands retain their own carriers and selected operator meanings.
 /// This is source authority, independent of a producer's retained field plan.
 /// Compiler-known value refinements use the same subject-bound meaning as
 /// callable contracts. Projecting that meaning does not prove membership or
@@ -260,6 +286,33 @@ pub fn scalar_domain_predicate(
     if let typed_trees::types::DomainConstraintSubject::Value(domain) = constraint.subject {
         return crate::scalar_value_domain_predicate(domain, subject);
     }
+    // An exact interval summary states the entire domain. Project it through
+    // the same predicate route as other domains, retaining its closed bounds
+    // rather than reconstructing selectable source tokens.
+    if let Some((minimum, maximum)) =
+        crate::exact_declared_domain_carrier_interval(program, primitive, constraint)
+    {
+        if minimum > maximum {
+            return None;
+        }
+        let endpoint = |value: &numerics::bignum::BigInt| {
+            Some(Scalar::IntegerLiteral {
+                literal: crate::land_integer_value(value, primitive)?,
+            })
+        };
+        return Some(conjunction(
+            Boolean::IntegerComparison {
+                kind: Comparison::LessOrEqual,
+                left: Box::new(endpoint(&minimum)?),
+                right: Box::new(subject.clone()),
+            },
+            Boolean::IntegerComparison {
+                kind: Comparison::LessOrEqual,
+                left: Box::new(subject),
+                right: Box::new(endpoint(&maximum)?),
+            },
+        ));
+    }
     // Static tag identity and indexed arguments remain on the checked type.
     // With no predicates or routes, its storage restriction is exactly true;
     // use the same exact-instance classification as scalar signatures rather
@@ -281,29 +334,7 @@ pub fn scalar_domain_predicate(
     if scalar_membership_carrier(program, &membership)? != primitive {
         return None;
     }
-    let predicates = project(
-        program,
-        &membership,
-        &subject,
-        &mut Vec::new(),
-        &|domain, node| {
-            let Some(binary) = program.expression_table.binary_node(node) else {
-                return false;
-            };
-            let Some(spelling) =
-                typed_trees::operator::arithmetic_operator_spelling(binary.operator)
-            else {
-                return false;
-            };
-            typed_trees::operator::has_builtin_spelled_expression_meaning(
-                program,
-                domain.symbol,
-                node,
-                spelling,
-                &[None, None],
-            )
-        },
-    )?;
+    let predicates = project(program, &membership, &subject, &mut Vec::new())?;
     Some(
         predicates
             .into_iter()

@@ -308,12 +308,14 @@ pub(super) fn build_traced(
                     maximum,
                     end_inclusive,
                 ),
-                validation::StateScalarContractRow::Interval {
+                validation::StateScalarContractRow::Domain {
                     parameter,
-                    minimum,
-                    maximum,
-                } => crate::values::lower_state_interval_predicate(
-                    program, state, parameter, minimum, maximum,
+                    constraint,
+                } => crate::values::lower_state_domain_predicate(
+                    program,
+                    state,
+                    parameter,
+                    &constraint,
                 ),
                 validation::StateScalarContractRow::Finite { parameter } => {
                     validation::state_finite_predicate(program, state, parameter)

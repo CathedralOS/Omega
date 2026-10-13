@@ -1,0 +1,1 @@
+cannot prove requires contract for call consume from main: 130 in u32::Clear
