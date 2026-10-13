@@ -171,6 +171,7 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedGenericParameterEnd -> parse_diagnostic(parser_harness, output, 36)
             ParseDiagnosticCode::GenericParameterCapacityExceeded -> parse_diagnostic(parser_harness, output, 37)
             ParseDiagnosticCode::GenericLifetimeOrdering -> parse_diagnostic(parser_harness, output, 38)
+            ParseDiagnosticCode::ExpectedLifetimeName -> parse_diagnostic(parser_harness, output, 194)
             ParseDiagnosticCode::ExpectedMachineName -> parse_diagnostic(parser_harness, output, 40)
             ParseDiagnosticCode::ExpectedMachineParameterOrEnd -> parse_diagnostic(parser_harness, output, 41)
             ParseDiagnosticCode::ExpectedMachineParameter -> parse_diagnostic(parser_harness, output, 42)
@@ -773,6 +774,48 @@ machine ParserHarness::write_parse_observation(
         ParserHarness::write_u64(parser_harness, type_reference.first_argument);
         ParserHarness::write_u64(parser_harness, type_reference.argument_count);
         ParserHarness::write_u64(parser_harness, type_reference.first_row);
+        ParserHarness::write_byte(parser_harness, ParserHarness::flag(type_reference.has_lifetime));
+        transition type_reference.has_lifetime {
+            true -> parse_type_tag(parser_harness, output, type_reference, index)
+            _ -> parse_type_untagged(parser_harness, output, type_reference, index)
+        }
+    }
+
+    state parse_type_tag(
+        parser_harness: &mut ParserHarness, output: &SyntaxTrees,
+        type_reference: TypeReference,
+        index: u64
+    )
+    requires index <= 65535
+    {
+        ParserHarness::write_source_span(parser_harness, type_reference.lifetime.source_span);
+        transition { _ -> parse_type_lifetime_counts(parser_harness, output, type_reference, index) }
+    }
+
+    // An untagged row reports a zero lifetime span, as an unqualified row
+    // reports a zero domain span.
+    state parse_type_untagged(
+        parser_harness: &mut ParserHarness, output: &SyntaxTrees,
+        type_reference: TypeReference,
+        index: u64
+    )
+    requires index <= 65535
+    {
+        ParserHarness::write_u64(parser_harness, 0);
+        ParserHarness::write_u64(parser_harness, 0);
+        ParserHarness::write_u64(parser_harness, 0);
+        transition { _ -> parse_type_lifetime_counts(parser_harness, output, type_reference, index) }
+    }
+
+    state parse_type_lifetime_counts(
+        parser_harness: &mut ParserHarness, output: &SyntaxTrees,
+        type_reference: TypeReference,
+        index: u64
+    )
+    requires index <= 65535
+    {
+        ParserHarness::write_u64(parser_harness, type_reference.first_lifetime);
+        ParserHarness::write_u64(parser_harness, type_reference.lifetime_count);
         let next: u64 = index + 1;
         transition next < output.type_reference_count {
             true -> parse_type_reference_bound(parser_harness, output, next)
@@ -795,15 +838,35 @@ machine ParserHarness::write_parse_observation(
     state parse_type_argument(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64) {
         transition index < output.type_argument_count {
             true -> parse_type_argument_bound(parser_harness, output, index)
-            _ -> parse_generic_count(parser_harness, output)
+            _ -> parse_type_lifetime_count(parser_harness, output)
         }
     }
 
     state parse_type_argument_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64) {
         transition index < 1024 {
             true -> parse_type_argument_row(parser_harness, output, index)
+            _ -> parse_type_lifetime_count(parser_harness, output)
+        }
+    }
+
+    state parse_type_lifetime_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_u64(parser_harness, output.type_lifetime_count as u64 in Trapping);
+        transition { _ -> parse_type_lifetime(parser_harness, output, 0) }
+    }
+
+    state parse_type_lifetime(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64) {
+        transition index < output.type_lifetime_count && index < 1024 {
+            true -> parse_type_lifetime_row(parser_harness, output, index)
             _ -> parse_generic_count(parser_harness, output)
         }
+    }
+
+    state parse_type_lifetime_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    requires index <= 1023
+    {
+        let tag: IdentifierSpan = output.type_lifetimes[index];
+        ParserHarness::write_source_span(parser_harness, tag.source_span);
+        transition { _ -> parse_type_lifetime(parser_harness, output, index + 1) }
     }
 
     state parse_type_argument_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
@@ -1778,4 +1841,20 @@ machine ParserHarness::write_u64(parser_harness: &mut ParserHarness, value: u64 
 machine ParserHarness::write_byte(parser_harness: &mut ParserHarness, value: u8) reaches Console {
     let mut output: u8 = value;
     parser_harness.console.write_byte(output as i32);
+}
+
+// One byte for a flag.
+machine ParserHarness::flag(value: bool) -> u8 {
+    transition value {
+        true -> one()
+        _ -> zero()
+    }
+
+    state one() -> u8 {
+        1
+    }
+
+    state zero() -> u8 {
+        0
+    }
 }

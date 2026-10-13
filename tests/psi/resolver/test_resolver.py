@@ -43,6 +43,8 @@ PROOF_ONLY_APPLICATION = 30
 CONTRACT_NAMES_NO_BINDER = 31
 DUPLICATE_CONTRACT = 32
 UNSUPPORTED_RANKING_VIEW = 33
+UNDECLARED_LIFETIME = 34
+LIFETIME_ARGUMENT_COUNT = 35
 
 # Value bindings: (tag, handle, case handle).
 NOT_A_NAME = (0, 0, 0)
@@ -1882,6 +1884,39 @@ def main() -> None:
         b"proposition Same<T>(a: T, b: T);\nmachine f(x: u8)\nrequires Same<u8>(x, x)\n{}",
         (generic(0), generic(0), builtin("u8"), builtin("u8")),
         (proposition(0), NOT_A_NAME, parameter(2), parameter(2), NOT_A_NAME),
+    )
+    # Lifetime tags name a declared binder of the declaration or its
+    # container; an applied name spells as many lifetime arguments as the
+    # data declares, or elides them (wiki/spec/language/lifetimes.md).
+    accepted(
+        program,
+        "declared-lifetimes-bind",
+        b"data Message<'buffer> { body: &'buffer [u8]; }\n"
+        b"machine f<'s>(m: &Message<'s>, bare: &Message) -> u64 { m.body.len }",
+        (builtin("u8"), SLICE_ROW, REFERENCE_ROW, data(0), REFERENCE_ROW, data(0), REFERENCE_ROW, builtin("u64")),
+    )
+    rejected(
+        program,
+        "undeclared-lifetime",
+        b"data D { v: &'a u8; }",
+        UNDECLARED_LIFETIME,
+        b"&'a u8",
+    )
+    rejected(
+        program,
+        "lifetime-argument-count",
+        b"data P { v: u8; }\nmachine f<'a>(p: &P<'a>) {}",
+        LIFETIME_ARGUMENT_COUNT,
+        b"P",
+        2,
+    )
+    rejected(
+        program,
+        "fewer-lifetime-arguments",
+        b"data Pair<'a, 'b> { x: &'a u8; y: &'b u8; }\nmachine f<'s>(p: &Pair<'s>) {}",
+        LIFETIME_ARGUMENT_COUNT,
+        b"Pair",
+        2,
     )
     rejected(
         program,

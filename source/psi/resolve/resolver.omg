@@ -971,12 +971,50 @@ crashes Trap
 {
     let type_reference: TypeReference = SyntaxTrees::type_reference(syntax, row);
     let whole: IdentifierSpan = IdentifierSpan { source_span: type_reference.source_span };
-    transition type_reference.kind {
-        TypeReferenceKind::Named -> named(resolver, sources, syntax, scope, row, is_root, role, type_reference)
-        TypeReferenceKind::Reference -> holder(resolver, sources, syntax, scope, row, is_root, role, type_reference, whole, TypeBinding::Reference)
-        TypeReferenceKind::Array -> holder(resolver, sources, syntax, scope, row, is_root, role, type_reference, whole, TypeBinding::Array)
-        TypeReferenceKind::Slice -> holder(resolver, sources, syntax, scope, row, is_root, role, type_reference, whole, TypeBinding::Slice)
-        TypeReferenceKind::Literal -> placed(resolver, sources, syntax, scope, row, is_root, role, type_reference, whole, TypeBinding::Literal, BoundKind::Type)
+    let lifetimes: bool = Resolver::lifetimes_declared(sources, syntax, scope, type_reference);
+    transition lifetimes {
+        true -> kinds(resolver, sources, syntax, scope, row, is_root, role, type_reference, whole)
+        _ -> reject(resolver, ResolveDiagnosticCode::UndeclaredLifetime, whole)
+    }
+
+    state kinds(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        scope: TypeScope,
+        row: u64 in Trapping,
+        is_root: bool,
+        role: TypeRole,
+        type_reference: TypeReference,
+        whole: IdentifierSpan
+    ) {
+        transition type_reference.kind {
+            TypeReferenceKind::Named -> arity(resolver, sources, syntax, scope, row, is_root, role, type_reference)
+            TypeReferenceKind::Reference -> holder(resolver, sources, syntax, scope, row, is_root, role, type_reference, whole, TypeBinding::Reference)
+            TypeReferenceKind::Array -> holder(resolver, sources, syntax, scope, row, is_root, role, type_reference, whole, TypeBinding::Array)
+            TypeReferenceKind::Slice -> holder(resolver, sources, syntax, scope, row, is_root, role, type_reference, whole, TypeBinding::Slice)
+            TypeReferenceKind::Literal -> placed(resolver, sources, syntax, scope, row, is_root, role, type_reference, whole, TypeBinding::Literal, BoundKind::Type)
+        }
+    }
+
+    // An applied data name supplies as many lifetime arguments as the data
+    // declares lifetime binders, or elides them all; other names take none.
+    state arity(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        scope: TypeScope,
+        row: u64 in Trapping,
+        is_root: bool,
+        role: TypeRole,
+        type_reference: TypeReference
+    ) {
+        let binding: TypeBinding = Resolver::type_binding(sources, syntax, scope, type_reference.name.source_span);
+        let declared: u64 in Trapping = Resolver::lifetime_arity(syntax, binding);
+        transition declared == type_reference.lifetime_count || type_reference.lifetime_count == 0 {
+            true -> named(resolver, sources, syntax, scope, row, is_root, role, type_reference)
+            _ -> reject(resolver, ResolveDiagnosticCode::LifetimeArgumentCount, type_reference.name)
+        }
     }
 
     state named(
@@ -2649,5 +2687,111 @@ crashes Trap
 
     state entry(item: MachineItem) -> u64 in Trapping {
         item.first_statement + item.statement_count
+    }
+}
+
+// Whether every lifetime tag a type row spells, its reference tag and its
+// applied name's lifetime arguments, names a lifetime binder of the
+// declaration or its container.
+machine Resolver::lifetimes_declared(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, type_reference: TypeReference) -> bool
+crashes Trap
+{
+    let tagged: bool = Resolver::lifetime_named(sources, syntax, scope, type_reference.lifetime.source_span);
+    transition type_reference.has_lifetime && !tagged {
+        true -> answer(false)
+        _ -> argument(sources, syntax, scope, type_reference, 0)
+    }
+
+    state argument(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, type_reference: TypeReference, offset: u64 in Trapping) -> bool {
+        transition offset < type_reference.lifetime_count {
+            true -> tag(sources, syntax, scope, type_reference, offset)
+            _ -> answer(true)
+        }
+    }
+
+    state tag(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, type_reference: TypeReference, offset: u64 in Trapping) -> bool {
+        let spelled: IdentifierSpan = SyntaxTrees::type_lifetime(syntax, type_reference.first_lifetime + offset);
+        let declared: bool = Resolver::lifetime_named(sources, syntax, scope, spelled.source_span);
+        transition declared {
+            true -> argument(sources, syntax, scope, type_reference, offset + 1)
+            _ -> answer(false)
+        }
+    }
+
+    state answer(declared: bool) -> bool {
+        declared
+    }
+}
+
+// Whether a lifetime binder spelled `name` is declared by the scope's own
+// declaration or its container.
+machine Resolver::lifetime_named(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan) -> bool
+crashes Trap
+{
+    let own: bool = Resolver::lifetime_among(sources, syntax, scope.first_generic_parameter, scope.generic_parameter_count, name);
+    let outer: bool = Resolver::lifetime_among(sources, syntax, scope.first_outer_parameter, scope.outer_parameter_count, name);
+    own || outer
+}
+
+// Whether a lifetime binder spelled `name` lies in the generic parameters
+// `first..first + count`.
+machine Resolver::lifetime_among(sources: &SourceSet, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan) -> bool
+crashes Trap
+{
+    transition { _ -> next(sources, syntax, first, count, name, 0) }
+
+    state next(sources: &SourceSet, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> bool {
+        transition offset < count {
+            true -> candidate(sources, syntax, first, count, name, offset)
+            _ -> answer(false)
+        }
+    }
+
+    state candidate(sources: &SourceSet, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> bool {
+        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, first + offset);
+        let equal: bool = SourceSet::spans_equal(sources, name, parameter.name.source_span);
+        transition equal && parameter.kind == GenericParameterKind::Lifetime {
+            true -> answer(true)
+            _ -> next(sources, syntax, first, count, name, offset + 1)
+        }
+    }
+
+    state answer(declared: bool) -> bool {
+        declared
+    }
+}
+
+// How many lifetime binders the declaration a type name binds declares:
+// data counts its lifetime parameters; any other binding declares none.
+machine Resolver::lifetime_arity(syntax: &SyntaxTrees, binding: TypeBinding) -> u64 in Trapping
+crashes Trap
+{
+    transition binding {
+        TypeBinding::Data { item } -> data(syntax, item)
+        _ -> answer(0)
+    }
+
+    state data(syntax: &SyntaxTrees, item: u64 in Trapping) -> u64 in Trapping {
+        let declaration: DataItem = SyntaxTrees::data_item(syntax, item);
+        transition { _ -> next(syntax, declaration.first_generic_parameter, declaration.generic_parameter_count, 0, 0) }
+    }
+
+    state next(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, found: u64 in Trapping) -> u64 in Trapping {
+        transition offset < count {
+            true -> candidate(syntax, first, count, offset, found)
+            _ -> answer(found)
+        }
+    }
+
+    state candidate(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, found: u64 in Trapping) -> u64 in Trapping {
+        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, first + offset);
+        transition parameter.kind == GenericParameterKind::Lifetime {
+            true -> next(syntax, first, count, offset + 1, found + 1)
+            _ -> next(syntax, first, count, offset + 1, found)
+        }
+    }
+
+    state answer(count: u64 in Trapping) -> u64 in Trapping {
+        count
     }
 }

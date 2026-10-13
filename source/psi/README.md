@@ -68,9 +68,10 @@ and fixed-array literals `[element, ...]`, a trailing comma allowed, or `[]`,
 all on explicit stacks rather than
 recursion. Every type position (fields, payload fields,
 generic binders, parameters, return types, `let` types and casts) shares one
-grammar in [`parse/types.omg`](parse/types.omg): references `&[mut] T`, arrays
-`[T; N]`, slices `[T]` and named types, possibly `::` paths, with static
-arguments `Name<T, 4>`, nested on an explicit frame stack, each form that
+grammar in [`parse/types.omg`](parse/types.omg): references `&['tag] [mut] T`,
+arrays `[T; N]`, slices `[T]` and named types, possibly `::` paths, with
+lifetime and static arguments `Name<'tag, T, 4>` (the lifetimes a run of
+their own, before the type arguments), nested on an explicit frame stack, each form that
 admits one taking `in Domain`, a name or a path such as a case's implied
 domain `Type::Case`, kept as its own name and its owner path. A type's rows
 follow their children, so the
@@ -159,7 +160,10 @@ its name, one contract per binder
 ([`resolve/contracts.omg`](resolve/contracts.omg)), its parameter and result
 types in the machine's scope and its `requires` facts over its own
 parameters; a static argument names a machine for a machine binder or
-forwards one of the caller's. An
+forwards one of the caller's. A lifetime tag names a lifetime binder of
+the declaration or its container, and an applied data name spells as many
+lifetime arguments as the data declares or none; an invocation's lifetime
+arguments bind regions afresh and are not kept. An
 ordinary owned machine's token binds at its semantic home, the data
 declaration its owner names, which must belong to the machine's own
 package; one token with the same parameters twice at one home rejects

@@ -237,6 +237,12 @@ pub data ResolveDiagnosticCode [copy] {
     case DuplicateContract;
     // A `terminates by` view outside the compiler's ranking vocabulary.
     case UnsupportedRankingView;
+    // A lifetime tag no binder of the declaration declares, and an applied
+    // name whose lifetime arguments, when it spells any, differ in count
+    // from its declaration's lifetime binders
+    // (wiki/spec/language/lifetimes.md).
+    case UndeclaredLifetime;
+    case LifetimeArgumentCount;
 }
 
 pub data ResolveDiagnostic [copy] {

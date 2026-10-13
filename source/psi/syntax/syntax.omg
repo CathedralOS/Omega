@@ -52,6 +52,13 @@ pub data TypeReference [copy] {
     length: u64 in Trapping;
     first_argument: u64 in Trapping;
     argument_count: u64 in Trapping;
+    // A reference's lifetime tag `&'tag T`, and an applied name's lifetime
+    // arguments `Name<'tag, ...>`, a run in `type_lifetimes`
+    // (wiki/spec/language/lifetimes.md#binders-and-source-applications).
+    has_lifetime: bool;
+    lifetime: IdentifierSpan;
+    first_lifetime: u64 in Trapping;
+    lifetime_count: u64 in Trapping;
     first_row: u64 in Trapping;
     source_span: SourceSpan;
 }
@@ -697,6 +704,7 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedGenericParameterEnd;
     case GenericParameterCapacityExceeded;
     case GenericLifetimeOrdering;
+    case ExpectedLifetimeName;
     case ExpectedMachineName;
     case ExpectedMachineParameterOrEnd;
     case ExpectedMachineParameter;
@@ -871,6 +879,7 @@ where
     payload_field_count <= 1024,
     type_reference_count <= 65536,
     type_argument_count <= 1024,
+    type_lifetime_count <= 1024,
     machine_count <= 2048,
     parameter_count <= 32768,
     state_count <= 8192,
@@ -915,6 +924,9 @@ where
     type_reference_count: u64;
     type_arguments: [u64; 1024] in Trapping;
     type_argument_count: u64;
+    // The lifetime arguments of applied names, each run named by its row.
+    type_lifetimes: [IdentifierSpan; 1024];
+    type_lifetime_count: u64;
     machines: [MachineItem; 2048] in Trapping;
     machine_count: u64;
     parameters: [Parameter; 32768] in Trapping;
@@ -973,6 +985,7 @@ pub machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: SourceId)
     syntax_trees.payload_field_count = 0;
     syntax_trees.type_reference_count = 0;
     syntax_trees.type_argument_count = 0;
+    syntax_trees.type_lifetime_count = 0;
     syntax_trees.machine_count = 0;
     syntax_trees.parameter_count = 0;
     syntax_trees.state_count = 0;
@@ -1668,5 +1681,25 @@ crashes Trap
     state case_name(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
         let data_case: DataCase = SyntaxTrees::data_case(syntax_trees, handle);
         data_case.name
+    }
+}
+
+// The lifetime argument at `index` in `type_lifetimes`.
+pub machine SyntaxTrees::type_lifetime(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> IdentifierSpan
+crashes Trap
+{
+    transition index < syntax_trees.type_lifetime_count && index < 1024 {
+        true -> read(syntax_trees, index)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> IdentifierSpan
+    requires index < 1024
+    {
+        syntax_trees.type_lifetimes[index]
+    }
+
+    state invalid() -> IdentifierSpan {
+        crash Trap;
     }
 }

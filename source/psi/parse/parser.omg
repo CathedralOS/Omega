@@ -31,6 +31,7 @@ where
     pending_field_count <= 64,
     type_frame_depth <= 16,
     pending_type_argument_count <= 32,
+    pending_type_lifetime_count <= 32,
     pending_arm_count <= 64,
     ranked_subject_count <= 8,
 {
@@ -84,9 +85,16 @@ where
     type_frame_depth: u64;
     pending_type_arguments: [u64; 32] in Trapping;
     pending_type_argument_count: u64;
+    // Lifetime arguments staged like the type arguments, and whether the
+    // static argument just parsed was one (it leaves no row).
+    pending_type_lifetimes: [IdentifierSpan; 32];
+    pending_type_lifetime_count: u64;
+    type_lifetime_argument: bool;
     type_static_argument: bool;
     committed_type_first: u64 in Trapping;
     committed_type_count: u64 in Trapping;
+    committed_lifetime_first: u64 in Trapping;
+    committed_lifetime_count: u64 in Trapping;
     machine_start: u64 in Trapping;
     machine_is_public: bool;
     machine_has_target: bool;

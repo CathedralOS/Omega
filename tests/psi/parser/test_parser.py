@@ -40,6 +40,7 @@ class Observation:
     pattern_fields: tuple[tuple[int, ...], ...] = ()
     clauses: tuple[tuple[int, ...], ...] = ()
     type_arguments: tuple[int, ...] = ()
+    type_lifetimes: tuple[tuple[int, int, int], ...] = ()
     name_paths: tuple[tuple[int, ...], ...] = ()
     traits: tuple[tuple[int, ...], ...] = ()
     trait_parents: tuple[int, ...] = ()
@@ -175,7 +176,9 @@ def decode(payload: bytes) -> Observation:
         for _ in range(reader.u64())
     )
     # kind, name span, source span, domain flag and span, access, then the
-    # inner, length, first-argument, argument-count and first-row handles.
+    # inner, length, first-argument, argument-count and first-row handles,
+    # the lifetime flag and span, and the first-lifetime and lifetime-count
+    # handles.
     type_references = tuple(
         (
             reader.byte(),
@@ -195,10 +198,17 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
         )
         for _ in range(reader.u64())
     )
     type_arguments = tuple(reader.u64() for _ in range(reader.u64()))
+    type_lifetimes = tuple((reader.u64(), reader.u64(), reader.u64()) for _ in range(reader.u64()))
     generic_parameters = tuple(
         (
             reader.byte(),
@@ -536,6 +546,7 @@ def decode(payload: bytes) -> Observation:
         pattern_fields,
         clauses,
         type_arguments,
+        type_lifetimes,
         name_paths,
         traits,
         trait_parents,
@@ -635,8 +646,11 @@ def type_rows(rows: tuple[tuple[int, ...], ...]) -> tuple[tuple[int, ...], ...]:
     pass through."""
     completed: list[tuple[int, ...]] = []
     for index, row in enumerate(rows):
-        if len(row) == 17:
+        if len(row) == 23:
             completed.append(row)
+            continue
+        if len(row) == 17:
+            completed.append(row + (0, 0, 0, 0, 0, 0))
             continue
         row = row if len(row) == 13 else row + (0, 0)
         kind, name, span, has_domain, domain, access, referee = (
@@ -646,9 +660,9 @@ def type_rows(rows: tuple[tuple[int, ...], ...]) -> tuple[tuple[int, ...], ...]:
             domain = (0, 0, 0)
         if kind == 3:
             first_row = completed[referee][16]
-            completed.append((3, *name, *span, has_domain, *domain, access, referee, 0, 0, 0, first_row))
+            completed.append((3, *name, *span, has_domain, *domain, access, referee, 0, 0, 0, first_row, 0, 0, 0, 0, 0, 0))
         else:
-            completed.append((1, *name, *span, has_domain, *domain, access, 0, 0, 0, 0, index))
+            completed.append((1, *name, *span, has_domain, *domain, access, 0, 0, 0, 0, index, 0, 0, 0, 0, 0, 0))
     return tuple(completed)
 
 
@@ -681,6 +695,7 @@ def accepted(
     construct_fields: tuple[tuple[int, ...], ...] = (),
     statements: tuple[tuple[int, ...], ...] = (),
     type_arguments: tuple[int, ...] = (),
+    type_lifetimes: tuple[tuple[int, int, int], ...] = (),
     clauses: tuple[tuple[int, ...], ...] = (),
     name_paths: tuple[tuple[int, ...], ...] = (),
     traits: tuple[tuple[int, ...], ...] = (),
@@ -719,6 +734,7 @@ def accepted(
         (),
         clause_rows(clauses),
         type_arguments,
+        type_lifetimes,
         name_paths,
         traits,
         trait_parents,
@@ -3312,11 +3328,16 @@ def main() -> None:
         length: int = 0,
         first_argument: int = 0,
         argument_count: int = 0,
+        lifetime: tuple[int, int] | None = None,
+        first_lifetime: int = 0,
+        lifetime_count: int = 0,
     ) -> tuple[int, ...]:
         name_span = (1, *name) if name else (1, 0, 0)
         domain_part = (1, 1, *domain) if domain else (0, 0, 0, 0)
+        lifetime_part = (1, 1, *lifetime) if lifetime else (0, 0, 0, 0)
         return (kind, *name_span, 1, *span, *domain_part, access, inner, length,
-                first_argument, argument_count, first_row)
+                first_argument, argument_count, first_row, *lifetime_part,
+                first_lifetime, lifetime_count)
 
     def leaf(kind: int, source: bytes, fragment: bytes, first_row: int, occurrence: int = 1) -> tuple[int, ...]:
         span = span_of(source, fragment, occurrence)
@@ -3333,6 +3354,24 @@ def main() -> None:
         actual = decode(payload)
         assert actual.type_references == rows, f"{name}:\nexpected {rows}\nactual   {actual.type_references}"
         assert actual.type_arguments == type_arguments, f"{name}:\n{actual.type_arguments}"
+
+    # A reference carries an optional lifetime tag before its access, and an
+    # applied name supplies lifetime arguments before its type arguments
+    # (wiki/spec/language/lifetimes.md#binders-and-source-applications).
+    source = b"data D<'a> { v: &'a u8; w: &'a mut u16; }"
+    types("reference-lifetime-tags", source, (
+        leaf(NAMED, source, b"u8", 0),
+        type_row(REFERENCE, span_of(source, b"&'a u8"), 0, access=1, inner=0, lifetime=(18, 19)),
+        leaf(NAMED, source, b"u16", 2),
+        type_row(REFERENCE, span_of(source, b"&'a mut u16"), 2, access=2, inner=2, lifetime=(29, 30)),
+    ))
+    source = b"data C<'a, T> { v: Carrier<'a, T>; }"
+    types("applied-lifetime-arguments", source, (
+        leaf(NAMED, source, b"T", 0, 2),
+        type_row(NAMED, span_of(source, b"Carrier<'a, T>"), 0, name=span_of(source, b"Carrier"), first_argument=0, argument_count=1, first_lifetime=0, lifetime_count=1),
+    ), type_arguments=(0,))
+    rejected(program, "lifetime-tag-needs-a-name", b"data D<'a> { v: &'5 u8; }", 194, (18, 19), generic_parameter_count=1)
+    rejected(program, "lifetime-arguments-precede-types", b"data C<'a, T> { v: Carrier<T, 'a>; }", 38, (32, 33), generic_parameter_count=2, type_reference_count=1)
 
     source = b"data D { a: [u8; 4]; }"
     types("array-literal-length", source, (
