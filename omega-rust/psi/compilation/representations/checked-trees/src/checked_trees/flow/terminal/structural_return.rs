@@ -12,7 +12,7 @@ pub struct CheckedUnitStructuralReturnPlan {
     pub completion: CheckedStructuralReturnCompletion,
     pub type_identity: TypeIdentityId,
     pub multiplicity: Multiplicity,
-    pub reference_sources: Vec<CheckedReferenceResultSourcePlan>,
+    pub reference_sources: Vec<CheckedReturnedReferencePlan>,
 }
 
 /// Completion is an occurrence, distinct from the source storage's birth.
@@ -34,6 +34,29 @@ pub enum CheckedStructuralReturnCompletion {
 pub struct CheckedReferenceResultSourcePlan {
     pub path: Vec<super::CheckedUnitStructuralPathSegment>,
     pub source: super::CheckedUnitStructuralArgumentPlan,
+}
+
+/// A function's returned provenance is a relation to ingress, not a recipe
+/// for forming a loan. Runtime element choices have no caller-side selector;
+/// their actual address and permission remain in the captured returned value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedReturnedReferencePlan {
+    pub path: Vec<super::CheckedUnitStructuralPathSegment>,
+    pub source: CheckedReferenceOriginSourcePlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedReferenceOriginSourcePlan {
+    pub parameter_index: u32,
+    pub path: Vec<CheckedReferenceOriginProjection>,
+    pub type_identity: TypeIdentityId,
+    pub access: super::CheckedStructuralAccess,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedReferenceOriginProjection {
+    Exact(super::CheckedUnitStructuralPathSegment),
+    Element,
 }
 
 impl CheckedUnitStructuralReturnPlan {

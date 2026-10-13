@@ -218,7 +218,7 @@ impl ReferenceCallEffects {
                 ReferenceOrigin::Alternatives { place, paths } => paths
                     .iter()
                     .map(|path| {
-                        ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+                        ReferenceOrigin::IngressLeaf(ReferenceOriginIdentity {
                             place: *place,
                             path: path.clone(),
                         })
@@ -515,7 +515,16 @@ fn resolve_slot(
                 place,
                 path: Vec::new(),
             },
-            ReferenceOrigin::IngressLeaf(identity) => identity,
+            ReferenceOrigin::IngressLeaf(identity) => {
+                identity.exact_identity().ok_or_else(|| {
+                    invalid(
+                        function,
+                        block,
+                        Some(node),
+                        "stored reference carrier has no exact storage identity",
+                    )
+                })?
+            }
             ReferenceOrigin::Alternatives { .. } => {
                 return Err(invalid(
                     function,

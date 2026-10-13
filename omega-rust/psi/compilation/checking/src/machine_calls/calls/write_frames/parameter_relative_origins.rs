@@ -1,4 +1,7 @@
 //! Parameter-relative origins of places and call results.
+//! Recasts retain their formation and stated presentation beside the original
+//! storage coordinates. A direct returned view needs the same origin evidence
+//! as one first captured in a local; address preservation alone cannot erase it.
 
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::call_targets::machine_state_by_symbol;
@@ -115,16 +118,26 @@ fn parameter_relative_place_origins_in(
     admit_carrier_roots: bool,
 ) -> Option<Vec<ParameterRelativeFrameOrigin>> {
     let origins = match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => parameter_relative_place_origins_in(
-            program,
-            current_machine,
-            inner.target,
-            parameters,
-            aliases,
-            symbols,
-            inference,
-            admit_carrier_roots,
-        )?,
+        ExpressionNode::Borrow(inner) => {
+            let mut origins = parameter_relative_place_origins_in(
+                program,
+                current_machine,
+                inner.target,
+                parameters,
+                aliases,
+                symbols,
+                inference,
+                admit_carrier_roots,
+            )?;
+            for origin in &mut origins {
+                if let Some(recast) = origin.place.source.recasts.last_mut()
+                    && recast.formation_expression == inner.target
+                {
+                    recast.formation_expression = expression;
+                }
+            }
+            origins
+        }
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index) {
                 let mut diagnostics = Vec::new();
@@ -287,7 +300,7 @@ fn parameter_relative_place_origins_in(
             if cast.form.is_recast()
                 && !expression_is_effectful_for_transparent_result(program, cast.value) =>
         {
-            parameter_relative_place_origins_in(
+            let mut origins = parameter_relative_place_origins_in(
                 program,
                 current_machine,
                 cast.value,
@@ -296,7 +309,12 @@ fn parameter_relative_place_origins_in(
                 symbols,
                 inference,
                 admit_carrier_roots,
-            )?
+            )?;
+            let formation = crate::reference_formation_source(program, expression)?;
+            for origin in &mut origins {
+                origin.place.source.recast(formation.view_type, expression);
+            }
+            origins
         }
         _ => return None,
     };

@@ -39,7 +39,7 @@ pub(crate) fn expression_result_is_reference(
         }
         if !matches!(
             program.expression_table.expression(expression),
-            ExpressionNode::Borrow(_)
+            ExpressionNode::Borrow(_) | ExpressionNode::Cast(_)
         ) && let Some(reference) =
             declared_place_type_raw(program, machine, Some(state), expression)
         {
@@ -105,8 +105,11 @@ pub(crate) fn expression_result_is_reference(
                 saw_result = true;
             }
             ExpressionNode::Cast(cast) => {
-                saw_reference |=
-                    projected_type_is_reference(program, cast.target_type, &projections)?;
+                // A recast stores its referent type, not its reference shell.
+                // The cast form establishes that shell; later field/element
+                // projections still select their own declared result types.
+                saw_reference |= (cast.form.is_recast() && projections.is_empty())
+                    || projected_type_is_reference(program, cast.target_type, &projections)?;
                 saw_result = true;
             }
             ExpressionNode::Integer(_)

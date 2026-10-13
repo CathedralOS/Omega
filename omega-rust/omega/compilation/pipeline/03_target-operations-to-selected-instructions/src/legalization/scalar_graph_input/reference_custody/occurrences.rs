@@ -12,6 +12,42 @@ use semantic_vocabulary::{BlockId, StructuralPlaceKind};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::StructuralParameterDeclaration;
 
+/// A permission occurrence is not its current storage slot. In particular a
+/// store can install a fresh shared copy in a slot whose former child survives.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(in crate::legalization) struct OccurrenceIdentity {
+    pub(super) place: PlaceId,
+    pub(super) path: Vec<StructuralPathSegment>,
+    pub(super) formation: OccurrenceFormation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum OccurrenceFormation {
+    Parameter,
+    Operation(OperationId),
+}
+
+impl OccurrenceIdentity {
+    pub(super) fn parameter(location: &(PlaceId, Vec<StructuralPathSegment>)) -> Self {
+        Self {
+            place: location.0,
+            path: location.1.clone(),
+            formation: OccurrenceFormation::Parameter,
+        }
+    }
+
+    pub(super) fn operation(
+        location: &(PlaceId, Vec<StructuralPathSegment>),
+        operation: OperationId,
+    ) -> Self {
+        Self {
+            place: location.0,
+            path: location.1.clone(),
+            formation: OccurrenceFormation::Operation(operation),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum CarrierContract {
     Operation {
@@ -82,7 +118,7 @@ impl CarrierContract {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Formation {
-    pub(super) identity: (PlaceId, Vec<StructuralPathSegment>),
+    pub(super) identity: OccurrenceIdentity,
     pub(super) contract: CarrierContract,
 }
 
@@ -90,7 +126,7 @@ impl Leaf {
     pub(super) fn formed(
         identity: (PlaceId, Vec<StructuralPathSegment>),
         root: Root,
-        parents: Vec<(PlaceId, Vec<StructuralPathSegment>)>,
+        parents: Vec<OccurrenceIdentity>,
         operation: OperationId,
         result: &StructuralOperationResult,
         referent: StructuralTypeId,
@@ -99,6 +135,7 @@ impl Leaf {
             operation,
             result: result.clone(),
         };
+        let identity = OccurrenceIdentity::operation(&identity, operation);
         Self {
             identity: identity.clone(),
             backing: vec![super::descriptor_backing::Backing::Source(root.clone())],
@@ -113,6 +150,7 @@ impl Leaf {
     /// A copy or newly selected call result forms a new permission occurrence.
     /// Its backing and parent obligations remain separate from this declaration.
     pub(super) fn reform(&mut self, operation: OperationId, result: &StructuralOperationResult) {
+        self.identity.formation = OccurrenceFormation::Operation(operation);
         self.contract = CarrierContract::Operation {
             operation,
             result: result.clone(),
@@ -173,7 +211,7 @@ pub(super) fn merge_arrivals(
             .1
             .iter()
             .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
-            || leaf.identity != *key
+            || leaf.identity != OccurrenceIdentity::parameter(key)
             || leaf.contract != CarrierContract::Parameter(parameter.clone())
             || leaf.formations.is_empty()
             || leaf_referent(types, parameter.structural_type, &key.1) != Some(leaf.referent)
@@ -204,8 +242,8 @@ pub(super) fn merge_arrivals(
             return Ok(None);
         };
         let contract = CarrierContract::Parameter(parameter.clone());
-        if existing.identity != *key
-            || incoming.identity != *key
+        if existing.identity != OccurrenceIdentity::parameter(key)
+            || incoming.identity != OccurrenceIdentity::parameter(key)
             || existing.contract != contract
             || incoming.contract != contract
             || existing.referent != incoming.referent
@@ -273,23 +311,36 @@ pub(super) fn re_home_bound_leaves(
         }
     }
     if destinations.iter().any(|destination| {
-        custody.leaves.contains_key(destination) && !selected_sources.contains(destination)
+        custody
+            .retired
+            .contains_key(&OccurrenceIdentity::parameter(destination))
+            || custody.leaves.contains_key(destination) && !selected_sources.contains(destination)
     }) {
         return Err(invalid());
     }
     let identities: Vec<_> = moved
         .iter()
-        .map(|(_, destination, leaf, _)| (leaf.identity.clone(), destination.clone()))
+        .map(|(_, destination, leaf, _)| {
+            (
+                leaf.identity.clone(),
+                OccurrenceIdentity::parameter(destination),
+            )
+        })
         .collect();
     for (source, _, _, _) in &moved {
         custody.leaves.remove(source);
     }
     for (_, destination, mut leaf, parameter) in moved {
-        leaf.identity = destination.clone();
+        leaf.identity = OccurrenceIdentity::parameter(&destination);
         leaf.contract = CarrierContract::Parameter(parameter);
         custody.leaves.insert(destination, leaf);
     }
-    for leaf in custody.leaves.values_mut() {
+    for leaf in custody.leaves.values_mut().chain(
+        custody
+            .retired
+            .values_mut()
+            .map(|retired| &mut retired.leaf),
+    ) {
         for parent in &mut leaf.parents {
             if let Some((_, destination)) = identities.iter().find(|(source, _)| source == parent) {
                 *parent = destination.clone();

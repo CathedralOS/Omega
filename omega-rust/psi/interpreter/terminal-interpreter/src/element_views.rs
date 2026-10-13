@@ -193,6 +193,30 @@ impl ElementView {
                 .is_ok_and(|element_index| self.window.contains(&element_index))
     }
 
+    /// Invert only a captured structural coordinate inside this exact window.
+    /// The returned position is a candidate for typed projection, not authority;
+    /// the caller must resolve it and compare the complete returned backing.
+    pub(crate) fn captured_structural_index(
+        &self,
+        selected: &TerminalStructuralValue,
+    ) -> Option<u64> {
+        let ElementViewBacking::Structural { collection } = &self.backing else {
+            return None;
+        };
+        if selected.opaque_identity != collection.opaque_identity {
+            return None;
+        }
+        let suffix = selected.path.strip_prefix(collection.path.as_slice())?;
+        let StructuralPathSegment::FixedIndex(index) = suffix.first()? else {
+            return None;
+        };
+        let index = usize::try_from(*index).ok()?;
+        self.window
+            .contains(&index)
+            .then(|| u64::try_from(index - self.window.start).ok())
+            .flatten()
+    }
+
     /// Select original scalar storage below a collection loan. No snapshot or
     /// byte geometry participates; the owner's accessor checks the frame home.
     pub(crate) fn scalar_storage(

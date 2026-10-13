@@ -405,7 +405,18 @@ pub(crate) fn validate_structural_path(
 /// An origin recipe describes admitted backing; it is not executable access.
 /// Only result-source rows use this entrance. Operands, claims, qualifications
 /// and cleanup use the ordinary path entrance, which rejects interpretations.
-pub(crate) fn validate_reference_origin_path(
+pub(crate) fn validate_reference_origin_family(
+    module: &TerminalModule,
+    structural_type: StructuralTypeId,
+    path: &[terminal_psi::ReferenceOriginProjection],
+) -> Result<StructuralTypeId, CodecError> {
+    terminal_semantics::reference_origin_type(module.structural_types.iter(), structural_type, path)
+        .ok_or(CodecError::MalformedStructuralFoundation(
+            "reference origin has an invalid typed projection",
+        ))
+}
+
+fn validate_reference_origin_path(
     module: &TerminalModule,
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],

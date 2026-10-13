@@ -127,9 +127,9 @@ impl FrameSourcePlace {
         &self,
         source: &Self,
     ) -> Self {
-        let mut projected = self.append_segments(&source.segments);
-        projected.builtin_coordinates &= source.builtin_coordinates;
-        projected
+        // Alias substitution remains in this body's expression namespace.
+        // Preserve both evaluated selectors and any newly formed views.
+        self.substitute_source(source, |segment| segment)
     }
 
     /// The source may already refer to a different binding after alias or
@@ -184,6 +184,21 @@ impl FrameSourcePlace {
         &self,
         relative: &Self,
     ) -> Self {
+        self.substitute_source(relative, |segment| match segment {
+            PlaceSegment::Index { .. } => PlaceSegment::Index {
+                expression: ExpressionHandle::invalid(),
+            },
+            _ => segment,
+        })
+    }
+
+    /// Rebase the complete presentation chain as well as its final coordinate.
+    /// The caller owns whether selectors cross an expression namespace.
+    fn substitute_source(
+        &self,
+        relative: &Self,
+        map_selector: fn(PlaceSegment) -> PlaceSegment,
+    ) -> Self {
         if (!self.root.is_valid() && !self.is_static()) || !relative.root.is_valid() {
             return Self::default();
         }
@@ -205,7 +220,7 @@ impl FrameSourcePlace {
                 builtin_coordinates: relative.builtin_coordinates,
                 ..Self::default()
             };
-            let rebased = base_coordinate.append_relative(&predecessor);
+            let rebased = base_coordinate.substitute_source(&predecessor, map_selector);
             result.recasts.push(RecastSource {
                 formation_expression: recast.formation_expression,
                 root: rebased.root,
@@ -216,35 +231,16 @@ impl FrameSourcePlace {
         }
         result
             .segments
-            .extend(relative.segments.iter().map(|segment| match segment {
-                PlaceSegment::Index { .. } => PlaceSegment::Index {
-                    expression: ExpressionHandle::invalid(),
-                },
-                _ => *segment,
-            }));
+            .extend(relative.segments.iter().copied().map(map_selector));
         if let Some((_, path)) = &mut result.representation {
-            path.extend(relative.segments.iter().map(|segment| match segment {
-                PlaceSegment::Index { .. } => PlaceSegment::Index {
-                    expression: ExpressionHandle::invalid(),
-                },
-                _ => *segment,
-            }));
+            path.extend(relative.segments.iter().copied().map(map_selector));
         }
-        // A view introduced inside the callee selects a new logical carrier
-        // over the same substituted backing. Its path is relative to that
-        // carrier, not to the caller's previous interpretation.
+        // A substituted view selects a new logical carrier over the same
+        // backing. Its selectors belong to that presentation, not to the
+        // preceding interpretation of the captured source.
         if let Some((carrier, path)) = &relative.representation {
-            result.representation = Some((
-                *carrier,
-                path.iter()
-                    .map(|segment| match segment {
-                        PlaceSegment::Index { .. } => PlaceSegment::Index {
-                            expression: ExpressionHandle::invalid(),
-                        },
-                        _ => *segment,
-                    })
-                    .collect(),
-            ));
+            result.representation =
+                Some((*carrier, path.iter().copied().map(map_selector).collect()));
         }
         result
     }

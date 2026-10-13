@@ -10,8 +10,7 @@ use super::{
 };
 use crate::expression_preparation::bindings::StructuralLocalBinding;
 use checked_trees::{
-    CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+    CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralPathSegment,
 };
 
 /// Formation's scalar namespace and emission context. Runtime selectors are
@@ -163,7 +162,7 @@ pub(crate) fn lower_reference_source(
 pub(crate) fn lower_reference_result_sources(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
-    references: &[checked_trees::CheckedReferenceResultSourcePlan],
+    references: &[checked_trees::CheckedReturnedReferencePlan],
     result_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
@@ -174,19 +173,14 @@ pub(crate) fn lower_reference_result_sources(
             if reference.source.access == CheckedStructuralAccess::Owned {
                 return unsupported("returned origin cannot transfer owned storage");
             }
-            let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = reference.source.source else {
-                return unsupported("returned origin is not rooted in an input parameter");
-            };
+            let parameter_index = reference.source.parameter_index;
             let parameter = parameters.get(parameter_index as usize).ok_or(
                 LoweringError::Unsupported("returned origin lost its input parameter"),
             )?;
             let path = crate::expression_preparation::bindings::structural_paths::lower_reference_origin_path(
                 identities, checked, &reference.source.path, parameter.structural_type, structural_types,
             )?;
-            let path = terminal_semantics::reference_source_storage_path(
-                structural_types.iter(), parameter.structural_type, &path,
-            ).to_vec();
-            let source = StructuralArgument {
+            let source = terminal_psi::ReferenceOriginSource {
                 place: parameter.place,
                 path,
                 access: crate::expression_preparation::bindings::structural_paths::terminal_access(reference.source.access),

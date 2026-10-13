@@ -783,7 +783,17 @@ impl OpenWindows {
                     assignment.target,
                     &destination_place,
                 )?;
-                let occupied = slot_occupied(facts, machine, state, index, &destination_place);
+                let occupied = slot_occupied(facts, machine, state, index, &destination_place)
+                    || validation::reference_result_custody::replaced_reference_carrier(
+                        program,
+                        facts,
+                        machine.symbol,
+                        state,
+                        destination_place.root,
+                        statement_index,
+                        &path,
+                    )
+                    .is_some();
                 let opening = self
                     .open
                     .iter()

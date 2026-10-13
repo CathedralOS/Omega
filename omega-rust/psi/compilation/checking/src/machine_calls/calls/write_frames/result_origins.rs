@@ -388,9 +388,12 @@ fn merge_result_arm(
                 symbols,
                 inference,
                 include_shared,
-                &|expression, reference, implicit_borrow, inference| {
+                &|expression, reference, _implicit_borrow, inference| {
                     if include_shared {
-                        super::reference_subjects::value_origin(
+                        // Returned provenance needs the complete backing set,
+                        // not an exact predicate subject. Collection selectors
+                        // retain typed origins without claiming value equality.
+                        super::reference_subjects::backing_origins(
                             program,
                             machine,
                             expression,
@@ -398,14 +401,13 @@ fn merge_result_arm(
                             inference,
                             &context.aliases,
                             &context.stored,
-                            implicit_borrow,
                         )
                         .or_else(|| {
                             super::reference_subjects::unknown_readonly_origin(
                                 program, reference, "",
                             )
+                            .map(|origin| vec![origin])
                         })
-                        .map(|origin| vec![origin])
                     } else {
                         super::reference_origins::exclusive_reference_origins(
                             program, machine, expression, symbols, inference,
@@ -553,7 +555,7 @@ fn merge_relative_origins(
                 // complete helper-prefix evidence is available. Caller
                 // substitution cannot reconstruct a callee's frozen slots
                 // or establish which payload the helper selected.
-                super::reference_subjects::validate_source_projection(
+                super::reference_subjects::validate_backing_projection(
                     program,
                     machine,
                     state,
@@ -768,9 +770,9 @@ fn instantiate_edge_origins(
             symbols,
             inference,
             include_shared,
-            &|actual, reference, implicit_borrow, inference| {
+            &|actual, reference, _implicit_borrow, inference| {
                 if include_shared {
-                    super::reference_subjects::value_origin(
+                    super::reference_subjects::backing_origins(
                         program,
                         machine,
                         actual,
@@ -778,12 +780,11 @@ fn instantiate_edge_origins(
                         inference,
                         &context.aliases,
                         &context.stored,
-                        implicit_borrow,
                     )
                     .or_else(|| {
                         super::reference_subjects::unknown_readonly_origin(program, reference, "")
+                            .map(|origin| vec![origin])
                     })
-                    .map(|origin| vec![origin])
                 } else {
                     super::reference_origins::exclusive_reference_origins(
                         program, machine, actual, symbols, inference,

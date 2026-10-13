@@ -5,6 +5,9 @@
 //! state exits and temporary continuations. A borrowed replacement displaces
 //! the old value into a result; that changes its executable storage namespace,
 //! not which original death occurrence supplies its contracts or action order.
+//! A stored reference instead has a checked loan-carrier death. Its intrinsic
+//! descriptor disposal uses this same boundary without disposing the referent
+//! or manufacturing an ownership death for borrowed storage.
 
 use crate::execution::terminal_unit::types::ShapeCollector;
 use checked_trees::{
@@ -93,6 +96,36 @@ pub(super) fn actions(
     });
     let mut actions = Vec::new();
     let mut selected_regions = Vec::new();
+    let carrier_death = validation::reference_result_custody::replaced_reference_carrier(
+        program,
+        facts,
+        machine,
+        program.state_by_symbol(state)?,
+        root,
+        *statement_index,
+        &destination.path,
+    );
+    let carrier_discard = if let Some((carrier, _)) = carrier_death {
+        let declaration = shapes.types.get(&destination.type_identity)?;
+        if !matches!(declaration.shape,
+            checked_trees::CheckedUnitStructuralTypeShape::Reference { referent_identity, access }
+                if referent_identity == carrier.source.type_identity && access == carrier.source.access)
+            || !declaration.descriptor_cleanup
+            || old_value.type_identity != destination.type_identity
+        {
+            return None;
+        }
+        Some(CheckedNormalCleanupAction::Discard(
+            checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                source: old_value.source.clone(),
+                path: old_value.path.clone(),
+                type_identity: old_value.type_identity,
+                case_conditions: Default::default(),
+            },
+        ))
+    } else {
+        None
+    };
     for (disposition_handle, disposition) in
         facts
             .contextual_cleanup
@@ -247,6 +280,15 @@ pub(super) fn actions(
             }
             actions.push(action);
         }
+    }
+    if let Some(discard) = carrier_discard
+        && !actions.iter().any(|action| {
+            action.source() == discard.source()
+                && action.path() == discard.path()
+                && action.type_identity() == discard.type_identity()
+        })
+    {
+        actions.push(discard);
     }
     // An occupied affine value cannot silently become a raw discard when its
     // source death is absent. The producer must supply that occurrence first.

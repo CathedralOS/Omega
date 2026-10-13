@@ -25,6 +25,45 @@ fn latest_loan_release_boundary(
         })
 }
 
+/// A carrier replaced in its declared home belongs to the replacement's
+/// checked cleanup, not statement-entry expiry. Every alternative must name
+/// that same disposition; an incomplete or mixed group cannot suppress release.
+/// This remains true while scanning statements before the replacement exists
+/// in the operation list. The assignment planner must still produce its normal
+/// cleanup after capturing the RHS, and completion checks that disposition.
+/// A descendant can keep the backing loan live beyond this carrier's death;
+/// its lexical last use does not move the recorded replacement boundary.
+fn replacement_owns_release(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    loans: arena::HandleSpan<checked_trees::BorrowLoanFact>,
+) -> bool {
+    let Some(group) = facts.borrow.loan_group(loans) else {
+        return false;
+    };
+    let mut replacement = None;
+    for (handle, loan) in group {
+        let Some(weakening) =
+            validation::reference_result_custody::loan_weakening(facts, machine, state, handle)
+        else {
+            return false;
+        };
+        let checked_trees::FlowInvalidationSource::Statement { statement_index } = weakening.source
+        else {
+            return false;
+        };
+        if weakening.reason != checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+            || statement_index <= loan.statement_index
+            || replacement.is_some_and(|previous| previous != statement_index)
+        {
+            return false;
+        }
+        replacement = Some(statement_index);
+    }
+    replacement.is_some()
+}
+
 /// Source groups identify named loan resources. A computed descriptor has no
 /// such group, so its exact result occurrence identifies its one release.
 pub(in crate::execution::terminal_unit) fn release_matches(
@@ -199,6 +238,9 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         let reference_result =
             captured_reference_result(program, facts, machine, state, results, operation);
         if let Some((result, loans)) = reference_result {
+            if replacement_owns_release(facts, machine, state, loans) {
+                continue;
+            }
             if custody_transferred(program, facts, results, result.binding_ordinal, operations)? {
                 // The receiving constructor or call owns the descriptor now.
                 // Its former holder cannot release that transferred custody.
@@ -474,6 +516,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         if let Some((result, loans)) =
             captured_reference_result(program, facts, machine, state, results, operation)
         {
+            if replacement_owns_release(facts, machine, state, loans) {
+                continue;
+            }
             // The exit boundary consumes the same current custody as an
             // ordinary statement. A prior constructor/call transfer already
             // moved this descriptor to another holder.

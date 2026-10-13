@@ -84,16 +84,31 @@ pub(super) fn project_call(
         // effects; the runtime address still comes from the result descriptor.
         descriptor_origins.extend(reference_results.iter().flat_map(|reference| {
             reference.origins.iter().map(|origin| {
+                // Memory effects need a conservative storage envelope, never
+                // an address synthesized from declaration-level element families.
+                let path = origin
+                    .path
+                    .iter()
+                    .map_while(|projection| match projection {
+                        terminal_psi::ReferenceOriginProjection::Exact(segment) => {
+                            Some(segment.clone())
+                        }
+                        terminal_psi::ReferenceOriginProjection::Element => None,
+                    })
+                    .collect::<Vec<_>>();
+                let exact = path.len() == origin.path.len();
                 legalized_operations::LegalizedDescriptorOrigin::Argument {
                     source: terminal_psi::StructuralArgument {
                         place: origin.root,
-                        path: origin.path.clone(),
+                        path,
                         access: terminal_psi::StructuralAccess::SharedBorrow,
                     },
-                    exact: true,
-                    indirect: origin
-                        .path
-                        .contains(&terminal_psi::StructuralPathSegment::Referent),
+                    exact,
+                    indirect: origin.path.contains(
+                        &terminal_psi::ReferenceOriginProjection::Exact(
+                            terminal_psi::StructuralPathSegment::Referent,
+                        ),
+                    ),
                 }
             })
         }));

@@ -970,11 +970,14 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         projected_qualifications: Vec::new(),
         reference_sources: vec![StructuralReferenceResultSource {
             path: Vec::new(),
-            sources: vec![StructuralArgument {
-                place: PlaceId::new(21).unwrap(),
-                access: StructuralAccess::MutableBorrow,
-                path: Vec::new(),
-            }],
+            sources: vec![
+                StructuralArgument {
+                    place: PlaceId::new(21).unwrap(),
+                    access: StructuralAccess::MutableBorrow,
+                    path: Vec::new(),
+                }
+                .into(),
+            ],
         }],
     };
     target.graph.blocks[0].operations = vec![
@@ -999,7 +1002,11 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
                     path: Vec::new(),
                     origins: vec![target_operations::TargetReferenceOrigin {
                         root,
-                        path: holder_path.clone(),
+                        path: holder_path
+                            .iter()
+                            .cloned()
+                            .map(terminal_psi::ReferenceOriginProjection::Exact)
+                            .collect(),
                     }],
                 }],
             },
@@ -1048,8 +1055,8 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         .origins
         .push(target_operations::TargetReferenceOrigin {
             root,
-            path: vec![StructuralPathSegment::Field(
-                terminal_psi::TerminalIdentityIndex(18),
+            path: vec![terminal_psi::ReferenceOriginProjection::Exact(
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(18)),
             )],
         });
     assert!(replacement_retained(

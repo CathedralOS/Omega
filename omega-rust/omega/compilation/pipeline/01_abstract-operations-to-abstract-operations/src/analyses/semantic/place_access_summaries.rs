@@ -48,6 +48,8 @@ use super::semantically_reachable_blocks;
 pub(crate) enum PlaceAccessStep {
     Runtime(StructuralPathSegment),
     Canonical(CanonicalStructuralPathSegment),
+    /// A returned-origin family, never an executable wildcard operand.
+    Element,
 }
 
 impl PlaceAccessStep {
@@ -1039,7 +1041,21 @@ pub(in crate::analyses) fn place_access_summaries(
                             .sources
                             .iter()
                             .flat_map(|candidate| {
-                                context.resolve(candidate.place, runtime_prefix(&candidate.path))
+                                context.resolve(
+                                    candidate.place,
+                                    candidate
+                                        .path
+                                        .iter()
+                                        .map(|projection| match projection {
+                                            terminal_psi::ReferenceOriginProjection::Exact(
+                                                segment,
+                                            ) => PlaceAccessStep::Runtime(segment.clone()),
+                                            terminal_psi::ReferenceOriginProjection::Element => {
+                                                PlaceAccessStep::Element
+                                            }
+                                        })
+                                        .collect(),
+                                )
                             })
                             .map(|resolved| match resolved {
                                 ResolvedAccess::Parameter { position, path } => {

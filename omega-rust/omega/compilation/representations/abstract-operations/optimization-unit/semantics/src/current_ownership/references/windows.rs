@@ -80,11 +80,19 @@ pub(super) fn transfer(
                 place,
                 path: Vec::new(),
             }],
-            ReferenceOrigin::IngressLeaf(identity) => vec![identity],
+            ReferenceOrigin::IngressLeaf(identity) => vec![
+                identity
+                    .exact_identity()
+                    .ok_or_else(|| fail("window reference origin has no exact storage cursor"))?,
+            ],
             ReferenceOrigin::Alternatives { place, paths } => paths
                 .into_iter()
-                .map(|path| ReferenceIdentity { place, path })
-                .collect(),
+                .map(|path| {
+                    super::ReferenceOriginIdentity { place, path }
+                        .exact_identity()
+                        .ok_or_else(|| fail("window reference origin has no exact storage cursor"))
+                })
+                .collect::<Result<Vec<_>, _>>()?,
         };
         for mut region in candidates {
             if let Some(position) = crossing {
@@ -106,7 +114,7 @@ pub(super) fn transfer(
     let is_dependency = |reference: &LiveReference| {
         dependencies.iter().any(|dependency| {
             matches!(dependency, ReferenceOrigin::IngressLeaf(identity)
-            if identity.place == reference.carrier && identity.path == reference.carrier_path)
+            if identity.exact_identity().is_some_and(|identity| identity.place == reference.carrier && identity.path == reference.carrier_path))
         })
     };
     let ancestors = live

@@ -1259,7 +1259,8 @@ fn write_destination(
         || leaf.origins.is_empty()
         || leaf.origins.windows(2).any(|pair| pair[0] >= pair[1])
         || leaf.origins.iter().any(|origin| {
-            let Some((access, root_type)) = read_access(function, target, origin.root, purpose) else {
+            let Some((access, root_type)) = read_access(function, target, origin.root, purpose)
+            else {
                 return true;
             };
             if !matches!(
@@ -1273,12 +1274,12 @@ fn write_destination(
             if origin.path.is_empty() {
                 return root_type != referent;
             }
-            crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
+            terminal_semantics::captured_reference_origin_type(
+                target.graph.structural_types.iter(),
                 root_type,
                 &origin.path,
-                &target.graph.structural_types,
             )
-            .is_none_or(|(selected, _, _)| selected != referent)
+            .is_none_or(|selected| selected != referent)
         })
     {
         return None;

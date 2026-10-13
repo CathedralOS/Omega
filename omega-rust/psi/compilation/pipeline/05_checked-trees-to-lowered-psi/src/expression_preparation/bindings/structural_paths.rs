@@ -6,7 +6,7 @@
 //! checks still precede this join, and Terminal validates its concrete endpoint.
 
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::lowering_error::LoweringError;
+use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralPathSegment};
 use semantic_vocabulary::{ScalarType, ValueId};
 use terminal_psi::ValueDeclaration;
@@ -584,59 +584,90 @@ pub(crate) fn lower_static_argument_path(
 pub(crate) fn lower_reference_origin_path(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
-    mut path: &[CheckedUnitStructuralPathSegment],
+    mut path: &[checked_trees::CheckedReferenceOriginProjection],
     mut root: semantic_vocabulary::StructuralTypeId,
     types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Result<Vec<StructuralPathSegment>, LoweringError> {
+) -> Result<Vec<terminal_psi::ReferenceOriginProjection>, LoweringError> {
+    use checked_trees::CheckedReferenceOriginProjection as CheckedOrigin;
+    use terminal_psi::ReferenceOriginProjection as Origin;
     let mut output = Vec::with_capacity(path.len());
     loop {
-        let next_view = path.iter().position(|segment| {
+        let next_projection = path.iter().position(|projection| {
             matches!(
-                segment,
-                CheckedUnitStructuralPathSegment::RepresentationView { .. }
+                projection,
+                CheckedOrigin::Element
+                    | CheckedOrigin::Exact(
+                        CheckedUnitStructuralPathSegment::RepresentationView { .. }
+                            | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                    )
             )
         });
-        let prefix_length = next_view.unwrap_or(path.len());
-        let prefix = lower_static_argument_path(identities, &path[..prefix_length], root, types)?;
+        let prefix_length = next_projection.unwrap_or(path.len());
+        let prefix = path[..prefix_length]
+            .iter()
+            .map(|projection| match projection {
+                CheckedOrigin::Exact(segment) => Ok(segment.clone()),
+                CheckedOrigin::Element => unsupported("returned origin lost its collection step"),
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let prefix = lower_static_argument_path(identities, &prefix, root, types)?;
+        let prefix = terminal_semantics::reference_source_storage_path(types.iter(), root, &prefix);
+        let prefix = prefix
+            .iter()
+            .cloned()
+            .map(Origin::Exact)
+            .collect::<Vec<_>>();
+        root = terminal_semantics::reference_origin_type(types.iter(), root, &prefix).ok_or(
+            LoweringError::Unsupported("returned origin has no typed prefix"),
+        )?;
         output.extend(prefix);
-        let Some(view_position) = next_view else {
+        let Some(position) = next_projection else {
             return Ok(output);
         };
-        let CheckedUnitStructuralPathSegment::RepresentationView {
-            type_identity,
-            storage,
-        } = &path[view_position]
-        else {
-            return Err(LoweringError::Unsupported(
-                "returned origin lost its view step",
-            ));
+        let projection = match &path[position] {
+            CheckedOrigin::Element => Origin::Element,
+            CheckedOrigin::Exact(CheckedUnitStructuralPathSegment::FixedIndex(index)) => {
+                Origin::Exact(StructuralPathSegment::FixedIndex(*index))
+            }
+            CheckedOrigin::Exact(CheckedUnitStructuralPathSegment::RepresentationView {
+                type_identity,
+                storage,
+            }) => {
+                let checked_trees::CheckedReferenceStorage::View { stored_scalar } = storage else {
+                    return unsupported("returned view has no formation codec");
+                };
+                let declaration = crate::terminal_identities::structural_declaration_by_identity(
+                    types,
+                    identities,
+                    checked,
+                    *type_identity,
+                    "returned view lost its checked declaration",
+                )?;
+                terminal_semantics::representation_view_declaration(
+                    types.iter(),
+                    declaration.id,
+                    *stored_scalar,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "returned view has an incompatible storage codec",
+                ))?;
+                Origin::Exact(StructuralPathSegment::RepresentationView {
+                    structural_type: declaration.id,
+                    stored_scalar: *stored_scalar,
+                })
+            }
+            _ => return unsupported("returned origin has an unexpected projection"),
         };
-        let checked_trees::CheckedReferenceStorage::View { stored_scalar } = storage else {
-            return Err(LoweringError::Unsupported(
-                "returned view has no formation codec",
-            ));
-        };
-        let declaration = crate::terminal_identities::structural_declaration_by_identity(
-            types,
-            identities,
-            checked,
-            *type_identity,
-            "returned view lost its checked declaration",
-        )?;
-        terminal_semantics::representation_view_declaration(
+        root = terminal_semantics::reference_origin_type(
             types.iter(),
-            declaration.id,
-            *stored_scalar,
+            root,
+            std::slice::from_ref(&projection),
         )
         .ok_or(LoweringError::Unsupported(
-            "returned view has an incompatible storage codec",
+            "returned origin has an invalid typed projection",
         ))?;
-        output.push(StructuralPathSegment::RepresentationView {
-            structural_type: declaration.id,
-            stored_scalar: *stored_scalar,
-        });
-        root = declaration.id;
-        path = &path[view_position + 1..];
+        output.push(projection);
+        path = &path[position + 1..];
     }
 }
 

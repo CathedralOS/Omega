@@ -1300,8 +1300,7 @@ pub fn structural_call_custody(
             u32::try_from(call.statement_index)
                 .map_err(|_| "reference record call index exceeds u32")?,
             call.authored_expression,
-        )
-        .ok_or("reference record result has no exact captured leaf loans")?;
+        )?;
         // Received leaves consume checked formation groups. Unreceived
         // projection siblings and anonymous operands stay in the call's
         // temporary carrier until ordinary subtree/operand disposal.

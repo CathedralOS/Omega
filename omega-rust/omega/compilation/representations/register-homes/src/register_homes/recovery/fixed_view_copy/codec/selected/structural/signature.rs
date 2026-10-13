@@ -4,12 +4,14 @@ use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
     Cursor, decode_id, decode_ids, encode_ids, length,
 };
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::{
-    decode_entry_claim, decode_multiplicity, decode_parameter, decode_path, decode_place,
-    decode_semantic_argument, decode_type, encode_entry_claim, encode_multiplicity,
-    encode_parameter, encode_place, encode_semantic_argument, encode_type,
+    decode_access, decode_entry_claim, decode_multiplicity, decode_parameter, decode_path,
+    decode_place, decode_reference_origin_path, decode_type, encode_access, encode_entry_claim,
+    encode_multiplicity, encode_parameter, encode_place, encode_type,
 };
 use legalized_operations::LegalizedStructuralContract;
-use selected_instructions::effects::program::identity::encode_path;
+use selected_instructions::effects::program::identity::{
+    encode_path, encode_reference_origin_path,
+};
 use semantic_vocabulary::{PlaceId, ServiceId, StructuralDomainId, StructuralTypeId};
 pub(super) fn encode_signature(
     bytes: &mut Vec<u8>,
@@ -49,7 +51,9 @@ pub(super) fn encode_signature(
                 encode_path(bytes, &reference.path);
                 length(bytes, reference.sources.len());
                 for source in &reference.sources {
-                    encode_semantic_argument(bytes, source);
+                    crate::codec_bytes::push_encoded(bytes, source.place.get().to_le_bytes());
+                    encode_reference_origin_path(bytes, &source.path);
+                    encode_access(bytes, source.access);
                 }
             }
         }
@@ -110,7 +114,11 @@ pub(super) fn decode_signature(
                                 let count = c.length()?;
                                 let mut candidates = Vec::new();
                                 for _ in 0..count {
-                                    candidates.push(decode_semantic_argument(c)?);
+                                    candidates.push(terminal_psi::ReferenceOriginSource {
+                                        place: decode_id(c, PlaceId::new)?,
+                                        path: decode_reference_origin_path(c)?,
+                                        access: decode_access(c)?,
+                                    });
                                 }
                                 candidates
                             },
@@ -162,7 +170,7 @@ mod tests {
                     path: Vec::new(),
                     sources: [2, 3]
                         .into_iter()
-                        .map(|place| terminal_psi::StructuralArgument {
+                        .map(|place| terminal_psi::ReferenceOriginSource {
                             place: semantic_vocabulary::PlaceId::new(place).unwrap(),
                             access: terminal_psi::StructuralAccess::MutableBorrow,
                             path: Vec::new(),
@@ -197,6 +205,25 @@ mod tests {
         let mut cursor = Cursor::new(&bytes);
         assert_eq!(decode_signature(&mut cursor).unwrap(), signature);
         assert_eq!(cursor.remaining(), 0);
+        let mut family = signature.clone();
+        family.result.as_mut().unwrap().reference_sources[0].sources[0].path = vec![
+            terminal_psi::ReferenceOriginProjection::Exact(
+                terminal_psi::StructuralPathSegment::RepresentationView {
+                    structural_type: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),
+                    stored_scalar: None,
+                },
+            ),
+            terminal_psi::ReferenceOriginProjection::Element,
+            terminal_psi::ReferenceOriginProjection::Exact(
+                terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(9)),
+            ),
+        ];
+        let mut family_bytes = Vec::new();
+        encode_signature(&mut family_bytes, &family).unwrap();
+        assert_ne!(family_bytes, bytes);
+        let mut family_cursor = Cursor::new(&family_bytes);
+        assert_eq!(decode_signature(&mut family_cursor).unwrap(), family);
+        assert_eq!(family_cursor.remaining(), 0);
         let mut renamed = signature.clone();
         renamed.structural_types = abstract_operations::StructuralTypeCatalog::new(
             signature.structural_types.to_vec(),

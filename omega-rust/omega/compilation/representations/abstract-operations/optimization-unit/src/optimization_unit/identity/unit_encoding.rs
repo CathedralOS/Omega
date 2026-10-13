@@ -10,8 +10,8 @@ use super::{
     ValueUse,
 };
 use crate::optimization_unit::identity::carrier_encoding::{
-    encode_abstract_result, encode_binding, encode_ids, encode_integer_value, encode_multiplicity,
-    encode_optional, encode_scalar_type, encode_structural_argument, encode_structural_binding,
+    encode_abstract_result, encode_access, encode_binding, encode_ids, encode_integer_value,
+    encode_multiplicity, encode_optional, encode_scalar_type, encode_structural_binding,
     encode_structural_parameter, encode_structural_path_segment,
 };
 use crate::optimization_unit::identity::operation_encoding::encode_operation;
@@ -452,7 +452,16 @@ fn encode_structural_result(bytes: &mut CanonicalBytes, result: &StructuralResul
     encode_projected_qualification_roster(bytes, &result.projected_qualifications);
     bytes.slice(&result.reference_sources, |bytes, reference| {
         bytes.slice(&reference.path, encode_structural_path_segment);
-        bytes.slice(&reference.sources, encode_structural_argument);
+        bytes.slice(&reference.sources, |bytes, source| {
+            bytes.id(source.place);
+            bytes.slice(&source.path, |bytes, projection| match projection {
+                terminal_psi::ReferenceOriginProjection::Exact(segment) => {
+                    encode_structural_path_segment(bytes, segment)
+                }
+                terminal_psi::ReferenceOriginProjection::Element => bytes.u8(9),
+            });
+            encode_access(bytes, source.access);
+        });
     });
 }
 

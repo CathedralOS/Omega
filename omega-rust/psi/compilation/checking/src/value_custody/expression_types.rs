@@ -292,8 +292,8 @@ fn argument_matches_type_reference_using(
         );
     }
 
-    // A recast states its viewed carrier explicitly. The enclosing Borrow
-    // above retains the reference access; representation and loan validation
+    // A recast states its viewed carrier and access explicitly, whether or not
+    // the source includes an outer Borrow. Representation and loan validation
     // independently judge whether the source can supply this view. Comparing
     // the stated type here must neither infer a conversion from the destination
     // nor erase qualifications. Required bindings are simultaneous: a selected
@@ -301,10 +301,27 @@ fn argument_matches_type_reference_using(
     if let Some(cast) = program.expression_table.cast_node(argument)
         && cast.form.is_recast()
     {
+        let required_carrier = if let TypeReferenceNode::Reference {
+            referee, access, ..
+        } = program.type_reference_table.type_reference(type_reference)
+        {
+            let Some(formation) = crate::reference_formation_source(program, argument) else {
+                return false;
+            };
+            if formation.access != *access
+                && !(formation.access == language_semantics::ReferenceAccess::Mutable
+                    && *access == language_semantics::ReferenceAccess::Shared)
+            {
+                return false;
+            }
+            *referee
+        } else {
+            type_reference
+        };
         return program.type_identity(TypeIdentityRequest::ordinary(cast.target_type))
             == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
                 substitutions: required_substitutions,
-                ..TypeIdentityRequest::ordinary(type_reference)
+                ..TypeIdentityRequest::ordinary(required_carrier)
             });
     }
 

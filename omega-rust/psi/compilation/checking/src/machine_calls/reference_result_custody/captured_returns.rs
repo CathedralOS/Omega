@@ -10,9 +10,9 @@ use super::{
     record_carrier_sources, reference_access_can_supply, stored_carrier_sources, stored_loan_parts,
 };
 use checked_trees::{
-    CheckFacts, CheckedReferenceResultSourcePlan, CheckedStructuralValueKind,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment,
+    CheckFacts, CheckedReferenceOriginProjection, CheckedReferenceOriginSourcePlan,
+    CheckedReferenceResultSourcePlan, CheckedReturnedReferencePlan, CheckedStructuralValueKind,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -24,7 +24,7 @@ pub fn returned_sources(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
-) -> Option<Vec<CheckedReferenceResultSourcePlan>> {
+) -> Option<Vec<CheckedReturnedReferencePlan>> {
     Captures { program, facts }.returned(state, &mut Vec::new())
 }
 
@@ -47,7 +47,7 @@ impl Captures<'_> {
         &self,
         state: &typed_trees::state::State,
         active: &mut Vec<SymbolHandle>,
-    ) -> Option<Vec<CheckedReferenceResultSourcePlan>> {
+    ) -> Option<Vec<CheckedReturnedReferencePlan>> {
         if active.contains(&state.symbol) || active.len() >= super::MAX_REFERENCE_ORIGIN_DEPTH {
             return None;
         }
@@ -61,7 +61,7 @@ impl Captures<'_> {
         &self,
         state: &typed_trees::state::State,
         active: &mut Vec<SymbolHandle>,
-    ) -> Option<Vec<CheckedReferenceResultSourcePlan>> {
+    ) -> Option<Vec<CheckedReturnedReferencePlan>> {
         let mut states = self
             .facts
             .borrow
@@ -147,7 +147,7 @@ impl Captures<'_> {
                     }
                     captured = true;
                     for origin in self.return_origins(state, loan, leaf, expression, loans)? {
-                        let source = CheckedReferenceResultSourcePlan {
+                        let source = CheckedReturnedReferencePlan {
                             path: leaf.path.clone(),
                             source: origin,
                         };
@@ -274,9 +274,9 @@ impl Captures<'_> {
         leaf: &CheckedReferenceResultSourcePlan,
         expression: Option<ExpressionHandle>,
         loans: &[checked_trees::BorrowReturnedLoanFact],
-    ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
+    ) -> Option<Vec<CheckedReferenceOriginSourcePlan>> {
         let segments = self.facts.borrow.access_segments.span(loan.segments)?;
-        if let Some(source) = self.return_origin(state, loan, leaf, segments) {
+        if let Some(source) = self.return_origin(state, loan, leaf, segments, loans) {
             return Some(source);
         }
         // Incoming stored descriptors have a separate opaque origin identity.
@@ -328,7 +328,7 @@ impl Captures<'_> {
                 return None;
             }
             if referent.root == loan.root && captured_address_refines(segments, captured) {
-                for origin in self.return_origin(state, loan, leaf, captured)? {
+                for origin in self.return_origin(state, loan, leaf, captured, loans)? {
                     if !output.contains(&origin) {
                         output.push(origin);
                     }
@@ -397,7 +397,8 @@ impl Captures<'_> {
         loan: &checked_trees::BorrowReturnedLoanFact,
         leaf: &CheckedReferenceResultSourcePlan,
         segments: &[facts::PlaceSegment],
-    ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
+        loans: &[checked_trees::BorrowReturnedLoanFact],
+    ) -> Option<Vec<CheckedReferenceOriginSourcePlan>> {
         let incoming = if loan.incoming_reference.is_valid() {
             if !self
                 .facts
@@ -452,7 +453,9 @@ impl Captures<'_> {
                 return None;
             }
             if crate::reference_shell(self.program, parameter.type_reference).is_some() {
-                path.push(CheckedUnitStructuralPathSegment::Referent);
+                path.push(CheckedReferenceOriginProjection::Exact(
+                    CheckedUnitStructuralPathSegment::Referent,
+                ));
             }
             let incoming_path = loan_place_segments(self.program, carrier, &incoming_leaf.path)?;
             selected =
@@ -463,15 +466,24 @@ impl Captures<'_> {
             ) {
                 selected = stored_loan_parts(self.program, selected)?.0;
             }
-            path.extend(incoming_leaf.source.path);
+            path.extend(
+                incoming_leaf
+                    .source
+                    .path
+                    .into_iter()
+                    .map(CheckedReferenceOriginProjection::Exact),
+            );
             incoming_segments = incoming_path;
         } else {
-            let (referent, access) = stored_loan_parts(self.program, selected)?;
-            if !reference_access_can_supply(access, leaf.source.access) {
+            // Incoming borrow authority is independent of its descriptor ABI:
+            // slices supply element storage even though they are not stored
+            // pointer-shaped references.
+            let shell = crate::reference_shell(self.program, selected)?;
+            if !reference_access_can_supply(shell.access.into(), leaf.source.access) {
                 return None;
             }
             if self.program.normalized_type_identity(selected) != leaf.source.type_identity {
-                selected = referent;
+                selected = shell.referee;
             }
         }
         // Returned loans retain address selections across each parent view.
@@ -483,7 +495,73 @@ impl Captures<'_> {
         let frame = crate::CallFrameResolver::new(self.program)?;
         let result_path = loan_place_segments(self.program, state.return_type, &leaf.path)?;
         let origins = frame.reference_result_leaf_origins(state.symbol);
+        let has_presentation = origins.as_ref().is_some_and(|origins| {
+            origins.iter().any(|origin| {
+                origin.result_path == result_path
+                    && (!origin.source.recasts.is_empty() || origin.source.representation.is_some())
+            })
+        }) || self.facts.values.structural_values.nodes.iter().any(
+            |(_, value)| {
+                value.expression == loan.formation_expression
+                    && matches!(
+                        value.kind,
+                        CheckedStructuralValueKind::Reference {
+                            storage: checked_trees::CheckedReferenceStorage::View { .. },
+                            ..
+                        }
+                    )
+            },
+        );
+        // A captured loan that already reaches the returned type needs no
+        // body-summary refinement. Its frozen coordinates remain authoritative
+        // even when a later rebind makes the frame summary unavailable. The
+        // body relation below is needed only to refine a wider lifetime region
+        // or recover a checked presentation of another endpoint type.
+        // A retained interpretation still needs its codec, even if its target
+        // type equals the original endpoint. Type equality cannot erase a view.
+        if !has_presentation
+            && let Some((suffix, endpoint)) = self.origin_path(selected, &segments)
+            && self.program.normalized_type_identity(endpoint) == leaf.source.type_identity
+        {
+            path.extend(suffix);
+            return Some(vec![CheckedReferenceOriginSourcePlan {
+                parameter_index,
+                path,
+                type_identity: leaf.source.type_identity,
+                access: leaf.source.access,
+            }]);
+        }
         if let Some(origins) = origins {
+            // This is a state-wide union, not a menu from which one loan may
+            // select a convenient alternative. Every candidate for the leaf
+            // must have actual returned custody, even if another normal exit
+            // supplies it. An unresolved root cannot disappear behind a known
+            // source. Per-loan publication below then authenticates every
+            // covered candidate's declaration path and presented endpoint.
+            let owner_path = self.facts.borrow.owner_segments.span(loan.owner_path)?;
+            for origin in origins
+                .iter()
+                .filter(|origin| origin.result_path == result_path)
+            {
+                if !origin.source.root.is_valid()
+                    || !loans.iter().any(|candidate| {
+                        candidate.root == facts::PlaceRoot::Symbol(origin.source.root)
+                            && candidate.kind == loan.kind
+                            && self.facts.borrow.owner_segments.span(candidate.owner_path)
+                                == Some(owner_path)
+                            && self
+                                .facts
+                                .borrow
+                                .access_segments
+                                .span(candidate.segments)
+                                .is_some_and(|segments| {
+                                    frame_origin_fits_loan(&origin.source, segments)
+                                })
+                    })
+                {
+                    return None;
+                }
+            }
             let matching = origins
                 .iter()
                 .filter(|origin| {
@@ -492,24 +570,19 @@ impl Captures<'_> {
                         && frame_origin_fits_loan(&origin.source, &segments)
                 })
                 .collect::<Vec<_>>();
-            if matching
-                .iter()
-                .any(|origin| !origin.source.recasts.is_empty())
-            {
+            if !matching.is_empty() {
                 let mut output = Vec::new();
                 for origin in matching {
                     let (suffix, presented) =
-                        self.view_origin_path(selected, &incoming_segments, &origin.source)?;
+                        self.frame_origin_path(selected, &incoming_segments, &origin.source)?;
                     if self.program.normalized_type_identity(presented) != leaf.source.type_identity
                     {
                         return None;
                     }
                     let mut complete = path.clone();
                     complete.extend(suffix);
-                    let source = CheckedUnitStructuralArgumentPlan {
-                        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                            parameter_index,
-                        },
+                    let source = CheckedReferenceOriginSourcePlan {
+                        parameter_index,
                         path: complete,
                         type_identity: leaf.source.type_identity,
                         access: leaf.source.access,
@@ -521,34 +594,25 @@ impl Captures<'_> {
                 return (!output.is_empty()).then_some(output);
             }
         }
-        super::origin_paths::fixed_backing_paths(self.program, selected, &segments)?
-            .into_iter()
-            .map(|segments| {
-                let (suffix, selected) = self.structural_path(selected, &segments)?;
-                if self.program.normalized_type_identity(selected) != leaf.source.type_identity {
-                    return None;
-                }
-                let mut path = path.clone();
-                path.extend(suffix);
-                Some(CheckedUnitStructuralArgumentPlan {
-                    source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
-                    path,
-                    type_identity: leaf.source.type_identity,
-                    access: leaf.source.access,
-                })
-            })
-            .collect()
+        None
     }
 
-    /// A source frame retains the chronological declaration changes; actual
-    /// value formation supplies their codec. Neither the final view selectors
-    /// nor equal byte geometry may rename the original backing declaration.
-    fn view_origin_path(
+    /// The complete body relation refines a lifetime loan's storage region.
+    /// These are origin summaries, not executable callee selectors. Re-views
+    /// additionally require their actual value formation and retained codec;
+    /// equal byte geometry cannot rename the original backing declaration.
+    fn frame_origin_path(
         &self,
         mut selected: TypeReferenceHandle,
         incoming: &[facts::PlaceSegment],
         origin: &crate::LocalWriteSource,
-    ) -> Option<(Vec<CheckedUnitStructuralPathSegment>, TypeReferenceHandle)> {
+    ) -> Option<(Vec<CheckedReferenceOriginProjection>, TypeReferenceHandle)> {
+        if origin.recasts.is_empty() {
+            if origin.representation.is_some() {
+                return None;
+            }
+            return self.origin_path(selected, origin.segments.strip_prefix(incoming)?);
+        }
         let mut path = Vec::new();
         for (ordinal, recast) in origin.recasts.iter().enumerate() {
             if recast.root != origin.root {
@@ -565,11 +629,13 @@ impl Captures<'_> {
                 }
                 selectors
             };
-            let (projection, endpoint) = self.structural_path(selected, selectors)?;
+            let (projection, endpoint) = self.origin_path(selected, selectors)?;
             path.extend(projection);
             selected = endpoint;
             if let Some(shell) = crate::reference_shell(self.program, selected) {
-                path.push(CheckedUnitStructuralPathSegment::Referent);
+                path.push(CheckedReferenceOriginProjection::Exact(
+                    CheckedUnitStructuralPathSegment::Referent,
+                ));
                 selected = shell.referee;
             }
             let mut formations =
@@ -607,10 +673,12 @@ impl Captures<'_> {
             // The arena occurrence remains in its original body after a call
             // substitution. Its source identity is not the rebased caller root.
             self.program.state_by_symbol(formation.state)?;
-            path.push(CheckedUnitStructuralPathSegment::RepresentationView {
-                type_identity: self.program.normalized_type_identity(recast.target_type),
-                storage,
-            });
+            path.push(CheckedReferenceOriginProjection::Exact(
+                CheckedUnitStructuralPathSegment::RepresentationView {
+                    type_identity: self.program.normalized_type_identity(recast.target_type),
+                    storage,
+                },
+            ));
             selected = recast.target_type;
         }
         let (presentation, selectors) = origin.representation.as_ref()?;
@@ -619,7 +687,7 @@ impl Captures<'_> {
         {
             return None;
         }
-        let (suffix, endpoint) = self.structural_path(selected, selectors)?;
+        let (suffix, endpoint) = self.origin_path(selected, selectors)?;
         path.extend(suffix);
         Some((path, endpoint))
     }
@@ -639,11 +707,7 @@ impl Captures<'_> {
             .span(call.argument_operands())?;
         let mut paths = Vec::new();
         for source in sources {
-            let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-                source.source.source
-            else {
-                return None;
-            };
+            let parameter_index = source.source.parameter_index;
             let (position, parameter) = self
                 .program
                 .state_parameters(destination)
@@ -652,19 +716,37 @@ impl Captures<'_> {
                 .filter(|(_, parameter)| is_mutable_structural_parameter(self.program, parameter))
                 .nth(parameter_index as usize)?;
             let operand = operands.get(position)?;
-            let present = if stored_loan_parts(self.program, parameter.type_reference).is_some() {
+            let present = if crate::reference_shell(self.program, parameter.type_reference)
+                .is_some()
+            {
                 true
             } else {
-                let path = match source.source.path.split_last() {
-                    Some((CheckedUnitStructuralPathSegment::Referent, path)) => path,
-                    _ => source.source.path.as_slice(),
-                };
+                // Presence belongs to the input's stored descriptor, not the
+                // pointee projection after crossing it. A runtime family is
+                // never used as a selector for an owned input slot.
+                let path = source
+                    .source
+                    .path
+                    .iter()
+                    .take_while(|projection| {
+                        !matches!(
+                            projection,
+                            CheckedReferenceOriginProjection::Exact(
+                                CheckedUnitStructuralPathSegment::Referent
+                            )
+                        )
+                    })
+                    .map(|projection| match projection {
+                        CheckedReferenceOriginProjection::Exact(segment) => Some(segment.clone()),
+                        CheckedReferenceOriginProjection::Element => None,
+                    })
+                    .collect::<Option<Vec<_>>>()?;
                 self.expression_leaf_present(
                     self.program.state_by_symbol(operand.state_symbol)?,
                     operand.statement_index,
                     operand.expression,
                     parameter.type_reference,
-                    path,
+                    &path,
                     Some(operand),
                     active,
                 )?
@@ -930,6 +1012,59 @@ impl Captures<'_> {
         .then_some(true)
     }
 
+    /// Runtime selections describe one typed element, not a finite list of
+    /// possible addresses. Exact formation and bounds remain in the loan rows.
+    fn origin_path(
+        &self,
+        mut selected: TypeReferenceHandle,
+        mut segments: &[facts::PlaceSegment],
+    ) -> Option<(Vec<CheckedReferenceOriginProjection>, TypeReferenceHandle)> {
+        let mut output = Vec::new();
+        loop {
+            let selection = segments.iter().position(|segment| {
+                matches!(
+                    segment,
+                    facts::PlaceSegment::Index { .. } | facts::PlaceSegment::FixedIndex { .. }
+                )
+            });
+            let prefix_length = selection.unwrap_or(segments.len());
+            let (prefix, endpoint) = self.structural_path(selected, &segments[..prefix_length])?;
+            output.extend(
+                prefix
+                    .into_iter()
+                    .map(CheckedReferenceOriginProjection::Exact),
+            );
+            selected = endpoint;
+            let Some(position) = selection else {
+                return Some((output, selected));
+            };
+            selected = crate::peel_declared_constraints(self.program, selected);
+            if let Some(shell) = crate::reference_shell(self.program, selected) {
+                output.push(CheckedReferenceOriginProjection::Exact(
+                    CheckedUnitStructuralPathSegment::Referent,
+                ));
+                selected = crate::peel_declared_constraints(self.program, shell.referee);
+            }
+            let (TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type }) =
+                self.program.type_reference_table.type_reference(selected)
+            else {
+                return None;
+            };
+            selected = *element_type;
+            output.push(match segments[position] {
+                facts::PlaceSegment::FixedIndex { index } => {
+                    CheckedReferenceOriginProjection::Exact(
+                        CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(index).ok()?),
+                    )
+                }
+                facts::PlaceSegment::Index { .. } => CheckedReferenceOriginProjection::Element,
+                _ => return None,
+            });
+            segments = &segments[position + 1..];
+        }
+    }
+
     fn structural_path(
         &self,
         mut selected: TypeReferenceHandle,
@@ -1015,7 +1150,16 @@ impl Captures<'_> {
 /// Match a lifetime capture in its original declaration namespace, retaining
 /// the exact presentation coordinate when the loan already captured that view.
 fn frame_origin_fits_loan(origin: &crate::LocalWriteSource, loan: &[facts::PlaceSegment]) -> bool {
-    if captured_address_refines(&origin.segments, loan) {
+    // Lifetime capture can conservatively lend a whole input region. The
+    // complete body relation narrows its declaration-level origin only within
+    // that captured region; it cannot pick an unrelated field or storage root.
+    let within = |candidate: &[facts::PlaceSegment]| {
+        captured_address_refines(candidate, loan)
+            || candidate
+                .get(..loan.len())
+                .is_some_and(|prefix| captured_address_refines(loan, prefix))
+    };
+    if within(&origin.segments) {
         return true;
     }
     // A call's declared lifetime may conservatively lend the original region
@@ -1024,9 +1168,10 @@ fn frame_origin_fits_loan(origin: &crate::LocalWriteSource, loan: &[facts::Place
     // original predecessor, never against same-spelled fields in the view.
     // Publication separately authenticates every view issuer and backing type;
     // this comparison grants neither a presentation nor a new storage root.
-    origin.recasts.first().is_some_and(|formation| {
-        formation.root == origin.root && captured_address_refines(&formation.segments, loan)
-    })
+    origin
+        .recasts
+        .first()
+        .is_some_and(|formation| formation.root == origin.root && within(&formation.segments))
 }
 
 /// Compare exact evaluated coordinates. Dynamic selectors may refine, but

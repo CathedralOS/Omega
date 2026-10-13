@@ -670,26 +670,58 @@ pub(in super::super) fn decode_path(
     let count = cursor.length()?;
     let mut path = Vec::with_capacity(count.min(cursor.remaining()));
     for _ in 0..count {
-        path.push(match cursor.byte()? {
-            1 => StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(cursor.u32()?)),
-            2 => StructuralPathSegment::FixedIndex(cursor.u64()?),
-            3 => StructuralPathSegment::Referent,
-            7 => StructuralPathSegment::Case(decode_id(
-                cursor,
-                semantic_vocabulary::StructuralCaseId::new,
-            )?),
-            4 => StructuralPathSegment::FixedByteRange {
-                start: cursor.u64()?,
-                end: cursor.u64()?,
-            },
-            6 => StructuralPathSegment::RuntimeIndex {
-                index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
-                obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
-            },
-            tag => return Err(FixedViewCopyDecodeError::UnknownStructuralPathSegment(tag)),
+        let tag = cursor.byte()?;
+        path.push(decode_projection(cursor, tag)?);
+    }
+    Ok(path)
+}
+
+pub(super) fn decode_reference_origin_path(
+    cursor: &mut Cursor<'_>,
+) -> Result<Vec<terminal_psi::ReferenceOriginProjection>, FixedViewCopyDecodeError> {
+    let count = cursor.length()?;
+    let mut path = Vec::with_capacity(count.min(cursor.remaining()));
+    for _ in 0..count {
+        let tag = cursor.byte()?;
+        path.push(if tag == 9 {
+            terminal_psi::ReferenceOriginProjection::Element
+        } else {
+            terminal_psi::ReferenceOriginProjection::Exact(decode_projection(cursor, tag)?)
         });
     }
     Ok(path)
+}
+
+fn decode_projection(
+    cursor: &mut Cursor<'_>,
+    tag: u8,
+) -> Result<StructuralPathSegment, FixedViewCopyDecodeError> {
+    Ok(match tag {
+        1 => StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(cursor.u32()?)),
+        2 => StructuralPathSegment::FixedIndex(cursor.u64()?),
+        3 => StructuralPathSegment::Referent,
+        7 => StructuralPathSegment::Case(decode_id(
+            cursor,
+            semantic_vocabulary::StructuralCaseId::new,
+        )?),
+        4 => StructuralPathSegment::FixedByteRange {
+            start: cursor.u64()?,
+            end: cursor.u64()?,
+        },
+        6 => StructuralPathSegment::RuntimeIndex {
+            index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
+            obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
+        },
+        8 => StructuralPathSegment::RepresentationView {
+            structural_type: decode_id(cursor, StructuralTypeId::new)?,
+            stored_scalar: if decode_bool(cursor)? {
+                Some(decode_scalar(cursor)?)
+            } else {
+                None
+            },
+        },
+        tag => return Err(FixedViewCopyDecodeError::UnknownStructuralPathSegment(tag)),
+    })
 }
 
 pub(super) fn encode_multiplicity(bytes: &mut Vec<u8>, value: StructuralMultiplicity) {

@@ -155,7 +155,7 @@ pub struct StructuralReferenceResultSource {
     pub path: Vec<StructuralPathSegment>,
     /// Nonempty, strictly ordered alternatives for this one reference leaf.
     /// These are possible origins, not simultaneous permission carriers.
-    pub sources: Vec<StructuralArgument>,
+    pub sources: Vec<super::ReferenceOriginSource>,
 }
 
 impl StructuralReferenceResultSource {}

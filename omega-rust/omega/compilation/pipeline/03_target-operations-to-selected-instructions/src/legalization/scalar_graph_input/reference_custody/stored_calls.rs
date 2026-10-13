@@ -188,6 +188,7 @@ pub(super) fn prepare(
 }
 
 pub(super) struct Staged {
+    operation: OperationId,
     replacements: Vec<(Location, Option<Leaf>)>,
     relocations: BTreeMap<Location, Location>,
 }
@@ -219,9 +220,10 @@ fn receiving_contract(
 fn receiving_identity(
     function: &PsiOptimizationFunction,
     destination: &Location,
+    operation: OperationId,
     leaf: &mut Leaf,
 ) -> Result<(), LegalizationError> {
-    leaf.identity = destination.clone();
+    leaf.identity = OccurrenceIdentity::operation(destination, operation);
     leaf.contract = receiving_contract(function, destination)?;
     leaf.formations = vec![Formation {
         identity: leaf.identity.clone(),
@@ -240,6 +242,7 @@ pub(super) fn stage(
     moved: &BTreeMap<Location, Leaf>,
 ) -> Result<Staged, LegalizationError> {
     let mut staged = Staged {
+        operation,
         replacements: Vec::new(),
         relocations: BTreeMap::new(),
     };
@@ -307,12 +310,12 @@ pub(super) fn stage(
                     parents.dedup();
                     let contract = receiving_contract(function, &destination)?;
                     candidates.push(Leaf {
-                        identity: destination.clone(),
+                        identity: OccurrenceIdentity::operation(&destination, operation),
                         root,
                         backing,
                         parents,
                         formations: vec![Formation {
-                            identity: destination.clone(),
+                            identity: OccurrenceIdentity::operation(&destination, operation),
                             contract: contract.clone(),
                         }],
                         contract,
@@ -364,7 +367,7 @@ pub(super) fn stage(
                     if access != StructuralAccess::SharedBorrow {
                         return Err(invalid());
                     }
-                    receiving_identity(function, &destination, &mut leaf)?;
+                    receiving_identity(function, &destination, operation, &mut leaf)?;
                 }
             }
             candidates.push(leaf);
@@ -375,7 +378,7 @@ pub(super) fn stage(
             let joined = candidates.len() > 1;
             let mut leaf = combine_alternatives(candidates)?;
             if joined {
-                receiving_identity(function, &destination, &mut leaf)?;
+                receiving_identity(function, &destination, operation, &mut leaf)?;
             }
             // A reused storage coordinate must never turn historical children
             // into children of the newly installed permission.
@@ -386,7 +389,7 @@ pub(super) fn stage(
                 && custody
                     .leaves
                     .values()
-                    .any(|child| child.parents.contains(&leaf.identity))
+                    .any(|child| custody.descends_from(child, &leaf.identity))
             {
                 return Err(invalid());
             }
@@ -434,7 +437,18 @@ pub(super) fn commit(
         published.push((leaf.root.clone(), access));
     }
     for (destination, _) in &staged.replacements {
-        custody.leaves.remove(destination);
+        if let Some(old) = custody.leaves.remove(destination)
+            && !staged.replacements.iter().any(|(_, replacement)| {
+                replacement
+                    .as_ref()
+                    .is_some_and(|leaf| leaf.identity == old.identity)
+            })
+        {
+            custody.retire(
+                old,
+                super::retirements::DisposalEvent::Operation(staged.operation),
+            )?;
+        }
     }
     for (destination, replacement) in staged.replacements {
         if let Some(leaf) = replacement {

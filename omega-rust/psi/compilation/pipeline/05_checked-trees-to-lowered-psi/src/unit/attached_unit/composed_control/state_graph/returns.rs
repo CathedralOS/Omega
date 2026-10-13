@@ -20,7 +20,7 @@ pub(super) fn result(
     machine: symbols::SymbolHandle,
     entry_state: symbols::SymbolHandle,
     plan: &CheckedControlResultPlan,
-    reference_sources: &[checked_trees::CheckedReferenceResultSourcePlan],
+    reference_sources: &[checked_trees::CheckedReturnedReferencePlan],
     parameters: &[terminal_psi::StructuralParameterDeclaration],
     catalogs: &mut catalogs::ComposedCatalogs,
     places: &mut Vec<StructuralPlaceDeclaration>,

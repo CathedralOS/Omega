@@ -23,6 +23,46 @@ pub(crate) struct ReferenceIdentity {
     pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
 }
 
+/// Provenance can name an element family at a call boundary. Carrier identity
+/// and parent resources remain exact executable paths; they never use this
+/// coordinate vocabulary to manufacture a descriptor or address.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct ReferenceOriginIdentity {
+    pub(crate) place: PlaceId,
+    pub(crate) path: Vec<terminal_psi::ReferenceOriginProjection>,
+}
+
+impl From<ReferenceIdentity> for ReferenceOriginIdentity {
+    fn from(identity: ReferenceIdentity) -> Self {
+        Self {
+            place: identity.place,
+            path: identity
+                .path
+                .into_iter()
+                .map(terminal_psi::ReferenceOriginProjection::Exact)
+                .collect(),
+        }
+    }
+}
+
+impl ReferenceOriginIdentity {
+    pub(crate) fn exact_identity(&self) -> Option<ReferenceIdentity> {
+        Some(ReferenceIdentity {
+            place: self.place,
+            path: self
+                .path
+                .iter()
+                .map(|projection| match projection {
+                    terminal_psi::ReferenceOriginProjection::Exact(segment) => {
+                        Some(segment.clone())
+                    }
+                    terminal_psi::ReferenceOriginProjection::Element => None,
+                })
+                .collect::<Option<Vec<_>>>()?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ReferenceParent {
     Root(ReferenceOrigin),
@@ -33,12 +73,12 @@ pub(crate) enum ReferenceParent {
 pub(crate) enum ReferenceOrigin {
     Primitive(PlaceId),
     /// An internal owned ingress assumes one existing permission per leaf.
-    IngressLeaf(ReferenceIdentity),
+    IngressLeaf(ReferenceOriginIdentity),
     /// One selected referent, conservatively suspending every possible path.
     /// These paths belong to one permission carrier, not separate loans.
     Alternatives {
         place: PlaceId,
-        paths: Vec<Vec<terminal_psi::StructuralPathSegment>>,
+        paths: Vec<Vec<terminal_psi::ReferenceOriginProjection>>,
     },
 }
 
@@ -519,10 +559,13 @@ pub(crate) fn formal_origin(
             terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::SharedBorrow
         )
     {
-        Some(ReferenceOrigin::IngressLeaf(ReferenceIdentity {
-            place: source.place,
-            path: path.to_vec(),
-        }))
+        Some(ReferenceOrigin::IngressLeaf(
+            ReferenceIdentity {
+                place: source.place,
+                path: path.to_vec(),
+            }
+            .into(),
+        ))
     } else if !path.is_empty()
         && direct_reference_parameter(function, source).is_some()
         && path.iter().all(|segment| {
@@ -534,10 +577,13 @@ pub(crate) fn formal_origin(
             )
         })
     {
-        Some(ReferenceOrigin::IngressLeaf(ReferenceIdentity {
-            place: source.place,
-            path: path.to_vec(),
-        }))
+        Some(ReferenceOrigin::IngressLeaf(
+            ReferenceIdentity {
+                place: source.place,
+                path: path.to_vec(),
+            }
+            .into(),
+        ))
     } else {
         None
     }
@@ -556,10 +602,47 @@ pub(crate) fn formal_transfers_reference(
         Some(ReferenceOrigin::IngressLeaf(identity))
             if structural_source_contract(function, identity.place)
                 .and_then(|signature| {
-                    leaf_type(types, signature.structural_type, &identity.path)
+                    identity.exact_identity().and_then(|identity| leaf_type(types, signature.structural_type, &identity.path))
                 })
                 .is_some_and(|leaf| reference_access(types, leaf).is_some())
     )
+}
+
+/// Split a formal summary at the supplying exact permission. The suffix is a
+/// typed provenance relation over that permission, not an argument projection.
+/// Selecting another stored descriptor requires its exact resource identity;
+/// an element family cannot invent that identity.
+pub(crate) struct FormalReferenceSource {
+    pub(crate) source: terminal_psi::StructuralArgument,
+    pub(crate) suffix: Vec<terminal_psi::ReferenceOriginProjection>,
+    pub(crate) endpoint: StructuralTypeId,
+    pub(crate) transfers: bool,
+}
+
+pub(crate) fn formal_reference_source(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    function: &PsiOptimizationFunction,
+    origin: &terminal_psi::ReferenceOriginSource,
+) -> Option<FormalReferenceSource> {
+    let parameter = function.structural_parameter(origin.place)?;
+    let binding = terminal_semantics::bind_reference_origin(
+        types.values().copied(),
+        parameter.structural_type,
+        origin,
+    )
+    .ok()?;
+    let source = binding.source;
+    let endpoint = binding.endpoint;
+    reference_source_type(function, types, &source)?;
+    formal_origin(types, function, &source)?;
+    let suffix = binding.suffix.to_vec();
+    let transfers = suffix.is_empty() && formal_transfers_reference(types, function, &source);
+    Some(FormalReferenceSource {
+        source,
+        suffix,
+        endpoint,
+        transfers,
+    })
 }
 
 /// The structural result row an operation publishes, when it publishes one.
@@ -742,11 +825,14 @@ pub(crate) fn validate_function_references(
     if paths.len() != result.reference_sources.len() {
         return Err(invalid());
     }
-    if result
-        .reference_sources
-        .iter()
-        .any(|mapping| mapping.sources.len() > 1)
-    {
+    if result.reference_sources.iter().any(|mapping| {
+        mapping.sources.len() > 1
+            || mapping.sources.iter().any(|source| {
+                source
+                    .path
+                    .contains(&terminal_psi::ReferenceOriginProjection::Element)
+            })
+    }) {
         validate_alternative_result_dependencies(function, functions, types)?;
     }
     let mut sources = BTreeMap::new();
@@ -759,58 +845,15 @@ pub(crate) fn validate_function_references(
         {
             return Err(invalid());
         }
-        if mapping.sources.len() > 1 {
-            let first = &mapping.sources[0];
-            if !path.is_empty()
-                || !types.get(&expected_referent).is_some_and(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::Record { .. }
-                    )
-                })
-                || !matches!(
-                    reference_access(types, result.structural_type),
-                    Some(
-                        terminal_psi::StructuralAccess::MutableBorrow
-                            | terminal_psi::StructuralAccess::SharedBorrow
-                    )
-                )
-                || mapping.sources.iter().any(|source| {
-                    source.place != first.place
-                        || source.path.is_empty()
-                        || source.path.iter().any(|segment| {
-                            !matches!(
-                                segment,
-                                terminal_psi::StructuralPathSegment::Field(_)
-                                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
-                            )
-                        })
-                })
-            {
-                return Err(invalid());
-            }
-        }
         for formal in &mapping.sources {
-            let parameter = function
-                .structural_parameter(formal.place)
-                .ok_or_else(invalid)?;
-            let formal = &terminal_psi::StructuralArgument {
-                place: formal.place,
-                path: terminal_semantics::reference_source_storage_path(
-                    types.values().copied(),
-                    parameter.structural_type,
-                    &formal.path,
-                )
-                .to_vec(),
-                access: formal.access,
-            };
+            let projected = formal_reference_source(types, function, formal).ok_or_else(invalid)?;
             // Repeated observations of borrowed ingress create independent
             // shared descendants. An owned ingress instead transfers existing
             // carrier identities, which cannot fill multiple result slots.
             let shared_descendant = leaf_type(types, result.structural_type, path)
                 .and_then(|leaf| reference_access(types, leaf))
                 == Some(terminal_psi::StructuralAccess::SharedBorrow)
-                && !formal_transfers_reference(types, function, formal)
+                && !projected.transfers
                 && function.structural_parameters.iter().any(|parameter| {
                     parameter.place == formal.place
                         && parameter.access != terminal_psi::StructuralAccess::Owned
@@ -823,9 +866,8 @@ pub(crate) fn validate_function_references(
                 .insert((formal.place, formal.path.clone()), shared_descendant)
                 .is_some_and(|previous_shared| !previous_shared || !shared_descendant)
                 || !function.structural_parameter(formal.place).is_some()
-                || reference_source_type(function, types, formal) != Some(expected_referent)
+                || projected.endpoint != expected_referent
                 || !leaf_access_within(types, result.structural_type, path, formal.access)
-                || formal_origin(types, function, formal).is_none()
             {
                 return Err(invalid());
             }

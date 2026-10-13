@@ -316,13 +316,25 @@ impl ScalarBindings {
                         // is itself a shared-borrow join result, so borrowing
                         // through it reuses that same shared custody rather
                         // than fabricating ownership.
-                        if storage_root.is_some_and(|root| !valid_structural_root(root))
-                            || locals.next().is_some()
-                            || !supports_borrow(source.argument.access)
-                            || self.structural_argument_type(&source.argument)
-                                != Some(source.structural_type)
+                        if storage_root.is_some_and(|root| !valid_structural_root(root)) {
+                            return unsupported(
+                                "computed borrow has an invalid local storage root",
+                            );
+                        }
+                        if locals.next().is_some() {
+                            return unsupported(
+                                "computed borrow has ambiguous local storage homes",
+                            );
+                        }
+                        if !supports_borrow(source.argument.access) {
+                            return unsupported("computed borrow widens its local storage access");
+                        }
+                        if self.structural_argument_type(&source.argument)
+                            != Some(source.structural_type)
                         {
-                            return unsupported("computed borrow changes its local custody");
+                            return unsupported(
+                                "computed borrow disagrees with its published storage type",
+                            );
                         }
                         source.argument.clone()
                     }

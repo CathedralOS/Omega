@@ -80,8 +80,9 @@ pub use structural_control_plans::{
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
 };
 pub use structural_return::{
-    CheckedReferenceResultSourcePlan, CheckedStructuralReturnCompletion,
-    CheckedUnitStructuralReturnPlan,
+    CheckedReferenceOriginProjection, CheckedReferenceOriginSourcePlan,
+    CheckedReferenceResultSourcePlan, CheckedReturnedReferencePlan,
+    CheckedStructuralReturnCompletion, CheckedUnitStructuralReturnPlan,
 };
 pub use structural_type_plans::{
     CheckedAffineConstructionElementPlan, CheckedBindingFieldReceipt,

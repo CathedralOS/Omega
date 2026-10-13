@@ -1804,6 +1804,93 @@ pub fn storage_place_loans(
     record_leaf_loan_groups(program, facts, reference, owner, &captured, selection)
 }
 
+/// A stored reference's old occurrence retired by this exact replacement.
+/// Loan death is not an owned-referent disposition: it authorizes ending only
+/// the selected descriptor. Select the complete historical formation group,
+/// including every possible origin, before making that distinction executable.
+pub fn replaced_reference_carrier(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    owner: facts::PlaceRoot,
+    statement_index: u32,
+    selection: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Option<RecordLeafLoans> {
+    let reference = crate::canonical_place_type_reference(
+        program,
+        state.symbol,
+        statement_index as usize,
+        &crate::CanonicalPlace {
+            root: owner,
+            segments: Vec::new(),
+        },
+    )?;
+    let owner_path = loan_owner_path(program, reference, selection)?;
+    let flow = state_flow(facts, machine, state.symbol)?;
+    let mut formation = None;
+    for weakening in facts
+        .flow
+        .borrow_lifetimes
+        .weakenings
+        .span(flow.borrow_weakenings)?
+    {
+        if weakening.reason != checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+            || weakening.source
+                != (checked_trees::FlowInvalidationSource::Statement {
+                    statement_index: statement_index as usize,
+                })
+        {
+            continue;
+        }
+        let loan = facts.borrow.loans.get(weakening.loan);
+        if loan.storage_owner != owner || facts.borrow.loan_owner_path(loan) != owner_path {
+            continue;
+        }
+        if loan.statement_index >= statement_index as usize
+            || formation.is_some_and(|previous| previous != loan.statement_index)
+        {
+            return None;
+        }
+        formation = Some(loan.statement_index);
+    }
+    let groups = storage_place_loans(
+        program,
+        facts,
+        machine,
+        state,
+        owner,
+        reference,
+        u32::try_from(formation?).ok()?,
+        selection,
+    )?;
+    let [group] = groups.as_slice() else {
+        return None;
+    };
+    // Pointer carriers cross their stored reference shell. A slice leaf instead
+    // names its view descriptor directly and keeps its existing view cleanup.
+    if group.0.path != selection
+        || group
+            .0
+            .source
+            .path
+            .strip_suffix(&[checked_trees::CheckedUnitStructuralPathSegment::Referent])
+            != Some(selection)
+        || !facts.borrow.loan_group(group.1)?.all(|(handle, _)| {
+            loan_weakening(facts, machine, state.symbol, handle).is_some_and(|weakening| {
+                weakening.reason == checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+                    && weakening.source
+                        == (checked_trees::FlowInvalidationSource::Statement {
+                            statement_index: statement_index as usize,
+                        })
+            })
+        })
+    {
+        return None;
+    }
+    Some(group.clone())
+}
+
 /// Loan rows for one descriptor are contiguous in the producer's arena, even
 /// when that descriptor retains several possible origins. The checked captured
 /// roster owns residency: declarations enumerate possible slots, not loans for
@@ -2082,7 +2169,7 @@ fn reference_record_call_sources<'program>(
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<(
     &'program typed_trees::state::State,
-    Vec<checked_trees::CheckedReferenceResultSourcePlan>,
+    Vec<checked_trees::CheckedReturnedReferencePlan>,
 )> {
     let destination = program.state_by_symbol(call.target_symbol)?;
     if !is_reference_record(program, destination.return_type) {
@@ -2134,12 +2221,7 @@ pub fn transient_call_record_loans(
             .iter()
             .filter(|source| residual_paths.contains(&source.path))
             .all(|source| {
-                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index,
-                } = source.source.source
-                else {
-                    return false;
-                };
+                let parameter_index = source.source.parameter_index;
                 let Some(parameter) = program
                     .state_parameters(destination)
                     .iter()
@@ -2718,12 +2800,15 @@ pub fn local_storage_loans(
     )
 }
 
-pub fn release_statement(
+/// The exact occurrence's checked weakening, including replacement-owned death.
+/// Its reason is part of the boundary: replacement runs after RHS evaluation,
+/// whereas ordinary expiry runs before statement entry.
+pub fn loan_weakening(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     handle: arena::Handle<checked_trees::BorrowLoanFact>,
-) -> Option<u32> {
+) -> Option<&checked_trees::FlowBorrowWeakeningFact> {
     let flow = state_flow(facts, machine, state)?;
     let mut weakenings = facts
         .flow
@@ -2733,23 +2818,31 @@ pub fn release_statement(
         .iter()
         .filter(|weakening| weakening.loan == handle);
     let weakening = weakenings.next()?;
+    weakenings.next().is_none().then_some(weakening)
+}
+
+pub fn release_statement(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    handle: arena::Handle<checked_trees::BorrowLoanFact>,
+) -> Option<u32> {
+    let weakening = loan_weakening(facts, machine, state, handle)?;
     let checked_trees::FlowInvalidationSource::Statement { statement_index } = weakening.source
     else {
         return None;
     };
-    if weakenings.next().is_some()
-        || !matches!(
-            weakening.reason,
-            checked_trees::FlowBorrowWeakeningReason::LastUseExpired
-                | checked_trees::FlowBorrowWeakeningReason::StateExit
-        )
-        || statement_index
-            != facts
-                .borrow
-                .loans
-                .get(handle)
-                .last_use_statement_index
-                .checked_add(1)?
+    if !matches!(
+        weakening.reason,
+        checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+            | checked_trees::FlowBorrowWeakeningReason::StateExit
+    ) || statement_index
+        != facts
+            .borrow
+            .loans
+            .get(handle)
+            .last_use_statement_index
+            .checked_add(1)?
     {
         return None;
     }

@@ -33,11 +33,16 @@ mod primitive_place;
 mod proof_bearing_scalar;
 mod record_field;
 mod reference_completion;
+mod reference_origins;
 mod reference_storage_geometry;
 mod reference_views;
 pub use reference_completion::{
     ReferenceCompletionError, ReferenceCompletionOccurrence, cleanup_disposes_reference,
     validate_reference_result_completion,
+};
+pub use reference_origins::{
+    ReferenceOriginBinding, bind_reference_origin, captured_reference_origin_type,
+    collection_element_type, reference_origin_paths_may_overlap, reference_origin_type,
 };
 pub use reference_storage_geometry::{
     ReferenceStorageProjection, ReferenceStorageRegion, reference_storage_layout,

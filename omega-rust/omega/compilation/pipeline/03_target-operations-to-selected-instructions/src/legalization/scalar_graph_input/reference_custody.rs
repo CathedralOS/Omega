@@ -19,6 +19,9 @@
 //! alternatives. Construction and transport use resident descriptors. Source
 //! dominance scopes storage at joins before comparing surviving custody; this
 //! excludes unavailable branch-local homes, never a missing surviving loan.
+//! Executed descriptor disposal removes residency but retains parent ancestry
+//! while descendants survive. Formation identity distinguishes replacements
+//! of the same slot; retired ancestry grants no readable storage or permission.
 use super::{
     AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
 };
@@ -29,16 +32,19 @@ use optimization_unit_semantics::CallRegion;
 use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use terminal_psi::{
-    StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
-    StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, find_structural_type,
+    ReferenceOriginProjection, StructuralAccess, StructuralArgument, StructuralFieldType,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
 };
 
 mod borrowed_arrivals;
 mod descriptor_backing;
 mod occurrences;
+mod retirements;
 mod stored_calls;
-use occurrences::{CarrierContract, Formation, merge_arrivals, re_home_bound_leaves};
+use occurrences::{
+    CarrierContract, Formation, OccurrenceIdentity, merge_arrivals, re_home_bound_leaves,
+};
 
 /// One outstanding permission occurrence: its referent roots, immediate
 /// parents, actual receiving contract and every transported formation.
@@ -47,14 +53,14 @@ use occurrences::{CarrierContract, Formation, merge_arrivals, re_home_bound_leav
 pub(in crate::legalization) struct Leaf {
     /// Current permission occurrence. Owned edge selection rebinds it to the
     /// receiving parameter; formations retain every admitted source identity.
-    pub(in crate::legalization) identity: (PlaceId, Vec<StructuralPathSegment>),
+    pub(in crate::legalization) identity: OccurrenceIdentity,
     /// Referent root resolved through custody: a primitive place directly, or
     /// an owned ingress parameter's leaf path when custody entered owned.
     pub(in crate::legalization) root: Root,
     // Captured lifetime geometry is separate from executable origin evidence.
     backing: Vec<descriptor_backing::Backing>,
     /// All possible immediate parent identities; selection suspends each parent.
-    pub(in crate::legalization) parents: Vec<(PlaceId, Vec<StructuralPathSegment>)>,
+    pub(in crate::legalization) parents: Vec<OccurrenceIdentity>,
     /// The actual operation or parameter declaration of the current occurrence.
     contract: CarrierContract,
     /// All admitted formations transported to this occurrence.
@@ -78,6 +84,16 @@ impl Root {
     /// Compose declaration-relative interpretation without changing the
     /// original storage place or any descriptor/parent residence identity.
     fn projected(&self, suffix: &[StructuralPathSegment]) -> Self {
+        self.projected_family(
+            &suffix
+                .iter()
+                .cloned()
+                .map(terminal_psi::ReferenceOriginProjection::Exact)
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    fn projected_family(&self, suffix: &[terminal_psi::ReferenceOriginProjection]) -> Self {
         if suffix.is_empty() {
             return self.clone();
         }
@@ -85,9 +101,10 @@ impl Root {
         for origin in &mut origins {
             origin.path.extend_from_slice(suffix);
         }
-        if origins.len() == 1 {
-            let origin = origins.remove(0);
-            Self::Ingress(origin.root, origin.path)
+        if origins.len() == 1
+            && let Some(path) = origins[0].exact_path()
+        {
+            Self::Ingress(origins[0].root, path)
         } else {
             origins.sort();
             origins.dedup();
@@ -102,7 +119,11 @@ impl Root {
             }],
             Self::Ingress(root, path) => vec![target_operations::TargetReferenceOrigin {
                 root: *root,
-                path: path.clone(),
+                path: path
+                    .iter()
+                    .cloned()
+                    .map(terminal_psi::ReferenceOriginProjection::Exact)
+                    .collect(),
             }],
             Self::Alternatives(origins) => origins.clone(),
         }
@@ -131,16 +152,24 @@ fn storage_origins(
         .into_iter()
         .map(|mut origin| {
             let selected = source_contract(function, custody, origin.root)
-                .and_then(|contract| leaf_type(types, contract, &origin.path))
+                .and_then(|contract| {
+                    terminal_semantics::captured_reference_origin_type(
+                        types.iter(),
+                        contract,
+                        &origin.path,
+                    )
+                })
                 .ok_or_else(invalid)?;
             if selected != referent {
                 if function.structural_parameter(origin.root).is_none()
                     || origin.path.iter().any(|segment| {
                         !matches!(
                             segment,
-                            StructuralPathSegment::Field(_)
-                                | StructuralPathSegment::Case(_)
-                                | StructuralPathSegment::FixedIndex(_)
+                            ReferenceOriginProjection::Exact(
+                                StructuralPathSegment::Field(_)
+                                    | StructuralPathSegment::Case(_)
+                                    | StructuralPathSegment::FixedIndex(_)
+                            )
                         )
                     })
                     || !find_structural_type(types, selected).is_some_and(|declaration| {
@@ -151,7 +180,9 @@ fn storage_origins(
                 {
                     return Err(invalid());
                 }
-                origin.path.push(StructuralPathSegment::Referent);
+                origin.path.push(ReferenceOriginProjection::Exact(
+                    StructuralPathSegment::Referent,
+                ));
             }
             Ok(origin)
         })
@@ -164,7 +195,7 @@ fn roots_overlap(left: &Root, right: &Root) -> bool {
     left.iter().any(|left| {
         right.iter().any(|right| {
             left.root == right.root
-                && terminal_semantics::structural_paths_may_overlap(&left.path, &right.path)
+                && terminal_semantics::reference_origin_paths_may_overlap(&left.path, &right.path)
         })
     })
 }
@@ -174,10 +205,12 @@ fn roots_overlap(left: &Root, right: &Root) -> bool {
 #[derive(Debug, Clone, Default)]
 pub(in crate::legalization) struct Custody {
     leaves: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
+    retired: BTreeMap<OccurrenceIdentity, retirements::RetiredOccurrence>,
     edge_exits: Vec<(
         EdgeId,
         BlockId,
         BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
+        BTreeMap<OccurrenceIdentity, retirements::RetiredOccurrence>,
     )>,
     borrowed_sources: std::sync::Arc<BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>>,
     descriptor_backing: std::sync::Arc<descriptor_backing::Observations>,
@@ -191,13 +224,14 @@ impl Custody {
         let mut matching = self
             .edge_exits
             .iter()
-            .filter(|(candidate, block, _)| *candidate == edge && *block == target);
-        let (_, _, leaves) = matching.next().ok_or_else(invalid)?;
+            .filter(|(candidate, block, _, _)| *candidate == edge && *block == target);
+        let (_, _, leaves, retired) = matching.next().ok_or_else(invalid)?;
         if matching.next().is_some() {
             return Err(invalid());
         }
         Ok(Self {
             leaves: leaves.clone(),
+            retired: retired.clone(),
             edge_exits: Vec::new(),
             borrowed_sources: self.borrowed_sources.clone(),
             descriptor_backing: self.descriptor_backing.clone(),
@@ -222,7 +256,7 @@ impl Custody {
     ) -> Option<&Leaf> {
         let leaf = self.leaf(place, path)?;
         (!self.leaves.values().any(|other| {
-            other.root.contains_place(place) || other.parents.contains(&leaf.identity)
+            other.root.contains_place(place) || self.descends_from(other, &leaf.identity)
         }))
         .then_some(leaf)
     }
@@ -356,7 +390,7 @@ pub(in crate::legalization) fn window_regions(
     let mut regions = Vec::new();
     for root in &observed.origins {
         for origin in storage_origins(function, custody, types, root, observed.referent)? {
-            let mut prefix = origin.path;
+            let mut prefix = origin.exact_path().ok_or_else(invalid)?;
             prefix.extend_from_slice(&path[crossing + 1..]);
             let region = (origin.root, prefix);
             if !regions.contains(&region) {
@@ -798,7 +832,7 @@ fn normalized_source(
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
-) -> Result<(Root, Vec<(PlaceId, Vec<StructuralPathSegment>)>), LegalizationError> {
+) -> Result<(Root, Vec<OccurrenceIdentity>), LegalizationError> {
     let Some(origins) = custody.borrowed_sources.get(&source.place) else {
         return normalized_direct_source(function, custody, types, source);
     };
@@ -834,7 +868,7 @@ fn normalized_direct_source(
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
-) -> Result<(Root, Vec<(PlaceId, Vec<StructuralPathSegment>)>), LegalizationError> {
+) -> Result<(Root, Vec<OccurrenceIdentity>), LegalizationError> {
     if let Some(crossing) = source
         .path
         .iter()
@@ -947,21 +981,30 @@ fn storage_access_conflicts(
     path: &[StructuralPathSegment],
     requested: StructuralAccess,
 ) -> bool {
-    let origin_overlaps = |origin_path: &[StructuralPathSegment]| {
+    let origin_overlaps = |origin_path: &[ReferenceOriginProjection]| {
         let Some(origin) = source_contract(function, custody, place)
-            .and_then(|root| leaf_type(types, root, origin_path))
+            .and_then(|root| {
+                terminal_semantics::captured_reference_origin_type(types.iter(), root, origin_path)
+            })
             .and_then(|identity| find_structural_type(types, identity))
         else {
             return true;
         };
         !matches!(origin.shape, StructuralTypeShape::Reference { .. })
-            && terminal_semantics::structural_paths_may_overlap(path, origin_path)
+            && terminal_semantics::reference_origin_paths_may_overlap(
+                &path
+                    .iter()
+                    .cloned()
+                    .map(ReferenceOriginProjection::Exact)
+                    .collect::<Vec<_>>(),
+                origin_path,
+            )
     };
     custody.leaves.values().any(|reference| {
         let permission = leaf_type(
             types,
             reference.contract.structural_type(),
-            &reference.identity.1,
+            &reference.identity.path,
         )
         .and_then(|identity| find_structural_type(types, identity))
         .and_then(|declaration| match declaration.shape {
@@ -1092,7 +1135,7 @@ fn call_arguments(
                 if custody
                     .leaves
                     .values()
-                    .any(|child| child.parents.contains(&leaf.identity))
+                    .any(|child| custody.descends_from(child, &leaf.identity))
                     || (argument.access == StructuralAccess::Owned
                         && moved
                             .insert((argument.place, carrier_path.clone()), leaf.clone())
@@ -1238,11 +1281,7 @@ fn call_results(
     if custody
         .leaves
         .keys()
-        .any(|(carrier, path)| *carrier == result.place && owned_relative_path(path, &[]).is_some())
-        || custody
-            .leaves
-            .values()
-            .any(|leaf| leaf.identity.0 == result.place)
+        .any(|(carrier, _)| *carrier == result.place)
     {
         return Err(invalid());
     }
@@ -1262,42 +1301,43 @@ fn call_results(
             let parameter = callee_function
                 .structural_parameter(formal.place)
                 .ok_or_else(invalid)?;
-            let formal = &StructuralArgument {
-                place: formal.place,
-                path: terminal_semantics::reference_source_storage_path(
-                    types.iter(),
-                    parameter.structural_type,
-                    &formal.path,
-                )
-                .to_vec(),
-                access: formal.access,
-            };
+            let binding = terminal_semantics::bind_reference_origin(
+                types.iter(),
+                parameter.structural_type,
+                formal,
+            )
+            .map_err(|_| invalid())?;
+            let formal = &binding.source;
             let source = call_source(
                 &callee_function.structural_parameters,
                 structural_arguments,
                 formal,
             )
             .ok_or_else(|| invalid())?;
-            if reference_source_type(function, custody, types, &source) != Some(expected) {
+            if reference_source_type(function, custody, types, &source).and_then(|root| {
+                terminal_semantics::reference_origin_type(types.iter(), root, binding.suffix)
+            }) != Some(expected)
+            {
                 return Err(invalid());
             }
-            let leaf = if matches!(
-                formal_origin(callee_function, types, formal),
-                Some(Root::Ingress(place, path))
-                    if callee_function.structural_parameter(place)
-                        .and_then(|parameter| {
-                            leaf_type(types, parameter.structural_type, &path)
-                        })
-                        .and_then(|leaf| {
-                            find_structural_type(types, leaf)
-                        })
-                        .is_some_and(|declaration| {
-                            matches!(
-                                declaration.shape,
-                                StructuralTypeShape::Reference { .. }
-                            )
-                        })
-            ) {
+            let leaf = if binding.suffix.is_empty()
+                && matches!(
+                    formal_origin(callee_function, types, formal),
+                    Some(Root::Ingress(place, path))
+                        if callee_function.structural_parameter(place)
+                            .and_then(|parameter| {
+                                leaf_type(types, parameter.structural_type, &path)
+                            })
+                            .and_then(|leaf| {
+                                find_structural_type(types, leaf)
+                            })
+                            .is_some_and(|declaration| {
+                                matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::Reference { .. }
+                                )
+                            })
+                ) {
                 // An owned-carrier ingress mapping relocates one of the leaves the
                 // moved arguments just transferred; the leaf keeps its identity,
                 // root and parent, and lands at the declared result path.
@@ -1321,6 +1361,7 @@ fn call_results(
                 leaf.clone()
             } else {
                 let (root, parents) = normalized_source(function, custody, types, &source)?;
+                let root = root.projected_family(binding.suffix);
                 let (backing, backing_parents) = descriptor_backing::capture(
                     function,
                     custody,
@@ -1353,7 +1394,8 @@ fn call_results(
         if joining {
             // The selected descriptor is one result resource, conservatively
             // pinning the complete union of the consumed input permissions.
-            leaf.identity = (result.place, mapping.path.clone());
+            leaf.identity =
+                OccurrenceIdentity::operation(&(result.place, mapping.path.clone()), psi_operation);
             leaf.reform(psi_operation, result);
         }
         reference_results.push(target_operations::TargetReferenceResult {
@@ -1415,8 +1457,8 @@ fn combine_alternatives(candidates: Vec<Leaf>) -> Result<Leaf, LegalizationError
 }
 
 fn combine_candidate_origins(
-    candidates: Vec<(Root, Vec<(PlaceId, Vec<StructuralPathSegment>)>)>,
-) -> Result<(Root, Vec<(PlaceId, Vec<StructuralPathSegment>)>), LegalizationError> {
+    candidates: Vec<(Root, Vec<OccurrenceIdentity>)>,
+) -> Result<(Root, Vec<OccurrenceIdentity>), LegalizationError> {
     let mut candidates = candidates.into_iter();
     let (root, parents) = candidates.next().ok_or(invalid())?;
     if candidates.len() == 0 {
@@ -1455,8 +1497,9 @@ fn discard_owned(
     custody: &mut Custody,
     types: &[StructuralTypeDeclaration],
     source: PlaceId,
+    event: retirements::DisposalEvent,
 ) -> Result<bool, LegalizationError> {
-    discard_subtree(function, custody, types, source, &[])
+    discard_subtree(function, custody, types, source, &[], event)
 }
 
 fn discard_subtree(
@@ -1465,6 +1508,7 @@ fn discard_subtree(
     types: &[StructuralTypeDeclaration],
     source: PlaceId,
     prefix: &[StructuralPathSegment],
+    event: retirements::DisposalEvent,
 ) -> Result<bool, LegalizationError> {
     let Some(contract) = source_contract(function, custody, source) else {
         return Ok(false);
@@ -1473,23 +1517,19 @@ fn discard_subtree(
     if !contains_reference(types, selected) {
         return Ok(false);
     }
-    let released: BTreeSet<_> = custody
+    let released: Vec<_> = custody
         .leaves
         .iter()
         .filter(|((carrier, path), _)| {
             *carrier == source && owned_relative_path(path, prefix).is_some()
         })
-        .map(|(_, leaf)| leaf.identity.clone())
+        .map(|(location, _)| location.clone())
         .collect();
-    if custody.leaves.values().any(|child| {
-        !released.contains(&child.identity)
-            && child.parents.iter().any(|parent| released.contains(parent))
-    }) {
-        return Err(invalid());
+    for location in released {
+        let leaf = custody.leaves.remove(&location).ok_or_else(invalid)?;
+        custody.retire(leaf, event)?;
     }
-    custody.leaves.retain(|(carrier, path), _| {
-        *carrier != source || owned_relative_path(path, prefix).is_none()
-    });
+    custody.prune_retired();
     Ok(true)
 }
 
@@ -1498,6 +1538,7 @@ fn discard_residual(
     custody: &mut Custody,
     types: &[StructuralTypeDeclaration],
     discard: &terminal_psi::StructuralAffineDiscard,
+    event: retirements::DisposalEvent,
 ) -> Result<(), LegalizationError> {
     let root = source_contract(function, custody, discard.place).ok_or(invalid())?;
     if leaf_type(types, root, &discard.path) != Some(discard.structural_type)
@@ -1512,7 +1553,14 @@ fn discard_residual(
     {
         return Err(invalid());
     }
-    discard_subtree(function, custody, types, discard.place, &discard.path)?;
+    discard_subtree(
+        function,
+        custody,
+        types,
+        discard.place,
+        &discard.path,
+        event,
+    )?;
     Ok(())
 }
 
@@ -1525,6 +1573,7 @@ fn relocate_subtree_leaves<'a>(
     function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
     destination: PlaceId,
+    operation: OperationId,
     operands: impl IntoIterator<
         Item = (
             &'a StructuralArgument,
@@ -1606,11 +1655,15 @@ fn relocate_subtree_leaves<'a>(
                         access: StructuralAccess::SharedBorrow,
                     },
                 )?;
-                leaf.identity = (destination, target_path.clone());
-                if let Ok((operation, result)) =
+                leaf.identity =
+                    OccurrenceIdentity::operation(&(destination, target_path.clone()), operation);
+                if let Ok((declaration_operation, result)) =
                     super::structural_case::source_result(function, destination)
                 {
-                    leaf.reform(operation, result);
+                    leaf.contract = CarrierContract::Operation {
+                        operation: declaration_operation,
+                        result: result.clone(),
+                    };
                 } else {
                     let parameter = function
                         .structural_parameter(destination)
@@ -1621,11 +1674,11 @@ fn relocate_subtree_leaves<'a>(
                         })
                         .ok_or(invalid())?;
                     leaf.contract = CarrierContract::Parameter(parameter.clone());
-                    leaf.formations = vec![Formation {
-                        identity: leaf.identity.clone(),
-                        contract: leaf.contract.clone(),
-                    }];
                 }
+                leaf.formations = vec![Formation {
+                    identity: leaf.identity.clone(),
+                    contract: leaf.contract.clone(),
+                }];
             } else {
                 let source = (argument.place, source_path.clone());
                 if !moved.insert(source.clone()) {
@@ -1682,7 +1735,7 @@ fn transferred_ingress_leaf(
         && !custody
             .leaves
             .values()
-            .any(|child| child.parents.contains(&leaf.identity)))
+            .any(|child| custody.descends_from(child, &leaf.identity)))
     .then_some(key)
 }
 
@@ -1747,9 +1800,10 @@ pub(in crate::legalization) fn apply(
                 || source_contract(function, custody, *source)
                     .and_then(|root| leaf_type(types, root, &path))
                     != Some(result.structural_type)
-                || custody.leaves.iter().any(|((carrier, _), leaf)| {
-                    *carrier == result.place || leaf.identity.0 == result.place
-                })
+                || custody
+                    .leaves
+                    .keys()
+                    .any(|(carrier, _)| *carrier == result.place)
             {
                 return Err(invalid());
             }
@@ -1791,7 +1845,10 @@ pub(in crate::legalization) fn apply(
                         return Err(invalid());
                     }
                     let mut leaf = source_leaf.clone();
-                    leaf.identity = (result.place, relative.clone());
+                    leaf.identity = OccurrenceIdentity::operation(
+                        &(result.place, relative.clone()),
+                        *psi_operation,
+                    );
                     leaf.reform(*psi_operation, result);
                     alternatives.push(leaf);
                 }
@@ -1817,13 +1874,10 @@ pub(in crate::legalization) fn apply(
         } => {
             let referent = referent(types, result.structural_type).ok_or_else(|| invalid())?;
             if !result.is_affine_plain()
-                || custody.leaves.keys().any(|(carrier, path)| {
-                    *carrier == result.place && owned_relative_path(path, &[]).is_some()
-                })
                 || custody
                     .leaves
-                    .values()
-                    .any(|leaf| leaf.identity.0 == result.place)
+                    .keys()
+                    .any(|(carrier, _)| *carrier == result.place)
                 || !reference_source_type(function, custody, types, source).is_some_and(|actual| {
                     match storage {
                         Some(storage) => terminal_semantics::reference_storage_source_compatible(
@@ -1901,15 +1955,31 @@ pub(in crate::legalization) fn apply(
                 };
             custody.leaves.insert((result.place, Vec::new()), leaf);
         }
-        AbstractOperation::ReleaseReference { source, path, .. } => {
+        AbstractOperation::ReleaseReference {
+            psi_operation,
+            source,
+            path,
+            ..
+        } => {
             if custody.leaves.values().any(|enclosing| {
                 enclosing.root.origins().iter().any(|origin| {
                     let origin_path = &origin.path;
                     origin.root == *source
-                        && source_contract(function, custody, *source)
-                            .and_then(|contract| leaf_type(types, contract, origin_path))
-                            == Some(enclosing.referent)
-                        && terminal_semantics::structural_paths_may_overlap(origin_path, path)
+                        && source_contract(function, custody, *source).and_then(|contract| {
+                            terminal_semantics::captured_reference_origin_type(
+                                types.iter(),
+                                contract,
+                                origin_path,
+                            )
+                        }) == Some(enclosing.referent)
+                        && terminal_semantics::reference_origin_paths_may_overlap(
+                            origin_path,
+                            &path
+                                .iter()
+                                .cloned()
+                                .map(ReferenceOriginProjection::Exact)
+                                .collect::<Vec<_>>(),
+                        )
                 })
             }) {
                 return Err(invalid());
@@ -1919,14 +1989,7 @@ pub(in crate::legalization) fn apply(
             let Some(leaf) = leaf else {
                 return Err(invalid());
             };
-            if custody
-                .leaves
-                .values()
-                .any(|child| child.parents.contains(&leaf.identity))
-            {
-                custody.leaves.insert(key, leaf);
-                return Err(invalid());
-            }
+            custody.retire(leaf, retirements::DisposalEvent::Operation(*psi_operation))?;
         }
         AbstractOperation::EstablishRecord { result, fields, .. }
         | AbstractOperation::EstablishCase { result, fields, .. } => {
@@ -1979,7 +2042,14 @@ pub(in crate::legalization) fn apply(
                     operands.push((argument, *nested, prefix));
                 }
             }
-            relocate_subtree_leaves(custody, function, types, result.place, operands)?;
+            relocate_subtree_leaves(
+                custody,
+                function,
+                types,
+                result.place,
+                operation.psi_operation().ok_or_else(|| invalid())?,
+                operands,
+            )?;
         }
         AbstractOperation::EstablishStructuralArray {
             result, elements, ..
@@ -2004,6 +2074,7 @@ pub(in crate::legalization) fn apply(
                 function,
                 types,
                 result.place,
+                operation.psi_operation().ok_or_else(|| invalid())?,
                 elements.iter().enumerate().map(|(index, argument)| {
                     (
                         argument,
@@ -2044,6 +2115,7 @@ pub(in crate::legalization) fn apply(
                 function,
                 types,
                 result.place,
+                operation.psi_operation().ok_or_else(|| invalid())?,
                 [(&argument, result.structural_type, Vec::new())],
             )?;
         }
@@ -2076,15 +2148,25 @@ pub(in crate::legalization) fn apply(
                 disposition.required_access(),
             )?;
             if *disposition == terminal_psi::StructuralStoreDisposition::ReplaceDiscardable {
-                // End only this exact shared descriptor cohort. The independent
-                // child-closure check forbids retiring a live external child.
-                discard_subtree(function, custody, types, place, &path)?;
+                // End this descriptor's residency; children retain the exact
+                // old occurrence, never the replacement in the same slot.
+                discard_subtree(
+                    function,
+                    custody,
+                    types,
+                    place,
+                    &path,
+                    retirements::DisposalEvent::Operation(
+                        operation.psi_operation().ok_or_else(|| invalid())?,
+                    ),
+                )?;
             }
             relocate_subtree_leaves(
                 custody,
                 function,
                 types,
                 place,
+                operation.psi_operation().ok_or_else(|| invalid())?,
                 [(value, extent.field_type, path)],
             )?;
         }
@@ -2167,6 +2249,8 @@ pub(in crate::legalization) fn apply(
         }
         _ => {}
     }
+    custody.prune_retired();
+    custody.validate_occurrences()?;
     Ok(())
 }
 
@@ -2199,71 +2283,59 @@ fn transfer_return_custody(
             .iter()
             .find(|mapping| mapping.path == *path)
             .ok_or_else(|| invalid())?;
-        let declared =
-            |root: &Root| {
-                // The runtime address retains its captured index. Independently
-                // enumerate the finite storage family for this interface audit;
-                // every possible backing still needs an exact declared origin.
-                if !root.origins().iter().any(|origin| {
-                    origin.path.iter().any(|segment| {
-                        matches!(segment, StructuralPathSegment::RuntimeIndex { .. })
-                    })
-                }) {
-                    return mapping.sources.iter().any(|formal| {
-                        formal_origin(function, types, formal).as_ref() == Some(root)
-                    });
-                }
-                root.origins().iter().all(|origin| {
-                    let Some(contract) = source_contract(function, custody, origin.root) else {
-                        return false;
-                    };
-                    let Some(paths) = terminal_semantics::stored_descriptor_paths(
-                        types.iter(),
-                        contract,
-                        &origin.path,
-                        mapping.sources.len(),
-                    ) else {
-                        return false;
-                    };
-                    paths.iter().all(|path| {
-                        let selected = if path.is_empty() {
-                            Root::Place(origin.root)
-                        } else {
-                            Root::Ingress(origin.root, path.clone())
-                        };
-                        mapping.sources.iter().any(|formal| {
-                            formal_origin(function, types, formal).as_ref() == Some(&selected)
-                        })
-                    })
-                })
-            };
-        let admitted = match &leaf.root {
-            Root::Alternatives(origins) => origins.iter().all(|origin| {
-                let root = if origin.path.is_empty() {
-                    Root::Place(origin.root)
-                } else {
-                    Root::Ingress(origin.root, origin.path.clone())
+        let access = leaf_type(types, leaf.contract.structural_type(), &leaf.identity.path)
+            .and_then(|identity| find_structural_type(types, identity))
+            .and_then(|declaration| match declaration.shape {
+                StructuralTypeShape::Reference { access, .. } => Some(access),
+                _ => None,
+            })
+            .ok_or_else(invalid)?;
+        let declared = |root: &Root| {
+            root.origins().iter().all(|origin| {
+                let Some(parameter) = function.structural_parameter(origin.root) else {
+                    return false;
                 };
-                declared(&root)
-            }),
-            root => declared(root),
+                // Summarize a captured selection without replaying its index or
+                // expanding an input collection into a finite candidate roster.
+                let mut path = origin.path.iter().map(|projection| match projection {
+                    ReferenceOriginProjection::Exact(StructuralPathSegment::RuntimeIndex { .. }) =>
+                        ReferenceOriginProjection::Element,
+                    _ => projection.clone(),
+                }).collect::<Vec<_>>();
+                let Some(endpoint) = terminal_semantics::reference_origin_type(
+                    types.iter(), parameter.structural_type, &path,
+                ) else { return false; };
+                if endpoint != leaf.referent {
+                    if !find_structural_type(types, endpoint).is_some_and(|declaration|
+                        matches!(declaration.shape, StructuralTypeShape::Reference { referent, access: supplied }
+                            if referent == leaf.referent && access_covers(supplied, access)))
+                    { return false; }
+                    path.push(ReferenceOriginProjection::Exact(StructuralPathSegment::Referent));
+                }
+                mapping.sources.contains(&terminal_psi::ReferenceOriginSource {
+                    place: origin.root, path, access,
+                })
+            })
         };
+        let admitted = declared(&leaf.root);
         if !(admitted || descriptor_backing::matches_return(&leaf.backing, &declared))
             || custody
                 .leaves
                 .values()
-                .any(|child| child.parents.contains(&leaf.identity))
+                .any(|child| custody.descends_from(child, &leaf.identity))
         {
             return Err(invalid());
         }
         // Receiving parameters are actual declarations, not synthetic result
         // rows. Every possible transported formation retains its real owner.
-        if !leaf.contract.matches_declaration(function, leaf.identity.0)
+        if !leaf
+            .contract
+            .matches_declaration(function, leaf.identity.place)
             || leaf.formations.is_empty()
             || leaf.formations.iter().any(|formation| {
                 !formation
                     .contract
-                    .matches_declaration(function, formation.identity.0)
+                    .matches_declaration(function, formation.identity.place)
             })
         {
             return Err(invalid());
@@ -2271,31 +2343,43 @@ fn transfer_return_custody(
     }
     // Output is already formed. Its original storage and admitted view chain
     // were matched above; the signature never supplies an origin. Close only
-    // the local ancestry disposed by this exact completion. Ordinary copies
-    // and releases keep their original parent relationships unchanged.
-    let occurrences = custody
+    // local ancestry with actual disposal on this path, including earlier
+    // replacements. Residency selects return/cleanup; identity selects ancestry.
+    let mut occurrences = custody
         .leaves
-        .values()
-        .map(|leaf| terminal_semantics::ReferenceCompletionOccurrence {
-            identity: &leaf.identity,
-            parents: leaf.parents.iter().collect(),
-            returned: leaf.identity.0 == source
-                && owned_relative_path(&leaf.identity.1, &[]).is_some(),
-            disposed: function
-                .structural_parameter(leaf.identity.0)
-                .is_none_or(|parameter| parameter.access == StructuralAccess::Owned)
-                && terminal_semantics::cleanup_disposes_reference(
-                    cleanup_actions,
-                    leaf.identity.0,
-                    &leaf.identity.1,
-                ),
-        })
+        .iter()
+        .map(
+            |((carrier, path), leaf)| terminal_semantics::ReferenceCompletionOccurrence {
+                identity: &leaf.identity,
+                parents: leaf.parents.iter().collect(),
+                returned: *carrier == source && owned_relative_path(path, &[]).is_some(),
+                disposed: function
+                    .structural_parameter(*carrier)
+                    .is_none_or(|parameter| parameter.access == StructuralAccess::Owned)
+                    && terminal_semantics::cleanup_disposes_reference(
+                        cleanup_actions,
+                        *carrier,
+                        path,
+                    ),
+            },
+        )
         .collect::<Vec<_>>();
+    occurrences.extend(custody.retired.values().map(|retired| {
+        terminal_semantics::ReferenceCompletionOccurrence {
+            identity: &retired.leaf.identity,
+            parents: retired.leaf.parents.iter().collect(),
+            returned: false,
+            // These are replayed disposal operations on this exact path, not
+            // missing residents inferred to have been disposed at some point.
+            disposed: !retired.disposals.is_empty(),
+        }
+    }));
     terminal_semantics::validate_reference_result_completion(&occurrences)
         .map_err(|reason| LegalizationError::ReferenceCompletion { reason })?;
     custody.leaves.retain(|(carrier, path), _| {
         *carrier != source || owned_relative_path(path, &[]).is_none()
     });
+    custody.prune_retired();
     Ok(())
 }
 
@@ -2350,10 +2434,22 @@ pub(in crate::legalization) fn apply_terminator(
                     types,
                 )?;
             }
-            apply_cleanup_actions(&mut exit, actions.iter().cloned(), function, types)?;
-            exits.push((edge, target, exit.leaves));
+            apply_cleanup_actions(
+                &mut exit,
+                actions.iter().cloned(),
+                function,
+                types,
+                retirements::DisposalEvent::Edge(edge),
+            )?;
+            exits.push((edge, target, exit.leaves, exit.retired));
         } else {
-            apply_cleanup_actions(custody, actions.iter().cloned(), function, types)?;
+            apply_cleanup_actions(
+                custody,
+                actions.iter().cloned(),
+                function,
+                types,
+                retirements::DisposalEvent::Edge(edge),
+            )?;
         }
     }
     if !exits.is_empty() {
@@ -2367,6 +2463,7 @@ fn apply_cleanup_actions(
     actions: impl IntoIterator<Item = terminal_psi::TerminalAffineCleanupAction>,
     function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
+    event: retirements::DisposalEvent,
 ) -> Result<(), LegalizationError> {
     use terminal_psi::TerminalAffineCleanupAction;
     for action in actions {
@@ -2387,7 +2484,7 @@ fn apply_cleanup_actions(
             }
             TerminalAffineCleanupAction::DiscardRoot(place) => place,
             TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                discard_residual(function, custody, types, &discard)?;
+                discard_residual(function, custody, types, &discard, event)?;
                 continue;
             }
             TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
@@ -2408,7 +2505,14 @@ fn apply_cleanup_actions(
                 }
                 // The borrowed call retains the selected original storage;
                 // completing it retires only this subject's contained loans.
-                discard_subtree(function, custody, types, cleanup.place, &cleanup.path)?;
+                discard_subtree(
+                    function,
+                    custody,
+                    types,
+                    cleanup.place,
+                    &cleanup.path,
+                    event,
+                )?;
                 continue;
             }
         };
@@ -2423,8 +2527,10 @@ fn apply_cleanup_actions(
         ) {
             return Err(invalid());
         }
-        discard_owned(function, custody, types, place)?;
+        discard_owned(function, custody, types, place, event)?;
     }
+    custody.prune_retired();
+    custody.validate_occurrences()?;
     Ok(())
 }
 
@@ -2570,6 +2676,8 @@ pub(in crate::legalization) fn block_entry_states(
                             scope.contains(definition) && (*parameter || *definition != edge.target)
                         })
             });
+            arrival.prune_retired();
+            arrival.validate_occurrences()?;
             arrivals.push((edge.psi_edge, edge.target, arrival));
         }
         final_arrivals[position] = arrivals;
@@ -2597,6 +2705,7 @@ pub(in crate::legalization) fn block_entry_states(
                     &arrival.leaves,
                 )?
                 .is_none()
+                    || retirements::merge(&mut complete.retired, &arrival.retired).is_none()
                 {
                     consistent = false;
                     break;
@@ -2621,8 +2730,11 @@ pub(in crate::legalization) fn block_entry_states(
                 continue;
             }
             let was_deferred = deferred.remove(&target);
+            complete.prune_retired();
+            complete.validate_occurrences()?;
             let changed = entries.get(&target).is_none_or(|entry| {
                 entry.leaves != complete.leaves
+                    || entry.retired != complete.retired
                     || entry.borrowed_sources != complete.borrowed_sources
             });
             if changed {
@@ -2653,13 +2765,18 @@ pub(in crate::legalization) fn block_entry_states(
                 &arrival.leaves,
             )?
             .is_none()
+                || retirements::merge(&mut complete.retired, &arrival.retired).is_none()
             {
                 return Err(invalid());
             }
             borrowed_arrivals::merge(&mut complete, arrival)?;
         }
+        complete.prune_retired();
+        complete.validate_occurrences()?;
         if entries.get(&block.id).is_none_or(|entry| {
-            entry.leaves != complete.leaves || entry.borrowed_sources != complete.borrowed_sources
+            entry.leaves != complete.leaves
+                || entry.retired != complete.retired
+                || entry.borrowed_sources != complete.borrowed_sources
         }) {
             return Err(invalid());
         }
@@ -2692,7 +2809,7 @@ fn entry(
             custody.leaves.insert(
                 identity.clone(),
                 Leaf {
-                    identity: identity.clone(),
+                    identity: OccurrenceIdentity::parameter(&identity),
                     root: Root::Ingress(parameter.place, path.clone()),
                     backing: vec![descriptor_backing::Backing::Source(Root::Ingress(
                         parameter.place,
@@ -2701,7 +2818,7 @@ fn entry(
                     parents: Vec::new(),
                     contract: CarrierContract::Parameter(parameter.clone()),
                     formations: vec![Formation {
-                        identity,
+                        identity: OccurrenceIdentity::parameter(&identity),
                         contract: CarrierContract::Parameter(parameter.clone()),
                     }],
                     referent: leaf_referent(types, parameter.structural_type, &path)

@@ -910,7 +910,9 @@ impl OperationFrame<'_, '_> {
                     .named(self.state, symbol)
                     .is_some_and(|local| {
                         local.statement_index < statement_index
-                            && validation::structural_type_identity(
+                            // Rebinding replaces the stored carrier, not the
+                            // borrowed referent exposed by argument presentation.
+                            && validation::stored_structural_type_identity(
                                 &self.checked.typed,
                                 local.declared_type,
                                 &[],

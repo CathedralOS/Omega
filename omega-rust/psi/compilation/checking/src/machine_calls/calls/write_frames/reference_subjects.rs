@@ -224,28 +224,6 @@ pub(super) fn local_origin(
     Some(source)
 }
 
-pub(super) fn value_origin(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    expression: ExpressionHandle,
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-    aliases: &[(String, FramePlaceOrigin)],
-    stored: &[StoredLocalOrigins],
-    implicit_borrow: bool,
-) -> Option<FramePlaceOrigin> {
-    single_place_origin(value_origins(
-        program,
-        machine,
-        expression,
-        symbols,
-        inference,
-        aliases,
-        stored,
-        implicit_borrow,
-    )?)
-}
-
 /// Every exact captured referent of one reference value. Singleton consumers
 /// collapse this set only when its complete candidates identify the same place.
 pub(super) fn value_origins(
@@ -392,23 +370,47 @@ pub(super) fn backing_origins(
                         program, machine, expression, symbols, inference, false, aliases, stored,
                     )?;
                 }
-                let mut prefix = origin.source.clone();
-                if let Some(position) = prefix.segments.iter().position(|segment| {
-                    matches!(
-                        segment,
-                        PlaceSegment::Index { .. }
-                            | PlaceSegment::FixedIndex { .. }
-                            | PlaceSegment::FixedRange { .. }
-                    )
-                }) {
-                    prefix.segments.truncate(position);
-                }
-                validate_source_projection(program, machine, state, index, &prefix, stored)?;
+                validate_backing_projection(
+                    program,
+                    machine,
+                    state,
+                    index,
+                    &origin.source,
+                    stored,
+                )?;
             }
             push_unique_origin(&mut captured, origin);
         }
     }
     (!captured.is_empty()).then_some(captured)
+}
+
+/// Authenticate the supplied collection's declaration and frozen reference
+/// boundary. The remaining selectors describe possible backing, not an exact
+/// predicate subject or a new permission; executable formation owns bounds.
+pub(super) fn validate_backing_projection(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    index: usize,
+    source: &FrameSourcePlace,
+    stored: &[StoredLocalOrigins],
+) -> Option<()> {
+    if !source.root.is_valid() || !source.builtin_coordinates {
+        return None;
+    }
+    let mut prefix = source.clone();
+    if let Some(position) = prefix.segments.iter().position(|segment| {
+        matches!(
+            segment,
+            PlaceSegment::Index { .. }
+                | PlaceSegment::FixedIndex { .. }
+                | PlaceSegment::FixedRange { .. }
+        )
+    }) {
+        prefix.segments.truncate(position);
+    }
+    validate_source_projection(program, machine, state, index, &prefix, stored)
 }
 
 /// Alias rows are captured reference values. Resolve fresh field loads only

@@ -64,12 +64,26 @@ pub struct TargetReferenceResult {
     pub origins: Vec<TargetReferenceOrigin>,
 }
 
-/// One exact storage region conservatively retained by a reference descriptor.
+/// Possible storage conservatively retained by a reference descriptor.
 /// The root is logical custody, never a choice of runtime backing address.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TargetReferenceOrigin {
     pub root: PlaceId,
-    pub path: Vec<StructuralPathSegment>,
+    pub path: Vec<terminal_psi::ReferenceOriginProjection>,
+}
+
+impl TargetReferenceOrigin {
+    /// Only exact origins can name a stored descriptor resource. A family
+    /// retains possible backing, not a usable load/store address.
+    pub fn exact_path(&self) -> Option<Vec<StructuralPathSegment>> {
+        self.path
+            .iter()
+            .map(|projection| match projection {
+                terminal_psi::ReferenceOriginProjection::Exact(segment) => Some(segment.clone()),
+                terminal_psi::ReferenceOriginProjection::Element => None,
+            })
+            .collect()
+    }
 }
 
 /// An incoming value placement and an established local descriptor have

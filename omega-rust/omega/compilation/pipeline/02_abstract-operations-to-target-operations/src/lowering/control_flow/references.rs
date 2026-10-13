@@ -131,6 +131,16 @@ pub(super) enum ReferenceRoot {
 impl ReferenceRoot {
     /// Compose presentation metadata without selecting a runtime address.
     fn projected(&self, suffix: &[StructuralPathSegment]) -> Self {
+        self.projected_family(
+            &suffix
+                .iter()
+                .cloned()
+                .map(terminal_psi::ReferenceOriginProjection::Exact)
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    fn projected_family(&self, suffix: &[terminal_psi::ReferenceOriginProjection]) -> Self {
         if suffix.is_empty() {
             return self.clone();
         }
@@ -138,9 +148,10 @@ impl ReferenceRoot {
         for origin in &mut origins {
             origin.path.extend_from_slice(suffix);
         }
-        if origins.len() == 1 {
-            let origin = origins.remove(0);
-            Self::Ingress(origin.root, origin.path)
+        if origins.len() == 1
+            && let Some(path) = origins[0].exact_path()
+        {
+            Self::Ingress(origins[0].root, path)
         } else {
             origins.sort();
             origins.dedup();
@@ -156,7 +167,11 @@ impl ReferenceRoot {
             }],
             Self::Ingress(root, path) => vec![target_operations::TargetReferenceOrigin {
                 root: *root,
-                path: path.clone(),
+                path: path
+                    .iter()
+                    .cloned()
+                    .map(terminal_psi::ReferenceOriginProjection::Exact)
+                    .collect(),
             }],
             Self::Alternatives(origins) => origins.clone(),
         }
@@ -1167,16 +1182,13 @@ pub(super) fn call_results(
             let parameter = callee_function
                 .structural_parameter(formal.place)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            let formal = &StructuralArgument {
-                place: formal.place,
-                path: terminal_semantics::reference_source_storage_path(
-                    types.values().copied(),
-                    parameter.structural_type,
-                    &formal.path,
-                )
-                .to_vec(),
-                access: formal.access,
-            };
+            let binding = terminal_semantics::bind_reference_origin(
+                types.values().copied(),
+                parameter.structural_type,
+                formal,
+            )
+            .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?;
+            let formal = &binding.source;
             if !access_covers(formal.access, result_access) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
@@ -1186,24 +1198,32 @@ pub(super) fn call_results(
                 formal,
             )
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            if reference_source_type(function, live, types, &source) != Some(expected) {
+            if reference_source_type(function, live, types, &source).and_then(|root| {
+                terminal_semantics::reference_origin_type(
+                    types.values().copied(),
+                    root,
+                    binding.suffix,
+                )
+            }) != Some(expected)
+            {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let leaf = if matches!(
-                formal_origin(callee_function, types, formal),
-                Some(ReferenceRoot::Ingress(place, path))
-                    if callee_function.structural_parameter(place)
-                        .and_then(|parameter| {
-                            leaf_type(types, parameter.structural_type, &path)
-                        })
-                        .and_then(|leaf| types.get(&leaf))
-                        .is_some_and(|declaration| {
-                            matches!(
-                                declaration.shape,
-                                StructuralTypeShape::Reference { .. }
-                            )
-                        })
-            ) {
+            let leaf = if binding.suffix.is_empty()
+                && matches!(
+                    formal_origin(callee_function, types, formal),
+                    Some(ReferenceRoot::Ingress(place, path))
+                        if callee_function.structural_parameter(place)
+                            .and_then(|parameter| {
+                                leaf_type(types, parameter.structural_type, &path)
+                            })
+                            .and_then(|leaf| types.get(&leaf))
+                            .is_some_and(|declaration| {
+                                matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::Reference { .. }
+                                )
+                            })
+                ) {
                 // An owned-carrier ingress mapping relocates one of the leaves the
                 // moved arguments just transferred; possible backing follows
                 // the descriptor bytes to the declared result path.
@@ -1227,7 +1247,8 @@ pub(super) fn call_results(
                 leaf.clone()
             } else {
                 ReferenceStorage {
-                    root: normalized_source(function, live, types, &source)?,
+                    root: normalized_source(function, live, types, &source)?
+                        .projected_family(binding.suffix),
                     carrier_type: leaf_type(types, result.structural_type, &mapping.path)
                         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
                     referent: expected,

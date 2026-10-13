@@ -139,10 +139,9 @@ pub(super) fn access_reference_custody(
                 {
                     return Err(invalid_live());
                 }
-                dependencies.push(ReferenceOrigin::IngressLeaf(ReferenceIdentity {
-                    place,
-                    path,
-                }));
+                dependencies.push(ReferenceOrigin::IngressLeaf(
+                    ReferenceIdentity { place, path }.into(),
+                ));
                 origins.push(carrier.root.clone());
                 if further_crossing {
                     dependencies.push(carrier.root.clone());
@@ -162,7 +161,9 @@ pub(super) fn access_reference_custody(
                         let cursor = super::storage_cursor(
                             function,
                             structural_types,
-                            ReferenceIdentity { place, path },
+                            super::ReferenceOriginIdentity { place, path }
+                                .exact_identity()
+                                .ok_or_else(invalid_opaque)?,
                             referent,
                         )
                         .ok_or_else(invalid_opaque)?;
@@ -267,10 +268,13 @@ pub(super) fn descriptor_storage_available(
     ancestors: &[ReferenceIdentity],
     requested: StructuralAccess,
 ) -> bool {
-    let storage = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
-        place,
-        path: path.to_vec(),
-    });
+    let storage = ReferenceOrigin::IngressLeaf(
+        ReferenceIdentity {
+            place,
+            path: path.to_vec(),
+        }
+        .into(),
+    );
     live.iter().all(|loan| {
         if origin_place(&loan.root) != place
             || ancestors.contains(&loan.identity)
@@ -298,12 +302,16 @@ pub(super) fn descriptor_storage_available(
         else {
             return false;
         };
-        let conflicts = |root_place, root_path: &[terminal_psi::StructuralPathSegment]| {
+        let conflicts = |root_place, root_path: &[terminal_psi::ReferenceOriginProjection]| {
             structural_source_contract(function, root_place).and_then(|signature| {
-                leaf_type(structural_types, signature.structural_type, root_path)
+                terminal_semantics::reference_origin_type(
+                    structural_types.values().copied(),
+                    signature.structural_type,
+                    root_path,
+                )
             }) == Some(referent)
                 && origins_overlap(
-                    &ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+                    &ReferenceOrigin::IngressLeaf(super::ReferenceOriginIdentity {
                         place: root_place,
                         path: root_path.to_vec(),
                     }),
@@ -334,10 +342,13 @@ pub(super) fn call_dependency_conflict(
     {
         return false;
     }
-    let storage = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
-        place: argument.place,
-        path: argument.path.clone(),
-    });
+    let storage = ReferenceOrigin::IngressLeaf(
+        ReferenceIdentity {
+            place: argument.place,
+            path: argument.path.clone(),
+        }
+        .into(),
+    );
     dependencies
         .iter()
         .any(|dependency| origins_overlap(dependency, &storage))

@@ -315,13 +315,11 @@ pub(super) fn expression_may_rebind_mutable_alias(
         ExpressionNode::Call(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::Member(_)
-        | ExpressionNode::Indexed(_) => {
-            crate::value_custody::places::expression_result_is_reference(
-                program, machine, state, expression,
-            )
-            .unwrap_or(true)
-        }
-        ExpressionNode::Cast(cast) => type_reference_is_reference(program, cast.target_type),
+        | ExpressionNode::Indexed(_)
+        | ExpressionNode::Cast(_) => crate::value_custody::places::expression_result_is_reference(
+            program, machine, state, expression,
+        )
+        .unwrap_or(true),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Atomic(_)
         | ExpressionNode::Binary(_)

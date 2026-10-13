@@ -1161,7 +1161,17 @@ impl PreparedValue {
         target: usize,
         computations: &mut computations::Expansion<'_>,
     ) -> Result<usize, LoweringError> {
-        computations.storage.extend(self.storage);
+        // Producer ordinals belong to this value's operand schedule. All
+        // consumers in that schedule now name their prepared physical homes.
+        // Export source identities for later observation and retirement, but
+        // never export the temporary ordinal into the surrounding statement's
+        // namespace: a later value may reuse it for different storage.
+        computations
+            .storage
+            .extend(self.storage.into_iter().map(|mut home| {
+                home.result_binding_ordinal = None;
+                home
+            }));
         let completed_types = self
             .steps
             .last()

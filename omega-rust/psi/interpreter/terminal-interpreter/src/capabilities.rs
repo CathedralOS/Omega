@@ -238,6 +238,7 @@ mod tests {
                             path: Vec::new(),
                             access: StructuralAccess::MutableBorrow,
                         })
+                        .map(Into::into)
                         .collect(),
                 }],
             })

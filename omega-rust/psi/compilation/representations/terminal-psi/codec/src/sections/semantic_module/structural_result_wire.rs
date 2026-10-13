@@ -46,7 +46,7 @@ pub(crate) fn validate_reference_sources(
             };
             if *access != source.access
                 || *referent
-                    != crate::sections::semantic_module::module_foundation_validation::validate_reference_origin_path(
+                    != crate::sections::semantic_module::module_foundation_validation::validate_reference_origin_family(
                         module,
                         parameter.structural_type,
                         &source.path,
@@ -127,7 +127,7 @@ pub(crate) fn decode_function_result(
             Ok(terminal_psi::StructuralReferenceResultSource {
                 path: decode_structural_path(reader)?,
                 sources: decode_counted(reader, |reader| {
-                    Ok(terminal_psi::StructuralArgument {
+                    Ok(terminal_psi::ReferenceOriginSource {
                         place: reader.id("PlaceId")?,
                         access: super::structural_signature_wire::decode_structural_access(reader)?,
                         path: decode_reference_origin_path(reader)?,

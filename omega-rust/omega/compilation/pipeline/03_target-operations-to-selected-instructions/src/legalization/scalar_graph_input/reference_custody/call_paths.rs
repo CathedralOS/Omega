@@ -139,7 +139,7 @@ pub(super) fn observe_reference_custody(
                     .ok_or(invalid())?;
                 if leaf.referent != referent
                     || custody.leaves.iter().any(|((carrier, path), child)| {
-                        child.parents.contains(&leaf.identity)
+                        custody.descends_from(child, &leaf.identity)
                             && !shared_source_compatible(
                                 function,
                                 custody,
@@ -173,11 +173,21 @@ pub(super) fn observe_reference_custody(
                                 let origin_place = origin.root;
                                 origin_place == place
                                     && source_contract(function, custody, origin_place).and_then(
-                                        |contract| leaf_type(types, contract, origin_path),
+                                        |contract| {
+                                            terminal_semantics::captured_reference_origin_type(
+                                                types.iter(),
+                                                contract,
+                                                origin_path,
+                                            )
+                                        },
                                     ) == Some(enclosing.referent)
-                                    && terminal_semantics::structural_paths_may_overlap(
+                                    && terminal_semantics::reference_origin_paths_may_overlap(
                                         origin_path,
-                                        &path,
+                                        &path
+                                            .iter()
+                                            .cloned()
+                                            .map(terminal_psi::ReferenceOriginProjection::Exact)
+                                            .collect::<Vec<_>>(),
                                     )
                             })
                     })
@@ -193,7 +203,7 @@ pub(super) fn observe_reference_custody(
                     ancestors.push(leaf.identity.clone());
                     for origin in storage_origins(function, custody, types, &leaf.root, referent)? {
                         let place = origin.root;
-                        let path = origin.path;
+                        let path = origin.exact_path().ok_or_else(invalid)?;
                         let cursor = (place, path, ancestors.clone());
                         if !next_cursors.contains(&cursor) {
                             if next_cursors.len() >= cursor_budget {

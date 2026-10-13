@@ -122,11 +122,11 @@ pub use types::{
     unique_structural_declaration,
 };
 pub use values::{
-    ErasedProofFormal, OperationProjection, StructuralArgument, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralReferenceResultSource,
-    StructuralResultDeclaration, TerminalMachineResult, ValueDeclaration,
-    is_static_structural_path, is_static_structural_scalar_store_path,
-    is_structural_scalar_store_path,
+    ErasedProofFormal, OperationProjection, ReferenceOriginProjection, ReferenceOriginSource,
+    StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralReferenceResultSource, StructuralResultDeclaration,
+    TerminalMachineResult, ValueDeclaration, is_static_structural_path,
+    is_static_structural_scalar_store_path, is_structural_scalar_store_path,
 };
 
 use semantic_vocabulary::{MachineId, ServiceId};

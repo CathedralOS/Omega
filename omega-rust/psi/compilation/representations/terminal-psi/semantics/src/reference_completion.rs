@@ -1,7 +1,7 @@
 //! A normal result transfers its actual loans before frame-local disposal.
 //! The interface may authenticate origins, but cannot erase missing ancestry
 //! or a surviving shared-cohort member. Consumers reconstruct occurrences
-//! independently and supply only the selected exit's actual dispositions.
+//! independently and supply actual dispositions on the selected execution path.
 
 use semantic_vocabulary::PlaceId;
 use terminal_psi::{StructuralPathSegment, TerminalAffineCleanupAction};
@@ -38,8 +38,9 @@ impl ReferenceCompletionError {
 }
 
 /// Check complete local ancestry and cohorts before committing result transfer.
-/// Every intermediate parent must have a real disposal in this same exit;
-/// neither home retirement nor another edge's cleanup satisfies that debt.
+/// Every intermediate parent must have a real disposal on the selected path,
+/// either already executed or selected at this exit. Neither home retirement
+/// nor an unrelated edge's cleanup satisfies that debt.
 pub fn validate_reference_result_completion<Identity: PartialEq>(
     occurrences: &[ReferenceCompletionOccurrence<'_, Identity>],
 ) -> Result<(), ReferenceCompletionError> {

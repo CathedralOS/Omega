@@ -4,11 +4,11 @@
 use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::flow::terminal::{
     CheckedByteSequenceCarrier, CheckedCallScalarArgument,
-    CheckedProviderAttachmentRequirementPlan, CheckedReferenceResultSourcePlan,
-    CheckedScalarBranchDestination, CheckedScalarGuardedExit, CheckedStructuralAccess,
-    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferSourcePlan,
-    CheckedStructuralResultPlan, CheckedStructuralScalarParameterPlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedProviderAttachmentRequirementPlan, CheckedScalarBranchDestination,
+    CheckedScalarGuardedExit, CheckedStructuralAccess, CheckedStructuralControlSuccessorPlan,
+    CheckedStructuralControlTransferSourcePlan, CheckedStructuralResultPlan,
+    CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape,
 };
 use crate::checked_trees::values::CheckedErasedProofParameterPlan;
@@ -25,7 +25,7 @@ pub struct CheckedComposedUnitControlMachinePlan {
     /// For a structural result holding references: each reference leaf of
     /// the result and the entry parameter it borrows from, as the ordinary
     /// structural return names them. Empty for a reference-free result.
-    pub result_reference_sources: Vec<CheckedReferenceResultSourcePlan>,
+    pub result_reference_sources: Vec<super::CheckedReturnedReferencePlan>,
     /// Exact cyclic-state subjects and natural-valued measures selected by the
     /// checked witness. Empty means this shared plan retains no witness.
     pub natural_ranks: Vec<CheckedStateNaturalRank>,

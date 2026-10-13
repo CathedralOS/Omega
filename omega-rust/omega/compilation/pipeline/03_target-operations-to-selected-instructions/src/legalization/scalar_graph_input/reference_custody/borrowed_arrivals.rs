@@ -56,7 +56,7 @@ fn transport(
     after: &Custody,
     source: &StructuralArgument,
     locations: &BTreeMap<Identity, Identity>,
-    identities: &BTreeMap<Identity, Identity>,
+    identities: &BTreeMap<OccurrenceIdentity, OccurrenceIdentity>,
     parameters: &[StructuralParameterDeclaration],
     bindings: &[AbstractStructuralBinding],
 ) -> Option<StructuralArgument> {
@@ -144,7 +144,10 @@ pub(super) fn bind(
             if let Some(relative) = owned_relative_path(&location.1, &binding.argument.path) {
                 let destination = (parameter.place, relative.to_vec());
                 if identities
-                    .insert(leaf.identity.clone(), destination.clone())
+                    .insert(
+                        leaf.identity.clone(),
+                        OccurrenceIdentity::parameter(&destination),
+                    )
                     .is_some()
                     || locations.insert(location.clone(), destination).is_some()
                 {

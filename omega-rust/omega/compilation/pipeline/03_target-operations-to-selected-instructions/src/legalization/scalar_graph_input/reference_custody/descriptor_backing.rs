@@ -153,7 +153,7 @@ pub(super) fn capture(
     source: &StructuralArgument,
     operation: OperationId,
     root: &Root,
-) -> Result<(Vec<Backing>, Vec<(PlaceId, Vec<StructuralPathSegment>)>), LegalizationError> {
+) -> Result<(Vec<Backing>, Vec<super::OccurrenceIdentity>), LegalizationError> {
     let ty = source_contract(function, custody, source.place).ok_or_else(|| invalid())?;
     // Formation already authenticated the complete source projection. Inspect
     // only its materialized prefixes: an intermediate Case selector has no
@@ -207,9 +207,9 @@ pub(super) fn capture(
                 );
                 // A view formed through a live reference retains that parent
                 // even though its runtime descriptor is independently owned.
-                parents.extend(custody.leaves.iter().filter_map(|(identity, _)| {
-                    (identity.0 == *backing_root && projection.path.starts_with(&identity.1))
-                        .then_some(identity.clone())
+                parents.extend(custody.leaves.iter().filter_map(|(location, leaf)| {
+                    (location.0 == *backing_root && projection.path.starts_with(&location.1))
+                        .then_some(leaf.identity.clone())
                 }));
             }
         }
@@ -231,11 +231,20 @@ pub(super) fn overlaps(
     machine: semantic_vocabulary::MachineId,
     place: PlaceId,
     path: &[StructuralPathSegment],
-    origin_overlaps: &impl Fn(&[StructuralPathSegment]) -> bool,
+    origin_overlaps: &impl Fn(&[terminal_psi::ReferenceOriginProjection]) -> bool,
 ) -> bool {
     match backing {
         Backing::Source(Root::Place(root)) => *root == place,
-        Backing::Source(Root::Ingress(root, origin)) => *root == place && origin_overlaps(origin),
+        Backing::Source(Root::Ingress(root, origin)) => {
+            *root == place
+                && origin_overlaps(
+                    &origin
+                        .iter()
+                        .cloned()
+                        .map(terminal_psi::ReferenceOriginProjection::Exact)
+                        .collect::<Vec<_>>(),
+                )
+        }
         Backing::Source(Root::Alternatives(origins)) => origins
             .iter()
             .any(|origin| origin.root == place && origin_overlaps(&origin.path)),

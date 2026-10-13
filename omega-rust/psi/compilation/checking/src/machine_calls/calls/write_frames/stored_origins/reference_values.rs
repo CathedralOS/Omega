@@ -102,10 +102,20 @@ fn resolve_origins(
             continue;
         };
         let mut source = compose_origin(program, captured, suffix, origin.precision);
-        source.source = captured
-            .source
-            .append_segments(&origin.source.segments[leaf.local_segments.len()..]);
-        source.source.builtin_coordinates &= origin.source.builtin_coordinates;
+        // Loading a stored reference substitutes its captured referent before
+        // any subsequent view. Trim storage-slot coordinates, never the logical
+        // selectors inside a presentation, and retain every formation event.
+        let mut relative = origin.source.clone();
+        relative.segments.drain(..leaf.local_segments.len());
+        for recast in &mut relative.recasts {
+            if recast.root != origin.source.root
+                || !source_reaches_leaf(&recast.segments, &leaf.local_segments)
+            {
+                return vec![None];
+            }
+            recast.segments.drain(..leaf.local_segments.len());
+        }
+        source.source = captured.source.append_source(&relative);
         if !sources.contains(&Some(source.clone())) {
             sources.push(Some(source));
         }

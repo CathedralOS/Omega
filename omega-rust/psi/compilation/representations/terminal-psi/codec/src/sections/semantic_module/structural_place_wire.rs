@@ -73,7 +73,11 @@ pub(crate) fn encode_structural_path(
     path: &[StructuralPathSegment],
 ) -> Result<(), CodecError> {
     require_operand_path(path)?;
-    encode_reference_origin_path(writer, label, path)
+    writer.len(label, path.len())?;
+    for segment in path {
+        encode_projection(writer, segment);
+    }
+    Ok(())
 }
 
 /// Result-source metadata alone may carry a declaration interpretation.
@@ -81,51 +85,60 @@ pub(crate) fn encode_structural_path(
 pub(crate) fn encode_reference_origin_path(
     writer: &mut Writer,
     label: &'static str,
-    path: &[StructuralPathSegment],
+    path: &[terminal_psi::ReferenceOriginProjection],
 ) -> Result<(), CodecError> {
     writer.len(label, path.len())?;
-    for segment in path {
-        match segment {
-            StructuralPathSegment::Case(case) => {
-                writer.u8(7);
-                writer.id(*case);
+    for projection in path {
+        match projection {
+            terminal_psi::ReferenceOriginProjection::Exact(segment) => {
+                encode_projection(writer, segment)
             }
-            StructuralPathSegment::Field(identity) => {
-                writer.u8(1);
-                writer.u32(identity.0);
-            }
-            StructuralPathSegment::FixedIndex(index) => {
-                writer.u8(2);
-                writer.u64(*index);
-            }
-            StructuralPathSegment::Referent => writer.u8(3),
-            StructuralPathSegment::FixedByteRange { start, end } => {
-                writer.u8(4);
-                writer.u64(*start);
-                writer.u64(*end);
-            }
-            // Tag 5 carried the retired parameter-selector spelling with a
-            // restated interval; it is refused on decode rather than read as
-            // this value-and-obligation form.
-            StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                writer.u8(6);
-                writer.id(*index);
-                writer.id(*obligation);
-            }
-            StructuralPathSegment::RepresentationView {
-                structural_type,
-                stored_scalar,
-            } => {
-                writer.u8(8);
-                writer.id(*structural_type);
-                writer.boolean(stored_scalar.is_some());
-                if let Some(scalar) = stored_scalar {
-                    encode_scalar_type(writer, *scalar);
-                }
-            }
+            terminal_psi::ReferenceOriginProjection::Element => writer.u8(9),
         }
     }
     Ok(())
+}
+
+fn encode_projection(writer: &mut Writer, segment: &StructuralPathSegment) {
+    match segment {
+        StructuralPathSegment::Case(case) => {
+            writer.u8(7);
+            writer.id(*case);
+        }
+        StructuralPathSegment::Field(identity) => {
+            writer.u8(1);
+            writer.u32(identity.0);
+        }
+        StructuralPathSegment::FixedIndex(index) => {
+            writer.u8(2);
+            writer.u64(*index);
+        }
+        StructuralPathSegment::Referent => writer.u8(3),
+        StructuralPathSegment::FixedByteRange { start, end } => {
+            writer.u8(4);
+            writer.u64(*start);
+            writer.u64(*end);
+        }
+        // Tag 5 carried the retired parameter-selector spelling with a
+        // restated interval; it is refused on decode rather than read as
+        // this value-and-obligation form.
+        StructuralPathSegment::RuntimeIndex { index, obligation } => {
+            writer.u8(6);
+            writer.id(*index);
+            writer.id(*obligation);
+        }
+        StructuralPathSegment::RepresentationView {
+            structural_type,
+            stored_scalar,
+        } => {
+            writer.u8(8);
+            writer.id(*structural_type);
+            writer.boolean(stored_scalar.is_some());
+            if let Some(scalar) = stored_scalar {
+                encode_scalar_type(writer, *scalar);
+            }
+        }
+    }
 }
 
 pub(crate) fn encode_obligation_ids(
@@ -241,15 +254,32 @@ pub(crate) fn decode_structural_arguments(
 pub(crate) fn decode_structural_path(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<StructuralPathSegment>, CodecError> {
-    let path = decode_reference_origin_path(reader)?;
+    let path = decode_counted(reader, |reader| {
+        let tag = reader.u8()?;
+        decode_projection(reader, tag)
+    })?;
     require_operand_path(&path)?;
     Ok(path)
 }
 
 pub(crate) fn decode_reference_origin_path(
     reader: &mut Reader<'_>,
-) -> Result<Vec<StructuralPathSegment>, CodecError> {
-    decode_counted(reader, |reader| match reader.u8()? {
+) -> Result<Vec<terminal_psi::ReferenceOriginProjection>, CodecError> {
+    decode_counted(reader, |reader| {
+        let tag = reader.u8()?;
+        if tag == 9 {
+            Ok(terminal_psi::ReferenceOriginProjection::Element)
+        } else {
+            decode_projection(reader, tag).map(terminal_psi::ReferenceOriginProjection::Exact)
+        }
+    })
+}
+
+fn decode_projection(
+    reader: &mut Reader<'_>,
+    tag: u8,
+) -> Result<StructuralPathSegment, CodecError> {
+    match tag {
         1 => Ok(StructuralPathSegment::Field(TerminalIdentityIndex(
             reader.u32()?,
         ))),
@@ -273,7 +303,7 @@ pub(crate) fn decode_reference_origin_path(
             },
         }),
         tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
-    })
+    }
 }
 
 fn require_operand_path(path: &[StructuralPathSegment]) -> Result<(), CodecError> {
@@ -334,6 +364,49 @@ pub(crate) fn decode_structural_place_kind(
 mod tests {
     use super::*;
     use semantic_vocabulary::{ClaimId, MachineId, PlaceId, StructuralTypeId};
+
+    #[test]
+    fn origin_family_wire_is_distinct_from_an_executable_path() {
+        use terminal_psi::ReferenceOriginProjection::{Element, Exact};
+        let path = vec![
+            Exact(StructuralPathSegment::Field(TerminalIdentityIndex(14))),
+            Element,
+            Exact(StructuralPathSegment::RepresentationView {
+                structural_type: StructuralTypeId::new(2).unwrap(),
+                stored_scalar: None,
+            }),
+            Element,
+            Exact(StructuralPathSegment::Referent),
+        ];
+        let mut writer = Writer::default();
+        encode_reference_origin_path(&mut writer, "origin", &path).unwrap();
+        let bytes = writer.finish();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_reference_origin_path(&mut reader).unwrap(), path);
+        assert_eq!(reader.remaining(), 0);
+        assert!(matches!(
+            decode_structural_path(&mut Reader::new(&bytes)),
+            Err(CodecError::InvalidTag("StructuralPathSegment", 9))
+        ));
+    }
+
+    #[test]
+    fn exact_origin_projection_retains_existing_wire_bytes() {
+        let path = vec![
+            StructuralPathSegment::Field(TerminalIdentityIndex(14)),
+            StructuralPathSegment::FixedIndex(7),
+            StructuralPathSegment::Referent,
+        ];
+        let mut ordinary = Writer::default();
+        encode_structural_path(&mut ordinary, "path", &path).unwrap();
+        let mut origin = Writer::default();
+        let path = path
+            .into_iter()
+            .map(terminal_psi::ReferenceOriginProjection::Exact)
+            .collect::<Vec<_>>();
+        encode_reference_origin_path(&mut origin, "origin", &path).unwrap();
+        assert_eq!(ordinary.finish(), origin.finish());
+    }
 
     #[test]
     fn nominal_cleanup_round_trip_retains_path_and_descendant_custody() {

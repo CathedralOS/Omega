@@ -1,7 +1,10 @@
 //! Value signatures and structural places.
 
 mod places;
+mod reference_origins;
 mod signatures;
+
+pub use reference_origins::{ReferenceOriginProjection, ReferenceOriginSource};
 
 pub use places::{
     OperationProjection, StructuralPathSegment, StructuralPlaceDeclaration,

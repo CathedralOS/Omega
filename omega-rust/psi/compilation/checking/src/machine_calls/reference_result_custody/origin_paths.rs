@@ -1,6 +1,8 @@
 //! Possible fixed-array backings are an interface family, never runtime address
-//! evaluation. Both declaration-derived call transfer and captured return rows
-//! use this expansion; their callers still check type, access and lineage.
+//! evaluation. Declaration-derived ingress and stored-descriptor transfer use
+//! this concrete roster; their callers still check type, access and lineage.
+//! Captured returned provenance uses typed element families instead and does
+//! not enumerate storage merely to describe a borrowed element's origin.
 
 use facts::PlaceSegment;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};

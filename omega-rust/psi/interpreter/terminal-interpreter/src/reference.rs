@@ -75,9 +75,13 @@ pub(crate) struct ReferenceBacking {
     pub(crate) value: TerminalStructuralValue,
     aggregate_view: Option<AggregateViewRegion>,
     primitive_storage: Option<crate::primitive_storage::PrimitiveStorage>,
+    suffix: Vec<terminal_psi::ReferenceOriginProjection>,
+    element_view: Option<crate::element_views::ElementView>,
+    access: StructuralAccess,
 }
 
 mod aggregate_views;
+mod origin_backings;
 pub(crate) use aggregate_views::{
     AggregateBacking, AggregateViewRegion, backing_scalar_path, translate_aggregate_view_field,
     translate_aggregate_view_path,
@@ -1232,11 +1236,16 @@ impl TerminalExecution<'_> {
                     // then resolve its captured original window. Applying the
                     // marker rule to the backing's different nesting would
                     // mistake a view field for an absent descriptor crossing.
-                    let path = terminal_semantics::reference_source_storage_path(
+                    let binding = terminal_semantics::bind_reference_origin(
                         self.program.structural_types().values(),
                         owner.structural_type,
-                        &source.path,
-                    );
+                        source,
+                    )
+                    .map_err(|reason| TerminalInterpretError::UnsupportedSemanticVariant(reason))?;
+                    if binding.endpoint != referent_type {
+                        return Err(malformed());
+                    }
+                    let path = binding.source.path.as_slice();
                     let (backing, view) = match aggregate_backings.get(&parameter.place) {
                         Some(backing) => (&backing.value, Some(backing.region)),
                         None => (owner, None),
@@ -1256,8 +1265,11 @@ impl TerminalExecution<'_> {
                         _ => None,
                     };
                     let expected = projected.value;
-                    if view.map_or(expected.structural_type, |view| view.structural_type)
-                        != referent_type
+                    if terminal_semantics::reference_origin_type(
+                        self.program.structural_types().values(),
+                        view.map_or(expected.structural_type, |view| view.structural_type),
+                        binding.suffix,
+                    ) != Some(referent_type)
                         || !expected.qualifications.is_empty()
                     {
                         return Err(malformed());
@@ -1275,9 +1287,23 @@ impl TerminalExecution<'_> {
                             .flatten()
                     });
                     backings.push(ReferenceBacking {
+                        element_view: if !binding.suffix.is_empty()
+                            && matches!(
+                                self.program
+                                    .structural_types()
+                                    .get(&expected.structural_type)
+                                    .map(|declaration| &declaration.shape),
+                                Some(StructuralTypeShape::ElementView { .. })
+                            ) {
+                            Some(self.element_view_at_resolved_home(&expected)?.clone())
+                        } else {
+                            None
+                        },
                         value: expected,
                         aggregate_view: view,
                         primitive_storage,
+                        suffix: binding.suffix.to_vec(),
+                        access: source.access,
                     });
                 }
                 Ok(backings)
@@ -1371,23 +1397,30 @@ impl TerminalExecution<'_> {
                     .sources
                     .iter()
                     .any(|source| !access_covers(source.access, access))
-                || expected.iter().any(|backing| {
-                    backing
-                        .aggregate_view
-                        .map_or(backing.value.structural_type, |view| view.structural_type)
-                        != referent_type
-                })
-                || !expected.iter().any(|backing| {
-                    backing.value == actual.view
-                        && backing.aggregate_view == actual.aggregate_view
-                        && backing.primitive_storage.as_ref().is_none_or(|storage| {
+            {
+                return Err(malformed());
+            }
+            let mut matched = false;
+            for backing in expected {
+                if let Some(projected) = self.resolve_return_origin(backing, actual)? {
+                    let view = match projected.view_tip {
+                        Some(AggregateViewTip::Aggregate { view, .. }) => Some(view),
+                        _ => None,
+                    };
+                    matched |= view
+                        .map_or(projected.value.structural_type, |view| view.structural_type)
+                        == referent_type
+                        && projected.value == actual.view
+                        && view == actual.aggregate_view
+                        && projected.primitive_storage.as_ref().is_none_or(|storage| {
                             actual
                                 .primitive_loan
                                 .as_ref()
                                 .is_some_and(|loan| &loan.storage == storage)
-                        })
-                })
-            {
+                        });
+                }
+            }
+            if !matched {
                 return Err(malformed());
             }
         }

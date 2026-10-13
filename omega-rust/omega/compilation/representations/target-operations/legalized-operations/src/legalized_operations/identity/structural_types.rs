@@ -87,6 +87,23 @@ pub(super) fn encode_structural_argument(bytes: &mut Vec<u8>, argument: &Structu
     encode_access(bytes, argument.access);
 }
 
+pub(super) fn encode_reference_origin(
+    bytes: &mut Vec<u8>,
+    origin: &terminal_psi::ReferenceOriginSource,
+) {
+    crate::codec_bytes::push_encoded(bytes, origin.place.get().to_le_bytes());
+    encode_len(bytes, origin.path.len());
+    for projection in &origin.path {
+        match projection {
+            terminal_psi::ReferenceOriginProjection::Exact(segment) => {
+                encode_structural_projection(bytes, segment)
+            }
+            terminal_psi::ReferenceOriginProjection::Element => bytes.push(9),
+        }
+    }
+    encode_access(bytes, origin.access);
+}
+
 pub(super) fn encode_target_structural_argument(
     bytes: &mut Vec<u8>,
     argument: &target_operations::TargetStructuralArgument,
@@ -145,40 +162,44 @@ pub(super) fn encode_entry_claim(bytes: &mut Vec<u8>, claim: &EntryClaim) {
 pub(super) fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
     encode_len(bytes, path.len());
     for segment in path {
-        match segment {
-            StructuralPathSegment::Case(case) => {
-                bytes.push(7);
-                crate::codec_bytes::push_encoded(bytes, case.get().to_le_bytes());
-            }
-            StructuralPathSegment::Referent => bytes.push(3),
-            StructuralPathSegment::FixedByteRange { start, end } => {
-                bytes.push(4);
-                crate::codec_bytes::push_encoded(bytes, start.to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, end.to_le_bytes());
-            }
-            StructuralPathSegment::Field(identity) => {
-                bytes.push(1);
-                bytes.extend_from_slice(&identity.0.to_le_bytes());
-            }
-            StructuralPathSegment::FixedIndex(index) => {
-                bytes.push(2);
-                crate::codec_bytes::push_encoded(bytes, index.to_le_bytes());
-            }
-            StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                bytes.push(5);
-                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-            }
-            StructuralPathSegment::RepresentationView {
-                structural_type,
-                stored_scalar,
-            } => {
-                bytes.push(8);
-                crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
-                bytes.push(u8::from(stored_scalar.is_some()));
-                if let Some(scalar) = stored_scalar {
-                    encode_scalar_type(bytes, *scalar);
-                }
+        encode_structural_projection(bytes, segment);
+    }
+}
+
+fn encode_structural_projection(bytes: &mut Vec<u8>, segment: &StructuralPathSegment) {
+    match segment {
+        StructuralPathSegment::Case(case) => {
+            bytes.push(7);
+            crate::codec_bytes::push_encoded(bytes, case.get().to_le_bytes());
+        }
+        StructuralPathSegment::Referent => bytes.push(3),
+        StructuralPathSegment::FixedByteRange { start, end } => {
+            bytes.push(4);
+            crate::codec_bytes::push_encoded(bytes, start.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, end.to_le_bytes());
+        }
+        StructuralPathSegment::Field(identity) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&identity.0.to_le_bytes());
+        }
+        StructuralPathSegment::FixedIndex(index) => {
+            bytes.push(2);
+            crate::codec_bytes::push_encoded(bytes, index.to_le_bytes());
+        }
+        StructuralPathSegment::RuntimeIndex { index, obligation } => {
+            bytes.push(5);
+            crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
+        }
+        StructuralPathSegment::RepresentationView {
+            structural_type,
+            stored_scalar,
+        } => {
+            bytes.push(8);
+            crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
+            bytes.push(u8::from(stored_scalar.is_some()));
+            if let Some(scalar) = stored_scalar {
+                encode_scalar_type(bytes, *scalar);
             }
         }
     }

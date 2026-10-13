@@ -698,6 +698,8 @@ fail/borrows/read_positions_during_live_exclusive_loan rejected 1558ms expected 
 	statement 3 reads `value` while local borrow `borrowed` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 2 reads `value` while local borrow `lent` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 reads `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/borrows/reassigned_reference_preserves_child_backing rejected 502ms expected @82749ba0e736
+	statement 3 mutates `main.first.left` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 4)
 fail/borrows/reassigned_view_cannot_escape_local_backing rejected 625ms expected @eee96af606fc+wt
 	machine `reject` returns a view borrowing the local `items`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/reassigned_view_conflicts_with_captured_child rejected 662ms expected @eee96af606fc+wt
@@ -760,6 +762,10 @@ fail/borrows/runtime_index_mut_borrow rejected 5619ms expected @a9ae30e1c334+wt
 	cannot prove index `main.off` is within length 48 in Main::main::main
 fail/borrows/runtime_indexed_reference_missing_bound rejected 5364ms expected @a9ae30e1c334+wt
 	cannot prove index `position` is within length 2 in inspect::entry
+fail/borrows/runtime_slice_result_requires_bounds rejected 487ms expected @82749ba0e736
+	cannot prove index `position` is within unknown slice length of `values` in select::entry
+fail/borrows/runtime_slice_result_retains_backing rejected 487ms expected @82749ba0e736
+	statement 3 mutates `second[0]` while local borrow `found` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/same_initializer_reference_live_source_move rejected 1588ms expected @a9ae30e1c334+wt
 	statement 0 moves `main.inventory` while local borrow `bundle` is still active (borrowed at statement 0; its last use is at statement 1)
 fail/borrows/selected_primitive_reference_live_backing_write rejected 1770ms expected @a9ae30e1c334+wt
@@ -3481,6 +3487,8 @@ fail/recast/reference_let_pun_requires_recast rejected 871ms expected @a9ae30e1c
 	machine `Bits::implicit_pun` state `implicit_pun`: reference initializer type `i64` must match the stated `&f32`; re-viewing a place's bytes under another shape is spelled `&x as &f32` (§5b recast)
 fail/recast/restricted_field_mutable_call_cannot_erase_invariant rejected 1011ms expected @5b32c4eb36ff+wt
 	machine `main` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/recast/returned_recast_requires_declared_access rejected 164ms expected @82749ba0e736
+	machine `widen` state `entry` terminal expression expects `&mut Header`, got `cast expression`
 fail/recast/returned_shared_view_cannot_lend_mutable rejected 163ms expected @22286cb27fcc
 	mutable argument `view` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/recast/scalar_parameter_view_footprint_rejected rejected 836ms expected @a9ae30e1c334+wt
@@ -4523,6 +4531,7 @@ pass/borrows/runtime_shared_reference_array_cohort_restoration_exit checked 1130
 pass/borrows/runtime_shared_reference_record_direct_payload_restoration_exit checked 11044ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_shared_scalar_local_capture_exit checked 11024ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_shared_temporary_call_exit checked 11052ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_slice_reference_result_exit checked 5013ms check-target:macos_arm64 @82749ba0e736
 pass/borrows/runtime_state_boolean_reference_exit checked 11101ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_state_fixed_element_reference_exit checked 11125ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_state_mut_formal_borrow_exit checked 11173ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6425,6 +6434,7 @@ pass/recast/recast_view_forward_compile checked 1559ms @a9ae30e1c334+wt
 pass/recast/reference_view_helper_backing_write_exit checked 3343ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/reference_view_shared_call_backing_exit checked 3329ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/reference_view_shared_primitive_neighbor_exit checked 3328ms check-target:macos_arm64 @2430f497a77c+wt
+pass/recast/returned_same_type_view_capture_exit checked 4794ms check-target:macos_arm64 @82749ba0e736
 pass/recast/returned_view_state_and_record_composition_exit checked 5242ms check-target:macos_arm64 @22286cb27fcc
 pass/recast/runtime_aggregate_slice_representation_recast_exit checked 12079ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_authored_toolchain_type_shadow_exit checked 10420ms check-target:macos_arm64 @a9ae30e1c334+wt

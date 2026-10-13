@@ -1,7 +1,7 @@
 //! Canonical structural result identities shared by ordinary graph operations.
 use super::encoding::{encode_ids, encode_len};
 use super::structural_types::{
-    encode_multiplicity, encode_projected_qualifications, encode_structural_argument,
+    encode_multiplicity, encode_projected_qualifications, encode_reference_origin,
     encode_structural_path,
 };
 use terminal_psi::{StructuralOperationResult, StructuralResultDeclaration};
@@ -36,7 +36,7 @@ pub(super) fn encode_result(bytes: &mut Vec<u8>, result: &StructuralResultDeclar
         encode_structural_path(bytes, &reference.path);
         encode_len(bytes, reference.sources.len());
         for source in &reference.sources {
-            encode_structural_argument(bytes, source);
+            encode_reference_origin(bytes, source);
         }
     }
 }
@@ -65,12 +65,14 @@ mod tests {
                         place: PlaceId::new(2).unwrap(),
                         path: Vec::new(),
                         access: StructuralAccess::MutableBorrow,
-                    },
+                    }
+                    .into(),
                     StructuralArgument {
                         place: PlaceId::new(4).unwrap(),
                         path: Vec::new(),
                         access: StructuralAccess::MutableBorrow,
-                    },
+                    }
+                    .into(),
                 ],
             }],
         };
@@ -80,14 +82,14 @@ mod tests {
             bytes
         };
         let original = identity(&result);
-        for mutation in 0..8 {
+        for mutation in 0..9 {
             let mut changed = result.clone();
             match mutation {
                 0 => changed.reference_sources.clear(),
                 1 => changed.reference_sources[0].sources[0].place = PlaceId::new(3).unwrap(),
-                2 => changed.reference_sources[0].sources[0]
-                    .path
-                    .push(StructuralPathSegment::Referent),
+                2 => changed.reference_sources[0].sources[0].path.push(
+                    terminal_psi::ReferenceOriginProjection::Exact(StructuralPathSegment::Referent),
+                ),
                 3 => changed.reference_sources[0]
                     .path
                     .push(StructuralPathSegment::Field(
@@ -101,6 +103,9 @@ mod tests {
                 7 => {
                     changed.reference_sources[0].sources.pop();
                 }
+                8 => changed.reference_sources[0].sources[0]
+                    .path
+                    .push(terminal_psi::ReferenceOriginProjection::Element),
                 _ => unreachable!(),
             }
             assert_ne!(identity(&changed), original, "custody mutation {mutation}");

@@ -14,7 +14,7 @@ use crate::{PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan};
 
 use crate::codec_bytes::encode_len;
 use instruction::encode_cfg_instruction;
-pub use ownership::{encode_cleanup, encode_ownership, encode_path};
+pub use ownership::{encode_cleanup, encode_ownership, encode_path, encode_reference_origin_path};
 pub use provenance::encode_provenance;
 pub use values::encode_ids;
 use values::encode_target;
