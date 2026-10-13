@@ -1000,6 +1000,8 @@ fail/build/uefi_program_entry_missing_storage_roots rejected 3638ms expected @c4
 	target schema `ProgramStorageApplication` exposes exactly image and initial-storage roots, but `launch` declares 0 visible parameters
 fail/build/uefi_program_entry_wrong_calling_policy rejected 3739ms expected @c46a502724a1+wt
 	calling policy accepted an invalid plan: value 0 uses a register from the wrong architecture
+fail/build/unknown_boundary_slot_selection rejected 4563ms expected @cbb413ac54c3
+	build selects provider `LatchProvider` for unknown boundary slot `Gate`; the slot must exist in the loaded dependency closure
 fail/build/unrequested_target_entry_returns_value rejected 5522ms expected @a9ae30e1c334+wt
 	entry machine `foreign_launch` returns a value, but `ProgramEntry` has no result
 fail/build/wire_compatibility_duplicate_fact rejected 2840ms expected @a9ae30e1c334+wt
@@ -4346,6 +4348,7 @@ pass/build/described_runner_entry_right_exit checked 11077ms check-target:macos_
 pass/build/discarded_provider_selection_exit checked 6362ms check-target:macos_arm64 @ac7fc986d407+wt
 pass/build/entry_schema_same_leaf_exit checked 10244ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/explicit_lifetime_entry_context_exit checked 10214ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/build/named_map_target_family_rows_exit checked 7260ms check-target:macos_arm64 @cbb413ac54c3
 pass/build/product_description_paths_exit checked 10456ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/product_entry_named_user_machine_exit checked 10318ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/runtime_depend_mapping_exit checked 11118ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4354,6 +4357,7 @@ pass/build/runtime_static_service_exclusion_exit checked 10448ms check-target:ma
 pass/build/same_leaf_runner_entry_left_exit checked 11139ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/same_leaf_runner_entry_right_exit checked 11237ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/selected_const_array_length_exit checked 19740ms check-target:macos_arm64 @9c4d1c444502
+pass/build/sibling_module_slot_family_rows_exit checked 7239ms check-target:macos_arm64 @cbb413ac54c3
 pass/build/static_assumed_binding_spelling_exit checked 10190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/uefi_entry_schema_same_leaf checked 7689ms check-target:uefi_x86_64 @c46a502724a1+wt
 pass/build/uefi_os_handoff_invocation rejected 9044ms check-target:uefi_x86_64 @c46a502724a1+wt
