@@ -914,28 +914,25 @@ impl ArrivalWalk<'_, '_> {
                     let mut selected = environment.clone();
                     let mut fallback = environment.clone();
                     if let TransitionGuardNode::When(condition) = transition.guard {
-                        // Discover calls at their evaluation positions. Guard
-                        // premises are then invalidated by the whole guard's
-                        // effects, as in transition argument validation.
-                        self.expression(source, condition, environment);
-                        narrow_environment_by_condition(
+                        selected = super::evaluated_condition_environment(
                             self.program,
                             self.machine,
                             Some(source),
-                            &mut selected,
                             condition,
                             true,
+                            environment,
                         );
-                        narrow_environment_by_condition(
+                        fallback = super::evaluated_condition_environment(
                             self.program,
                             self.machine,
                             Some(source),
-                            &mut fallback,
                             condition,
                             false,
+                            environment,
                         );
-                        self.expression_effects(source, condition, &mut selected);
-                        self.expression_effects(source, condition, &mut fallback);
+                        // Discover call occurrences separately from the exact
+                        // selected-path facts supplied to state arrivals.
+                        self.expression(source, condition, environment);
                     }
                     self.target(source, transition.target, &mut selected);
                     self.target(source, transition.continuation, &mut fallback);

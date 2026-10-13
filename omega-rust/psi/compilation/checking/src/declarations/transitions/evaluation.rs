@@ -4,7 +4,7 @@ use super::{
     ValueEnvironment,
 };
 use crate::machine_calls::calls::{CallFrameResolver, expression_has_calls};
-use typed_trees::statement::{StatementNode, TransitionGuardNode};
+use typed_trees::statement::StatementNode;
 
 #[derive(Default)]
 pub(crate) struct TransitionValueEnvironments {
@@ -54,11 +54,9 @@ impl TransitionValueEnvironments {
                     before,
                 )
             };
-            if let TransitionGuardNode::When(guard) = transition.guard {
-                // Guard effects reach both siblings. Its result cannot establish
-                // an old bound on storage changed by a later guard child.
-                cross_expression_effects(&mut current, program, machine, state, guard, frames);
-            }
+            // The guard owner already crossed its effects in operand order.
+            // Reapplying its aggregate write frame would erase a comparison
+            // made after the last write.
             let mut environments = Vec::new();
             for expression in expressions {
                 // Within one value we remain conservative about nested calls;

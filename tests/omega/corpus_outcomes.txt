@@ -2856,6 +2856,8 @@ fail/proofs/normal_call_guarantee_mutating_initializer rejected 1498ms expected 
 	cannot prove ensures contract for exit from invalid at statement 2: result == 3
 fail/proofs/normal_return_expression_statement_is_not_return rejected 5218ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from invalid at statement 1: result == true
+fail/proofs/opposite_guard_same_target rejected 9976ms expected @5b35eda9b8d6
+	cannot prove requires contract for call impossible from main: 1 == 0 (needs fact `1 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/order_antisymmetry_false_twin rejected 874ms expected @a9ae30e1c334+wt
 	machine `false_antisymmetric_distinct` ensures contract proof fact `a != b` is disproved: the requires contract entails its negation
 fail/proofs/order_asymmetry_refuted rejected 823ms expected @a9ae30e1c334+wt
@@ -2889,6 +2891,10 @@ fail/proofs/ordinary_denotational_requirement_requires_termination rejected 1252
 	specification call `value` is not denotational: the selected machine is not unconditionally terminating
 fail/proofs/polynomial_false_expand rejected 2698ms expected @a9ae30e1c334+wt
 	machine `binomial_wrong` ensures contract proof fact `mul(add(a, b), add(c, d)) == add(add(mul(a, c), mul(a, d)), add(mul(b, c), mul(b, c)))` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+fail/proofs/pre_mutation_guard_alias_expired rejected 9450ms expected @5b35eda9b8d6
+	cannot prove requires contract for call bounded from main: alias.count < 6 (needs fact `value.count < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/proofs/pre_mutation_guard_expired rejected 11332ms expected @5b35eda9b8d6
+	cannot prove requires contract for call bounded from main: context.count < 6 (needs fact `context.count < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/proof_bignum_constant_false rejected 891ms expected @a9ae30e1c334+wt
 	machine `big_products_fold_wrong` ensures contract proof fact `false` is disproved by constant arithmetic
 fail/proofs/proof_integer_embedding_boolean rejected 799ms expected @a9ae30e1c334+wt
@@ -2970,6 +2976,10 @@ fail/proofs/scalar_state_return_outside_byte_class rejected 1504ms expected @a9a
 fail/proofs/self_call_without_witness_not_denotational rejected 686ms expected @b7aaf37278ea+wt
 	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
 	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
+fail/proofs/short_circuit_skipped_rhs_bound rejected 10615ms expected @5b35eda9b8d6
+	cannot prove requires contract for call bounded from main: context.count < 6 (needs fact `context.count < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/proofs/strict_comparison_mutation_snapshot rejected 8810ms expected @5b35eda9b8d6
+	cannot prove requires contract for call bounded from main: context.count < 6 (needs fact `context.count < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/structural_ensures_unjudged_rejected rejected 2841ms expected @a9ae30e1c334+wt
 	machine `bogus` ensures contract proof fact `result == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 fail/proofs/value_call_refuted_inequality_rejected rejected 802ms expected @a9ae30e1c334+wt
@@ -5858,10 +5868,14 @@ pass/proofs/mathematical_predicate_contract_import_exit checked 10907ms check-ta
 pass/proofs/named_witness_static_trait_plural_compile checked 1738ms @a9ae30e1c334+wt
 pass/proofs/nat_exact_subtraction_compile checked 1656ms @a9ae30e1c334+wt
 pass/proofs/nat_metric_triangle_compile checked 2309ms @a9ae30e1c334+wt
+pass/proofs/negative_disjunction_post_mutation_bound checked 36258ms check-target:macos_arm64 @5b35eda9b8d6
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit checked 12498ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/normal_return_expression_statement_sequence_exit checked 10881ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/ordinary_denotational_requirement_published_termination_exit checked 11023ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/polynomial_expand_core_nat checked 11957ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/proofs/post_mutation_guard_alias checked 32747ms check-target:linux_x86_64 @5b35eda9b8d6
+pass/proofs/post_mutation_guard_bound checked 33886ms check-target:macos_arm64 @5b35eda9b8d6
+pass/proofs/post_mutation_guard_nested_field checked 36088ms check-target:linux_x86_64 @5b35eda9b8d6
 pass/proofs/proof_addition_commutativity checked 1971ms @a9ae30e1c334+wt
 pass/proofs/proof_bag_view_reflexivity checked 3714ms check-target:macos_arm64 @6ede3322eb88+wt
 pass/proofs/proof_bignum_constant_fold checked 1802ms @a9ae30e1c334+wt
@@ -5907,6 +5921,7 @@ pass/proofs/runtime_sequential_ranked_components_exit checked 11517ms check-targ
 pass/proofs/runtime_sequential_relational_accumulator_exit checked 11587ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_two_state_accumulator_exit checked 12459ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/scalar_state_return_keeps_byte_class checked 1677ms @a9ae30e1c334+wt
+pass/proofs/short_circuit_rhs_entry_bound checked 30697ms check-target:macos_arm64 @5b35eda9b8d6
 pass/providers/applied_binding_field_telescopes_exit checked 2857ms check-target:macos_arm64 @a8cedb3946d5+wt
 pass/providers/applied_entry_nested_binding_context_exit checked 2785ms check-target:macos_arm64 @c61d64ccecc5+wt
 pass/providers/bare_byte_array_boundary_argument checked 11588ms check-target:macos_arm64 @a9ae30e1c334+wt

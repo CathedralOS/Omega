@@ -12,6 +12,87 @@ use crate::proof_contracts::contract_entailment::{
 };
 use numerics::bignum::BigInt;
 
+/// Prove a builtin integer condition from existing observations. The goal's
+/// complement is queried for contradiction; it is never installed as a fact.
+pub(super) fn proves_condition(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    environment: &ValueEnvironment,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return program.expression_table.boolean_node(expression) == Some(&true);
+    };
+    if !crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning(
+        program,
+        machine,
+        Some(state),
+        expression,
+    ) {
+        return false;
+    }
+    match binary.operator {
+        BinaryOperator::And => {
+            return proves_condition(program, machine, state, environment, binary.left)
+                && proves_condition(program, machine, state, environment, binary.right);
+        }
+        BinaryOperator::Or => {
+            return proves_condition(program, machine, state, environment, binary.left)
+                || proves_condition(program, machine, state, environment, binary.right);
+        }
+        _ => {}
+    }
+    let Some(operator) = binary.operator.complement() else {
+        return false;
+    };
+    // Names and fields are storage observations for more than integers. An
+    // IEEE comparison cannot inherit integer complement/order laws.
+    let integer = |value| {
+        program.expression_table.integer_node(value).is_some()
+            || super::declared_place_type_raw(program, machine, Some(state), value)
+                .and_then(|reference| program.primitive_type_reference(reference))
+                .is_some_and(|primitive| {
+                    matches!(
+                        primitive,
+                        typed_trees::types::PrimitiveType::I8
+                            | typed_trees::types::PrimitiveType::I16
+                            | typed_trees::types::PrimitiveType::I32
+                            | typed_trees::types::PrimitiveType::I64
+                            | typed_trees::types::PrimitiveType::U8
+                            | typed_trees::types::PrimitiveType::U16
+                            | typed_trees::types::PrimitiveType::U32
+                            | typed_trees::types::PrimitiveType::U64
+                    )
+                })
+    };
+    if !integer(binary.left) || !integer(binary.right) {
+        return false;
+    }
+    let (Some(left), Some(right)) = (
+        super::ordered_values::operand(program, machine, state, binary.left, None),
+        super::ordered_values::operand(program, machine, state, binary.right, None),
+    ) else {
+        return false;
+    };
+    // The ordered operand owner admits fixed-integer observations only.
+    let mut observations = Observations::default();
+    let (Some(left), Some(right)) = (observations.value(&left), observations.value(&right)) else {
+        return false;
+    };
+    contradicts(
+        program,
+        machine,
+        environment,
+        observations,
+        vec![ScopedArithmeticComparison {
+            operator,
+            left,
+            right,
+        }],
+    )
+}
+
 /// Whether the current facts exclude this simultaneous assignment of values.
 /// Each expression denotes its current observation, not an earlier source
 /// occurrence which merely has the same spelling.

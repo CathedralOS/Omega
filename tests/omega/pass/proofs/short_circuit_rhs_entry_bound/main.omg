@@ -1,0 +1,10 @@
+// Expected exit: 0.
+data Context { count: u64; }
+machine increment(context: &mut Context) -> bool requires context.count < 6 { context.count = context.count + 1; true }
+machine main(context: &mut Context) crashes Trap {
+    context.count = 5;
+    transition context.count < 6 && increment(context) { true -> verify(context) false -> bad() }
+    state verify(context: &Context) { transition context.count == 6 { true -> done() false -> bad() } }
+    state done() { }
+    state bad() { crash Trap; }
+}

@@ -99,6 +99,19 @@ pub fn instantiated_value_call_requires_proven(
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
 ) -> bool {
+    if crate::guarded_call_requires_proven(
+        program,
+        caller_machine,
+        caller_state,
+        statement_index,
+        site,
+        callee_owner,
+        callee_parameters,
+        arguments,
+        expression,
+    ) {
+        return true;
+    }
     if super::call_requirements::selected_value_call_requirement_entailed(
         program,
         caller_machine,

@@ -309,28 +309,114 @@ pub(crate) fn short_circuit_operand_environment(
     {
         return None;
     }
-    let mut narrowed = environment.clone();
-    narrow_environment_by_condition(
+    Some(evaluated_condition_environment(
         program,
         machine,
         state,
-        &mut narrowed,
         binary.left,
         binary.operator == BinaryOperator::And,
-    );
-    // A condition describes its evaluated snapshot. It cannot re-establish a
-    // bound on storage a nested call may have changed. As for value dispatch,
-    // discard overlapping facts across the expression's may-write footprint;
-    // unknown calls retain only immutable snapshots.
-    if crate::machine_calls::calls::expression_has_calls(program, expression) {
-        match crate::machine_calls::calls::CallFrameResolver::new(program)
-            .and_then(|frames| frames.expression_may_write_paths(machine, expression))
+        environment,
+    ))
+}
+
+/// Facts after evaluating a condition, rather than replaying its syntax after
+/// all its effects. The expressions contract orders selective operands; the
+/// live-fact contract expires only observations preceding overlapping writes.
+/// A comparison within one effectful leaf stays conservative about snapshots.
+/// A later call-free comparison can establish new facts on the changed storage.
+pub(super) fn evaluated_condition_environment(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    condition: ExpressionHandle,
+    positive: bool,
+    environment: &ValueEnvironment,
+) -> ValueEnvironment {
+    // Call-free observations need no global call-frame index. Constructing
+    // one for every library guard made ordinary package checks repeat the
+    // whole program's symbol setup without changing any write answer.
+    let frames = crate::machine_calls::calls::expression_has_calls(program, condition)
+        .then(|| crate::CallFrameResolver::new(program))
+        .flatten();
+    evaluated_condition_with_frames(
+        program,
+        machine,
+        state,
+        condition,
+        positive,
+        environment,
+        frames.as_ref(),
+    )
+}
+
+fn evaluated_condition_with_frames(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    condition: ExpressionHandle,
+    positive: bool,
+    environment: &ValueEnvironment,
+    frames: Option<&crate::CallFrameResolver<'_>>,
+) -> ValueEnvironment {
+    let evaluate = |operand, truth, before: &ValueEnvironment| {
+        evaluated_condition_with_frames(program, machine, state, operand, truth, before, frames)
+    };
+    if let ExpressionNode::Unary(unary) = program.expression_table.expression(condition)
+        && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
+    {
+        return evaluate(unary.operand, !positive, environment);
+    }
+    if let Some(binary) = program.expression_table.binary_node(condition) {
+        if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+            && meaning::has_builtin_binary_expression_meaning(program, machine, state, condition)
         {
-            Some(writes) => narrowed.invalidate_written_paths(&writes),
-            None => narrowed.invalidate_unknown_writes(program, state),
+            let continuing_truth = binary.operator == BinaryOperator::And;
+            let continuing = evaluate(binary.left, continuing_truth, environment);
+            let completed = evaluate(binary.right, positive, &continuing);
+            if positive == continuing_truth {
+                return completed;
+            }
+            // False conjunction / true disjunction has two reachable paths.
+            // A selected RHS cannot donate its facts to the skipped sibling.
+            let skipped = evaluate(binary.left, !continuing_truth, environment);
+            return skipped.join(&completed);
+        }
+        if matches!(
+            binary.operator,
+            BinaryOperator::Equal | BinaryOperator::NotEqual
+        ) && meaning::builtin_boolean_equality(program, machine, state, condition, binary)
+        {
+            let wrapped = match (
+                program.expression_table.expression(binary.left),
+                program.expression_table.expression(binary.right),
+            ) {
+                (_, ExpressionNode::Boolean(value)) => Some((binary.left, *value)),
+                (ExpressionNode::Boolean(value), _) => Some((binary.right, *value)),
+                _ => None,
+            };
+            if let Some((operand, value)) = wrapped {
+                return evaluate(
+                    operand,
+                    positive == (value == (binary.operator == BinaryOperator::Equal)),
+                    environment,
+                );
+            }
         }
     }
-    Some(narrowed)
+    let writes = if crate::machine_calls::calls::expression_has_calls(program, condition) {
+        frames.and_then(|frames| frames.expression_may_write_paths(machine, condition))
+    } else {
+        Some(Vec::new())
+    };
+    let cross_writes = |values: &mut ValueEnvironment| match &writes {
+        Some(writes) => values.invalidate_written_paths(writes),
+        None => values.invalidate_unknown_writes(program, state),
+    };
+    let mut selected = environment.clone();
+    cross_writes(&mut selected);
+    narrow_environment_by_condition(program, machine, state, &mut selected, condition, positive);
+    cross_writes(&mut selected);
+    selected
 }
 
 /// A selected transition arm establishes its whole guard, whether authored as
@@ -345,12 +431,11 @@ pub(crate) fn guard_narrowed_environment(
     base: &ValueEnvironment,
 ) -> ValueEnvironment {
     use typed_trees::statement::TransitionGuardNode;
-    let mut environment = base.clone();
+    let environment = base.clone();
     let TransitionGuardNode::When(condition) = guard else {
         return environment;
     };
-    narrow_environment_by_condition(program, machine, state, &mut environment, *condition, true);
-    environment
+    evaluated_condition_environment(program, machine, state, *condition, true, &environment)
 }
 
 /// S4 fall-through complement (MR2 exact-domain unlock): a guarded
@@ -367,40 +452,11 @@ pub(crate) fn fall_through_narrowed_environment(
     base: &ValueEnvironment,
 ) -> ValueEnvironment {
     use typed_trees::statement::TransitionGuardNode;
-    let mut environment = base.clone();
+    let environment = base.clone();
     let TransitionGuardNode::When(guard_expr) = guard else {
         return environment;
     };
-    // The multi-arm desugar wraps `(cmp) == true|false`; a single-arm guard
-    // stores the comparison bare. Unwrap when present, else negate the whole
-    // expression.
-    if let Some(equality) = program.expression_table.binary_node(*guard_expr)
-        && equality.operator == BinaryOperator::Equal
-        && let ExpressionNode::Boolean(arm_true) =
-            program.expression_table.expression(equality.right)
-    {
-        if !meaning::builtin_boolean_equality(program, machine, state, *guard_expr, equality) {
-            return environment;
-        }
-        narrow_environment_by_condition(
-            program,
-            machine,
-            state,
-            &mut environment,
-            equality.left,
-            !*arm_true,
-        );
-        return environment;
-    }
-    narrow_environment_by_condition(
-        program,
-        machine,
-        state,
-        &mut environment,
-        *guard_expr,
-        false,
-    );
-    environment
+    evaluated_condition_environment(program, machine, state, *guard_expr, false, &environment)
 }
 
 /// Narrow `environment` by a guard condition holding with the given polarity,
