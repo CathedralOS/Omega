@@ -755,12 +755,28 @@ crashes Trap
         Typing::set_expression_type(&mut typer.output, index, handle);
     }
 
+    // `&mut place` lends exclusive access the place's storage already
+    // permits: a place reached through a shared reference cannot be lent
+    // exclusively (wiki/spec/language/expressions.md#borrowed-range-access).
     state borrow_mutable(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         let place: bool = Typer::is_place(syntax, resolution, expression.left);
+        let shared: bool = Typer::through_shared(typer, syntax, expression.left);
         transition place {
-            true -> borrow(typer, index, expression, operand, ReferenceAccess::Mutable)
+            true -> exclusive_source(typer, syntax, index, expression, operand, shared)
             _ -> not_a_place(typer, expression)
         }
+    }
+
+    state exclusive_source(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping, shared: bool) {
+        transition shared {
+            true -> immutable_source(typer, syntax, expression)
+            _ -> borrow(typer, index, expression, operand, ReferenceAccess::Mutable)
+        }
+    }
+
+    state immutable_source(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+        let operand_expression: Expression = SyntaxTrees::expression(syntax, expression.left);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::ImmutablePlace, operand_expression.source_span);
     }
 
     state acknowledged(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
@@ -826,6 +842,38 @@ crashes Trap
 
     state no() -> bool {
         false
+    }
+}
+
+// Whether the place `index` is reached through a shared reference: the
+// place itself or a field or element step along it has a shared-reference
+// type, whose referent no spelling may lend exclusively.
+pub machine Typer::through_shared(typer: &Typer, syntax: &SyntaxTrees, index: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition { _ -> step(typer, syntax, index, 0) }
+
+    state step(typer: &Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, walked: u64 in Trapping) -> bool {
+        let expression: Expression = SyntaxTrees::expression(syntax, handle);
+        let handle_type: u64 in Trapping = Typing::expression_type(&typer.output, handle);
+        let row: TypeRow = TypeTable::row(&typer.output.types, handle_type);
+        let shared: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::Shared;
+        let projected: bool = expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index;
+        transition shared {
+            true -> answer(true)
+            _ -> deeper(typer, syntax, expression.left, walked, projected)
+        }
+    }
+
+    state deeper(typer: &Typer, syntax: &SyntaxTrees, base: u64 in Trapping, walked: u64 in Trapping, projected: bool) -> bool {
+        transition projected && walked < 64 {
+            true -> step(typer, syntax, base, walked + 1)
+            _ -> answer(false)
+        }
+    }
+
+    state answer(shared: bool) -> bool {
+        shared
     }
 }
 

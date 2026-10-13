@@ -1446,15 +1446,22 @@ def main() -> None:
         program,
         "a-bare-range-argument-never-lends-exclusively",
         b"machine fill(v: &mut [u8]) {}\nmachine f(b: &mut [u8; 4]) { fill(b[1..3]); }",
-        "MismatchedTypes",
-        b"b[1..3]",
+        "NoMatchingMachine",
+        b"fill(b[1..3])",
     )
     rejected(
         program,
         "an-exclusive-slice-needs-an-exclusive-reference",
         b"machine f(a: &[u8; 4]) { let held: &mut [u8] = &mut a[1..3]; }",
-        "MismatchedTypes",
+        "ImmutablePlace",
         b"a[1..3]",
+    )
+    rejected(
+        program,
+        "a-shared-field-is-not-lent-exclusively",
+        b"data H { items: [u8; 4]; }\nmachine fill(v: &mut [u8]) {}\nmachine f(h: &H) { fill(&mut h.items[1..3]); }",
+        "ImmutablePlace",
+        b"h.items[1..3]",
     )
     rejected(
         program,
