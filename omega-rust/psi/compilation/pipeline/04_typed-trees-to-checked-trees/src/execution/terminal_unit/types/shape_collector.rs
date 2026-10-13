@@ -902,6 +902,12 @@ impl<'program> ShapeCollector<'program> {
                         fields.push(field);
                     }
                     DataMember::Variant(variant) => {
+                        // The checked shape rosters the cases this instance can
+                        // carry. A case its `where` fact refutes needs no tag,
+                        // payload or dispatch successor (`impossible_variant`).
+                        if ::validation::impossible_variant(self.program, variant) {
+                            continue;
+                        }
                         // Case-local intervals use the same bounded field
                         // representation as record facts. Keeping the owning
                         // case here lets Terminal check every constructor and

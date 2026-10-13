@@ -269,6 +269,11 @@ pub(super) fn build(
         .type_reference(type_reference)
         .as_named_symbol()?;
     let data = program.data_definition_by_symbol(*symbol)?;
+    // The roster is the cases a value of this instance can carry: a case
+    // whose `where` fact this instance refutes (`Integer where T == i32` on
+    // `Value<bool>`) is not a coverage obligation, exactly as typing's
+    // exhaustiveness count treats it, so an authored dispatch over the
+    // possible cases alone is complete without a `_` arm.
     let variants = program
         .data_members(data)
         .iter()
@@ -276,7 +281,10 @@ pub(super) fn build(
             DataMember::Variant(variant) => Some(variant),
             _ => None,
         })
-        .collect::<Option<Vec<_>>>()?;
+        .collect::<Option<Vec<_>>>()?
+        .into_iter()
+        .filter(|variant| !::validation::impossible_variant(program, variant))
+        .collect::<Vec<_>>();
     // A case edge forwards only primitive payloads, each into a scalar
     // successor parameter (`payload_field` below). A structural payload such
     // as `IoResult::Error { kind: ErrorKind }` may still sit in a case whose

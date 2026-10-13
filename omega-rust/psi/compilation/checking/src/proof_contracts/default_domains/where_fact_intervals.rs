@@ -184,6 +184,36 @@ pub fn case_where_field_intervals(
     )
 }
 
+/// Whether a case can never be established on this definition: one of its
+/// `where` facts is a literal false witness (the `0` an instance's refuted
+/// `T == i32` leaves behind in generic synthesis, or an authored `where
+/// false`). Typing's exhaustiveness count excludes such a case
+/// (`exhaustiveness::variant_is_impossible` in stage 03), so a dispatch may
+/// omit it without a `_` arm. Every later roster of the instance's cases —
+/// the checked structural shape, the closed-sum terminator, the permission
+/// schedule's run coverage, stage 05's computed-case bindings — applies this
+/// same rule, or one of them would demand an arm, a tag or a successor for
+/// a value that cannot exist. Facts that need evaluation are not
+/// contradictions and keep the case.
+pub fn impossible_variant(program: &dyn crate::CheckingInput, variant: &DataVariant) -> bool {
+    use typed_trees::expression::ExpressionNode;
+    program
+        .proof_facts
+        .span_or_empty(variant.where_facts)
+        .iter()
+        .any(|fact| match fact {
+            typed_trees::domain::ProofFact::Expression(expression) => {
+                match program.expression_table.expression(*expression) {
+                    ExpressionNode::Integer(literal) => literal.text().parse::<i128>() == Ok(0),
+                    ExpressionNode::Boolean(value) => !*value,
+                    _ => false,
+                }
+            }
+            typed_trees::domain::ProofFact::Membership(_)
+            | typed_trees::domain::ProofFact::Proposition(_) => false,
+        })
+}
+
 /// The declaration's declared field rows, in order — where-fact readers
 /// bind intervals to the same ordinary members.
 fn declared_data_fields<'a>(

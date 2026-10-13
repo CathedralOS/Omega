@@ -168,6 +168,11 @@ pub(crate) fn reserve(
         let DataMember::Variant(variant) = member else {
             continue;
         };
+        // The checked shape carries only the cases this instance can hold;
+        // a refuted case has no tag to bind (`validation::impossible_variant`).
+        if validation::impossible_variant(checked, variant) {
+            continue;
+        }
         let identity =
             checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone());
         let case = terminal_psi::structural_case_by_identity(

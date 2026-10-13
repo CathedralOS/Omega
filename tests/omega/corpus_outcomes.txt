@@ -5048,6 +5048,7 @@ pass/cases/mixed_record_cases checked 9523ms @5041ef1af684+wt
 pass/cases/ordered_underscore_arms checked 9689ms @5041ef1af684+wt
 pass/cases/param_case_payload_return checked 9708ms @5041ef1af684+wt
 pass/cases/runtime_case_payload_policy_cast_exit checked 7965ms check-target:macos_arm64 @31988b31bfed+wt
+pass/cases/runtime_refuted_generic_case_dispatch_exit checked 7328ms check-target:macos_arm64 @c083b963e5ba
 pass/cases/self_payload_return checked 9538ms @5041ef1af684+wt
 pass/cases/union_guard_paren checked 9242ms @5041ef1af684+wt
 pass/cases/unit_empty_arm checked 9541ms @5041ef1af684+wt

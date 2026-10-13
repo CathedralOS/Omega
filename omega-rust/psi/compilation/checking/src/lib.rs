@@ -406,7 +406,7 @@ pub use proof_contracts::contract_entailment::{
     call_contract_parameter_position, instantiated_value_call_requires_proven,
 };
 pub use proof_contracts::default_domains::{
-    case_where_field_intervals, data_where_field_intervals,
+    case_where_field_intervals, data_where_field_intervals, impossible_variant,
 };
 pub use proof_contracts::float_projection_invocations::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,

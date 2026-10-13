@@ -840,12 +840,19 @@ pub(crate) fn case_transition_run_is_exhaustive(
     let Some(first_variant) = covered.first() else {
         return false;
     };
+    // Coverage is over the cases this definition can carry: a case whose
+    // `where` fact the instance refutes is impossible and owes no arm, as
+    // typing's exhaustiveness count and the closed-sum terminator agree.
     program.data_definitions().iter().any(|definition| {
         let variants = program
             .data_members(definition)
             .iter()
             .filter_map(|member| match member {
-                typed_trees::data::DataMember::Variant(variant) => Some(variant.symbol),
+                typed_trees::data::DataMember::Variant(variant)
+                    if !::validation::impossible_variant(program, variant) =>
+                {
+                    Some(variant.symbol)
+                }
                 _ => None,
             })
             .collect::<Vec<_>>();
