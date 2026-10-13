@@ -23,10 +23,14 @@ pub(in crate::execution::terminal_unit) struct Transfer {
 
 pub(in crate::execution::terminal_unit) enum Destination {
     Holder(CheckedUnitStructuralResultBindingPlan, Vec<OwnerSegment>),
-    /// The call consumes this source. Its returned descriptor occurrences
-    /// retain exact supplying-loan identities independently of result nesting.
+    /// The call consumes this source. A structural result can carry the
+    /// consumed descriptors onward: its returned occurrences retain exact
+    /// supplying-loan identities independently of result nesting. A call
+    /// without one ends the carrier inside the callee; only a stored
+    /// reference effect can still publish a receiving occurrence.
     Call {
         statement_index: u32,
+        structural_result: bool,
     },
     Storage {
         symbol: SymbolHandle,
@@ -335,14 +339,13 @@ impl Query<'_> {
         let mut output = Transfers::default();
         for argument in &call.structural_arguments {
             if self.belongs(argument) {
-                let destination = if call.structural_result().is_some() {
+                output.append(self.leaf(
+                    argument.path.clone(),
                     Destination::Call {
                         statement_index: call.coordinate.statement_index,
-                    }
-                } else {
-                    Destination::Unknown
-                };
-                output.append(self.leaf(argument.path.clone(), destination));
+                        structural_result: call.structural_result().is_some(),
+                    },
+                ));
             }
         }
         output

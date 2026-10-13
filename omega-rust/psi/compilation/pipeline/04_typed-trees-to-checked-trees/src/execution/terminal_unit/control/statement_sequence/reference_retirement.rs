@@ -647,7 +647,10 @@ impl Retirement<'_> {
             found = true;
             let (destination, mut path) = match transfer.destination {
                 Destination::Unknown => return false,
-                Destination::Call { statement_index } => {
+                Destination::Call {
+                    statement_index,
+                    structural_result,
+                } => {
                     if statement_index >= self.statement_index {
                         return false;
                     }
@@ -664,10 +667,14 @@ impl Retirement<'_> {
                             found_receiver = true;
                             self.holder_retired_following(*receiver, active)
                         });
-                    // An unassociated call/store cannot establish when a
-                    // carrier ended. Only the producer's complete receiving
-                    // occurrences close this consumed holder.
-                    if !retired || !found_receiver {
+                    // A structural result may carry the consumed descriptor
+                    // onward, so only the producer's complete receiving
+                    // occurrences close this holder. A call returning none
+                    // ends the carrier inside the callee: every receiving
+                    // occurrence it still publishes (a stored reference
+                    // effect) must retire, and no receiver means the call
+                    // itself retired the holder.
+                    if !retired || (structural_result && !found_receiver) {
                         return false;
                     }
                     continue;

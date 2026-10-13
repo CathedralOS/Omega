@@ -150,7 +150,9 @@ impl Retirement<'_> {
                     // Consumption retires this holder, but a returned carrier
                     // can retain its parents. Follow that receiving occurrence
                     // before declaring the transferred descriptor settled.
-                    Destination::Call { statement_index } => {
+                    Destination::Call {
+                        statement_index, ..
+                    } => {
                         if *statement_index >= self.statement_index {
                             return false;
                         }
