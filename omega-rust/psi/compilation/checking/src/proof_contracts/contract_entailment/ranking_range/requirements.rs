@@ -297,6 +297,7 @@ fn prove(
         bindings: goal_bindings,
         fields: goal_fields,
         lengths: goal_lengths,
+        projected_lengths: goal_projected_lengths,
         comparisons: obligations,
         ..
     } = prepare_requirement(program, callee, target, goal)?;
@@ -343,6 +344,19 @@ fn prove(
         &mut source_engine,
         &expressions,
     )?;
+    // A record-contained descriptor has its own exact declaration coordinate.
+    // Install the same metadata for caller premises and actual substitution;
+    // no referent contents or backing-storage identity enter this judgment.
+    let mut source_projected_lengths = lengths::SliceCoordinates::empty();
+    source_projected_lengths.install(
+        program,
+        caller,
+        caller_state,
+        caller_state,
+        None,
+        &mut source_engine,
+        &expressions,
+    )?;
     // Saved caller observations: an immutable state-local `let` denotes the
     // exact value its initializer produced, so it joins the strict roster and
     // an actual naming it substitutes that value -- `let n = items.len`
@@ -377,7 +391,32 @@ fn prove(
             field_actuals.push((field, *argument, value));
         }
     }
+    // A forwarded record need not spell its demanded leaf. Resolve its exact
+    // arrival coordinate before admitting descriptor nonnegativity, just as
+    // scalar fields above retain their declaration bounds independently.
+    let mut length_actuals = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        for coordinate in goal_projected_lengths
+            .coordinates()
+            .filter(|coordinate| coordinate.parameter.symbol == parameter.symbol)
+        {
+            let actual_coordinate = coordinate.field_actual_coordinate(
+                program,
+                caller_state,
+                *argument,
+                coordinate.borrowed,
+            );
+            let value = actual_coordinate
+                .as_ref()
+                .map(lengths::SliceCoordinate::value);
+            if let Some(actual_coordinate) = actual_coordinate {
+                source_projected_lengths.include(actual_coordinate);
+            }
+            length_actuals.push((coordinate, *argument, value));
+        }
+    }
     let mut comparisons = source_fields.comparisons(program);
+    comparisons.extend(source_projected_lengths.comparisons());
     comparisons.extend(source_lengths.iter().map(|(_, identity)| {
         (
             BinaryOperator::GreaterOrEqual,
@@ -558,6 +597,21 @@ fn prove(
         }
     }
     source_engine.refresh_opaque_intervals();
+    for (coordinate, argument, value) in length_actuals {
+        let actual = match value {
+            Some(value) => value,
+            None => coordinate.arrived_length(
+                program,
+                caller,
+                caller_state,
+                &mut source_engine,
+                argument,
+                coordinate.borrowed,
+                &source_lengths,
+            )?,
+        };
+        substitutions.insert(coordinate.identity.clone(), actual);
+    }
     // Subslice geometry consumes established caller facts; the requirement's
     // own conclusion is never installed to form the next slice.
     for (parameter, argument) in parameters.iter().zip(arguments) {

@@ -28,8 +28,10 @@ pub(super) fn admitted_carrier(
                 .type_reference,
         ),
         ExpressionNode::Boolean(_) | ExpressionNode::Float(_) => Some(None),
-        ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
-            if let Some(parameter) = program.state_parameter_by_symbol(state, path.symbol) {
+        ExpressionNode::Name(path) if path.symbol.is_valid() => {
+            if path.head_symbol == path.symbol
+                && let Some(parameter) = program.state_parameter_by_symbol(state, path.symbol)
+            {
                 // Meaning is independent of binding stability. State and call
                 // edge owners separately establish exact prefix preservation,
                 // including for mutable parameters.
@@ -82,11 +84,14 @@ pub(super) fn admitted_carrier(
             // projection admits and forms the exact selected leaf separately;
             // an unrelated payload need not belong to integer arithmetic.
             // Whole-actual effects and formation stay with the source owners.
-            Some(Some(
-                program
-                    .type_reference_table
-                    .find_named_type_reference(literal.type_symbol)?,
-            ))
+            crate::declarations::data_queries::data_definition_by_symbol(
+                program, literal.type_symbol,
+            )?;
+            // An inline constructor need not retain a standalone named
+            // reference (notably a lifetime application). Admission invents
+            // no applied type; coordinate resolution still authenticates and
+            // forms each demanded declared leaf independently.
+            Some(crate::expression_result_type_reference(program, machine, state, expression))
         }
         ExpressionNode::ArrayLiteral(_) => {
             Some(Some(crate::parameter_expression_result_type_reference(

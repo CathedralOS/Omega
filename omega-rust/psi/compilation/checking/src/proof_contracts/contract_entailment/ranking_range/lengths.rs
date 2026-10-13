@@ -631,10 +631,28 @@ impl<'program> Coordinate<'program> {
         if let Some((carrier, prefix)) = rooted_carrier(program, state, current) {
             return Some(self.through_carrier(program, carrier, &prefix)?.value());
         }
+        // An unchanged saved record can capture a descriptor whose extent is
+        // fixed by storage type even when its referent's contents can change.
+        // Recover only closed metadata, with no later caller hypotheses or
+        // scalar initializer observations. Binding replacement/exposure still
+        // makes the saved descriptor unavailable.
+        let mut saved_record = false;
+        for depth in 0..128 {
+            let Some(symbol) = super::saved_arguments::actual(program, state, current) else {
+                break;
+            };
+            let (_, local) = program.state_local_declaration(state, symbol)?;
+            if !local.initial_value.is_valid() || depth == 127 {
+                return None;
+            }
+            current = local.initial_value;
+            saved_record = true;
+        }
         let mut owner = self.root;
         let mut leaf = current;
         for (depth, field) in self.steps.iter().chain([&self.field]).enumerate() {
             if depth > 0
+                && !saved_record
                 && let Some((carrier, prefix)) = rooted_carrier(program, state, leaf)
             {
                 // `leaf` names the record this step reads through a carrier
@@ -659,7 +677,13 @@ impl<'program> Coordinate<'program> {
                 owner = *symbol;
             }
         }
-        actual(program, machine, state, leaf, bindings, engine)
+        if saved_record {
+            let mut captured = Engine::strict(program, machine, &[]);
+            let value = actual(program, machine, state, leaf, &[], &mut captured)?;
+            value.constant_value().map(Polynomial::constant)
+        } else {
+            actual(program, machine, state, leaf, bindings, engine)
+        }
     }
 }
 
@@ -699,7 +723,7 @@ impl<'program> SliceCoordinates<'program> {
         self.rank.iter().chain(&self.auxiliary)
     }
 
-    fn include(&mut self, coordinate: SliceCoordinate<'program>) {
+    pub(super) fn include(&mut self, coordinate: SliceCoordinate<'program>) {
         // The identity spells the formal and the whole resolved chain, so two
         // same-named leaves under different steps stay distinct coordinates.
         if !self

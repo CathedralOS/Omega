@@ -177,19 +177,12 @@ fn literal_projections(
         }
         match program.expression_table.expression(expression) {
             ExpressionNode::StructLiteral(literal) => {
-                let owner = program
-                    .type_reference_table
-                    .type_reference(reference)
-                    .as_named_symbol()?;
-                if program.symbols.get(owner).kind != symbols::SymbolKind::Data
-                    || literal.type_symbol != owner
-                {
-                    return None;
-                }
-                let definition = program.data_definition_by_symbol(owner)?;
-                if !definition.type_parameters.is_empty() {
-                    return None;
-                }
+                // Constructors retain the destination's exact application.
+                // Lifetime arguments do not erase that declaration identity;
+                // a plain Named-only lookup lost its evaluated child captures.
+                let definition =
+                    program.closed_data_constructor_definition(reference, literal.type_symbol)?;
+                let owner = definition.symbol;
                 let members = program.data_members(definition);
                 let variant = match literal.case_symbol {
                     Some(symbol) => Some(members.iter().find_map(|member| match member {
@@ -242,21 +235,24 @@ fn literal_projections(
                 }) {
                     return None;
                 }
-                for (index, actual) in actuals.iter().enumerate() {
-                    if actuals[..index]
+                let mut mapped_actuals = Vec::with_capacity(actuals.len());
+                for actual in actuals {
+                    let field = program.closed_data_constructor_field(
+                        reference,
+                        literal.type_symbol,
+                        actual.field_symbol,
+                    )?;
+                    if !fields
                         .iter()
-                        .any(|prior| prior.field_symbol == actual.field_symbol)
+                        .any(|candidate| candidate.symbol == field.symbol)
+                        || mapped_actuals
+                            .iter()
+                            .any(|(symbol, _)| *symbol == field.symbol)
+                        || program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
                     {
                         return None;
                     }
-                    let field = fields
-                        .iter()
-                        .find(|field| field.symbol == actual.field_symbol)?;
-                    if program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
-                        || !actual.field_symbol.is_valid()
-                    {
-                        return None;
-                    }
+                    mapped_actuals.push((field.symbol, actual));
                 }
                 for field in fields {
                     if selected_variant.is_some_and(|variant| {
@@ -267,9 +263,9 @@ fn literal_projections(
                     if selected.is_some_and(|(symbol, _)| symbol != field.symbol) {
                         continue;
                     }
-                    let Some(actual) = actuals
+                    let Some((_, actual)) = mapped_actuals
                         .iter()
-                        .find(|actual| actual.field_symbol == field.symbol)
+                        .find(|(symbol, _)| *symbol == field.symbol)
                     else {
                         // Enumeration transports completed authored children;
                         // implicit zeros have no source expression to project.

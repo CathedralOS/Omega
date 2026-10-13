@@ -719,6 +719,33 @@ pub(super) fn member_chain<'program>(
     &'program StateParameter,
     Vec<(SymbolHandle, &'program Identifier)>,
 )> {
+    if let Some(path) = program.expression_table.name_path_node(expression) {
+        let members = program.expression_table.name_path_members(path.members);
+        if members.len() > 1 {
+            let place = crate::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                usize::MAX,
+                expression,
+            )?;
+            let parameter = program.state_parameter_by_symbol(state, place.root.as_symbol()?)?;
+            if place.segments.len() != members.len() - 1 {
+                return None;
+            }
+            let chain = place
+                .segments
+                .iter()
+                .zip(&members[1..])
+                .map(|(segment, name)| {
+                    let facts::PlaceSegment::Field { symbol } = segment else {
+                        return None;
+                    };
+                    symbol.is_valid().then_some((*symbol, name))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            return Some((parameter, chain));
+        }
+    }
     let mut chain = Vec::new();
     let mut cursor = expression;
     while let Some(member) = program.expression_table.member_node(cursor) {
@@ -734,6 +761,11 @@ pub(super) fn member_chain<'program>(
     chain.reverse();
     if let Some(parameter) = parameter(program, state, cursor) {
         Some((parameter, chain))
+    } else if cursor != expression
+        && let Some((parameter, mut prefix)) = member_chain(program, state, cursor)
+    {
+        prefix.extend(chain);
+        Some((parameter, prefix))
     } else {
         captured_carrier(program, state, expression)
     }
@@ -819,13 +851,14 @@ pub(super) fn record_referent(
             .unconstrained_type_reference(*referee);
         borrowed = true;
     }
-    let symbol = &program
-        .type_reference_table
-        .type_reference(reference)
-        .as_named_symbol()?;
-    (symbol.is_valid()
-        && crate::declarations::data_queries::data_definition_by_symbol(program, *symbol).is_some())
-    .then_some((*symbol, borrowed))
+    // Lifetime/type applications still name one exact record declaration.
+    // Reuse its retained closed instance or open template; leaf admission
+    // independently rejects any carrier whose scalar/collection shape is open.
+    let declaration = crate::value_custody::places::data_definition_for_type(program, reference)?;
+    declaration
+        .symbol
+        .is_valid()
+        .then_some((declaration.symbol, borrowed))
 }
 
 pub(super) fn parameter<'program>(

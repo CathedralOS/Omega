@@ -36,13 +36,14 @@ impl CoordinateKind {
                 record_referent(program, field.type_reference).map(|(next, _)| next)
             }
             Self::Length => {
-                let Some(next) = program
-                    .type_reference_table
-                    .unconstrained_named_symbol(field.type_reference)
-                else {
+                if crate::reference_shell(program, field.type_reference).is_some() {
                     return None;
-                };
-                Some(next)
+                }
+                crate::value_custody::places::data_definition_for_type(
+                    program,
+                    field.type_reference,
+                )
+                .map(|declaration| declaration.symbol)
             }
         }
     }

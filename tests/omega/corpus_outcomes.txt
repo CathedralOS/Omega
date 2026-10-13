@@ -2853,6 +2853,14 @@ fail/proofs/constant_equation_refuted rejected 888ms expected @a9ae30e1c334+wt
 	machine `false_constant_equation` ensures contract proof fact `false` is disproved by constant arithmetic
 fail/proofs/core_nat_runtime_consumption_rejected rejected 2761ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` parameter `main` mentions proof-only `Main`, which has no runtime layout
+fail/proofs/field_view_constructor_geometry rejected 276ms expected @f87e5abb7145+wt
+	machine `main` state `entry` value call to `Slice::range` violates required fact `start <= end && end <= items.len`: the instantiated fact is structurally false (`0 <= 3 && 3 <= 2`)
+fail/proofs/field_view_index_missing_bound rejected 1721ms expected @d3431e5a76cb+wt
+	cannot prove requires contract for call index from radiance: __hoist_35 < spectrum.samples.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/proofs/field_view_index_wrong_sibling rejected 1731ms expected @d3431e5a76cb+wt
+	cannot prove requires contract for call index from radiance: __hoist_35 < batch.selected.samples.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/proofs/field_view_saved_descriptor_replaced rejected 682ms expected @d3431e5a76cb+wt
+	cannot prove requires contract for call read from invalid: index < saved.child.samples.len (needs fact `index < value.child.samples.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/higher_order_machine_schema_contract_mismatch rejected 759ms expected @a9ae30e1c334+wt
 	public interface selects private data `Index`
 	public interface selects private data `Index`
@@ -4663,6 +4671,7 @@ pass/collections/runtime_fixed_byte_view_restricted_scalar_state_loan_exit check
 pass/collections/runtime_fixed_vec_contract_chain_exit checked 11190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_fixed_vec_round_trip_exit checked 11229ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_frame_indexed_param_read_exit checked 11188ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/runtime_generic_record_slice_reads_exit checked 13557ms check-target:macos_arm64 @d3431e5a76cb+wt
 pass/collections/runtime_guarded_computed_index_exit checked 11296ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_hoisted_index_write_exit checked 10984ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_indexed_assignment_selector_snapshot_exit checked 6313ms check-target:macos_arm64 @16ed47526a08
@@ -4696,6 +4705,7 @@ pass/collections/runtime_projected_range_call_selector_order_exit checked 13999m
 pass/collections/runtime_range_call_captured_endpoint_exit checked 12212ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_record_element_window_write_read_exit checked 11364ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_record_exclusive_element_extent_exit checked 11286ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/runtime_record_slice_float_reads_exit checked 11473ms check-target:macos_arm64 @d3431e5a76cb+wt
 pass/collections/runtime_refined_element_view_call_write_exit checked 10640ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_shared_array_dot_product_exit checked 11835ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_shared_array_polynomial_exit checked 13074ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5930,6 +5940,7 @@ pass/proofs/cauchy_predicates_compile rejected 2674ms @a9ae30e1c334+wt
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
 pass/proofs/citation_requires_discharged checked 10576ms @b7aaf37278ea+wt
+pass/proofs/field_view_index_contract checked 5381ms @d3431e5a76cb+wt
 pass/proofs/higher_order_machine_schema_compile checked 1725ms @a9ae30e1c334+wt
 pass/proofs/kernel_integer_discreteness checked 11286ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/proofs/kernel_integer_subtract_bound checked 1690ms @a9ae30e1c334+wt
