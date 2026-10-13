@@ -9,8 +9,8 @@ use omega::execution::{
 use std::io::Write;
 
 pub(crate) fn run(arguments: RunArguments) -> ! {
-    if let (Some(inputs), Some(outputs)) = (arguments.inputs.clone(), arguments.outputs.clone()) {
-        run_cases(arguments, inputs, outputs);
+    if let Some(outputs) = arguments.outputs.clone() {
+        run_cases(arguments, outputs);
     }
     let outcome = match run_project(RunRequest {
         root_path: arguments.main_path,
@@ -94,31 +94,34 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
 }
 
 /// One compilation, one native run (and Terminal replay with `--both`) per
-/// `*.stdin` file. Per-case streams and statuses go to the output directory;
-/// the command exits 201 when any case diverges or fails interpretation.
-fn run_cases(
-    arguments: RunArguments,
-    inputs: std::path::PathBuf,
-    outputs: std::path::PathBuf,
-) -> ! {
-    let mut cases = match std::fs::read_dir(&inputs) {
-        Ok(entries) => entries
-            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-            .filter(|path| {
-                path.extension()
-                    .is_some_and(|extension| extension == "stdin")
-            })
-            .collect::<Vec<_>>(),
-        Err(error) => {
-            eprintln!("cannot read --inputs {}: {error}", inputs.display());
-            std::process::exit(200);
+/// case: every `*.stdin` file of `--inputs`, or each `--input` file in order.
+/// Per-case streams and statuses go to the output directory; the command
+/// exits 201 when any case diverges or fails interpretation.
+fn run_cases(arguments: RunArguments, outputs: std::path::PathBuf) -> ! {
+    let cases = match &arguments.inputs {
+        Some(inputs) => {
+            let mut cases = match std::fs::read_dir(inputs) {
+                Ok(entries) => entries
+                    .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+                    .filter(|path| {
+                        path.extension()
+                            .is_some_and(|extension| extension == "stdin")
+                    })
+                    .collect::<Vec<_>>(),
+                Err(error) => {
+                    eprintln!("cannot read --inputs {}: {error}", inputs.display());
+                    std::process::exit(200);
+                }
+            };
+            cases.sort();
+            if cases.is_empty() {
+                eprintln!("--inputs {} holds no *.stdin files", inputs.display());
+                std::process::exit(200);
+            }
+            cases
         }
+        None => arguments.input_files.clone(),
     };
-    cases.sort();
-    if cases.is_empty() {
-        eprintln!("--inputs {} holds no *.stdin files", inputs.display());
-        std::process::exit(200);
-    }
     let outcome = match run_project_cases(CaseRunRequest {
         root_path: arguments.main_path,
         compare_interpreter: arguments.both,

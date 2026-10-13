@@ -4,6 +4,8 @@ pub(crate) struct RunArguments {
     pub(crate) target_name: Option<String>,
     /// A directory of `*.stdin` cases run against one compilation.
     pub(crate) inputs: Option<std::path::PathBuf>,
+    /// Explicit case files (`--input`, repeatable), named by file stem.
+    pub(crate) input_files: Vec<std::path::PathBuf>,
     /// Where each case's streams and `results.tsv` are written.
     pub(crate) outputs: Option<std::path::PathBuf>,
     pub(crate) main_path: std::path::PathBuf,
@@ -16,6 +18,7 @@ pub(super) fn parse_arguments(
     let mut keep = false;
     let mut target_name = None;
     let mut inputs = None;
+    let mut input_files = Vec::new();
     let mut outputs = None;
     let mut main_path = None;
     while let Some(argument) = arguments.next() {
@@ -23,6 +26,10 @@ pub(super) fn parse_arguments(
             Some("--offline") => return Err("omega run does not support --offline".into()),
             Some("--both") => super::set_flag(&mut both, "--both")?,
             Some("--keep") => super::set_flag(&mut keep, "--keep")?,
+            Some("--input") => {
+                let file = arguments.next().ok_or("--input requires a file")?;
+                input_files.push(std::path::PathBuf::from(file));
+            }
             Some(flag @ ("--inputs" | "--outputs")) => {
                 let slot = if flag == "--inputs" {
                     &mut inputs
@@ -71,17 +78,22 @@ pub(super) fn parse_arguments(
         }
     }
     let main_path = main_path.ok_or_else(|| "missing root Omega source path".to_owned())?;
-    if inputs.is_some() != outputs.is_some() {
-        return Err("--inputs and --outputs are used together".into());
+    let cases = inputs.is_some() || !input_files.is_empty();
+    if inputs.is_some() && !input_files.is_empty() {
+        return Err("use either --inputs <dir> or --input <file>, not both".into());
     }
-    if inputs.is_some() && target_name.is_some() {
-        return Err("--inputs runs on the host; it cannot take --target".into());
+    if cases != outputs.is_some() {
+        return Err("--inputs or --input is used together with --outputs".into());
+    }
+    if cases && target_name.is_some() {
+        return Err("case runs execute on the host; they cannot take --target".into());
     }
     Ok(RunArguments {
         both,
         keep,
         target_name,
         inputs,
+        input_files,
         outputs,
         main_path,
     })
@@ -138,5 +150,33 @@ mod tests {
             ])
             .is_err()
         );
+        assert!(
+            parse(&[
+                "--inputs",
+                "d",
+                "--input",
+                "a.txt",
+                "--outputs",
+                "o",
+                "main.omg"
+            ])
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn repeated_input_files_select_a_case_run() {
+        let arguments = parse(&[
+            "--input",
+            "a.txt",
+            "--input",
+            "b.txt",
+            "--outputs",
+            "o",
+            "main.omg",
+        ])
+        .expect("explicit case files parse");
+        assert_eq!(arguments.input_files.len(), 2);
+        assert!(arguments.inputs.is_none());
     }
 }
