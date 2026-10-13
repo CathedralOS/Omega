@@ -85,7 +85,6 @@ pub(super) fn enforce_construction_field_obligations(
                     prior_statements,
                     field.value,
                     field_type,
-                    None,
                 )
             {
                 let reason = match refusal {
@@ -107,6 +106,9 @@ pub(super) fn enforce_construction_field_obligations(
                     }
                     ReferenceAccessRefusal::NamedPlaceRequired { .. } => {
                         "requires a named source place; a temporary cannot lend exclusive access"
+                    }
+                    ReferenceAccessRefusal::BareRangeFormsSharedView => {
+                        "receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`"
                     }
                 };
                 diagnostics.push(Diagnostic::error(format!("{slot_context} {reason}")));

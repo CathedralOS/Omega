@@ -1620,6 +1620,7 @@ pass/slices/runtime_call_endpoint_order_exit built 2021ms exit:70 @637668355701+
 pass/slices/runtime_call_endpoint_view_exit built 1766ms exit:70 @637668355701+wt
 pass/slices/runtime_direct_view_requires_index_exit built 2709ms exit:70 @9beb2be72f2d+wt
 pass/slices/runtime_element_view_requires_index_exit built 1837ms exit:70 @0991904fed3b+wt
+pass/slices/runtime_explicit_mutable_range_local_forwarding_exit built 6525ms exit:0 @0421c3e6f7c9+wt
 pass/slices/runtime_forwarded_range_extent_snapshot_exit built 3964ms exit:0 @2a23b3a1e99d
 pass/slices/runtime_forwarded_view_runtime_index_exit built 1631ms exit:70 @0facec44bc8b+wt
 pass/slices/runtime_guarded_view_copy_cycle_exit built 2035ms exit:70 @6ba9c43af356+wt

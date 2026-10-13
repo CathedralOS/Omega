@@ -3220,6 +3220,10 @@ fail/relevance/static_proof_borrow_requires_storage rejected 820ms expected @a9a
 	machine `Natural::inspect` state `inspect` parameter `value` mentions proof-only `Natural`, which has no runtime layout
 fail/relevance/static_proof_result_cannot_materialize rejected 836ms expected @a9ae30e1c334+wt
 	call to proof machine `answer` has no runtime result; use it only in a proof or erased context, or as a statement citation
+fail/slices/bare_range_at_mutable_field rejected 218ms expected @0421c3e6f7c9+wt
+	construction of `Window` field `cells` receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`
+fail/slices/bare_range_at_mutable_local rejected 263ms expected @0421c3e6f7c9+wt
+	machine `write` state `entry` local `window` receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`
 fail/slices/bare_subslice_call_cannot_lend_mutable rejected 240ms expected @9c4d1c444502+wt
 	argument `items` for state `entry` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/byte_view_element_reference_without_bound rejected 1727ms expected @a9ae30e1c334+wt
@@ -6147,6 +6151,7 @@ pass/slices/runtime_element_view_requires_index_exit checked 11981ms check-targe
 pass/slices/runtime_empty_qualified_scalar_array_exit checked 12853ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_erased_field_record_copy_exit checked 11048ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_exact_scalar_stores_establish_qualified_view_exit checked 11956ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/runtime_explicit_mutable_range_local_forwarding_exit checked 6306ms check-target:macos_arm64 @0421c3e6f7c9+wt
 pass/slices/runtime_forwarded_range_extent_snapshot_exit checked 10996ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_forwarded_view_runtime_index_exit checked 14554ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_guarded_view_copy_cycle_exit checked 13561ms check-target:macos_arm64 @a9ae30e1c334+wt

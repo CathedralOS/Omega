@@ -7,16 +7,15 @@
 //! storage admission remain independent checks at their existing owners.
 //!
 //! A loan's access is spelled where the loan is formed: `&mut place`,
-//! `&write place`, a compiler-owned `as_mut_slice` view, or -- for a bare
-//! window `coll[a..b]`, which carries no spelling of its own -- the
-//! initialized declaration that binds it. A call parameter or constructed
-//! field is declared by another author, so a bare window there is the shared
-//! loan the `[..]` adaptation forms (`Slice::range` takes `&[T]`), and
-//! mutable lending is spelled `&mut coll[a..b]`: the spec keeps named-call
-//! argument admission unchanged by the indexing adaptation. Whether a
-//! declaration binding may keep spelling the window's access is
-//! `bare-range-reference-access` in `OWNER_QUESTIONS.md`; this judgment
-//! preserves the corpus's current binding rule until that decision lands.
+//! `&write place`, or a compiler-owned `as_mut_slice` view. A bare window
+//! `coll[a..b]` carries no spelling of its own, so it is the shared loan the
+//! `[..]` adaptation forms (`Slice::range` takes `&[T]`) at every receiving
+//! leaf -- a local initializer, a call or state argument, a returned value or
+//! a constructed field -- and mutable lending is spelled `&mut coll[a..b]`.
+//! This is `bare-range-reference-access` in the expression specification:
+//! an expected `&mut [T]` type never inserts the mutable borrow, including on
+//! a local declaration, and the bare window at a mutable destination is
+//! refused by name rather than as a generic access shortfall.
 
 use super::expression_types::declared_reference_access;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -37,14 +36,17 @@ pub(crate) enum ReferenceAccessRefusal {
     NamedPlaceRequired {
         access: language_semantics::ReferenceAccess,
     },
+    /// A bare window `coll[a..b]` at a mutable destination: the window is
+    /// the shared view `bare-range-reference-access` forms, and the mutable
+    /// subrange must be spelled `&mut coll[a..b]`.
+    BareRangeFormsSharedView,
 }
 
 /// The shared access rule for every receiving reference leaf; it grants no
-/// loan and never derives permission from a destination type. `binding_access`
-/// is the access an initialized declaration spells for the value it binds
-/// (`let held: &mut [T] = ...`), which is the only receiving declaration whose
-/// spelling counts as the loan's own; a call argument or constructed field
-/// passes `None`.
+/// loan and never derives permission from a destination type. A local
+/// initializer, a call or state argument and a constructed field all receive
+/// under the same judgment: the declared `&mut` of the destination is never
+/// the loan's spelling.
 pub(crate) fn receiving_reference_access_refusal(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -52,7 +54,6 @@ pub(crate) fn receiving_reference_access_refusal(
     prior_statements: &[typed_trees::statement::StatementNode],
     value: ExpressionHandle,
     required: TypeReferenceHandle,
-    binding_access: Option<language_semantics::ReferenceAccess>,
 ) -> Option<ReferenceAccessRefusal> {
     use language_semantics::ReferenceAccess;
     // Selection completes one of the retained arm values. Every possible
@@ -74,20 +75,25 @@ pub(crate) fn receiving_reference_access_refusal(
                     prior_statements,
                     arm.value,
                     required,
-                    binding_access,
                 )
             });
     }
     let expected_access = declared_reference_access(program, required);
-    let completed_borrow =
-        completed_reference_borrow_source(program, machine, state, value, binding_access);
+    let completed_borrow = completed_reference_borrow_source(program, machine, state, value);
     let supplied_access = completed_borrow
-        .map(|(_, access)| access)
+        .as_ref()
+        .map(|borrow| borrow.access)
         .or_else(|| declared_call_reference_access(program, value));
-    if let Some((source, access)) = completed_borrow
-        && access.is_exclusive()
-        && let Some(refusal) =
-            borrow_source_access_refusal(program, machine, state, prior_statements, source, access)
+    if let Some(borrow) = &completed_borrow
+        && borrow.access.is_exclusive()
+        && let Some(refusal) = borrow_source_access_refusal(
+            program,
+            machine,
+            state,
+            prior_statements,
+            borrow.source,
+            borrow.access,
+        )
     {
         return Some(refusal);
     }
@@ -101,6 +107,13 @@ pub(crate) fn receiving_reference_access_refusal(
         && expected_access != Some(ReferenceAccess::WriteOnly)
     {
         return Some(ReferenceAccessRefusal::WriteOnlyMayNotRead);
+    }
+    if expected_access == Some(ReferenceAccess::Mutable)
+        && completed_borrow
+            .as_ref()
+            .is_some_and(|borrow| borrow.bare_window)
+    {
+        return Some(ReferenceAccessRefusal::BareRangeFormsSharedView);
     }
     if expected_access == Some(ReferenceAccess::Mutable)
         && !matches!(supplied_access, Some(ReferenceAccess::Mutable))
@@ -118,19 +131,29 @@ pub(crate) fn is_reference_destination(
     declared_reference_access(program, required).is_some()
 }
 
+/// A completed borrowing operation: its exact storage source and the access
+/// spelled at its formation.
+struct CompletedBorrow {
+    source: ExpressionHandle,
+    access: language_semantics::ReferenceAccess,
+    /// A bare window `coll[a..b]` with no borrow spelling of its own, which
+    /// `bare-range-reference-access` makes a shared view wherever received.
+    bare_window: bool,
+}
+
 /// A completed borrowing operation retains its exact storage source and the
 /// access spelled at its formation. The call-shape owner excludes declared
 /// machines with the same spelling; the receiver's actual carrier distinguishes
 /// the compiler collection operation. Window geometry retains its selected
-/// builtin meaning. Neither a receiving parameter or field type nor a slot's
-/// mutability can supply access, and this query establishes no extent or loan.
+/// builtin meaning. Neither a receiving declaration, parameter or field type
+/// nor a slot's mutability can supply access, and this query establishes no
+/// extent or loan.
 fn completed_reference_borrow_source(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,
-    binding_access: Option<language_semantics::ReferenceAccess>,
-) -> Option<(ExpressionHandle, language_semantics::ReferenceAccess)> {
+) -> Option<CompletedBorrow> {
     use language_semantics::ReferenceAccess;
     use language_semantics::declaration_selection::CollectionViewOperation;
 
@@ -140,7 +163,11 @@ fn completed_reference_borrow_source(
     // owner so spelling does not lose access or let the view type create it;
     // the source permission and representation judgment remain independent.
     if let Some(formation) = super::recasts::reference_formation_source(program, value) {
-        return Some((formation.source, formation.access));
+        return Some(CompletedBorrow {
+            source: formation.source,
+            access: formation.access,
+            bare_window: false,
+        });
     }
     match program.expression_table.expression(value) {
         ExpressionNode::Call(call) => {
@@ -161,7 +188,11 @@ fn completed_reference_borrow_source(
                 // source laws; their declared result/formation owners remain.
                 CollectionViewOperation::TextView | CollectionViewOperation::Bytes => return None,
             };
-            Some((call.receiver, access))
+            Some(CompletedBorrow {
+                source: call.receiver,
+                access,
+                bare_window: false,
+            })
         }
         ExpressionNode::Indexed(indexed)
             if program.expression_table.range_node(indexed.index).is_some()
@@ -178,19 +209,18 @@ fn completed_reference_borrow_source(
             if !crate::collection_operations::type_reference_is_collection(program, reference) {
                 return None;
             }
-            // `coll[a..b]` has no borrow spelling of its own. The declaration
-            // binding it spells the window's access (`let held: &mut [T] =
-            // coll[a..b]`); at a call or constructed field nobody at the
-            // formation spelled one, so the window is the shared loan the
-            // `[..]` adaptation forms and `&mut coll[a..b]` lends mutably.
+            // `coll[a..b]` has no borrow spelling of its own, so nobody at
+            // the formation spelled one: the window is the shared loan the
+            // `[..]` adaptation forms, at a local declaration exactly as at a
+            // call or constructed field, and `&mut coll[a..b]` lends mutably.
             // The collection's own declared access never widens a bare
             // window: a `&mut [T]` parameter forwards as `coll`, not as a
-            // window of itself. Exclusivity rejoins the collection's own
-            // place permission below rather than trusting the binding.
-            Some((
-                indexed.collection,
-                binding_access.unwrap_or(ReferenceAccess::Shared),
-            ))
+            // window of itself.
+            Some(CompletedBorrow {
+                source: indexed.collection,
+                access: ReferenceAccess::Shared,
+                bare_window: true,
+            })
         }
         _ => None,
     }

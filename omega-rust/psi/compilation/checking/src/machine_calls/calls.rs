@@ -246,7 +246,6 @@ fn report_argument_reference_access(
         prior_statements,
         argument,
         parameter.type_reference,
-        None,
     ) else {
         return false;
     };
@@ -269,6 +268,11 @@ fn report_argument_reference_access(
         }
         ReferenceAccessRefusal::MutableSourceRequired => format!(
             "argument `{}` for state `{}` is declared `&mut` (`{}`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding",
+            parameter.name, target_name,
+            program.display_type_reference_with_constraints(parameter.type_reference),
+        ),
+        ReferenceAccessRefusal::BareRangeFormsSharedView => format!(
+            "argument `{}` for state `{}` is declared `&mut` (`{}`), but a bare range forms a shared view and the caller lends only immutable access; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`",
             parameter.name, target_name,
             program.display_type_reference_with_constraints(parameter.type_reference),
         ),

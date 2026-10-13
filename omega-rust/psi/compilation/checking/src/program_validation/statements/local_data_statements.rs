@@ -121,10 +121,9 @@ pub(super) fn validate(
             // passing it to a call or storing it in a constructed field. The
             // selected source, not the local's declared access or an unrelated
             // exclusive sibling, supplies permission over its backing. The
-            // binding's own annotation only spells the access of a bare
-            // window it forms (`let held: &mut [T] = coll[a..b]`), the
-            // corpus's current rule while `bare-range-reference-access` in
-            // `OWNER_QUESTIONS.md` is open; the source still has to permit it.
+            // binding's annotation spells no loan: a bare window stays the
+            // shared view of `bare-range-reference-access`, and a mutable
+            // subrange is written `&mut coll[a..b]` in the initializer.
             if let Some(refusal) =
                 crate::value_custody::reference_access::receiving_reference_access_refusal(
                     program,
@@ -133,10 +132,6 @@ pub(super) fn validate(
                     prior_statements,
                     local_data.initial_value,
                     local_data.type_reference,
-                    crate::value_custody::expression_types::declared_reference_access(
-                        program,
-                        local_data.type_reference,
-                    ),
                 )
             {
                 let reason = match refusal {
@@ -158,6 +153,9 @@ pub(super) fn validate(
                     }
                     ReferenceAccessRefusal::NamedPlaceRequired { .. } => {
                         "requires a named source place; a temporary cannot lend exclusive access"
+                    }
+                    ReferenceAccessRefusal::BareRangeFormsSharedView => {
+                        "receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`"
                     }
                 };
                 diagnostics.push(Diagnostic::error(format!("{owner} {reason}")));
