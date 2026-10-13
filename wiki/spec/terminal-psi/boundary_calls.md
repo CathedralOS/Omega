@@ -141,6 +141,12 @@ type, multiplicity, and qualifications. Candidate result places and caller
 operation-result places remain distinct. Admission of a conformance does not
 widen the supported candidate-body, claim, content, or crash-contract vocabulary.
 
+A requirement's authorized root qualifications belong to that selected crossing,
+not the adapter's ordinary direct-call result declaration. Descendant memberships
+still come from the returned carrier. Linear results and linear children of an
+affine result use the ordinary returning-edge claim correspondence by typed path;
+neither catalog admission nor result multiplicity manufactures claims.
+
 Execution transfers actual input custody through the ordinary structural-call
 continuation and establishes the caller's result only after the selected
 provider's successful, fuel-charged normal return. Suspension does not repeat the call

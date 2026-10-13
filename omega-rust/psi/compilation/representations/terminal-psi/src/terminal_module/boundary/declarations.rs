@@ -40,6 +40,30 @@ pub enum BoundaryMachineResult {
 }
 
 impl BoundaryMachineResult {
+    /// Join a checked provider's own return declaration to its requirement.
+    /// Boundary-authorized root qualifications belong to the selected crossing,
+    /// not the adapter's direct-call signature. Descendant memberships still
+    /// require the provider's returned carrier to supply them. This comparison
+    /// grants neither qualifications nor claims; conformance and actual return
+    /// custody establish those separately.
+    pub fn accepts_provider_result(&self, result: &crate::TerminalMachineResult) -> bool {
+        match (self, result) {
+            (Self::Structural(expected), crate::TerminalMachineResult::Structural(result)) => {
+                expected.structural_type == result.structural_type
+                    && expected.multiplicity == result.multiplicity
+                    && result
+                        .qualifications
+                        .iter()
+                        .all(|domain| expected.qualifications.contains(domain))
+                    && expected
+                        .projected_qualifications
+                        .iter()
+                        .all(|row| result.projected_qualifications.contains(row))
+            }
+            _ => self.matches_machine_result(result),
+        }
+    }
+
     /// Compare representation and qualifications without exposing a private
     /// home. Reference origins belong to the caller's separate custody contract.
     pub fn matches_machine_result(&self, result: &crate::TerminalMachineResult) -> bool {

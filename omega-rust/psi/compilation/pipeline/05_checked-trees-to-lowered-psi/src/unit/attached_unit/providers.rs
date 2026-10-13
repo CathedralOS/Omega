@@ -21,9 +21,9 @@ use super::bodies::UnitPlans;
 use super::operation_frame::BoundaryParameters;
 use super::{
     BoundaryMachineDeclaration, CheckedTrees, CheckedUnitProviderCandidate, LoweringError,
-    MachineId, Multiplicity, ProviderCandidateConformance, ProviderParameterRefinement,
-    ProviderRefinement, ProviderSignature, ProviderSignatureParameter, TerminalMachine, UnitBody,
-    lookup_machine_id, unique_unit_boundary, unsupported,
+    MachineId, ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
+    ProviderSignature, ProviderSignatureParameter, TerminalMachine, UnitBody, lookup_machine_id,
+    unique_unit_boundary, unsupported,
 };
 use checked_trees::machine::{Machine, TraitConformance};
 
@@ -323,10 +323,12 @@ pub(super) fn checked_unit_provider_candidates(
                     // own contract to them. The provider's declared result
                     // must still be the exact carrier, and any qualifications
                     // it declares itself must be authorized by the requirement.
-                    // Copyable and affine payloads share this exact result join;
-                    // a linear result additionally needs returned claim custody.
-                    if *multiplicity == Multiplicity::Linear
-                        || result.type_identity != *type_identity
+                    // Multiplicity describes result custody, not a second
+                    // provider execution route. The ordinary body lowers its
+                    // returning edge's current claims through lower_return_claims;
+                    // a linear carrier cannot bypass that operation or mint
+                    // claims merely by entering this candidate catalog.
+                    if result.type_identity != *type_identity
                         || result.multiplicity != *multiplicity
                         || projected_qualifications
                             .iter()

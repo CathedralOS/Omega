@@ -401,34 +401,10 @@ impl TerminalExecution<'_> {
             // form already uses for an ordinary callee. Scalar results carry
             // no structural custody to restrict: the callee's declared scalar
             // result type is checked against the operation result at entry.
-            // A structural result of any multiplicity may carry the
-            // boundary's introduced qualifications: the provider's declared
-            // result domains plus each domain the operation establishes
-            // through its route, and the issuing frame admits a result naming
-            // exactly those. A linear result may also carry minted claims:
-            // the boundary route mints `result.claims` onto the caller at
-            // resume (no transfer slots exist on the operation). Affine and
-            // unrestricted results stay claim-free; unrestricted results use
-            // the same frame admission as ordinary returns, which checks
-            // their concrete payload capability. Projected qualifications
-            // still have no installed-provider leg.
-            let supported_result = match &operation.result {
-                terminal_psi::OperationResult::Unit | terminal_psi::OperationResult::Scalar(_) => {
-                    true
-                }
-                terminal_psi::OperationResult::Structural(result) => {
-                    result.projected_qualifications.is_empty()
-                        && match result.multiplicity {
-                            terminal_psi::nonlinear_multiplicity_pair_pattern!() => {
-                                result.claims.is_empty()
-                            }
-                            StructuralMultiplicity::Linear => true,
-                        }
-                }
-            };
-            if !supported_result {
-                return Err(malformed());
-            }
+            // Structural results use ordinary returned-path custody, including
+            // claims below affine records. Root domains introduced by the exact
+            // admitted crossing remain separate from those actual claims;
+            // neither multiplicity nor provider selection mints an owner.
             let Some(crate::effects::AdmittedBoundarySupply::CheckedProvider(callee_id)) = supply
             else {
                 return Err(TerminalInterpretError::ProviderInstallationMissing(
@@ -485,7 +461,7 @@ impl TerminalExecution<'_> {
                         structural_arguments,
                         prepared_arguments,
                         &claim_transfers,
-                        crate::execution::ResultClaimOrigin::BoundaryIssuance,
+                        crate::execution::ResultClaimOrigin::CheckedProvider,
                     )?;
                 }
                 terminal_psi::OperationResult::Scalar(result) => {

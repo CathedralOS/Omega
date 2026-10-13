@@ -11,7 +11,7 @@
 use super::AdmittedInstalledProviderCall;
 use super::error::ProviderInstallationError;
 use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractOperationPlan};
-use terminal_psi::{ProviderCandidateConformance, StructuralMultiplicity};
+use terminal_psi::ProviderCandidateConformance;
 
 pub(super) fn replay_installed_provider_calls(
     plan: &AbstractOperationPlan,
@@ -76,6 +76,25 @@ pub(super) fn replay_installed_provider_calls(
                 || structural_arguments.len() != provider.signature.parameters.len()
                 || boundary_declaration.structural_parameters.len() != structural_arguments.len()
                 || candidate.structural_parameters.len() != structural_arguments.len()
+            {
+                return Err(malformed());
+            }
+            // Caller and provider claims live in different namespaces. Reuse
+            // ordinary return-path correspondence instead of requiring a
+            // claim-free result or manufacturing issuance from its type.
+            if let terminal_psi::OperationResult::Structural(result) = &terminal_operation.result
+                && !terminal_semantics::result_claim_catalog_matches_returns(
+                    &result.claims,
+                    terminal_candidate
+                        .blocks
+                        .iter()
+                        .filter_map(|block| match &block.terminator {
+                            terminal_psi::Terminator::ReturnStructural {
+                                returned_claims, ..
+                            } => Some(returned_claims.as_slice()),
+                            _ => None,
+                        }),
+                )
             {
                 return Err(malformed());
             }
@@ -233,10 +252,8 @@ fn replays_result(
             candidate == terminal_candidate
                 && occurrence.structural_type == boundary.structural_type
                 && candidate.structural_type == boundary.structural_type
-                // Installation preserves the declared carrier's multiplicity,
-                // including copyable payloads. Linear returns need a separate
-                // claim transfer contract that this claim-free join cannot mint.
-                && occurrence.multiplicity != StructuralMultiplicity::Linear
+                // The actual returning edge supplies claims separately; this
+                // declaration join cannot manufacture or discard that custody.
                 && occurrence.multiplicity == boundary.multiplicity
                 && candidate.multiplicity == boundary.multiplicity
                 // Route-authorized ensures mint caller-side result
@@ -249,7 +266,6 @@ fn replays_result(
                 && occurrence.qualifications == boundary.qualifications
                 && occurrence.projected_qualifications == boundary.projected_qualifications
                 && boundary.projected_qualifications.iter().all(|row| candidate.projected_qualifications.contains(row))
-                && occurrence.claims.is_empty()
         }
         _ => false,
     }

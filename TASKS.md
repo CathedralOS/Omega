@@ -3235,10 +3235,6 @@ crash and native exit behavior.
     intrinsic, which **CHECKED-ASM-LABEL-CONTRACTS** owns;
     `fail/calls/struct_constant_requires_argument_rejected` is
     **STRUCT-CONSTANT-REQUIRES-REFUTATION-DRIFT**.
-  - Unowned, three rows: `pass/core/{carry_permission_provider_adapter,
-    extent_root_provider_adapter}` and `pass/memory/bump_allocator_canary`
-    refuse with `Lowering(Unsupported("provider structural result disagrees
-    with ..."))`.
   - Unowned pairs: `pass/boundary/{later_state_requirement_scalar_result,
     static_foreign_scalar_result_locals}_exit` ("call selects no
     declaration"); `pass/calls/runtime_mutable_local_external_scalar_call_exit`

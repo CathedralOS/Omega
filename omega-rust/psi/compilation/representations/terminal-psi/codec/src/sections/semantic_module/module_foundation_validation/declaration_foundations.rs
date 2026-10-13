@@ -257,7 +257,7 @@ fn validate_provider_scalar_contract(
     {
         return malformed("provider candidate scalar signature disagrees with its boundary");
     }
-    if !boundary.result.matches_machine_result(&machine.result) {
+    if !boundary.result.accepts_provider_result(&machine.result) {
         return malformed("provider candidate result disagrees with its boundary");
     }
     if boundary.structural_parameters.len() != machine.structural_parameters.len()

@@ -208,10 +208,8 @@ impl TerminalExecution<'_> {
                         },
                     ..
                 }) => Some(match claim_origin {
-                    crate::execution::ResultClaimOrigin::BoundaryIssuance => {
-                        self.mint_boundary_result_claims(live_claims, *source, result)?
-                    }
                     crate::execution::ResultClaimOrigin::CalleeReturn
+                    | crate::execution::ResultClaimOrigin::CheckedProvider
                     | crate::execution::ResultClaimOrigin::TargetFamilyReturn { .. } => {
                         let mut active_result = result.clone();
                         active_result.claims =

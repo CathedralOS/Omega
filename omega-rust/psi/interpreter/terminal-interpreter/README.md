@@ -137,6 +137,12 @@ replays the exact signatures; fuel suspension retains the same selected frame.
 Fixed-work composition distinguishes normal return bounds from crash bounds:
 only a normal return composes the caller's remaining work.
 
+Checked-provider structural returns transport the actual returning edge's claims
+through the ordinary path-based result binder, including linear children of
+affine records. They do not mint replacement claims from result declarations.
+Only the exact admitted crossing can add its authorized root qualifications;
+calling an adapter directly retains its ordinary declared result contract.
+
 ## Primitive array results
 
 [scalar_array.rs](src/scalar_array.rs) owns complete primitive-array construction

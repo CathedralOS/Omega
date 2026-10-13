@@ -188,13 +188,14 @@ pub(crate) enum ResultClaimOrigin {
         head: BoundaryMachineId,
         member: MachineId,
     },
-    /// A selected boundary provider issues them at the declared result paths.
-    BoundaryIssuance,
+    /// A selected checked provider returns actual custody. Its admitted
+    /// crossing may additionally establish authorized root qualifications.
+    CheckedProvider,
 }
 
 impl ResultClaimOrigin {
     /// Whether `result` carries exactly the domains its callee returns: the
-    /// callee's declared result domains plus, for a boundary issuance, each
+    /// callee's declared result domains plus, for a checked-provider return, each
     /// domain the operation establishes through its admitted route. An
     /// ordinary callee return establishes nothing beyond its declaration.
     pub(crate) fn result_qualifications_match(
@@ -209,7 +210,7 @@ impl ResultClaimOrigin {
                 .all(|domain| declared.contains(domain));
         }
         let mut expected = declared.to_vec();
-        if self == Self::BoundaryIssuance {
+        if self == Self::CheckedProvider {
             for establishment in &result.qualification_establishments {
                 if !expected.contains(&establishment.domain) {
                     expected.push(establishment.domain);

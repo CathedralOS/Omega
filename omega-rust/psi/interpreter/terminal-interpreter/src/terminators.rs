@@ -11,12 +11,12 @@ mod structural_return;
 
 use crate::custody::{
     commit_cleanup_action, consume_affine_projection, consume_projected_ownership,
-    rebind_structural_result_claims, resolve_structural_path_type,
+    rebind_structural_result_claims,
 };
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{
-    CleanupContinuation, CompletedReturn, LiveClaim, SuspendedCall, SuspendedCallResult,
-    TerminalExecution, TerminatorFlow,
+    CleanupContinuation, CompletedReturn, SuspendedCall, SuspendedCallResult, TerminalExecution,
+    TerminatorFlow,
 };
 use crate::results::meter_status;
 use crate::results::{
@@ -24,13 +24,12 @@ use crate::results::{
     TerminalScalarCaseResult, TerminalStructuralResult,
 };
 use crate::values::TerminalScalarValue;
-use semantic_vocabulary::{BlockId, ClaimId, EdgeId, PlaceId, StructuralTypeId, ValueId};
+use semantic_vocabulary::{BlockId, EdgeId, PlaceId, ValueId};
 use std::collections::BTreeMap;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
-    StructuralOperationResult, StructuralPathSegment, StructuralTypeShape, TerminalMachineResult,
-    Terminator, find_structural_case,
+    StructuralPathSegment, TerminalMachineResult, Terminator,
 };
 
 /// Bindings and cleanup selected by either an unconditional or conditional edge.
@@ -320,79 +319,6 @@ impl TerminalExecution<'_> {
             cleanup_actions.clone().into_iter(),
             CleanupContinuation::Return(CompletedReturn::plain(TerminalExecutionResult::Unit)),
         )
-    }
-
-    /// Installs the claims a boundary result declaration mints on the
-    /// caller. Each binding lands only when the returned value inhabits the
-    /// claimed path — a claim under a case payload mints only for a return
-    /// observing that case, so e.g. a `Rejected` return never mints the
-    /// `Registered` payload's claim.
-    fn mint_boundary_result_claims(
-        &self,
-        caller_claims: &BTreeMap<ClaimId, LiveClaim>,
-        source: PlaceId,
-        result: &StructuralOperationResult,
-    ) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
-        let mut claims = caller_claims.clone();
-        for binding in &result.claims {
-            if !self.boundary_claim_path_inhabited(result.structural_type, source, &binding.path)? {
-                continue;
-            }
-            crate::custody::bind_result_claim(
-                &mut claims,
-                binding,
-                result.place,
-                result.multiplicity,
-            )?;
-        }
-        Ok(claims)
-    }
-
-    /// Whether the returned value at `source` inhabits a minted claim's
-    /// `path`. Non-case segments resolve against the declared shape; a field
-    /// addressed through a sum names one case's payload member and is
-    /// inhabited only when the returned value's observed case carries a
-    /// field of that identity.
-    fn boundary_claim_path_inhabited(
-        &self,
-        root: StructuralTypeId,
-        source: PlaceId,
-        path: &[StructuralPathSegment],
-    ) -> Result<bool, TerminalInterpretError> {
-        let mut structural_type = root;
-        let mut prefix = Vec::new();
-        for segment in path {
-            let declaration = self
-                .program
-                .structural_types()
-                .get(&structural_type)
-                .ok_or(malformed())?;
-            if let (StructuralPathSegment::Field(identity), StructuralTypeShape::Sum { cases }) =
-                (segment, &declaration.shape)
-            {
-                let Ok(inhabited) = self.observe_structural_case(source, &prefix) else {
-                    return Ok(false);
-                };
-                let Some(case) = find_structural_case(cases, inhabited) else {
-                    return Ok(false);
-                };
-                let Some(field) = terminal_psi::field_by_identity(&case.fields, *identity) else {
-                    return Ok(false);
-                };
-                let Some(next) = field.field_type.as_structural() else {
-                    return Err(malformed());
-                };
-                structural_type = next;
-            } else {
-                structural_type = resolve_structural_path_type(
-                    &self.program.structural_types(),
-                    structural_type,
-                    std::slice::from_ref(segment),
-                )?;
-            }
-            prefix.push(segment.clone());
-        }
-        Ok(true)
     }
 
     pub(crate) fn settle_crash(
