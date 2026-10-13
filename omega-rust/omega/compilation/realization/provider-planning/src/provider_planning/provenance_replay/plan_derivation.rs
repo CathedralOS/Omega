@@ -276,16 +276,18 @@ fn derive_named_provider_plans(
                 row_target_machine_origins: Vec::new(),
             };
             for row in rows {
-                let machine = typed.machines().iter().find(|machine| {
-                    machine.symbol == row.realization_machine
-                        && crate::target_machines::realizes_machine(
-                            context,
-                            machine,
-                            selected_target,
-                        )
-                        && typed.symbols.symbol_package_identity(machine.symbol) == origin_package
-                })?;
-                if typed.machine_states(machine).first()?.symbol != row.realization_state {
+                // The row binds the entry of the machine resolution named; a
+                // family head's entry stands for every member's.
+                let named = typed.machine_by_symbol(row.realization_machine)?;
+                if typed.machine_states(named).first()?.symbol != row.realization_state {
+                    return None;
+                }
+                let machine = crate::target_machines::realized_row_machine(
+                    context,
+                    row.realization_machine,
+                    selected_target,
+                )?;
+                if typed.symbols.symbol_package_identity(machine.symbol) != origin_package {
                     return None;
                 }
                 let identity = exact_satisfied_requirement_identity(

@@ -1,0 +1,16 @@
+// RUN CANARY (exit 70). Mechanical variant of named_map_target_family_rows_exit:
+// the package-local boundary slot, its map and the per-target families are
+// declared in the sibling module `gate`, and the build selects the provider
+// before binding the entries. The realized member must still answer the call.
+use omega_language_std::console;
+use omega::language::core::binding;
+use gate::Gate;
+
+data Main { gate: Binding<Gate>; ticket: i32; code: i32; }
+machine Main::main(main: &mut Main) reaches Gate + Console {
+    main.ticket = main.gate.open();
+    main.code = main.gate.close(main.ticket);
+    transition main.code == 70 { true -> good() _ -> bad() }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(72); }
+}

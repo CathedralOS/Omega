@@ -1,0 +1,38 @@
+// RUN CANARY (exit 70). A package-local boundary trait is a selectable slot
+// whose named map binds target-scoped machines. `open_gate` and `close_gate`
+// are declared once per target, so each is a family whose head carries no
+// body: the map's rows name the head, and realization installs the member
+// authored for the realized target. The selection is spelled after the entry
+// bindings; the sibling fixture spells it before them.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+pub boundary trait Gate {
+    machine open() -> i32;
+    machine close(ticket: i32) -> i32;
+}
+GateProvider satisfies Gate {
+    Gate::open = open_gate;
+    Gate::close = close_gate;
+}
+macos_arm64 machine open_gate() -> i32 { 7 }
+windows_x86_64 machine open_gate() -> i32 { 7 }
+macos_arm64 machine close_gate(ticket: i32) -> i32 {
+    transition ticket == 7 { true -> accepted() _ -> refused() }
+    state accepted() -> i32 { 70 }
+    state refused() -> i32 { 71 }
+}
+windows_x86_64 machine close_gate(ticket: i32) -> i32 {
+    transition ticket == 7 { true -> accepted() _ -> refused() }
+    state accepted() -> i32 { 70 }
+    state refused() -> i32 { 71 }
+}
+
+data Main { gate: Binding<Gate>; ticket: i32; code: i32; }
+machine Main::main(main: &mut Main) reaches Gate + Console {
+    main.ticket = main.gate.open();
+    main.code = main.gate.close(main.ticket);
+    transition main.code == 70 { true -> good() _ -> bad() }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(72); }
+}

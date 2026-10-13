@@ -72,6 +72,20 @@ pub(super) fn provider_identities(
             // A regional candidate needs a retained closed application and its
             // checked slot mapping; the nominal template supplies neither.
             continue;
+        } else if realization.target_family_interface {
+            // The row names a target family's head, the declaration every
+            // member body implements; each member is a candidate, and Omega
+            // installs the selected target's member. The head itself has no
+            // body and never enters the catalog.
+            if !typed.target_machine_families.iter().any(|family| {
+                family.canonical == realization.symbol
+                    && family
+                        .members
+                        .iter()
+                        .any(|member| member.machine == machine.symbol)
+            }) {
+                continue;
+            }
         } else if realization.symbol != machine.symbol {
             // Specialization owns the ordered template-to-instance state
             // correspondence; the map's entry above must remain its origin.

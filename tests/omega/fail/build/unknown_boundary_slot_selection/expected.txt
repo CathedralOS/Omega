@@ -1,0 +1,1 @@
+build selects provider `LatchProvider` for unknown boundary slot `Gate`

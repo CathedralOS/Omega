@@ -177,15 +177,7 @@ fn realized_machine<'program>(
     target: TargetProfile,
 ) -> Option<&'program checked_trees::typed_trees::machine::Machine> {
     if machine.target_family_interface {
-        let family = typed
-            .target_machine_families
-            .iter()
-            .find(|family| family.canonical == machine.symbol)?;
-        let member = family
-            .members
-            .iter()
-            .find(|member| member.target.as_str() == target.target_name())?;
-        return typed.machine_by_symbol(member.machine);
+        return family_member_for_target(typed, machine.symbol, target.target_name());
     }
     typed
         .machine_authored_target(machine)
@@ -194,6 +186,52 @@ fn realized_machine<'program>(
                 .is_ok_and(|resolved| resolved == target)
         })
         .then_some(machine)
+}
+
+/// The retained member body a family head stands for on one target, from
+/// Psi's explicit family catalog. `None` when the family has no body for
+/// that target: the head itself is never a realization.
+fn family_member_for_target<'program>(
+    typed: &'program TypedTrees,
+    head: symbols::SymbolHandle,
+    target: &str,
+) -> Option<&'program checked_trees::typed_trees::machine::Machine> {
+    let family = typed
+        .target_machine_families
+        .iter()
+        .find(|family| family.canonical == head)?;
+    let member = family
+        .members
+        .iter()
+        .find(|member| member.target.as_str() == target)?;
+    typed.machine_by_symbol(member.machine)
+}
+
+/// The machine a provider row realizes on the selected target. A row names
+/// the machine resolution bound its authored path to: a portable body, an
+/// exact target member, or a target family's head when the authored name is
+/// a family (`pub macos_arm64 machine sleep` in a library). The head is the
+/// family's declaration, not a body, so the row realizes the member the
+/// catalog retains for the selected target; a family without a body for that
+/// target leaves the row, and its map, inert on that target exactly like a
+/// member authored for another target. A Build-scope context realizes only
+/// portable bodies, as `realizes_machine` states.
+pub(crate) fn realized_row_machine<'program>(
+    context: crate::ProviderPlanningContext<'program>,
+    named: symbols::SymbolHandle,
+    selected_target: Option<&str>,
+) -> Option<&'program checked_trees::typed_trees::machine::Machine> {
+    let typed = context.typed;
+    let machine = typed.machine_by_symbol(named)?;
+    let realization = if machine.target_family_interface {
+        let target = selected_target
+            .filter(|target| !target.is_empty())
+            .unwrap_or_else(|| TargetProfile::host().target_name());
+        family_member_for_target(typed, named, target)?
+    } else {
+        machine
+    };
+    realizes_machine(context, realization, selected_target).then_some(realization)
 }
 
 /// Select declaration candidates without changing the shared source program.

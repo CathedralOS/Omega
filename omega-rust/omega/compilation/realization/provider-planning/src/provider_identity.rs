@@ -181,7 +181,16 @@ pub fn provider_row_matches(
         {
             return false;
         }
-        if realization.symbol == machine.symbol {
+        // The row names what resolution bound its authored path to; on this
+        // plan's target that stands for one body: the machine itself or its
+        // family's member for the target.
+        if crate::target_machines::realized_row_machine(
+            context,
+            entry.realization_machine,
+            Some(&plan.target),
+        )
+        .is_some_and(|realized| realized.symbol == machine.symbol)
+        {
             return true;
         }
         // The specialization producer clones states in declaration order;
