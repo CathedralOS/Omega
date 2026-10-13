@@ -52,12 +52,7 @@ every ordinary parameter explicitly. A qualified declaration such as
 `Buffer::clear(buffer: &mut Buffer)` is called as `Buffer::clear(&mut buffer)`,
 not `buffer.clear()`. The qualification establishes a namespace and semantic
 home, not an implicit receiver. Dot access remains data-field projection; it
-does not select or invoke a machine. The one receiver form is a service
-binding: where `place` has type `Binding<R>` (a field, local or parameter),
-`place.op(args)` calls boundary requirement `R::op` with exactly its
-arguments and borrows the binding as the omitted service receiver, as
-[bindings](../build/component_publication.md#bindings-and-era-entry) and
-[boundary calls](../terminal-psi/boundary_calls.md) define. Calls obey the exact
+does not select or invoke a machine. Calls obey the exact
 [suspension/blocking acknowledgement and position rules](effects.md#call-site-acknowledgements).
 
 Machine invocations require their full ordinary argument list. Application of

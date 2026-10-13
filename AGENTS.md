@@ -303,7 +303,11 @@ are byte-sensitive.
   not a substitute.
 - Language/architecture decisions go in `OWNER_QUESTIONS.md`, referenced from
   the affected sample's README; engineering decisions stay with the session doing
-  the work. Gates pass on real behavior. The accepted bootstrap
+  the work. Only the owner answers, closes or rewrites an owner question. A
+  session that believes the specification already answers one reports its
+  citations to the user and changes nothing: not the entry, not the
+  specification, not the boards. A guide example, a lower-level contract or the
+  Rust compiler's behavior never ratifies a language rule. Gates pass on real behavior. The accepted bootstrap
   chain changes only through its proofs.
 
 ## Sessions and subagents
