@@ -208,19 +208,13 @@ fn append_linear_claim_frontier(
             return;
         }
         TypeReferenceNode::Named { symbol, .. } => {
-            if let Some(replacement) =
-                substitutions
-                    .iter()
-                    .rev()
-                    .find_map(|(parameter, replacement)| {
-                        (*parameter == *symbol).then_some(*replacement)
-                    })
-                && replacement != type_reference
+            if let Some((replacement, enclosing)) =
+                enclosing_substitution(substitutions, *symbol, type_reference)
             {
                 append_linear_claim_frontier(
                     program,
                     replacement,
-                    substitutions,
+                    enclosing,
                     path,
                     visiting,
                     claims,
@@ -429,16 +423,38 @@ fn type_multiplicity(
         TypeReferenceNode::FixedArray { element_type, .. } => {
             type_multiplicity(program, *element_type, substitutions)
         }
-        TypeReferenceNode::Named { symbol, .. } => substitutions
-            .iter()
-            .rev()
-            .find_map(|(parameter, replacement)| {
-                (*parameter == *symbol && *replacement != type_reference).then_some(*replacement)
-            })
-            .map(|replacement| type_multiplicity(program, replacement, substitutions))
-            .unwrap_or_else(|| frontier_type_multiplicity(program, type_reference)),
+        TypeReferenceNode::Named { symbol, .. } => {
+            match enclosing_substitution(substitutions, *symbol, type_reference) {
+                Some((replacement, enclosing)) => {
+                    type_multiplicity(program, replacement, enclosing)
+                }
+                None => frontier_type_multiplicity(program, type_reference),
+            }
+        }
         _ => frontier_type_multiplicity(program, type_reference),
     }
+}
+
+/// The argument bound to parameter `symbol`, with the substitutions that
+/// were in force where that argument was spelled. A generic application
+/// appends its own parameter bindings after the enclosing ones, and an
+/// argument can name an enclosing parameter (`Pair<B, A>` inside
+/// `swap<A, B>`): resolving it against the whole list would find the
+/// application's own `A -> B`, `B -> A` again and never reach the enclosing
+/// `A -> u64`. A self-mapping entry is no binding at all.
+fn enclosing_substitution(
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    symbol: SymbolHandle,
+    occurrence: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, &[(SymbolHandle, TypeReferenceHandle)])> {
+    substitutions
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(position, (parameter, replacement))| {
+            (*parameter == symbol && *replacement != occurrence)
+                .then_some((*replacement, &substitutions[..position]))
+        })
 }
 
 /// `TypedTrees::type_multiplicity` against the frontier's declaration and

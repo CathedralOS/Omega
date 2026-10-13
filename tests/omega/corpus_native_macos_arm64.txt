@@ -1364,6 +1364,7 @@ pass/generics/runtime_selected_operator_body_exit built 10636ms exit:3 @b7c2d297
 pass/generics/runtime_value_generic_subject_exit built 636ms exit:17
 pass/generics/seq_map_filter checked 9988ms @fcc053dc7014+wt
 pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 2650ms @fcc053dc7014+wt
+pass/generics/swapped_type_parameter_result checked 1822ms @c083b963e5ba
 pass/host/console_exit_process_exit built 2697ms exit:70 stdout:match @5c302dd6d305
 pass/host/efi_vtable_entry checked 9421ms @5041ef1af684+wt
 pass/host/foreign_byte_recast checked 13378ms @5041ef1af684+wt

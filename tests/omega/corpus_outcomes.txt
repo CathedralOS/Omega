@@ -6046,6 +6046,7 @@ pass/generics/runtime_value_generic_subject_exit checked 12414ms check-target:ma
 pass/generics/seq_map_filter checked 10288ms @fcc053dc7014+wt
 pass/generics/static_callable_local_type_argument_exit checked 11056ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 2884ms @fcc053dc7014+wt
+pass/generics/swapped_type_parameter_result checked 1860ms @c083b963e5ba
 pass/host/console_exit_process_exit checked 11700ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/efi_vtable_entry checked 9644ms @5041ef1af684+wt
 pass/host/foreign_byte_recast checked 12749ms @5041ef1af684+wt
