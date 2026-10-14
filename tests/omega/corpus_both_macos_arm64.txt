@@ -780,6 +780,7 @@ run/calls/byte_literal_expression_values built 6121ms exit:0 interpreter-exit:0 
 run/calls/nested_range_call_operands built 6127ms exit:0 interpreter-exit:0 interpreter:agrees @0553d60b9b91+wt
 run/calls/ordered_literal_call_operands built 6121ms exit:0 interpreter-exit:0 interpreter:agrees @0553d60b9b91+wt
 run/calls/owned_literal_call_operands built 6121ms exit:0 interpreter-exit:0 interpreter:agrees @0553d60b9b91+wt
+run/calls/qualified_atomic_operation_names built 5597ms exit:0 interpreter-exit:0 interpreter:agrees @c043a6de8fe3+wt
 run/calls/selected_provider_range_arguments built 11365ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @a68c584655e1+wt
 run/calls/static_binding_authority built 5912ms exit:0 interpreter-exit:0 interpreter:agrees @8073da6ab7ac
 run/contracts/captured_bound_unused_mutation built 5614ms exit:0 interpreter-exit:0 interpreter:agrees @7e164e32caf5+wt

@@ -432,8 +432,9 @@ fn build_call_expression_handle(
                 .cloned()
                 .ok_or_else(|| ParseError::new("missing call target"))?;
 
-            validate_atomic_call_orderings(syntax_trees, target.as_str(), receiver, arguments)?;
-
+            // A namespace-qualified declaration is an ordinary machine call,
+            // even when its leaf name and arity match a dot atomic operation.
+            // Ordering validation belongs to that distinct operation syntax.
             Ok(TableCallExpression {
                 target_is_static: true,
                 receiver,

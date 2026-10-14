@@ -1,0 +1,5 @@
+// A real dot atomic store still rejects an acquire-only ordering.
+data Main { counter: AtomicU32; }
+machine Main::main(main: &mut Main) {
+    main.counter.store(10, Receive);
+}

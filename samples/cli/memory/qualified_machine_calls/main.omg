@@ -1,0 +1,38 @@
+// Expected exit: 0.
+// A qualified ordinary machine retains its identity even when its name matches
+// a dot-access atomic primitive. Neither names nor argument counts select atomics.
+data Operations {}
+machine Operations::store(destination: &mut u64, value: u64) { destination = value; }
+machine Operations::swap(first: u64, second: u64) -> u64 { first }
+machine Operations::fetch_add(first: u64, second: u64) -> u64 { first }
+machine Operations::compare_exchange(first: u64, second: u64, third: u64, fourth: u64) -> u64 { first }
+machine Operations::load(value: u64) -> u64 { value }
+
+machine forwarded(destination: &mut u64) {
+    Operations::store(destination, Operations::swap(17, 23));
+}
+machine main() crashes Trap {
+    let mut observed: u64;
+    Operations::store(&mut observed, 17);
+    let swapped: u64 = Operations::swap(11, 23);
+    let fetched: u64 = Operations::fetch_add(31, 37);
+    let compared: u64 = Operations::compare_exchange(41, 43, 47, 53);
+    let loaded: u64 = Operations::load(59);
+    // Even ordering-shaped spelling is an ordinary value in this static call.
+    let NoOrdering: u64 = 23;
+    let preserved: u64 = Operations::swap(29, NoOrdering);
+    let mut stored: u64;
+    Operations::store(&mut stored, NoOrdering);
+    transition observed == 17 && swapped == 11 && fetched == 31 && compared == 41 && loaded == 59
+        && preserved == 29 && stored == 23 {
+        true -> another_state()
+        false -> wrong()
+    }
+    state another_state() {
+        let mut observed: u64;
+        forwarded(&mut observed);
+        transition observed == 17 { true -> done() false -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

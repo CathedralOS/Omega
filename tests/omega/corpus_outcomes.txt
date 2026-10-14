@@ -329,6 +329,8 @@ fail/atomics/atomic_operand_call_argument rejected 163ms expected @e460ea1df091+
 fail/atomics/atomic_operand_implicit_narrowing rejected 162ms expected @e460ea1df091+wt
 	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/atomics/atomic_store_receive_ordering_rejected rejected 1ms expected @c043a6de8fe3+wt
+	tests/omega/fail/atomics/atomic_store_receive_ordering_rejected/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
 fail/atomics/case_payload_non_event_write rejected 930ms expected @a9ae30e1c334+wt
 	machine `overwrite` state `entry` assignment cannot write `choice` because it is not mutable in this state (if `choice` is undeclared -- a typo -- no such field or local exists)
 fail/atomics/fence_authored_bodyless_lookalike rejected 10ms expected @b2d763407d51+wt
@@ -8094,6 +8096,7 @@ run/calls/ordered_literal_call_operands checked 6036ms check-target:macos_arm64 
 run/calls/outcome_specific_selected_guarantee_exit checked 12421ms check-target:macos_arm64 @55ccf9be57c4
 run/calls/outcome_specific_selected_guarantee_variants_exit checked 12113ms check-target:macos_arm64 @55ccf9be57c4
 run/calls/owned_literal_call_operands checked 6033ms check-target:macos_arm64 @0553d60b9b91+wt
+run/calls/qualified_atomic_operation_names checked 5445ms check-target:macos_arm64 @c043a6de8fe3+wt
 run/calls/resultless_scalar_parameters checked 11475ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/calls/runtime_float_distinct_operand_calls_exit checked 11431ms check-target:macos_arm64 @1f63ee648905+wt
 run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 11428ms check-target:macos_arm64 @1f63ee648905+wt

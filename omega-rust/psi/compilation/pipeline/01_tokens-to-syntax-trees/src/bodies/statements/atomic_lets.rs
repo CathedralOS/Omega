@@ -37,6 +37,12 @@ pub(crate) fn try_desugar_atomic_let(
     else {
         return None;
     };
+    // Qualification names a machine, never the atomic place being updated.
+    // Keep this distinction with the expansion as well as parser validation:
+    // otherwise an ordinary call with ordering-shaped arguments is rewritten.
+    if call.target_is_static || !call.receiver.is_valid() {
+        return None;
+    }
     let arguments = syntax_trees.expressions.expression_handles(call.arguments);
     let (update, ordering) = match (call.target.as_str(), arguments) {
         (
@@ -176,7 +182,7 @@ pub(crate) fn try_desugar_atomic_store(
     let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression).clone() else {
         return None;
     };
-    if call.target.as_str() != "store" || !call.receiver.is_valid() {
+    if call.target_is_static || call.target.as_str() != "store" || !call.receiver.is_valid() {
         return None;
     }
     let argument_count = syntax_trees
