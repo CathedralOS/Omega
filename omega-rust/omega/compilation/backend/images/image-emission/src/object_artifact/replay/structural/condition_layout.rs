@@ -86,10 +86,12 @@ fn replay_structural_shape(
             byte_size = checked_align_up(byte_size, u32::from(alignment))?;
             ValueShape::integer(byte_size, alignment)
         }
+        // An empty array is the canonical zero-byte value with alignment one,
+        // as the lowering layout walk defines it; it needs no element layout.
+        terminal_psi::StructuralTypeShape::FixedArray { length: 0, .. } => {
+            ValueShape::integer(0, 1)
+        }
         terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
-            if *length == 0 {
-                return None;
-            }
             let element = replay_structural_shape(*element, declarations, cache, active)?;
             let stride = checked_align_up(element.byte_size, u32::from(element.alignment))?;
             let byte_size = u64::from(stride)

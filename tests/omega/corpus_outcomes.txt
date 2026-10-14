@@ -6058,7 +6058,8 @@ pass/drops/runtime_composed_nominal_output_hook_exit checked 11588ms check-targe
 pass/drops/runtime_composed_nominal_return_hook_exit checked 11021ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_computed_call_owner_retirement_exit checked 11944ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_effectful_projected_temporary_cleanup_exit checked 11381ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/runtime_empty_array_owner_cleanup_exit checked 10951ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_empty_array_owner_cleanup_exit checked 12216ms check-target:macos_arm64 @a4f0ef6b6479+wt
+pass/drops/runtime_empty_array_owner_cleanup_sites_exit checked 12124ms check-target:macos_arm64 @a4f0ef6b6479+wt
 pass/drops/runtime_generic_nominal_compound_prerequisite_exit checked 13564ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_generic_nominal_integer_prerequisite_exit checked 13406ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_generic_reserved_construction_exit checked 10996ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6069,11 +6070,11 @@ pass/drops/runtime_local_nominal_return_exit checked 11250ms check-target:macos_
 pass/drops/runtime_mixed_temporary_effects_continuation_exit checked 10913ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_mixed_temporary_scalar_continuation_exit checked 10873ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_named_linear_container_cleanup_exit checked 11166ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/runtime_named_parent_linear_cleanup_exit checked 11362ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_named_parent_linear_cleanup_exit checked 12111ms check-target:macos_arm64 @a4f0ef6b6479+wt
 pass/drops/runtime_narrowed_cleanup_receiver_exit checked 11222ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit checked 11010ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_nested_cleanup_postcondition_exit checked 10879ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/runtime_nested_empty_array_owner_cleanup_exit checked 11817ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_nested_empty_array_owner_cleanup_exit checked 10361ms check-target:macos_arm64 @a4f0ef6b6479+wt
 pass/drops/runtime_nested_nominal_producer_loans_exit checked 11899ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_nested_temporary_capture_cleanup_exit checked 11485ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_nominal_array_replacement_exit checked 11435ms check-target:macos_arm64 @a9ae30e1c334+wt

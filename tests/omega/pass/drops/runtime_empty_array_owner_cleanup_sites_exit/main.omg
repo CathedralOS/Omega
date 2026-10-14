@@ -1,0 +1,43 @@
+// Zero-length arrays are zero-byte values. An owner holding primitive,
+// nominal and nested empty arrays is complete once its scalar is written,
+// and its hook runs on the scalar wherever the owner dies.
+data Token { value: u64; }
+data Holder { values: [u64; 0]; tokens: [[Token; 0]; 3]; value: u64; }
+
+machine Holder::drop(holder: &mut Holder)
+requires holder.value == 5
+{
+    holder.value = 0;
+}
+
+machine observe(holder: &Holder) -> u64 { holder.value }
+machine make() -> Holder ensures result.value == 5 {
+    let holder: Holder;
+    holder.value = 5;
+    holder
+}
+machine consume(holder: Holder) -> u64 requires holder.value == 5 { holder.value }
+
+data Wrapper { holder: Holder; }
+
+machine local() -> bool {
+    let holder: Holder;
+    holder.value = 5;
+    observe(&holder) == 5
+}
+machine parameter() -> bool { consume(make()) == 5 }
+machine field() -> bool {
+    let wrapper: Wrapper;
+    wrapper.holder.value = 5;
+    observe(&wrapper.holder) == 5
+}
+
+machine main() crashes Trap {
+    let observed: bool = local() && parameter() && field();
+    transition observed {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
