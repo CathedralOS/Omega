@@ -203,6 +203,76 @@ crashes Trap
 // Whether the current token is an identifier spelling exactly `spelling`:
 // the test for contextual words such as `in` and `mut`, compared against the
 // decoded bytes the lexer copies for every identifier.
+// An optional `[erased]` after a binding's name
+// (wiki/spec/proofs/contracts.md#explicit-erased-bindings): `[` must open
+// exactly that marker. Records whether it was spelled in
+// `binding_erased`.
+pub machine Parser::parse_erased_marker(parser: &mut Parser, input: &TokenStream)
+crashes Trap
+{
+    parser.binding_erased = false;
+    let opened: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBracket);
+    transition opened {
+        true -> marker(parser, input)
+        _ -> done()
+    }
+
+    state marker(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        parser.binding_erased_start = parser.token_start;
+        let erased: bool = Parser::at_word(parser, input, "erased");
+        transition erased {
+            true -> word(parser, input)
+            _ -> reject(parser, input)
+        }
+    }
+
+    state word(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        Parser::expect_punctuation(parser, input, PunctuationKind::RightBracket, ParseDiagnosticCode::ExpectedErasedMarker);
+        parser.binding_erased = parser.output.accepted;
+    }
+
+    state reject(parser: &mut Parser, input: &TokenStream) {
+        Parser::reject_current(parser, input, ParseDiagnosticCode::ExpectedErasedMarker);
+    }
+
+    state done() {}
+}
+
+// Record binding `handle` of `kind` as erased when its marker was spelled.
+pub machine Parser::record_erased(parser: &mut Parser, kind: ErasedBindingKind, handle: u64 in Trapping, end: u64 in Trapping)
+crashes Trap
+{
+    transition parser.binding_erased {
+        true -> bounded(parser, kind, handle, end)
+        _ -> done()
+    }
+
+    state bounded(parser: &mut Parser, kind: ErasedBindingKind, handle: u64 in Trapping, end: u64 in Trapping) {
+        transition parser.output.erased_binding_count < 1024 {
+            true -> stored(parser, kind, handle, end)
+            _ -> full(parser)
+        }
+    }
+
+    state stored(parser: &mut Parser, kind: ErasedBindingKind, handle: u64 in Trapping, end: u64 in Trapping) {
+        parser.output.erased_bindings[parser.output.erased_binding_count] = ErasedBinding {
+            kind: kind,
+            handle: handle,
+            source_span: Parser::source_span(parser, parser.binding_erased_start, end)
+        };
+        parser.output.erased_binding_count = parser.output.erased_binding_count + 1;
+        parser.binding_erased = false;
+    }
+
+    state full(parser: &mut Parser) {
+        SyntaxTrees::reject(&mut parser.output, ParseDiagnosticCode::ErasedBindingCapacityExceeded, parser.source, parser.binding_erased_start, parser.token_end);
+    }
+
+    state done() {}
+}
+
 machine Parser::at_word(parser: &mut Parser, input: &TokenStream, spelling: &[u8]) -> bool
 crashes Trap
 {

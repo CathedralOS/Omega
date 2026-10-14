@@ -128,11 +128,27 @@ crashes Trap
     state identifier_operand(parser: &mut Parser, input: &TokenStream) {
         let suspends: bool = Parser::at_word(parser, input, "suspend");
         let blocks: bool = Parser::at_word(parser, input, "block");
+        let moves: bool = Parser::at_word(parser, input, "move");
         let called: bool = Parser::next_is_punctuation(parser, input, PunctuationKind::LeftParen);
-        transition (suspends || blocks) && !called {
-            true -> acknowledgement(parser, input, suspends)
+        transition (suspends || blocks || moves) && !called {
+            true -> word_prefix(parser, input, suspends, blocks)
             _ -> path(parser, input)
         }
+    }
+
+    // `move place` spells an ownership transfer the transfer itself already
+    // means (wiki/spec/language/ownership.md): the word is read and the
+    // operand stands alone, as the reference compiler treats it.
+    state word_prefix(parser: &mut Parser, input: &TokenStream, suspends: bool, blocks: bool) {
+        transition suspends || blocks {
+            true -> acknowledgement(parser, input, suspends)
+            _ -> moved(parser, input)
+        }
+    }
+
+    state moved(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        transition { _ -> operand(parser, input, ParseDiagnosticCode::ExpectedOperand) }
     }
 
     state acknowledgement(parser: &mut Parser, input: &TokenStream, suspends: bool) {

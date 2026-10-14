@@ -142,6 +142,9 @@ where
     parameter_name_start: u64 in Trapping;
     parameter_name_end: u64 in Trapping;
     parameter_mutable: bool;
+    // Whether the binding being parsed carried `[erased]`.
+    binding_erased: bool;
+    binding_erased_start: u64 in Trapping;
     // Expression stacks: operands, pending operators and open brackets, with
     // the arguments and construction fields staged until their bracket closes.
     expression_operands: [u64; 64] in Trapping;

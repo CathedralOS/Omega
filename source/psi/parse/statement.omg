@@ -170,7 +170,15 @@ crashes Trap
         parser.local_mutable = false;
         parser.local_name_start = parser.token_start;
         parser.local_name_end = parser.token_end;
-        transition { _ -> let_colon(parser, input, unsupported) }
+        transition { _ -> let_marker(parser, input, unsupported) }
+    }
+
+    state let_marker(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        Parser::parse_erased_marker(parser, input);
+        transition parser.output.accepted {
+            true -> let_colon(parser, input, unsupported)
+            _ -> done()
+        }
     }
 
     state let_name(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, mutable: bool) {
@@ -185,7 +193,7 @@ crashes Trap
     state let_named(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         parser.local_name_start = parser.name_start;
         parser.local_name_end = parser.name_end;
-        transition { _ -> let_colon(parser, input, unsupported) }
+        transition { _ -> let_marker(parser, input, unsupported) }
     }
 
     state let_colon(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
@@ -243,6 +251,9 @@ crashes Trap
         has_value: bool,
         value: u64 in Trapping
     ) {
+        let local: u64 in Trapping = parser.output.statement_count as u64 in Trapping;
+        let local_end: u64 in Trapping = parser.token_end;
+        Parser::record_erased(parser, ErasedBindingKind::Local, local, local_end);
         let statement: Statement = Statement {
             kind: StatementKind::Let,
             name: Parser::identifier_span(parser, parser.local_name_start, parser.local_name_end),

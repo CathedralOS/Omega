@@ -150,6 +150,23 @@ pub data DataItem [copy] {
 }
 
 // One typed parameter of a machine or state: `name: Type`.
+// A binding marked `[erased]`
+// (wiki/spec/proofs/contracts.md#explicit-erased-bindings): it stays in
+// checking and identity but contributes no runtime field, read or cleanup.
+// `handle` indexes the table its kind names.
+pub data ErasedBindingKind [copy] {
+    case Parameter;
+    case Field;
+    case PayloadField;
+    case Local;
+}
+
+pub data ErasedBinding [copy] {
+    kind: ErasedBindingKind;
+    handle: u64 in Trapping;
+    source_span: SourceSpan;
+}
+
 pub data Parameter [copy] {
     name: IdentifierSpan;
     type_reference: u64 in Trapping;
@@ -734,6 +751,8 @@ pub data ParseDiagnosticCode [copy] {
     // `in` after a witness's subjects without `lower..upper` or `lower..=upper`.
     case ExpectedRankRange;
     case ExpectedArmGuard;
+    case ExpectedErasedMarker;
+    case ErasedBindingCapacityExceeded;
     case ExpectedMachineName;
     case ExpectedMachineParameterOrEnd;
     case ExpectedMachineParameter;
@@ -911,6 +930,7 @@ where
     type_lifetime_count <= 1024,
     machine_count <= 2048,
     parameter_count <= 32768,
+    erased_binding_count <= 1024,
     state_count <= 8192,
     expression_count <= 131072,
     argument_count <= 65536,
@@ -960,6 +980,8 @@ where
     machine_count: u64;
     parameters: [Parameter; 32768] in Trapping;
     parameter_count: u64;
+    erased_bindings: [ErasedBinding; 1024] in Trapping;
+    erased_binding_count: u64;
     states: [StateItem; 8192] in Trapping;
     state_count: u64;
     expressions: [Expression; 131072] in Trapping;
@@ -1017,6 +1039,7 @@ pub machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: SourceId)
     syntax_trees.type_lifetime_count = 0;
     syntax_trees.machine_count = 0;
     syntax_trees.parameter_count = 0;
+    syntax_trees.erased_binding_count = 0;
     syntax_trees.state_count = 0;
     syntax_trees.expression_count = 0;
     syntax_trees.argument_count = 0;
@@ -1710,6 +1733,24 @@ crashes Trap
     state case_name(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
         let data_case: DataCase = SyntaxTrees::data_case(syntax_trees, handle);
         data_case.name
+    }
+}
+
+// The erased binding at `index`.
+pub machine SyntaxTrees::erased_binding(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> ErasedBinding
+crashes Trap
+{
+    transition index < syntax_trees.erased_binding_count && index < 1024 {
+        true -> read(syntax_trees, index)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> ErasedBinding {
+        syntax_trees.erased_bindings[index]
+    }
+
+    state invalid() -> ErasedBinding {
+        crash Trap;
     }
 }
 

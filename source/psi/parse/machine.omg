@@ -887,14 +887,22 @@ crashes Trap
     state parameter_named(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         Parser::expect_name(parser, input, code);
         transition parser.output.accepted {
+            true -> parameter_marker(parser, input)
+            _ -> done()
+        }
+    }
+
+    state parameter_marker(parser: &mut Parser, input: &TokenStream) {
+        parser.parameter_name_start = parser.name_start;
+        parser.parameter_name_end = parser.name_end;
+        Parser::parse_erased_marker(parser, input);
+        transition parser.output.accepted {
             true -> parameter_colon(parser, input)
             _ -> done()
         }
     }
 
     state parameter_colon(parser: &mut Parser, input: &TokenStream) {
-        parser.parameter_name_start = parser.name_start;
-        parser.parameter_name_end = parser.name_end;
         Parser::expect_punctuation(parser, input, PunctuationKind::Colon,
             ParseDiagnosticCode::ExpectedMachineParameterColon
         );
@@ -920,6 +928,9 @@ crashes Trap
     }
 
     state retain(parser: &mut Parser, input: &TokenStream) {
+        let parameter: u64 in Trapping = parser.output.parameter_count as u64 in Trapping;
+        let type_end: u64 in Trapping = parser.type_end;
+        Parser::record_erased(parser, ErasedBindingKind::Parameter, parameter, type_end);
         parser.output.parameters[parser.output.parameter_count] = Parameter {
             name: Parser::identifier_span(parser, parser.parameter_name_start, parser.parameter_name_end),
             type_reference: parser.type_result,

@@ -52,6 +52,7 @@ class Observation:
     contracts: tuple[tuple[int, ...], ...] = ()
     match_arms: tuple[tuple[int, ...], ...] = ()
     definitions: tuple[tuple[int, ...], ...] = ()
+    erased_bindings: tuple[tuple[int, ...], ...] = ()
 
 
 class Reader:
@@ -528,6 +529,12 @@ def decode(payload: bytes) -> Observation:
         )
         for _ in range(reader.u64())
     )
+    # Erased bindings: kind (1 parameter, 2 field, 3 payload field, 4
+    # local), handle, span.
+    erased_bindings = tuple(
+        (reader.byte(), reader.u64(), reader.u64(), reader.u64(), reader.u64())
+        for _ in range(reader.u64())
+    )
     assert reader.cursor == len(payload), "trailing parser observation bytes"
     return Observation(
         accepted,
@@ -566,6 +573,7 @@ def decode(payload: bytes) -> Observation:
         contracts,
         match_arms,
         definitions,
+        erased_bindings,
     )
 
 
@@ -821,7 +829,7 @@ def rejected(
 DECLARATION_TABLES = (
     "name_paths", "traits", "trait_parents", "conformances",
     "conformance_rows", "domains", "constants", "propositions",
-    "contracts", "match_arms", "definitions",
+    "contracts", "match_arms", "definitions", "erased_bindings",
 )
 
 
@@ -1126,6 +1134,25 @@ def root_declaration_cases(program: str) -> None:
     actual = declaration_accepted(program, "rank-range-after-view", source)
     assert actual.clauses[0][8] == 1 and actual.clauses[0][15] == 1, actual.clauses
     assert actual.expressions[actual.clauses[0][16]][6] == 0, actual.expressions
+    # `[erased]` marks a binding occurrence
+    # (wiki/spec/proofs/contracts.md#explicit-erased-bindings): a parameter,
+    # field, payload field or local keeps its row and is listed as erased.
+    erased_source = (
+        b"data Certified { value: u8; proof [erased]: u8; case Found(seen [erased]: u8); }\n"
+        b"machine keep(n: u8, witness [erased]: u8) -> u8 { let note [erased]: u8 = 1; n }"
+    )
+    declaration_accepted(
+        program,
+        "erased-bindings",
+        erased_source,
+        erased_bindings=(
+            (2, 1, *through(erased_source, b"[erased]: u8;", b";")),
+            (3, 0, *span(erased_source, b"[erased]: u8", 2)),
+            (1, 1, *span(erased_source, b"[erased]: u8", 3)),
+            (4, 0, *through(erased_source, b"[erased]: u8 = 1;", b";")),
+        ),
+    )
+    rejected(program, "erased-marker-spells-erased", b"machine keep(n [copy]: u8) {}", 199, (16, 20))
     rejected(program, "rank-range-needs-dots", b"machine f(n: u64) terminates by n in 0; {}", 197, (38, 39), parameter_count=1, type_reference_count=1, expression_count=2)
     # `pattern if condition -> target` guards an arm
     # (wiki/spec/language/patterns.md#coverage-and-domain-tests); the
@@ -3083,6 +3110,12 @@ def main() -> None:
         arguments=(6, 12),
         arms=((4, 1, 0, 1, 1, 4, 1, 7, 1, 40, 68), (2, 0, 0, 0, 1, 10, 3, 0, 1, 69, 85), (2, 0, 0, 0, 0, 0, 1, 13, 1, 86, 95)),
         pattern_fields=((1, 47, 48, 0, 0, 1, 47, 48),),
+    )
+    body(
+        "move-prefix-is-read-and-dropped",
+        b"machine f(t: u8) { let moved: u8 = move t; }",
+        ((1, 0, 0, 0, 0, 0, 0, 1, 40, 41, 0, 1, 40, 41),),
+        ((1, 1, 23, 28, 0, 1, 1, 0, 0, 1, 0, 0, 1, 19, 42),),
     )
     body(
         "subject-literal-and-terminal-arms",

@@ -197,6 +197,14 @@ crashes Trap
         parser.member_name_start = parser.name_start;
         parser.member_name_end = parser.name_end;
         transition parser.output.accepted {
+            true -> field_marker(parser, input)
+            _ -> done()
+        }
+    }
+
+    state field_marker(parser: &mut Parser, input: &TokenStream) {
+        Parser::parse_erased_marker(parser, input);
+        transition parser.output.accepted {
             true -> field_colon(parser, input)
             _ -> done()
         }
@@ -236,6 +244,8 @@ crashes Trap
     state field_stored(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping) {
         let field: u64 in Trapping = parser.output.field_count as u64 in Trapping;
         let span: SourceSpan = Parser::source_span(parser, parser.member_start, parser.token_end);
+        let field_end: u64 in Trapping = parser.token_end;
+        Parser::record_erased(parser, ErasedBindingKind::Field, field, field_end);
         parser.output.fields[parser.output.field_count] = DataField {
             name: Parser::identifier_span(parser, parser.member_name_start, parser.member_name_end),
             has_identity: parser.member_has_identity,
@@ -329,7 +339,21 @@ crashes Trap
     state payload_name(parser: &mut Parser, input: &TokenStream, field_start: u64 in Trapping) {
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedDataCasePayloadField);
         transition parser.output.accepted {
-            true -> payload_colon(parser, input, field_start, parser.name_start, parser.name_end)
+            true -> payload_marker(parser, input, field_start, parser.name_start, parser.name_end)
+            _ -> done()
+        }
+    }
+
+    state payload_marker(
+        parser: &mut Parser,
+        input: &TokenStream,
+        field_start: u64 in Trapping,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        Parser::parse_erased_marker(parser, input);
+        transition parser.output.accepted {
+            true -> payload_colon(parser, input, field_start, start, end)
             _ -> done()
         }
     }
@@ -430,6 +454,8 @@ crashes Trap
         field_end: u64 in Trapping,
         more: bool
     ) {
+        let payload: u64 in Trapping = parser.output.payload_field_count as u64 in Trapping;
+        Parser::record_erased(parser, ErasedBindingKind::PayloadField, payload, field_end);
         parser.output.payload_fields[parser.output.payload_field_count] = DataField {
             name: Parser::identifier_span(parser, start, end),
             has_identity: parser.identity_present,

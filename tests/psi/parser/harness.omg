@@ -176,6 +176,8 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::MeasureNotPublic -> parse_diagnostic(parser_harness, output, 196)
             ParseDiagnosticCode::ExpectedRankRange -> parse_diagnostic(parser_harness, output, 197)
             ParseDiagnosticCode::ExpectedArmGuard -> parse_diagnostic(parser_harness, output, 198)
+            ParseDiagnosticCode::ExpectedErasedMarker -> parse_diagnostic(parser_harness, output, 199)
+            ParseDiagnosticCode::ErasedBindingCapacityExceeded -> parse_diagnostic(parser_harness, output, 200)
             ParseDiagnosticCode::ExpectedMachineName -> parse_diagnostic(parser_harness, output, 40)
             ParseDiagnosticCode::ExpectedMachineParameterOrEnd -> parse_diagnostic(parser_harness, output, 41)
             ParseDiagnosticCode::ExpectedMachineParameter -> parse_diagnostic(parser_harness, output, 42)
@@ -1767,8 +1769,39 @@ crashes Trap
     state definition_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.definition_count {
             true -> write_definition(parser_harness, output, index)
+            _ -> erased_count(parser_harness, output)
+        }
+    }
+
+    // Erased bindings (kind tag 1 parameter, 2 field, 3 payload field, 4
+    // local; handle; span).
+    state erased_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_u64(parser_harness, output.erased_binding_count as u64 in Trapping);
+        transition { _ -> erased_row(parser_harness, output, 0) }
+    }
+
+    state erased_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.erased_binding_count {
+            true -> write_erased(parser_harness, output, index)
             _ -> done()
         }
+    }
+
+    state write_erased(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let binding: ErasedBinding = SyntaxTrees::erased_binding(output, index);
+        transition binding.kind {
+            ErasedBindingKind::Parameter -> erased_kind(parser_harness, output, index, binding, 1)
+            ErasedBindingKind::Field -> erased_kind(parser_harness, output, index, binding, 2)
+            ErasedBindingKind::PayloadField -> erased_kind(parser_harness, output, index, binding, 3)
+            ErasedBindingKind::Local -> erased_kind(parser_harness, output, index, binding, 4)
+        }
+    }
+
+    state erased_kind(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping, binding: ErasedBinding, tag: u8) {
+        ParserHarness::write_byte(parser_harness, tag);
+        ParserHarness::write_u64(parser_harness, binding.handle);
+        ParserHarness::write_source_span(parser_harness, binding.source_span);
+        transition { _ -> erased_row(parser_harness, output, index + 1) }
     }
 
     state write_definition(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
