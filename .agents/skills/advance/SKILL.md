@@ -332,6 +332,10 @@ Invoking advance authorizes committing and publishing the change through
 
 Validate before entering the queue. Follow the protocol for the local wait,
 claim, rebase, exact verified candidate, and release on an affected failure.
+Publish with `--provenance "agent=<tool> model=<id> effort=<level>"` naming the
+actual model. When the session does not know it, read the harness configuration
+rather than writing `unspecified`: Codex records it as `model` and
+`model_reasoning_effort` in `~/.codex/config.toml`.
 Hold the lease only for the publish itself.
 
 The sample running is the record of the work; no board entry is needed. If a
