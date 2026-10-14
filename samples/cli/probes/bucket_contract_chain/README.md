@@ -11,7 +11,9 @@ The discharge chain is pure contract chaining — no runtime checks:
 and GUARANTEES non-emptiness plus the predecessor bound, `get` and `pop`
 CONSUME those guarantees. Mutating calls invalidate carried facts, so each
 proof-obligated call is fed by the call before it; the reads go through
-`as_slice`/`as_mut_slice` views.
+whole-window borrows (`&bucket.items[..]`, `&mut bucket.items[..]`), which
+name the same storage as the array, so the array's index facts hold for the
+view.
 
 The machine pushes 7, reads slot 0, pops it, and accepts only `first == 7`
 and `popped == 7`. An undischarged `push`/`pop`/`get` call is a compile

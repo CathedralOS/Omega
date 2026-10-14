@@ -7,7 +7,8 @@
 // The discharge chain is pure contract chaining, no runtime checks:
 //   clear ESTABLISHES spare room (ensures length < items.len),
 //   push CONSUMES it and GUARANTEES non-emptiness + the predecessor bound,
-//   get  CONSUMES push's length > index fact through the slice view,
+//   get  CONSUMES push's length > index fact through the whole-window
+//        view `&bucket.items[..]`, which names the array's own storage,
 //   pop  CONSUMES non-emptiness + the predecessor bound.
 // Mutating calls invalidate carried facts, so each proof-obligated call is
 // fed by the guarantee of the call before it.
@@ -38,7 +39,7 @@ ensures
     bucket.length > 0;
     bucket.length - 1 < bucket.items.len
 {
-    let slots: &mut [u8] = bucket.items.as_mut_slice();
+    let slots: &mut [u8] = &mut bucket.items[..];
     let index: u64 in Wrapping = bucket.length;
     slots[index] = value as u8;
     bucket.length = bucket.length + 1;
@@ -50,7 +51,7 @@ requires
     bucket.length > index;
     index < bucket.items.len
 {
-    let slots: &[u8] = bucket.items.as_slice();
+    let slots: &[u8] = &bucket.items[..];
     slots[index]
 }
 
@@ -61,7 +62,7 @@ requires
     bucket.length > 0;
     bucket.length - 1 < bucket.items.len
 {
-    let slots: &[u8] = bucket.items.as_slice();
+    let slots: &[u8] = &bucket.items[..];
     let index: u64 in Wrapping = bucket.length - 1;
     let value: u8 = slots[index];
     bucket.length = index;
