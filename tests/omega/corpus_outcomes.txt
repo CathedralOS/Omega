@@ -1800,6 +1800,9 @@ fail/core/content_conservation_unqualified_place rejected 928ms expected @a9ae30
 	callable `InvalidSplit::split` has an invalid content-conservation contract: projection `Owned::content` requires exact qualification `Region::Owned`, but `old(&whole)` is not qualified by its type or an ordinary callable contract
 fail/core/content_issuance_consumed_constructed_claims rejected 1598ms expected @a9ae30e1c334+wt
 	cannot establish call-result qualification `Chunk::Held`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+fail/core/content_partition_provider_unconserved rejected 1476ms expected @e52673d2bcdb+wt
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
 fail/core/content_projection_arbitrary_call rejected 922ms expected @a9ae30e1c334+wt
 	content projection `Owned::content` is outside the closed projection fragment; use one selected algebra constructor over subject field reads, proof-natural constructors, and closed arithmetic only
 fail/core/content_projection_foreign_owner rejected 827ms expected @a9ae30e1c334+wt
@@ -6040,10 +6043,8 @@ pass/control_flow/three_param_state_forward_compile checked 1622ms @a9ae30e1c334
 pass/control_flow/transition_operand_schedule checked 1608ms @a9ae30e1c334+wt
 pass/control_flow/transition_tail_self_call checked 1738ms @a9ae30e1c334+wt
 pass/core/carry_permission_provider_adapter checked 11097ms check-target:macos_arm64 @83314997c2b2
-pass/core/content_conservation_constructed_argument checked 1744ms @a9ae30e1c334+wt
-pass/core/content_conservation_contract rejected 11474ms check-target:macos_arm64 @a9ae30e1c334+wt
-	selected compiler intrinsic `<selected target>::RegionSinkProvider::satisfies::RegionSink` for Terminal boundary `named-callable(path(RegionSink::accept),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(Region\\)\\)\\,declared-domain\\(name\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Region::Owned\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
-	selected compiler intrinsic `<selected target>::RegionSplitProvider::satisfies::RegionSplit` for Terminal boundary `named-callable(path(RegionSplit::split),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(Region\\)\\)\\,declared-domain\\(name\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Region::Owned\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
+pass/core/content_conservation_constructed_argument checked 1711ms @5b58c9723867
+pass/core/content_conservation_contract_exit checked 23008ms check-target:macos_arm64 @e52673d2bcdb+wt
 pass/core/content_retained_custody_round_trip checked 11400ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/extent_core_surface checked 1673ms @a9ae30e1c334+wt
 pass/core/extent_root_provider_adapter checked 11044ms check-target:macos_arm64 @83314997c2b2

@@ -669,15 +669,20 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 | terminal_psi::StructuralAccess::SharedBorrow
                 | terminal_psi::StructuralAccess::MutableBorrow
         )
+        // A scalar snapshot neither consumes the source nor establishes or
+        // discharges any claim on it. Owned composite storage may be read
+        // under an ordinary or content-bearing entry claim alike: a partition
+        // provider reads the magnitude it conserves. Borrowed observation of
+        // claimed storage keeps the narrower rule.
         || (!owned_observation
-            && machine
+            && (machine
                 .entry_claims
                 .iter()
-                .any(|claim| claim.input == *source))
-        || machine
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == *source)
+                .any(|claim| claim.input == *source)
+                || machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == *source)))
         || matching.is_none()
     {
         return malformed("scalar structural field has invalid source custody");

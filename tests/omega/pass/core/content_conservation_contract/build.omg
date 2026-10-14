@@ -1,8 +1,0 @@
-// Native coverage uses an authored, target-specific program entry.
-machine build(builder: &mut Build) {
-    Build::application(builder, "content_conservation_contract");
-    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
-    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
-    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
-}

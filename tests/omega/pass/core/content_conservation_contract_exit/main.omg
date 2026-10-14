@@ -1,9 +1,10 @@
 // An established owned input is partitioned through an INVOKED boundary
-// requirement, and `Main::main` runs it: `split` hands `whole` to the
-// authored `separate` theorem and both residual claims leave through a
-// custody-exit boundary. Until this fixture gained an entry it declared the
-// contract and never called it, so owned-content custody had no executed
-// coverage anywhere in the corpus.
+// requirement, and `Main::main` runs it natively: `split` hands `whole` to
+// the authored `separate` theorem, both residual claims leave through a
+// custody-exit boundary, and the retained half's magnitude selects the exit
+// code. Until this fixture gained executable providers it declared the
+// contract, called it, and refused native realization, so owned-content
+// custody had no executed coverage anywhere in the corpus.
 //
 // The partition primitive is called DIRECTLY. Routing it through a checked
 // wrapper machine instead -- `forward(partition, whole)` calling
@@ -22,13 +23,18 @@
 // `main` drives it and disposes of what comes back.
 use omega::language::core::content;
 use omega::language::core::binding;
-use omega::language::core::external_binding;
+use omega::language::core::drop;
+use omega_language_std::console;
 
 pub data ByteUnit {}
 
 pub data Region [linear] {
     remaining: u64;
 }
+
+// The type owner authorizes the only cleanup plan; linear custody still
+// has to be transferred or dropped exactly once.
+machine Region::drop(region: &mut Region) {}
 
 pub domain Region::Owned;
 
@@ -44,7 +50,8 @@ pub data SplitResult {
 }
 
 pub boundary trait RegionSplit {
-    machine split(whole: Region in Owned) -> SplitResult
+    machine split(whole: Region in Owned, head: u64) -> SplitResult
+    requires head <= whole.remaining
     ensures
         Owned::content(old(&whole))
         == separate(
@@ -59,45 +66,65 @@ pub boundary trait RegionSink {
     machine accept(piece: Region in Owned);
 }
 
-// The selected provider pair the entry's `Binding` fields demand. A
-// conservation boundary's provider is a trust anchor: `split`'s partition
-// and `accept`'s custody exit are admitted leaves the checker cannot derive
-// in ordinary code -- the `separate` law is authored contract, never a
-// construction a checked body could prove.
+// The selected provider pair the entry's `Binding` fields demand. The
+// partition primitive is a checked body that authors its own theorem: it
+// carves `head` units off the input into a fresh owned piece, reissues the
+// remainder as the second piece, and retires the consumed input through the
+// owner's cleanup plan. The checker proves the authored `separate` law from
+// that body -- the entry magnitude equals the sum of the two issued
+// magnitudes -- so the provider is admitted on evidence, not trust. The
+// custody exit below admits acceptance of custody only.
 data RegionSplitProvider { }
 
-machine RegionSplitProvider::split(whole: Region in Owned) -> SplitResult
+machine RegionSplitProvider::split(whole: Region in Owned, head: u64) -> SplitResult
 satisfies RegionSplit::split
-via ForeignBinding::CompilerIntrinsic
+requires head <= whole.remaining
 ensures
     Owned::content(old(&whole))
     == separate(
         Owned::content(&result.left),
         Owned::content(&result.right),
-    );
+    )
+{
+    let left: Region in Owned = Region { remaining: head };
+    let right: Region in Owned = Region { remaining: whole.remaining - head };
+    drop(whole);
+    SplitResult { left: left, right: right }
+}
 
 data RegionSinkProvider { }
 
 machine RegionSinkProvider::accept(piece: Region in Owned)
 satisfies RegionSink::accept
-via ForeignBinding::CompilerIntrinsic;
+{
+    drop(piece);
+}
 
 data Main {
+    console: Binding<Console>;
     partition: Binding<RegionSplit>;
     sink: Binding<RegionSink>;
 }
 
-machine Main::partition_and_retain(main: &mut Main, whole: Region in Owned) -> Region in Owned
+machine Main::partition_and_retain(main: &mut Main, whole: Region in Owned, head: u64) -> Region in Owned
+requires head <= whole.remaining
 reaches RegionSplit, RegionSink
 {
-    let split: SplitResult = main.partition.split(whole);
+    let split: SplitResult = main.partition.split(whole, head);
     let { left, right } = split;
     main.sink.accept(left);
     right
 }
 
-machine Main::main(main: &mut Main) reaches RegionSplit, RegionSink {
+machine Main::main(main: &mut Main) reaches Console, RegionSplit, RegionSink {
     let whole: Region in Owned = Region { remaining: 8 };
-    let retained: Region in Owned = Main::partition_and_retain(main, whole);
+    let retained: Region in Owned = Main::partition_and_retain(main, whole, 2);
+    let correct: bool = retained.remaining == 6;
     main.sink.accept(retained);
+    transition correct {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(72); }
 }

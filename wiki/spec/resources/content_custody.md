@@ -110,7 +110,13 @@ for every exiting remainder.
 
 Inference covers identity-preserving moves, forwarding, and transparent
 construction/extraction. The primitive changing a partition authors its theorem;
-checked wrappers may compose proved operations without restating them. Every
+checked wrappers may compose proved operations without restating them. A
+checked body that authors the theorem proves it from its normal return: each
+projection is the owner's normalized expression over the subject's fields,
+`old(place)` reads the entry revision, and `separate` of counted quantities is
+the magnitude sum, with Exact fixed-width arithmetic read as its mathematical
+value. A body whose pieces do not sum to the consumed input rejects; an
+interval-set theorem has no body judgment yet. Every
 established claim has its own identity, distinct from its current path, root
 lineage, content, permissions, and carry. Moving a place moves its claim subtree;
 aggregate construction nests claims and destructuring reverses that operation.

@@ -80,6 +80,7 @@ mod call_requirements;
 mod citations;
 mod completed_values;
 mod const_ranges;
+mod content_conservation;
 mod contract_refinement;
 mod exit_coverage;
 mod fact_mentions;
@@ -379,7 +380,8 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             }
             match statement {
                 StatementNode::Call(call)
-                    if is_citation_statement(program, &proof_only, machine, call) => {}
+                    if is_citation_statement(program, &proof_only, machine, call)
+                        || content_conservation::is_empty_body_statement_call(program, call) => {}
                 StatementNode::LocalData(local) => {
                     let mut next = Vec::new();
                     for (environment, judge) in frames {
@@ -511,7 +513,39 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 .iter()
                 .any(|parameter| parameter.name.as_str() == RESULT_BINDER)
         });
+    // An authored content-conservation theorem is judged over the sole-arm
+    // normal-return value; its projection plans are read once per machine.
+    let content_plans =
+        crate::value_custody::content_conservation::content_conservation_plans(program);
+    let projection_plans = if ensures.iter().any(|fact| {
+        content_conservation::content_conservation_plan(machine, *fact, &content_plans).is_some()
+    }) {
+        crate::value_custody::content_projections::build_content_projection_plans(program)
+    } else {
+        Vec::new()
+    };
     let judge_structural = |fact: ExpressionHandle| -> StructuralJudgment {
+        if let Some(plan) =
+            content_conservation::content_conservation_plan(machine, fact, &content_plans)
+        {
+            let Some(paths) = &sole_arm_result else {
+                return StructuralJudgment::Unknown;
+            };
+            let mut verdict = StructuralJudgment::Proven;
+            for path in paths {
+                match content_conservation::judge_content_conservation(
+                    &path.judge,
+                    &path.value,
+                    plan,
+                    &projection_plans,
+                ) {
+                    StructuralJudgment::Proven => {}
+                    StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
+                    StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
+                }
+            }
+            return verdict;
+        }
         if structural_terms::is_case_observation(program, fact)
             && let Some(paths) = &sole_arm_case_result
             && let ExpressionNode::Binary(comparison) = program.expression_table.expression(fact)
