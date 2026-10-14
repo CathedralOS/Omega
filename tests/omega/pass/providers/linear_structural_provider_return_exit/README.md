@@ -6,8 +6,8 @@ Canonical package review retains closed Carry facts and their checked evidence.
 Boundary conformance can authorize qualifications; it cannot manufacture replacement
 ownership. Duplicate, missing, mismatched-path and surviving-ID claims refuse.
 
-The explicit Linux application entry emits these values, computed from consumed
-returned payloads:
+The explicit macOS arm64 and Linux x86-64 application entry emits these values,
+computed from consumed returned payloads:
 
 ```
 token=7

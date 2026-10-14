@@ -6742,8 +6742,8 @@ pass/providers/inherited_applied_binding_forwarded_value_exit checked 11056ms ch
 pass/providers/inherited_boundary_field_postcondition_exit checked 3376ms check-target:macos_arm64 @2430f497a77c+wt
 pass/providers/kernel_import_result_chain_exit checked 11433ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit checked 11424ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/linear_structural_provider_pure_exit checked 9369ms check-target:linux_x86_64 @3e583b96cb82
-pass/providers/linear_structural_provider_return_exit checked 10925ms check-target:linux_x86_64 @3e583b96cb82
+pass/providers/linear_structural_provider_pure_exit checked 26537ms check-target:macos_arm64 @7e6c0ae564d2+wt
+pass/providers/linear_structural_provider_return_exit checked 27483ms check-target:macos_arm64 @7e6c0ae564d2+wt
 pass/providers/local_record_foreign_borrow_exit checked 11406ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/module_named_operator_result_domain_satisfaction checked 12148ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/nested_binding_borrowed_call_exit checked 10664ms check-target:macos_arm64 @a9ae30e1c334+wt

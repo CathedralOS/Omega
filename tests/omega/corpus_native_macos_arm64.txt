@@ -1751,6 +1751,8 @@ pass/providers/inherited_applied_binding_finite_family_exit built 2800ms exit:0 
 pass/providers/inherited_applied_binding_forwarded_value_exit built 2638ms exit:0 @344ec0329ba8+wt
 pass/providers/kernel_import_result_chain_exit built 1378ms @65fd4c9d99fc
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 626ms exit:41
+pass/providers/linear_structural_provider_pure_exit built 27581ms exit:0 @7e6c0ae564d2+wt
+pass/providers/linear_structural_provider_return_exit built 30295ms exit:0 stdout:match @7e6c0ae564d2+wt
 pass/providers/local_record_foreign_borrow_exit built 1903ms exit:70 @59d57ace39f0+wt
 pass/providers/occurrence_region_binding_exit built 3846ms exit:0 @619f89e4fed6+wt
 pass/providers/occurrence_region_binding_forwarding_exit built 3914ms exit:0 @619f89e4fed6+wt
