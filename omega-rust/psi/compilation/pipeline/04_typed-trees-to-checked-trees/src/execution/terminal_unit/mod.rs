@@ -228,6 +228,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         .filter(|machine| machine.supplies_checked_body())
     {
         let trace = LocalConstructionTrace::default();
+        shapes.take_unselected_opaque();
         let planned = match body_route(program, machine) {
             BodyRoute::Sequence => build_checked_machine_residual_parts(
                 program,
@@ -262,10 +263,14 @@ pub(crate) fn build_checked_unit_effect_plans(
             .map(|plan| composed_machines.push(plan)),
         };
         if planned.is_none() {
-            construction_gaps.insert(
-                symbol_key(machine.symbol),
-                trace.gap(program, machine.symbol),
-            );
+            let mut gap = trace.gap(program, machine.symbol);
+            // A shape the collector could not supply because the build
+            // selects no representation for an opaque is the program's
+            // missing selection; it displaces the phase the builder was in.
+            if let Some(opaque) = shapes.take_unselected_opaque() {
+                gap.reason = CheckedUnitPlanGapReason::UnselectedOpaqueRepresentation(opaque);
+            }
+            construction_gaps.insert(symbol_key(machine.symbol), gap);
         }
     }
 

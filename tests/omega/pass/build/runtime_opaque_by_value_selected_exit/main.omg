@@ -1,0 +1,23 @@
+// Opaque boundary data by value, with its representation selected: a
+// zero-established `Token` local passes through `Main::relay` as a by-value
+// parameter and result and lands in a `Token` field. The build's
+// `Build::select_representation<Token, TokenRepresentation>` supplies the
+// carrier every by-value use needs (build/opaque_representations.md); without
+// it the same program checks and native realization refuses with the missing
+// selection named. Exit 72 once the field is written.
+use omega_language_std::console;
+use omega::language::core::binding;
+use token;
+
+data Main { console: Binding<Console>; held: Token; }
+
+machine Main::relay(input: Token) -> Token {
+    input
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let token_value: Token;
+    main.held = Main::relay(token_value);
+    transition { _ -> finish(main, 72) }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

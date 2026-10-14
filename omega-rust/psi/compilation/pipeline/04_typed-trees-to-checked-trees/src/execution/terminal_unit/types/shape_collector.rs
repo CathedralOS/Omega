@@ -35,6 +35,11 @@ pub(crate) struct ShapeCollector<'program> {
     /// carrier's plan keeps no element field, so `retain_transitive` follows
     /// this edge where it follows a `BorrowedSliceView`'s element identity.
     byte_view_elements: BTreeSet<typed_trees::type_identity::TypeIdentityId>,
+    /// The opaque boundary datum the last failed `add_type` could not shape
+    /// because the build selects no representation for it. A builder that
+    /// stops on that failure reads it to name the program's missing
+    /// selection instead of the construct it was planning.
+    unselected_opaque: Option<SymbolHandle>,
 }
 
 impl<'program> ShapeCollector<'program> {
@@ -46,7 +51,16 @@ impl<'program> ShapeCollector<'program> {
             cleanup_control: Default::default(),
             in_progress: BTreeSet::new(),
             byte_view_elements: BTreeSet::new(),
+            unselected_opaque: None,
         }
+    }
+
+    /// The unselected opaque behind the collector's last shape failure, if
+    /// any, cleared for the next builder.
+    pub(in crate::execution::terminal_unit) fn take_unselected_opaque(
+        &mut self,
+    ) -> Option<SymbolHandle> {
+        self.unselected_opaque.take()
     }
 
     pub(in crate::execution::terminal_unit) fn add_domain(
@@ -869,6 +883,7 @@ impl<'program> ShapeCollector<'program> {
                 data.symbol,
             ) else {
                 self.in_progress.remove(&identity);
+                self.unselected_opaque = Some(data.symbol);
                 return None;
             };
             let Some(carrier) = self.program.data_definition_by_symbol(selection.carrier()) else {

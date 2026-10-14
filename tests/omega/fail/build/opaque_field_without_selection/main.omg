@@ -1,0 +1,12 @@
+// FAIL control, field-only variant: no machine takes `Token` by value, but
+// `Main` stores one, so shaping `Main` for the bound entry needs the carrier
+// the build never selected. The rejection names the opaque and the missing
+// `Build::select_representation`, exactly as the by-value parameter variant
+// `opaque_by_value_without_selection` does.
+use token;
+
+data Main { held: Token; hits: i32; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 1;
+}

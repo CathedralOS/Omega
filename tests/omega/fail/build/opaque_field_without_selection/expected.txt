@@ -1,0 +1,1 @@
+uses opaque boundary data `Token` by value, but the build selects no `OpaqueRepresentation<Token, _>` application

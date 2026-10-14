@@ -1,0 +1,11 @@
+// The opaque carrier and its one authored representation, selected by the
+// build: `Token` travels by value while `TokenBytes` stays the carrier.
+use omega::language::core::representation;
+
+pub boundary data Token;
+
+pub data TokenBytes [copy] {
+    value: u64;
+}
+
+pub TokenRepresentation satisfies OpaqueRepresentation<Token, TokenBytes> { }

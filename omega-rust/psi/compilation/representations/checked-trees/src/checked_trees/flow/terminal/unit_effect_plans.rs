@@ -90,6 +90,12 @@ pub enum CheckedUnitPlanGapReason {
     Callee(SymbolHandle),
     /// The body calls boundary `target`, which has no boundary plan.
     BoundaryTarget(SymbolHandle),
+    /// The body uses opaque boundary data `opaque` by value, and the build
+    /// selects no `OpaqueRepresentation` application for it. A representation
+    /// is inert until selected (build/opaque_representations.md): only the
+    /// selected carrier supplies the storage a by-value use needs, so this is
+    /// the program's missing selection, not a construct the compiler lacks.
+    UnselectedOpaqueRepresentation(SymbolHandle),
 }
 
 impl CheckedUnitEffectPlans {
@@ -205,6 +211,13 @@ impl CheckedUnitEffectPlans {
                 name(gap.machine),
                 name(target)
             ),
+            // The program's omission, worded as a rejection: the corpus and
+            // sample gates read "has no executable body" as a compiler gap.
+            CheckedUnitPlanGapReason::UnselectedOpaqueRepresentation(opaque) => format!(
+                "`{}` uses opaque boundary data `{opaque}` by value, but the build selects no `OpaqueRepresentation<{opaque}, _>` application; add `Build::select_representation<{opaque}, <conformance>>(builder)`",
+                name(gap.machine),
+                opaque = name(opaque)
+            ),
         };
         let message = if chain.len() == 1 {
             reason
@@ -219,13 +232,19 @@ impl CheckedUnitEffectPlans {
                     .join(", which calls ")
             )
         };
-        Some(
-            Diagnostic::incomplete(
+        // A missing representation selection is a verdict on the program, so
+        // it is an ordinary error; every other gap names an exceeded coverage
+        // provision and leaves the compilation incomplete, not rejected.
+        let diagnostic = match gap.reason {
+            CheckedUnitPlanGapReason::UnselectedOpaqueRepresentation(_) => {
+                Diagnostic::error(message)
+            }
+            _ => Diagnostic::incomplete(
                 message,
                 gap.coverage.exceeded(gap.source_span.span.start as u64),
-            )
-            .with_source_span(gap.source_span),
-        )
+            ),
+        };
+        Some(diagnostic.with_source_span(gap.source_span))
     }
 }
 

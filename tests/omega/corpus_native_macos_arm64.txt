@@ -344,6 +344,7 @@ pass/build/product_description_paths_exit built 953ms exit:0 @5d467687f505+wt
 pass/build/product_entry_named_user_machine_exit built 608ms exit:0 @d7dd90112d31
 pass/build/runtime_depend_mapping_exit built 612ms exit:70
 pass/build/runtime_main_source_builder_is_ordinary_exit built 619ms exit:70
+pass/build/runtime_opaque_by_value_selected_exit built 19351ms exit:72 @35f5679f7d28
 pass/build/runtime_static_service_exclusion_exit built 2512ms exit:0 @5c302dd6d305
 pass/build/same_leaf_runner_entry_left_exit built 2715ms exit:11 @26b974b5cae7+wt
 pass/build/same_leaf_runner_entry_right_exit built 2443ms exit:37 @26b974b5cae7+wt

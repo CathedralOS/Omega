@@ -1,0 +1,22 @@
+// FAIL control: opaque boundary data `Token` is used by value as a parameter,
+// a result and a field, but the build selects no `OpaqueRepresentation`
+// application for it. A representation is inert until selected
+// (build/opaque_representations.md): checking admits the program, and the
+// bound program entry's native realization rejects it naming the missing
+// selection, not the construct the planner happened to be in. The same
+// program with `Build::select_representation<Token, TokenRepresentation>` is
+// `pass/build/runtime_opaque_by_value_selected_exit`.
+use token;
+
+data Main { held: Token; hits: i32; }
+
+machine Main::relay(input: Token) -> Token {
+    input
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    let token_value: Token;
+    main.held = Main::relay(token_value);
+    main.hits = 1;
+}
