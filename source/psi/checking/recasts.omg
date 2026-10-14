@@ -36,7 +36,7 @@ crashes Trap
     state referents(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, row: TypeRow, given: TypeRow) {
         let source: TypeRow = TypeTable::row(&typing.types, given.inner);
         let target: TypeRow = TypeTable::row(&typing.types, row.inner);
-        let mutable: bool = row.access == ReferenceAccess::Mutable;
+        let mutable: bool = row.access != ReferenceAccess::Shared;
         let source_boolean: bool = source.kind == TypeKind::Builtin && source.builtin == BuiltinType::Bool;
         let target_boolean: bool = target.kind == TypeKind::Builtin && target.builtin == BuiltinType::Bool;
         transition target.domain == DomainBinding::Declared {

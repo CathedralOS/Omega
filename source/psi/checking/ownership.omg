@@ -32,7 +32,8 @@ use psi::types::types;
 // reads without moving; `Value` takes the value; `Base` is a projection's
 // base, whose place the parent uses; `Borrow` lends it shared and
 // `Exclusive` exclusively; `Drop` discards it (a statement's value); `Write`
-// is an assignment's target.
+// is an assignment's target; `WriteLend` lends it for writing without
+// observation (`&write`).
 pub data UseRole [copy] {
     case Inspect;
     case Value;
@@ -41,6 +42,10 @@ pub data UseRole [copy] {
     case Exclusive;
     case Drop;
     case Write;
+    case WriteLend;
+    // The base of a `.len` selection: its metadata is read, never its
+    // contents, so a write-only reference reaches it.
+    case Measure;
 }
 
 // A path's moved places, as the place expressions that moved them.
@@ -645,12 +650,12 @@ crashes Trap
         _ -> done()
     }
 
-    // `.len` inspects its base.
+    // `.len` measures its base.
     state field(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
         let place: bool = Checker::field_place(typing, handle, expression);
         transition place {
             true -> child(checker, typing, expression.left, UseRole::Base)
-            _ -> done()
+            _ -> child(checker, typing, expression.left, UseRole::Measure)
         }
     }
 
@@ -661,6 +666,7 @@ crashes Trap
         transition expression.operator {
             OperatorKind::Borrow -> child(checker, typing, expression.left, UseRole::Borrow)
             OperatorKind::BorrowMutable -> child(checker, typing, expression.left, UseRole::Exclusive)
+            OperatorKind::BorrowWrite -> child(checker, typing, expression.left, UseRole::WriteLend)
             _ -> wrapped(checker, typing, expression, role, wraps)
         }
     }
@@ -869,7 +875,19 @@ crashes Trap
         }
     }
 
+    // A place reached through a write-only reference is written or lent
+    // `&write`, never read, borrowed otherwise, or inspected
+    // (wiki/spec/language/ownership.md#borrows-and-aliases).
     state place(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, role: UseRole, borrowed: bool) {
+        let observes: bool = role != UseRole::WriteLend && role != UseRole::Measure
+            && Checker::through_write_only(syntax, typing, handle);
+        transition observes {
+            true -> rejected(checker, syntax, handle, CheckDiagnosticCode::WriteOnlyObservation)
+            _ -> accessed(checker, syntax, resolution, typing, handle, role, borrowed)
+        }
+    }
+
+    state accessed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, role: UseRole, borrowed: bool) {
         let excludes: bool = Checker::access_excludes(syntax, typing, handle, role);
         Checker::loan_access(checker, syntax, resolution, typing, handle, excludes);
         let conflict: bool = Checker::moved_conflict(checker, syntax, resolution, typing, handle);

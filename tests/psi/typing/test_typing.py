@@ -33,7 +33,7 @@ DIAGNOSTICS = (
     "InvalidCast", "NotAPlace", "TerminalResultMismatch", "AnonymousFraction",
     "UnsupportedExpression", "TargetArgumentCount", "UninferredGenericArgument",
     "SatisfierMismatch", "SilentDiscard", "DiscardsNoCall", "PropositionArgumentCount",
-    "UncoveredDispatch", "ImmutablePlace",
+    "UncoveredDispatch", "ImmutablePlace", "ImplicitAttenuation",
 )
 SELECTIONS = ("none", "machine", "state", "field", "length", "binder")
 ADAPTATIONS = ("", "landed", "lent", "qualified", "read")
@@ -94,7 +94,8 @@ class Observation:
             applied = f"<{', '.join(self.render(argument) for argument in arguments)}>" if arguments else ""
             return f"D{row.item}{applied}"
         if kind == "Reference":
-            return ("&mut " if row.access == 1 else "&") + self.render(row.inner)
+            access = {0: "&", 1: "&mut ", 2: "&write "}[row.access]
+            return access + self.render(row.inner)
         if kind == "Array":
             return f"[{self.render(row.inner)}; {self.render(row.length)}]{domain}"
         if kind == "Slice":
@@ -1140,6 +1141,65 @@ def main() -> None:
         b"data P { x: u8; }\nmachine f(p: &P) -> u8 { p.x = 2; 0 }",
         "ImmutablePlace",
         b"p.x",
+    )
+
+    # `&write place` lends exclusive mutation without observation
+    # (wiki/spec/language/ownership.md#borrows-and-aliases): it forms from a
+    # place an assignment could write, a `&write` destination is met only by
+    # a `&write` borrow (attenuation and forwarding are explicit), and a
+    # write-only reference reads as nothing.
+    accepted(
+        program,
+        "write-only-borrows-form-from-writable-places",
+        b"data P { x: u8; }\n"
+        b"machine replace(d: &write u8, v: u8) { d = v; }\n"
+        b"machine f(mut count: u8, p: &mut P, w: &write P) -> u8 {\n"
+        b"    let mut local: P = P { x: 1 };\n"
+        b"    replace(&write count, 2);\n    replace(&write local.x, 3);\n    replace(&write p.x, 4);\n"
+        b"    replace(&write w.x, 5);\n    w.x = 6;\n    let whole: &write P = &write local;\n    count\n}",
+        ((b"&write count", "&write u8"), (b"&write p.x", "&write u8"), (b"&write w.x", "&write u8"), (b"&write local!2", "&write D0")),
+    )
+    rejected(
+        program,
+        "write-only-borrow-through-shared-reference",
+        b"data P { x: u8; }\nmachine replace(d: &write u8, v: u8) { d = v; }\nmachine f(p: &P) { replace(&write p.x, 1); }",
+        "ImmutablePlace",
+        b"p.x",
+    )
+    rejected(
+        program,
+        "write-only-borrow-of-immutable-local",
+        b"machine replace(d: &write u8, v: u8) { d = v; }\nmachine f() { let x: u8 = 0; replace(&write x, 1); }",
+        "ImmutablePlace",
+        b"x!2",
+    )
+    rejected(
+        program,
+        "a-write-only-destination-needs-a-write-only-borrow",
+        b"machine replace(d: &write u8, v: u8) { d = v; }\nmachine f(m: &mut u8) { replace(&mut m, 1); }",
+        "ImplicitAttenuation",
+        b"&mut m",
+    )
+    rejected(
+        program,
+        "a-write-only-reference-forwards-only-by-borrow",
+        b"machine replace(d: &write u8, v: u8) { d = v; }\nmachine f(sink: &write u8) { replace(sink, 1); }",
+        "ImplicitAttenuation",
+        b"sink!2",
+    )
+    rejected(
+        program,
+        "a-write-only-reference-does-not-read",
+        b"machine f(sink: &write u8) -> u8 { sink }",
+        "MismatchedTypes",
+        b"sink!2",
+    )
+    rejected(
+        program,
+        "a-write-only-reference-is-not-shared",
+        b"machine take(v: &u8) {}\nmachine f(sink: &write u8) { take(sink); }",
+        "NoMatchingMachine",
+        b"take(sink)",
     )
 
     # A value pattern, a literal or a path or name denoting no case, meets

@@ -229,20 +229,29 @@ crashes Trap
         transition { _ -> operand(parser, input, ParseDiagnosticCode::ExpectedOperand) }
     }
 
-    // `&mut` borrows mutably; a bare `&` borrows shared.
+    // `&mut` borrows exclusively, `&write` exclusively without observation;
+    // a bare `&` borrows shared.
     state borrow(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         let start: u64 in Trapping = parser.token_start;
         let mutable: bool = Parser::at_word(parser, input, "mut");
+        let write_only: bool = Parser::at_word(parser, input, "write");
         transition mutable {
-            true -> mutable_borrow(parser, input, start)
+            true -> accessed_borrow(parser, input, OperatorKind::BorrowMutable, start)
+            _ -> unqualified_borrow(parser, input, start, write_only)
+        }
+    }
+
+    state unqualified_borrow(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping, write_only: bool) {
+        transition write_only {
+            true -> accessed_borrow(parser, input, OperatorKind::BorrowWrite, start)
             _ -> borrow_operator(parser, input, OperatorKind::Borrow, start)
         }
     }
 
-    state mutable_borrow(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping) {
+    state accessed_borrow(parser: &mut Parser, input: &TokenStream, operator: OperatorKind, start: u64 in Trapping) {
         Parser::take_current(parser, input);
-        transition { _ -> borrow_operator(parser, input, OperatorKind::BorrowMutable, start) }
+        transition { _ -> borrow_operator(parser, input, operator, start) }
     }
 
     state borrow_operator(parser: &mut Parser, input: &TokenStream, operator: OperatorKind, start: u64 in Trapping) {

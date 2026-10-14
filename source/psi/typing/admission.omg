@@ -176,8 +176,18 @@ crashes Trap
     // a shared view from either reference.
     state referenced(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
         let viewed: bool = Typer::views_array(typer, wanted, given);
+        let write_only: bool = given.kind == TypeKind::Reference && given.access == ReferenceAccess::WriteOnly;
         transition viewed {
             true -> exact()
+            _ -> observed(wanted, given, actual, write_only)
+        }
+    }
+
+    // A write-only reference meets no other reference type: it reads as
+    // nothing (wiki/spec/language/ownership.md#borrows-and-aliases).
+    state observed(wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, write_only: bool) -> Admission {
+        transition write_only {
+            true -> rejected()
             _ -> access(wanted, given, actual)
         }
     }
@@ -189,6 +199,20 @@ crashes Trap
     state access(wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
         transition wanted.access == ReferenceAccess::Shared {
             true -> shared(wanted, given, actual)
+            _ -> attenuating(wanted, given)
+        }
+    }
+
+    // A `&write T` destination carries a mutable reference to `T`; whether
+    // the attenuation is spelled `&write` at the argument is judged where
+    // the admission is bound (`Typer::admit`), so a candidate taking it is
+    // selected and its unspelled attenuation is named, not a missing
+    // machine.
+    state attenuating(wanted: TypeRow, given: TypeRow) -> Admission {
+        let mutable: bool = given.kind == TypeKind::Reference && given.access == ReferenceAccess::Mutable
+            && given.inner == wanted.inner;
+        transition wanted.access == ReferenceAccess::WriteOnly && mutable {
+            true -> exact()
             _ -> rejected()
         }
     }
@@ -330,16 +354,30 @@ crashes Trap
     let chosen: bool = given.kind == TypeKind::AnonymousChoice || given.kind == TypeKind::AnonymousArray;
     let blamed: u64 in Trapping = Typer::blamed_value(typer, syntax, destination, expression, chosen && admission != Admission::Landed);
     let written: Expression = SyntaxTrees::expression(syntax, blamed);
-    transition admission {
-        Admission::Exact -> admitted()
-        Admission::Landed -> landing(typer, syntax, destination, expression, chosen)
-        Admission::SharedLend -> lent(typer, syntax, written, expression, lend)
-        Admission::Qualified -> qualified(typer, expression)
-        Admission::Read -> read(typer, expression)
-        Admission::OutOfRange -> reject(typer, written, TypeDiagnosticCode::LiteralOutOfRange)
-        Admission::Fraction -> reject(typer, written, TypeDiagnosticCode::AnonymousFraction)
-        Admission::NotAValue -> reject(typer, written, TypeDiagnosticCode::NotAValue)
-        Admission::Rejected -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
+    let wanted: TypeRow = TypeTable::row(&typer.output.types, destination);
+    let spelled: Expression = SyntaxTrees::expression(syntax, expression);
+    let write_only: bool = wanted.kind == TypeKind::Reference && wanted.access == ReferenceAccess::WriteOnly;
+    let attenuated: bool = spelled.kind == ExpressionKind::Unary && spelled.operator == OperatorKind::BorrowWrite;
+    transition write_only && !attenuated {
+        true -> reject(typer, spelled, TypeDiagnosticCode::ImplicitAttenuation)
+        _ -> judged(typer, syntax, destination, expression, lend, admission, chosen, written)
+    }
+
+    // A `&write` destination is met only by a `&write` borrow: attenuation
+    // from mutable access, and forwarding, are spelled at the argument
+    // (wiki/spec/language/expressions.md#calls-places-and-temporaries).
+    state judged(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool, admission: Admission, chosen: bool, written: Expression) -> bool {
+        transition admission {
+            Admission::Exact -> admitted()
+            Admission::Landed -> landing(typer, syntax, destination, expression, chosen)
+            Admission::SharedLend -> lent(typer, syntax, written, expression, lend)
+            Admission::Qualified -> qualified(typer, expression)
+            Admission::Read -> read(typer, expression)
+            Admission::OutOfRange -> reject(typer, written, TypeDiagnosticCode::LiteralOutOfRange)
+            Admission::Fraction -> reject(typer, written, TypeDiagnosticCode::AnonymousFraction)
+            Admission::NotAValue -> reject(typer, written, TypeDiagnosticCode::NotAValue)
+            Admission::Rejected -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
+        }
     }
 
     state landing(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, chosen: bool) -> bool {

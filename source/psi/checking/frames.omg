@@ -379,7 +379,9 @@ crashes Trap
         fielded: bool,
         written: u64 in Trapping
     ) -> bool {
-        transition expression.operator == OperatorKind::BorrowMutable || expression.operator == OperatorKind::Borrow {
+        let borrow: bool = expression.operator == OperatorKind::BorrowMutable || expression.operator == OperatorKind::Borrow
+            || expression.operator == OperatorKind::BorrowWrite;
+        transition borrow {
             true -> step(checker, syntax, resolution, typing, machine, expression.left, fielded, written)
             _ -> unknown(checker, machine)
         }
@@ -482,7 +484,7 @@ crashes Trap
     let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
     let adaptation: Adaptation = Typing::adaptation(typing, handle);
-    row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable && adaptation != Adaptation::Read
+    row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared && adaptation != Adaptation::Read
 }
 
 // Whether an expression's value is a shared (`&`) reference.

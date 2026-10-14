@@ -1123,7 +1123,8 @@ crashes Trap
 
     state borrowed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, written: Expression) -> Value {
         let borrow: bool = written.kind == ExpressionKind::Unary
-            && (written.operator == OperatorKind::Borrow || written.operator == OperatorKind::BorrowMutable);
+            && (written.operator == OperatorKind::Borrow || written.operator == OperatorKind::BorrowMutable
+                || written.operator == OperatorKind::BorrowWrite);
         transition borrow {
             true -> expression(checker, syntax, typing, written.left)
             _ -> placed(checker, typing, handle)

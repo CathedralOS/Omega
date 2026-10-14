@@ -68,7 +68,8 @@ crashes Trap
         let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
         let row: TypeRow = TypeTable::row(&typing.types, type_handle);
         let borrow: bool = expression.kind == ExpressionKind::Unary
-            && (expression.operator == OperatorKind::Borrow || expression.operator == OperatorKind::BorrowMutable);
+            && (expression.operator == OperatorKind::Borrow || expression.operator == OperatorKind::BorrowMutable
+                || expression.operator == OperatorKind::BorrowWrite);
         let projection: bool = row.kind != TypeKind::Reference
             && (expression.kind == ExpressionKind::Index || expression.kind == ExpressionKind::Field);
         transition depth < 256 && (borrow || projection) {

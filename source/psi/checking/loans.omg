@@ -475,7 +475,8 @@ crashes Trap
     let expression: Expression = SyntaxTrees::expression(syntax, handle);
     let adaptation: Adaptation = Typing::adaptation(typing, handle);
     let role: UseRole = Checker::role_of(checker, handle);
-    let flows: bool = role == UseRole::Value || role == UseRole::Borrow || role == UseRole::Exclusive;
+    let flows: bool = role == UseRole::Value || role == UseRole::Borrow || role == UseRole::Exclusive
+        || role == UseRole::WriteLend;
     transition flows {
         true -> adapted(syntax, typing, handle, expression, adaptation, role)
         _ -> answer(Hold::Released)
@@ -511,6 +512,7 @@ crashes Trap
         transition expression.operator {
             OperatorKind::Borrow -> answer(Hold::Shared { place: expression.left })
             OperatorKind::BorrowMutable -> answer(Hold::Exclusive { place: expression.left })
+            OperatorKind::BorrowWrite -> answer(Hold::Exclusive { place: expression.left })
             _ -> passed(typing, handle, expression, role)
         }
     }
@@ -521,7 +523,7 @@ crashes Trap
         let row: TypeRow = TypeTable::row(&typing.types, node_type);
         let place: bool = expression.kind == ExpressionKind::Name || expression.kind == ExpressionKind::Field
             || expression.kind == ExpressionKind::Index;
-        let mutable: bool = row.access == ReferenceAccess::Mutable;
+        let mutable: bool = row.access != ReferenceAccess::Shared;
         transition place && role == UseRole::Value && row.kind == TypeKind::Reference {
             true -> reference(handle, mutable)
             _ -> answer(Hold::Released)
@@ -1098,6 +1100,7 @@ crashes Trap
 {
     transition role {
         UseRole::Exclusive -> answer(true)
+        UseRole::WriteLend -> answer(true)
         UseRole::Value -> taken(syntax, typing, handle)
         _ -> answer(false)
     }
@@ -1107,7 +1110,7 @@ crashes Trap
         let row: TypeRow = TypeTable::row(&typing.types, node_type);
         let adaptation: Adaptation = Typing::adaptation(typing, handle);
         let multiplicity: DataMultiplicity = Checker::multiplicity(syntax, typing, node_type);
-        let exclusive: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable
+        let exclusive: bool = row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared
             && adaptation != Adaptation::Read;
         let moves: bool = multiplicity != DataMultiplicity::Unrestricted;
         let excludes: bool = exclusive || moves;

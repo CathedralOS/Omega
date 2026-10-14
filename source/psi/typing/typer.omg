@@ -297,13 +297,14 @@ crashes Trap
 
 // The type a value is read as: a reference to a builtin scalar, through
 // every layer, reads as its referent where the scalar is needed, as a place
-// of reference type denotes its referent's storage; any other type reads as
-// itself.
+// of reference type denotes its referent's storage; a write-only reference
+// (wiki/spec/language/ownership.md#borrows-and-aliases) and any other type
+// read as themselves.
 pub machine Typer::read_type(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let row: TypeRow = TypeTable::row(&typer.output.types, handle);
-    transition row.kind == TypeKind::Reference {
+    transition row.kind == TypeKind::Reference && row.access != ReferenceAccess::WriteOnly {
         true -> referenced(typer, handle)
         _ -> result(handle)
     }

@@ -2943,6 +2943,18 @@ def main() -> None:
         arguments=(2, 4),
     )
     body(
+        "write-only-borrow-argument",
+        b"machine f() { g(&write a); }",
+        (
+            (1, 0, 0, 0, 0, 0, 0, 1, 14, 15, 0, 1, 14, 15),
+            (1, 0, 0, 0, 0, 0, 0, 1, 23, 24, 0, 1, 23, 24),
+            (8, 27, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 16, 24),
+            (11, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 14, 25),
+        ),
+        ((3, 1, 0, 0, 0, 0, 1, 3, 0, 1, 0, 0, 1, 14, 26),),
+        arguments=(2,),
+    )
+    body(
         "mutable-local-and-local-named-mut",
         b"machine f() { let mut n: u8; let mut: u8; }",
         (),
@@ -3398,6 +3410,12 @@ def main() -> None:
         leaf(LITERAL, source, b"2", 1),
         type_row(ARRAY, span_of(source, b"[u8; 2]"), 0, inner=0, length=1),
         type_row(REFERENCE, span_of(source, b"&mut [u8; 2]"), 0, access=2, inner=2),
+    ))
+    # `&write T` is the third access (wiki/spec/language/ownership.md#borrows-and-aliases).
+    source = b"data D { a: &write u8; }"
+    types("write-only-reference", source, (
+        leaf(NAMED, source, b"u8", 0),
+        type_row(REFERENCE, span_of(source, b"&write u8"), 0, access=3, inner=0),
     ))
     source = b"data D<const N: u64> { a: [u8; N]; }"
     types("named-length", source, (

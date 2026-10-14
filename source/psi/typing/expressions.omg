@@ -616,12 +616,12 @@ crashes Trap
         _ -> result(typed)
     }
 
-    // A name holding an exclusive loan denotes the original storage
-    // (wiki/spec/language/ownership.md, Borrows and aliases): assigning it
-    // writes the referent.
+    // A name holding an exclusive or write-only loan denotes the original
+    // storage (wiki/spec/language/ownership.md, Borrows and aliases):
+    // assigning it writes the referent.
     state named(typer: &Typer, typed: u64 in Trapping) -> u64 in Trapping {
         let row: TypeRow = TypeTable::row(&typer.output.types, typed);
-        transition row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable {
+        transition row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared {
             true -> result(row.inner)
             _ -> result(typed)
         }
@@ -692,6 +692,7 @@ crashes Trap
             OperatorKind::BitNot -> complement(typer, index, expression, read)
             OperatorKind::Borrow -> borrow(typer, index, expression, operand, ReferenceAccess::Shared)
             OperatorKind::BorrowMutable -> borrow_mutable(typer, syntax, resolution, index, expression, operand)
+            OperatorKind::BorrowWrite -> borrow_write(typer, syntax, resolution, index, expression, operand)
             _ -> acknowledged(typer, syntax, index, expression, operand)
         }
     }
@@ -774,6 +775,25 @@ crashes Trap
         transition shared {
             true -> immutable_source(typer, syntax, expression)
             _ -> borrow(typer, index, expression, operand, ReferenceAccess::Mutable)
+        }
+    }
+
+    // `&write place` lends exclusive mutation without observation
+    // (wiki/spec/language/ownership.md#borrows-and-aliases) of a place an
+    // assignment could write.
+    state borrow_write(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        let place: bool = Typer::is_place(syntax, resolution, expression.left);
+        transition place {
+            true -> write_source(typer, syntax, resolution, index, expression, operand)
+            _ -> not_a_place(typer, expression)
+        }
+    }
+
+    state write_source(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        let writable: bool = Typer::writable_place(typer, syntax, resolution, expression.left);
+        transition writable {
+            true -> borrow(typer, index, expression, operand, ReferenceAccess::WriteOnly)
+            _ -> immutable_source(typer, syntax, expression)
         }
     }
 
@@ -881,7 +901,7 @@ crashes Trap
 }
 
 // Whether an assignment may write the place `index`: the write passes through
-// an exclusive reference (a `&mut` value on its path, the place itself
+// an exclusive reference (a `&mut` or `&write` value on its path, the place itself
 // included, writes its referent), or the place's root is a `let mut` local
 // or a `mut` parameter. Any other local or parameter, a pattern binder and a
 // shared reference's referent are read-only.
@@ -894,7 +914,7 @@ crashes Trap
         let expression: Expression = SyntaxTrees::expression(syntax, handle);
         let handle_type: u64 in Trapping = Typing::expression_type(&typer.output, handle);
         let row: TypeRow = TypeTable::row(&typer.output.types, handle_type);
-        let exclusive: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable;
+        let exclusive: bool = row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared;
         let projected: bool = expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index;
         transition exclusive {
             true -> answer(true)

@@ -17,7 +17,7 @@ DIAGNOSTICS = (
     "DomainUnproven", "CrashNotDeclared", "GuaranteeUnproven", "RankUnproven",
     "ProgressUnproven", "UseAfterMove", "MoveOutOfBorrow", "LinearUnconsumed",
     "LinearOverwritten", "OverlappingArguments", "LoanConflict", "LoanEscapes",
-    "RepresentationUnproven",
+    "RepresentationUnproven", "WriteOnlyObservation",
 )
 
 
@@ -2952,6 +2952,40 @@ def main() -> None:
         print(f"  {diagnostic} at {psi_units[unit][0].decode()} {start}..{end}: {psi_units[unit][1][start:end][:80]!r}")
 
     phase_rejected(program, "typing-rejection-has-no-observation", b"machine f() -> u8 { true }", 249)
+    # A write-only reference is never observed
+    # (wiki/spec/language/ownership.md#borrows-and-aliases): a place reached
+    # through it is written or lent `&write`; `.len` reads metadata only.
+    accepted(
+        program,
+        "write-only-references-replace-without-observation",
+        b"data Cell { value: i64; }\n"
+        b"machine replace(cell: &write Cell, value: i64) { cell.value = value; }\n"
+        b"machine fill(cells: &write [Cell; 2], value: i64) -> u64 {\n"
+        b"    replace(&write cells[0], value);\n    cells[1] = Cell { value: value };\n    cells.len\n}\n"
+        b"machine main() -> u64 {\n    let mut cells: [Cell; 2] = [Cell { value: 0 }, Cell { value: 0 }];\n"
+        b"    fill(&write cells, 7)\n}",
+    )
+    rejected(
+        program,
+        "a-write-only-referent-is-not-read",
+        b"data Cell { value: i64; }\nmachine observe(cell: &write Cell) -> i64 { cell.value }",
+        "WriteOnlyObservation",
+        b"cell.value",
+    )
+    rejected(
+        program,
+        "a-write-only-reference-is-not-widened",
+        b"machine take(value: &mut i32) { value = 1; }\nmachine widen(value: &write i32) { take(&mut value); }",
+        "WriteOnlyObservation",
+        b"value!4",
+    )
+    rejected(
+        program,
+        "a-write-only-reference-is-not-lent-shared",
+        b"machine peek(value: &i32) {}\nmachine f(sink: &write i32) { peek(&sink); }",
+        "WriteOnlyObservation",
+        b"sink!2",
+    )
     phase_rejected(program, "resolution-rejection-has-no-observation", b"data A { x: Q; }", 248)
 
     determinism = b"machine read(a: &[u8; 4], i: u64) -> u8 { a[i] }"

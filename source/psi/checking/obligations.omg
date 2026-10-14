@@ -190,6 +190,7 @@ crashes Trap
         transition expression.operator {
             OperatorKind::Borrow -> borrowed(checker, handle, expression)
             OperatorKind::BorrowMutable -> borrowed(checker, handle, expression)
+            OperatorKind::BorrowWrite -> borrowed(checker, handle, expression)
             OperatorKind::Negate -> negated(checker, handle, expression, row, integer, checking)
             _ -> typed(checker, handle, row)
         }

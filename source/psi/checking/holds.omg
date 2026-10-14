@@ -388,6 +388,7 @@ crashes Trap
         transition expression.operator {
             OperatorKind::Borrow -> answer(Hold::Shared { place: expression.left })
             OperatorKind::BorrowMutable -> answer(Hold::Exclusive { place: expression.left })
+            OperatorKind::BorrowWrite -> answer(Hold::Exclusive { place: expression.left })
             _ -> referenced(typing, argument)
         }
     }
@@ -395,7 +396,7 @@ crashes Trap
     state referenced(typing: &Typing, argument: u64 in Trapping) -> Hold {
         let argument_type: u64 in Trapping = Typing::expression_type(typing, argument);
         let row: TypeRow = TypeTable::row(&typing.types, argument_type);
-        let mutable: bool = row.access == ReferenceAccess::Mutable;
+        let mutable: bool = row.access != ReferenceAccess::Shared;
         transition row.kind == TypeKind::Reference {
             true -> reference(argument, mutable)
             _ -> answer(Hold::Released)
@@ -428,7 +429,7 @@ crashes Trap
         let binding: ValueBinding = NameResolution::value_binding(resolution, argument);
         let argument_type: u64 in Trapping = Typing::expression_type(typing, argument);
         let row: TypeRow = TypeTable::row(&typing.types, argument_type);
-        let exclusive: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable;
+        let exclusive: bool = row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared;
         transition binding {
             ValueBinding::Parameter { parameter } -> answer(exclusive)
             _ -> answer(false)
@@ -526,9 +527,9 @@ crashes Trap
     let node_type: u64 in Trapping = Typing::expression_type(typing, node);
     let row: TypeRow = TypeTable::row(&typing.types, node_type);
     let adaptation: Adaptation = Typing::adaptation(typing, node);
-    let reference: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable
+    let reference: bool = row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared
         && adaptation != Adaptation::Read;
-    let exclusive: bool = role == UseRole::Exclusive || (role == UseRole::Value && reference);
+    let exclusive: bool = role == UseRole::Exclusive || role == UseRole::WriteLend || (role == UseRole::Value && reference);
     transition { _ -> answer(exclusive) }
 
     state answer(exclusive: bool) -> bool {

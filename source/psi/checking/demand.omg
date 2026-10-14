@@ -167,7 +167,9 @@ crashes Trap
         path: ArrivalPath,
         count: u64 in Trapping
     ) -> MemberChain {
-        transition expression.operator == OperatorKind::BorrowMutable || expression.operator == OperatorKind::Borrow {
+        let borrow: bool = expression.operator == OperatorKind::BorrowMutable || expression.operator == OperatorKind::Borrow
+            || expression.operator == OperatorKind::BorrowWrite;
+        transition borrow {
             true -> walk(syntax, resolution, typing, expression.left, first_parameter, parameter_count, path, count)
             _ -> unrooted(path)
         }

@@ -710,6 +710,7 @@ machine ParserHarness::write_parse_observation(
         transition type_reference.access {
             ReferenceAccess::Shared -> parse_type_row(parser_harness, output, type_reference, index, 3, 1)
             ReferenceAccess::Mutable -> parse_type_row(parser_harness, output, type_reference, index, 3, 2)
+            ReferenceAccess::WriteOnly -> parse_type_row(parser_harness, output, type_reference, index, 3, 3)
         }
     }
 
@@ -1214,6 +1215,7 @@ crashes Trap
             OperatorKind::Suspend -> expression_operator(parser_harness, output, index, expression, 24)
             OperatorKind::Block -> expression_operator(parser_harness, output, index, expression, 25)
             OperatorKind::SuspendBlock -> expression_operator(parser_harness, output, index, expression, 26)
+            OperatorKind::BorrowWrite -> expression_operator(parser_harness, output, index, expression, 27)
         }
     }
 

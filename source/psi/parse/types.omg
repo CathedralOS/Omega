@@ -163,18 +163,27 @@ crashes Trap
         lifetime: IdentifierSpan
     ) {
         let mutable: bool = Parser::at_word(parser, input, "mut");
+        let write_only: bool = Parser::at_word(parser, input, "write");
         let opened: TypeFrame = Parser::type_frame(parser, TypeFrameKind::Reference, ReferenceAccess::Shared, start);
         let frame: TypeFrame = Parser::lifetime_frame(opened, has_lifetime, lifetime);
         transition mutable {
-            true -> mutable_open(parser, input, frame, code)
+            true -> accessed(parser, input, frame, code, ReferenceAccess::Mutable)
+            _ -> unqualified(parser, input, frame, code, write_only)
+        }
+    }
+
+    state unqualified(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, code: ParseDiagnosticCode, write_only: bool) {
+        transition write_only {
+            true -> accessed(parser, input, frame, code, ReferenceAccess::WriteOnly)
             _ -> push(parser, input, frame, code)
         }
     }
 
-    state mutable_open(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, code: ParseDiagnosticCode) {
+    // `mut` lends exclusively; `write` lends exclusively without observation.
+    state accessed(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, code: ParseDiagnosticCode, access: ReferenceAccess) {
         Parser::take_current(parser, input);
-        let writable: TypeFrame = Parser::frame_access(frame, ReferenceAccess::Mutable);
-        transition { _ -> push(parser, input, writable, code) }
+        let qualified: TypeFrame = Parser::frame_access(frame, access);
+        transition { _ -> push(parser, input, qualified, code) }
     }
 
     state array_open(parser: &mut Parser, input: &TokenStream) {

@@ -159,7 +159,8 @@ crashes Trap
     state recast(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
         let operand: Expression = SyntaxTrees::expression(syntax, expression.left);
         let borrow: bool = operand.kind == ExpressionKind::Unary
-            && (operand.operator == OperatorKind::Borrow || operand.operator == OperatorKind::BorrowMutable);
+            && (operand.operator == OperatorKind::Borrow || operand.operator == OperatorKind::BorrowMutable
+                || operand.operator == OperatorKind::BorrowWrite);
         transition borrow && depth < 64 {
             true -> step(syntax, resolution, typing, operand.left, through, depth + 1)
             _ -> recast_reference(syntax, resolution, typing, expression.left, through, depth)
@@ -544,6 +545,39 @@ crashes Trap
 
 // Whether a place expression reaches its value through a reference: a
 // field or an index whose base, at any step, is a reference.
+// Whether a place is, or is reached through, a write-only reference: the
+// place itself, or a field (a `.len` selection reads metadata, not the
+// referent) or element base along its path, of type `&write T`.
+pub machine Checker::through_write_only(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition { _ -> step(syntax, typing, handle, 0) }
+
+    state step(syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, walked: u64 in Trapping) -> bool {
+        let expression: Expression = SyntaxTrees::expression(syntax, node);
+        let node_type: u64 in Trapping = Typing::expression_type(typing, node);
+        let row: TypeRow = TypeTable::row(&typing.types, node_type);
+        let write_only: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::WriteOnly;
+        let field: bool = Checker::field_place(typing, node, expression);
+        let projected: bool = field || expression.kind == ExpressionKind::Index;
+        transition write_only {
+            true -> answer(true)
+            _ -> deeper(syntax, typing, expression.left, walked, projected)
+        }
+    }
+
+    state deeper(syntax: &SyntaxTrees, typing: &Typing, base: u64 in Trapping, walked: u64 in Trapping, projected: bool) -> bool {
+        transition projected && walked < 64 {
+            true -> step(syntax, typing, base, walked + 1)
+            _ -> answer(false)
+        }
+    }
+
+    state answer(through: bool) -> bool {
+        through
+    }
+}
+
 pub machine Checker::borrowed_place(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {

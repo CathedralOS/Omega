@@ -25,6 +25,9 @@ pub data TypeReferenceKind [copy] {
 pub data ReferenceAccess [copy] {
     case Shared;
     case Mutable;
+    // `&write T`: exclusive mutation without observation
+    // (wiki/spec/language/ownership.md#borrows-and-aliases).
+    case WriteOnly;
 }
 
 // One row per type form. A whole type fills a contiguous run of rows that
@@ -32,7 +35,7 @@ pub data ReferenceAccess [copy] {
 // its own run begins. `Named` carries its `name`; an application
 // (`Binding<Console>`) also carries `argument_count` argument rows listed in
 // `SyntaxTrees::type_arguments` from `first_argument`. `Reference` (`&T`,
-// `&mut T`) carries its `access`. `Reference`, `Array` (`[T; N]`) and
+// `&mut T`, `&write T`) carries its `access`. `Reference`, `Array` (`[T; N]`) and
 // `Slice` (`[T]`) name their referee or element in `inner`, and `Array` names
 // its length row, a `Literal` or a `Named` static value, in `length`.
 // `Literal` is an integer static argument or length spelled by `name`.
@@ -221,6 +224,7 @@ pub data OperatorKind [copy] {
     case Suspend;
     case Block;
     case SuspendBlock;
+    case BorrowWrite;
 }
 
 pub data Expression [copy] {

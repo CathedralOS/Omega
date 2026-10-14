@@ -61,6 +61,10 @@ pub data CheckDiagnosticCode [copy] {
     // A recast's target representation does not follow from its source's
     // (checking/recasts.omg).
     case RepresentationUnproven;
+    // A read, a shared or exclusive borrow, or an inspection of a place
+    // reached through a `&write` reference
+    // (wiki/spec/language/ownership.md#borrows-and-aliases).
+    case WriteOnlyObservation;
 }
 
 pub data CheckDiagnostic [copy] {

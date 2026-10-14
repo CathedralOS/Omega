@@ -694,6 +694,7 @@ machine TypingHarness::access_tag(value: ReferenceAccess) -> u8 {
     transition value {
         ReferenceAccess::Shared -> tag(0)
         ReferenceAccess::Mutable -> tag(1)
+        ReferenceAccess::WriteOnly -> tag(2)
     }
 
     state tag(number: u8) -> u8 {
@@ -757,6 +758,7 @@ machine TypingHarness::diagnostic_tag(value: TypeDiagnosticCode) -> u8 {
         TypeDiagnosticCode::PropositionArgumentCount -> tag(37)
         TypeDiagnosticCode::UncoveredDispatch -> tag(38)
         TypeDiagnosticCode::ImmutablePlace -> tag(39)
+        TypeDiagnosticCode::ImplicitAttenuation -> tag(40)
     }
 
     state tag(number: u8) -> u8 {

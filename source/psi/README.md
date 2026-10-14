@@ -57,7 +57,7 @@ its own row, and only a path's members fill the shared member table),
 `[..]` as an index's operand, calls,
 static applications `path<arguments>(...)`, `as Type` casts,
 `Path { field: value }` constructions (always inside brackets, never before an
-unbracketed body), prefix `!`, `-`, `~`, `&`, `&mut` and the call
+unbracketed body), prefix `!`, `-`, `~`, `&`, `&mut`, `&write` and the call
 acknowledgements `suspend`, `block` and `suspend block`, the binary
 operators in the reference grammar's two precedence tiers, memberships
 `value in Domain {& Domain}` or `{| Domain}` between those tiers (one
@@ -378,9 +378,13 @@ the proposition's parameters by ordinary admission, a generic proposition's
 bound as a generic machine call's are. Each construction field and pattern
 field records the member it denotes, a common or a payload field, found by
 one search ([`typing/calls.omg`](typing/calls.omg)); an assignment writes a
-`let mut` local, a `mut` parameter, or a place behind an exclusive
-reference (an assignment to a name holding an exclusive loan writes its
-referent), and any other target rejects as an immutable place. A machine that `satisfies` a
+`let mut` local, a `mut` parameter, or a place behind an exclusive or
+write-only reference (an assignment to a name holding such a loan writes its
+referent), and any other target rejects as an immutable place; `&write place`
+forms from the same places, a `&write` destination is met only by a `&write`
+borrow (attenuation from `&mut` and forwarding are spelled at the argument,
+else `ImplicitAttenuation`), and a write-only reference reads as nothing
+([borrows and aliases](../../wiki/spec/language/ownership.md#borrows-and-aliases)). A machine that `satisfies` a
 requirement must have the requirement's signature with the trait's type
 parameters replaced by the clause's arguments, and its `via` payload, a
 `terminates by` witness's subjects and `Nat::IncreasingTo`'s limit type like

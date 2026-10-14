@@ -100,6 +100,7 @@ crashes Trap
         transition expression.operator {
             OperatorKind::Borrow -> borrowed(checker, expression)
             OperatorKind::BorrowMutable -> borrowed(checker, expression)
+            OperatorKind::BorrowWrite -> borrowed(checker, expression)
             OperatorKind::Negate -> negated(checker, expression, row, integer)
             _ -> typed(row)
         }

@@ -151,6 +151,10 @@ pub data TypeDiagnosticCode [copy] {
     // An assignment to a place no mutable binding or exclusive reference
     // reaches.
     case ImmutablePlace;
+    // A `&write` destination met by anything but a `&write` borrow:
+    // write-only attenuation is spelled where the loan forms
+    // (wiki/spec/language/expressions.md#calls-places-and-temporaries).
+    case ImplicitAttenuation;
 }
 
 pub data TypeDiagnostic [copy] {
