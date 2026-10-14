@@ -1,0 +1,7 @@
+data Token [linear] {}
+data Evidence { case Empty; case Node(next: Evidence, token: Token); }
+machine reflexive(value: Evidence) ensures value == value {}
+data Context {}
+machine main(context: &mut Context) {
+    reflexive(Evidence::Node { next: Evidence::Empty, token: Token {} });
+}

@@ -5,7 +5,7 @@
 //! formed, another ensures, nor a future body citation can license a partial
 //! application. Reflexive equality and body unfolding do not waive this gate.
 
-use super::refuted_requires::instantiated_fact_judgment;
+use super::refuted_requires::instantiated_selected_fact_judgment;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use super::structural_terms::structural_term;
 use crate::expression_traversal::children;
@@ -297,6 +297,7 @@ fn validate_expression(
         return;
     };
     arguments.extend_from_slice(actuals);
+    let machine_substitution = call_machine_substitution(program, &contract_owner, call);
     let substitution = parameters
         .iter()
         .zip(&arguments)
@@ -314,8 +315,9 @@ fn validate_expression(
         .iter()
         .copied()
         .filter(|fact| {
-            structurally_substitutable_fact(program, *fact)
-                && names_are_unambiguous(program, &[*fact], &arguments)
+            structurally_substitutable_fact(program, *fact, &|expression| {
+                caller.term(program, expression)
+            }) && names_are_unambiguous(program, &[*fact], &arguments)
         })
         .collect::<Vec<_>>();
     let structural_names_unique = names_are_unambiguous(program, &structural_facts, &arguments);
@@ -345,11 +347,9 @@ fn validate_expression(
         {
             continue;
         }
-        // Substitution needs one argument per owned parameter. A dispatched
-        // requirement call is the signature owner's own spelling, so its
-        // dispatch record does not disqualify it; a concrete call keeps the
-        // static-selection gate that requires the same shape.
-        let arguments_select_plainly = call.machine_arguments.is_empty()
+        // Both telescopes belong to the selected public owner. A missing or
+        // unsupported static operand never becomes an empty substitution.
+        let arguments_select_plainly = machine_substitution.is_some()
             && (matches!(
                 contract_owner,
                 SelectedCallContract::Signature(..) | SelectedCallContract::DynamicSlot { .. }
@@ -358,7 +358,15 @@ fn validate_expression(
             && arguments_select_plainly
         {
             let structural = requirement_parameters_are_bound(program, *required, parameters)
-                && structurally_substitutable_fact(program, *required)
+                && structurally_substitutable_fact(program, *required, &|expression| {
+                    structural_term(
+                        program,
+                        None,
+                        Some((owner_symbol(&contract_owner), parameters)),
+                        expression,
+                        None,
+                    )
+                })
                 && parameters.len() == arguments.len()
                 && structural_names_unique
                 && substitution.as_ref().is_some_and(|substitution| {
@@ -366,13 +374,14 @@ fn validate_expression(
                         .iter()
                         .all(|(_, term)| term_has_complete_substitution(program, term))
                         && matches!(
-                            instantiated_fact_judgment(
+                            instantiated_selected_fact_judgment(
                                 program,
                                 &judge,
                                 owner_symbol(&contract_owner),
                                 parameters,
                                 *required,
                                 substitution,
+                                machine_substitution.as_deref().unwrap_or_default(),
                                 caller.state_scope(),
                             ),
                             StructuralJudgment::Proven
@@ -649,9 +658,81 @@ fn applicable_requirements_of<'program>(
         .collect()
 }
 
+/// Bind only the selected owner's machine parameters. Unsupported type/const
+/// telescopes remain unavailable rather than being silently erased. Concrete
+/// specialization and open modular checking use the same symbol correspondence.
+fn call_machine_substitution(
+    program: &dyn crate::CheckingInput,
+    owner: &SelectedCallContract<'_>,
+    call: &TableCallExpression,
+) -> Option<
+    Vec<(
+        SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+        typed_trees::expression::StaticMachineArgument,
+    )>,
+> {
+    let SelectedCallContract::Concrete(machine, _) = owner else {
+        return call.machine_arguments.is_empty().then(Vec::new);
+    };
+    let parameters = program
+        .machine_kind_type_parameters(machine)
+        .collect::<Vec<_>>();
+    if parameters.len() != call.machine_arguments.len()
+        || !call
+            .machine_arguments
+            .iter()
+            .all(|selection| plain_machine_selection(program, selection))
+    {
+        return None;
+    }
+    parameters
+        .into_iter()
+        .zip(call.machine_arguments.iter())
+        .map(|(parameter, selected)| {
+            Some((
+                parameter.symbol,
+                selected_machine_result_type(program, selected.symbol)?,
+                selected.clone(),
+            ))
+        })
+        .collect()
+}
+
+fn selected_machine_result_type(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    program
+        .machine_parameter_signature(symbol)
+        .map(|(_, signature)| signature.return_type)
+        .or_else(|| {
+            super::structural_terms::selected_application_machine(program, symbol)
+                .and_then(|machine| program.machine_states(machine).first())
+                .map(|state| state.return_type)
+        })
+}
+
+fn plain_machine_selection(
+    program: &dyn crate::CheckingInput,
+    selection: &typed_trees::expression::StaticMachineArgument,
+) -> bool {
+    selection.symbol.is_valid()
+        && selection.application.is_none()
+        && selection.evidence_projection.is_none()
+        && !selection.type_reference.is_valid()
+        && selection.const_literal.is_none()
+        && (program
+            .machine_parameter_signature(selection.symbol)
+            .is_some()
+            || super::structural_terms::selected_application_machine(program, selection.symbol)
+                .is_some())
+}
+
 fn structurally_substitutable_fact(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
+    term: &impl Fn(ExpressionHandle) -> Option<StructuralTerm>,
 ) -> bool {
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
@@ -659,25 +740,25 @@ fn structurally_substitutable_fact(
     if super::structural_terms::is_case_observation(program, expression) {
         // Classification is not a value operand. Exact selected meaning is
         // checked at intake/judgment in the declaration's own scope.
-        return structural_term(program, None, None, binary.left, None)
+        return term(binary.left)
             .is_some_and(|term| term_has_complete_substitution(program, &term));
     }
     if binary.operator == BinaryOperator::And {
-        return structurally_substitutable_fact(program, binary.left)
-            && structurally_substitutable_fact(program, binary.right);
+        return structurally_substitutable_fact(program, binary.left, term)
+            && structurally_substitutable_fact(program, binary.right, term);
     }
     matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
     ) && [binary.left, binary.right].iter().all(|operand| {
-        structural_term(program, None, None, *operand, None)
-            .is_some_and(|term| term_has_complete_substitution(program, &term))
+        term(*operand).is_some_and(|term| term_has_complete_substitution(program, &term))
     })
 }
 
-/// Only fully substituted concrete free applications cross this boundary.
-/// Their exact entry identity survives shared normalization. Receiver calls,
-/// static applications and opaque display text remain unsupported here.
+/// A structural application retains a complete declared value/static telescope.
+/// An abstract machine binder is an exact callable identity, not an opaque name;
+/// its invocation is compared symbolically without assuming a concrete body.
+/// Receiver calls and opaque display text remain outside this judgment.
 fn term_has_complete_substitution(
     program: &dyn crate::CheckingInput,
     term: &StructuralTerm,
@@ -703,19 +784,40 @@ fn term_has_complete_substitution(
             arguments,
             ..
         } => {
-            let Some(machine) =
-                super::structural_terms::selected_application_machine(program, *target)
-            else {
+            let signature = program
+                .machine_parameter_signature(*target)
+                .map(|(_, signature)| signature);
+            let concrete = super::structural_terms::selected_application_machine(program, *target)
+                .and_then(|machine| {
+                    program
+                        .machine_states(machine)
+                        .first()
+                        .map(|state| (machine, state))
+                });
+            let (parameter_count, declared_result) = if let Some(signature) = signature {
+                if !selections.is_empty() {
+                    return false;
+                }
+                (
+                    program.state_signature_parameters(signature).len(),
+                    signature.return_type,
+                )
+            } else if let Some((machine, state)) = concrete {
+                let machine_parameters = program.machine_kind_type_parameters(machine).count();
+                if machine.attached_data.is_some()
+                    || program.machine_type_parameters(machine).len() != machine_parameters
+                    || machine_parameters != selections.len()
+                    || !selections
+                        .iter()
+                        .all(|selection| plain_machine_selection(program, selection))
+                {
+                    return false;
+                }
+                (program.state_parameters(state).len(), state.return_type)
+            } else {
                 return false;
             };
-            let Some(state) = program.machine_states(machine).first() else {
-                return false;
-            };
-            if !selections.is_empty()
-                || machine.attached_data.is_some()
-                || !program.machine_type_parameters(machine).is_empty()
-                || program.state_parameters(state).len() != arguments.len()
-            {
+            if parameter_count != arguments.len() {
                 return false;
             }
             if let StructuralTerm::CallProjection {
@@ -728,7 +830,7 @@ fn term_has_complete_substitution(
                 // The fact-projection validator independently checks denotational
                 // eligibility. Substitution must retain this entry's exact result
                 // and field, never a namesake's value.
-                if state.return_type != *result_type {
+                if declared_result != *result_type {
                     return false;
                 }
                 let Some(data) =

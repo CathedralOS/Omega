@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "fact_only_proof_value_citation_exit");
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

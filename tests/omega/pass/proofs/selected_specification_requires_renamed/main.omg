@@ -1,0 +1,13 @@
+use omega::language::core::nat;
+machine selected_identity<machine Modulus>(value: Nat) -> Nat
+where machine Modulus(value: Nat) -> Nat;
+requires (saturating_sub(Modulus(value), value)) == Nat::Zero
+{
+    value
+}
+machine identity<machine Choice>(subject: Nat)
+where machine Choice(input: Nat) -> Nat;
+requires (saturating_sub(Choice(subject), subject)) == Nat::Zero
+ensures selected_identity<Choice>(subject) == subject
+{
+}

@@ -1,0 +1,8 @@
+data Ordinal { case Zero; case Step(previous: Ordinal); }
+machine zero(value: Ordinal)
+requires value == Ordinal::Zero
+ensures value == Ordinal::Zero
+{}
+machine main() {
+    zero(Ordinal::Step { previous: Ordinal::Zero });
+}

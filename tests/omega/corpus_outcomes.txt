@@ -2211,7 +2211,7 @@ fail/drops/drop_ensures_unlocked_predicate rejected 1540ms expected @a9ae30e1c33
 	cannot prove ensures contract for exit from MutexGuard::drop at statement 0: mutex_guard.mutex.unlocked()
 fail/drops/empty_array_owner_cleanup_prerequisite rejected 1705ms expected @a9ae30e1c334+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing holder.ready == true required by Holder::drop clause `holder.ready`
-fail/drops/erased_linear_subject_requires_disposition rejected 1198ms expected @a9ae30e1c334+wt
+fail/drops/erased_linear_subject_requires_disposition rejected 789ms expected @4ce1ff349782+wt
 	cannot automatically dispose borrowed temporary `named(name(Event))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
 fail/drops/generic_cleanup_fixed_owner_cannot_infer_demand rejected 1561ms expected @a9ae30e1c334+wt
 	cannot prove automatic cleanup requires at selected edge from retire state entry after statement 1: token does not establish Token::drop clause `token.value == 7`
@@ -3452,6 +3452,13 @@ fail/proofs/core_nat_runtime_consumption_rejected rejected 2761ms expected @a9ae
 	machine `Main::main` state `main` parameter `main` mentions proof-only `Main`, which has no runtime layout
 fail/proofs/defined_proposition_premise_not_symmetric rejected 168ms expected @77ecdbf5e7c6
 	checked machine `before_symmetric` cannot establish proposition ensure `boolean:right.x < left.x` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+fail/proofs/fact_only_proof_value_citation_linear_resource rejected 4427ms expected @4ce1ff349782+wt
+	linear value `value::Node.token` reaches scope exit without being consumed or transferred
+fail/proofs/fact_only_proof_value_citation_missing_premise rejected 1840ms expected @4ce1ff349782+wt
+	cannot prove requires contract for call zero from main: constructor:7:Ordinal9:name:Step21:payload:name:previous32:constructor:7:Ordinal9:name:Zero == constructor:7:Ordinal9:name:Zero (needs fact `value == Ordinal` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/fact_only_proof_value_citation_mutable rejected 2555ms expected @4ce1ff349782+wt
+	machine `reflexive` state `entry` parameter `value` mentions proof-only `Ordinal`, which has no runtime layout
+	mutable argument for state `entry` must be a named place
 fail/proofs/family_carrier_relation_extra_premise_rejected rejected 487ms expected @47fae30824a7+wt
 	machine `ordered_symmetric` realizes `Symmetric::symmetric` but requires `ordered`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/proofs/field_view_constructor_geometry rejected 276ms expected @f87e5abb7145+wt
@@ -3683,6 +3690,14 @@ fail/proofs/runtime_case_guarantee_wrong_return rejected 1515ms expected @a9ae30
 fail/proofs/scalar_state_return_outside_byte_class rejected 1504ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call consume from Main::write_byte: main.bytes in [u8]::Utf8 (invalidated by prior mutation of main.bytes[0]; main.bytes is part of [u8]::Utf8)
 	cannot prove default-domain field requirement for return from Main::write_byte at statement 3: main.bytes requires [u8; N]::Utf8
+fail/proofs/selected_specification_requires_false_result rejected 447ms expected @4ce1ff349782+wt
+	machine `identity` ensures contract proof fact `selected_identity<Modulus>(value) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+fail/proofs/selected_specification_requires_missing_premise rejected 389ms expected @4ce1ff349782+wt
+	cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact
+fail/proofs/selected_specification_requires_wrong_machine rejected 421ms expected @4ce1ff349782+wt
+	cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact
+fail/proofs/selected_specification_requires_wrong_subject rejected 379ms expected @4ce1ff349782+wt
+	cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact
 fail/proofs/self_call_without_witness_not_denotational rejected 686ms expected @b7aaf37278ea+wt
 	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
 	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
@@ -6940,70 +6955,17 @@ pass/proofs/accepted_axiom_cited_exit checked 11306ms check-target:macos_arm64 @
 pass/proofs/accumulator_guarantee_exit checked 11353ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/axiom_citation checked 9748ms @5041ef1af684+wt
 pass/proofs/case_call_premises checked 1644ms @a9ae30e1c334+wt
-pass/proofs/cauchy_predicates_compile rejected 409ms @6c75d91f0312
-	cannot prove requires contract for specification call `cauchy_at` in machine `unit_sequence_is_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `cauchy_at` in machine `unit_sequence_is_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `cauchy_at` in machine `unit_sequence_is_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+pass/proofs/cauchy_predicates_compile rejected 919ms @4ce1ff349782+wt
 	machine `cauchy_at_reflexive` ensures contract proof fact `cauchy_at<Sequence, Modulus>(precision, index, index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	machine `converges_together_at_symmetric` cites `rat_close_symmetric`, but the callee's requires fact `rat_close(p, q, precision) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 	machine `converges_together_at_symmetric` ensures contract proof fact `converges_together_at<Right, Left, Modulus>(precision, right_index, left_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	machine `converges_together_at_triangle_split` cites `rat_close_triangle_split`, but the callee's requires fact `saturating_sub(Nat, q.den) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 	machine `converges_together_at_triangle_split` ensures contract proof fact `converges_together_at<Left, Right, Modulus>(precision, left_index, right_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 	machine `doubled_nat_max_threshold` ensures contract proof fact `saturating_sub(doubled_nat_max_modulus<FirstModulus, SecondModulus>(precision), index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive$specialized$d3ed47cf61b2fa7c$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive$specialized$d3ed47cf61b2fa7c$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive$specialized$d3ed47cf61b2fa7c$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
 pass/proofs/citation_requires_discharged checked 10576ms @b7aaf37278ea+wt
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 1240ms @1cb01af2f0bb
 pass/proofs/defined_proposition_premises checked 1193ms @77ecdbf5e7c6
+pass/proofs/fact_only_proof_value_citation_exit checked 14367ms check-target:linux_x86_64 @4ce1ff349782+wt
 pass/proofs/family_carrier_relation_laws checked 1811ms @47fae30824a7+wt
 pass/proofs/field_view_index_contract checked 5381ms @d3431e5a76cb+wt
 pass/proofs/float_guarded_negated_result_contract checked 3661ms @1f63ee648905+wt
@@ -7079,6 +7041,10 @@ pass/proofs/runtime_sequential_ranked_components_exit checked 11517ms check-targ
 pass/proofs/runtime_sequential_relational_accumulator_exit checked 11587ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_two_state_accumulator_exit checked 6334ms check-target:macos_arm64 @1727c70d2f7e+wt
 pass/proofs/scalar_state_return_keeps_byte_class checked 1677ms @a9ae30e1c334+wt
+pass/proofs/selected_specification_requires_composition checked 5090ms @4ce1ff349782+wt
+pass/proofs/selected_specification_requires_exact checked 5076ms @4ce1ff349782+wt
+pass/proofs/selected_specification_requires_renamed checked 5083ms @4ce1ff349782+wt
+pass/proofs/selected_specification_requires_state checked 4678ms @4ce1ff349782+wt
 pass/proofs/short_circuit_rhs_entry_bound checked 30697ms check-target:macos_arm64 @5b35eda9b8d6
 pass/proofs/stride_pair_telescope checked 9821ms @5041ef1af684+wt
 pass/providers/applied_binding_field_telescopes_exit checked 2857ms check-target:macos_arm64 @a8cedb3946d5+wt

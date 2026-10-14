@@ -4,6 +4,7 @@ use super::{
     term_contains,
 };
 use std::sync::Arc;
+use symbols::JoinedPath;
 use typed_trees::types::TypeReferenceHandle;
 
 mod integer_predicates;
@@ -1756,13 +1757,28 @@ impl<'program> StructuralJudge<'program> {
         term: &StructuralTerm,
         map: &[(String, StructuralTerm)],
     ) -> StructuralTerm {
+        Self::substitute_call_term(term, map, &[])
+    }
+
+    /// A call substitutes value subjects and resolved static callable binders
+    /// together. Rewriting operands alone leaves a callee's abstract callable
+    /// in the caller's fact, even when the authored premises are identical.
+    pub(super) fn substitute_call_term(
+        term: &StructuralTerm,
+        map: &[(String, StructuralTerm)],
+        machine_map: &[(
+            SymbolHandle,
+            TypeReferenceHandle,
+            typed_trees::expression::StaticMachineArgument,
+        )],
+    ) -> StructuralTerm {
         match term {
             StructuralTerm::ObservedValue {
                 observed_type,
                 value,
             } => StructuralTerm::ObservedValue {
                 observed_type: *observed_type,
-                value: Box::new(Self::substitute_term(value, map)),
+                value: Box::new(Self::substitute_call_term(value, map, machine_map)),
             },
             StructuralTerm::Integer(_)
             | StructuralTerm::Float(_)
@@ -1777,11 +1793,11 @@ impl<'program> StructuralJudge<'program> {
             } => StructuralTerm::IndexedValue {
                 element_type: *element_type,
                 element_identity: *element_identity,
-                collection: Box::new(Self::substitute_term(collection, map)),
-                index: Box::new(Self::substitute_term(index, map)),
+                collection: Box::new(Self::substitute_call_term(collection, map, machine_map)),
+                index: Box::new(Self::substitute_call_term(index, map, machine_map)),
             },
             StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
-                subject: Box::new(Self::substitute_term(subject, map)),
+                subject: Box::new(Self::substitute_call_term(subject, map, machine_map)),
                 path: path.clone(),
             },
             StructuralTerm::ScalarBinary {
@@ -1794,8 +1810,8 @@ impl<'program> StructuralJudge<'program> {
                 references: *references,
                 operator: *operator,
                 meaning: *meaning,
-                left: Box::new(Self::substitute_term(left, map)),
-                right: Box::new(Self::substitute_term(right, map)),
+                left: Box::new(Self::substitute_call_term(left, map, machine_map)),
+                right: Box::new(Self::substitute_call_term(right, map, machine_map)),
             },
             StructuralTerm::Variable(name) => map
                 .iter()
@@ -1807,12 +1823,66 @@ impl<'program> StructuralJudge<'program> {
                 case: case.clone(),
                 fields: fields
                     .iter()
-                    .map(|(name, value)| (name.clone(), Self::substitute_term(value, map)))
+                    .map(|(name, value)| {
+                        (
+                            name.clone(),
+                            Self::substitute_call_term(value, map, machine_map),
+                        )
+                    })
                     .collect(),
             },
-            StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. } => term
-                .clone()
-                .map_argument_terms(|argument| Self::substitute_term(&argument, map)),
+            StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. } => {
+                let mut substituted = term.clone().map_argument_terms(|argument| {
+                    Self::substitute_call_term(&argument, map, machine_map)
+                });
+                let (target, selections, machine, result_type) = match &mut substituted {
+                    StructuralTerm::Application {
+                        target,
+                        selections,
+                        machine,
+                        result_type,
+                        ..
+                    }
+                    | StructuralTerm::CallProjection {
+                        target,
+                        selections,
+                        machine,
+                        result_type,
+                        ..
+                    } => (target, selections, machine, result_type),
+                    _ => unreachable!(),
+                };
+                let selected = machine_map.iter().find(|(symbol, _, _)| symbol == target);
+                let mut changed = false;
+                if let Some((_, selected_result, selected)) = selected {
+                    *target = selected.symbol;
+                    *machine = selected.path.joined_path();
+                    // The callee binder's result reference is declaration-local.
+                    // Keep the selected callable's exact carrier and policy,
+                    // just as direct caller-side term formation does.
+                    *result_type = *selected_result;
+                    changed = true;
+                }
+                for selection in selections.iter_mut() {
+                    if let Some((_, _, actual)) = machine_map
+                        .iter()
+                        .find(|(symbol, _, _)| *symbol == selection.symbol)
+                    {
+                        *selection = actual.clone();
+                        changed = true;
+                    }
+                }
+                // Resolved symbols choose the substitution. Rebuild its display
+                // after the selection changes, retaining untouched spellings.
+                if changed && !selections.is_empty() {
+                    *machine = structural_call_machine_name(
+                        machine.split('<').next().unwrap_or(machine),
+                        selections,
+                        &[],
+                    );
+                }
+                substituted
+            }
             StructuralTerm::Opaque(display) => {
                 // Symbolic record member places currently share the Opaque
                 // vocabulary (`p.den`). Citation instantiation must still
@@ -2098,6 +2168,21 @@ impl<'program> StructuralJudge<'program> {
         fact: ExpressionHandle,
         map: &[(String, StructuralTerm)],
     ) -> StructuralJudgment {
+        self.instantiated_selected_case_judgment(scope, parameters, fact, map, &[])
+    }
+
+    pub(super) fn instantiated_selected_case_judgment(
+        &self,
+        scope: SymbolHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        fact: ExpressionHandle,
+        map: &[(String, StructuralTerm)],
+        machine_map: &[(
+            SymbolHandle,
+            TypeReferenceHandle,
+            typed_trees::expression::StaticMachineArgument,
+        )],
+    ) -> StructuralJudgment {
         let Some(binary) = self.program.expression_table.binary_node(fact) else {
             return StructuralJudgment::Unknown;
         };
@@ -2121,7 +2206,7 @@ impl<'program> StructuralJudge<'program> {
             return StructuralJudgment::Unknown;
         };
         self.judge_case(
-            Self::substitute_term(&subject, map),
+            Self::substitute_call_term(&subject, map, machine_map),
             definition.symbol,
             variant.symbol,
         )

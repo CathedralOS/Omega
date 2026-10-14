@@ -450,7 +450,7 @@ machine pred(a: Nat) -> Nat
 // `b <= a` at formation. This named monus and its proof corpus remain distinct
 // from the exact operator above rather than silently routing bare `-` to
 // clamping.
-machine saturating_sub(a: Nat, b: Nat) -> Nat
+pub machine saturating_sub(a: Nat, b: Nat) -> Nat
 terminates by b;
 {
     transition b {

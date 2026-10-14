@@ -271,8 +271,41 @@ pub(super) fn instantiated_fact_judgment(
     map: &[(String, StructuralTerm)],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
 ) -> StructuralJudgment {
+    instantiated_selected_fact_judgment(
+        program,
+        judge,
+        callee_owner,
+        callee_parameters,
+        fact,
+        map,
+        &[],
+        caller_scope,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn instantiated_selected_fact_judgment(
+    program: &dyn crate::CheckingInput,
+    judge: &StructuralJudge,
+    callee_owner: symbols::SymbolHandle,
+    callee_parameters: &[typed_trees::signature::StateParameter],
+    fact: ExpressionHandle,
+    map: &[(String, StructuralTerm)],
+    machine_map: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+        typed_trees::expression::StaticMachineArgument,
+    )],
+    caller_scope: Option<(&Machine, &typed_trees::state::State)>,
+) -> StructuralJudgment {
     if super::structural_terms::is_case_observation(program, fact) {
-        return judge.instantiated_case_judgment(callee_owner, callee_parameters, fact, map);
+        return judge.instantiated_selected_case_judgment(
+            callee_owner,
+            callee_parameters,
+            fact,
+            map,
+            machine_map,
+        );
     }
     let Some(binary) = program.expression_table.binary_node(fact) else {
         return StructuralJudgment::Unknown;
@@ -296,7 +329,7 @@ pub(super) fn instantiated_fact_judgment(
                 None,
             )
     {
-        let term = StructuralJudge::substitute_term(&term, map);
+        let term = StructuralJudge::substitute_call_term(&term, map, machine_map);
         match judge.judge_observed_predicate(term, 0) {
             StructuralJudgment::Proven => return StructuralJudgment::Proven,
             StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
@@ -308,22 +341,24 @@ pub(super) fn instantiated_fact_judgment(
             // Conjunction has no authored operator selection. Each leaf
             // still establishes its own scalar or nominal predicate meaning.
             let operands = (
-                instantiated_fact_judgment(
+                instantiated_selected_fact_judgment(
                     program,
                     judge,
                     callee_owner,
                     callee_parameters,
                     binary.left,
                     map,
+                    machine_map,
                     caller_scope,
                 ),
-                instantiated_fact_judgment(
+                instantiated_selected_fact_judgment(
                     program,
                     judge,
                     callee_owner,
                     callee_parameters,
                     binary.right,
                     map,
+                    machine_map,
                     caller_scope,
                 ),
             );
@@ -364,6 +399,7 @@ pub(super) fn instantiated_fact_judgment(
                 callee_parameters,
                 binary,
                 map,
+                machine_map,
                 caller_scope,
             ) else {
                 return StructuralJudgment::Unknown;
@@ -393,6 +429,7 @@ pub(super) fn instantiated_fact_judgment(
                 callee_parameters,
                 binary,
                 map,
+                machine_map,
                 caller_scope,
             ) else {
                 return StructuralJudgment::Unknown;
@@ -446,6 +483,11 @@ fn instantiated_operands(
     callee_parameters: &[typed_trees::signature::StateParameter],
     binary: &typed_trees::expression::TableBinaryExpression,
     map: &[(String, StructuralTerm)],
+    machine_map: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+        typed_trees::expression::StaticMachineArgument,
+    )],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
 ) -> Option<(StructuralTerm, StructuralTerm)> {
     let (left, right) = super::structural_terms::structural_term_pair_for_parameters(
@@ -460,7 +502,11 @@ fn instantiated_operands(
             caller_scope,
             super::structural_terms::unfold_constant_applications(
                 program,
-                judge.resolve(StructuralJudge::substitute_term(&left, map)),
+                judge.resolve(StructuralJudge::substitute_call_term(
+                    &left,
+                    map,
+                    machine_map,
+                )),
             ),
         ),
         declared_len_extent_term(
@@ -468,7 +514,11 @@ fn instantiated_operands(
             caller_scope,
             super::structural_terms::unfold_constant_applications(
                 program,
-                judge.resolve(StructuralJudge::substitute_term(&right, map)),
+                judge.resolve(StructuralJudge::substitute_call_term(
+                    &right,
+                    map,
+                    machine_map,
+                )),
             ),
         ),
     ))
@@ -523,6 +573,7 @@ fn instantiated_fact_spelling(
                 callee_parameters,
                 binary,
                 map,
+                &[],
                 caller_scope,
             )?;
             Some(format!(

@@ -1,0 +1,1 @@
+linear value `value::Node.token` reaches scope exit without being consumed or transferred

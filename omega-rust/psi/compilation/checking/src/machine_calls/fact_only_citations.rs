@@ -19,9 +19,9 @@
 //! a present, empty single-state body, a Unit result, at least one `ensures`
 //! conclusion and otherwise only `requires` clauses, no type parameters,
 //! owned data, service reach, suspension, blocking or crash route, and only
-//! read-only scalar or shared-borrow parameters. Such a body performs no
+//! read-only scalar, proof-only, or shared-borrow parameters. Such a body performs no
 //! work, so its invocation has no observable behavior to preserve. The
-//! citation's arguments must be literals or place spellings, whose
+//! citation's arguments must be literals, proof constructors, or place spellings, whose
 //! evaluation performs no call, arithmetic or runtime index selection. A
 //! theorem with states or statements, or a citation computing an argument,
 //! stays an ordinary call.
@@ -92,7 +92,8 @@ pub fn fact_only_theorem(
 }
 
 /// A parameter a citation can bind without transferring or writing storage:
-/// a bare scalar, or a shared borrow.
+/// a bare scalar, a proof-only carrier, or a shared borrow. Proof-only
+/// classification is computed from the carrier, never from a theorem's name.
 fn read_only_parameter(
     program: &dyn crate::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
@@ -103,6 +104,7 @@ fn read_only_parameter(
     program
         .primitive_type_reference(parameter.type_reference)
         .is_some()
+        || proof_value_parameter(program, parameter.type_reference)
         || matches!(
             program
                 .type_reference_table
@@ -112,6 +114,24 @@ fn read_only_parameter(
                 ..
             }
         )
+}
+
+/// No-layout classification alone does not erase a reference or collection's
+/// storage obligations. Only a directly selected mathematical value carrier
+/// enters this lane; ordinary custody checking still governs its invocation.
+fn proof_value_parameter(
+    program: &dyn crate::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => {
+            crate::proof_only_classification(program).is_proof_only(*symbol)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            proof_value_parameter(program, *base_type)
+        }
+        _ => false,
+    }
 }
 
 /// Whether one statement is a fact-only citation that execution erases.
@@ -164,6 +184,14 @@ fn work_free_argument(program: &dyn crate::CheckingInput, argument: ExpressionHa
         ExpressionNode::Borrow(borrow) => {
             borrow.access == language_core::ReferenceAccess::Shared
                 && place_spelling(program, borrow.target)
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            crate::proof_only_classification(program).is_proof_only(literal.type_symbol)
+                && program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .all(|field| work_free_argument(program, field.value))
         }
         _ => place_spelling(program, argument),
     }

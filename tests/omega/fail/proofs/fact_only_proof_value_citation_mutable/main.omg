@@ -1,0 +1,6 @@
+data Ordinal { case Zero; case Step(previous: Ordinal); }
+machine reflexive(value: &mut Ordinal) ensures true {}
+data Context {}
+machine main(context: &mut Context) {
+    reflexive(&mut Ordinal::Zero);
+}

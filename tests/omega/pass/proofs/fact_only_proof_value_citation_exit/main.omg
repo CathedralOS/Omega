@@ -1,0 +1,10 @@
+// Expected exit: 0. Both recursive proof constructors cite the empty theorem.
+data Ordinal { case Zero; case Step(previous: Ordinal); }
+machine reflexive(value: Ordinal)
+ensures value == value
+{}
+data Context {}
+machine main(context: &mut Context) {
+    reflexive(Ordinal::Zero);
+    reflexive(Ordinal::Step { previous: Ordinal::Zero });
+}
