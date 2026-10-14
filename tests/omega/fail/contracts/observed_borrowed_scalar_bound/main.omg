@@ -1,0 +1,7 @@
+// A value mentioned by the condition cannot be dropped from proof demand.
+data View<'owner> { value: &'owner u64; }
+machine bounded(count: u64, buffer: &mut [u8]) requires count <= buffer.len {}
+machine receive<'owner>(view: View<'owner>, buffer: &mut [u8]) {
+    let count: u64 = view.value;
+    bounded(count, buffer);
+}

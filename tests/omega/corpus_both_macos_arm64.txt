@@ -761,6 +761,7 @@ run/borrows/shared_indexed_read built 5703ms exit:0 interpreter-exit:0 interpret
 run/borrows/shared_local_borrow built 5331ms exit:0 interpreter-exit:0 interpreter:agrees @3fa817733300+wt
 run/borrows/shared_record_loan_member_read built 5382ms exit:0 interpreter-exit:0 interpreter:agrees @3fa817733300+wt
 run/borrows/transition_shared_borrow built 5289ms exit:0 interpreter-exit:0 interpreter:agrees @3fa817733300+wt
+run/contracts/captured_bound_unused_mutation built 5614ms exit:0 interpreter-exit:0 interpreter:agrees @7e164e32caf5+wt
 run/nested_mut_alias_assignment_return built 2526ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @cba4ef8c9ab1
 pass/ownership/runtime_replacement_call_child_snapshot_exit built 3512ms exit:0 interpreter-exit:0 interpreter:agrees @3c27bc9c6110
 pass/borrow/runtime_write_only_call_result_observation_exit built 3502ms exit:0 interpreter-exit:0 interpreter:agrees @820be24a59a0+wt

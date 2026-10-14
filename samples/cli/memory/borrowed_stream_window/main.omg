@@ -1,0 +1,43 @@
+// Expected exit: 0.
+// A borrowed stream identity accompanies a bounded mutable byte window through
+// state arrivals. The stream identity does not participate in the window bound.
+data Stream { identity: u64; }
+data StreamView<'owner> { identity: &'owner u64; }
+domain StreamView::Borrowed established by borrow_stream;
+
+machine borrow_stream<'owner>(stream: &'owner Stream) -> StreamView<'owner> in Borrowed {
+    StreamView { identity: &stream.identity }
+}
+
+machine receive<'owner>(stream: StreamView<'owner> in Borrowed, buffer: &mut [u8], count: u64) -> u64 {
+    let identity: u64 = stream.identity;
+    let capacity: u64 = buffer.len;
+    transition count <= capacity {
+        true -> bounded(identity, buffer, count)
+        false -> bounded(identity, buffer, capacity)
+    }
+    state bounded(identity: u64, buffer: &mut [u8], count: u64) -> u64
+    requires count <= buffer.len {
+        transition count <= 4 {
+            true -> received(identity, &mut buffer[0..count])
+            false -> received(identity, &mut buffer[0..4])
+        }
+    }
+    state received(identity: u64, bytes: &mut [u8]) -> u64
+    requires bytes.len <= 4 {
+        bytes.len
+    }
+}
+
+machine main() crashes Trap {
+    let stream: Stream = Stream { identity: 41 };
+    let mut bytes: [u8; 8];
+    let short_count: u64 = receive(borrow_stream(&stream), &mut bytes, 3);
+    let clamped_count: u64 = receive(borrow_stream(&stream), &mut bytes, 9);
+    transition short_count == 3 && clamped_count == 4 && stream.identity == 41 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -1,0 +1,12 @@
+// An argument absent from the precondition still evaluates before the later
+// count capture. Its mutation destroys the guard's former bound.
+machine overwrite(value: &mut u64) -> u64 { value = 9; 0 }
+machine bounded(ignored: u64, count: u64) requires count <= 8 {}
+machine main() {
+    let mut count: u64 = 2;
+    transition count <= 8 {
+        true -> bounded(overwrite(&mut count), count)
+        false -> done()
+    }
+    state done() {}
+}

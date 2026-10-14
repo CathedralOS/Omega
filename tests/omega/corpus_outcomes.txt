@@ -1551,6 +1551,8 @@ fail/contracts/negated_edge_guard_unproven_bound rejected 1542ms expected @a9ae3
 	cannot prove requires contract for call check from main: v < 50 (needs fact `v < 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/nested_array_boolean_requires rejected 1551ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call consume from main: input.leaves[1].ready (needs fact `input.leaves[1].ready` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/observed_borrowed_scalar_bound rejected 624ms expected @7e164e32caf5+wt
+	cannot prove requires contract for call bounded from receive: count <= buffer.len (needs fact `count <= buffer.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/projected_result_guarantee_after_overwrite rejected 1583ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from replace at statement 3: elements[1].child.value == 9 && elements[1].child.ready
 fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 1338ms expected @a9ae30e1c334+wt
@@ -1597,6 +1599,8 @@ fail/contracts/target_named_fact_preserved rejected 157ms expected @eca66ed24a79
 	machine `probe` state `entry` value call to `offset` violates required fact `macos_arm64 >= 0`: the instantiated fact is structurally false (`-1 >= 0`)
 fail/contracts/undischarged_contract_entailment rejected 1869ms expected @1f63ee648905+wt
 	checked machine `unchecked_claim` cannot establish proposition ensure `boolean:min_u64(right, 0) >= 1` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+fail/contracts/unused_argument_bound_mutation rejected 628ms expected @7e164e32caf5+wt
+	cannot prove requires contract for call bounded from main: count <= 8 (needs fact `count <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/control_flow/arm_pattern_missing_field rejected 2806ms expected @a9ae30e1c334+wt
 	destructure arm in machine `Main::apply` state `apply` does not mention field `dy` of `Msg::Move` -- record patterns are exhaustive by law: bind it, rename it with `as`, waive it with `as _`, or opt out with `..`
 fail/control_flow/arm_pattern_rest_unknown_field rejected 2732ms expected @a9ae30e1c334+wt
@@ -7627,6 +7631,7 @@ run/calls/runtime_float_distinct_operand_calls_exit checked 11431ms check-target
 run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 11428ms check-target:macos_arm64 @1f63ee648905+wt
 run/calls/table_report_call_survival checked 5492ms check-target:macos_arm64 @589aedee8ebc+wt
 run/contained_health_loop_command_branch checked 1918ms @a9ae30e1c334+wt
+run/contracts/captured_bound_unused_mutation checked 5150ms check-target:macos_arm64 @7e164e32caf5+wt
 run/domains/qualified_record_transfer checked 6006ms check-target:macos_arm64 @868a854ecd4d+wt
 run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:macos_arm64 @9c4d1c444502
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -516,7 +516,6 @@ impl<'program> CurrentScalarValues<'program> {
         if parameters.len() != arguments.len() {
             return None;
         }
-        let mut bindings = Vec::with_capacity(parameters.len());
         let mut formals = Vec::with_capacity(parameters.len());
         let mut lengths = Vec::new();
         for (parameter, argument) in parameters.iter().zip(arguments) {
@@ -539,10 +538,6 @@ impl<'program> CurrentScalarValues<'program> {
                 }
                 continue;
             };
-            bindings.push(ScopedArithmeticBinding {
-                binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
-                value: ScopedArithmeticValue::Term(self.current(*argument)?),
-            });
             formals.push(Binding {
                 symbol: parameter.symbol,
                 name: parameter.name.to_string(),
@@ -573,11 +568,15 @@ impl<'program> CurrentScalarValues<'program> {
             {
                 return None;
             }
-            if let Some(actual) = bindings
-                .iter()
-                .find(|actual| actual.binder == binding.binder)
-            {
-                binding.value = actual.value.clone();
+            if let ScopedArithmeticBinder::Symbol(symbol) = binding.binder {
+                // `scoped` selects the formal occurrences this goal actually
+                // observes. An unrelated operand need not have arithmetic
+                // meaning: it still evaluates and contributes its writes in
+                // the caller's prefix before we bind any observed actual.
+                let position = parameters
+                    .iter()
+                    .position(|parameter| parameter.symbol == symbol)?;
+                binding.value = ScopedArithmeticValue::Term(self.current(arguments[position])?);
             }
         }
         Some(goal)
