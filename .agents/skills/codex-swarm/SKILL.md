@@ -36,6 +36,11 @@ Each implementation owner retains context through full acceptance, required
 review and authorized verified main landing, including its necessary compiler,
 library and prerequisite repairs. Do not split these stages into dependencies
 on other workers or substitute artifact handoffs for completion.
+For a user-authorized shared publication wave, follow
+[shared integration](../../../tools/integration.md): owners keep responsibility
+for complete repairs through remote acceptance, and the designated integrator
+freezes a ready selection, validates it and publishes through the normal queue.
+An archive is not completion. Independent publication remains the default.
 Follow the concrete path through completion; let working programs reveal design.
 
 Read [AGENTS.md](../../../AGENTS.md), [advance](../advance/SKILL.md),

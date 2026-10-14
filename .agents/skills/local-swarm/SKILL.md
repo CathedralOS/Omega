@@ -15,6 +15,11 @@ Each implementation subagent retains context and owns the full assigned path,
 including necessary prerequisite repairs, acceptance, required review and
 authorized verified main landing. Do not divide its stages among agents or
 replace completion with an artifact handoff.
+For a user-authorized shared publication wave, follow
+[shared integration](../../../tools/integration.md): owners keep responsibility
+for complete repairs through remote acceptance, and the designated integrator
+freezes a ready selection, validates it and publishes through the normal queue.
+An archive is not completion. Independent publication remains the default.
 Follow the concrete path through completion; let working programs reveal design.
 
 Use [host setup and build admission](host-setup.md) before dispatch. Local
