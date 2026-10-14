@@ -147,7 +147,77 @@ pub(crate) fn occurrence_value_environment(
     state_symbol: SymbolHandle,
     expression: ExpressionHandle,
 ) -> Option<ValueEnvironment> {
-    expression_observation(program, machine_symbol, state_symbol, None, expression)?.environment
+    occurrence_value_environments(program, machine_symbol, state_symbol, vec![expression])
+        .get(expression)
+        .cloned()
+}
+
+/// Caller-owned snapshots for an exact requested set of whole-state queries.
+/// Requests are deduplicated, but the walk still joins every evaluated visit
+/// of a shared expression handle. An unvisited request has no environment.
+#[derive(Default)]
+pub(crate) struct OccurrenceValueEnvironments {
+    observations: Vec<ExpressionObservation>,
+}
+
+impl OccurrenceValueEnvironments {
+    pub(crate) fn get(&self, expression: ExpressionHandle) -> Option<&ValueEnvironment> {
+        let position = self
+            .observations
+            .binary_search_by_key(
+                &(expression.arena_index(), expression.generation()),
+                |observation| {
+                    (
+                        observation.expression.arena_index(),
+                        observation.expression.generation(),
+                    )
+                },
+            )
+            .ok()?;
+        self.observations[position].environment.as_ref()
+    }
+}
+
+/// Walk once for all requested observations, not once per construction field.
+/// This has the same unscoped occurrence meaning as a single query: prefix
+/// effects and every visit participate, even after a request was first seen.
+pub(crate) fn occurrence_value_environments(
+    program: &dyn crate::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    mut expressions: Vec<ExpressionHandle>,
+) -> OccurrenceValueEnvironments {
+    expressions.retain(|expression| expression.is_valid());
+    expressions
+        .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
+    expressions.dedup();
+    if expressions.is_empty() {
+        return OccurrenceValueEnvironments::default();
+    }
+    let Some((machine, state)) = program.machine_state(machine_symbol, state_symbol) else {
+        return OccurrenceValueEnvironments::default();
+    };
+    let frames = CallFrameResolver::new(program);
+    let mut environment = incoming_guard_environment(program, machine, state, frames.as_ref());
+    let mut walk = ArrivalWalk {
+        program,
+        machine,
+        frames: frames.as_ref(),
+        arrivals: Vec::new(),
+        observations: expressions
+            .into_iter()
+            .map(ExpressionObservation::environment)
+            .collect(),
+        infer_call_bodies: true,
+    };
+    walk.statements(
+        state,
+        program.statement_table.statements(state.statement_nodes),
+        &mut environment,
+    );
+    OccurrenceValueEnvironments {
+        observations: walk.observations,
+    }
 }
 
 fn expression_observation(
@@ -173,20 +243,21 @@ fn expression_observation(
         machine,
         frames: frames.as_ref(),
         arrivals: Vec::new(),
-        observation: None,
+        observations: Vec::new(),
         infer_call_bodies: true,
     };
     if !walk.statements(state, prefix, &mut environment) {
         return None;
     }
-    walk.observation = Some(ExpressionObservation {
+    walk.observations.push(ExpressionObservation {
+        include_bounds: true,
         recipe: None,
         expression,
         interval: None,
         environment: None,
     });
     walk.statements(state, observed_statements, &mut environment);
-    walk.observation
+    walk.observations.pop()
 }
 
 pub(super) fn seed_state_requirements(
@@ -549,7 +620,7 @@ pub(super) fn incoming_environments(
                 machine,
                 frames,
                 arrivals: Vec::new(),
-                observation: None,
+                observations: Vec::new(),
                 infer_call_bodies: invocation.is_none(),
             };
             let mut environment = environment.clone();
@@ -676,16 +747,17 @@ pub(crate) fn inferred_normal_return_interval(
                 machine,
                 frames: frames.as_ref(),
                 arrivals: Vec::new(),
-                observation: Some(ExpressionObservation {
+                observations: vec![ExpressionObservation {
+                    include_bounds: true,
                     recipe: None,
                     expression,
                     interval: None,
                     environment: None,
-                }),
+                }],
                 infer_call_bodies: false,
             };
             walk.statements(state, statements, &mut environment);
-            let observed = walk.observation?;
+            let observed = walk.observations.pop()?;
             let interval = observed.interval?;
             combined_recipe = if combined.is_none() {
                 observed.recipe
@@ -703,10 +775,23 @@ pub(crate) fn inferred_normal_return_interval(
 }
 
 struct ExpressionObservation {
+    include_bounds: bool,
     recipe: Option<checked_trees::IntegerRangeRecipe>,
     expression: ExpressionHandle,
     interval: Option<Interval>,
     environment: Option<ValueEnvironment>,
+}
+
+impl ExpressionObservation {
+    fn environment(expression: ExpressionHandle) -> Self {
+        Self {
+            include_bounds: false,
+            recipe: None,
+            expression,
+            interval: None,
+            environment: None,
+        }
+    }
 }
 
 struct ArrivalWalk<'program, 'frames> {
@@ -715,7 +800,7 @@ struct ArrivalWalk<'program, 'frames> {
     frames: Option<&'frames CallFrameResolver<'program>>,
     /// Each arrival this walk delivers, by target state position, in order.
     arrivals: Vec<(usize, ValueEnvironment)>,
-    observation: Option<ExpressionObservation>,
+    observations: Vec<ExpressionObservation>,
     infer_call_bodies: bool,
 }
 
@@ -1317,14 +1402,24 @@ impl ArrivalWalk<'_, '_> {
             }
             typed_trees::literal_expression_pattern!() => {}
         }
-        if self
-            .observation
-            .as_ref()
-            .is_some_and(|observation| observation.expression == expression)
-        {
+        if let Ok(position) = self.observations.binary_search_by_key(
+            &(expression.arena_index(), expression.generation()),
+            |observation| {
+                (
+                    observation.expression.arena_index(),
+                    observation.expression.generation(),
+                )
+            },
+        ) {
             let mut observed = environment.clone();
             self.expression_effects(source, expression, &mut observed);
-            let analyzed = self.checked_value(source, expression, &observed);
+            // Environment queries need the observation's effects, not its
+            // discarded result bounds. Value analysis used for local updates
+            // and state arrivals remains in evaluated_value above.
+            let include_bounds = self.observations[position].include_bounds;
+            let analyzed = include_bounds
+                .then(|| self.checked_value(source, expression, &observed))
+                .flatten();
             let interval = analyzed
                 .as_ref()
                 .map_or(Interval::UNBOUNDED, |value| value.value.interval);
@@ -1336,25 +1431,27 @@ impl ArrivalWalk<'_, '_> {
                     .value
                     .range_recipe(self.program, self.machine.symbol, expression)
             });
-            let observation = self.observation.as_mut().expect("matched observation");
-            observation.recipe = if observation.interval.is_none() {
-                recipe
-            } else {
-                observation
-                    .recipe
-                    .take()
-                    .zip(recipe)
-                    .map(|(left, right)| left.union(&right))
-            };
+            let observation = &mut self.observations[position];
+            if include_bounds {
+                observation.recipe = if observation.interval.is_none() {
+                    recipe
+                } else {
+                    observation
+                        .recipe
+                        .take()
+                        .zip(recipe)
+                        .map(|(left, right)| left.union(&right))
+                };
+                observation.interval = Some(
+                    observation
+                        .interval
+                        .map_or(interval, |prior| prior.union(interval)),
+                );
+            }
             observation.environment = Some(match observation.environment.take() {
                 Some(prior) => prior.join(&observed),
                 None => observed,
             });
-            observation.interval = Some(
-                observation
-                    .interval
-                    .map_or(interval, |prior| prior.union(interval)),
-            );
         }
     }
 }

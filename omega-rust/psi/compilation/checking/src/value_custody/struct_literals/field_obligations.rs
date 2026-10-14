@@ -1,6 +1,7 @@
 mod scalar_values;
 mod stored_integers;
 
+use super::observations::ConstructionObservations;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use diagnostics::Diagnostic;
 use typed_trees::data::{DataDefinition, DataMember};
@@ -43,6 +44,7 @@ pub(super) fn enforce_construction_field_obligations(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    observations: &ConstructionObservations<'_>,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,
     diagnostics: &mut Vec<Diagnostic>,
@@ -142,10 +144,11 @@ pub(super) fn enforce_construction_field_obligations(
         // An array-literal field value (`Holder { arr: [300, ..] }`) is checked
         // element-wise against the field's `[T; N]` element type. The scalar guards
         // below no-op on a non-primitive (array) field, so this is the complement.
-        validate_array_literal_elements(
+        check_array_literal_elements(
             program,
             machine,
             state,
+            observations,
             field.value,
             field_type,
             diagnostics,
@@ -223,6 +226,7 @@ pub(super) fn enforce_construction_field_obligations(
             program,
             machine,
             state,
+            observations,
             field.value,
             field_type,
             &slot_context,
@@ -291,13 +295,8 @@ pub(super) fn enforce_construction_field_obligations(
     }
 }
 
-/// Enforce each ELEMENT of an array literal against the array's declared element
-/// type -- the same cross-class + narrowing obligations a scalar store carries.
-/// `[300, ..]` into a `[i8; N]` truncates silently; `[true, ..]` into `[i8; N]`
-/// stores garbage. Selected arms retain the destination; explicit borrows
-/// retain the referee destination. Flow-insensitive (empty
-/// environment), matching the construction field-obligation checks. Reused across the
-/// binding sites that know the array's expected type (assignment target, etc.).
+/// Standalone array checking owns one observation batch; nested construction
+/// checks borrow the state-wide batch prepared by their caller.
 pub(crate) fn validate_array_literal_elements(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -306,12 +305,63 @@ pub(crate) fn validate_array_literal_elements(
     expected_type: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let observations = ConstructionObservations::new(program, machine, state, value);
+    check_array_literal_elements(
+        program,
+        machine,
+        state,
+        &observations,
+        value,
+        expected_type,
+        diagnostics,
+    );
+}
+
+pub(crate) fn validate_array_literal_elements_for_shape(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    value: ExpressionHandle,
+    element_type: TypeReferenceHandle,
+    expected_len: Option<usize>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let observations = ConstructionObservations::new(program, machine, state, value);
+    check_array_literal_elements_for_shape(
+        program,
+        machine,
+        state,
+        &observations,
+        value,
+        element_type,
+        expected_len,
+        diagnostics,
+    );
+}
+
+/// Enforce each ELEMENT of an array literal against the array's declared element
+/// type -- the same cross-class + narrowing obligations a scalar store carries.
+/// `[300, ..]` into a `[i8; N]` truncates silently; `[true, ..]` into `[i8; N]`
+/// stores garbage. Selected arms retain the destination; explicit borrows
+/// retain the referee destination. Scalar elements use their exact occurrence
+/// environments, shared with the enclosing construction checks. Reused across
+/// binding sites that know the array's expected type (assignment target, etc.).
+fn check_array_literal_elements(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    observations: &ConstructionObservations<'_>,
+    value: ExpressionHandle,
+    expected_type: TypeReferenceHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     if let Some(dispatch) = program.expression_table.match_node(value) {
         for arm in program.expression_table.match_arms(dispatch.arms) {
-            validate_array_literal_elements(
+            check_array_literal_elements(
                 program,
                 machine,
                 state,
+                observations,
                 arm.value,
                 expected_type,
                 diagnostics,
@@ -329,10 +379,11 @@ pub(crate) fn validate_array_literal_elements(
     {
         // This checks formation only. The independent reference gate checks
         // access and the loan checker retains the actual backing permission.
-        validate_array_literal_elements(
+        check_array_literal_elements(
             program,
             machine,
             state,
+            observations,
             borrow.target,
             *referee,
             diagnostics,
@@ -355,10 +406,11 @@ pub(crate) fn validate_array_literal_elements(
         | FixedArrayLength::Expression(_)
         | FixedArrayLength::ConstCall { .. } => None,
     };
-    validate_array_literal_elements_for_shape(
+    check_array_literal_elements_for_shape(
         program,
         machine,
         state,
+        observations,
         value,
         element_type,
         expected_len,
@@ -370,10 +422,11 @@ pub(crate) fn validate_array_literal_elements(
 /// width supplied by a projection rather than by a named fixed-array type.
 /// This is used by fixed write-only windows, whose destination width is
 /// `end - start` rather than the width of the containing array.
-pub(crate) fn validate_array_literal_elements_for_shape(
+fn check_array_literal_elements_for_shape(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    observations: &ConstructionObservations<'_>,
     value: ExpressionHandle,
     element_type: TypeReferenceHandle,
     expected_len: Option<usize>,
@@ -468,6 +521,7 @@ pub(crate) fn validate_array_literal_elements_for_shape(
                     program,
                     machine,
                     state,
+                    observations,
                     *element,
                     element_type,
                     &owner,
@@ -488,10 +542,11 @@ pub(crate) fn validate_array_literal_elements_for_shape(
         ) =>
         {
             for element in element_handles {
-                validate_array_literal_elements(
+                check_array_literal_elements(
                     program,
                     machine,
                     state,
+                    observations,
                     *element,
                     element_type,
                     diagnostics,

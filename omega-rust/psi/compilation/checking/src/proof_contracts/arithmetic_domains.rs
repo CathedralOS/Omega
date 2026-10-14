@@ -74,7 +74,9 @@ pub use selected_scalar_intervals::{
     integer_range_contains, selected_boolean_decision, selected_scalar_interval,
 };
 mod stored_integer_writes;
-pub(crate) use guard_narrowing::occurrence_value_environment;
+pub(crate) use guard_narrowing::{
+    OccurrenceValueEnvironments, occurrence_value_environment, occurrence_value_environments,
+};
 mod total_specification;
 mod unsigned_representability;
 mod value_environment;

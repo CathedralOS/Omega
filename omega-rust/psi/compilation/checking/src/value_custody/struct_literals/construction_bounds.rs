@@ -4,6 +4,7 @@
 //! Both use one predicate fold, so a clause cannot become either a blanket
 //! refusal or a qualification granted without establishing its facts.
 
+use super::observations::ConstructionObservations;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::JoinedPath;
@@ -58,6 +59,7 @@ fn value_bounds(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    observations: &ConstructionObservations<'_>,
     expression: ExpressionHandle,
 ) -> Bounds {
     match program.expression_table.expression(expression) {
@@ -70,17 +72,11 @@ fn value_bounds(
                 .unwrap_or(Bounds::UNKNOWN);
         }
         ExpressionNode::Borrow(inner) => {
-            return value_bounds(program, machine, state, inner.target);
+            return value_bounds(program, machine, state, observations, inner.target);
         }
         _ => {}
     }
-    let environment = crate::proof_contracts::arithmetic_domains::occurrence_value_environment(
-        program,
-        machine.symbol,
-        state.symbol,
-        expression,
-    )
-    .unwrap_or_default();
+    let environment = observations.environment(expression);
     let mut diagnostics = Vec::new();
     let interval = crate::proof_contracts::arithmetic_domains::validate_arithmetic_domains(
         program,
@@ -352,6 +348,7 @@ pub(super) fn validate_literal_default_domain(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    observations: &ConstructionObservations<'_>,
     literal: &TableStructLiteral,
     data_definition: &DataDefinition,
     diagnostics: &mut Vec<Diagnostic>,
@@ -366,6 +363,7 @@ pub(super) fn validate_literal_default_domain(
         program,
         machine,
         state,
+        observations,
         literal,
         data_definition.where_facts,
         &declared,
@@ -384,6 +382,7 @@ pub(super) fn validate_literal_case_constraints(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    observations: &ConstructionObservations<'_>,
     literal: &TableStructLiteral,
     data_definition: &DataDefinition,
     case_name: &str,
@@ -424,6 +423,7 @@ pub(super) fn validate_literal_case_constraints(
         program,
         machine,
         state,
+        observations,
         literal,
         variant.where_facts,
         &declared,
@@ -494,6 +494,7 @@ fn fold_literal_facts(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    observations: &ConstructionObservations<'_>,
     literal: &TableStructLiteral,
     facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
     declared: &[symbols::SymbolHandle],
@@ -505,7 +506,7 @@ fn fold_literal_facts(
     // Snapshot each field at its own source observation, including operand effects.
     let mut valuation = Vec::new();
     for field in program.expression_table.struct_fields(literal.fields) {
-        let value = value_bounds(program, machine, state, field.value);
+        let value = value_bounds(program, machine, state, observations, field.value);
         valuation.push((field.field_symbol, value));
     }
     for fact in program.proof_facts.span_or_empty(facts) {

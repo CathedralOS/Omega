@@ -30,7 +30,10 @@ use typed_trees::types::PrimitiveType;
 
 mod construction_bounds;
 mod field_obligations;
+mod observations;
 mod window_elements;
+
+use observations::ConstructionObservations;
 
 pub(crate) use window_elements::validate_array_window_elements;
 
@@ -54,10 +57,12 @@ pub fn validate_value_construction(
     expression: ExpressionHandle,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let observations = &ConstructionObservations::new(program, machine, state, expression);
     scan_expression(
         program,
         machine,
         state,
+        observations,
         expression,
         &mut diagnostics,
         &mut Vec::new(),
@@ -77,6 +82,12 @@ pub(crate) fn validate_struct_literal_fields(
     let mut stored_integer_writes = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
+            let observations = &ConstructionObservations::new(
+                program,
+                machine,
+                state,
+                ExpressionHandle::invalid(),
+            );
             for (statement_index, statement) in program
                 .statement_table
                 .indexed_statements(state.statement_nodes)
@@ -89,6 +100,7 @@ pub(crate) fn validate_struct_literal_fields(
                                     program,
                                     machine,
                                     state,
+                                    observations,
                                     expression,
                                     diagnostics,
                                     &mut stored_integer_writes,
@@ -102,6 +114,7 @@ pub(crate) fn validate_struct_literal_fields(
                             program,
                             machine,
                             state,
+                            observations,
                             fact.expression,
                             diagnostics,
                             &mut stored_integer_writes,
@@ -113,6 +126,7 @@ pub(crate) fn validate_struct_literal_fields(
                             program,
                             machine,
                             state,
+                            observations,
                             assignment.target,
                             diagnostics,
                             &mut stored_integer_writes,
@@ -122,6 +136,7 @@ pub(crate) fn validate_struct_literal_fields(
                             program,
                             machine,
                             state,
+                            observations,
                             assignment.value,
                             diagnostics,
                             &mut stored_integer_writes,
@@ -134,6 +149,7 @@ pub(crate) fn validate_struct_literal_fields(
                                 program,
                                 machine,
                                 state,
+                                observations,
                                 *argument,
                                 diagnostics,
                                 &mut stored_integer_writes,
@@ -146,6 +162,7 @@ pub(crate) fn validate_struct_literal_fields(
                             program,
                             machine,
                             state,
+                            observations,
                             *expression,
                             diagnostics,
                             &mut stored_integer_writes,
@@ -157,6 +174,7 @@ pub(crate) fn validate_struct_literal_fields(
                             program,
                             machine,
                             state,
+                            observations,
                             local_data.initial_value,
                             diagnostics,
                             &mut stored_integer_writes,
@@ -169,6 +187,7 @@ pub(crate) fn validate_struct_literal_fields(
                                 program,
                                 machine,
                                 state,
+                                observations,
                                 *guard,
                                 diagnostics,
                                 &mut stored_integer_writes,
@@ -180,6 +199,7 @@ pub(crate) fn validate_struct_literal_fields(
                                 program,
                                 machine,
                                 state,
+                                observations,
                                 program.statement_table.transition_target(target),
                                 diagnostics,
                                 &mut stored_integer_writes,
@@ -198,6 +218,7 @@ fn scan_transition_target(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    observations: &ConstructionObservations<'_>,
     target: &TransitionTargetNode,
     diagnostics: &mut Vec<Diagnostic>,
     stored_integer_writes: &mut Vec<checked_trees::CheckedStoredIntegerWrite>,
@@ -210,6 +231,7 @@ fn scan_transition_target(
                     program,
                     machine,
                     state,
+                    observations,
                     *argument,
                     diagnostics,
                     stored_integer_writes,
@@ -222,6 +244,7 @@ fn scan_transition_target(
                 program,
                 machine,
                 state,
+                observations,
                 *expression,
                 diagnostics,
                 stored_integer_writes,
@@ -236,6 +259,7 @@ fn scan_expression(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    observations: &ConstructionObservations<'_>,
     expression: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
     stored_integer_writes: &mut Vec<checked_trees::CheckedStoredIntegerWrite>,
@@ -252,6 +276,7 @@ fn scan_expression(
                     program,
                     machine,
                     state,
+                    observations,
                     child,
                     diagnostics,
                     stored_integer_writes,
@@ -263,17 +288,26 @@ fn scan_expression(
             program,
             machine,
             state,
+            observations,
             atomic.value,
             diagnostics,
             stored_integer_writes,
             statement_index,
         ),
         ExpressionNode::StructLiteral(literal) => {
-            validate_literal_field_names(program, machine, state, literal, diagnostics);
+            validate_literal_field_names(
+                program,
+                machine,
+                state,
+                observations,
+                literal,
+                diagnostics,
+            );
             enforce_construction_field_obligations(
                 program,
                 machine,
                 state,
+                observations,
                 expression,
                 literal,
                 diagnostics,
@@ -285,6 +319,7 @@ fn scan_expression(
                     program,
                     machine,
                     state,
+                    observations,
                     field.value,
                     diagnostics,
                     stored_integer_writes,
@@ -298,6 +333,7 @@ fn scan_expression(
                     program,
                     machine,
                     state,
+                    observations,
                     *element,
                     diagnostics,
                     stored_integer_writes,
@@ -310,6 +346,7 @@ fn scan_expression(
                 program,
                 machine,
                 state,
+                observations,
                 binary.left,
                 diagnostics,
                 stored_integer_writes,
@@ -348,6 +385,7 @@ fn scan_expression(
                     program,
                     machine,
                     state,
+                    observations,
                     binary.right,
                     diagnostics,
                     stored_integer_writes,
@@ -359,6 +397,7 @@ fn scan_expression(
             program,
             machine,
             state,
+            observations,
             cast.value,
             diagnostics,
             stored_integer_writes,
@@ -369,6 +408,7 @@ fn scan_expression(
                 program,
                 machine,
                 state,
+                observations,
                 call.receiver,
                 diagnostics,
                 stored_integer_writes,
@@ -379,6 +419,7 @@ fn scan_expression(
                     program,
                     machine,
                     state,
+                    observations,
                     *argument,
                     diagnostics,
                     stored_integer_writes,
@@ -391,6 +432,7 @@ fn scan_expression(
                 program,
                 machine,
                 state,
+                observations,
                 indexed.collection,
                 diagnostics,
                 stored_integer_writes,
@@ -400,6 +442,7 @@ fn scan_expression(
                 program,
                 machine,
                 state,
+                observations,
                 indexed.index,
                 diagnostics,
                 stored_integer_writes,
@@ -410,6 +453,7 @@ fn scan_expression(
             program,
             machine,
             state,
+            observations,
             member.receiver,
             diagnostics,
             stored_integer_writes,
@@ -419,6 +463,7 @@ fn scan_expression(
             program,
             machine,
             state,
+            observations,
             inner.target,
             diagnostics,
             stored_integer_writes,
@@ -429,6 +474,7 @@ fn scan_expression(
                 program,
                 machine,
                 state,
+                observations,
                 range.start,
                 diagnostics,
                 stored_integer_writes,
@@ -438,6 +484,7 @@ fn scan_expression(
                 program,
                 machine,
                 state,
+                observations,
                 range.end,
                 diagnostics,
                 stored_integer_writes,
@@ -448,6 +495,7 @@ fn scan_expression(
             program,
             machine,
             state,
+            observations,
             unary.operand,
             diagnostics,
             stored_integer_writes,
@@ -490,7 +538,14 @@ fn scan_expression(
                 case_symbol: Some(variant.symbol),
                 fields: Default::default(),
             };
-            validate_literal_field_names(program, machine, state, &literal, diagnostics);
+            validate_literal_field_names(
+                program,
+                machine,
+                state,
+                observations,
+                &literal,
+                diagnostics,
+            );
         }
         typed_trees::spelled_literal_expression_pattern!() => {}
     }
@@ -503,6 +558,7 @@ fn validate_literal_field_names(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    observations: &ConstructionObservations<'_>,
     literal: &TableStructLiteral,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -584,6 +640,7 @@ fn validate_literal_field_names(
         program,
         machine,
         state,
+        observations,
         literal,
         data_definition,
         diagnostics,
@@ -634,6 +691,7 @@ fn validate_literal_field_names(
                 program,
                 machine,
                 state,
+                observations,
                 literal,
                 data_definition,
                 case_name.as_str(),

@@ -3,9 +3,10 @@
 //! come from the field's evaluation occurrence, not a replay of initializers or
 //! the environment after another field has already mutated its inputs.
 
+use super::super::observations::ConstructionObservations;
 use crate::proof_contracts::arithmetic_domains::{
     Interval, ValueEnvironment, check_value_narrowing, immutable_integer_expression_interval,
-    occurrence_value_environment, validate_value_range,
+    validate_value_range,
 };
 use diagnostics::Diagnostic;
 use typed_trees::expression::ExpressionHandle;
@@ -24,6 +25,7 @@ pub(super) fn validate(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    observations: &ConstructionObservations<'_>,
     expression: ExpressionHandle,
     field_type: TypeReferenceHandle,
     owner: &str,
@@ -39,6 +41,7 @@ pub(super) fn validate(
                 program,
                 machine,
                 state,
+                observations,
                 arm.value,
                 field_type,
                 owner,
@@ -61,9 +64,7 @@ pub(super) fn validate(
             .flatten();
     }
 
-    let environment =
-        occurrence_value_environment(program, machine.symbol, state.symbol, expression)
-            .unwrap_or_default();
+    let environment = observations.environment(expression);
     let before = diagnostics.len();
     let (interval, primitive, _) = validate_value_range(
         program,
