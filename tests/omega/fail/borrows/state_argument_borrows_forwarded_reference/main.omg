@@ -1,0 +1,20 @@
+// Arrival arguments evaluate left to right. Forwarding the exclusive `main`
+// reference first and then borrowing `main.counter` for a call in a later
+// argument overlaps two exclusive loans of one place, even though the
+// call's loan ends before the arrival.
+data Pair [copy] { a: i32; b: i32; }
+data Counter { made: i32; }
+
+machine make(counter: &mut Counter, seed: i32) -> Pair {
+    counter.made = 1;
+    Pair { a: seed, b: seed }
+}
+
+data Main { counter: Counter; }
+
+machine Main::main(main: &mut Main) {
+    transition {
+        _ -> take_call(main, make(&mut main.counter, 5))
+    }
+    state take_call(main: &mut Main, pair: Pair) {}
+}

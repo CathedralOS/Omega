@@ -1477,8 +1477,7 @@ pass/locals/runtime_local_qualified_view_member_read_exit built 3235ms exit:71 @
 pass/locals/runtime_local_record_array_element_field_reads_exit built 5683ms exit:70 @9435ec134b74+wt
 pass/locals/runtime_local_view_member_element_read_exit built 2189ms exit:70 @9beb2be72f2d+wt
 pass/locals/static_local_field_names_exit built 3382ms exit:0 @9beb2be72f2d+wt
-pass/machines/composite_state_args rejected 2887ms @5041ef1af684+wt
-	state `take_call` receives `main` as mutable more than once
+pass/machines/composite_state_args checked 7508ms @00748f0a5289+wt
 pass/machines/computed_arrival_state checked 10091ms @5041ef1af684+wt
 pass/machines/fresh_literal_arrival checked 10174ms @5041ef1af684+wt
 pass/machines/hold_state_call checked 9527ms @5041ef1af684+wt

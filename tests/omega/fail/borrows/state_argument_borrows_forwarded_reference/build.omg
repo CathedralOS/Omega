@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "state_argument_borrows_forwarded_reference");
+    builder.freestanding = true;
+}

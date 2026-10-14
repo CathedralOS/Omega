@@ -2,6 +2,9 @@
 // literal, field, call result, and local each arrive in a fresh owned
 // parameter; the guarded edge's call arm runs exactly once. States take
 // their own `main` param — enclosing locals don't reach inside states.
+// Arguments evaluate left to right, so the call that borrows
+// `main.counter` precedes forwarding `main` itself: its loan has ended
+// before the exclusive reference moves into the arrival.
 data Pair [copy] { a: i32; b: i32; }
 data Counter { made: i32; }
 
@@ -21,11 +24,11 @@ machine Main::main(main: &mut Main) {
     }
     state take_literal(main: &mut Main, pair: Pair, local: Pair) {
         transition pair.a == 1 {
-            true -> take_call(main, make(&mut main.counter, 5), local)
+            true -> take_call(make(&mut main.counter, 5), main, local)
             _ -> bad()
         }
     }
-    state take_call(main: &mut Main, pair: Pair, local: Pair) {
+    state take_call(pair: Pair, main: &mut Main, local: Pair) {
         transition pair.a == 5 && main.counter.made == 1 {
             true -> take_local(main, local)
             _ -> bad()

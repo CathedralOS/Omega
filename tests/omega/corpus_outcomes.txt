@@ -847,6 +847,8 @@ fail/borrows/shared_record_byte_write_before_last_observation rejected 5775ms ex
 fail/borrows/shared_reference_carrier_writable_call rejected 3961ms expected @a9ae30e1c334+wt
 	mutable argument `messages` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `selection` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/borrows/state_argument_borrows_forwarded_reference rejected 2484ms expected @00748f0a5289+wt
+	state `take_call` receives `main` as mutable more than once
 fail/borrows/state_index_bound rejected 5677ms expected @a9ae30e1c334+wt
 	cannot prove index `index` is within length 2 in update::entry
 fail/borrows/state_transfer_active_child_observation rejected 1230ms @fa10277fce92
@@ -6377,8 +6379,7 @@ pass/locals/runtime_local_qualified_view_member_read_exit checked 12024ms check-
 pass/locals/runtime_local_record_array_element_field_reads_exit checked 11686ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/locals/runtime_local_view_member_element_read_exit checked 12344ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/locals/static_local_field_names_exit checked 11008ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/machines/composite_state_args rejected 2735ms @5041ef1af684+wt
-	state `take_call` receives `main` as mutable more than once
+pass/machines/composite_state_args checked 8818ms @00748f0a5289+wt
 pass/machines/computed_arrival_state checked 9535ms @5041ef1af684+wt
 pass/machines/fresh_literal_arrival checked 9959ms @5041ef1af684+wt
 pass/machines/hold_state_call checked 9482ms @5041ef1af684+wt
