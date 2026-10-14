@@ -108,47 +108,6 @@ def artifact_stamps(paths):
     return result
 
 
-def prepared_inputs(paths):
-    """Exact prepared files/directory membership; outputs must live elsewhere."""
-    files, directories = {}, {}
-    for value in paths:
-        root = Path(value)
-        require(root.is_absolute() and root.exists(), "prepared input unavailable: " + value)
-        places = [root] + (list(root.rglob("*")) if root.is_dir() else [])
-        require(len(places) <= 20000, "prepared input closure exceeds 20000 entries")
-        for path in places:
-            require(not (path.is_symlink() and path.is_dir()), "prepared directory link must be resolved explicitly")
-            if path.is_dir():
-                directories[str(path)] = sorted(item.name for item in path.iterdir())
-            else:
-                require(path.is_file(), "prepared input must be a regular file or directory")
-                files[str(path)] = file_digest(path)
-    return dict(files=files, directories=directories)
-
-
-def integration_seal(record, candidate):
-    """A frozen selection adds no registry or alternative publication authority."""
-    seal = record.get("integration")
-    if not seal:
-        return
-    path = Path(seal["path"])
-    require(path.is_file() and file_digest(path) == seal["sha256"], "integration seal changed")
-    value = read_json(path)
-    require(value["candidate"] == candidate and value["config_digest"] == record["config_digest"],
-            "integration candidate/config moved; explicitly reseal after preparation and review")
-    require(value["prepared"] == prepared_inputs(value["prepared_paths"]),
-            "prepared package inputs changed; preserve evidence and prepare/reseal before capture")
-    require(file_digest(value["review"]["path"]) == value["review"]["sha256"], "prospective integration review changed")
-    for member in value["members"]:
-        require(file_digest(member["manifest_path"]) == member["manifest_sha256"], "selected submission changed")
-        require(file_digest(member["receive_path"]) == member["receive_sha256"], "submission receive receipt changed")
-        received = read_json(member["receive_path"])
-        require(received["payload_stamps"] == artifact_stamps(received["payload_paths"]), "received evidence mutated")
-    for path, expected in value.get("producer_receipts", {}).items():
-        require(file_digest(path) == expected, "shared producer receipt changed")
-    return value
-
-
 def git(repository, *arguments, allow_failure=False):
     result = subprocess.run(["git", "-C", str(repository), *arguments],
                             capture_output=True, text=True, timeout=30)
@@ -278,9 +237,6 @@ def definition(config):
                     and ".." not in Path(path).parts and "\\" not in path,
                     "unsafe Git input path")
         require(isinstance(check.get("artifacts"), list), "explicit artifact list required (empty when none)")
-        require(isinstance(check.get("prepared_inputs", []), list)
-                and all(isinstance(value, str) and Path(value).is_absolute()
-                        for value in check.get("prepared_inputs", [])), "prepared input paths must be absolute")
         require(check.get("closure_reason"), "reviewed dependency closure justification required")
         require(type(check.get("final")) is bool, "explicit final-candidate check policy required")
         require(type(check.get("expected_exit")) is int, "expected command exit required")
@@ -470,8 +426,6 @@ def reasons(repository, record, check, run, candidate):
         result.append("environment_changed")
     if run.get("producer") != check.get("producer"):
         result.append("producer_identity_mismatch")
-    if run.get("prepared_inputs", prepared_inputs([])) != prepared_inputs(check.get("prepared_inputs", [])):
-        result.append("prepared_inputs_changed")
     for key in ("stdout", "stderr"):
         value = run.get(key, {})
         path = Path(value.get("path", ""))
@@ -609,7 +563,6 @@ def run_check(repository, path, expected, name):
     require(record["repository"] == str(Path(repository).resolve()), "qualification worktree mismatch")
     allowed = record["assessments"][-1]["candidate"] if record["assessments"] else record["qualification_revision"]
     require(head == allowed, "HEAD moved; assess the integrated candidate before requalification")
-    frozen = integration_seal(record, head)
     check = next((row for row in record["config"]["checks"] if row["id"] == name), None)
     require(check, "unknown check")
     producer = check.get("producer")
@@ -619,14 +572,6 @@ def run_check(repository, path, expected, name):
                 "producer source/dependencies do not match the qualification revision")
     identities = dict(source_inputs=source_inputs(repository, head, input_paths(check)), producer=producer,
                       artifacts=artifacts(repository, check), environment=environment(record["config"]["context"]))
-    if frozen and check.get("producer_group"):
-        expected_artifacts = frozen["producer_artifacts"][check["producer_group"]]
-        require(all(identities["artifacts"].get(path) == expected
-                    for path, expected in expected_artifacts.items()), "shared producer artifacts changed after freeze")
-    if check.get("prepared_inputs"):
-        identities["prepared_inputs"] = prepared_inputs(check["prepared_inputs"])
-        prepared_paths = list(identities["prepared_inputs"]["files"]) + list(identities["prepared_inputs"]["directories"])
-        identities["prepared_stamps"] = artifact_stamps(prepared_paths)
     identities["source_ref"] = retain_source(repository, path, head)
     require(all(identities["source_inputs"].values()), "declared source dependency absent; review the closure")
     identities["artifact_stamps"] = artifact_stamps(identities["artifacts"])
@@ -667,11 +612,6 @@ def run_check(repository, path, expected, name):
             invalidations.append("artifact_mutated_during_run")
         if identities["environment"] != environment(record["config"]["context"]):
             invalidations.append("environment_changed_during_run")
-        if check.get("prepared_inputs"):
-            if identities["prepared_inputs"] != prepared_inputs(check["prepared_inputs"]):
-                invalidations.append("prepared_inputs_changed_during_run")
-            if identities["prepared_stamps"] != artifact_stamps(prepared_paths):
-                invalidations.append("prepared_inputs_mutated_during_run")
     except (RecoveryError, OSError) as error:
         invalidations.append("inputs_unavailable_during_run:" + str(error))
     observation = dict(id=operation, check=name, revision=head, definition=digest(check),
@@ -726,7 +666,6 @@ def _validate(repository, path, candidate, base):
     require(assessment["candidate"] == candidate and assessment["base"] == base,
             "qualification assessment covers a stale candidate/base")
     require(clean_head(repository) == candidate, "qualification candidate is not clean HEAD")
-    integration_seal(record, candidate)
     rows = plan(repository, record, candidate, base)
     require(all(row["action"] == "reuse" for row in rows),
             "qualification requires affected/final checks: " + json.dumps(rows))

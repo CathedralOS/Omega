@@ -66,11 +66,7 @@ doing it stops. The session that starts a piece of work therefore carries it
 through acceptance, integration, required review, authorized landing and
 remote verification on main. A checkpoint, component pass, archive, JSON
 report or handoff document preserves evidence; none completes the work.
-A handoff alone never completes it. In a user-authorized shared integration wave,
-[the integration route](tools/integration.md) lets one integrator publish a ready
-selection while each outcome owner retains context and repairs its complete path
-through remotely verified acceptance. Outside that explicit mode, the starting
-session lands its own outcome.
+There are no handoffs: nobody else is waiting to finish it.
 
 The working session finishes the entire path, including the necessary
 compiler, library and prerequisite repairs. Do not manufacture dependencies on
@@ -347,9 +343,8 @@ completed launch preflight.
   user-required independent review remains required; no other approval or
   reviewer gate exists.
 - Sessions record progress in their claim note
-  (`python tools/claims.py note --ticket`) and their final report. In an explicitly authorized shared
-  integration wave, the designated integrator reconciles the ready selection
-  with its owners; otherwise nobody reconciles another session's work on its behalf.
+  (`python tools/claims.py note --ticket`) and their final report. Nobody
+  reconciles another session's work on its behalf.
 - Continue implementation when the design answers the question; when it does
   not, put the exact missing decision to the project owner and keep working
   on everything else.
