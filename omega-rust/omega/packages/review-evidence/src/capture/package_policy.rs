@@ -38,7 +38,7 @@ pub fn project_checked_package_policy<'a>(
     }
     let public_api = super::api::policy::project(compilation, package)?;
     let callables = super::project_checked_callable_policy(compilation, target, package)?;
-    let selected_providers =
+    let (selected_providers, provider_indices) =
         super::project_checked_selected_provider_policy(compilation, target, package)?;
     let terminal_permissions =
         super::project_checked_terminal_permission_policy(compilation, target, package)?;
@@ -48,8 +48,8 @@ pub fn project_checked_package_policy<'a>(
     let semantic_dependencies = semantic_dependencies::project(compilation, package, &callables)?;
     let boundary_applications = super::providers::project_checked_boundary_application_policy(
         compilation,
-        target,
         package,
+        &provider_indices,
     )?;
     let policy = PackagePolicyBaseline {
         package,

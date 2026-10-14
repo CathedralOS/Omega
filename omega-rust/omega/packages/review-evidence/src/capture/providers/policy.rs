@@ -19,24 +19,15 @@ use provider_planning::SelectedProviderReviewProvenance;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
-/// Retain the root activation's complete selected provider meaning without
-/// evaluator, calling, native, or admission receipts. This grants no authority.
+/// Retain selected provider meaning and its canonical-to-custody coordinates.
+/// The coordinates travel to boundary application projection in the same
+/// immutable capture invocation; they are never serialized or admission evidence.
 pub(crate) fn project_checked_selected_provider_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     target: TargetProfile,
     package: PackageKeyIdentity,
-) -> Result<PackagePolicySelectedProviders, Vec<Diagnostic>> {
-    let compilation = &input.into();
-    project_with_indices(compilation, target, package).map(|(policy, _)| policy)
-}
-
-/// The second result maps canonical policy positions to checked provenance positions.
-/// It is capture-local custody, never serialized policy.
-pub(super) fn project_with_indices(
-    compilation: &PackageReviewInput<'_>,
-    target: TargetProfile,
-    package: PackageKeyIdentity,
 ) -> Result<(PackagePolicySelectedProviders, Vec<usize>), Vec<Diagnostic>> {
+    let compilation = &input.into();
     let selected_execution = compilation.custody.execution();
     let mut plans = selected_execution
         .selected_provider_provenance

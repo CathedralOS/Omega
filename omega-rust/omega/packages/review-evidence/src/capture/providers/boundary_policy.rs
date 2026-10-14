@@ -7,20 +7,20 @@ use crate::capture::PackageReviewInput;
 use crate::record::PackagePolicyBoundaryApplications;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
-use target::TargetProfile;
 
 /// Retain exact open demands and closed selected relationships, not coverage.
-/// Plan coordinates use the same canonical order as selected-provider policy.
+/// Plan coordinates come from the selected-provider policy produced by this
+/// capture. Rebuilding that policy here would duplicate every service signature
+/// and provider check merely to recover the same canonical ordering.
 pub(crate) fn project_checked_boundary_application_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
-    target: TargetProfile,
     package: PackageKeyIdentity,
+    original_indices: &[usize],
 ) -> Result<PackagePolicyBoundaryApplications, Vec<Diagnostic>> {
     let compilation = &input.into();
-    let (_providers, indices) = super::policy::project_with_indices(compilation, target, package)?;
     let policy = PackagePolicyBoundaryApplications {
         demands: demands::project(compilation, package)?,
-        realizations: realizations::project(compilation, package, &indices)?,
+        realizations: realizations::project(compilation, package, original_indices)?,
     };
     Ok(policy)
 }
