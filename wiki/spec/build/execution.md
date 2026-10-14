@@ -10,19 +10,19 @@ explicit opt-in. It is not the hermetic evaluator used for constants and proofs.
 The order is:
 
 1. Check package-local Build source against `omega::core` and every pre-known
-  requirement used by `Build::binding<R>`; surface and admit its own restricted
-  requests, then produce one prepared Terminal entry.
+  requirement used by `Build::await_provider<R>`; surface and admit its own
+  restricted requests, then produce one prepared Terminal entry.
 2. Interpret that entry once. Each dependency declaration mutates the same
   `Build` and submits an immutable purpose-qualified request without suspending
   the Build continuation.
 3. For each request, the application coordinator asks package management to
   resolve and review source, recursively activates the dependency Build, and
   asks Psi to compile and admit any implementation requested through
-  `Build::binding<R>`.
-4. When typed binding acquisition encounters an implementation that is not yet
+  `Build::await_provider<R>`.
+4. When provider readiness encounters an implementation that is not yet
   installed, the Terminal interpreter suspends that exact continuation. After
-  package coordination installs an admitted `Binding<R>`, the interpreter
-  resumes at the acquisition without replaying prior work.
+  package coordination installs the admitted implementation into the exact
+  Build-scoped static slot, the interpreter resumes without replaying prior work.
 5. When the Build entry returns, join every outstanding dependency job, reject
   any failed, cyclic, unresolved, or unadmitted edge, resolve inert product
   selections, and freeze the normalized Build output.
@@ -35,9 +35,9 @@ The order is:
 
 The application coordinator owns this lifecycle; package management owns source
 resolution and review; Psi owns checking and admission; the Terminal interpreter
-owns suspension, binding installation, and continuation resumption. A dependency
-declaration may complete in the background when Build code never requests its
-binding. Build return is still a mandatory join, so no unresolved request leaks
+owns suspension, provider-slot installation, and continuation resumption. A
+dependency declaration may complete in the background when Build code never
+awaits its provider slot. Build return is still a mandatory join, so no unresolved request leaks
 into product compilation or publication.
 
 [Scoped execution](scoped_execution.md) defines the execution-profile/product-target
@@ -52,11 +52,11 @@ entry's own admission. Physical exclusions additionally require complete selecte
 mechanism classification before realized-product admission.
 
 Before step 2, root Build symbol/type resolution, semantic prechecks, and its
-known operational/reach plans are complete. Before any dependency binding is
-installed in step 4, that selected implementation's source resolution, review,
+known operational/reach plans are complete. Before any dependency provider slot
+is installed in step 4, that selected implementation's source resolution, review,
 checking, restricted-request admission, and exact dynamic-call binding are
 complete. The root checkpoint binds its base typed program, prepared Terminal
-entry, source snapshot, and authority verdict; each installed binding carries
+entry, source snapshot, and authority verdict; each installed slot carries
 the corresponding admitted dependency checkpoint. Execution uses those exact
 entries, not later name lookup, and the root Build runs once.
 

@@ -21,10 +21,10 @@ inputs before invoking the effect handler. Lowering must preserve both lanes.
 Each declaration also retains the exact runtime interleave as scalar/structural
 parameter tags. Reading a tag consumes the next parameter from that lane; the
 tag counts must cover both lanes exactly. Scalar contract IDs and structural
-custody positions remain lane-local. Erased formals and the compiler-known
-service-binding lane do not receive tags. Source supplies that binding explicitly
-as the leading call-authority argument; Terminal omits it from the requirement's
-ordinary parameter lanes after retaining its exact occurrence and requirement.
+custody positions remain lane-local. Erased formals do not receive tags. A
+boundary call separately retains its exact static provider-slot application and
+selected-plan demand; no source routing argument or hidden service-receiver lane
+is encoded.
 Private callback parameters enter only through the evaluated calling plan.
 Native placement and independent replay join both semantic lanes to that plan
 in retained runtime order, never scalar-first by convention.
@@ -248,11 +248,10 @@ this classification does not replace closed-application or physical-child
 custody.
 
 An ordinary explicit context parameter retains its exact record type, access
-and multiplicity. An explicit leading `&Binding<R>` call-authority argument,
-whether it names a direct place or a projected field, rejoins that place and the
-exact carrier requirement independently of whether the call is a statement or
-an operand inside an expression. It is not one of the requirement's ordinary
-parameters and gains no implicit `self` value or declaration-attachment
+and multiplicity. A boundary call retains the exact closed requirement
+application selected by source and the matching static provider-slot demand,
+independently of whether the call is a statement or an operand inside an
+expression. It gains no implicit `self` value or declaration-attachment
 authority. Ordinary callees retain their own direct requirements and receive
 existing contexts explicitly. Their signatures do not construct storage.
 Generated native entry provisioning must establish and lend that context under
@@ -260,16 +259,13 @@ the selected [entry shape](../build/entry_roots.md#entry-shape-and-arrival-bridg
 an erased field's zero-payload layout proves no authority. A carrier-qualified
 machine name supplies neither a parameter nor permission to provision one.
 
-For a target-selected entry with an admitted explicit context, root-establishment
-evidence binds the selected source signature and target slot, the exact ordinary
-source parameter position and symbol, its Terminal parameter/place and
-attachment, field, service carrier/base and qualification, exact requirement
-schema, and selected Fused plan. Derive rows after exact selection and replay
-their exact sorted roster at native settlement. Targetless checking, entries
-without the admitted context, and same-shaped non-root owners establish no such
-row. Omission, duplication,
-reordering, or source/carrier/attachment/plan substitution rejects. This evidence
-is not a runtime slot, publication event, or Independent service handle.
+For a target-selected entry, provider-demand evidence binds each exact source
+boundary call occurrence, closed requirement application, target slot, schema,
+and selected Fused plan. Derive rows after exact selection and replay their
+sorted roster at native settlement. Targetless checking and entries whose
+executable closure does not contain the call establish no such row. Omission,
+duplication, reordering, or requirement/plan substitution rejects. This evidence
+is not source data, a publication event, or a protocol instance handle.
 
 ## Consumer-owned settlement
 

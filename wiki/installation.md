@@ -140,14 +140,13 @@ machine build(builder: &mut Build) {
 
 ```omega
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(context: &mut Main)
 reaches Console
 {
-    Console::exit_process(&context.console, 42);
+    Console::exit_process(42);
 }
 ```
 

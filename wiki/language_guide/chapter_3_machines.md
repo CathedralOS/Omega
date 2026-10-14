@@ -261,7 +261,7 @@ boundary machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteR
     via WindowsBindings::write_file();
 ```
 
-The expression after `via` is a typed compile-time binding value. It names the
+The expression after `via` is a typed compile-time locator value. It names the
 physical import, while `satisfies` selects the exact requirement and inherits
 its full contract. The provider must refine that contract; the import bytes
 and a matching value signature are not permission to execute it.

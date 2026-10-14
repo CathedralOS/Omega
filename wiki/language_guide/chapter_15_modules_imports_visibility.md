@@ -71,19 +71,19 @@ machine build(builder: &mut Build) {
 
     configure_local_products(builder);
 
-    let generator: Binding<TableGenerator> =
-        suspend Build::binding<TableGenerator>(builder, "generator");
-    generate_tables(builder, generator);
+    suspend Build::await_provider<TableGenerator>(builder, "generator");
+    generate_tables(builder);
 }
 ```
 
 This illustrates the specified dependency surface, not a claim of current
 compiler support or a complete runnable build. `configure_local_products` may
 run while package work proceeds. `TableGenerator` is a requirement already
-known when this Build is checked. Binding acquisition returns immediately when
+known when this Build is checked. Provider readiness returns immediately when
 its admitted implementation is installed or suspends and resumes this same
-continuation when it becomes available. The generator's call spelling is the
-ordinary binding call rule. Product source cannot use this build-only binding.
+continuation when it becomes available. Generator helpers call exact
+`TableGenerator::operation(arguments)` requirements statically. Product source
+cannot use this build-only provider slot.
 Generated code using `tables` needs the ordinary product edge. Using std or
 another library in both contexts requires both declarations. A build library
 uses its own ordinary dependencies for its host implementation, not the

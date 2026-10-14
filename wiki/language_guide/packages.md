@@ -66,8 +66,9 @@ declarations are not accepted through an implicit spelling conversion.
 Product dependencies use `depend`/`depend_as`; build-only helpers use
 `build_depend`/`build_depend_as`. They are separate checked scopes, including
 when the same library is used in both. Build code obtains a dependency helper
-through `suspend Build::binding<R>` after declaring its build edge; the edge does
-not make unresolved static package paths visible. The
+through `suspend Build::await_provider<R>` after declaring its build edge, then
+calls the exact static requirement application; the edge does not make unresolved
+package paths visible or return a routing value. The
 [build dependency guide](chapter_15_modules_imports_visibility.md#build-and-product-dependencies)
 explains target separation, helper imports, and explicit legacy migration.
 Purpose-aware installation/lock support is implementation work; the current

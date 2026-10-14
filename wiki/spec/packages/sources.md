@@ -30,8 +30,8 @@ inside another package.
 Package coordination incrementally constructs requester-local,
 purpose-qualified aliases to opaque package keys and canonical source roots.
 The resolver coalesces requests for the same key and exact resolution as they
-arrive. Before installing a requested `Binding<R>`, and again at final join, the
-coordinator rejects conflicting resolutions and cycles. Repeated edges must
+arrive. Before installing a requested Build-scoped provider slot, and again at
+final join, the coordinator rejects conflicting resolutions and cycles. Repeated edges must
 point to the same node. A diamond through two libraries to the same std therefore
 has one std owner, not two copied declarations. Checked build instances may
 still differ by host/product context or target. Those instances do not rename

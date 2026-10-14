@@ -58,24 +58,23 @@ drivers or producing stages. The hosting application installs the admitted
 adapters. Generic loading and execution require neither those optional adapters
 nor source recompilation. Exact SDK packaging remains an engineering choice.
 
-Establish every demanded binding in the selected executable closure before
+Establish every demanded provider slot in the selected executable closure before
 execution, including possible dynamic calls. A branch merely expected not to
-run cannot excuse a missing binding; code outside that closure need not demand
+run cannot excuse missing supply; code outside that closure need not demand
 one. Missing adapter or target-environment support prevents that interpretation
 and names the missing requirement and its demand. Do not run native code as an
 implicit fallback, replace selected services, or increase authority. The
 [test runner](testing.md#execution-plan) may explicitly schedule both engines;
 their availability and outcomes remain separate.
 
-## Imports, exports, and Binding
+## Imports, exports, and provider slots
 
-`Binding<R>` is the compiler-known opaque affine core carrier for an established
-boundary-trait requirement binding, as defined by
-[binding validity](component_publication.md#bindings-and-era-entry). It is a core
-type name, not a keyword, network-service marker, proof of provider correctness,
-or new domain modifier. The compile-time foreign locator is separately named
-[`ForeignBinding`](foreign_bindings.md); locator data cannot establish a runtime
-binding.
+An exact boundary-trait application is a static import/provider slot under
+[provider-slot realization](component_publication.md#provider-slots-and-era-entry).
+Guest source calls its requirements directly; it carries no opaque routing
+value. The compile-time foreign locator remains separately named
+[`ForeignBinding`](foreign_bindings.md); locator data selects a foreign leaf but
+does not replace provider admission or runtime authority checks.
 
 The host and guest use exact shared interface declarations. Builds select exported
 static entries and establish their schema-designated ordinary context parameters
@@ -87,12 +86,12 @@ Neither `pub` nor `satisfies` alone exports a callable ABI. No `main`, `run`, or
 `Run` name is privileged by embedding.
 
 An instance's import roster identifies each exact slot/occurrence, closed
-requirement, and full contract. Two fields of the same requirement type may bind
-different host objects. Establish every demanded import before running guest
-code; missing, duplicate, wrong-instance, incompatible, or unauthorized bindings
-reject without an ambient fallback. Supplying an instance transfers the required
-authority. Reusing a provider for another instance requires an authorized sharing
-or establishment route, not copying an affine binding.
+requirement application, and full contract. Multiple static roles use distinct
+applications or wrapper requirements, not same-typed source fields. Establish
+every demanded import before running guest code; missing, duplicate,
+wrong-instance, incompatible, ambiguous, or unauthorized supply rejects without
+an ambient fallback. Provider supply does not transfer authority; operation
+arguments and admitted receiver policy carry their own obligations.
 
 The library supplies typed import/export adapters and descriptions, rather than
 requiring each embedder to implement a dispatch system. Generation derives from
@@ -101,8 +100,8 @@ applications, contracts, representations, and selected adapters. Display-name
 lookup resolves to that exact entry; a string, ordinal, or address alone
 establishes neither interface compatibility nor call authority.
 
-A guest boundary call dispatches through the installed adapter and its host
-context. A compiled adapter can make an ordinary native host call; the interpreter
+A guest boundary call dispatches through the exact installed slot and its host
+adapter/context. A compiled adapter can make an ordinary native host call; the interpreter
 does not need to generate machine code per call. Runtime-discovered native
 signatures need a supported checked ABI adapter, not an arbitrary function-pointer
 cast. Host-to-guest calls satisfy the complete entry contract too. Well-shaped

@@ -1,11 +1,11 @@
 # Authority values and qualification evidence
 
 Library-issued authority uses the domain and provenance rules below.
-Compiler-known [service bindings](../build/component_publication.md#bindings-and-era-entry)
-instead carry establishment intrinsically: a usable `Binding<R>` already has an
-authorized binding. There is no separate service `Bound` qualification. Its
-toolchain-known core declaration does not permit package-authored minting, and
-build provider selection alone does not establish arbitrary service values.
+Static [provider slots](../build/component_publication.md#provider-slots-and-era-entry)
+select implementations but are not authority values. Calling a boundary
+requirement still owes its declared domains, resource provenance, reach, and
+receiver policy; provider selection neither grants those obligations nor creates
+source data that can carry them.
 
 Library-defined runtime authority uses ordinary data plus checked qualification
 and provenance. Fields carry runtime information; domain membership states an

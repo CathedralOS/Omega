@@ -16,14 +16,11 @@ A console entry uses its admitted Console provider:
 
 ```omega
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main {
-    console: Binding<Console>;
-}
+data Main { }
 
 machine Main::main(context: &mut Main) reaches Console {
-    Console::write_line(&context.console, "Hello, Omega.");
+    Console::write_line("Hello, Omega.");
 }
 ```
 
@@ -43,12 +40,10 @@ These are the central source forms, not a complete package setup. The
 [build file](../../samples/cli/basics/cli_mvp/build.omg) include dependency
 declarations and target bindings.
 
-The invocation selects an exact target; naming a binding does not select it.
-`Binding<Console>` is a compiler-known service carrier, not a Console provider
-object. Its binding must be established before use. Missing or incompatible
-build supply rejects compilation; no additional domain annotation is needed.
-The target's entry bridge provisions the declared context parameter and its
-admitted storage and providers before calling the entry. `Main::main` names a
+The invocation selects an exact target. The checked `Console::write_line` call
+demands one admitted provider for the exact `Console` application; missing or
+ambiguous build supply rejects compilation. The target's entry bridge provisions
+only the declared ordinary context storage before calling the entry. `Main::main` names a
 static declaration; its qualified name supplies no argument. There is no special
 discovery of a machine named `main`. An entry needing no context may omit that
 parameter when its selected entry shape permits it.

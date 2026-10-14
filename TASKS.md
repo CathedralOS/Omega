@@ -379,21 +379,21 @@ helper that passes does not close an item.
   unmigrated program pass.
   - Source remainder: the two memory canaries
     (**TOP-LEVEL-BOUNDARY-REQUIREMENTS** and **CHECKED-ASM-LABEL-CONTRACTS**).
-    Build receiver calls remain for facets such as test groups, and service
-    bindings still use the retired `binding.operation(...)` exception in
-    product/library source. Move their producers and consumers to
+    Build receiver calls remain for facets such as test groups, and source still
+    carries compiler-installed services through `Binding<R>` fields/parameters.
+    Move their producers and consumers to
     namespace-qualified calls with explicit arguments, following `Build::bind`,
     `Build::select_provider`, `Build::exclude_service`, and
     `Build::select_representation`, `Build::accept_boundary`,
     `Build::require_wire_compatibility`, and `Build::assume_binding_contract`.
-    A boundary requirement call spells
-    `Requirement::operation(&binding, arguments)`: the leading binding is an
-    explicit call-authority argument outside the requirement's ordinary
-    parameter list. Migrate source and fixtures, remove the resolver's
-    `Binding<R>` receiver unwrapping path, and add fail controls for
-    `binding.operation(...)` on fields, locals and parameters. Do not restore
-    implicit argument insertion or general receiver syntax. Proposal 0007 is
-    not implementation authority.
+    A boundary requirement call spells `Requirement::operation(arguments)` and
+    demands one exact static provider slot. Migrate source and fixtures; delete
+    `source/library/core/binding.omg`, Binding type recognition, entry-field
+    establishment, receiver/leading-argument paths and source-visible routing
+    custody. Add fail controls for `Binding<R>` in fields, locals and parameters
+    and for missing/ambiguous provider supply. Multiple static roles use exact
+    generic applications or wrapper traits; runtime multiplicity uses protocol
+    handles/descriptors/`dyn`, never a generic routing carrier.
   - Compiler remainder: typed parameters now have only explicit subject
     identities; checking, interpretation, provider arity and review capture
     consume those identities without an implicit receiver parameter. The
@@ -454,8 +454,10 @@ helper that passes does not close an item.
     on both Linux targets, preserving Windows x86-64 and macOS ARM64 behavior.
   Acceptance: static customers execute with their authored exit/output; the
   migrated corpus and sample gates pass; no accepted receiver syntax,
-  implicit receiver argument or receiver-specific signature authority
-  remains. Keep the local-owner loan fixtures under `pass/calls/local_*`,
+  implicit receiver argument, source-visible `Binding<R>`, or
+  receiver-specific signature authority remains. Exact static role applications
+  select independently; missing/ambiguous supply rejects; protocol handles and
+  `dyn` values preserve actual runtime multiplicity. Keep the local-owner loan fixtures under `pass/calls/local_*`,
   `pass/calls/static_*`, `pass/borrows/static_*`, `pass/text/local_bounded_text_*`
   and `pass/storage/forwarded_context_byte_field_read_store_exit` at their
   recorded exits.
@@ -1301,8 +1303,9 @@ defines the complete product bar.
     not native acceptance.
   - Unverified: the earlier result-store stop in stage 04
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/call_results.rs`
-    (`EnginePrivilegedState` task slots holding `Binding<WaitWake>`); empty
-    slots need no fabricated binding and transport must keep routed authority.
+    (`EnginePrivilegedState` task slots holding `Binding<WaitWake>`); retire
+    those fields into exact `WaitWake<Role>` static slot demands. Empty roles
+    create no demand and transport keeps ordinary authority evidence.
     Reproduce before assigning.
   - Windows byte output: `HostedWriteByteI32Realization`
     (`omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical/derivation/hosted_builtins.rs`)
@@ -2097,17 +2100,17 @@ then independent claimed restoration slices -> final closure.
   and dependency request operations in ordinary `omega::core` boundary
   traits/machines with compiler/package-manager host implementations. Compile
   the one free Build entry against core, package-local Build code and pre-known
-  binding requirements, then run it once in the Terminal interpreter with one
+  provider-slot requirements, then run it once in the Terminal interpreter with one
   mutable `Build`. `depend` and `build_depend` operations record exact requests
   and may start package work without suspending the activation. When Build code
-  needs a helper, `suspend Build::binding<R>(builder, alias)` parks that exact
+  needs a helper, `suspend Build::await_provider<R>(builder, alias)` parks that exact
   continuation until package management resolves/reviews the request, recursively
   activates dependency Builds and Psi admits the selected implementation. The
-  interpreter installs `Binding<R>` and resumes without replay. Helpers and
+  interpreter installs the exact Build-scoped provider slot and resumes without replay. Helpers and
   control flow are ordinary checked Omega, not direct-call syntax recognized by
   Rust. Static paths from a newly requested dependency remain unavailable to the
-  root's initial checking; binding invocation spelling remains owned by the
-  independent named-implementation decision.
+  root's initial checking; subsequent helper calls use
+  `R::operation(arguments)`.
   `bind`, `select_provider`, `assume_binding_contract` and test registration are
   admitted Build operations whose product operands resolve in the product
   context ([scoped execution](wiki/spec/build/scoped_execution.md#selecting-product-declarations-without-executing-them));
@@ -2144,7 +2147,7 @@ then independent claimed restoration slices -> final closure.
   Build activation carries the same exact identities. Implement application
   coordination for asynchronous dependency jobs and final join, package-manager
   resolution/review, Psi requirement admission, and Terminal continuation plus
-  binding installation as their existing owners rather than another Build
+  provider-slot installation as their existing owners rather than another Build
   driver. The seed's
   runtime work is its four authored `Build::bind` rows. Unpublished source
   preparation carries generalized `RootBinding` plans, exact declaration
@@ -2262,7 +2265,7 @@ then independent claimed restoration slices -> final closure.
   families, not a simple-program eligibility matrix. Unsupported interpretation
   stays explicitly unavailable; actual disagreement is an error.
   Owner: the interpreter facade under `omega-rust/psi/interpreter/` owns
-  Terminal loading, entry establishment, supplied-binding installation and
+  Terminal loading, entry establishment, supplied-slot installation and
   execution. Target-aware host adapters belong outside Psi in Omega-owned host
   integration, using independent backend ABI/locator/mechanism libraries, not
   compiler stages. Split `omega-rust/omega/compilation/driver/src/runtime.rs`
@@ -3939,25 +3942,25 @@ and `mapped` need matching-host measurements, including the full-i32 status.
 
 - **ENTRY-CONTENT-ROOTS.** Provisioned receivers are not yet activated and
   completed end to end under [entry roots](wiki/spec/build/entry_roots.md) and
-  [binding validity](wiki/spec/build/component_publication.md#bindings-and-era-entry).
-  Reuse the opaque affine `Binding<R>` in `source/library/core/binding.omg`;
-  `ForeignBinding` is a separate locator. No authored `Bound` qualification,
-  source-created binding or provider lookup may stand in for missing
-  establishment.
-  - Borrowed-service customers: carry `samples/cli/games/dungeon_crawler_cli`'s
-    `&mut Binding<Console>` command flow (frontier owned by
-    **NOMINAL-FIELD-FLOW**) to native execution. Make
-    `tests/omega/pass/capabilities/uses_caller_folder` (checks only) lend the
-    caller's field to `Librarian::archive(folder: &Binding<Folder>)` and
-    execute its service effects. Run the original nested binding/helper-return
-    chain of `tests/omega/pass/capabilities/acquires_through_helper_return`
-    (builds natively; the corpus harness does not execute it) and verify
-    propagated acquires/provenance. Keep
+  [provider-slot realization](wiki/spec/build/component_publication.md#provider-slots-and-era-entry).
+  Delete `source/library/core/binding.omg`; `ForeignBinding` remains a separate
+  compile-time locator. Checked boundary calls demand exact static slots and no
+  authored qualification, source-created routing value or provider lookup may
+  stand in for missing/ambiguous supply.
+  - Former borrowed-service customers: migrate
+    `samples/cli/games/dungeon_crawler_cli`'s Console fields/parameters
+    (**NOMINAL-FIELD-FLOW**) to static `Console::operation` calls. Make
+    `tests/omega/pass/capabilities/uses_caller_folder` call the exact `Folder`
+    slot and carry only folder protocol data. Migrate the nested
+    binding/helper-return chain of
+    `tests/omega/pass/capabilities/acquires_through_helper_return` to named role
+    applications or protocol handles, then verify equivalent reach/provenance.
+    Keep
     `tests/omega/pass/text/runtime_stdin_line_buffering_exit` (exit 0, exact
     `first\nsecond\n`) as the control.
-  - Activation/result/out-parameter joins must preserve the exact closed
-    requirement, occurrence and selected plan through erased fields to native
-    execution. Reuse `omega-rust/omega/compilation/backend/plans/program-entry-plan/`,
+  - Activation/result/out-parameter joins must preserve exact closed slot
+    applications, call occurrences and selected plans to native execution.
+    Reuse `omega-rust/omega/compilation/backend/plans/program-entry-plan/`,
     `omega-rust/omega/compilation/driver/terminal-production/` entry receipts,
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement/`
     and `native-artifact`'s `publish_fragment_object`. Intrinsic service
@@ -3974,14 +3977,12 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     stack-size metadata or another compiler ledger.
 
   Acceptance: published `samples/cli/basics/{number_guess,cli_mvp,generic_counters}`
-  keep their documented behavior without test-supplied receivers or
-  qualifications (**SAMPLE-CORPUS** owns full sample coverage); the customers
-  above execute natively. Reject missing/incompatible supply, forged zero or
-  literal construction, lookalikes, redirected continuations, non-ZII state,
-  invalid backing/alignment, overlapping partitions, stale occurrence/epoch,
-  bare boundary-trait value formals, and moving an affine binding out of
-  borrowed storage without replacement. Forwarding keeps distinct applications
-  and affine custody; erasure removes neither initialization nor cleanup.
+  keep their documented behavior without service fields or test-supplied
+  receivers (**SAMPLE-CORPUS** owns full sample coverage); the customers above
+  execute natively. Reject missing/incompatible/ambiguous supply, lookalikes,
+  redirected continuations, non-ZII ordinary state, invalid backing/alignment,
+  overlapping partitions and stale slot eras. Distinct role applications stay
+  distinct; fused erasure removes neither provider identity nor review checks.
   Targetless checks select no physical entry; deployment cannot replace the
   physical adapter with a semantic continuation.
 
@@ -4900,8 +4901,9 @@ parallel compiler.
   fixture and provider attribution before execution. Keep policy out of
   constant-evaluator admission and use the existing review flow.
 
-  Acceptance: two tests receive fresh virtual filesystems and established
-  `Binding` fields; missing bindings reject. Child filesystem/network/process
+  Acceptance: two tests receive fresh virtual filesystems through distinct
+  group-scoped provider-slot applications and ordinary mock state; missing or
+  ambiguous supply rejects. Child filesystem/network/process
   requests cannot widen root grants or escape virtual backing. Install/update
   surfaces new test requests; locked builds cannot approve them; acceptance
   without an executor grant rejects. Cover provider/target mismatches,
@@ -4920,18 +4922,20 @@ library, starting with one source-to-host customer. Generic embedding does not
 wait for Cathedral's instruction coverage. The interpreter is
 `omega-rust/psi/interpreter/terminal-interpreter/`.
 
-- **EMBEDDING-SOURCE-TO-HOST.** (new-scope) Deliver compile -> load -> bind ->
+- **EMBEDDING-SOURCE-TO-HOST.** (new-scope) Deliver compile -> load -> supply ->
   invoke -> host result -> guest result -> close from an authored interface
   package, host implementation and script, connecting public entry
-  descriptions, the interpreter and checked host adapters through `Binding<R>`.
+  descriptions, the interpreter and checked host adapters through exact static
+  import/provider slots.
   Reuse `TerminalProgram::load`/`instantiate` in `src/program.rs` and
   `TerminalInstance::bind_import`/`invoke`/`close` in `src/instance.rs`, with
   typed adapters in `src/adapters.rs`. These lifecycle APIs already exist;
   the remaining acceptance is the source-authored interface/host/script join,
   not another program or instance abstraction. The corpus execution helper
   loads `TerminalProgram`, but that alone does not exercise host import binding.
-  - Share immutable admitted programs across instances; two same-trait slots
-    address different host objects.
+  - Share immutable admitted programs across instances; two static roles use
+    distinct exact trait applications, while runtime host objects are ordinary
+    protocol instance data.
   - Missing/wrong/unauthorized bindings and invalid host input reject before
     effects; native result schema mismatch rejects.
   - Public descriptions and dynamic calls use the same adapters and retained
@@ -5707,8 +5711,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   has complete authored providers on macos_arm64 (checked adapters over
   libSystem imports), linux_x86_64 and linux_arm64 (direct system calls).
   Failures return the negated `errno`, so no provider keeps error state.
-  The raw-seam fixtures hold `Binding<PosixFilesystemHost>` and run natively
-  on macOS. `pass/filesystem/native_{crud,errno,filetype,fs_workflow,metadata_blocks,metadata_ctime_dev,metadata_nlink,read_dir_iter}`
+  The raw-seam fixtures statically call `PosixFilesystemHost` and run natively
+  on macOS after source migration. `pass/filesystem/native_{crud,errno,filetype,fs_workflow,metadata_blocks,metadata_ctime_dev,metadata_nlink,read_dir_iter}`
   match their stdout oracles, and `runtime_local_host_result_dispatch_exit`
   exits 70. Still open on the raw side:
   - `WindowsFilesystemHost` (`source/library/std/windows_filesystem_host.omg`)
@@ -5736,16 +5740,16 @@ wait for Cathedral's instruction coverage. The interpreter is
     structure-valued calls. Keep NUL-terminated path construction separate.
   The portable carrier follows
   [provider-closure transport](wiki/spec/build/platform_services.md#provider-closure-transport):
-  applications hold one `Binding<FilesystemHost>` with an identical portable
-  data shape on every target. Each selected target implementation retains its
+  applications statically call one exact portable `FilesystemHost` application,
+  with an identical data shape on every target. Each selected target implementation retains its
   exact POSIX or Windows requirement/provider rows as static transitive
-  provider-plan dependencies. Do not add raw-family binding fields, weaken
-  establishment based on reach, introduce target-scoped data aliases, or
-  manufacture hidden `Binding<RawFamily>` values. An independently replaceable
-  raw service remains an explicit binding in the API that requests it.
+  provider-plan dependencies. Do not add raw-family routing fields, introduce
+  target-scoped data aliases, or manufacture hidden source values. Separate
+  static roles use exact generic applications/wrappers; runtime instances use
+  filesystem protocol handles.
 
-  `samples/cli/audio/wav_output` is the existing miniature: an application
-  holds one `Binding<WavOutput>`, and target-scoped named implementations
+  `samples/cli/audio/wav_output` is the existing miniature: application source
+  calls one exact `WavOutput` slot, and target-scoped named implementations
   satisfy it while reaching their applicable raw family. Bring its retained
   closure and call spelling through the same settled provider machinery; its
   current direct raw calls are migration evidence, not a separate ambient
@@ -6578,9 +6582,9 @@ report a missing runtime leg explicitly.
     adapter body, as in `pass/host/runtime_foreign_scalar_loan_writeback_exit`)
     or scope the oracle to its bound hosts; `expected_stdout.txt` has no
     per-target form.
-  - `tests/omega/pass/filesystem/windows_set_file_time_exit` rejects (its
-    `Binding<FilesystemHost>` waits on `OWNER_QUESTIONS.md` Q2) and its oracle
-    is only a comment: add `expected_native_exit` so the fixture must call
+  - `tests/omega/pass/filesystem/windows_set_file_time_exit` still carries the
+    retired `Binding<FilesystemHost>` source shape; migrate it to the applicable
+    static raw-family requirement and add `expected_native_exit` so it must call
     SetFileTime then `_stat64`, read back Unix time 1,500,000,000 and exit 70.
 
 - **MACOS-X64-HOST-PROFILE.** Cover Intel macOS: Mach-O entry/exit, hosted
@@ -6693,14 +6697,12 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     specified source meaning; resolve that contract instead of importing the
     Rust parser's contextual recognition. `std/build.omg` needs its build
     context's `Build`. The product entry's console closure also needs the
-    boundary trait argument in `Binding<Console>` and the settled explicit call
-    form: `Console::read_byte(&context.console)` supplies the binding as a
-    leading call-authority argument while `Console::read_byte` retains no
-    ordinary binding parameter
+    settled static provider call form: `Console::read_byte()` creates the exact
+    `Console` slot demand
     ([expressions](wiki/spec/language/expressions.md#calls-places-and-temporaries),
     [boundary calls](wiki/spec/terminal-psi/boundary_calls.md)). Migrate
-    `source/omega/main.omg`; its receiver-spelled calls are migration debt, not
-    accepted syntax. Reconcile std target
+    `source/omega/main.omg`; its Binding fields and receiver/leading-argument
+    calls are migration debt, not accepted syntax. Reconcile std target
     providers' undocumented `Owner::provider_defaults` / provider-data
     convention with named implementation selection in
     [provider selection](wiki/spec/build/provider_selection.md).

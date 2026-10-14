@@ -70,11 +70,11 @@ It is a static machine with either no parameters or one ordinary mutable context
 parameter designated for provisioning. The requirement declares that exact
 parameter shape; a qualified machine name adds no implicit argument. Reuse
 [entry provisioning](entry_roots.md#entry-shape-and-arrival-bridge): initialize
-ordinary context fields only when ZII-valid and establish each direct
-`Binding<R>` field against the selected authorized binding before entry.
-Provider selection alone cannot construct arbitrary service values. Missing
-bindings or unestablishable context fields reject before invocation. Other
-fixture construction and parameterized helper calls are ordinary test code.
+ordinary context fields only when ZII-valid. Boundary calls in the checked test
+closure demand exact provider slots independently of that context; missing,
+ambiguous, or unauthorized supply rejects before invocation. Provider selection
+constructs no source routing value. Other fixture construction and parameterized helper
+calls are ordinary test code.
 
 For a context-bearing requirement, the registered exact trait application
 names the context type as an ordinary trait argument, for example

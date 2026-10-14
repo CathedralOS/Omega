@@ -225,7 +225,7 @@ address/CPU/thread preservation and permitted cancellation outcomes. Stack
 residents derive address stability from their fixed stack lease. A guard whose
 carry policy forbids suspension still rejects; a service type or `suspends`
 clause does not grant an exemption. No special async-borrow type or mandatory
-`Binding<T>` wrapper is needed. This proves preservation, not eventual completion.
+provider-routing wrapper is needed. This proves preservation, not eventual completion.
 See [carry](../spec/resources/carry.md) and
 [task loans](../spec/build/task_runtime.md#carry-and-loans).
 

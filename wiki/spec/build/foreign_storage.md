@@ -92,7 +92,7 @@ execution. Rejected provider completion commits no receipt or custody transfer;
 that does not undo effects already performed by native code.
 
 A provider-created handle or pending operation pins the exact era whose state
-gives it meaning. A rebindable service binding names a slot and does not itself
+gives it meaning. A replaceable provider slot names an installed route and does not itself
 pin an era. Pins prevent reclamation, not teardown execution: the old era remains
 callable while discharging its roots, then waits for application-held claims,
 quiescence, and unload. Static custodians discharge outlives relationships at

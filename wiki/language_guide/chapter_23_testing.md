@@ -85,14 +85,12 @@ trait Tests<Context> {
         crashes Trap;
 }
 
-data ScanFixture {
-    filesystem: Binding<Filesystem>;
-}
+data ScanFixture { }
 
 machine ScanFixture::empty_input(context: &mut ScanFixture)
 satisfies Tests<ScanFixture>::memory
 {
-    // Pass context.filesystem to ordinary scanning/checking helpers.
+    // Filesystem operations call the selected static provider slot.
     // Keep scratch buffers local to this invocation.
 }
 ```
@@ -109,9 +107,9 @@ memory.service<Filesystem, MemoryFilesystem>();
 The registered requirement explicitly applies `Tests` to `ScanFixture`;
 ordinary trait-argument substitution fixes the context parameter's type. Each invocation receives
 a fresh context and mock-service state. The runner
-establishes the `Binding` field before entering the test; zeroed bytes do not
-make a service valid. Other fields must be zero-valid, and additional fixture
-construction is ordinary code. The runner supplies the explicitly declared
+installs the selected group-scoped provider slot before entering the test; it
+does not add a service field to the context. Ordinary fields must be zero-valid,
+and additional fixture construction is ordinary code. The runner supplies the explicitly declared
 context parameter. A test entry takes no other arguments; call
 parameterized helpers from its body.
 

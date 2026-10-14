@@ -122,8 +122,8 @@ A nonprovisioned entry receives no implicit state. A provisioned entry receives
 its explicitly declared context argument, derived beneath an admitted root and
 borrowed for that activation. The parameter's declared referent type, not the
 machine's qualified name, determines the record. Ordinary
-fields must be ZII-valid; compiler-provisioned service fields must have their
-binding established before the context is exposed to the entry. An erased
+fields must be ZII-valid. Boundary services are static provider slots demanded
+by checked calls in the entry closure; they are not provisioned data fields. An erased
 field on a record-field route whose term a unique accessible nullary
 constructor determines needs neither: provisioning supplies that term as
 construction supplies an omitted
@@ -143,8 +143,8 @@ retains the distinct external terminal outcome and abandonment contract.
 Returning from the entry does not establish that other activations were settled:
 the root/runtime contract must settle or legally transfer outstanding task and
 resource custody before physical completion. The result map cannot conceal
-abandonment behind the same exit syscall. An ordinary non-ZII-valid field or
-unestablishable service field rejects; a free entry may instead explicitly
+abandonment behind the same exit syscall. An ordinary non-ZII-valid field
+rejects; a free entry may instead explicitly
 construct state from the resources in its schema. Other roots, tasks, and
 handlers obtain access only through explicit ordinary capability transfer,
 borrowing, or synchronized sharing.
@@ -152,24 +152,17 @@ Hosted writable-image placement and freestanding storage partitioning must
 preserve the same occurrence, root lineage, backing, and initial exclusive borrow.
 Knowing the context's size never creates a new physical root.
 
-Each direct `Binding<R>` context field requires occurrence evidence binding
-source signature/slot, exact parameter occurrence and field, exact carrier application,
-service schema, and selected plan digest. Establishment is intrinsic to
-[service validity](component_publication.md#bindings-and-era-entry), not
-an authored domain qualification. A missing or incompatible selected provider
-or missing establishment rejects compilation; no erased-field fallback or
-late provider discovery is permitted. A bare boundary-trait field rejects as
-a non-carrier, not as an alternative service spelling.
-
-For selected Fused service fields, Terminal replay independently joins the erased
-field and plan. ZII bytes alone cannot satisfy that join. This establishes the
-provisioned occurrence, not a runtime-published slot, era handle, or Independent
-execution. Other records obtain services by ordinary transfer of established
-values, not automatic injection merely because their field type is `Binding<R>`.
+Each demanded static provider slot retains the exact source call occurrence,
+closed requirement application, schema, target, and selected plan digest.
+Missing, incompatible, ambiguous, or unauthorized supply rejects compilation;
+no erased-field fallback or late source lookup is permitted. For selected Fused
+slots, Terminal replay independently joins the call demand and plan before
+erasing dispatch. Independent slots retain internal era identity without adding
+a source context field.
 
 Calling the same machine ordinarily supplies that context explicitly and gains
-no provisioning authority. Provisioning is specific to the admitted entry
-occurrence, not a constructor implicitly attached to every call.
+no provisioning authority. Provider demands follow its checked call closure,
+not a constructor implicitly attached to the context type.
 
 ## Authority, identity, and resources
 

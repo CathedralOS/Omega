@@ -105,8 +105,9 @@ retains their requirement, implementation, target, reach, authority, trust,
 replacement, and lifecycle identities. The closure, not the portable source
 data shape, carries a target implementation's raw-family dependencies. Missing,
 ambiguous, cyclic, cross-target, or unadmitted dependencies reject. Selection
-does not manufacture `Binding<R>` values for them; source that needs an
-independently published binding must carry one explicitly.
+does not manufacture source routing values. Source that needs another static
+role names a distinct exact requirement application; runtime multiplicity uses
+the protocol's ordinary data.
 
 After selection, [behavior exclusions](behavior_exclusions.md) may require stronger
 absence properties of the complete selected product than its ordinary callable

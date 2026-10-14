@@ -22,30 +22,27 @@ pub trait ScriptCalls<Context> {
         reaches Game;
 }
 
-data RewardScript {
-    game: Binding<Game>;
-}
+data RewardScript { }
 
 machine RewardScript::reward(context: &mut RewardScript, player: u64)
 satisfies ScriptCalls<RewardScript>::reward
 reaches Game
 {
-    context.game.set_health(player, 100);
+    Game::set_health(player, 100);
 }
 ```
 
 The host and script depend on the same interface package. The build selects an
-exported entry for the script and establishes its explicit context from supplied bindings;
+exported entry for the script and supplies every demanded static import slot;
 the example does not implicitly export `reward`. There is no special script
-`main` name. Missing or incompatible bindings reject before guest execution.
+`main` name. Missing, ambiguous, or incompatible supply rejects before guest execution.
 `ScriptCalls` declares the context parameter rather than relying on an implicit
 receiver. The installed entry adapter supplies that parameter from the admitted
 instance; an ordinary in-language call supplies it explicitly.
 
-`Binding<T>` names an established implementation of a boundary trait. It
-is a core type name, not a keyword or network-service facility. Native execution
-may use a direct selected provider; interpretation uses a checked adapter to the
-host implementation. Both must meet the same contract. Wrapping a native function
+The exact boundary-trait application names the import slot. Native execution may
+use a direct selected provider; interpretation uses a checked adapter to the host
+implementation. Both must meet the same contract. Wrapping a native function
 does not prove it trustworthy.
 
 The bridge is ordinary dispatch:
@@ -57,8 +54,9 @@ guest call -> installed typed adapter -> native host call
 
 The reverse direction invokes a selected guest export and checks its complete
 entry obligations. Generated bindings remove repetitive marshalling; they cannot
-invent domain evidence or resource authority. Two fields with type `Binding<Game>`
-may refer to different game worlds, so bindings identify slots, not just types.
+invent domain evidence or resource authority. Two static game roles use distinct
+applications such as `Game<PrimaryWorld>` and `Game<PreviewWorld>`; arbitrary
+runtime worlds use an ordinary world/session handle declared by the protocol.
 
 ## Loading and running
 
@@ -69,8 +67,8 @@ engines without another implementation. A platform library supplies target
 implementations; external mechanisms need host adapters for interpretation.
 
 ```text
-Binding<Filesystem>       -> selected portable service, possibly virtual
-Binding<LinuxRawSyscalls> -> the selected Linux contract, not a similar host API
+Filesystem::read(...)       -> selected portable filesystem slot
+LinuxRawSyscalls::read(...) -> selected Linux contract, not a similar host API
 ```
 
 These names illustrate library contracts, not compiler-blessed services. Psi
@@ -79,8 +77,8 @@ adapters live outside Psi and reuse Omega's ABI/mechanism libraries; the host
 installs them. An ordinary Omega provider body can itself run interpreted.
 An adapter is not required for every library or machine.
 
-Missing bindings in the selected executable closure prevent execution and name
-the missing requirement. There is no silent service substitution, native fallback
+Missing provider slots in the selected executable closure prevent execution and
+name the missing requirement. There is no silent service substitution, native fallback
 or extra authority. A likely-unused branch does not excuse a missing binding.
 The [test runner](chapter_23_testing.md#enablement-and-results) can schedule
 both engines explicitly and reports unavailable combinations separately.

@@ -45,7 +45,7 @@ and cleanup under the permitted observation contract.
 
 ## Calls, places, and temporaries
 
-Named decision: `binding-receiver-call-form`, settled 2026-10-13.
+Named decision: `boundary-requirement-static-call-form`, settled 2026-10-14.
 
 A call invokes a machine; an internal state jump transfers within the current
 machine. Transition dispatch may also select a final call whose result completes
@@ -54,20 +54,18 @@ every ordinary parameter explicitly. A qualified declaration such as
 `Buffer::clear(buffer: &mut Buffer)` is called as `Buffer::clear(&mut buffer)`,
 not `buffer.clear()`. The qualification establishes a namespace and semantic
 home, not an implicit receiver. Dot access remains data-field projection; it
-does not select or invoke a machine, including when the place has type
-`Binding<R>`.
+does not select or invoke a machine.
 
-A call through an established service binding uses the qualified static form
-`R::operation(&binding, arguments)`. The explicit leading `&Binding<R>` value is
-the call-authority argument and is not one of `operation`'s declared ordinary
-parameters; every declared parameter follows it explicitly in source order.
-The call borrows rather than moves the binding. A missing, differently typed, or
-additional binding argument rejects; no ambient binding search or implicit
-insertion repairs it. [Bindings](../build/component_publication.md#bindings-and-era-entry)
-define establishment and custody, while
-[boundary calls](../terminal-psi/boundary_calls.md) define the erased Terminal
-service-receiver lane. Calls obey the exact [suspension/blocking acknowledgement
-and position rules](effects.md#call-site-acknowledgements).
+A boundary requirement uses the same qualified static form:
+`R::operation(arguments)`. Every declared parameter is explicit and appears in
+source order; there is no receiver or extra binding argument. The exact closed
+requirement application is a static
+[provider slot](../build/component_publication.md#provider-slots-and-era-entry).
+Checking retains that slot demand, and realization rejects unless provider
+planning selects one admitted backing. No ambient source search, hidden value,
+or implicit argument insertion repairs missing or ambiguous supply. Calls obey
+the exact [suspension/blocking acknowledgement and position
+rules](effects.md#call-site-acknowledgements).
 
 Machine invocations require their full ordinary argument list. Application of
 a [mathematical function term](../proofs/mathematical_bindings.md#named-mathematical-definitions)

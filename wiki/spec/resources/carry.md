@@ -59,8 +59,8 @@ Ordinary shared, mutable and write-only loans may survive a suspending call when
 their existing lifetime, access and carry obligations are established. This
 includes service borrows and loans carried through fields, reborrows and nested
 calls. Neither a reference type nor a boundary-trait identity is by itself a
-reason to admit or reject the crossing; no new async-borrow carrier or mandatory
-`Binding<T>` wrapper is introduced.
+reason to admit or reject the crossing; no async service-routing carrier is
+introduced.
 
 The crossing retains exact referent/provenance and parent-loan relationships,
 backing lifetime, outstanding access restrictions and live resource demands.

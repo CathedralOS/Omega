@@ -128,80 +128,32 @@ for the loaded implementation. API visibility, crossings, and possible behavior
 are different questions: `pub`, `boundary`, and `reaches` do not substitute for
 one another.
 
-## Bindings
+## Provider slots and runtime values
 
-A trait is an interface, not a runtime carrier. Local dynamic dispatch uses
-`dyn Trait`; access to an established boundary service uses `Binding<R>`:
+A boundary trait is an interface whose exact application names a static provider
+slot. Source calls it directly:
 
 ```omega
-data Application {
-    logging: Binding<LoggingService>;
-}
-
-machine Application::start(
-    logging: Binding<LoggingService>
-) -> Application
-{
-    Application { logging: logging }
+machine report(text: &[u8]) reaches LoggingService suspends {
+    suspend LoggingService::write(text);
 }
 ```
 
-`Binding` is an opaque declaration in `omega::core` with compiler-known binding
-semantics, not a keyword or a network-service facility. Every usable value has an
-established binding; no additional domain annotation is needed. For an entry
-receiver, the build selects the provider and entry initialization establishes
-the exact field before calling the machine.
-Missing or incompatible supply is a compile error. A bare `Console` names an
-interface, not a field carrier; write `Binding<Console>`.
+Build/provider planning selects one admitted implementation for every demanded
+slot. Missing or ambiguous supply rejects. Several simultaneous static roles use
+distinct exact applications, for example `LoggingService<Interactive>` and
+`LoggingService<Audit>`, or separately named wrapper traits. Provider replacement
+updates the compiler/runtime's internal era for that slot; it does not rewrite
+source data.
 
-Other code receives an existing service or one produced by authorized runtime
-installation/publication. Merely declaring a local service field does not inject
-a provider into it. The literal above transfers `logging`; zeroed storage or the
-existence of a provider cannot manufacture it. Library-provided authority still
-uses ordinary domains and establishment routes.
-
-A fused build may erase the carrier and dispatch directly. An independently
-emitted call acquires one published provider
-era and retains it through the call. Rebinding the slot does not rewrite every
-service value.
-
-The carrier is affine by default: move it or borrow it; duplicating authority
-requires an authorized route. A session or other must-discharge obligation is a
-separate linear value returned by the service. A provider is its satisfier
-machines and holds no state: state that outlives one call is such a returned
-value (a session, window or registration), which the caller passes back
-explicitly.
-
-### Local dynamic interfaces over bindings
-
-A local dynamic descriptor is not a replaceable component interface. An ordinary
-proxy can bridge the two:
-
-```omega
-data LoggingProxy {
-    service: Binding<LoggingService>;
-}
-
-ComponentLogger satisfies Logger<LoggingProxy>
-{
-    machine write(proxy: &LoggingProxy, text: &[u8])
-        reaches LoggingService
-        suspends
-    {
-        suspend LoggingService::write(&proxy.service, text);
-    }
-}
-```
-
-The local descriptor selects `ComponentLogger`; each call passes the proxy
-explicitly. Its machine uses the service's selected entry and provider lease. See [traits](chapter_14_traits.md) for local
-dynamic values and [component publication](../spec/build/component_publication.md)
-for service carriers, duplication, era pins, and replacement.
-
-The same carrier is used by [embedded scripts](chapter_24_embedding.md): the host
-supplies selected implementations without giving the script ambient access to
-everything the host can do. Native and interpreted providers retain the same
-requirement and lifecycle contracts.
+Runtime multiplicity uses values defined by the protocol itself: file handles,
+sessions, windows, registrations, component descriptors, or `dyn Trait` values.
+Those values carry their real state, ownership, and lifecycle. A generic
+`Binding<R>` routing object is not part of the source language. See
+[traits](chapter_14_traits.md) for local dynamic values,
+[embedding](chapter_24_embedding.md) for host import slots, and
+[component publication](../spec/build/component_publication.md) for internal
+provider eras and replacement.
 
 ## Root-Assumed Binding Contracts
 
@@ -235,12 +187,10 @@ satisfies RangeSupplier::supply
     region
 }
 
-data App { memory: Binding<WritableMemory>; }
-
-machine App::claim_memory(app: &mut App, region: Range) -> Range in Writable
+machine claim_memory(region: Range) -> Range in Writable
 reaches WritableMemory;
 {
-    app.memory.claim(region)
+    WritableMemory::claim(region)
 }
 ```
 
@@ -287,7 +237,7 @@ machine build(builder: &mut Build) {
 }
 ```
 
-A caller using `Binding<Expected>` checks against `result == 1`. The supplier
+A caller of `Expected::value()` checks against `result == 1`. The supplier
 checks against `result == 0`; the root assumes the connection despite the known
 contradiction. This is not a proof that zero equals one, nor permission for the
 supplier to fail its own contract. Shape, ownership mapping and operational
@@ -368,29 +318,23 @@ See [critical service audit policy](../spec/packages/review.md#critical-service-
 for the fixed core catalog and install/update acceptance rules.
 
 Checked bodies publish the reach contributed by their declarations and calls,
-including when exported. For example, with a Console binding in entry state:
+including when exported. For example:
 
 ```omega
-data App {
-    console: Binding<Console>;
-}
-
-machine App::greet(app: &mut App)
+machine greet()
 reaches Console;
 {
-    Console::write_line(&app.console, "Hello");
+    Console::write_line("Hello");
 }
 
-machine App::start(app: &mut App) {
-    App::greet(app);
+machine start() {
+    greet();
 }
 ```
 
 `greet` must declare Console because it calls the boundary directly. `start`
 automatically publishes Console reach through `greet`. Provider selection and
-any required runtime authority remain separate obligations. The leading
-`&app.console` supplies established call authority explicitly; it is not an
-ordinary `Console::write_line` parameter or receiver syntax.
+any required runtime authority remain separate obligations.
 The same reach rule applies to directly named boundary calls; provider
 selection is not creation of a global mutable Console object.
 
@@ -629,8 +573,8 @@ into the root.
 The [scoped build contract](../spec/build/scoped_execution.md) requires an exact
 captured input inventory, no implicit symlink traversal, deterministic logical
 metadata, and fresh append-and-seal staging. A build dependency makes an admitted
-implementation eligible for explicit typed binding; it grants neither static
-nameability nor host authority. Pass narrowed inputs and linear required-output
+implementation eligible for explicit provider-slot readiness; it grants neither
+undeclared nameability nor host authority. Pass narrowed inputs and linear required-output
 obligations to helpers; borrowing the whole builder delegates its operations.
 No new successful result set is published after a required output fails or final
 product checking rejects. These requirements are not a claim that every current

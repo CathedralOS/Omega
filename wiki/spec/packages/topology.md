@@ -71,7 +71,7 @@ These are integration boundaries, not arguments that the feature already exists:
 - [Service reach](../language/effects.md): service identities and transitive
   summaries. A row cannot answer which route exercised a service.
 - [Component publication](../build/component_publication.md): closed
-  imports/exports, service bindings, installed envelopes, and replacement.
+  imports/exports, static provider slots, installed envelopes, and replacement.
 - [Authority](../resources/authority.md): endpoint authority must be
   established, not fabricated by copying fields or deserializing bytes.
 - [Provider containment](../build/provider_selection.md#executable-trust-and-containment)
@@ -124,18 +124,18 @@ machine build(builder: &mut Build) {
 
     let inputs = deployment_inputs(&mut builder.source);
     let output = builder.output.require("payments.plan");
-  let topology: Binding<TopologyBuild> =
-    suspend Build::binding<TopologyBuild>(builder, "topology");
-  compose_payments(topology, inputs, output);
+    suspend Build::await_provider<TopologyBuild>(builder, "topology");
+    compose_payments(inputs, output);
 }
 ```
 
 `TopologyBuild` is a requirement already known when this Build is checked. The
 dependency request may proceed while `deployment_inputs` performs local work;
-typed acquisition suspends only if the admitted implementation is not installed
-yet. The local deployment helper receives that restricted binding rather than
-statically importing unresolved dependency paths. Its invocation spelling
-follows the independent binding call rule. `deployment_inputs` captures the
+provider readiness suspends only if the admitted implementation is not installed
+yet. The local deployment helper calls exact `TopologyBuild::operation`
+requirements through the installed Build-scoped static slot rather than
+importing unresolved dependency paths or receiving a routing value.
+`deployment_inputs` captures the
 three exact component artifacts from permitted snapshot inputs and supplies
 explicit policy/storage configuration. The topology helper receives those
 values and one output obligation, not the root builder, resolver credentials,

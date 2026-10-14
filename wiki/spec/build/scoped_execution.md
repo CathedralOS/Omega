@@ -13,7 +13,7 @@ shipped signatures or wire compatibility.
 | Question | Required behavior |
 | --- | --- |
 | One builder or two? | One `Build`; scope and authority are enforced at individual operations. |
-| Build-only code? | Nonblocking `build_depend`/`build_depend_as` requests plus explicit `suspend Build::binding<R>` acquisition; separate host/product nameability and checked instances. |
+| Build-only code? | Nonblocking `build_depend`/`build_depend_as` requests plus explicit `suspend Build::await_provider<R>` readiness; separate host/product nameability and checked instances. |
 | Reference target code from a host build? | Existing designated product operands plus qualified, non-callable product descriptions; no general host import of target code. |
 | Filesystem default? | Exact read-only input tree, append-and-seal staging, deterministic logical metadata, no implicit symlink traversal or ambient services. |
 | Extra host files? | Independently supplied captured inputs; live-host protocols are not added by this slice. |
@@ -58,7 +58,7 @@ Extend these contracts rather than introduce parallel acquisition, evaluation,
 or evidence systems:
 
 - [Build declarations](declarations.md): root description, package identity,
-  interpreted dependency requests, and typed binding acquisition.
+  interpreted dependency requests, and static provider-slot readiness.
 - [Build execution](execution.md): admission before effects,
   generated-source strata, dependency build outputs, and observation custody.
 - [Modules](../language/modules.md) and
@@ -96,30 +96,31 @@ machine build(builder: &mut Build) {
         location: "../payment-protocol"
     });
 
-    let topology: Binding<TopologyBuild> =
-      suspend Build::binding<TopologyBuild>(builder, "topology");
-    configure_products(builder, topology);
+    suspend Build::await_provider<TopologyBuild>(builder, "topology");
+    configure_products(builder);
 }
 ```
 
 Here `configure_products` is an ordinary helper from the local
-  `build_support::configuration` module. `TopologyBuild` is a pre-known
-  requirement; its independently governed binding invocation rule is not specified
-  by this example. The dependency request may proceed while local work continues.
-  Acquisition suspends only if the checked implementation is not installed yet,
-  then resumes this same call site. Code needing only a schema, input bytes, or an
-  output sink receives those values instead of the whole builder. Passing the
-  whole builder is deliberate authority delegation, not the library default.
+  `build_support::configuration` module. `TopologyBuild` is a pre-known exact
+  requirement application; its operations use ordinary qualified static calls.
+  The dependency request may proceed while local work continues.
+  Readiness suspends only if the checked implementation is not installed yet, then
+  resumes this same call site. `configure_products` calls exact
+  `TopologyBuild::operation(arguments)` requirements statically; no routing value
+  is returned or passed. Code needing only a schema, input bytes, or an output
+  sink receives those values instead of the whole builder. Passing the whole
+  builder is deliberate authority delegation, not the library default.
 
 The root is initially checked without static names from newly requested
 packages. Arbitrary top-of-file imports of those packages therefore reject;
 requesting an alias does not retroactively change name resolution. Package
 coordination resolves immutable closures as requests are observed. Before
-installing `Binding<R>`, Psi checks the selected implementation against `R` and
-admits its effects, reach, and resources. The Terminal interpreter owns the
+installing an exact provider slot, Psi checks the selected implementation
+against `R` and admits its effects, reach, and resources. The Terminal interpreter owns the
 parked continuation and resumes it without rerunning earlier statements.
 Dependency requests may appear in local helpers and ordinary conditionals; the
-final Build return joins every request even when no binding was acquired.
+final Build return joins every request even when no provider was awaited.
 
 The build can be split across ordinary imported source files. Only the selected
 root declares its role and dependency sets; imported helpers do not become build
@@ -131,7 +132,7 @@ root or builder state.
 
 | Occurrence | Selectable dependency code | Execution context |
 | --- | --- | --- |
-| Build entry and transitive helpers | Its package-local build sources, core, and implementations installed through `Binding<R>` | Admitted build evaluator on the host |
+| Build entry and transitive helpers | Its package-local build sources, core, and exact static provider slots installed through `Build::await_provider<R>` | Admitted build evaluator on the host |
 | Product source and its generated source | Its package-local product sources, core, and its ordinary dependencies | Selected product target |
 
 Core's exact toolchain vocabulary is directly available. Std is an ordinary
@@ -609,7 +610,7 @@ The exact sequencing is:
 
 ```text
 host Build checking and admission
-  -> one resumable Build activation with dependency requests and typed bindings
+  -> one resumable Build activation with dependency requests and static provider slots
   -> final dependency join and frozen product-selection frontier
   -> generated-source incorporation and final target/component checks
   -> required-output completion check and committed result set
@@ -627,9 +628,9 @@ dependency or input frontier by serializing a new manifest as output.
 | Case | Required result |
 | --- | --- |
 | Build dependency declared but never used by Build code | Request may complete without suspending; Build return still joins and records it. |
-| Typed binding requested before dependency work completes | Suspend at `Build::binding<R>`, install only the admitted implementation, and resume the same continuation without replay. |
+| Provider readiness requested before dependency work completes | Suspend at `Build::await_provider<R>`, install only the admitted implementation into the exact static slot, and resume the same continuation without replay. |
 | Dependency declaration in a local helper or conditional | Execute normally; only the requests actually emitted belong to this Build result. |
-| Static import or call into a newly requested build dependency | Reject initial Build checking; acquire its implementation through a pre-known requirement and `Binding<R>`. |
+| Static import or call into a newly requested build dependency | Reject initial Build checking; await its implementation through a pre-known exact requirement application before calling that static slot. |
 | Local multi-file build helper | Checked in the build context with exact Build vocabulary and normal visibility. |
 | Product-only entry/provider selected from a build with no host import of that implementation | Exact designated product operand resolves; no target code executes on the host. |
 | Same alias names different host and product packages | Ordinary calls select only the host package; product operands select only the product package. No fallback. |

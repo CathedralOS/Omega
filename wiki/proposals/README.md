@@ -37,8 +37,5 @@ separate review system or historical decision ledger.
 - [0006: Initializer-based local type inference](0006_initializer_local_type_inference.md):
   infer a local's already-determined initializer type without numeric defaults,
   later-use inference or implicit mutable borrowing; draft, not accepted.
-- [0007: Binding receiver call shorthand](0007_binding_receiver_call_shorthand.md):
-  proposed `binding.operation(...)` sugar for the accepted explicit static
-  binding call; draft, not accepted.
 
 Temporary working notes belong in [drafts/](../drafts/README.md).

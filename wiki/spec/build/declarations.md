@@ -25,14 +25,14 @@ semantics.
 may start package resolution, review, compilation, and admission without
 suspending the activation. Product dependencies grant no callable authority to
 Build code. Code from a build dependency enters through
-`suspend Build::binding<R>(builder, alias)`, where the pre-known requirement `R`
-defines its callable surface and effect, reach, and resource bounds. Acquisition
-returns an already installed `Binding<R>` immediately or preserves the same
-Terminal continuation while package coordination recursively activates
-dependency Builds and Psi admits the selected implementation. The interpreter
-installs that typed binding and resumes without replaying any Build effect.
-Binding invocation follows the independent language call rule; acquisition does
-not define another call spelling.
+`suspend Build::await_provider<R>(builder, alias)`, where the pre-known exact
+requirement application `R` defines its callable surface and effect, reach, and
+resource bounds. The operation returns immediately when that Build-scoped static
+provider slot is installed, or preserves the same Terminal continuation while
+package coordination recursively activates dependency Builds and Psi admits the
+selected implementation. The interpreter installs the slot and resumes without
+replaying any Build effect. Subsequent code calls `R::operation(arguments)`;
+awaiting readiness does not create or return a routing value.
 
 When `build` returns, package coordination joins every outstanding dependency
 request, rejects failed, cyclic, unresolved, or unadmitted edges, and freezes
@@ -76,11 +76,12 @@ discover undeclared dependency edges from imports. Package tooling edits
 ordinary Build source when persisting dependency changes to a loose project.
 
 `depend`/`depend_as` authorize product imports; `build_depend`/`build_depend_as`
-request a host-profile implementation eligible for typed binding acquisition in
-the build entry and its local helpers; only successful `Build::binding<R>`
-acquisition yields callable code. A newly requested package's static paths are
-unavailable when that entry is first checked; `R` and the acquisition site must
-be meaningful before the package resolves. The host library uses its own ordinary
+request a host-profile implementation eligible for exact provider-slot
+installation in the build entry and its local helpers; only successful
+`Build::await_provider<R>` makes that Build-scoped slot callable. A newly
+requested package's static paths are unavailable when that entry is first
+checked; `R` and the readiness site must be meaningful before the package
+resolves. The host library uses its own ordinary
 dependencies in that host context. Using a package in both contexts requires
 both edges, including std. Legacy locks cannot imply a missing edge.
 [Scoped execution](scoped_execution.md#two-checked-contexts) defines
@@ -177,9 +178,10 @@ nor execution authority.
 
 Local and package-owned helpers may borrow the root Build value for dependency
 requests, provider selection, root binding, staging, and other evaluated work.
-Build-dependency helpers enter through `Build::binding<R>` only after their
-implementation has been admitted. Authority follows the value, requirement, and
-checked call graph, not a helper name or receiver spelling. Transitive reach,
+Build-dependency helpers call an exact static requirement only after
+`Build::await_provider<R>` has installed its admitted implementation for that
+activation. Authority follows ordinary operation arguments and the checked call
+graph, not provider-slot selection. Transitive reach,
 invocation, blocking/suspension, termination, observations, and authority
 demands compose into the root's published ceiling.
 

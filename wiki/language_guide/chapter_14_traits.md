@@ -702,7 +702,6 @@ Code that wants a local dynamic interface over a component owns a local proxy:
 
 ```omega
 data LoggingProxy {
-    service: Binding<LoggingService>;
 }
 
 ComponentLogger satisfies Logger<LoggingProxy>
@@ -711,7 +710,7 @@ ComponentLogger satisfies Logger<LoggingProxy>
         reaches LoggingService
         suspends
     {
-        suspend LoggingService::write(&proxy.service, text);
+        suspend LoggingService::write(text);
     }
 }
 
@@ -719,8 +718,9 @@ let logger: dyn Logger<LoggingProxy> = ComponentLogger as dyn Logger<LoggingProx
 ```
 
 The descriptor selects `ComponentLogger`; the caller passes `&proxy`
-separately. Its machine crosses the boundary through the proxy's ordinary
-binding, concentrating ABI, replacement, effect and resource costs at one seam.
+separately. The proxy carries only local interface context; its machine crosses
+the component boundary through the exact static `LoggingService` provider slot,
+concentrating ABI, replacement, effect and resource costs at one seam.
 
 ## Contracts And Reach
 

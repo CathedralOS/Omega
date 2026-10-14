@@ -71,7 +71,7 @@ replaceable. Selecting executable behavior, layout, cleanup, or a runtime-bearin
 row creates a concrete closure edge: changing that provider requires rebuilding
 already-built consumers. Erased proof evidence retains theorem/certificate
 dependencies without necessarily pinning runtime code. Independently updated
-behavior instead crosses a stable requirement through a service binding.
+behavior instead crosses a stable requirement through its installed provider slot.
 
 The requested cut is checked by a least fixed point over concrete implementations,
 selected conformances, layout, cleanup, state, and custody edges. A fused consumer
@@ -121,7 +121,7 @@ details. Unknown coverage returns `IncompleteAuthority`, never an empty outgoing
 set. Build-generated annotations cannot narrow the verified inventory.
 
 The verifier owns the code-to-inventory claim. Packages may compute instance
-graphs from those facts; installers/providers establish actual bindings.
+graphs from those facts; installers/providers establish actual provider slots.
 Installation-dependent facts remain requirements until matched to exact receipts.
 Verification grants neither callable authority nor permission to install.
 Wrong subject, incompatible schema, invalid evidence, unaccepted assumptions,
@@ -148,8 +148,8 @@ required for its claims. A portable Psi capsule contains canonical Terminal Psi
 and reconstructed obligations. A native-only capsule supplies independently
 checkable native evidence; any intermediate definitions needed by that evidence
 are included or exact accepted dependencies, not a missing separate Psi product.
-Source/provider identity remains audit/correspondence data, not the runtime
-service carrier's data type.
+Source/provider identity remains audit/correspondence data, not a source-visible
+routing carrier or protocol-instance type.
 
 An envelope may admit verified Psi on an interpreter proved against pinned
 semantics, checked target-native realization of that Psi (shipped or lowered
@@ -183,77 +183,57 @@ independently provisionable execution domain, not necessarily a component-owned
 stack. Static builds may use selected actual demand; replaceable crossings use
 public promises and candidate admission, not a previous provider's private proof.
 
-## Bindings and era entry
+<a id="bindings-and-era-entry"></a>
 
-Runtime call authority uses compiler-known affine `Binding<R>`, not a bare trait
-value, provider object, or source-visible vtable. `R` identifies the exact closed
-boundary-trait requirement. `Binding` is declared as opaque boundary data in
-`omega::core`; binding establishment, custody, and realization are compiler
-semantics, not an implementation supplied by that source declaration. It is a
-service-binding carrier, not a general wrapper for trusted build-provided objects.
-Its affine multiplicity comes from the `Binding` data declaration and is unchanged
-by `R`, the selected provider, or whether realization is fused or independent.
-Passing `Binding<R>` by value moves that binding occurrence. Repeated service use
-borrows it; copying requires a checked protocol that establishes another binding.
-Source invokes requirement `R::operation` with an explicit leading
-`&Binding<R>` call-authority argument, followed by the operation's declared
-ordinary parameters. That leading value is not an authored requirement
-parameter and does not grant receiver syntax: dot access remains data projection.
+## Provider slots and era entry
 
-`Binding` is a core type name, not a keyword. It does not imply networking or
-asynchronous execution. The foreign-symbol locator is separately named
-[`ForeignBinding`](foreign_bindings.md); constructing it grants no call authority.
+Named decision: `source-visible-service-binding-retirement`, settled 2026-10-14.
 
-Every usable `Binding<R>` has an established binding as part of its validity.
-There is no separate authored `Bound` domain or valid unestablished service value.
-This is not shorthand for a qualified type. A bare boundary trait in value
-position, such as `console: Console`, does not denote a service carrier and rejects.
-Ordinary library authority continues to use
-[domains and authorized establishment routes](../resources/authority.md).
+These are accepted source semantics, not a claim that the migration is complete.
+`STATIC-MACHINE-MIGRATION` in [TASKS.md](../../../TASKS.md) owns deletion of the
+legacy core carrier, compiler paths, authored fields/parameters, and fixtures.
 
-For build-bound entry fields, the compiler joins the build's exact provider
-selection to the [entry establishment](entry_roots.md#entry-shape-and-arrival-bridge)
-before invocation. Missing or incompatible supply, or an unestablishable field,
-rejects compilation. Provider availability alone does not establish arbitrary
-locals or fields. Outside entry provisioning, a value must be transferred from
-an existing binding or produced by authorized installation/publication; a record
-literal can move an existing service but cannot manufacture one. Zeroed storage,
-equal bits, injection, or a proof alone cannot create a binding. No runtime
-provider lookup is invented to repair missing build-time supply.
+An exact closed boundary-trait application is a static provider slot. Source
+calls its requirements directly, for example `Console::write(bytes)`. Checked
+source retains the exact requirement application and call occurrence; provider
+planning must select one admitted realization for every demanded slot. Missing,
+ambiguous, wrong-target, incompatible, or unauthorized supply rejects before
+execution. Build/provider configuration chooses the realization, never the
+meaning of the source call.
 
-The compiler retains and independently checks exact occurrence, requirement,
-provider-plan, and lifecycle evidence even when the carrier erases. Removing an
-authored qualification must not remove these checks. The existing distinction
-between storage allocation and established values applies to service fields too;
-containing records cannot be consumed before their service fields are established.
-No new user-authored validity modifier or construction syntax is introduced.
+Source-visible `Binding<R>` values are retired. A boundary trait is not a data
+carrier, provider object, capability, or source-visible vtable, and no hidden
+binding argument is inserted into requirement signatures. Several simultaneous
+static roles use distinct exact applications, such as `Console<Interactive>` and
+`Console<Audit>`, or separately named wrapper traits. Build selects each slot
+independently. Runtime multiplicity instead uses the protocol's ordinary handles,
+sessions, descriptors, `dyn` values, or other explicit domain data; it does not
+clone provider slots into generic binding objects.
 
-An independently installed binding names the stable slot, not one permanent era.
-A protocol may publish checked explicit duplication or stronger linear lifecycle
-obligations on the carrier; the requirement trait itself acquires no multiplicity.
-A provider holds no state, so installation retains no provider value; bindings
-route calls into the installed era. That era also pins the selected provider's
-complete static dependency closure, including exact nested boundary requirements
-and providers. Those dependencies are provider-plan structure, not provider
-state or additional source-visible `Binding` values. An exact-once obligation is
-a distinct linear session, registration, completion or shutdown carrier that
-the service returns. Do not add `LinearBinding<R>` without a concrete
-protocol whose binding occurrence, rather than its provider or returned resource,
-must be consumed exactly once.
+The compiler may retain an internal provider-slot record joining exact
+requirement, selected plan, target, occurrence, lifecycle, and evidence. This is
+compiler representation, not source data. Fused lowering may erase it into a
+direct call or inline body. Independent/replaced calls resolve the current era
+of the statically named slot, enter exactly that era, and retain it until matching
+leave. Closing prevents future entry; reclamation waits for acknowledged
+quiescence. Racing entry belongs to either the closing or new era, never neither.
+New calls follow publication; entered calls and era-custodied sessions keep
+their era.
 
-Fused lowering may erase an established carrier into direct dispatch.
-Independent calls resolve the current era, enter exactly that era, and retain
-it until matching leave. Closing prevents future entry; reclamation waits for
-acknowledged quiescence. Entry/leave publish operational and resource costs.
-Racing entry belongs to either the closing or new era, never neither. New calls
-follow publication; entered calls and era-custodied sessions keep their era.
+A provider holds no source-visible state merely by satisfying a requirement.
+The installed era pins the selected provider's complete static dependency
+closure, including exact nested boundary requirements and providers. Those
+dependencies are provider-plan structure, not hidden source values. An
+exact-once obligation remains a distinct linear session, registration,
+completion, or shutdown carrier returned by the protocol itself.
 
-Binding identity includes the requirement, `CallPlan`, `StatePlan`, replacement
-guarantees, and `BindingEntryCeiling`. The selected `BindingEntryPlan` must fit
-that ceiling. Provider changes need not rename the binding; changing its ceiling
-does. Interrupt/bounded-context admissibility derives from complete entry/leave
-work, stack, suspension, blocking, reach/authority, and calling/state contracts,
-not an `isr_safe` switch. RCU, epochs, counters, or hazards are runtime choices.
+Provider-slot identity includes the requirement application, `CallPlan`,
+`StatePlan`, replacement guarantees, and `BindingEntryCeiling`. The selected
+`BindingEntryPlan` must fit that ceiling. Provider changes need not rename the
+slot; changing its ceiling does. Interrupt/bounded-context admissibility derives
+from complete entry/leave work, stack, suspension, blocking, reach/authority,
+and calling/state contracts, not an `isr_safe` switch. RCU, epochs, counters, or
+hazards are runtime choices.
 
 ### Returned values and custody
 
@@ -322,8 +302,8 @@ migrated, or admitted for indefinite retention. Routing and reclamation are
 separate completion states. Independently reclaimable mappings cannot share a
 page that one owner expects to unmap.
 
-The initial build supplies the stable slot/first era and service carriers, and
-grants one designated supervisor linear update authority. Candidates cannot
+The initial build supplies the stable slot/first era and any protocol-specific
+instance data, and grants one designated supervisor linear update authority. Candidates cannot
 publish themselves. The installer checks the frozen envelope and returns
 staged lifecycle custody; publication, entry freeze, roots, retirement, and
 release are operational Type-side tokens, never erased theorem conclusions.

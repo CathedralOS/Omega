@@ -6,19 +6,17 @@ syscall number, or firmware table is not an ordinary imported Omega module.
 [Provider selection](provider_selection.md) chooses the derived candidate.
 These contracts do not imply implementation support for every native route.
 
-## Binding values
+## Locator values
 
-`Binding<ObjectLength, SymbolLength, VersionLength>`
+`ForeignBinding<ObjectLength, SymbolLength, VersionLength>`
 (`source/library/core/external_binding.omg`) is the compile-time
-native-locator carrier. It shares its spelling with the
-[established runtime authority](component_publication.md#bindings-and-era-entry),
-and that is the point of the warning: neither the equal spelling nor a
-validated locator establishes a runtime binding.
+native-locator carrier. It is ordinary closed data, not a runtime provider slot;
+a validated locator neither selects a source call nor grants runtime authority.
 
 A bodyless leaf declares `satisfies Trait::Requirement` and uses `via expression` only
 for an irreducible payload not determined by declaration, signature, and target.
 The expression is compile-time evaluable to an ordinary closed
-`Binding<ObjectLength, SymbolLength, VersionLength>` value. Each const argument
+`ForeignBinding<ObjectLength, SymbolLength, VersionLength>` value. Each const argument
 is a `u64` byte-array length and part of type identity; unused coordinates are
 zero.
 

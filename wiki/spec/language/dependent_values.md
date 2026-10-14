@@ -88,12 +88,10 @@ Anonymous interval constraints on common fields are written in the data `where`;
 constraints involving one case's payload are written in that case's `where`.
 Bracketed scalar range suffixes are not a second default-domain syntax.
 
-Compiler-known `Binding<R>` additionally requires established binding custody as
-part of carrier validity. It needs no authored domain qualification. Zeroing its
-storage does not create a service; containing values remain unavailable until
-authorized provisioning or transfer establishes the field. This uses the same
-storage-versus-value distinction, not a user-definable validity mechanism. See
-[service bindings](../build/component_publication.md#bindings-and-era-entry).
+Boundary provider slots are not data fields and add no default-domain obligation.
+Provider planning must satisfy every demanded exact requirement application
+before realization; that independent check neither changes the containing data's
+validity nor manufactures authority or storage.
 
 [Case-local `where` clauses](data_and_literals.md#case-constraints) contribute
 conditions only for the active case. Common-field and type-wide obligations
