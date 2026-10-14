@@ -1,0 +1,24 @@
+// A `satisfies`-bounded trait parameter takes an implementation of the
+// bound trait. An implementation of a different trait with an identical
+// member signature is not a `Decider` implementation.
+trait Decider {
+    machine pick(value: u64) -> u64;
+}
+
+trait Chooser {
+    machine pick(value: u64) -> u64;
+}
+
+data Registrar {}
+
+machine Registrar::pick(value: u64) -> u64 { value }
+
+RegistrarChooser satisfies Chooser {
+    Chooser::pick = Registrar::pick;
+}
+
+trait Service<Policy satisfies Decider> { }
+
+HostService satisfies Service<RegistrarChooser> { }
+
+machine main() { }

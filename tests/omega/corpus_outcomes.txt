@@ -4412,6 +4412,10 @@ fail/traits/requirement_application_guarantee_identity rejected 1129ms expected 
 	machine `wide` realizes `Bound::produce` but does not guarantee its `ensures result <= 50`; callers of the requirement assume it
 fail/traits/resultless_float_law_false_identity rejected 40370ms expected @a9ae30e1c334+wt
 	machine `false_identity` cannot prove ensures contract proof fact `first == second` from the requires contract
+fail/traits/satisfies_bound_conformance_data_argument rejected 1306ms expected @7795541dfbb7+wt
+	implementation `HostService` cannot bind implementation `Policy`: expected an explicitly named implementation, not a data argument
+fail/traits/satisfies_bound_conformance_wrong_trait rejected 1350ms expected @7795541dfbb7+wt
+	implementation `HostService` cannot bind implementation `Policy`: `RegistrarChooser` must select a complete `Decider` implementation with the instantiated trait arguments
 fail/traits/self_type_retired rejected 938ms expected @a9ae30e1c334+wt
 	trait `Area` state `area` parameter `shape` references unknown data type `Self`
 fail/traits/trait_contract_undeclared_parameter_member rejected 1583ms expected @a9ae30e1c334+wt
@@ -7557,6 +7561,7 @@ pass/traits/runtime_selected_case_reference_exit checked 4259ms check-target:mac
 pass/traits/runtime_selected_reference_region checked 4258ms check-target:macos_arm64 @dd6871ed0476
 pass/traits/runtime_selected_slice_reference_exit checked 4486ms check-target:macos_arm64 @dd6871ed0476
 pass/traits/runtime_trait_default_requirement_scope_exit checked 11676ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/satisfies_bound_trait_parameter_exit checked 7309ms check-target:macos_arm64 @7795541dfbb7+wt
 pass/traits/trait_generic_bound_static_dispatch checked 11766ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/trait_member_effects checked 9242ms @5041ef1af684+wt
 pass/traits/trait_operator_token checked 8832ms @5041ef1af684+wt

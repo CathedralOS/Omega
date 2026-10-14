@@ -2318,6 +2318,7 @@ pass/traits/runtime_inherited_trait_default_exit built 3776ms exit:70 @7e0a5e1d4
 pass/traits/runtime_named_implementation_selection_exit built 1238ms exit:70 @65c3b89f46f4+wt
 pass/traits/runtime_qualified_byte_crash_equality_exit built 724ms exit:70 @8bd51016873be5f442446f3e2fff2f682806bca6
 pass/traits/runtime_trait_default_requirement_scope_exit built 3688ms exit:70 @7e0a5e1d48d2+wt
+pass/traits/satisfies_bound_trait_parameter_exit built 7255ms exit:0 @7795541dfbb7+wt
 pass/traits/trait_generic_bound_static_dispatch built 1207ms exit:1 @bed5f45e9185+wt
 pass/traits/trait_member_effects checked 8912ms @5041ef1af684+wt
 pass/traits/trait_operator_token checked 8730ms @5041ef1af684+wt

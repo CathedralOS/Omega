@@ -1,0 +1,20 @@
+// A `satisfies`-bounded trait parameter takes a named implementation. Data
+// does not satisfy traits, so naming the data type `Registrar` in the
+// conformance application rejects even though one of its machines is bound.
+trait Decider {
+    machine pick(value: u64) -> u64;
+}
+
+data Registrar {}
+
+machine Registrar::pick(value: u64) -> u64 { value }
+
+RegistrarDecider satisfies Decider {
+    Decider::pick = Registrar::pick;
+}
+
+trait Service<Policy satisfies Decider> { }
+
+HostService satisfies Service<Registrar> { }
+
+machine main() { }

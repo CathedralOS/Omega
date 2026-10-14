@@ -1,0 +1,35 @@
+// A trait parameter bounded by `satisfies` takes a named implementation of
+// the bound trait. The implementation is a map named apart from the data
+// whose machine it binds; a conformance applies the bounded trait to it, a
+// generic machine's evidence binder selects it at a call, and the bound
+// machine stays directly callable through its own declaration namespace.
+trait Decider {
+    machine pick(value: u64) -> u64;
+}
+
+data Registrar {}
+
+machine Registrar::pick(value: u64) -> u64 { value }
+
+RegistrarDecider satisfies Decider {
+    Decider::pick = Registrar::pick;
+}
+
+trait Service<Policy satisfies Decider> { }
+
+HostService satisfies Service<RegistrarDecider> { }
+
+machine decide<Policy satisfies Decider>(value: u64) -> u64 {
+    Policy::pick(value)
+}
+
+machine main() crashes Trap {
+    let direct: u64 = Registrar::pick(6);
+    let selected: u64 = decide<RegistrarDecider>(7);
+    transition direct == 6 && selected == 7 {
+        true -> passed()
+        _ -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}

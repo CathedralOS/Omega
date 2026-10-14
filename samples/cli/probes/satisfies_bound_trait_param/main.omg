@@ -1,16 +1,19 @@
 // A trait parameter bounded by `satisfies`:
 // `trait Service<Policy satisfies Decider>` — the type
-// argument must carry a named Decider implementation,
-// declared by the `X satisfies Decider { Decider::member
-// = Impl::member; }` roster spelling.
+// argument must name a Decider implementation, declared by
+// the `Impl satisfies Decider { Decider::member =
+// Data::member; }` roster spelling.
 //
 //   * `trait Service<Policy satisfies Decider> { }` —
 //     satisfies-bounded trait parameter.
-//   * `Registrar satisfies Decider { Decider::pick =
-//     Registrar::pick; }` — named implementation roster
-//     wiring a trait member to its machine.
-//   * `Host satisfies Service<Registrar> { }` — the
-//     bound type used as the satisfies argument.
+//   * `RegistrarDecider satisfies Decider { Decider::pick =
+//     Registrar::pick; }` — a named implementation (a map,
+//     named apart from the data) wiring a trait member to an
+//     existing machine.
+//   * `HostService satisfies Service<RegistrarDecider> { }` —
+//     the implementation used as the bounded argument.
+//   * `Registrar::pick(6)` — one intended implementation is
+//     called directly; `Decider::pick(6)` names no evidence.
 //
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
@@ -21,7 +24,7 @@ trait Decider {
 
 data Registrar {}
 
-Registrar satisfies Decider {
+RegistrarDecider satisfies Decider {
     Decider::pick = Registrar::pick;
 }
 
@@ -29,15 +32,13 @@ machine Registrar::pick(value: u64) -> u64 { value }
 
 trait Service<Policy satisfies Decider> { }
 
-data Host {}
-
-Host satisfies Service<Registrar> { }
+HostService satisfies Service<RegistrarDecider> { }
 
 data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: &mut Main) {
     main.hits = 0;
-    let picked: u64 = Decider::pick(6);
+    let picked: u64 = Registrar::pick(6);
     transition picked == 6 {
         true -> pass(main)
         _ -> fail(main)
