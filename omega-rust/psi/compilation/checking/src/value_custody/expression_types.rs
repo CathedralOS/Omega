@@ -443,7 +443,8 @@ fn argument_matches_type_reference_using(
         && delivered_types::rigid_carrier_conflict(
             program,
             scope,
-            actual,
+            actual.reference,
+            &actual.substitutions,
             type_reference,
             required_substitutions,
         )

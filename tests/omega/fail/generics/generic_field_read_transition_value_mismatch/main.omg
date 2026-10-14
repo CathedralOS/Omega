@@ -1,0 +1,10 @@
+// A transition value read from a `Holder<Input>` field is an `Input` in
+// every arm, not the declared `Output`.
+data Holder<T> { value: T; }
+machine wrong<Input, Output>(holder: Holder<Input>, flag: bool) -> Output {
+    transition flag {
+        true -> (holder.value)
+        false -> (holder.value)
+    }
+}
+machine main() {}

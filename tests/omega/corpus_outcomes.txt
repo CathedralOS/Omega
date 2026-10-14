@@ -2790,6 +2790,23 @@ fail/generics/generic_constructor_open_type_binder rejected 3518ms expected @a9a
 	data `Nested` field `value` cannot apply generic parameter `Box` as a generic constructor
 fail/generics/generic_constructor_shadowed_type_binder rejected 34ms expected @a9ae30e1c334+wt
 	generic data `Nested` retains unsolved type equations; its application requires closed instance specialization
+fail/generics/generic_field_read_call_argument_mismatch rejected 216ms expected @7c0518fd7afd+wt
+	argument `item` for state `entry` expects `T`, got `member access`
+fail/generics/generic_field_read_field_store_mismatch rejected 277ms expected @7c0518fd7afd+wt
+	machine `wrong` state `entry` assignment expects `Output`, but the value is delivered as `Input`
+fail/generics/generic_field_read_local_mismatch rejected 324ms expected @7c0518fd7afd+wt
+	machine `wrong` state `entry` local `got` expects `Output`, but the value is delivered as `Input`
+fail/generics/generic_field_read_nested_mismatch rejected 207ms expected @7c0518fd7afd+wt
+	machine `wrong` state `entry` local `got` expects the `Box<Foo>` data type but got `Box<Bar>` in the `local` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+fail/generics/generic_field_read_returned_mismatch rejected 284ms expected @7c0518fd7afd+wt
+	machine `wrong` state `entry` terminal expression expects `Output`, got `member access`
+fail/generics/generic_field_read_rigid_nested_mismatch rejected 229ms expected @7c0518fd7afd+wt
+	machine `wrong` state `entry` local `got` expects `Box<Output>`, but the value is delivered as `Box<Input>`
+fail/generics/generic_field_read_state_argument_mismatch rejected 255ms expected @7c0518fd7afd+wt
+	argument `value` for state `finish` expects `Output`, got `member access`
+fail/generics/generic_field_read_transition_value_mismatch rejected 294ms expected @7c0518fd7afd+wt
+	machine `wrong` state `entry` return value expects `Output`, but the value is delivered as `Input`
+	machine `wrong` state `entry` return value expects `Output`, but the value is delivered as `Input`
 fail/generics/generic_selected_extent_boolean rejected 33ms expected @a9ae30e1c334+wt
 	fixed-array length `Counts::FOUR` requires an evaluated integer constant
 fail/generics/generic_selected_extent_qualified_binder rejected 881ms expected @a9ae30e1c334+wt
@@ -6442,6 +6459,7 @@ pass/float/trapping_raw_finite_semantic_result_proof checked 11246ms check-targe
 pass/float/waterline_record_computed_return_exit checked 11575ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/float/x86_fma_plan_association checked 11382ms check-target:linux_x86_64 @9c4d1c444502
 pass/formatting/runtime_repeated_wrapping_decimal_format_exit checked 5204ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/generics/applied_data_argument_store_receipt checked 4672ms @7c0518fd7afd+wt
 pass/generics/borrowed_applied_field_static_selection_exit checked 5556ms check-target:macos_arm64 @d1fa4738e67a+wt
 pass/generics/borrowed_applied_payload_field_static_selection checked 1827ms @d1fa4738e67a+wt
 pass/generics/closed_generic_local_field_observation_exit checked 10700ms check-target:macos_arm64 @a9ae30e1c334+wt

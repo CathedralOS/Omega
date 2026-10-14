@@ -1,0 +1,7 @@
+// Storing `source.value` of a `Holder<Input>` into the `Output` field of a
+// `Holder<Output>` mixes two parameters.
+data Holder<T> { value: T; }
+machine wrong<Input, Output>(target: &mut Holder<Output>, source: Holder<Input>) {
+    target.value = source.value;
+}
+machine main() {}

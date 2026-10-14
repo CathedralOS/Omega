@@ -1,0 +1,8 @@
+// A jump cannot supply an `Output` state parameter from a `Holder<Input>`
+// field.
+data Holder<T> { value: T; }
+machine wrong<Input, Output>(holder: Holder<Input>) -> u8 {
+    transition { _ -> finish(holder.value) }
+    state finish(value: Output) -> u8 { 0u8 }
+}
+machine main() {}

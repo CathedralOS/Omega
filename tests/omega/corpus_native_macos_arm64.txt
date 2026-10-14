@@ -1331,6 +1331,7 @@ pass/float/waterline_record_computed_return_exit built 35335ms exit:70 @589aedee
 pass/float/x86_fma_plan_association rejected 3185ms @48008365d839
 	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Coff, pointer_size: 8, pointer_alignment: 8 }
 pass/formatting/runtime_repeated_wrapping_decimal_format_exit built 17140ms exit:0 stdout:match @589aedee8ebc+wt
+pass/generics/applied_data_argument_store_receipt checked 4511ms @7c0518fd7afd+wt
 pass/generics/borrowed_applied_field_static_selection_exit built 5548ms exit:0 @d1fa4738e67a+wt
 pass/generics/closed_generic_local_field_observation_exit built 1759ms exit:0 @c9b4ecc7551a
 pass/generics/closed_indexed_quantity built 12715ms @4ffed225fc45+wt

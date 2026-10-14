@@ -1,0 +1,9 @@
+// A field read substitutes nested applications: `holder.value` of a
+// `Holder<Box<Input>>` is a `Box<Input>`, not a `Box<Output>`.
+data Holder<T> { value: T; }
+data Box<Content> { content: Content; }
+machine wrong<Input, Output>(holder: Holder<Box<Input>>) -> u8 {
+    let got: Box<Output> = holder.value;
+    0u8
+}
+machine main() {}

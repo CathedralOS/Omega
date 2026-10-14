@@ -1,0 +1,6 @@
+// A call argument read from a `Holder<Input>` field is an `Input`, not the
+// `Output` an explicit application of `same` receives.
+data Holder<T> { value: T; }
+machine same<T>(item: T) -> T { item }
+machine wrong<Input, Output>(holder: Holder<Input>) -> Output { same<Output>(holder.value) }
+machine main() {}

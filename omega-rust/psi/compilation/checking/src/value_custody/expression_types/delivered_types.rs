@@ -1,6 +1,7 @@
 //! A value delivered with a complete type keeps that type at its destination.
 //!
-//! A call occurrence's applied result and a named binding's declared type are
+//! A call occurrence's applied result, a named binding's declared type and a
+//! stored field or element read under its receiver's application are
 //! complete: the program fixed them before the value reached the store. A
 //! destination annotation, a call formal or a returned-value context never
 //! becomes the value's type merely by being written. One comparison judges
@@ -30,21 +31,39 @@ use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
 
 /// The complete type a value arrives with, when the program already fixed
-/// it: a call occurrence's applied result or a named binding's declared type.
-/// A call with no applied result keeps only its declaration's own binders,
-/// which cannot be compared with the caller's.
+/// it, and the receiver applications its declared type is read under.
+pub(super) struct DeliveredType {
+    pub(super) reference: TypeReferenceHandle,
+    /// A field's declared type names its data declaration's parameters; a
+    /// read through an applied receiver supplies them. Empty for a call
+    /// result or a named binding, whose types are already the caller's.
+    pub(super) substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+}
+
+/// The complete type a value arrives with: a call occurrence's applied
+/// result, a named binding's declared type, or a stored field or element
+/// read under its receiver's application. A call with no applied result
+/// keeps only its declaration's own binders, which cannot be compared with
+/// the caller's.
 pub(super) fn delivered_value_type(
     program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    let delivered = match program.expression_table.expression(value) {
+) -> Option<DeliveredType> {
+    let mut substitutions = Vec::new();
+    let reference = match program.expression_table.expression(value) {
         ExpressionNode::Call(_) => program
             .expression_table
             .constructed_value_type_reference(value),
         ExpressionNode::Name(path) => named_value_type_reference(program, path)?,
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            reference_values::declared_value_type(program, value, &mut substitutions)?
+        }
         _ => return None,
     };
-    delivered.is_valid().then_some(delivered)
+    reference.is_valid().then_some(DeliveredType {
+        reference,
+        substitutions,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,12 +91,15 @@ fn carrier(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -
 /// Whether a by-value `actual` contradicts `required` under the binders
 /// that are rigid in `scope`. Declared-domain shells qualify a carrier
 /// without changing it; applied data arguments and array elements compare
-/// position by position. `required_substitutions` is the call's
-/// simultaneous formal-to-caller environment, empty at a plain store.
+/// position by position. `actual_substitutions` supplies the receiver
+/// applications a delivered field type is read under;
+/// `required_substitutions` is the call's simultaneous formal-to-caller
+/// environment, empty at a plain store.
 pub(super) fn rigid_carrier_conflict(
     program: &dyn crate::CheckingInput,
     scope: SymbolHandle,
     actual: TypeReferenceHandle,
+    actual_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     required: TypeReferenceHandle,
     required_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
@@ -86,12 +108,22 @@ pub(super) fn rigid_carrier_conflict(
     }
     let (required, required_substitutions) =
         reference_values::substituted_required_reference(program, required, required_substitutions);
-    let actual = program
-        .type_reference_table
-        .unconstrained_type_reference(actual);
-    let required = program
-        .type_reference_table
-        .unconstrained_type_reference(required);
+    let unconstrained = |reference| {
+        program
+            .type_reference_table
+            .unconstrained_type_reference(reference)
+    };
+    // A receiver application that cannot be read without re-entering its own
+    // telescope is not a complete delivered type.
+    let Some(actual) = reference_values::substituted_reference(
+        program,
+        unconstrained(actual),
+        actual_substitutions,
+    ) else {
+        return false;
+    };
+    let actual = unconstrained(actual);
+    let required = unconstrained(required);
     let rigid = |carrier: Carrier| {
         matches!(carrier, Carrier::Parameter(parameter)
             if program.symbols.get(parameter).parent == scope)
@@ -114,6 +146,7 @@ pub(super) fn rigid_carrier_conflict(
                 program,
                 scope,
                 *actual,
+                actual_substitutions,
                 *required,
                 required_substitutions,
             );
@@ -165,7 +198,14 @@ pub(super) fn rigid_carrier_conflict(
             .iter()
             .zip(required_arguments.iter())
             .any(|(actual, required)| {
-                rigid_carrier_conflict(program, scope, *actual, *required, required_substitutions)
+                rigid_carrier_conflict(
+                    program,
+                    scope,
+                    *actual,
+                    actual_substitutions,
+                    *required,
+                    required_substitutions,
+                )
             })
 }
 
@@ -185,7 +225,10 @@ fn delivered_type_conflict(
             .iter()
             .find_map(|arm| delivered_type_conflict(program, scope, arm.value, destination));
     }
-    let delivered = delivered_value_type(program, value)?;
+    let DeliveredType {
+        reference: delivered,
+        substitutions,
+    } = delivered_value_type(program, value)?;
     let conflict = if matches!(
         program.type_reference_table.type_reference(destination),
         TypeReferenceNode::Reference { .. }
@@ -197,13 +240,18 @@ fn delivered_type_conflict(
             program,
             delivered,
             destination,
-            &[],
+            &substitutions,
             &[],
         )
     } else {
-        rigid_carrier_conflict(program, scope, delivered, destination, &[])
+        rigid_carrier_conflict(program, scope, delivered, &substitutions, destination, &[])
     };
-    conflict.then_some(delivered)
+    // Name the delivered type the store saw: a field read's declared type
+    // under its receiver's application.
+    conflict.then(|| {
+        reference_values::substituted_reference(program, delivered, &substitutions)
+            .unwrap_or(delivered)
+    })
 }
 
 /// A value received into storage the program names -- a local, an assigned

@@ -1,0 +1,9 @@
+// A field read of a generic instance delivers the field's declared type under
+// the instance's applied arguments: `holder.value` of a `Holder<Input>` is
+// an `Input`, which is not the distinct parameter `Output`.
+data Holder<T> { value: T; }
+machine wrong<Input, Output>(holder: Holder<Input>) -> u8 {
+    let got: Output = holder.value;
+    0u8
+}
+machine main() {}

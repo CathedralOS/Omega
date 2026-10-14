@@ -1,0 +1,5 @@
+// `holder.value` of a `Holder<Input>` is an `Input`; it cannot be returned
+// as an `Output`.
+data Holder<T> { value: T; }
+machine wrong<Input, Output>(holder: Holder<Input>) -> Output { holder.value }
+machine main() {}
