@@ -392,7 +392,7 @@ def provenance(records: list[dict], commits_between) -> dict:
 
     `commits_between(revision)` returns commits between that revision and
     the measuring head (e.g. `git rev-list --count <rev>..HEAD`) or None
-    when the revision is not in local history. Pure otherwise; callers
+    when the revision or its distance is unavailable. Pure otherwise; callers
     inject the lookup. Informational only — it never gates anything.
     """
     stamped = legacy = 0
@@ -423,7 +423,7 @@ def provenance_line(report: dict) -> str:
     text = (f"golden provenance: {report['stamped']} rows stamped, "
             f"{report['legacy']} legacy (unstamped)")
     if report["unknown_revisions"]:
-        text += f", {report['unknown_revisions']} unknown-revision row(s)"
+        text += f", {report['unknown_revisions']} revision distance(s) unavailable"
     oldest = report["oldest"]
     if oldest:
         text += (f", oldest stamped row {oldest['commits_behind']} commits "

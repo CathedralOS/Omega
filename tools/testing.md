@@ -120,6 +120,11 @@ deterministic hash slice for splitting the run across sessions.
 count -- cap it when several sessions measure at once, since N concurrent runs
 otherwise request N times the machine.
 
+Golden history distance is optional reporting metadata. Each ancestry lookup
+has a two-second budget; unavailable or slow history is reported as an
+unavailable distance. This does not change fixture results, expected refusals,
+oracle checks, corpus comparisons or their verdicts.
+
 For retained direct-native artifacts, the corpus explicitly audits the
 target-operation input before publication. Instruction construction consumes
 those rows directly;

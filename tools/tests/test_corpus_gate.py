@@ -7,6 +7,7 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -34,6 +35,30 @@ def fake_runner(records: str, stdout: str = ""):
         return SimpleNamespace(stdout=io.StringIO(stdout), stderr=io.StringIO(""),
                                returncode=0, wait=lambda: 0)
     return popen
+
+class OptionalHistoryProvenance(unittest.TestCase):
+    def test_slow_history_lookup_terminates_a_real_subprocess(self):
+        execute = subprocess.run
+        def slow_history(*arguments, **options):
+            return execute([sys.executable, "-c", "import time; time.sleep(30)"],
+                           capture_output=True, text=True, timeout=0.05)
+        warning = io.StringIO()
+        with patch.object(corpus_gate.subprocess, "run", side_effect=slow_history), \
+             contextlib.redirect_stderr(warning):
+            self.assertIsNone(corpus_gate.commits_between("historical-revision"))
+        self.assertIn("revision distance unavailable", warning.getvalue())
+
+    def test_available_history_keeps_its_actual_distance(self):
+        with patch.object(corpus_gate.subprocess, "run", return_value=
+                          subprocess.CompletedProcess([], 0, "481\n", "")) as run:
+            self.assertEqual(corpus_gate.commits_between("historical-revision"), 481)
+        self.assertEqual(run.call_args.kwargs["timeout"], 2)
+
+    def test_failed_history_does_not_invent_a_distance(self):
+        with patch.object(corpus_gate.subprocess, "run", return_value=
+                          subprocess.CompletedProcess([], 128, "481\n", "missing revision")):
+            self.assertIsNone(corpus_gate.commits_between("historical-revision"))
+
 
 class RunnerLibrarySelection(unittest.TestCase):
     def runner_environment(self, environment):

@@ -831,11 +831,16 @@ def compare_with_revision(options, leg, revision: str, head_records: list) -> in
     return 1 if result["losses"] else 0
 
 
-def git_out(*arguments) -> str | None:
+def git_out(*arguments, timeout=None) -> str | None:
     try:
         result = subprocess.run(["git", *arguments], cwd=ROOT,
                                 capture_output=True, text=True,
-                                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+                                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                                timeout=timeout)
+    except subprocess.TimeoutExpired:
+        print("corpus_gate: optional Git provenance lookup timed out; "
+              "revision distance unavailable", file=sys.stderr)
+        return None
     except OSError:
         # Provenance is optional metadata, including when a test or caller
         # supplies an isolated environment without the host's Git executable.
@@ -844,8 +849,8 @@ def git_out(*arguments) -> str | None:
 
 
 def commits_between(revision):
-    """git rev-list --count <rev>..HEAD; None when the revision is unknown."""
-    count = git_out("rev-list", "--count", f"{revision}..HEAD")
+    """Optional history distance; unavailable history must not delay verdicts."""
+    count = git_out("rev-list", "--count", f"{revision}..HEAD", timeout=2)
     return int(count) if count and count.isdigit() else None
 
 

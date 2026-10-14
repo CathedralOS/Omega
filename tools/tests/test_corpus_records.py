@@ -195,6 +195,7 @@ class RoundTrip(unittest.TestCase):
         line = corpus_records.provenance_line(report)
         self.assertIn("3 rows stamped", line)
         self.assertIn("1 legacy", line)
+        self.assertIn("1 revision distance(s) unavailable", line)
         self.assertIn("40 commits behind HEAD (@bbbbbbbbbbbb)", line)
 
     def test_context_line_round_trips_and_stays_out_of_records(self):
