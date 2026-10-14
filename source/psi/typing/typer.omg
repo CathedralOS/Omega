@@ -131,6 +131,7 @@ crashes Trap
         Typing::set_selection(&mut typer.output, index, Selection::None);
         Typing::set_adaptation(&mut typer.output, index, Adaptation::None);
         Typing::set_value(&mut typer.output, index, ExactInteger { negative: false, magnitude: 0 });
+        Typing::set_roster(&mut typer.output, index, 0);
         Typer::mark_typed(typer, index, false);
         transition { _ -> expression(typer, index + 1) }
     }

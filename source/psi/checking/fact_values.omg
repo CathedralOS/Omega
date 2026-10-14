@@ -1,6 +1,7 @@
 use psi::checking::arithmetic;
 use psi::checking::checker;
 use psi::checking::evaluation;
+use psi::checking::obligations;
 use psi::checking::places;
 use psi::integers::integers;
 use psi::resolution::resolution;
@@ -11,7 +12,9 @@ use psi::types::types;
 // (`requires`, `where`) is a proof expression, not executed code: its nodes
 // take the same values as a body's (places, constants, fixed-integer
 // operators and conversions) but owe no obligations and have no effects,
-// and a call in it is known only by its result type. Keeping this walk
+// and a call in it is known only by its result type, except a primitive
+// byte predicate, decided from its argument (`Checker::predicate_value`).
+// Keeping this walk
 // apart from the body's also keeps deciding a callee's facts from re-entering
 // the walk of the call that owes them.
 pub machine Checker::evaluate_fact_run(
@@ -58,7 +61,22 @@ crashes Trap
         ExpressionKind::Unary -> unary(checker, expression, row, integer)
         ExpressionKind::Binary -> binary(checker, expression, row, integer)
         ExpressionKind::Cast -> cast(checker, typing, expression, row, integer)
+        ExpressionKind::Call -> call(checker, syntax, resolution, typing, expression, row)
         _ -> typed(row)
+    }
+
+    state call(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, row: TypeRow) -> Value {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, expression.left);
+        transition binding {
+            ValueBinding::BytePredicate { predicate } -> predicated(checker, syntax, resolution, typing, expression, predicate)
+            _ -> typed(row)
+        }
+    }
+
+    state predicated(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, predicate: BytePredicate) -> Value {
+        let argument: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first);
+        let value: Value = Checker::predicate_value(checker, syntax, resolution, typing, argument, predicate);
+        value
     }
 
     state name(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, type_handle: u64 in Trapping) -> Value {

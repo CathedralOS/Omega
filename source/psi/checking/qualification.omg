@@ -269,14 +269,24 @@ crashes Trap
         let given_type: u64 in Trapping = Typing::expression_type(typing, expression);
         let given: u64 in Trapping = Checker::qualifying_domain(typing, given_type);
         let adaptation: Adaptation = Typing::adaptation(typing, expression);
+        let written: Expression = SyntaxTrees::expression(syntax, expression);
+        let roster: u64 in Trapping = Typing::roster(typing, expression);
         transition given == domain + 1 && adaptation == Adaptation::None {
             true -> done()
-            _ -> decided(checker, syntax, resolution, typing, domain, value, source_span)
+            _ -> decided(checker, syntax, resolution, typing, domain, value, source_span, written.kind == ExpressionKind::String, roster)
         }
     }
 
-    state decided(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, domain: u64 in Trapping, value: Value, source_span: SourceSpan) {
+    // A quoted literal's byte predicates are decided from its octets'
+    // roster (wiki/spec/terminal-psi/structural_access.md).
+    state decided(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, domain: u64 in Trapping, value: Value, source_span: SourceSpan, literal: bool, roster: u64 in Trapping) {
+        let previous_literal: bool = checker.subject_literal;
+        let previous_roster: u64 in Trapping = checker.subject_roster;
+        checker.subject_literal = literal;
+        checker.subject_roster = roster;
         let held: bool = Checker::decide_domain(checker, syntax, resolution, typing, domain, value, true);
+        checker.subject_literal = previous_literal;
+        checker.subject_roster = previous_roster;
         transition held {
             true -> done()
             _ -> unproven(checker, source_span)

@@ -192,6 +192,10 @@ where
     // The denominator of an anonymous expression's exact rational value, in
     // lowest terms; zero (the absence state) or one is integral.
     denominators: [u64; 131072];
+    // A quoted literal's primitive byte predicates, replayed from its exact
+    // octets (wiki/spec/terminal-psi/structural_access.md): bit 1 `valid_utf8`,
+    // 2 `no_nul`, 4 `ascii_only`, 8 `non_empty`.
+    rosters: [u64; 131072];
     expression_count: u64;
     binder_types: [u64; 2048];
     // Each pattern field's member, indexed like `binder_types`.
@@ -377,6 +381,43 @@ crashes Trap
     let numerator: ExactInteger = Typing::value(typing, index);
     let denominator: u64 in Trapping = Typing::denominator(typing, index);
     Rational { numerator: numerator, denominator: denominator as u64 in Wrapping }
+}
+
+// A quoted literal's predicate roster (`rosters`); zero for any other
+// expression.
+pub machine Typing::roster(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition index < typing.expression_count {
+        true -> read(typing, index)
+        _ -> invalid()
+    }
+
+    state read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
+        let stored: u64 = typing.rosters[index];
+        stored as u64 in Trapping
+    }
+
+    state invalid() -> u64 in Trapping {
+        crash Trap;
+    }
+}
+
+pub machine Typing::set_roster(typing: &mut Typing, index: u64 in Trapping, roster: u64 in Trapping)
+crashes Trap
+{
+    transition index < typing.expression_count {
+        true -> write(typing, index, roster)
+        _ -> invalid()
+    }
+
+    state write(typing: &mut Typing, index: u64 in Trapping, roster: u64 in Trapping) {
+        typing.rosters[index] = roster as u64;
+    }
+
+    state invalid() {
+        crash Trap;
+    }
 }
 
 // The denominator of an anonymous expression's value, at least one.
@@ -734,6 +775,30 @@ pub machine TypeRow::carrier(row: TypeRow) -> TypeRow {
 // Whether two rows qualify one carrier: equal once their qualifiers are
 // removed, a reference's from its referent (`&[u8] in Path` qualifies the
 // slice it refers to).
+// The type a reference row's referent has, through every reference layer;
+// any other type itself.
+pub machine Typing::referent_of(typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let row: TypeRow = TypeTable::row(&typing.types, handle);
+    transition row.kind == TypeKind::Reference {
+        true -> inner(typing, row.inner, 0)
+        _ -> result(handle)
+    }
+
+    state inner(typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+        let row: TypeRow = TypeTable::row(&typing.types, handle);
+        transition row.kind == TypeKind::Reference && depth < 16 {
+            true -> inner(typing, row.inner, depth + 1)
+            _ -> result(handle)
+        }
+    }
+
+    state result(handle: u64 in Trapping) -> u64 in Trapping {
+        handle
+    }
+}
+
 pub machine TypeTable::same_carrier(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool
 crashes Trap
 {

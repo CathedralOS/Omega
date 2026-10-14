@@ -122,6 +122,10 @@ pub data Checker {
     // for `subject` (qualification.omg).
     subject: Value;
     subjecting: bool;
+    // While a quoted literal's qualification is decided, its predicate roster
+    // answers the domain's byte predicates of the subject.
+    subject_literal: bool;
+    subject_roster: u64 in Trapping;
     // While a return's result is decided, the machine being checked is the
     // origin of the routed domains that name it (qualification.omg).
     minting: bool;
@@ -313,6 +317,7 @@ crashes Trap
     checker.substituting = false;
     checker.returning = false;
     checker.subjecting = false;
+    checker.subject_literal = false;
     checker.minting = false;
     checker.field_values = false;
     checker.payload_values = false;

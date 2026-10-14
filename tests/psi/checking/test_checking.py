@@ -1416,6 +1416,32 @@ def main() -> None:
         b"}"
     )
     accepted(program, "self-call-climbs-its-bounded-distance", walk.replace(b"NEXT", b"walk(items, i + 1)"))
+    # A bounded byte array (wiki/spec/terminal-psi/structural_access.md): a
+    # quoted literal's byte predicates replay from its octets, a replacement
+    # sets the live length, `.len` is that length, and a value's declared
+    # domain supplies the predicates it requires.
+    bounded = (
+        b"domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);\n"
+        b"data M { line: [u8; 8] in Utf8; }\n"
+        b"machine two(n: u64) requires n == 2 {}\n"
+        b"machine text(bytes: &[u8; 8] in Utf8) requires valid_utf8(bytes) {}\n"
+        b"machine f(m: &mut M) {\n    m.line = LITERAL;\n    two(m.line.len);\n    text(&m.line);\n}"
+    )
+    accepted(program, "a-quoted-literal-replaces-a-bounded-byte-array", bounded.replace(b"LITERAL", b"\"ok\""))
+    rejected(
+        program,
+        "a-quoted-literal-must-satisfy-the-domain",
+        bounded.replace(b"LITERAL", b"\"\\xff\\xfe\"").replace(b"two(m.line.len);\n", b""),
+        "DomainUnproven",
+        b"m.line = \"\\xff\\xfe\";",
+    )
+    rejected(
+        program,
+        "a-bounded-length-is-the-replacement's",
+        bounded.replace(b"LITERAL", b"\"three\""),
+        "RequirementUnproven",
+        b"two(m.line.len)",
+    )
     # A rank range (wiki/spec/language/termination.md#ranking) holds of the
     # entry rank under the entry's facts and of every cyclic arrival's rank,
     # whose endpoints must be the entry's.

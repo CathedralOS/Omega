@@ -1217,6 +1217,45 @@ def main() -> None:
         "MismatchedTypes",
         b"sink!2",
     )
+    # A quoted literal that fits replaces the live bytes of a bounded byte
+    # array, a fixed byte array under a declared domain, meeting it under
+    # qualification; an exact unqualified array still copies it; byte
+    # sequences compare; an anonymous transition subject compares exactly
+    # (wiki/spec/terminal-psi/structural_access.md, bounded byte replacement).
+    accepted(
+        program,
+        "quoted-literals-replace-bounded-byte-arrays",
+        b"domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);\n"
+        b"domain [u8]::Utf8(bytes) requires valid_utf8(bytes);\n"
+        b"data M { line: [u8; 8] in Utf8; raw: [u8; 2]; }\n"
+        b"machine f(m: &mut M, view: &[u8] in Utf8) -> bool {\n"
+        b"    m.line = \"ok\";\n    m.raw = \"hi\";\n    let local: [u8; 8] in Utf8 = \"text\";\n"
+        b"    m.line == \"ok\" && view == \"ok\" && m.line.len == 2\n}",
+        ((b"m.line == \"ok\"", "bool"), (b"m.line.len", "u64")),
+        adaptations=((b"\"ok\"", "qualified"), (b"\"hi\"", "landed"), (b"\"text\"", "qualified")),
+    )
+    rejected(
+        program,
+        "a-quoted-literal-must-fit-its-bounded-array",
+        b"domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);\ndata M { line: [u8; 2] in Utf8; }\n"
+        b"machine f(m: &mut M) { m.line = \"long\"; }",
+        "MismatchedTypes",
+        b"\"long\"",
+    )
+    rejected(
+        program,
+        "unqualified-byte-arrays-do-not-compare",
+        b"machine f(a: [u8; 2], b: [u8; 2]) -> bool { a == b }",
+        "UnsupportedEquality",
+        b"a == b",
+    )
+    accepted(
+        program,
+        "an-anonymous-subject-dispatches-on-exact-values",
+        b"machine f() -> u8 {\n    transition 0 {\n        0 -> zero()\n        _ -> other()\n    }\n"
+        b"    state zero() -> u8 { 1 }\n    state other() -> u8 { 2 }\n}",
+        (),
+    )
     # A rank range's endpoints are integers (wiki/spec/language/termination.md#ranking).
     accepted(
         program,

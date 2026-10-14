@@ -259,6 +259,266 @@ crashes Trap
 // The bytes a quoted literal spells between its quotes, each escape one
 // byte: `\xNN` four characters, any other escape two
 // (wiki/spec/language/data_and_literals.md#quoted-bytes).
+// The primitive byte predicates a quoted literal's octets satisfy, as the
+// roster bits `Typing::rosters` keeps (`valid_utf8` 1, `no_nul` 2,
+// `ascii_only` 4, `non_empty` 8), decided over the literal's bytes with its
+// escapes decoded as the lexer decodes them. UTF-8 validity follows the
+// encoding's lead-byte classes: a lead owes `pending` continuation bytes,
+// the first of them within `low..=high`, and no sequence may be left open.
+pub machine Typer::quoted_roster(sources: &SourceSet, span: SourceSpan) -> u64 in Trapping
+crashes Trap
+{
+    transition span.span.start + 2 <= span.span.end {
+        true -> next(sources, span, span.span.start + 1, span.span.end - 1, 0, 128, 191, true, true, true, false)
+        _ -> finished(0, true, true, true, false)
+    }
+
+    state next(
+        sources: &SourceSet,
+        span: SourceSpan,
+        index: u64 in Trapping,
+        end: u64 in Trapping,
+        pending: u64 in Trapping,
+        low: u64 in Trapping,
+        high: u64 in Trapping,
+        utf8: bool,
+        nul_free: bool,
+        ascii: bool,
+        any: bool
+    ) -> u64 in Trapping {
+        transition index < end {
+            true -> byte(sources, span, index, end, pending, low, high, utf8, nul_free, ascii, any)
+            _ -> finished(pending, utf8, nul_free, ascii, any)
+        }
+    }
+
+    state byte(
+        sources: &SourceSet,
+        span: SourceSpan,
+        index: u64 in Trapping,
+        end: u64 in Trapping,
+        pending: u64 in Trapping,
+        low: u64 in Trapping,
+        high: u64 in Trapping,
+        utf8: bool,
+        nul_free: bool,
+        ascii: bool,
+        any: bool
+    ) -> u64 in Trapping {
+        let source_byte: u8 = SourceSet::byte_or_nul(sources, span.source, index);
+        let value: u64 in Trapping = source_byte as u64 in Trapping;
+        transition source_byte == 92 {
+            true -> escaped(sources, span, index, end, pending, low, high, utf8, nul_free, ascii, any)
+            _ -> decoded(sources, span, index + 1, end, value, pending, low, high, utf8, nul_free, ascii, any)
+        }
+    }
+
+    state escaped(
+        sources: &SourceSet,
+        span: SourceSpan,
+        index: u64 in Trapping,
+        end: u64 in Trapping,
+        pending: u64 in Trapping,
+        low: u64 in Trapping,
+        high: u64 in Trapping,
+        utf8: bool,
+        nul_free: bool,
+        ascii: bool,
+        any: bool
+    ) -> u64 in Trapping {
+        let kind: u8 = SourceSet::byte_or_nul(sources, span.source, index + 1);
+        let first: u8 = SourceSet::byte_or_nul(sources, span.source, index + 2);
+        let second: u8 = SourceSet::byte_or_nul(sources, span.source, index + 3);
+        let hex: u64 in Trapping = Typer::hex_value(first) * 16 + Typer::hex_value(second);
+        let simple: u64 in Trapping = Typer::escape_byte(kind);
+        transition kind == 120 {
+            true -> decoded(sources, span, index + 4, end, hex, pending, low, high, utf8, nul_free, ascii, any)
+            _ -> decoded(sources, span, index + 2, end, simple, pending, low, high, utf8, nul_free, ascii, any)
+        }
+    }
+
+    state decoded(
+        sources: &SourceSet,
+        span: SourceSpan,
+        index: u64 in Trapping,
+        end: u64 in Trapping,
+        value: u64 in Trapping,
+        pending: u64 in Trapping,
+        low: u64 in Trapping,
+        high: u64 in Trapping,
+        utf8: bool,
+        nul_free: bool,
+        ascii: bool,
+        any: bool
+    ) -> u64 in Trapping {
+        let nul_ok: bool = nul_free && value != 0;
+        let ascii_ok: bool = ascii && value < 128;
+        transition pending > 0 {
+            true -> continuation(sources, span, index, end, value, pending, low, high, utf8, nul_ok, ascii_ok)
+            _ -> lead(sources, span, index, end, value, utf8, nul_ok, ascii_ok)
+        }
+    }
+
+    state continuation(
+        sources: &SourceSet,
+        span: SourceSpan,
+        index: u64 in Trapping,
+        end: u64 in Trapping,
+        value: u64 in Trapping,
+        pending: u64 in Trapping,
+        low: u64 in Trapping,
+        high: u64 in Trapping,
+        utf8: bool,
+        nul_free: bool,
+        ascii: bool
+    ) -> u64 in Trapping {
+        let fits: bool = value >= low && value <= high;
+        transition { _ -> next(sources, span, index, end, pending - 1, 128, 191, utf8 && fits, nul_free, ascii, true) }
+    }
+
+    state lead(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+        transition value < 128 {
+            true -> next(sources, span, index, end, 0, 128, 191, utf8, nul_free, ascii, true)
+            _ -> two(sources, span, index, end, value, utf8, nul_free, ascii)
+        }
+    }
+
+    state two(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+        transition value >= 194 && value <= 223 {
+            true -> next(sources, span, index, end, 1, 128, 191, utf8, nul_free, ascii, true)
+            _ -> three(sources, span, index, end, value, utf8, nul_free, ascii)
+        }
+    }
+
+    state three(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+        transition value == 224 {
+            true -> next(sources, span, index, end, 2, 160, 191, utf8, nul_free, ascii, true)
+            _ -> three_plain(sources, span, index, end, value, utf8, nul_free, ascii)
+        }
+    }
+
+    state three_plain(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+        transition (value >= 225 && value <= 236) || value == 238 || value == 239 {
+            true -> next(sources, span, index, end, 2, 128, 191, utf8, nul_free, ascii, true)
+            _ -> three_surrogate(sources, span, index, end, value, utf8, nul_free, ascii)
+        }
+    }
+
+    state three_surrogate(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+        transition value == 237 {
+            true -> next(sources, span, index, end, 2, 128, 159, utf8, nul_free, ascii, true)
+            _ -> four(sources, span, index, end, value, utf8, nul_free, ascii)
+        }
+    }
+
+    state four(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+        transition value == 240 {
+            true -> next(sources, span, index, end, 3, 144, 191, utf8, nul_free, ascii, true)
+            _ -> four_plain(sources, span, index, end, value, utf8, nul_free, ascii)
+        }
+    }
+
+    state four_plain(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+        transition value >= 241 && value <= 243 {
+            true -> next(sources, span, index, end, 3, 128, 191, utf8, nul_free, ascii, true)
+            _ -> four_last(sources, span, index, end, value, utf8, nul_free, ascii)
+        }
+    }
+
+    state four_last(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+        transition value == 244 {
+            true -> next(sources, span, index, end, 3, 128, 143, utf8, nul_free, ascii, true)
+            _ -> next(sources, span, index, end, 0, 128, 191, false, nul_free, ascii, true)
+        }
+    }
+
+    state finished(pending: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool, any: bool) -> u64 in Trapping {
+        let roster: u64 in Trapping = Typer::roster_bits(utf8 && pending == 0, nul_free, ascii, any);
+        roster
+    }
+}
+
+// The roster bits for the predicates that hold.
+machine Typer::roster_bits(utf8: bool, nul_free: bool, ascii: bool, any: bool) -> u64 in Trapping
+crashes Trap
+{
+    transition utf8 {
+        true -> nul(1, nul_free, ascii, any)
+        _ -> nul(0, nul_free, ascii, any)
+    }
+
+    state nul(bits: u64 in Trapping, nul_free: bool, ascii: bool, any: bool) -> u64 in Trapping {
+        transition nul_free {
+            true -> ascii_bit(bits + 2, ascii, any)
+            _ -> ascii_bit(bits, ascii, any)
+        }
+    }
+
+    state ascii_bit(bits: u64 in Trapping, ascii: bool, any: bool) -> u64 in Trapping {
+        transition ascii {
+            true -> any_bit(bits + 4, any)
+            _ -> any_bit(bits, any)
+        }
+    }
+
+    state any_bit(bits: u64 in Trapping, any: bool) -> u64 in Trapping {
+        transition any {
+            true -> answer(bits + 8)
+            _ -> answer(bits)
+        }
+    }
+
+    state answer(bits: u64 in Trapping) -> u64 in Trapping {
+        bits
+    }
+}
+
+// The byte a simple escape `\k` decodes to, as the lexer decodes it.
+machine Typer::escape_byte(kind: u8) -> u64 in Trapping
+crashes Trap
+{
+    transition kind {
+        110 -> answer(10)
+        114 -> answer(13)
+        116 -> answer(9)
+        48 -> answer(0)
+        _ -> answer(kind as u64 in Trapping)
+    }
+
+    state answer(byte: u64 in Trapping) -> u64 in Trapping {
+        byte
+    }
+}
+
+// A hexadecimal digit's value; zero for any other byte.
+machine Typer::hex_value(byte: u8) -> u64 in Trapping
+crashes Trap
+{
+    let value: u64 in Trapping = byte as u64 in Trapping;
+    transition value >= 48 && value <= 57 {
+        true -> answer(value - 48)
+        _ -> letter(value)
+    }
+
+    state letter(value: u64 in Trapping) -> u64 in Trapping {
+        transition value >= 97 && value <= 102 {
+            true -> answer(value - 87)
+            _ -> upper(value)
+        }
+    }
+
+    state upper(value: u64 in Trapping) -> u64 in Trapping {
+        transition value >= 65 && value <= 70 {
+            true -> answer(value - 55)
+            _ -> answer(0)
+        }
+    }
+
+    state answer(value: u64 in Trapping) -> u64 in Trapping {
+        value
+    }
+}
+
 pub machine Typer::quoted_length(sources: &SourceSet, span: SourceSpan) -> u64 in Trapping
 crashes Trap
 {

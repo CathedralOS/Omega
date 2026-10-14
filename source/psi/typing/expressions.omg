@@ -180,6 +180,8 @@ crashes Trap
         Typing::set_expression_type(&mut typer.output, index, handle);
         let length: u64 in Trapping = Typer::quoted_length(sources, expression.source_span);
         Typing::set_value(&mut typer.output, index, ExactInteger::of(length as u64 in Wrapping));
+        let roster: u64 in Trapping = Typer::quoted_roster(sources, expression.source_span);
+        Typing::set_roster(&mut typer.output, index, roster);
     }
 
     state field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
@@ -1030,9 +1032,13 @@ crashes Trap
         }
     }
 
+    // Byte sequences compare by live length and live bytes
+    // (wiki/spec/terminal-psi/structural_predicates.md) whatever their
+    // carriers, so a bounded byte array or byte view meets a quoted literal.
     state equality(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         let comparable: bool = Typer::intrinsic_equality(typer, syntax, left);
-        transition left == right && comparable {
+        let sequences: bool = Typer::byte_sequence(typer, left) && Typer::byte_sequence(typer, right);
+        transition (left == right && comparable) || sequences {
             true -> compared(typer, index)
             _ -> order(typer, syntax, index, expression, left, right)
         }
@@ -1292,6 +1298,31 @@ crashes Trap
 // fixed integers and addresses, and sums whose every case is payload-free
 // (wiki/spec/language/data_and_literals.md: records and payload-bearing sums
 // need a declared equality).
+// Whether a type is a byte sequence carrier: a byte view (`&[u8]` under any
+// qualifier) or a bounded byte array (`[u8; N]` under a declared domain),
+// itself or through a reference.
+pub machine Typer::byte_sequence(typer: &Typer, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let referent: u64 in Trapping = Typer::referent(typer, handle);
+    let row: TypeRow = TypeTable::row(&typer.output.types, referent);
+    transition row.kind == TypeKind::Slice || row.kind == TypeKind::Array {
+        true -> elements(typer, row)
+        _ -> answer(false)
+    }
+
+    state elements(typer: &Typer, row: TypeRow) -> bool {
+        let element: TypeRow = TypeTable::row(&typer.output.types, row.inner);
+        let bytes: bool = element.kind == TypeKind::Builtin && element.builtin == BuiltinType::U8;
+        let sequence: bool = row.kind == TypeKind::Slice || row.domain == DomainBinding::Declared;
+        transition { _ -> answer(bytes && sequence) }
+    }
+
+    state answer(sequence: bool) -> bool {
+        sequence
+    }
+}
+
 machine Typer::intrinsic_equality(typer: &Typer, syntax: &SyntaxTrees, handle: u64 in Trapping) -> bool
 crashes Trap
 {
@@ -1299,12 +1330,18 @@ crashes Trap
     transition row.kind {
         TypeKind::Builtin -> builtin(row)
         TypeKind::Data -> data(syntax, row)
+        TypeKind::AnonymousInteger -> exact()
         _ -> no()
     }
 
     state builtin(row: TypeRow) -> bool {
         let integer: bool = Typer::fixed_integer(row.builtin);
         integer || row.builtin == BuiltinType::Bool || row.builtin == BuiltinType::Address
+    }
+
+    // An anonymous integer compares by its exact value.
+    state exact() -> bool {
+        true
     }
 
     state data(syntax: &SyntaxTrees, row: TypeRow) -> bool {

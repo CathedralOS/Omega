@@ -91,10 +91,22 @@ crashes Trap
         let extent: TypeRow = TypeTable::row(&typer.output.types, wanted.length);
         let length: ExactInteger = Typing::value(&typer.output, expression);
         let bytes: bool = element.kind == TypeKind::Builtin && element.builtin == BuiltinType::U8
-            && element.domain == DomainBinding::Unqualified && wanted.domain == DomainBinding::Unqualified;
+            && element.domain == DomainBinding::Unqualified;
         let exact: bool = extent.kind == TypeKind::StaticInteger && extent.length == (length.magnitude as u64 in Trapping);
-        transition bytes && exact {
+        let fits: bool = extent.kind == TypeKind::StaticInteger && extent.length >= (length.magnitude as u64 in Trapping);
+        transition bytes && wanted.domain == DomainBinding::Unqualified && exact {
             true -> landed()
+            _ -> bounded(bytes && fits, wanted.domain == DomainBinding::Declared)
+        }
+    }
+
+    // A quoted literal that fits replaces the live bytes of a bounded byte
+    // array, a fixed byte array under a declared domain
+    // (wiki/spec/terminal-psi/structural_access.md, bounded byte
+    // replacement); the domain's predicates are then proved of its octets.
+    state bounded(fits: bool, declared: bool) -> Admission {
+        transition fits && declared {
+            true -> qualified()
             _ -> rejected()
         }
     }

@@ -721,9 +721,12 @@ crashes Trap
         _ -> unbounded()
     }
 
+    // A fixed array's `.len` is its extent; a bounded byte array's is its
+    // live length, a place below the array's.
     state length(checker: &mut Checker, typing: &Typing, expression: Expression, parent: u64 in Trapping, type_handle: u64 in Trapping, row: TypeRow) -> Value {
         let collection: TypeRow = Checker::collection_row(typing, expression.left);
-        transition collection.kind == TypeKind::Array {
+        let bounded: bool = Checker::bounded_bytes(typing, collection);
+        transition collection.kind == TypeKind::Array && !bounded {
             true -> fixed(typing, collection)
             _ -> member(checker, typing, PlaceKind::Length, 0, parent, type_handle, row)
         }
