@@ -1534,6 +1534,7 @@ def main() -> None:
         holders.replace(b"REPLACE", b"touch(&mut held);"),
         "LoanConflict",
         b"main.left.value",
+    )
     # A returned reference and a reference field stand for their referents
     # as a reference parameter does
     # (wiki/spec/language/lifetimes.md#returned-views): writes through them
@@ -1560,6 +1561,7 @@ def main() -> None:
         "a-reference-field-is-written-through",
         b"data Cell { value: i64; }\ndata Held { target: &mut Cell; }\nmachine same(x: i64) requires x == 89 {}\n"
         b"machine f(held: &mut Held) { held.target.value = 89; same(held.target.value); }",
+    )
     # A range slice of a placed collection is a view with the range's extent
     # as its live length (wiki/spec/terminal-psi/byte_views.md); a write
     # through it forgets the collection's contents.
