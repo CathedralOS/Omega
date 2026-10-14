@@ -1160,6 +1160,7 @@ pass/expressions/borrowed_join_match_exclusive_read built 17068ms exit:70 @589ae
 pass/expressions/borrowed_join_match_exclusive_store built 17407ms exit:70 @589aedee8ebc+wt
 pass/expressions/borrowed_join_match_local_origin built 16598ms exit:70 @589aedee8ebc+wt
 pass/expressions/borrowed_join_match_whole_store built 16809ms exit:70 @589aedee8ebc+wt
+pass/expressions/call_result_comparison_operands_exit built 15489ms exit:70 @2012446ad74a+wt
 pass/expressions/comparison_result_integer_conversion_exit built 9134ms exit:70 @eaa1da764404+wt
 pass/expressions/dead_trapping_let_traps built 608ms exit:signal signal:5
 pass/expressions/declared_operator_match_result built 17618ms exit:70 @7c6892099245+wt

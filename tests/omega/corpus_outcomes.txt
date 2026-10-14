@@ -6187,6 +6187,7 @@ pass/expressions/borrowed_join_match_exclusive_read checked 5513ms check-target:
 pass/expressions/borrowed_join_match_exclusive_store checked 5305ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/expressions/borrowed_join_match_local_origin checked 5498ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/expressions/borrowed_join_match_whole_store checked 5756ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/expressions/call_result_comparison_operands_exit checked 15139ms check-target:macos_arm64 @2012446ad74a+wt
 pass/expressions/comparison_result_integer_conversion_exit checked 9961ms check-target:macos_arm64 @eaa1da764404+wt
 pass/expressions/dead_trapping_let_traps checked 11339ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/declared_operator_match_result checked 11471ms check-target:macos_arm64 @a9ae30e1c334+wt

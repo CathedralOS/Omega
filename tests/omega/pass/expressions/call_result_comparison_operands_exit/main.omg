@@ -1,0 +1,57 @@
+// RUN CANARY (exit 70). A call result is an ordinary value of the callee's
+// result type, so comparing it with an integer compares two integers wherever
+// the result travels: a local, a field, a parameter, or the call itself as the
+// operand. An atomic operation is a binding initializer, so its result reaches
+// the comparison through a local. Compare-exchange carries a resident-update
+// model for the interpreter, `prior + (prior == expected) * (replacement -
+// prior)`; the operand checks read only what the operation evaluates, so that
+// model is not source that multiplies a boolean.
+// fail/expressions/comparison_result_integer_store_rejected pins the store of a
+// comparison into an integer place.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    counter: AtomicU32;
+    observed: u32 in Wrapping;
+    copied: u32;
+}
+
+machine echo(value: u32) -> u32 { value }
+
+machine matches(value: u32, expected: u32) -> bool { value == expected }
+
+machine matches_wrapping(value: u32 in Wrapping, expected: u32 in Wrapping) -> bool {
+    value == expected
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.counter.store(15, NoOrdering);
+    let prior: u32 in Wrapping = main.counter.compare_exchange(15, 99, ReceivePublish, Receive);
+    main.observed = prior;
+    transition prior == 15 && main.observed == 15 && matches_wrapping(prior, 15) {
+        true -> atomic_load(main)
+        _ -> bad(main)
+    }
+
+    state atomic_load(main: &mut Main) {
+        let current: u32 = main.counter.load(Receive);
+        transition current == 99 {
+            true -> ordinary_calls(main)
+            _ -> bad(main)
+        }
+    }
+
+    state ordinary_calls(main: &mut Main) {
+        let echoed: u32 = echo(7);
+        main.copied = echo(8);
+        transition echoed == 7 && main.copied == 8 && matches(echo(9), 9) && echo(10) == 10 {
+            true -> good(main)
+            _ -> bad(main)
+        }
+    }
+
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}
