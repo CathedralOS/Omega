@@ -291,10 +291,7 @@ impl super::TypedTrees {
             .wrapping_add(self.pending_const_range_endpoints.len() as u64)
             .wrapping_add(self.constant_recipes.revision())
             .wrapping_add(self.constant_recipe_closure.values.len() as u64)
-            .wrapping_add(self.excluded_authored_selection_occurrences.iter().fold(
-                self.excluded_authored_selection_occurrences.len() as u64,
-                |fingerprint, occurrence| fingerprint.rotate_left(7) ^ occurrence.ordinal(),
-            ))
+            .wrapping_add(self.excluded_authored_selection_occurrences.fingerprint())
     }
 
     /// Machine-table position of `symbol`, or `None` when no machine carries

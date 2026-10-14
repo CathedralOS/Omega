@@ -287,23 +287,20 @@ fn project_declarations(
     // Exact owned occurrences can leave this checking context only when all
     // their declaration-root owners leave. Unknown/orphan ledger IDs remain
     // obligations; shared expression copies retain their original identity.
-    program
-        .excluded_authored_selection_occurrences
-        .retain(|occurrence| {
-            !selected_references
-                .authored_selection_occurrences
-                .contains(occurrence)
-        });
-    program.excluded_authored_selection_occurrences.extend(
+    let mut excluded_occurrences =
+        std::mem::take(&mut program.excluded_authored_selection_occurrences).into_occurrences();
+    excluded_occurrences.retain(|occurrence| {
+        !selected_references
+            .authored_selection_occurrences
+            .contains(occurrence)
+    });
+    excluded_occurrences.extend(
         original_references
             .authored_selection_occurrences
             .difference(&selected_references.authored_selection_occurrences)
             .copied(),
     );
-    program
-        .excluded_authored_selection_occurrences
-        .sort_unstable();
-    program.excluded_authored_selection_occurrences.dedup();
+    program.excluded_authored_selection_occurrences = excluded_occurrences.into();
     // An expression no declaration root reaches in the original program is
     // an orphan: a whole-bound fold replaced its parent with a literal, and
     // the orphan alone carries that subexpression's selection occurrence.
@@ -320,7 +317,7 @@ fn project_declarations(
                 && original
                     .expression_table
                     .authored_selection_occurrences(*handle)
-                    .any(|occurrence| excluded.binary_search(&occurrence).is_err())
+                    .any(|occurrence| !excluded.contains(occurrence))
         })
         .collect::<HashSet<_>>();
     program.expression_table.retain_expression_roots(|handle| {

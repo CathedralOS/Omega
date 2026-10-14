@@ -48,6 +48,8 @@ pub mod inspection;
 pub mod names;
 mod placed_plans;
 pub(crate) mod retained_prefix;
+mod selection_exclusions;
+pub use selection_exclusions::AuthoredSelectionExclusions;
 pub mod sum_reachability;
 mod trait_and_machine_tables;
 mod type_reference_queries;
@@ -128,8 +130,7 @@ pub struct TypedTrees {
     /// Sorted exact ledger IDs proven to belong only to projected-away roots.
     /// The ledger itself remains intact; unknown or orphan IDs are never
     /// excluded by root projection and still require ordinary finalization.
-    pub excluded_authored_selection_occurrences:
-        Vec<crate::AuthoredDeclarationSelectionOccurrenceId>,
+    pub excluded_authored_selection_occurrences: AuthoredSelectionExclusions,
     pub roots: TypedTreeRoots,
     pub tables: TypedTreeTables,
     pub symbols: SymbolTable,
@@ -436,9 +437,9 @@ impl TypedTrees {
         &self,
         selection: &language_semantics::declaration_selection::AuthoredDeclarationSelection,
     ) -> bool {
-        self.excluded_authored_selection_occurrences
-            .binary_search(&selection.occurrence_id())
-            .is_err()
+        !self
+            .excluded_authored_selection_occurrences
+            .contains(selection.occurrence_id())
             && (self.product_declaration_frontier.is_none()
                 || self
                     .symbols
@@ -480,7 +481,7 @@ impl TypedTrees {
         Self {
             identity: ProgramIdentity::default(),
             product_declaration_frontier: None,
-            excluded_authored_selection_occurrences: Vec::new(),
+            excluded_authored_selection_occurrences: AuthoredSelectionExclusions::default(),
             roots,
             tables,
             symbols,
