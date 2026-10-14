@@ -16,7 +16,60 @@
 use crate::capture::PackageReviewInput;
 use typed_trees::{TypedTreeTables, TypedTrees};
 
-pub(super) fn trees(compilation: &PackageReviewInput<'_>) -> TypedTrees {
+/// One batch's exact semantic input and reusable read-only signature vocabulary.
+/// Mutable rows and derived indexes never survive between method projections:
+/// equal-sized substitutions can otherwise alias revision-keyed lookup results.
+pub(crate) struct SignatureProjection<'a> {
+    compilation: PackageReviewInput<'a>,
+    projected: Option<TypedTrees>,
+}
+
+impl<'a> SignatureProjection<'a> {
+    pub(crate) fn new(compilation: PackageReviewInput<'a>) -> Self {
+        Self {
+            compilation,
+            projected: None,
+        }
+    }
+
+    pub(crate) fn input(&self) -> PackageReviewInput<'a> {
+        self.compilation
+    }
+
+    pub(super) fn trees(&mut self) -> &mut TypedTrees {
+        let projected = match self.projected.take() {
+            None => trees(&self.compilation),
+            Some(previous) => {
+                // Signature instantiation appends only type references, static
+                // parameters and value parameters. Move the immutable arenas,
+                // restore those three source arenas with their source indexes,
+                // and mint fresh program-level indexes and identity interners.
+                // No scratch handle escapes into policy.
+                let source = self.compilation.checking_input;
+                let mut tables = previous.tables;
+                tables.type_reference_table = source.tables.type_reference_table.clone();
+                tables.data_type_parameters = source.tables.data_type_parameters.clone();
+                tables.state_parameters = source.tables.state_parameters.clone();
+                let mut projected =
+                    TypedTrees::with_roots(previous.roots, tables, previous.symbols);
+                projected.retain_authored_declaration_selections(
+                    self.compilation.authored_declaration_selections().clone(),
+                );
+                projected.plan_laid_layouts = previous.plan_laid_layouts;
+                projected.plan_laid_target_layouts = previous.plan_laid_target_layouts;
+                projected.plan_laid_schema_fields = previous.plan_laid_schema_fields;
+                projected.placed_view_plans = previous.placed_view_plans;
+                projected.semantic_domains = previous.semantic_domains;
+                projected.external_bindings = previous.external_bindings;
+                projected.machine_specializations = previous.machine_specializations;
+                projected
+            }
+        };
+        self.projected.insert(projected)
+    }
+}
+
+fn trees(compilation: &PackageReviewInput<'_>) -> TypedTrees {
     let source = compilation.checking_input;
     let mut tables = TypedTreeTables::default();
     tables.const_declarations = source.tables.const_declarations.clone();

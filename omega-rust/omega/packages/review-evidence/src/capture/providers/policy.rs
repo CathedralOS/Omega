@@ -117,6 +117,7 @@ fn project_plan(
         None => return Err(rejected("provider type has no exact declaration")),
     }
     let mut methods = Vec::with_capacity(plan.schema.methods.len());
+    let mut signatures = services::SignatureProjection::new(*compilation);
     for method in &plan.schema.methods {
         let matching_rows = plan
             .rows
@@ -137,7 +138,7 @@ fn project_plan(
             ));
         };
         methods.push(services::project(
-            compilation,
+            &mut signatures,
             &plan.schema,
             retained.provider.schema,
             retained.provider.provider_type,

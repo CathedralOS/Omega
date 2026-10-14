@@ -1,5 +1,5 @@
 //! Typed source signatures are retained even without a selected calling plan.
-use crate::capture::PackageReviewInput;
+use crate::capture::calling::application::signature::SignatureProjection;
 use crate::capture::semantics::services::calling;
 use crate::capture::semantics::services::rejected;
 use crate::capture::semantics::signatures::policy::project_type_parameters;
@@ -13,18 +13,20 @@ use symbols::SymbolHandle;
 use validation::CheckingProjection;
 
 pub(super) fn project_declaration(
-    compilation: &PackageReviewInput<'_>,
+    projection: &mut SignatureProjection<'_>,
     schema: SymbolHandle,
     requirement: SymbolHandle,
     identity: &PackageReviewNominalIdentity,
     calling: Option<&crate::record::PackagePolicyCallingPlan>,
 ) -> Result<PackagePolicyServiceSignature, Vec<Diagnostic>> {
+    let input = projection.input();
+    let compilation = &input;
     let generic = compilation.traits().iter().any(|owner| {
         owner.symbol == schema && !compilation.trait_type_parameters(owner).is_empty()
     });
     if !generic {
         return project(
-            compilation,
+            projection,
             ProviderSchemaDeclaration::BoundaryTrait(schema),
             None,
             requirement,
@@ -38,7 +40,7 @@ pub(super) fn project_declaration(
         ));
     }
     let projected = crate::capture::calling::application::signature::project_declaration(
-        compilation,
+        projection,
         schema,
         requirement,
     )?;
@@ -67,13 +69,15 @@ fn from_application(
 }
 
 pub(super) fn project(
-    compilation: &PackageReviewInput<'_>,
+    projection: &mut SignatureProjection<'_>,
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
     identity: &PackageReviewNominalIdentity,
     calling: Option<&crate::record::PackagePolicyCallingPlan>,
 ) -> Result<PackagePolicyServiceSignature, Vec<Diagnostic>> {
+    let input = projection.input();
+    let compilation = &input;
     if let Some(calling) = calling {
         // This value was just projected from the exact selected live calling
         // association. Reuse its semantic fields, not an old review receipt.
@@ -102,7 +106,7 @@ pub(super) fn project(
     if let ProviderSchemaDeclaration::BoundaryTrait(symbol) = schema {
         let arguments = calling::boundary_arguments(compilation, schema, provider_type)?;
         let projected = crate::capture::calling::application::signature::project_application(
-            compilation,
+            projection,
             symbol,
             arguments,
             calling::argument_owner(compilation, symbol, provider_type)?,

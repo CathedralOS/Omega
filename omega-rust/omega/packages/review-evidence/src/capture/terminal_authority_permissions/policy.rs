@@ -27,12 +27,13 @@ pub fn project_checked_terminal_permission_policy<'a>(
         ));
     }
     let mut projected: Vec<PackagePolicyTerminalService> = Vec::new();
+    let mut signatures = services::SignatureProjection::new(*compilation);
     for resolved in resolve_services(compilation)? {
         if resolved.permissions.is_empty() {
             continue;
         }
         let (static_parameters, lifetime_parameter_count) =
-            services::declaration_parameters(compilation, resolved.symbol)?;
+            services::declaration_parameters(&mut signatures, resolved.symbol)?;
         let methods = resolved
             .schema
             .methods
@@ -40,7 +41,7 @@ pub fn project_checked_terminal_permission_policy<'a>(
             .zip(&resolved.requirements)
             .map(|(method, requirement)| {
                 services::project_declaration(
-                    compilation,
+                    &mut signatures,
                     &resolved.schema,
                     resolved.symbol,
                     *requirement,

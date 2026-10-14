@@ -6,10 +6,10 @@
 //! and scope-normalized signature copies are allocated.
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::CallingSignatureProjection;
+use crate::capture::calling::application::signature::SignatureProjection;
 use crate::capture::calling::application::signature::count;
 use crate::capture::calling::application::signature::parameters;
 use crate::capture::calling::application::signature::project_with_binders;
-use crate::capture::calling::application::signature::scratch;
 use crate::capture::calling::rejected;
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::record::PackagePolicyTypeParameter;
@@ -36,11 +36,13 @@ fn root<'a>(
 }
 
 pub(crate) fn declaration_parameters(
-    compilation: &PackageReviewInput<'_>,
+    projection: &mut SignatureProjection<'_>,
     symbol: SymbolHandle,
 ) -> Result<(Vec<PackagePolicyTypeParameter>, u32), Vec<Diagnostic>> {
+    let input = projection.input();
+    let compilation = &input;
     let owner = root(compilation, symbol)?;
-    let mut projected = scratch::trees(compilation);
+    let projected = projection.trees();
     let mut parameters = compilation.trait_type_parameters(owner).to_vec();
     let lifetimes = owner
         .lifetime_parameters
@@ -50,7 +52,7 @@ pub(crate) fn declaration_parameters(
         .collect::<Vec<_>>();
     let mut scopes = Vec::new();
     parameters::instantiate(
-        &mut projected,
+        projected,
         &mut parameters,
         &[],
         &lifetimes,
@@ -59,7 +61,7 @@ pub(crate) fn declaration_parameters(
         0,
     )?;
     let (_, parameters) = project_type_parameters(
-        &projected,
+        projected,
         compilation,
         &parameters,
         compilation.trait_type_parameters(owner),
@@ -76,12 +78,14 @@ pub(crate) fn declaration_parameters(
 }
 
 pub(crate) fn project_declaration(
-    compilation: &PackageReviewInput<'_>,
+    projection: &mut SignatureProjection<'_>,
     symbol: SymbolHandle,
     requirement: SymbolHandle,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
+    let input = projection.input();
+    let compilation = &input;
     let owner = root(compilation, symbol)?;
-    let mut projected = scratch::trees(compilation);
+    let projected = projection.trees();
     let mut arguments = Vec::new();
     let mut binders = Vec::new();
     for (ordinal, parameter) in compilation.trait_type_parameters(owner).iter().enumerate() {

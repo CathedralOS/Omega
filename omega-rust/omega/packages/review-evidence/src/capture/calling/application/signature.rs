@@ -9,6 +9,7 @@ mod scope;
 mod scratch;
 pub(crate) use declaration::{declaration_parameters, project_declaration};
 pub(crate) use parameters::instantiate as instantiate_static_parameters;
+pub(crate) use scratch::SignatureProjection;
 
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::rejected;
@@ -45,7 +46,7 @@ pub(super) fn project(
     realization: &BoundaryCallingPlanRealization,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     let projected = project_application(
-        compilation,
+        &mut SignatureProjection::new(*compilation),
         realization.boundary_trait,
         &realization.boundary_arguments,
         realization.argument_owner(),
@@ -74,15 +75,16 @@ pub(super) fn project(
 
 /// Project the semantic application without requiring any physical realization.
 pub(crate) fn project_application(
-    compilation: &PackageReviewInput<'_>,
+    projection: &mut SignatureProjection<'_>,
     boundary_trait: symbols::SymbolHandle,
     boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
     argument_owner: symbols::SymbolHandle,
     requirement_machine: symbols::SymbolHandle,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
+    let compilation = projection.input();
     project_with_binders(
-        compilation,
-        scratch::trees(compilation),
+        &compilation,
+        projection.trees(),
         boundary_trait,
         boundary_arguments,
         argument_owner,
@@ -93,7 +95,7 @@ pub(crate) fn project_application(
 
 fn project_with_binders(
     compilation: &PackageReviewInput<'_>,
-    mut projected: typed_trees::TypedTrees,
+    projected: &mut typed_trees::TypedTrees,
     boundary_trait: symbols::SymbolHandle,
     boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
     argument_owner: symbols::SymbolHandle,
@@ -123,11 +125,11 @@ fn project_with_binders(
         scope::ApplicationScope::new(compilation, root, boundary_arguments, argument_owner)?;
     let root_arguments = boundary_arguments
         .iter()
-        .map(|argument| scope.instantiate_argument(compilation, &mut projected, *argument))
+        .map(|argument| scope.instantiate_argument(compilation, projected, *argument))
         .collect::<Result<Vec<_>, _>>()?;
     let mut inherited = Vec::new();
     inheritance::collect(
-        &mut projected,
+        projected,
         inheritance::Application {
             owner: root.clone(),
             arguments: root_arguments.clone(),
@@ -153,7 +155,7 @@ fn project_with_binders(
                 application.owner.symbol,
                 application.lifetime_arguments.clone(),
                 arguments::project(
-                    &projected,
+                    projected,
                     compilation,
                     &application.owner,
                     &application.arguments,
@@ -228,7 +230,7 @@ fn project_with_binders(
         .to_vec();
     let mut contract_scopes = Vec::new();
     parameters::instantiate(
-        &mut projected,
+        projected,
         &mut parameters,
         &substitutions,
         &lifetimes,
@@ -245,7 +247,7 @@ fn project_with_binders(
             .collect::<Vec<_>>(),
     );
     let (binders, static_parameters) = project_type_parameters(
-        &projected,
+        projected,
         compilation,
         &parameters,
         compilation.state_signature_type_parameters(signature),
@@ -265,7 +267,7 @@ fn project_with_binders(
     let mut semantic_parameters = Vec::new();
     for parameter in source_parameters {
         let reference = instantiation::instantiate(
-            &mut projected,
+            projected,
             parameter.type_reference,
             &substitutions,
             &lifetimes,
@@ -275,7 +277,7 @@ fn project_with_binders(
             name: parameter.name.as_str().to_owned(),
             type_identity: signature_type_identity(
                 compilation,
-                &projected,
+                projected,
                 compilation.custody.sources().exact_toolchain_sources(),
                 reference,
                 &binders,
@@ -291,7 +293,7 @@ fn project_with_binders(
     }
     let semantic_result = if signature.return_type.is_valid() {
         let reference = instantiation::instantiate(
-            &mut projected,
+            projected,
             signature.return_type,
             &substitutions,
             &lifetimes,
@@ -299,7 +301,7 @@ fn project_with_binders(
         )?;
         Some(signature_type_identity(
             compilation,
-            &projected,
+            projected,
             compilation.custody.sources().exact_toolchain_sources(),
             reference,
             &binders,
@@ -315,7 +317,7 @@ fn project_with_binders(
     Ok(CallingSignatureProjection {
         boundary_trait: nominal_identity(compilation, root.symbol)?,
         boundary_arguments: arguments::project(
-            &projected,
+            projected,
             compilation,
             root,
             &root_arguments,

@@ -4,7 +4,6 @@ mod authority;
 mod calling;
 mod signature;
 
-use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{
     nominal_identity, policy_provider_requirement_identity, provider_requirement_identity,
     provider_requirement_schema,
@@ -15,10 +14,12 @@ use effects::provider_plan::{ProviderIdentityTable, ServiceMethod, ServiceSchema
 use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
-pub(crate) use crate::capture::calling::application::signature::declaration_parameters;
+pub(crate) use crate::capture::calling::application::signature::{
+    SignatureProjection, declaration_parameters,
+};
 
 pub(crate) fn project(
-    compilation: &PackageReviewInput<'_>,
+    projection: &mut SignatureProjection<'_>,
     service_schema: &ServiceSchema,
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
@@ -27,7 +28,7 @@ pub(crate) fn project(
     identities: &ProviderIdentityTable,
 ) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
     project_inner(
-        compilation,
+        projection,
         service_schema,
         schema,
         provider_type,
@@ -41,7 +42,7 @@ pub(crate) fn project(
 /// Review an accepted service declaration without inventing a provider or a
 /// closed generic calling application.
 pub(crate) fn project_declaration(
-    compilation: &PackageReviewInput<'_>,
+    projection: &mut SignatureProjection<'_>,
     service_schema: &ServiceSchema,
     schema: SymbolHandle,
     requirement: SymbolHandle,
@@ -49,7 +50,7 @@ pub(crate) fn project_declaration(
     identities: &ProviderIdentityTable,
 ) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
     project_inner(
-        compilation,
+        projection,
         service_schema,
         ProviderSchemaDeclaration::BoundaryTrait(schema),
         None,
@@ -61,7 +62,7 @@ pub(crate) fn project_declaration(
 }
 
 fn project_inner(
-    compilation: &PackageReviewInput<'_>,
+    projection: &mut SignatureProjection<'_>,
     service_schema: &ServiceSchema,
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
@@ -70,6 +71,8 @@ fn project_inner(
     identities: &ProviderIdentityTable,
     declaration_mode: bool,
 ) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
+    let input = projection.input();
+    let compilation = &input;
     let declaration = provider_requirement_schema(compilation, schema, requirement)?;
     let checked_identity = provider_requirement_identity(compilation, declaration, requirement)?;
     if checked_identity.path() != service_schema.identity_text(method.requirement_identity) {
@@ -115,7 +118,7 @@ fn project_inner(
     };
     let signature = if declaration_mode {
         signature::project_declaration(
-            compilation,
+            projection,
             schema.symbol(),
             requirement,
             &identity,
@@ -123,7 +126,7 @@ fn project_inner(
         )?
     } else {
         signature::project(
-            compilation,
+            projection,
             schema,
             provider_type,
             requirement,
