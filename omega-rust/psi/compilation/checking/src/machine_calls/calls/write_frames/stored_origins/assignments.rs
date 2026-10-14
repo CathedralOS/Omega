@@ -1,7 +1,9 @@
 //! Assigned carriers transfer their exact origins into the binding's stored
 //! rows, the same whole-subtree ownership an instantiated move relies on.
-//! Exact field and fixed-element subtrees replace their prior rows. Dynamic
-//! indexed writes forget overlapping reference identities: an unknown selector
+//! Exact field and fixed-element subtrees replace their prior rows. Slice
+//! inventory remains a default beside concrete replaced elements; a
+//! may-overlap relation cannot erase the untouched remainder of that inventory.
+//! Dynamic indexed writes forget overlapping reference identities: an unknown selector
 //! cannot establish which element was replaced. Coarse write footprints do not
 //! erase independently established structural slot coordinates. Neither operation grants
 //! access permission, and later reference demands still need proven origins.
@@ -12,7 +14,9 @@ use super::super::reference_origins::exclusive_reference_origins;
 use super::super::reference_subjects;
 use super::super::{FrameInference, FramePlaceOrigin, Machine, TopLevelSymbols};
 use super::frozen_bindings::binding_source;
-use super::projections::{prefix_matches, reference_leaves_before_statement_for_query};
+use super::projections::{
+    path_covers, prefix_matches, reference_leaves_before_statement_for_query,
+};
 use super::reference_values::canonical_reference_origins;
 use super::{StoredLocalOrigins, StoredWriteOrigin};
 use facts::PlaceSegment;
@@ -47,14 +51,14 @@ impl AssignmentOrigins {
                 previous
                     .references
                     .iter()
-                    .filter(|leaf| !prefix_matches(&self.segments, &leaf.local_segments))
+                    .filter(|leaf| !path_covers(&self.segments, &leaf.local_segments))
                     .cloned(),
             );
             replacement.cases.extend(
                 previous
                     .cases
                     .iter()
-                    .filter(|case| !prefix_matches(&self.segments, case))
+                    .filter(|case| !path_covers(&self.segments, case))
                     .cloned(),
             );
             replacement.moves.extend(
@@ -62,7 +66,7 @@ impl AssignmentOrigins {
                     .moves
                     .iter()
                     .filter(|moved| {
-                        !prefix_matches(&self.segments, &moved.local_segments)
+                        !path_covers(&self.segments, &moved.local_segments)
                             && !(self.forget_overlapping_moves
                                 && prefix_matches(&moved.local_segments, &self.segments))
                     })

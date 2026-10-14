@@ -625,6 +625,23 @@ fail/borrows/imported_range_retains_backing_loan rejected 580ms expected @71e65a
 	statement 1 mutates `main.bytes` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/incoming_carrier_duplicate_exclusive_leaf rejected 1724ms expected @a9ae30e1c334+wt
 	machine `duplicate` returns `carrier` as mutable more than once
+fail/borrows/indexed_carrier_case_neighbor_stays_borrowed rejected 712ms expected @e02a3fd5278f+wt
+	statement 4 mutates `neighbor.value` while local borrow `slots` is still active (borrowed at statement 2; its last use is at statement 6 and it is released at state exit)
+fail/borrows/indexed_carrier_conditional_retains_backing rejected 712ms expected @e02a3fd5278f+wt
+	statement 5 mutates `original.value` while local borrow `slots` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
+fail/borrows/indexed_carrier_detached_child_stays_borrowed rejected 637ms expected @e02a3fd5278f+wt
+	statement 6 mutates `original.value` while local borrow `detached` is still active (borrowed at statement 4; its last use is at statement 7 and it is released at state exit)
+fail/borrows/indexed_carrier_local_backing_escape rejected 633ms expected @e02a3fd5278f+wt
+	machine `invalid` stores a borrowed value without a complete normal-exit backing relation
+fail/borrows/indexed_carrier_missing_bound rejected 630ms expected @e02a3fd5278f+wt
+	cannot prove index `0` is within unknown slice length of `slots` in invalid::entry
+fail/borrows/indexed_carrier_neighbor_stays_borrowed rejected 631ms expected @e02a3fd5278f+wt
+	statement 5 mutates `neighbor.value` while local borrow `slots` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
+fail/borrows/indexed_carrier_replacement_stays_borrowed rejected 636ms expected @e02a3fd5278f+wt
+	statement 5 mutates `replacement.value` while local borrow `slots` is still active (borrowed at statement 4; its last use is at statement 6 and it is released at state exit)
+fail/borrows/indexed_carrier_state_local_escape rejected 630ms expected @e02a3fd5278f+wt
+	state `leave` receives a carried loan of local `local`, whose storage ends at the source state exit without a complete retained-home relation
+	machine `invalid` stores a borrowed value without a complete normal-exit backing relation
 fail/borrows/indexed_exclusive_primitive_loan_preserves_field_invariant rejected 996ms expected @1b12798e27f4
 	cannot prove assignment value `2` satisfies bounded target `selected_value` in `change.entry`; expected 0..=1
 fail/borrows/indexed_shared_primitive_loan_cannot_mutate rejected 783ms expected @1b12798e27f4
@@ -4761,7 +4778,9 @@ pass/borrows/runtime_guarded_local_byte_loan_exit checked 5846ms check-target:ma
 pass/borrows/runtime_index_mut_loan_write_exit checked 10934ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit checked 19829ms check-target:macos_arm64 @1b12798e27f4
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit checked 11096ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_indexed_carrier_conditional_exit checked 5732ms check-target:macos_arm64 @e02a3fd5278f+wt
 pass/borrows/runtime_indexed_carrier_reference_read_exit checked 11117ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_indexed_carrier_repeated_exit checked 5732ms check-target:macos_arm64 @e02a3fd5278f+wt
 pass/borrows/runtime_indexed_primitive_loan_current_selector_exit checked 21679ms check-target:macos_arm64 @1b12798e27f4
 pass/borrows/runtime_indexed_reference_array_bounded_read_exit checked 11161ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_indexed_reference_call_regions checked 10482ms check-target:macos_arm64 @a9ae30e1c334+wt

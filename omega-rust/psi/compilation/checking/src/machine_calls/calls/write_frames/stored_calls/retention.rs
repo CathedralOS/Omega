@@ -169,7 +169,13 @@ fn check_exit(
         let mut leaves = record
             .references
             .iter()
-            .filter(|leaf| leaf.local_segments == destination.local_segments)
+            .filter(|leaf| {
+                leaf.local_segments.len() == destination.local_segments.len()
+                    && stored_origins::path_covers(
+                        &destination.local_segments,
+                        &leaf.local_segments,
+                    )
+            })
             .peekable();
         leaves.peek()?;
         for leaf in leaves {

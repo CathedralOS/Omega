@@ -1,0 +1,16 @@
+data Cell [copy] { value: u32; }
+data Choice<'input> { case Empty; case Held(target: &'input Cell); }
+machine clear(slots: &mut [Choice]) requires slots.len == 2 {
+    slots[0] = Choice::Empty;
+}
+machine invalid() -> u32 {
+    let original: Cell = Cell { value: 11 };
+    let mut neighbor: Cell = Cell { value: 19 };
+    let mut slots: [Choice; 2] = [Choice::Held { target: &original }, Choice::Held { target: &neighbor }];
+    clear(&mut slots[..]);
+    neighbor.value = 99;
+    transition slots[1] {
+        Choice::Empty -> 0
+        Choice::Held { target } -> target.value
+    }
+}

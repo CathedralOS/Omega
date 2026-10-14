@@ -266,7 +266,12 @@ pub(super) fn capture_assignment_destination(
             destination: CheckedUnitStructuralArgumentPlan {
                 source,
                 path,
-                type_identity: shapes.add_type(declared, binders, &[])?,
+                // Capture the assigned storage, including a pointer when the
+                // assignment replaces a reference descriptor. `stored` has
+                // already distinguished that from a write to its referent;
+                // peeling another reference shell would capture the wrong
+                // type even though the destination path still names the slot.
+                type_identity: shapes.add_stored_type(declared, binders, &[])?,
                 access: CheckedStructuralAccess::Owned,
             },
         },

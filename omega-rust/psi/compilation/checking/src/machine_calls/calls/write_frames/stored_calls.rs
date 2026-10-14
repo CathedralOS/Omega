@@ -4,6 +4,13 @@
 //! Unknown new contents, local backing escapes and recursive summaries fail
 //! closed. Rows retain each slot's declared access alongside provenance;
 //! checked stores still own permission and predicate authority.
+//!
+//! Slice inventories retain incoming defaults plus exact slot replacements.
+//! Normal-exit summaries refine those defaults across all reachable exits before
+//! joining their origins. A branch which never writes therefore retains its
+//! incoming alternative; an untouched sibling keeps its original descriptor.
+//! Type-default selectors are not executable indices, and a runtime selector
+//! cannot cross a call boundary without a captured substitution relation.
 
 mod expression_effects;
 pub(super) mod retention;
@@ -55,6 +62,7 @@ struct SlotSource {
     carrier: FrameSourcePlace,
 }
 
+#[derive(Clone)]
 struct SlotInventory {
     origin: StoredWriteOrigin,
     access: language_semantics::ReferenceAccess,
@@ -429,7 +437,7 @@ fn solve_state_effects<'program>(
         let mut changed = false;
         for (index, equation) in equations.iter().enumerate() {
             let mut candidate = Vec::new();
-            let mut returns = false;
+            let mut returned = Vec::new();
             for exit in &equation.exits {
                 let stored = match exit {
                     SlotExit::Return(stored) => stored.clone(),
@@ -456,17 +464,51 @@ fn solve_state_effects<'program>(
                         stored
                     }
                 };
-                returns = true;
-                collect_exit(
-                    program,
-                    equation.state,
-                    &equation.inventory,
-                    &stored,
-                    &mut candidate,
-                )?;
+                returned.push(stored);
             }
-            if !returns {
+            if returned.is_empty() {
                 continue;
+            }
+            // A slice's type inventory is a default for every element. Exact
+            // writes refine that inventory, and every exit must answer every
+            // refined slot. Otherwise an unchanged branch would disappear
+            // when another branch replaces one element.
+            let mut inventory = equation.inventory.clone();
+            for declaration in &equation.inventory {
+                for stored in &returned {
+                    let record = stored
+                        .iter()
+                        .find(|record| record.local_symbol == declaration.origin.local_symbol)?;
+                    for leaf in &record.references {
+                        if leaf.local_segments.len() != declaration.origin.local_segments.len()
+                            || !stored_origins::path_covers(
+                                &declaration.origin.local_segments,
+                                &leaf.local_segments,
+                            )
+                            || inventory.iter().any(|existing| {
+                                existing.origin.local_symbol == leaf.local_symbol
+                                    && existing.origin.local_segments == leaf.local_segments
+                            })
+                        {
+                            continue;
+                        }
+                        let mut refined = declaration.clone();
+                        refined.origin.local_segments = leaf.local_segments.clone();
+                        for ancestor in &mut refined.ancestors {
+                            for (segment, selected) in ancestor.iter_mut().zip(&leaf.local_segments)
+                            {
+                                if matches!(segment, PlaceSegment::Index { expression } if !expression.is_valid())
+                                {
+                                    *segment = *selected;
+                                }
+                            }
+                        }
+                        inventory.push(refined);
+                    }
+                }
+            }
+            for stored in &returned {
+                collect_exit(program, equation.state, &inventory, stored, &mut candidate)?;
             }
             if known[index].is_none() {
                 known[index] = Some(Vec::new());
@@ -514,10 +556,12 @@ fn collect_exit(
     for declaration in inventory {
         let slot = &declaration.origin;
         // Runtime selector identity cannot escape its expression namespace.
+        // A type-derived wildcard is different: it records incoming contents
+        // for untouched elements, beside independently checked exact overlays.
         if slot
             .local_segments
             .iter()
-            .any(|part| matches!(part, PlaceSegment::Index { .. }))
+            .any(|part| matches!(part, PlaceSegment::Index { expression } if expression.is_valid()))
         {
             return None;
         }
@@ -525,12 +569,9 @@ fn collect_exit(
             .iter()
             .find(|record| record.local_symbol == slot.local_symbol)?;
         for ancestor in &declaration.ancestors {
-            let mut matching = record
-                .references
-                .iter()
-                .filter(|leaf| &leaf.local_segments == ancestor);
-            let origin = matching.next()?.origin.as_ref()?;
-            if matching.next().is_some()
+            let matching = stored_origins::slot_origins(record, ancestor)?;
+            let origin = matching.first()?;
+            if matching.len() != 1
                 || origin.source.root != slot.local_symbol
                 || &origin.source.segments != ancestor
                 || !origin.source.builtin_coordinates
@@ -538,15 +579,7 @@ fn collect_exit(
                 return None;
             }
         }
-        let sources = record
-            .references
-            .iter()
-            .filter(|leaf| leaf.local_segments == slot.local_segments)
-            .map(|leaf| leaf.origin.as_ref())
-            .collect::<Option<Vec<_>>>()?;
-        if sources.is_empty() {
-            return None;
-        }
+        let sources = stored_origins::slot_origins(record, &slot.local_segments)?;
         for source in sources {
             if !source.source.builtin_coordinates {
                 return None;
@@ -578,6 +611,14 @@ fn collect_exit(
             }
             let incoming = source.source.root == slot.local_symbol
                 && source.source.segments == slot.local_segments;
+            if !incoming
+                && slot
+                    .local_segments
+                    .iter()
+                    .any(|part| matches!(part, PlaceSegment::Index { .. }))
+            {
+                return None;
+            }
             let effect = if let Some(index) = effects.iter().position(|effect| {
                 effect.root == slot.local_symbol && effect.segments == slot.local_segments
             }) {
@@ -680,6 +721,11 @@ fn instantiate(
     };
     let mut output = Vec::new();
     for effect in relative {
+        // An identity row proves preservation; it has no store to instantiate.
+        // In particular, a wildcard default is not an executable selector.
+        if effect.incoming && effect.sources.is_empty() {
+            continue;
+        }
         let destination = substitute(effect.root, &effect.segments, inference)?;
         let mut sources = Vec::new();
         for supplied in &effect.sources {
@@ -1057,6 +1103,15 @@ pub(super) fn apply(
                 stored.len() - 1
             });
         let record = &mut stored[index];
+        // Materialize the old concrete slot before installing an overlay on
+        // a conditional write. Keeping only its wildcard default would let
+        // the new exact row shadow the no-write branch's surviving origin.
+        let incoming = if effect.incoming {
+            stored_origins::slot_origins(record, &effect.segments)
+        } else {
+            Some(Vec::new())
+        };
+        let incoming_unknown = incoming.is_none();
         // Installing a pointer changes the storage reached beneath it. Old
         // pointee-slot snapshots cannot outlive that replacement, even when
         // another normal route preserves the pointer's incoming contents.
@@ -1066,11 +1121,23 @@ pub(super) fn apply(
                 && leaf.local_segments.starts_with(&effect.segments))
                 && (effect.incoming || leaf.local_segments != effect.segments)
         });
-        for supplied in &effect.sources {
-            let source = &supplied.origin;
-            if record.references.iter().any(|leaf| {
-                leaf.local_segments == effect.segments && leaf.origin.as_ref() == Some(source)
-            }) {
+        let origins = incoming
+            .into_iter()
+            .flatten()
+            .map(Some)
+            .chain(incoming_unknown.then_some(None))
+            .chain(
+                effect
+                    .sources
+                    .iter()
+                    .map(|source| Some(source.origin.clone())),
+            );
+        for origin in origins {
+            if record
+                .references
+                .iter()
+                .any(|leaf| leaf.local_segments == effect.segments && leaf.origin == origin)
+            {
                 continue;
             }
             record.references.push(StoredWriteOrigin {
@@ -1078,16 +1145,14 @@ pub(super) fn apply(
                 local_path: path(
                     program,
                     &FrameSourcePlace {
-                        recasts: Vec::new(),
-                        representation: None,
-                        kind: Default::default(),
                         root: effect.root,
                         segments: effect.segments.clone(),
                         builtin_coordinates: true,
+                        ..Default::default()
                     },
                 ),
                 local_segments: effect.segments.clone(),
-                origin: Some(source.clone()),
+                origin,
             });
         }
         record.symbolic = false;

@@ -1,0 +1,41 @@
+data Cell [copy] { value: u32; }
+data Held<'input> { target: &'input Cell; }
+
+machine replace<'carrier, 'input>(choice: bool, slots: &'carrier mut [Held<'input>], replacement: &'input Cell)
+requires slots.len == 2 {
+    transition choice {
+        true -> write(slots, replacement)
+        false -> done()
+    }
+    state write(slots: &'carrier mut [Held<'input>], replacement: &'input Cell)
+    requires slots.len == 2 {
+        slots[0].target = replacement;
+    }
+    state done() {}
+}
+
+machine read(slots: &[Held], position: u64) -> u32
+requires position < slots.len {
+    slots[position].target.value
+}
+
+machine selected(choice: bool) -> bool {
+    let original: Cell = Cell { value: 11 };
+    let replacement: Cell = Cell { value: 85 };
+    let neighbor: Cell = Cell { value: 19 };
+    let mut slots: [Held; 2] = [Held { target: &original }, Held { target: &neighbor }];
+    replace(choice, &mut slots[..], &replacement);
+    let actual: u32 = read(&slots[..], 0);
+    let adjacent: u32 = read(&slots[..], 1);
+    let expected: u32 = match choice { true -> 85, false -> 11 };
+    actual == expected && adjacent == 19
+}
+
+machine main() crashes Trap {
+    transition selected(true) && selected(false) {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

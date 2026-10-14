@@ -45,6 +45,7 @@ pub(super) use frozen_bindings::{call_exposes_frozen_binding, expression_exposes
 
 pub(super) use projections::reference_leaves_before_statement_for_query;
 pub(super) use projections::symbolic_reference_leaves;
+pub(super) use projections::{path_covers, slot_origins};
 pub(super) use projections::{project_stored_origins, projected_storage_type, projected_type};
 pub(super) use reference_values::source_reaches_leaf;
 pub(super) use reference_values::{

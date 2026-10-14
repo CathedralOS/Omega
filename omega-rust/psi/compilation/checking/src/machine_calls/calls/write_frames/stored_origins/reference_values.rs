@@ -84,6 +84,11 @@ fn resolve_origins(
         .filter(|leaf| {
             !crossed.is_some_and(|depth| leaf.local_segments.len() <= depth)
                 && source_reaches_leaf(&origin.source.segments, &leaf.local_segments)
+                && !super::projections::reference_is_shadowed(
+                    local,
+                    &leaf.local_segments,
+                    &origin.source.segments,
+                )
         })
         .map(|leaf| leaf.local_segments.len())
         .max();
@@ -91,17 +96,36 @@ fn resolve_origins(
     for leaf in &local.references {
         if Some(leaf.local_segments.len()) != selected_depth
             || !source_reaches_leaf(&origin.source.segments, &leaf.local_segments)
+            || super::projections::reference_is_shadowed(
+                local,
+                &leaf.local_segments,
+                &origin.source.segments,
+            )
         {
             continue;
         }
         let suffix = place_suffix(&leaf.local_path, &origin.path).unwrap_or("");
-        let Some(captured) = &leaf.origin else {
+        let Some(mut captured) = leaf.origin.clone() else {
             if !sources.contains(&None) {
                 sources.push(None);
             }
             continue;
         };
-        let mut source = compose_origin(program, captured, suffix, origin.precision);
+        if captured.source.root == local.local_symbol
+            && captured.source.segments == leaf.local_segments
+        {
+            for (segment, selected) in captured
+                .source
+                .segments
+                .iter_mut()
+                .zip(&origin.source.segments)
+            {
+                if matches!(segment, PlaceSegment::Index { expression } if !expression.is_valid()) {
+                    *segment = *selected;
+                }
+            }
+        }
+        let mut source = compose_origin(program, &captured, suffix, origin.precision);
         // Loading a stored reference substitutes its captured referent before
         // any subsequent view. Trim storage-slot coordinates, never the logical
         // selectors inside a presentation, and retain every formation event.

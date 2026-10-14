@@ -260,7 +260,9 @@ pub(in crate::machine_calls::calls::write_frames) fn project_stored_origins(
         }
     }
     for prior in &established.references {
-        if !prefix_matches(segments, &prior.local_segments) {
+        if !prefix_matches(segments, &prior.local_segments)
+            || reference_is_shadowed(established, &prior.local_segments, segments)
+        {
             continue;
         }
         // Type-derived rows describe every possible branch. A caller's
@@ -289,7 +291,9 @@ pub(in crate::machine_calls::calls::write_frames) fn project_stored_origins(
         }
         let mut origin = prior.origin.clone();
         if let Some(origin) = &mut origin
-            && symbolic
+            && (symbolic
+                || (origin.source.root == established.local_symbol
+                    && origin.source.segments == prior.local_segments))
         {
             // A type-derived wildcard describes all possible elements, but a
             // moved fixed projection selects one. Preserve that selector in
@@ -367,6 +371,78 @@ pub(super) fn prefix_matches(selected: &[PlaceSegment], candidate: &[PlaceSegmen
                     (PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. },
                      PlaceSegment::Index { expression }) if !expression.is_valid())
         })
+}
+
+/// Containment, unlike overlap, can remove an old row. A type-derived unknown
+/// element covers every concrete element, but replacing one concrete element
+/// never deletes the unknown-element default for the rest of the collection.
+pub(in crate::machine_calls::calls::write_frames) fn path_covers(
+    container: &[PlaceSegment],
+    selected: &[PlaceSegment],
+) -> bool {
+    container.len() <= selected.len()
+        && container.iter().zip(selected).all(|(container, selected)| {
+            container == selected
+                || matches!(container, PlaceSegment::Index { expression } if !expression.is_valid())
+                    && matches!(
+                        selected,
+                        PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. }
+                    )
+        })
+}
+
+/// Exact stored rows overlay the incoming slice inventory. A fixed projection
+/// sees its replacement, while a dynamic projection still sees every possible
+/// source. Unknown replacement rows shadow defaults too: missing knowledge is
+/// not permission to revive an overwritten incoming descriptor.
+pub(super) fn reference_is_shadowed(
+    record: &StoredLocalOrigins,
+    path: &[PlaceSegment],
+    selected: &[PlaceSegment],
+) -> bool {
+    let mut projected = path.to_vec();
+    for (segment, selected) in projected.iter_mut().zip(selected) {
+        if matches!(segment, PlaceSegment::Index { expression } if !expression.is_valid()) {
+            *segment = *selected;
+        }
+    }
+    record.references.iter().any(|candidate| {
+        candidate.local_segments.len() <= path.len()
+            && candidate.local_segments != path[..candidate.local_segments.len()]
+            && path_covers(
+                &path[..candidate.local_segments.len()],
+                &candidate.local_segments,
+            )
+            && path_covers(&candidate.local_segments, &projected)
+    })
+}
+
+/// Read one normal-exit slot, falling back to its incoming inventory only when
+/// no exact overlay covers it. Default queries do not absorb concrete overrides;
+/// the effect solver queries those independently on every reachable exit.
+pub(in crate::machine_calls::calls::write_frames) fn slot_origins(
+    record: &StoredLocalOrigins,
+    selected: &[PlaceSegment],
+) -> Option<Vec<super::FramePlaceOrigin>> {
+    let mut origins = Vec::new();
+    for leaf in &record.references {
+        if leaf.local_segments.len() != selected.len()
+            || !path_covers(&leaf.local_segments, selected)
+            || reference_is_shadowed(record, &leaf.local_segments, selected)
+        {
+            continue;
+        }
+        let mut origin = leaf.origin.clone()?;
+        if origin.source.root == record.local_symbol
+            && origin.source.segments == leaf.local_segments
+        {
+            origin.source.segments = selected.to_vec();
+        }
+        if !origins.contains(&origin) {
+            origins.push(origin);
+        }
+    }
+    (!origins.is_empty()).then_some(origins)
 }
 
 pub(in crate::machine_calls::calls::write_frames) fn projected_type(
@@ -470,6 +546,18 @@ pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
                             ) => {}
                     _ => return None,
                 }
+                reference = *element_type;
+            }
+            (
+                TypeReferenceNode::Slice { element_type },
+                PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. },
+            ) => {
+                if selected_case.is_some() {
+                    return None;
+                }
+                // Storage shape supplies the element type, never evidence
+                // that an element exists. Executable access still needs the
+                // selected descriptor's checked bound and loan authority.
                 reference = *element_type;
             }
             // Never peel a reference to turn a loaded carrier into an owned

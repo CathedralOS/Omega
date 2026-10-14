@@ -1,0 +1,15 @@
+data Cell [copy] { value: u32; }
+data Held<'input> { target: &'input Cell; }
+machine replace<'carrier, 'input>(slots: &'carrier mut [Held<'input>], replacement: &'input Cell)
+requires slots.len == 2 {
+    slots[0].target = replacement;
+}
+machine invalid() -> u32 {
+    let original: Cell = Cell { value: 11 };
+    let mut replacement: Cell = Cell { value: 85 };
+    let neighbor: Cell = Cell { value: 19 };
+    let mut slots: [Held; 2] = [Held { target: &original }, Held { target: &neighbor }];
+    replace(&mut slots[..], &replacement);
+    replacement.value = 99;
+    slots[0].target.value
+}

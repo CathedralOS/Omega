@@ -1,0 +1,31 @@
+data Cell [copy] { value: u32; }
+data Held<'input> { target: &'input Cell; }
+
+machine replace<'carrier, 'input>(slots: &'carrier mut [Held<'input>], first: &'input Cell, final: &'input Cell)
+requires slots.len == 2 {
+    slots[0].target = first;
+    slots[0].target = final;
+}
+
+machine forward<'carrier, 'input>(slots: &'carrier mut [Held<'input>], first: &'input Cell, final: &'input Cell)
+requires slots.len == 2 {
+    replace(slots, first, final);
+}
+
+machine main() crashes Trap {
+    let mut original: Cell = Cell { value: 11 };
+    let mut first: Cell = Cell { value: 23 };
+    let final: Cell = Cell { value: 42 };
+    let neighbor: Cell = Cell { value: 19 };
+    let mut slots: [Held; 2] = [Held { target: &original }, Held { target: &neighbor }];
+    forward(&mut slots[..], &first, &final);
+    original.value = 29;
+    first.value = 31;
+    transition slots[0].target.value == 42 && slots[1].target.value == 19
+        && original.value == 29 && first.value == 31 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

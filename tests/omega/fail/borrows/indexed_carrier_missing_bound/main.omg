@@ -1,0 +1,5 @@
+data Cell [copy] { value: u32; }
+data Held<'input> { target: &'input Cell; }
+machine invalid<'carrier, 'input>(slots: &'carrier mut [Held<'input>], replacement: &'input Cell) {
+    slots[0].target = replacement;
+}

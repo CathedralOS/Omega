@@ -1,0 +1,1 @@
+whose storage ends at the source state exit

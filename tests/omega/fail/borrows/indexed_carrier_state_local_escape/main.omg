@@ -1,0 +1,9 @@
+data Cell [copy] { value: u32; }
+data Held<'input> { target: &'input Cell; }
+machine invalid(slots: &mut [Held])
+requires slots.len == 2 {
+    let local: Cell = Cell { value: 7 };
+    slots[0].target = &local;
+    transition { _ -> leave(slots) }
+    state leave(slots: &mut [Held]) {}
+}
