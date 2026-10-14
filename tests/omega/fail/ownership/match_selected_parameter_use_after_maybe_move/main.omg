@@ -1,0 +1,19 @@
+// A parameter moved by one arm of a value `match` is possibly moved after
+// the match; reading it again is a use after move on that alternative.
+data Choice {
+    case Empty;
+    case Some(value: u32);
+}
+
+machine choose(selected: bool, left: Choice, right: Choice) -> bool {
+    let result: Choice = match selected {
+        true -> left,
+        false -> right
+    };
+    let again: Choice = left;
+    again in Choice::Some
+}
+
+machine main() {
+    let seen: bool = choose(true, Choice::Empty, Choice::Empty);
+}

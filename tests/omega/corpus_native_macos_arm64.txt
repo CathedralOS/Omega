@@ -1615,6 +1615,7 @@ pass/ownership/linear_submit_outcome checked 9615ms @5041ef1af684+wt
 pass/ownership/linear_sum_obligation checked 9672ms @5041ef1af684+wt
 pass/ownership/linear_transfer_and_consume built 3491ms exit:0 @e4c5f1527652+wt
 pass/ownership/linear_transparent_record_frontier built 2369ms exit:0 @e007e1d70f35+wt
+pass/ownership/match_selected_parameter_moves_exit built 7634ms exit:0 @7fe95c3b37b3+wt
 pass/ownership/move_keyword checked 9784ms @5041ef1af684+wt
 pass/ownership/move_keyword_field_assignment built 606ms exit:41 @ed1fb1257faf+wt
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 252ms @0aa983f6af47+wt

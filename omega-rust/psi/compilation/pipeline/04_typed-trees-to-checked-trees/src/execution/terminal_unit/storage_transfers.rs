@@ -159,6 +159,15 @@ pub(in crate::execution::terminal_unit) fn from_storage(
     Some(output)
 }
 
+/// A parameter's vacancies at an ordinary completion: the maximal paths moved
+/// on every alternative, and the paths moved on only some alternatives
+/// (`maybe`). One completion cannot dispose storage present on only some
+/// alternatives, so its caller decides whether a maybe-moved path is admitted.
+pub(super) struct ParameterVacancies {
+    pub(super) definite: Vec<Path>,
+    pub(super) maybe: Vec<Path>,
+}
+
 /// Current vacancies differ from historical transfers: a checked installation
 /// restores its destination after evaluating its RHS. Both queries consume the
 /// same operation/value traversal; no permission count stands for a move.
@@ -169,7 +178,7 @@ pub(super) fn parameter_vacancies(
     parameter_position: u32,
     parameter_symbol: SymbolHandle,
     operations: &[CheckedUnitEffectOperationPlan],
-) -> Option<Vec<Path>> {
+) -> Option<ParameterVacancies> {
     let query = Query {
         program,
         facts,
@@ -212,13 +221,13 @@ pub(super) fn parameter_vacancies(
         }
     }
     // A single ordinary completion cannot dispose a path present on only
-    // some alternatives. Selected cleanup owns that control split.
-    if possible
-        .iter()
-        .any(|path| !definite.iter().any(|covered| path.starts_with(covered)))
-    {
-        return None;
-    }
+    // some alternatives; report those separately for the caller to judge.
+    let mut maybe = possible
+        .into_iter()
+        .filter(|path| !definite.iter().any(|covered| path.starts_with(covered)))
+        .collect::<Vec<_>>();
+    maybe.sort();
+    maybe.dedup();
     definite.sort();
     definite.dedup();
     let maximal = definite
@@ -230,7 +239,10 @@ pub(super) fn parameter_vacancies(
         })
         .cloned()
         .collect();
-    Some(maximal)
+    Some(ParameterVacancies {
+        definite: maximal,
+        maybe,
+    })
 }
 
 impl Query<'_> {

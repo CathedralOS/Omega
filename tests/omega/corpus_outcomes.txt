@@ -3140,6 +3140,8 @@ fail/ownership/linear_zero_storage_not_established rejected 1656ms expected @a9a
 	linear value `receipt` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here
 fail/ownership/local_subslice_window_wrong_repair rejected 1219ms expected @a9ae30e1c334+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `misplaced`, state `entry` (statement 1): `tokens[1..3][0]` must hold a value again before this state's exits consume the borrow
+fail/ownership/match_selected_parameter_use_after_maybe_move rejected 1476ms expected @7fe95c3b37b3+wt
+	owned value may have been transferred by an earlier match; it cannot be used here
 fail/ownership/nested_borrowed_operand_later_read rejected 1177ms expected @a9ae30e1c334+wt
 	cannot use `holder.token.value` while `holder.token` is absent from borrowed storage: the value moved out at statement 0 must be restored first
 fail/ownership/owned_parameter_strict_child_restoration rejected 1128ms expected @a9ae30e1c334+wt
@@ -6569,6 +6571,7 @@ pass/ownership/linear_transfer_and_consume checked 12463ms check-target:macos_ar
 pass/ownership/linear_transparent_record_frontier checked 4864ms check-target:macos_arm64 @9dd545defbc0
 pass/ownership/local_element_loan_compile checked 1646ms @a9ae30e1c334+wt
 pass/ownership/local_shared_view_compile checked 1624ms @a9ae30e1c334+wt
+pass/ownership/match_selected_parameter_moves_exit checked 7228ms check-target:macos_arm64 @7fe95c3b37b3+wt
 pass/ownership/member_element_loan_compile checked 1571ms @a9ae30e1c334+wt
 pass/ownership/move_after_view_read_compile checked 1623ms @a9ae30e1c334+wt
 pass/ownership/move_call_argument_transfer_compile checked 1661ms @a9ae30e1c334+wt

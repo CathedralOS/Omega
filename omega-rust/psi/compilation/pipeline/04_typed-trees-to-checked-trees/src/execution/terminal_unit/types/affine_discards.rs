@@ -35,7 +35,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
         }
         let source = source_parameters.get(parameter.position as usize)?;
         let parameter_index = u32::try_from(parameter_index).ok()?;
-        let paths = super::super::storage_transfers::parameter_vacancies(
+        let vacancies = super::super::storage_transfers::parameter_vacancies(
             program,
             facts,
             parameter_index,
@@ -43,7 +43,27 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
             source.symbol,
             operations,
         )?;
-        for path in paths {
+        // A whole affine root moved on only some alternatives (one arm of a
+        // value `match` selecting among owned parameters) needs no exit work
+        // on the others when its type has no nominal cleanup: discarding it
+        // there is a no-op, exactly as for a maybe-moved trivial local, so
+        // the root leaves the return-edge roster. Partial or cleanup-bearing
+        // maybe-moves still need selected cleanup this edge cannot express.
+        if !vacancies.maybe.is_empty() {
+            if vacancies.maybe.iter().any(|path| !path.is_empty())
+                || parameter.multiplicity != Multiplicity::Affine
+                || type_graph_requires_nominal_drop(
+                    program,
+                    source.type_reference,
+                    &[],
+                    &mut BTreeSet::new(),
+                )
+            {
+                return None;
+            }
+            transferred_parameters.insert(parameter_index);
+        }
+        for path in vacancies.definite {
             if path.is_empty() {
                 transferred_parameters.insert(parameter_index);
             } else {

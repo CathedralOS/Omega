@@ -1,0 +1,55 @@
+// A value `match` whose arms move different owned parameters leaves each
+// parameter moved on some alternatives only. An affine parameter with no
+// cleanup owes nothing on the alternatives that did not move it, so the
+// machine completes with the selected value whether the match feeds a local,
+// the result directly, or runs in a later state over state parameters.
+data Choice {
+    case Empty;
+    case Some(value: u32);
+}
+
+machine pick(selected: bool, left: Choice, right: Choice) -> Choice {
+    match selected {
+        true -> left,
+        false -> right
+    }
+}
+
+machine choose(selected: u64, left: Choice, right: Choice) -> bool {
+    let fallback: Choice = Choice::Empty;
+    let result: Choice = match selected {
+        0 -> left,
+        1 -> right,
+        _ -> fallback
+    };
+    result in Choice::Some
+}
+
+machine later(selected: bool, left: Choice, right: Choice) -> bool {
+    transition {
+        _ -> settle(selected, right, left)
+    }
+    state settle(selected: bool, first: Choice, second: Choice) -> bool {
+        let kept: Choice = match selected {
+            true -> first,
+            false -> second
+        };
+        kept in Choice::Some
+    }
+}
+
+machine main() crashes Trap {
+    let a: Choice = pick(true, Choice::Some { value: 7 }, Choice::Empty);
+    let b: Choice = pick(false, Choice::Some { value: 7 }, Choice::Empty);
+    let seen: bool = choose(1, Choice::Empty, Choice::Some { value: 9 });
+    let missed: bool = choose(0, Choice::Empty, Choice::Some { value: 9 });
+    let fell: bool = choose(4, Choice::Some { value: 1 }, Choice::Some { value: 9 });
+    let settled: bool = later(true, Choice::Empty, Choice::Some { value: 3 });
+    transition a in Choice::Some && b in Choice::Empty && seen && !missed && !fell
+        && settled {
+        true -> passed()
+        _ -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}
