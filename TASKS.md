@@ -6646,9 +6646,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   - Parsing and resolution (`source/psi/parse/`, `source/psi/resolve/`): admit
     the remaining valid forms, including callback telescopes (`native callback
     procedure from`), applied type-position domains (`in Quantity<Units::METER>`),
-    installation reach (`reaches <= Bound`), juxtaposed requires facts,
-    rank ranges (`terminates by i in 0..=n`) and indexed membership domains
-    (`in AtMost<8>`). Bind mathematical definitions and transparent trait
+    installation reach (`reaches <= Bound`), juxtaposed requires facts and
+    indexed membership domains (`in AtMost<8>`). Bind mathematical definitions and transparent trait
     refinements, nominal `where machine ... satisfies` contracts, generic
     structural contracts and their remaining clauses, `where proposition`
     contracts and proposition/evidence binders. Complete operator binding

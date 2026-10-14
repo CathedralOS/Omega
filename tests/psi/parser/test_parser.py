@@ -395,7 +395,8 @@ def decode(payload: bytes) -> Observation:
         for _ in range(reader.u64())
     )
     # Clause rows: kind, member range, crash cause, expression handle, span,
-    # expression flag, argument range, label flag and span.
+    # expression flag, argument range, label flag and span, rank range flag
+    # and expression handle.
     clauses = tuple(
         (
             reader.byte(),
@@ -412,6 +413,8 @@ def decode(payload: bytes) -> Observation:
             reader.byte(),
             reader.u64(),
             reader.u64(),
+            reader.u64(),
+            reader.byte(),
             reader.u64(),
         )
         for _ in range(reader.u64())
@@ -623,11 +626,13 @@ FACT_CLAUSES = (6, 7, 8)
 
 def clause_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
     """Clause rows spelled before satisfactions and terminations: a fact
-    clause has its expression, and no row has arguments or a label."""
-    return tuple(
-        row if len(row) == 15 else row + (1 if row[0] in FACT_CLAUSES else 0, 0, 0, 0, 1, 0, 0)
+    clause has its expression, and no row has arguments or a label; rows
+    spelled before rank ranges have none."""
+    rows = tuple(
+        row if len(row) >= 15 else row + (1 if row[0] in FACT_CLAUSES else 0, 0, 0, 0, 1, 0, 0)
         for row in rows
     )
+    return tuple(row if len(row) == 17 else row + (0, 0) for row in rows)
 
 
 def pattern_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
@@ -1106,6 +1111,19 @@ def root_declaration_cases(program: str) -> None:
         members=((1, 40, 45), (1, 47, 52)),
         machines=(machine(source, b"Steps", whole(source), owner=b"Progress", body=False, container=4, components=(0, 2)),),
     )
+    # A rank range `in lower..=upper` follows the subjects and view
+    # (wiki/spec/language/termination.md#ranking) as a range expression on
+    # the clause, inclusive or exclusive; `in` without the dots rejects.
+    source = b"machine f(n: u64) terminates by n in 0..=9; {}"
+    actual = declaration_accepted(program, "rank-range-inclusive", source)
+    assert len(actual.clauses) == 1 and actual.clauses[0][15] == 1, actual.clauses
+    inclusive_range = actual.expressions[actual.clauses[0][16]]
+    assert inclusive_range[6] == 1, inclusive_range
+    source = b"machine f(n: u64) terminates by n -> Nat::Descending in 0..limit; {}"
+    actual = declaration_accepted(program, "rank-range-after-view", source)
+    assert actual.clauses[0][8] == 1 and actual.clauses[0][15] == 1, actual.clauses
+    assert actual.expressions[actual.clauses[0][16]][6] == 0, actual.expressions
+    rejected(program, "rank-range-needs-dots", b"machine f(n: u64) terminates by n in 0; {}", 197, (38, 39), parameter_count=1, type_reference_count=1, expression_count=2)
     rejected(program, "measures-are-package-private", b"pub measure Card::PowerOrder(card: u64) -> u64 { card }", 196, (4, 11))
     rejected(program, "lexicographic-measure-names-a-field", b"measure Card::Order lexicographic { }", 195, (36, 37))
 
@@ -1269,12 +1287,15 @@ def clause_row(
     has_expression: bool = False,
     arguments: tuple[int, int] = (0, 0),
     label: tuple[int, int, int] = (1, 0, 0),
+    rank_range: int = 0,
 ) -> tuple[int, ...]:
     """A full clause row: kind, member range, cause (always Trap here),
-    expression handle, span, expression flag, argument range, label."""
+    expression handle, span, expression flag, argument range, label, rank
+    range (an expression handle, zero for none)."""
     return (
         kind, *members, 1, expression, *extent, 1 if has_expression else 0,
         *arguments, 0 if label == (1, 0, 0) else 1, *label,
+        1 if rank_range else 0, rank_range,
     )
 
 
@@ -1601,8 +1622,8 @@ def machine_form_cases(program: str) -> None:
         ("termination-view", b"machine f() terminates by a -> 1; {}", 162, b"1", 1,
          {"expression_count": 2}),
         ("termination-end", b"machine f() terminates by a {}", 94, b"{", 1, {"expression_count": 1}),
-        ("ranked-subject-is-no-membership", b"machine f() terminates by x in D; {}", 94, b"in", 3,
-         {"expression_count": 1}),
+        ("ranked-subject-in-begins-a-rank-range", b"machine f() terminates by x in D; {}", 197, b";", 1,
+         {"expression_count": 2}),
         ("unknown-operator-token", b"machine [x] f() {}", 163, b"x", 1, {}),
         ("conformance-member-token", b"C satisfies T { machine + f() {} }", 164, b"+", 1, {"type_reference_count": 1}),
         ("token-before-no-name", b"machine + () {}", 40, b"(", 1, {}),

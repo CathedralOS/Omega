@@ -1194,6 +1194,20 @@ def main() -> None:
         "MismatchedTypes",
         b"sink!2",
     )
+    # A rank range's endpoints are integers (wiki/spec/language/termination.md#ranking).
+    accepted(
+        program,
+        "rank-range-endpoints-are-integers",
+        b"machine f(n: u64, limit: u64) -> u64 terminates by n in 0..=limit; { 0 }",
+        ((b"0", "u64"), (b"limit!2", "u64")),
+    )
+    rejected(
+        program,
+        "a-rank-range-endpoint-of-another-type",
+        b"machine f(n: u64, flag: bool) -> u64 terminates by n in 0..=flag; { 0 }",
+        "NonIntegerIndex",
+        b"flag!2",
+    )
     # A declared measure's subject meets the measure's parameter, or is the
     # data a lexicographic measure's owner names
     # (wiki/spec/language/termination.md#ranking).

@@ -65,6 +65,10 @@ pub data CheckDiagnosticCode [copy] {
     // reached through a `&write` reference
     // (wiki/spec/language/ownership.md#borrows-and-aliases).
     case WriteOnlyObservation;
+    // A `terminates by` witness's rank range the entry rank or a cyclic
+    // arrival's rank is not proved within, or whose endpoints a cyclic
+    // arrival changes (wiki/spec/language/termination.md#ranking).
+    case RankRangeUnproven;
 }
 
 pub data CheckDiagnostic [copy] {

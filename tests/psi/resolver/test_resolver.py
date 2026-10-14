@@ -1373,6 +1373,16 @@ def main() -> None:
         UNSUPPORTED_RANKING_VIEW,
         b"Nat::Sideways",
     )
+    # A rank range's endpoints bind as the subjects do
+    # (wiki/spec/language/termination.md#ranking).
+    accepted(
+        program,
+        "rank-range-endpoints-bind",
+        b"machine f(n: u64, limit: u64) terminates by n in 0..=limit; {}",
+        (builtin("u64"), builtin("u64")),
+        (parameter(0), NOT_A_NAME, parameter(1), NOT_A_NAME),
+    )
+    rejected(program, "rank-range-unknown-endpoint", b"machine f(n: u64) terminates by n in 0..=limit; {}", UNKNOWN_NAME, b"limit")
     # A declared measure (wiki/spec/language/termination.md#ranking) is the
     # view its path names: a computed one takes one subject parameter and a
     # body, a lexicographic one names fields of its owner. A measure is never

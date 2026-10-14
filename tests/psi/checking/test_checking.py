@@ -17,7 +17,7 @@ DIAGNOSTICS = (
     "DomainUnproven", "CrashNotDeclared", "GuaranteeUnproven", "RankUnproven",
     "ProgressUnproven", "UseAfterMove", "MoveOutOfBorrow", "LinearUnconsumed",
     "LinearOverwritten", "OverlappingArguments", "LoanConflict", "LoanEscapes",
-    "RepresentationUnproven", "WriteOnlyObservation",
+    "RepresentationUnproven", "WriteOnlyObservation", "RankRangeUnproven",
 )
 
 
@@ -1391,6 +1391,32 @@ def main() -> None:
         b"}"
     )
     accepted(program, "self-call-climbs-its-bounded-distance", walk.replace(b"NEXT", b"walk(items, i + 1)"))
+    # A rank range (wiki/spec/language/termination.md#ranking) holds of the
+    # entry rank under the entry's facts and of every cyclic arrival's rank,
+    # whose endpoints must be the entry's.
+    ranged = (
+        b"machine count(n: u64, limit: u64) -> u64\nREQUIRES"
+        b"terminates by n in 0..=limit;\n{\n"
+        b"    transition n > 0 {\n        true -> step(n - 1, NEXT)\n        _ -> done()\n    }\n\n"
+        b"    state step(n: u64, limit: u64) -> u64 {\n"
+        b"        transition n > 0 {\n            true -> step(n - 1, limit)\n            _ -> done()\n        }\n    }\n\n"
+        b"    state done() -> u64 { 0 }\n}"
+    )
+    accepted(program, "ranked-range-holds-at-entry-and-arrival", ranged.replace(b"REQUIRES", b"requires n <= limit\n").replace(b"NEXT", b"limit"))
+    rejected(
+        program,
+        "ranked-range-needs-the-entry-rank-within",
+        ranged.replace(b"REQUIRES", b"").replace(b"NEXT", b"limit"),
+        "RankRangeUnproven",
+        b"0..=limit",
+    )
+    rejected(
+        program,
+        "ranked-range-endpoints-are-pinned",
+        ranged.replace(b"REQUIRES", b"requires n <= limit\n").replace(b"NEXT", b"0"),
+        "RankRangeUnproven",
+        b"step(n - 1, limit)",
+    )
     # A declared measure ranks its subject by its body, or lexicographically
     # by the subject's named fields (wiki/spec/language/termination.md#ranking).
     measured = (

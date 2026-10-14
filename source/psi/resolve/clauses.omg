@@ -234,7 +234,17 @@ crashes Trap
 machine Resolver::bind_ranking(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause)
 crashes Trap
 {
-    transition { _ -> subject(resolver, sources, syntax, scope, handle, clause, 0) }
+    transition clause.has_range {
+        true -> range(resolver, sources, syntax, scope, handle, clause)
+        _ -> subject(resolver, sources, syntax, scope, handle, clause, 0)
+    }
+
+    // The rank range's endpoints bind as the subjects do
+    // (wiki/spec/language/termination.md#ranking).
+    state range(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause) {
+        Resolver::bind_tree(resolver, sources, syntax, scope, clause.range);
+        transition { _ -> subject(resolver, sources, syntax, scope, handle, clause, 0) }
+    }
 
     state subject(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause, offset: u64 in Trapping) {
         transition offset < clause.argument_count && resolver.output.accepted {

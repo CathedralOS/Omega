@@ -384,6 +384,11 @@ pub data Clause [copy] {
     argument_count: u64 in Trapping;
     has_label: bool;
     label: IdentifierSpan;
+    // A `terminates by` witness's rank range `in lower..=upper`
+    // (wiki/spec/language/termination.md#ranking): a `Range` expression
+    // whose `flag` is its inclusiveness.
+    has_range: bool;
+    range: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -722,6 +727,8 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedMeasureComponent;
     // `pub measure`: declared measures are package-private.
     case MeasureNotPublic;
+    // `in` after a witness's subjects without `lower..upper` or `lower..=upper`.
+    case ExpectedRankRange;
     case ExpectedMachineName;
     case ExpectedMachineParameterOrEnd;
     case ExpectedMachineParameter;

@@ -360,7 +360,17 @@ crashes Trap
 machine Typer::type_ranking(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping, clause: Clause)
 crashes Trap
 {
-    transition { _ -> subject(typer, sources, syntax, resolution, handle, clause, 0) }
+    transition clause.has_range {
+        true -> ranged(typer, sources, syntax, resolution, handle, clause)
+        _ -> subject(typer, sources, syntax, resolution, handle, clause, 0)
+    }
+
+    // A rank range's endpoints are integers, an anonymous literal landing at
+    // `u64` as an index range's does (wiki/spec/language/termination.md#ranking).
+    state ranged(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping, clause: Clause) {
+        Typer::type_tree(typer, sources, syntax, resolution, clause.range);
+        transition { _ -> subject(typer, sources, syntax, resolution, handle, clause, 0) }
+    }
 
     state subject(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping, clause: Clause, offset: u64 in Trapping) {
         transition offset < clause.argument_count && typer.output.accepted {

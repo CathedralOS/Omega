@@ -429,6 +429,69 @@ crashes Trap
     // The clause spans through its `;`, which it keeps only while the
     // declaration continues.
     state termination_end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
+        let ranged: bool = Parser::at_word(parser, input, "in");
+        transition ranged {
+            true -> rank_range(parser, input, owner, clause)
+            _ -> termination_close(parser, input, owner, clause)
+        }
+    }
+
+    // `in lower..upper` or `in lower..=upper` after the subjects and view:
+    // the rank range (wiki/spec/language/termination.md#ranking), kept on
+    // the clause as a range expression over its two endpoints.
+    state rank_range(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
+        Parser::take_current(parser, input);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedRankRange, false, false);
+        transition parser.output.accepted {
+            true -> rank_range_dots(parser, input, owner, clause, parser.expression_result)
+            _ -> done()
+        }
+    }
+
+    state rank_range_dots(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause, lower: u64 in Trapping) {
+        let open: bool = Parser::at_punctuation(parser, input, PunctuationKind::DotDot);
+        let inclusive: bool = Parser::at_punctuation(parser, input, PunctuationKind::DotDotEqual);
+        transition open || inclusive {
+            true -> rank_range_upper(parser, input, owner, clause, lower, inclusive)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedRankRange)
+        }
+    }
+
+    state rank_range_upper(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause, lower: u64 in Trapping, inclusive: bool) {
+        Parser::take_current(parser, input);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedRankRange, false, false);
+        transition parser.output.accepted {
+            true -> rank_range_node(parser, input, owner, clause, lower, inclusive, parser.expression_result)
+            _ -> done()
+        }
+    }
+
+    state rank_range_node(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause, lower: u64 in Trapping, inclusive: bool, upper: u64 in Trapping) {
+        let start: Expression = SyntaxTrees::expression(&parser.output, lower);
+        let handle: u64 in Trapping = parser.output.expression_count as u64 in Trapping;
+        let name: IdentifierSpan = Parser::identifier_span(parser, 0, 0);
+        let span: SourceSpan = Parser::source_span(parser, start.source_span.span.start, parser.token_end);
+        let node: Expression = Expression {
+            kind: ExpressionKind::Range,
+            operator: OperatorKind::None,
+            left: lower,
+            right: upper,
+            first: 1,
+            count: 1,
+            flag: inclusive,
+            name: name,
+            type_reference: 0,
+            first_row: 0,
+            source_span: span
+        };
+        Parser::emit_expression(parser, input, node);
+        transition parser.output.accepted {
+            true -> termination_close(parser, input, owner, Parser::with_clause_range(clause, handle))
+            _ -> done()
+        }
+    }
+
+    state termination_close(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
         let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
         transition semicolon {
             true -> termination_semicolon(parser, input, owner, clause)
@@ -911,6 +974,8 @@ machine Parser::clause_row(parser: &Parser, kind: ClauseKind, end: u64 in Trappi
         argument_count: 0,
         has_label: false,
         label: Parser::identifier_span(parser, 0, 0),
+        has_range: false,
+        range: 0,
         source_span: Parser::source_span(parser, parser.clause_start, end)
     }
 }
@@ -927,6 +992,8 @@ machine Parser::crash_clause_row(parser: &Parser, cause: CrashCause) -> Clause {
         argument_count: 0,
         has_label: false,
         label: Parser::identifier_span(parser, 0, 0),
+        has_range: false,
+        range: 0,
         source_span: Parser::source_span(parser, parser.clause_start, parser.token_end)
     }
 }
@@ -943,6 +1010,8 @@ machine Parser::fact_clause_row(parser: &Parser, kind: ClauseKind, fact: u64 in 
         argument_count: 0,
         has_label: false,
         label: Parser::identifier_span(parser, 0, 0),
+        has_range: false,
+        range: 0,
         source_span: Parser::source_span(parser, parser.clause_start, end)
     }
 }
@@ -961,6 +1030,8 @@ machine Parser::satisfies_clause(parser: &Parser, end: u64 in Trapping) -> Claus
         argument_count: parser.clause_argument_count,
         has_label: false,
         label: Parser::identifier_span(parser, 0, 0),
+        has_range: false,
+        range: 0,
         source_span: Parser::source_span(parser, parser.clause_start, end)
     }
 }
@@ -978,7 +1049,27 @@ machine Parser::termination_clause(parser: &Parser, viewed: bool, view: u64 in T
         argument_count: parser.clause_argument_count,
         has_label: false,
         label: Parser::identifier_span(parser, 0, 0),
+        has_range: false,
+        range: 0,
         source_span: Parser::source_span(parser, parser.clause_start, parser.clause_start)
+    }
+}
+
+machine Parser::with_clause_range(clause: Clause, range: u64 in Trapping) -> Clause {
+    Clause {
+        kind: clause.kind,
+        first_member: clause.first_member,
+        member_count: clause.member_count,
+        cause: clause.cause,
+        expression: clause.expression,
+        has_expression: clause.has_expression,
+        first_argument: clause.first_argument,
+        argument_count: clause.argument_count,
+        has_label: clause.has_label,
+        label: clause.label,
+        has_range: true,
+        range: range,
+        source_span: clause.source_span
     }
 }
 
@@ -994,6 +1085,8 @@ machine Parser::with_clause_label(clause: Clause, label: IdentifierSpan) -> Clau
         argument_count: clause.argument_count,
         has_label: true,
         label: label,
+        has_range: clause.has_range,
+        range: clause.range,
         source_span: clause.source_span
     }
 }
@@ -1010,6 +1103,8 @@ machine Parser::with_clause_expression(parser: &Parser, clause: Clause, expressi
         argument_count: clause.argument_count,
         has_label: clause.has_label,
         label: clause.label,
+        has_range: clause.has_range,
+        range: clause.range,
         source_span: Parser::source_span(parser, clause.source_span.span.start, end)
     }
 }
@@ -1026,6 +1121,8 @@ machine Parser::with_clause_end(parser: &Parser, clause: Clause, end: u64 in Tra
         argument_count: clause.argument_count,
         has_label: clause.has_label,
         label: clause.label,
+        has_range: clause.has_range,
+        range: clause.range,
         source_span: Parser::source_span(parser, clause.source_span.span.start, end)
     }
 }

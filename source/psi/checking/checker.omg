@@ -381,6 +381,7 @@ crashes Trap
         checker.trap_route = false;
         checker.abort_route = false;
         Checker::open_entry(checker, syntax, resolution, typing, item);
+        Checker::require_rank_range_entry(checker, syntax, resolution, typing, item);
         Checker::walk_body(checker, syntax, resolution, typing, item.first_statement, item.statement_count, true);
         transition { _ -> check_state(checker, syntax, resolution, typing, index, item, 0) }
     }

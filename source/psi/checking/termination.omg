@@ -598,9 +598,55 @@ crashes Trap
         let view: RankingView = Checker::elaborated_view(syntax, resolution, typing, termination);
         let descends: bool = Checker::descends(checker, syntax, resolution, typing, call, target_first, target_count, item, termination, view);
         transition descends {
-            true -> done()
+            true -> ranged_arrival(checker, syntax, resolution, typing, call, target_first, target_count, item, termination, view)
             _ -> unranked(checker, call)
         }
+    }
+
+    // A witness with a rank range also owes, at the arrival, that the rank
+    // produced there lies within the range and that the range's endpoints
+    // are the entry's (wiki/spec/language/termination.md#ranking).
+    state ranged_arrival(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        call: Expression,
+        target_first: u64 in Trapping,
+        target_count: u64 in Trapping,
+        item: MachineItem,
+        termination: TerminationClause,
+        view: RankingView
+    ) {
+        let clause: Clause = SyntaxTrees::clause(syntax, termination.handle);
+        transition clause.has_range {
+            true -> bounded(checker, syntax, resolution, typing, call, target_first, target_count, item, termination, view, clause)
+            _ -> done()
+        }
+    }
+
+    state bounded(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        call: Expression,
+        target_first: u64 in Trapping,
+        target_count: u64 in Trapping,
+        item: MachineItem,
+        termination: TerminationClause,
+        view: RankingView,
+        clause: Clause
+    ) {
+        let within: bool = Checker::arrival_within_range(checker, syntax, resolution, typing, call, target_first, target_count, item, termination, view, clause);
+        transition within {
+            true -> done()
+            _ -> range_unproven(checker, call)
+        }
+    }
+
+    state range_unproven(checker: &mut Checker, call: Expression) {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::RankRangeUnproven, call.source_span);
     }
 
     state unranked(checker: &mut Checker, call: Expression) {
@@ -608,6 +654,105 @@ crashes Trap
     }
 
     state done() {}
+}
+
+// At a machine's entry, a ranked witness with a rank range owes that the
+// rank its view produces from the entry parameters lies within the range
+// (wiki/spec/language/termination.md#ranking), under the entry's facts.
+pub machine Checker::require_rank_range_entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem)
+crashes Trap
+{
+    let termination: TerminationClause = Checker::termination_clause(syntax, resolution, item);
+    transition termination.ranked {
+        true -> witnessed(checker, syntax, resolution, typing, item, termination)
+        _ -> done()
+    }
+
+    // Only a ranked witness has a clause to read: an unranked machine's
+    // handle is the absence state.
+    state witnessed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, termination: TerminationClause) {
+        let clause: Clause = SyntaxTrees::clause(syntax, termination.handle);
+        transition clause.has_range {
+            true -> ranged(checker, syntax, resolution, typing, item, termination, clause)
+            _ -> done()
+        }
+    }
+
+    state ranged(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, termination: TerminationClause, clause: Clause) {
+        let view: RankingView = Checker::elaborated_view(syntax, resolution, typing, termination);
+        Checker::capture_source(checker, syntax, resolution, item);
+        let rank: Rank = Checker::rank(checker, syntax, resolution, typing, item, termination, view);
+        let bounds: Rank = Checker::rank_bounds(checker, syntax, resolution, typing, item, clause);
+        let within: bool = Checker::rank_within(checker, syntax, rank, bounds, clause);
+        transition within {
+            true -> done()
+            _ -> unproven(checker, syntax, clause)
+        }
+    }
+
+    state unproven(checker: &mut Checker, syntax: &SyntaxTrees, clause: Clause) {
+        let range: Expression = SyntaxTrees::expression(syntax, clause.range);
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::RankRangeUnproven, range.source_span);
+    }
+
+    state done() {}
+}
+
+// The rank range's endpoints as values in the current capture, with each
+// entry parameter standing for its slot: `first` the lower, `second` the
+// upper endpoint.
+machine Checker::rank_bounds(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, clause: Clause) -> Rank
+crashes Trap
+{
+    let range: Expression = SyntaxTrees::expression(syntax, clause.range);
+    let lower: Value = Checker::substituted_value(checker, syntax, resolution, typing, item, range.left);
+    let upper: Value = Checker::substituted_value(checker, syntax, resolution, typing, item, range.right);
+    Rank { first: lower, second: upper }
+}
+
+// Whether a rank's leading value lies within `bounds`: at least the lower
+// endpoint, and at most an inclusive upper endpoint or below an exclusive
+// one.
+machine Checker::rank_within(checker: &Checker, syntax: &SyntaxTrees, rank: Rank, bounds: Rank, clause: Clause) -> bool
+crashes Trap
+{
+    let range: Expression = SyntaxTrees::expression(syntax, clause.range);
+    let floor: bool = Checker::proves_at_most(checker, bounds.first, rank.first);
+    let below: bool = Checker::proves_less(checker, rank.first, bounds.second);
+    let at_most: bool = Checker::proves_at_most(checker, rank.first, bounds.second);
+    let ceiling: bool = (range.flag && at_most) || (!range.flag && below);
+    floor && ceiling
+}
+
+// Whether a cyclic arrival keeps the witness's rank range: the endpoints
+// evaluated with the arrival's arguments equal the entry's, and the rank
+// produced at the arrival lies within them.
+machine Checker::arrival_within_range(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    call: Expression,
+    target_first: u64 in Trapping,
+    target_count: u64 in Trapping,
+    item: MachineItem,
+    termination: TerminationClause,
+    view: RankingView,
+    clause: Clause
+) -> bool
+crashes Trap
+{
+    Checker::capture_source(checker, syntax, resolution, item);
+    let before: Rank = Checker::rank_bounds(checker, syntax, resolution, typing, item, clause);
+    Checker::capture_target(checker, syntax, resolution, call, item, target_first, target_count);
+    let arrived: Rank = Checker::rank(checker, syntax, resolution, typing, item, termination, view);
+    let after: Rank = Checker::rank_bounds(checker, syntax, resolution, typing, item, clause);
+    let lower_kept: bool = Checker::proves_at_most(checker, before.first, after.first)
+        && Checker::proves_at_most(checker, after.first, before.first);
+    let upper_kept: bool = Checker::proves_at_most(checker, before.second, after.second)
+        && Checker::proves_at_most(checker, after.second, before.second);
+    let within: bool = Checker::rank_within(checker, syntax, arrived, after, clause);
+    lower_kept && upper_kept && within
 }
 
 // A witness's view with its default elaborated by its subjects' carriers:
