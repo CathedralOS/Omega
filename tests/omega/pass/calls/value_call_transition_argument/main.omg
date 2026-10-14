@@ -11,9 +11,12 @@
 // calls in one argument list deliver 1 and 2 to their own parameters and
 // leave `trace` at 12 only when they run left to right; right to left would
 // leave 21. A later argument's effect must not reach an earlier argument
-// that already read the same storage: `snapshot(main.trace, main.record(3))`
-// delivers 12 then 3 and leaves `trace` at 123. Exit 70 means every value
-// arrived in order.
+// that already read the same storage: `snapshot(main.trace, Main::record(main, 3), main)`
+// delivers 12 then 3 and leaves `trace` at 123. Each call that borrows `main`
+// precedes forwarding `main` itself, because arguments evaluate left to right
+// and a forwarded exclusive reference is held while later arguments run
+// (fail/borrows/state_argument_borrows_forwarded_reference). Exit 70 means
+// every value arrived in order.
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -73,12 +76,12 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state take_ordered(main: &mut Main) {
         transition true {
-            true -> ordered(main, Main::record(main, 1), Main::record(main, 2))
+            true -> ordered(Main::record(main, 1), Main::record(main, 2), main)
             false -> bad(main, 74)
         }
     }
 
-    state ordered(main: &mut Main, first: u32, second: u32) {
+    state ordered(first: u32, second: u32, main: &mut Main) {
         transition first == 1 && second == 2 && main.trace == 12 {
             true -> take_snapshot(main)
             false -> bad(main, 75)
@@ -86,10 +89,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state take_snapshot(main: &mut Main) {
-        transition { _ -> snapshot(main, main.trace, Main::record(main, 3)) }
+        transition { _ -> snapshot(main.trace, Main::record(main, 3), main) }
     }
 
-    state snapshot(main: &mut Main, before: u32 in Wrapping, digit: u32) {
+    state snapshot(before: u32 in Wrapping, digit: u32, main: &mut Main) {
         transition before == 12 && digit == 3 && main.trace == 123 {
             true -> good(main)
             false -> bad(main, 76)

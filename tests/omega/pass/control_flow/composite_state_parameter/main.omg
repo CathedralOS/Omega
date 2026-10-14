@@ -3,7 +3,8 @@
 //
 //   literal    take_literal(Pair { a: 1, b: 2 }, 3)   unconditional edge
 //   field      take_field(main.pair)                    guarded edge
-//   call       take_call(make(&mut main.counter, 5), 6) guarded edge; the
+//   call       take_call(make(&mut main.counter, 5), 6, main)
+//                                                       guarded edge; the
 //                                                       unselected arm's call
 //                                                       must leave no effect
 //   local      take_local(local)                        unconditional edge
@@ -18,6 +19,10 @@
 //   literal 1 + 2 + 3, field 10 + 20, call 5 + 50 + 6 = 97; the local's
 //   7 + 8 and the affine 3 each return to 97 after their own offsets; less
 //   the view's 10 + 20, plus three per `made` call: 97 - 30 + 3 = 70.
+// Arguments evaluate left to right, so the call that borrows `main.counter`
+// precedes forwarding `main` itself; forwarding `main` first would hold it
+// while `make` forms a second exclusive loan
+// (fail/borrows/state_argument_borrows_forwarded_reference).
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -67,12 +72,12 @@ machine Main::main(main: &mut Main) reaches Console {
     state take_field(main: &mut Main, pair: Pair) {
         main.total = main.total + pair.a + pair.b;
         transition main.total == 36 {
-            true -> take_call(main, make(&mut main.counter, 5), 6)
-            false -> take_call(main, make(&mut main.counter, 9), 0)
+            true -> take_call(make(&mut main.counter, 5), 6, main)
+            false -> take_call(make(&mut main.counter, 9), 0, main)
         }
     }
 
-    state take_call(main: &mut Main, pair: Pair, extra: i32 in Wrapping) {
+    state take_call(pair: Pair, extra: i32 in Wrapping, main: &mut Main) {
         main.total = main.total + pair.a + pair.b + extra;
         let local: Pair = Pair { a: 7, b: 8 };
         transition main.counter.made == 1 && main.total == 97 {
