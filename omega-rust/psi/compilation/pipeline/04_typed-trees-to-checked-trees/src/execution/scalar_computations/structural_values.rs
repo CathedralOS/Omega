@@ -242,15 +242,26 @@ impl Builder<'_, '_> {
         // of a field or element must establish its owner's home, never move
         // that child into a detached argument temporary. Scalar calls and
         // statement calls consume the same owner/path relationship.
-        if let CheckedStructuralValueKind::Projection { source, .. } =
-            self.structural_values.nodes.get(root).kind
+        if let CheckedStructuralValueKind::Projection {
+            source, ref path, ..
+        } = self.structural_values.nodes.get(root).kind
         {
-            // A projection of an existing home transfers through its place.
-            // Only a computed owner establishes an argument temporary.
-            if !argument_needs_establishment(&self.structural_values.nodes.get(source).kind) {
+            let source_needs_establishment =
+                argument_needs_establishment(&self.structural_values.nodes.get(source).kind);
+            if !path.is_empty() {
+                // A projection of an existing home transfers through its place.
+                // Only a computed owner establishes an argument temporary.
+                if !source_needs_establishment {
+                    return None;
+                }
+                self.retained_argument_owner(root, expected)?;
+            } else if !source_needs_establishment && !self.qualification_occurrence(expression) {
+                // A whole value has no residual complement to keep with an
+                // owner. An existing home transfers through its place unless
+                // an explicit qualification gives the value a membership that
+                // place lacks; that value is established afresh.
                 return None;
             }
-            self.retained_argument_owner(root, expected)?;
         }
         if !already_retained {
             self.structural_values
@@ -337,6 +348,8 @@ impl Builder<'_, '_> {
             .then_some(root.root);
         }
         let kind = if let Some(value) = self.shared_carrier_reborrow(expression, expected) {
+            value
+        } else if let Some(value) = self.same_carrier_structural_cast(expression, expected) {
             value
         } else if matches!(
             self.program.expression_table.expression(expression),

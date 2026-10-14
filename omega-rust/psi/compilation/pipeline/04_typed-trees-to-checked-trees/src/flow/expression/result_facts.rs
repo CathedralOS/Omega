@@ -55,13 +55,11 @@ impl Execution<'_, '_, '_> {
         // not just predicate-free tags. Omitting predicate domains here made
         // a checked cast lose its membership at an inline call or return.
         // This does not establish a new domain on a bare operand or storage.
-        let domains = self
-            .program
-            .primitive_type_reference(reference)
-            .map(|_| {
-                validation::field_domains::domain_constraint_identities(self.program, reference)
-            })
-            .unwrap_or_default();
+        // A structural carrier is no different: a checked record
+        // qualification describes its completed value exactly as a scalar
+        // one does.
+        let domains =
+            validation::field_domains::domain_constraint_identities(self.program, reference);
         let mut predicates = Vec::new();
         crate::values::float_predicates::declared_type_predicates(
             self.program,

@@ -1,0 +1,11 @@
+// An explicit qualification establishes exactly the domain it names. A value
+// qualified into `Other` cannot be supplied where `Ready` -- a domain with
+// no predicate or route, so never implicitly introduced -- is required.
+data Counter [copy] { code: i32; }
+domain Counter::Ready;
+domain Counter::Other;
+machine ready_code(counter: Counter in Counter::Ready) -> i32 { counter.code }
+machine main() -> i32 {
+    let counter: Counter = Counter { code: 1 };
+    transition { _ -> ready_code(counter as Counter in Other) }
+}

@@ -66,6 +66,20 @@ impl QualificationFacts {
         let mut decisions = std::mem::take(&mut self.value_formations)
             .into_items()
             .collect::<Vec<_>>();
+        // A vacuous qualification owes nothing, so its judgment succeeded at
+        // the cast's own occurrence. A structural value produced there carries
+        // that membership exactly as an annotated initializer's value does.
+        decisions.extend(
+            self.vacuous_uses
+                .iter()
+                .map(|use_| CheckedValueQualification {
+                    machine: use_.machine,
+                    state: use_.state,
+                    statement_index: use_.statement_index,
+                    expression: use_.expression,
+                    semantic_domain: use_.semantic_domain,
+                }),
+        );
         let coordinate = |machine: SymbolHandle,
                           state: SymbolHandle,
                           statement_index: u32,

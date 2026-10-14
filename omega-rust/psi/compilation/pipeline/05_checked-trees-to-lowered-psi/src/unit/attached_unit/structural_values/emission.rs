@@ -279,6 +279,7 @@ pub(crate) fn emit(
             path,
             type_identity,
         } = structural_values(checked).nodes.get(*value).kind.clone()
+        && !path.is_empty()
         && matches!(
             structural_values(checked).nodes.get(source).kind,
             CheckedStructuralValueKind::Place(_)
@@ -1245,6 +1246,7 @@ impl Emission<'_, '_, '_> {
             path,
             type_identity,
         } = node.kind
+            && !path.is_empty()
             && matches!(
                 structural_values(self.checked).nodes.get(source).kind,
                 CheckedStructuralValueKind::Place(_) | CheckedStructuralValueKind::Call { .. }
@@ -1435,8 +1437,15 @@ impl Emission<'_, '_, '_> {
                 // including only its selected arm, then use the ordinary value
                 // continuation. Reborrowing a shared descriptor preserves its
                 // actual geometry rather than reforming its backing's view.
+                // A same-carrier qualification is this projection's own
+                // checked membership, published on the produced value.
                 if path.is_empty() {
-                    return self.value(identities, source, continuation);
+                    let argument = self.value(identities, source, continuation)?;
+                    return self.retain_checked_memberships(
+                        identities,
+                        argument,
+                        node.qualification_decisions,
+                    );
                 }
                 // Copied provenance observes its original backing; an owned
                 // projection instead transfers one child on the selected edge

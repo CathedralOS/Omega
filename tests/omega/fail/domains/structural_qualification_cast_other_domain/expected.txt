@@ -1,0 +1,1 @@
+implicit domain strengthening in argument `counter` for state `entry` assumes `Counter::Ready`

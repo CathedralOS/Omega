@@ -1,0 +1,51 @@
+// Expected exit: 0.
+// `as` between equal structural carriers changes no payload: an explicit
+// qualification denotes its operand with the checked membership added, and
+// an explicit erasure denotes it with the meaning removed. Each value below
+// reaches its consumer through a different route -- a record literal or
+// a local qualified into a local, a call argument, a returned value, a field
+// projection, an erased routed provenance, and a parameter of a later state.
+data Counter [copy] { code: i32; }
+
+domain Counter::Ready;
+
+data Token [copy] { value: u64; }
+
+domain Token::Issued established by issue;
+
+machine issue(value: u64) -> Token in Token::Issued { Token { value: value } }
+
+data Holder [copy] { counter: Counter; }
+
+machine ready_code(counter: Counter in Counter::Ready) -> i32 { counter.code }
+
+machine make_ready(code: i32) -> Counter in Counter::Ready {
+    Counter { code: code } as Counter in Ready
+}
+
+machine token_value(token: Token) -> u64 { token.value }
+
+machine main() crashes Trap {
+    let literal: Counter in Ready = Counter { code: 1 } as Counter in Ready;
+    let plain: Counter = Counter { code: 2 };
+    let local: Counter in Ready = plain as Counter in Ready;
+    let argument: i32 = ready_code(Counter { code: 3 } as Counter in Ready);
+    let returned: i32 = ready_code(make_ready(4));
+    let holder: Holder = Holder { counter: Counter { code: 5 } };
+    let field: i32 = ready_code(holder.counter as Counter in Ready);
+    let issued: Token in Issued = issue(6);
+    let erased: Token = issued as Token;
+    transition ready_code(literal) == 1 && ready_code(local) == 2 && argument == 3
+        && returned == 4 && field == 5 && token_value(erased) == 6 {
+        true -> later(Counter { code: 7 })
+        false -> wrong()
+    }
+    state later(counter: Counter) {
+        transition ready_code(counter as Counter in Ready) == 7 {
+            true -> done()
+            false -> wrong()
+        }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

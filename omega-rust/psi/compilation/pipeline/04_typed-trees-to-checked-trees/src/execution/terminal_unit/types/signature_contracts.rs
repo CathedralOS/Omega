@@ -509,6 +509,31 @@ pub(in crate::execution::terminal_unit) fn body_structural_qualifications(
         }))
         .collect::<BTreeSet<_>>();
     domains.retain(|domain| !scalar_domains.contains(&domain.0));
+    // A vacuous cast whose structural value this body produces is owned by
+    // that value: its checked membership travels with the produced place.
+    // Only a commitment with no such producer remains a body request.
+    let (owned, unowned): (Vec<&checked_trees::VacuousQualificationUse>, Vec<_>) = facts
+        .qualifications
+        .vacuous_uses
+        .iter()
+        .filter(|use_| use_.machine == machine)
+        .partition(|use_| {
+            facts
+                .values
+                .structural_values
+                .nodes
+                .iter()
+                .any(|(_, node)| {
+                    node.machine == machine
+                        && node.state == use_.state
+                        && node.statement_index == use_.statement_index
+                        && node.expression == use_.expression
+                })
+        });
+    domains.retain(|domain| {
+        !owned.iter().any(|use_| use_.semantic_domain == *domain)
+            || unowned.iter().any(|use_| use_.semantic_domain == *domain)
+    });
     domains.sort_by_key(|domain| domain.0);
     domains.dedup();
     domains

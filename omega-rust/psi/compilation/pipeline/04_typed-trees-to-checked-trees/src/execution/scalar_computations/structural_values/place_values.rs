@@ -71,6 +71,49 @@ impl Builder<'_, '_> {
         })
     }
 
+    /// Whether `expression` is an explicit `as ... in Domain` qualification:
+    /// the one occurrence that adds a membership to the value it denotes.
+    pub(super) fn qualification_occurrence(&self, expression: ExpressionHandle) -> bool {
+        self.program
+            .expression_table
+            .cast_node(expression)
+            .is_some_and(|cast| !cast.semantic_domain.is_empty())
+    }
+
+    /// A value cast that keeps its structural carrier -- an explicit domain
+    /// qualification or an explicit erasure -- denotes its operand unchanged
+    /// (`as` "never silently changes denotation", and no carrier transform
+    /// exists between equal stored carriers). Checking has already judged the
+    /// qualification at this exact cast, so the value is its operand's
+    /// producer viewed whole: the same whole-value projection a same-carrier
+    /// reborrow publishes. Recasts and representation changes are not this.
+    pub(super) fn same_carrier_structural_cast(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+    ) -> Option<CheckedStructuralValueKind> {
+        let cast = self.program.expression_table.cast_node(expression)?;
+        if cast.form.is_recast() || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact {
+            return None;
+        }
+        let operand = cast.value;
+        let machine = self.program.machine_by_symbol(self.machine)?;
+        let state = self.program.state_in_machine(machine, self.state)?;
+        let actual =
+            validation::expression_result_type_reference(self.program, machine, state, operand)?;
+        let carrier = validation::stored_structural_type_identity(self.program, actual, &[], &[]);
+        if carrier != validation::stored_structural_type_identity(self.program, expected, &[], &[])
+        {
+            return None;
+        }
+        let source = self.structural_value(operand, actual)?;
+        Some(CheckedStructuralValueKind::Projection {
+            source,
+            path: Vec::new(),
+            type_identity: carrier,
+        })
+    }
+
     /// Copy one `Unrestricted` leaf from readable storage into a fresh owned
     /// place. The source root and its ownership or loan remain unchanged.
     pub(super) fn copied_place(

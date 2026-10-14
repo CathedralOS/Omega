@@ -190,8 +190,11 @@ fn evaluated_value_root<'a>(
     // Every projection selects from its original producer's home. Prepare
     // that producer once for borrowed and owned operands alike; the argument
     // plan retains the path and the continuation owns the residual cleanup.
-    while let checked_trees::CheckedStructuralValueKind::Projection { source, .. } =
-        facts.values.structural_values.nodes.get(root.root).kind
+    // A whole-value projection selects nothing: it is the value it views.
+    while let checked_trees::CheckedStructuralValueKind::Projection {
+        source, ref path, ..
+    } = facts.values.structural_values.nodes.get(root.root).kind
+        && !path.is_empty()
     {
         if validation::canonical_place_from_expression_in_state(
             program,
@@ -212,12 +215,12 @@ fn evaluated_value_root<'a>(
     // A call already owns a producer operation and result binding. Retaining
     // its value for computed consumers does not turn that operation into an
     // aggregate establishment; collect it through the ordinary call route.
-    // A projection likewise selects storage from its canonical owner; minting
-    // a second whole operand here would erase the owner's residual complement.
+    // The loop above has already moved a selecting projection to its owner;
+    // a whole-value projection that remains is established like the value it
+    // views.
     if matches!(
         facts.values.structural_values.nodes.get(root.root).kind,
         checked_trees::CheckedStructuralValueKind::Call { .. }
-            | checked_trees::CheckedStructuralValueKind::Projection { .. }
     ) {
         return None;
     }

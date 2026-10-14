@@ -2154,6 +2154,8 @@ fail/domains/semantic_predicate_domain_call_false rejected 1154ms expected @8961
 	cannot prove requires contract for call measure from main: 0 in u64::Distance in state `entry`
 fail/domains/semantic_record_domain_call_false rejected 1254ms expected @896172b5d9d8+wt
 	cannot prove requires contract for call combine from main: Quantity in Quantity::Additive in state `entry`
+fail/domains/structural_qualification_cast_other_domain rejected 226ms expected @0bb0340f378d+wt
+	implicit domain strengthening in argument `counter` for state `entry` assumes `Counter::Ready`; a qualification with no predicate or establishment route may be introduced only by an explicit `as` to the intended target
 fail/domains/terminal_result_domain_incompatible_carrier rejected 523ms expected @8d3a0acb500a+wt
 	machine `missing` state `entry` local `__hoist_34` delivers a `f64` value to a `i32` local; a landed float retains its format, so changing format requires an explicit conversion
 	store in machine `missing` state `entry` local `__hoist_34` implicitly converts `f64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
@@ -7921,6 +7923,7 @@ run/domains/issued_owned_state_arrivals checked 5608ms check-target:macos_arm64 
 run/domains/issued_owned_temporary_observation checked 5609ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/domains/qualified_record_transfer checked 6006ms check-target:macos_arm64 @868a854ecd4d+wt
 run/domains/semantic_predicate_domain_admission checked 11814ms check-target:macos_arm64 @896172b5d9d8+wt
+run/domains/structural_qualification_cast_values checked 11150ms check-target:macos_arm64 @0bb0340f378d+wt
 run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:macos_arm64 @9c4d1c444502
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/ownership/temporary_case_observation checked 5301ms check-target:macos_arm64 @0e81fb3e4cce+wt
