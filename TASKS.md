@@ -3264,17 +3264,15 @@ never a new per-route case. Land coherent cuts that delete their superseded
 code and preserve check/native behavior for the named customer slices.
 
 - **OUTCOME-SPECIFIC-CALL-EVIDENCE.** (split-of:RETURN-ROSTERS-RETIRED)
-  Emission landed: `proofs/evidence_lowering/outcome_specific_calls.rs` joins
-  each caller arm's selected rows to the `CallStructural` site via the
-  recorded source occurrence and the callee's canonical guarded rows
-  (`outcome_specific_ensure_rows`, factored out of the ensures pass). Run
-  fixture `run/calls/outcome_specific_selected_guarantee_exit` added.
-  Verification frontier: program-entry binding admission is env-blocked
-  (identical on every entry-bound fixture incl. `shared_local_borrow`; two
-  `omega update` runs timed out), so the check leg never reaches lowering in
-  this environment. Bounded rows still refused: result substitution,
-  proposition/interface dependencies, evidence uses. Coordinate operator
-  returns with **OPERATOR-BOUNDARY-CALLS**.
+  Selection from an input-free callee runs end to end since `1c794804e9f`:
+  `run/calls/outcome_specific_selected_guarantee_exit` and its `_variants_exit`
+  sibling (selection from a helper machine and from a later state) exit 0
+  natively on macOS arm64, carried on both structural call kinds. Frontier: a
+  selection from a callee with inputs or other contracts is refused with
+  "outcome-specific selection from a callee with inputs or other contracts is
+  unimplemented"; that needs result substitution and proposition/interface
+  dependencies in the Terminal evidence term. Coordinate operator returns with
+  **OPERATOR-BOUNDARY-CALLS**.
 
 ## Checker simplification
 
