@@ -54,6 +54,12 @@ pub enum CheckedProofTermRole {
 /// owns a runtime operand.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedProofTerm {
+    /// A checked fixed array, retaining its exact element/extent identity and
+    /// authored element order without an executable storage place.
+    Array {
+        type_identity: TypeIdentityId,
+        elements: Vec<CheckedProofTerm>,
+    },
     /// A closed data construction (`Nat::Zero`, `Nat::Succ`,
     /// `Proof { tag: 1 }`). Symbols stay resolved until the terminal lane
     /// canonicalizes them.

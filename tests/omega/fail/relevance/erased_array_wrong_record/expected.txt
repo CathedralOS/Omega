@@ -1,0 +1,1 @@
+expects the `Proof` data type but got `Other`

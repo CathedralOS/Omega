@@ -1,0 +1,31 @@
+// Expected exit: 70
+// The retained runtime argument determines this oracle; erased evidence cannot.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Proof {
+    tag: i32;
+    table: [i32; 2];
+}
+
+machine keep(n: i32, witness [erased]: Proof) -> i32 {
+    relay(witness, n, [7, 8])
+}
+
+machine relay(witness [erased]: Proof, n: i32, table [erased]: [i32; 2]) -> i32 {
+    n
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let result: i32 = keep(70, Proof { tag: 1, table: [7, 8] });
+    transition result == 70 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

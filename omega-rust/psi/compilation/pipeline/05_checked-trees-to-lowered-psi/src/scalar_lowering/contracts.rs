@@ -179,6 +179,10 @@ pub(crate) fn erased_proof_formal_declarations(
 /// roster; only `Scalar` leaves still need `values`/`erased`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredProofTerm {
+    Array {
+        type_identity: typed_trees::type_identity::TypeIdentityId,
+        elements: Vec<LoweredProofTerm>,
+    },
     Construction {
         type_identity: typed_trees::type_identity::TypeIdentityId,
         case_identity: Option<String>,
@@ -231,6 +235,18 @@ pub(crate) fn checked_proof_term(
                             caller_erased_proof_parameters,
                         )?,
                     })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?,
+        }),
+        CheckedProofTerm::Array {
+            type_identity,
+            elements,
+        } => Ok(LoweredProofTerm::Array {
+            type_identity: *type_identity,
+            elements: elements
+                .iter()
+                .map(|element| {
+                    checked_proof_term(identities, checked, element, caller_erased_proof_parameters)
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?,
         }),
@@ -288,6 +304,18 @@ pub(crate) fn lowered_proof_term(
                         term: lowered_proof_term(checked, &field.term, values, erased)?,
                     })
                 })
+                .collect::<Result<Vec<_>, LoweringError>>()?,
+        }),
+        LoweredProofTerm::Array {
+            type_identity,
+            elements,
+        } => Ok(ProofTerm::Array {
+            type_identity: checked
+                .type_identity_text(*type_identity)
+                .unwrap_or_default(),
+            elements: elements
+                .iter()
+                .map(|element| lowered_proof_term(checked, element, values, erased))
                 .collect::<Result<Vec<_>, LoweringError>>()?,
         }),
         LoweredProofTerm::Formal { position } => Ok(ProofTerm::Formal {

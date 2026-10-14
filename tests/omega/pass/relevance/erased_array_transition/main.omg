@@ -1,0 +1,8 @@
+data Main { result: i32; }
+machine Main::record(main: &mut Main, witness [erased]: [i32; 2], n: i32) {
+    transition { _ -> store(main, witness, n) }
+    state store(main: &mut Main, witness [erased]: [i32; 2], n: i32) {
+        main.result = n;
+    }
+}
+machine Main::main(main: &mut Main) { Main::record(main, [7, 8], 70); }

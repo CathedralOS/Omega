@@ -1,0 +1,11 @@
+data Proof { tag: i32; table: [i32; 2]; }
+machine leaf(n: i32, witness [erased]: [i32; 2]) -> i32 { n }
+machine forward(n: i32, witness [erased]: [i32; 2]) -> i32 { leaf(n, witness) }
+machine record(n: i32, witness [erased]: Proof) -> i32 { n }
+data Main { result: i32; }
+machine Main::main(main: &mut Main) {
+    let tag: i32 = 7;
+    let result: i32 = forward(70, [tag, 8]);
+    let kept: i32 = record(result, Proof { tag: tag, table: [7, 8] });
+    main.result = kept;
+}

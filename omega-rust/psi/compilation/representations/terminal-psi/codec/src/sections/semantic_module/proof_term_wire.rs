@@ -16,6 +16,7 @@ use super::{CodecError, MAX_SCALAR_TERM_DEPTH};
 const PROOF_TERM_CONSTRUCTION: u8 = 1;
 const PROOF_TERM_FORMAL: u8 = 2;
 const PROOF_TERM_SCALAR: u8 = 3;
+const PROOF_TERM_ARRAY: u8 = 4;
 
 pub(crate) fn encode_proof_terms(
     writer: &mut Writer,
@@ -51,6 +52,17 @@ fn encode_proof_term(
             writer.len("proof term fields", fields.len())?;
             for field in fields {
                 encode_proof_term_field(writer, field, depth + 1)?;
+            }
+        }
+        ProofTerm::Array {
+            type_identity,
+            elements,
+        } => {
+            writer.u8(PROOF_TERM_ARRAY);
+            writer.string("proof term type identity", type_identity)?;
+            writer.len("proof array elements", elements.len())?;
+            for element in elements {
+                encode_proof_term(writer, element, depth + 1)?;
             }
         }
         ProofTerm::Formal { position } => {
@@ -109,6 +121,21 @@ fn decode_proof_term(reader: &mut Reader<'_>, depth: usize) -> Result<ProofTerm,
                 type_identity,
                 case_identity,
                 fields,
+            };
+            term.validate().map_err(CodecError::MalformedProposition)?;
+            Ok(term)
+        }
+        PROOF_TERM_ARRAY => {
+            let type_identity = reader.string("proof term type identity")?;
+            let count = reader.count()?;
+            let mut elements =
+                Vec::with_capacity(usize::try_from(count).expect("u32 count fits usize"));
+            for _ in 0..count {
+                elements.push(decode_proof_term(reader, depth + 1)?);
+            }
+            let term = ProofTerm::Array {
+                type_identity,
+                elements,
             };
             term.validate().map_err(CodecError::MalformedProposition)?;
             Ok(term)

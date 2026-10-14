@@ -79,11 +79,11 @@ impl ProofOnlyClassification {
     /// Whether an erased formal with this carrier can ride the contract term
     /// lane: either a proof-only carrier (`proof_only_mention`) or a closed
     /// checked-shape record/enum whose fields are all term-expressible — a
-    /// scalar leaf, a proof-only field, or another admitted carrier. The
-    /// second family keeps its runtime shape in the typed signature but owns
+    /// scalar leaf, a proof-only field, a fixed array, or another admitted
+    /// carrier. The second family keeps its runtime shape in the typed signature but owns
     /// no runtime storage at an erased binding, so the term lane retains its
     /// exact construction as proof evidence instead. References, slices,
-    /// arrays, generics, quotients, boundary/ laid/ placed/ wired data stay
+    /// generics, quotients, boundary/ laid/ placed/ wired data stay
     /// out: none of them have a term form this lane can serialize.
     pub fn contract_term_carrier(
         &self,
@@ -97,8 +97,8 @@ impl ProofOnlyClassification {
         self.closed_contract_carrier(program, type_reference, &mut visiting)
     }
 
-    /// One carrier candidate: a named, closed, checked-shape data definition
-    /// whose every field type is itself term-admissible. The `visiting` set
+    /// One closed carrier: a fixed array of term-admissible elements or a
+    /// checked-shape data definition with term-admissible fields. The `visiting` set
     /// refuses carriers that reach themselves through erased fields — those
     /// fields leave the containment graph, so the recursion is the only place
     /// such a cycle can be seen, and an infinite proof term cannot exist.
@@ -110,6 +110,14 @@ impl ProofOnlyClassification {
     ) -> bool {
         if !type_reference.is_valid() {
             return false;
+        }
+        if let TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } = program.type_reference_table.type_reference(type_reference)
+        {
+            return matches!(length, crate::types::FixedArrayLength::Literal(_))
+                && self.contract_term_field(program, *element_type, visiting);
         }
         let TypeReferenceNode::Named { symbol, .. } =
             program.type_reference_table.type_reference(type_reference)
@@ -159,7 +167,7 @@ impl ProofOnlyClassification {
     /// One field of a candidate carrier: a primitive scalar lowers to a scalar
     /// leaf, a proof-only mention stays a nested proof term, and another
     /// admitted carrier nests as a construction. Anything else — references,
-    /// slices, arrays, generics, dynamic traits — has no term form.
+    /// slices, generics, dynamic traits — has no term form.
     fn contract_term_field(
         &self,
         program: &TypedTrees,

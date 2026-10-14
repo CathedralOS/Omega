@@ -1,0 +1,8 @@
+data Cell { value: i32; }
+data Proof { cells: [Cell; 2]; rows: [[i32; 2]; 2]; }
+machine keep(witness [erased]: Proof, n: i32) -> i32 { n }
+data Main { result: i32; }
+machine Main::main(main: &mut Main) {
+    let tag: i32 = 7;
+    main.result = keep(Proof { cells: [Cell { value: tag }, Cell { value: 8 }], rows: [[1, 2], [3, 4]] }, 70);
+}

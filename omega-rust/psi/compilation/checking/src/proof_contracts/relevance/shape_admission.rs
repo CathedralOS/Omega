@@ -63,7 +63,7 @@ pub(super) fn validate_erased_field_shapes(
 /// erased lanes: a scalar slot for a primitive carrier, or the contract term
 /// lane for a carrier the term form can serialize — a proof-only type such
 /// as `Nat`, or a closed checked-shape record/enum whose fields are all
-/// term-expressible. Anything else (references, slices, arrays, generic or
+/// term-expressible, including fixed arrays. Anything else (references, slices, generic or
 /// boundary-shaped carriers) has no term form, so its plan omission would
 /// otherwise surface with no name. Proof machines are exempt: their erased
 /// formals are proof-side occurrences that never need a runtime plan.

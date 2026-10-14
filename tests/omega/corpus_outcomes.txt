@@ -3843,13 +3843,25 @@ fail/recast/unbounded_offset_names_the_bound rejected 2846ms expected @a9ae30e1c
 	machine `Main::main` state `read`: cannot bound the recast offset `off` -- the region holds 16 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition off <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
 fail/relax/retired_relax_statement rejected 0ms expected @a9ae30e1c334+wt
 	tests/omega/fail/relax/retired_relax_statement/main.omg:8:5: `relax` is retired: invariant windows (ch11) supersede it -- write plainly; a momentary violation opens a window that must close before any read, call, or terminal exit
+fail/relevance/erased_array_missing rejected 328ms expected @763aa6f05710+wt
+	state `entry` expects 2 argument(s), got 1
+fail/relevance/erased_array_runtime_read rejected 350ms expected @763aa6f05710+wt
+	erased parameter `witness` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+fail/relevance/erased_array_wrong_element rejected 327ms expected @763aa6f05710+wt
+	array literal element stores a boolean into a `i32` element, which holds a numeric value
+	array literal element stores a boolean into a `i32` element, which holds a numeric value
+fail/relevance/erased_array_wrong_extent rejected 359ms expected @763aa6f05710+wt
+	machine `Main::main` state `main` assigns an array literal with 1 element(s) to a `[_; 2]` place; a fixed-array literal must supply exactly 2 element(s)
+fail/relevance/erased_array_wrong_record rejected 359ms expected @763aa6f05710+wt
+	argument `witness` for state `entry` expects `Proof`, got `struct literal`
+	argument `witness` for state `keep::entry` expects the `Proof` data type but got `Other` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/relevance/erased_local_receiver_call rejected 889ms expected @a9ae30e1c334+wt
 	erased local `c` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
 fail/relevance/erased_mutable_parameter rejected 868ms expected @a9ae30e1c334+wt
 	machine `Main::record::record` erased parameter `x` cannot be `mut`; an erased binding owns no runtime storage or custody
-fail/relevance/erased_nonscalar_parameter rejected 828ms expected @a9ae30e1c334+wt
-	machine `Main::record::record` erased parameter `w` is not scalar; an erased formal on a runtime machine needs a scalar lane or a contract term carrier
+fail/relevance/erased_nonscalar_parameter rejected 332ms expected @763aa6f05710+wt
+	machine `keep::entry` erased parameter `w` is not scalar; an erased formal on a runtime machine needs a scalar lane or a contract term carrier
 fail/relevance/erased_parameter_runtime_read rejected 827ms expected @a9ae30e1c334+wt
 	erased parameter `bound` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
 fail/relevance/static_proof_borrow_requires_storage rejected 820ms expected @a9ae30e1c334+wt
@@ -7138,6 +7150,10 @@ pass/references/runtime_shared_ref_param_guard_exit checked 11012ms check-target
 pass/references/selected_record_loan_disjoint_fields_exit checked 11938ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/register_allocation/fixed_uses_across_hosted_clobbers_exit checked 11113ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/register_allocation/runtime_call_crossing_decimal_reload_exit checked 12549ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/relevance/erased_array_calls checked 11487ms @763aa6f05710+wt
+pass/relevance/erased_array_nested checked 11717ms @763aa6f05710+wt
+pass/relevance/erased_array_record_parameter checked 11846ms @763aa6f05710+wt
+pass/relevance/erased_array_transition checked 11596ms @763aa6f05710+wt
 pass/relevance/erased_case_payload_field_exit checked 11569ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/relevance/erased_field_init_order checked 9265ms @5041ef1af684+wt
 pass/relevance/erased_formal_before_borrowed_argument_exit checked 11624ms check-target:macos_arm64 @a9ae30e1c334+wt

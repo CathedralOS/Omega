@@ -124,6 +124,10 @@ fn proof_term_type_matches(
         checked_trees::CheckedProofTerm::Construction {
             type_identity: actual,
             ..
+        }
+        | checked_trees::CheckedProofTerm::Array {
+            type_identity: actual,
+            ..
         } => *actual == type_identity,
         checked_trees::CheckedProofTerm::Formal { parameter_symbol } => {
             program.state_by_symbol(caller_state).is_some_and(|state| {

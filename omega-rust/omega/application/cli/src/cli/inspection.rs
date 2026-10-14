@@ -189,6 +189,12 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
                 .expect("writing to a String cannot fail");
             }
         }
+        writeln!(
+            output,
+            "signature machine=machine:{} runtime_scalars={:?} erased_scalars={:?} erased_proofs={}",
+            machine.id.get(), machine.parameters, machine.contract.erased_scalar_formals,
+            proof_formals(module, &machine.contract.erased_proof_formals),
+        ).expect("writing to a String cannot fail");
         for (index, parameter) in machine.structural_parameters.iter().enumerate() {
             writeln!(
                 output,
@@ -218,6 +224,11 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
             .expect("writing to a String cannot fail");
         }
         for block in &machine.blocks {
+            writeln!(output,
+                "block_signature machine=machine:{} block=block:{} runtime_scalars={:?} erased_scalars={:?} erased_proofs={}",
+                machine.id.get(), block.id.get(), block.parameters, block.erased_scalar_formals,
+                proof_formals(module, &block.erased_proof_formals),
+            ).expect("writing to a String cannot fail");
             for operation in &block.operations {
                 write_operation_summary(
                     &mut output,
@@ -258,10 +269,17 @@ fn write_operation_summary(
     match &operation.kind {
         OperationKind::CallUnit {
             callee,
+            arguments,
+            erased_arguments,
+            erased_proof_arguments,
             structural_arguments,
             claim_transfers,
             ..
         } => {
+            writeln!(output,
+                "call_lanes machine=machine:{machine} block=block:{block} operation=operation:{} runtime_scalars={arguments:?} erased_scalars={erased_arguments:?} erased_proofs={erased_proof_arguments:?}",
+                operation.id.get(),
+            ).expect("writing to a String cannot fail");
             let callee_attachment = module
                 .machine(*callee)
                 .and_then(|machine| machine.attachment)
@@ -375,4 +393,19 @@ fn service_identity(module: &TerminalModule, id: ServiceId) -> Option<&str> {
     module
         .service(id)
         .and_then(|declaration| module.identities.text(declaration.identity))
+}
+
+/// Expose checked evidence separately from runtime signature positions. A type
+/// identity in this roster must never be mistaken for an executable ABI slot.
+fn proof_formals(module: &TerminalModule, formals: &[terminal_psi::ErasedProofFormal]) -> String {
+    format_ids(formals.iter().map(|formal| {
+        format!(
+            "source:{}:{}",
+            formal.source_position,
+            module
+                .identities
+                .text(formal.type_identity)
+                .unwrap_or("unknown"),
+        )
+    }))
 }

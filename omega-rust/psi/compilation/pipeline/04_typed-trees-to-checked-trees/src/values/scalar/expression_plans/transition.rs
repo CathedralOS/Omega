@@ -102,18 +102,16 @@ pub(crate) fn plan(
         else {
             continue;
         };
-        let Some(target_state) = validation::activation_target_state_index(
-            program,
-            machine,
-            path.symbol,
-        )
-        .and_then(|target_index| states.get(target_index))
-        .or_else(|| {
-            // Free names retain the machine head, while qualified names can
-            // retain its entry child. Both supply the first state's formals;
-            // foreign interior states remain invalid call targets.
-            validation::find_machine_head(program, path.symbol).map(|(_, entry)| entry)
-        }) else {
+        let Some(target_state) =
+            validation::activation_target_state_index(program, machine, path.symbol)
+                .and_then(|target_index| states.get(target_index))
+                .or_else(|| {
+                    // Free names retain the machine head, while qualified names can
+                    // retain its entry child. Both supply the first state's formals;
+                    // foreign interior states remain invalid call targets.
+                    validation::find_machine_head(program, path.symbol).map(|(_, entry)| entry)
+                })
+        else {
             continue;
         };
         let target_parameters = program.state_parameters(target_state).iter().enumerate();
@@ -139,6 +137,7 @@ pub(crate) fn plan(
                         program,
                         operators,
                         *argument,
+                        target_parameter.type_reference,
                         scalar_parameters,
                         parameters,
                         parameter_types,

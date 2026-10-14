@@ -145,6 +145,7 @@ pub(crate) fn lower_call_arguments(
                         program,
                         operators,
                         argument,
+                        target.type_reference,
                         parameters,
                         authored_parameters,
                         parameter_types,
@@ -373,6 +374,7 @@ pub(crate) fn lower_proof_term(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
+    expected_type: typed_trees::types::TypeReferenceHandle,
     parameters: &[StateParameter],
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
@@ -380,7 +382,58 @@ pub(crate) fn lower_proof_term(
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
 ) -> Option<CheckedProofTerm> {
+    // The checked destination provides an array's element type and exact extent.
+    // Recursive payload lowering uses the same operation for record fields and
+    // array elements; neither creates a runtime value or a second call.
+    if let Some(primitive) = program.primitive_type_reference(expected_type) {
+        return Some(CheckedProofTerm::Scalar(lower_return_expression(
+            program,
+            operators,
+            expression,
+            parameters,
+            authored_parameters,
+            parameter_types,
+            locals,
+            primitive,
+            exact_integer_casts,
+        )?));
+    }
     match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(elements) => {
+            let typed_trees::types::TypeReferenceNode::FixedArray {
+                element_type,
+                length: typed_trees::types::FixedArrayLength::Literal(length),
+            } = program.type_reference_table.type_reference(expected_type)
+            else {
+                return None;
+            };
+            let elements = program.expression_table.expression_handles(*elements);
+            if elements.len() != *length {
+                return None;
+            }
+            Some(CheckedProofTerm::Array {
+                type_identity: program.type_identity(
+                    typed_trees::type_identity::TypeIdentityRequest::ordinary(expected_type),
+                ),
+                elements: elements
+                    .iter()
+                    .map(|element| {
+                        lower_proof_term(
+                            program,
+                            operators,
+                            *element,
+                            *element_type,
+                            parameters,
+                            authored_parameters,
+                            parameter_types,
+                            locals,
+                            exact_integer_casts,
+                            proof_only,
+                        )
+                    })
+                    .collect::<Option<Vec<_>>>()?,
+            })
+        }
         ExpressionNode::StructLiteral(literal) => {
             if !literal.type_symbol.is_valid() {
                 return None;
@@ -397,31 +450,18 @@ pub(crate) fn lower_proof_term(
                     literal.case_symbol,
                     field.field_symbol,
                 )?;
-                let term = if let Some(primitive) = program.primitive_type_reference(declared) {
-                    CheckedProofTerm::Scalar(lower_return_expression(
-                        program,
-                        operators,
-                        field.value,
-                        parameters,
-                        authored_parameters,
-                        parameter_types,
-                        locals,
-                        primitive,
-                        exact_integer_casts,
-                    )?)
-                } else {
-                    lower_proof_term(
-                        program,
-                        operators,
-                        field.value,
-                        parameters,
-                        authored_parameters,
-                        parameter_types,
-                        locals,
-                        exact_integer_casts,
-                        proof_only,
-                    )?
-                };
+                let term = lower_proof_term(
+                    program,
+                    operators,
+                    field.value,
+                    declared,
+                    parameters,
+                    authored_parameters,
+                    parameter_types,
+                    locals,
+                    exact_integer_casts,
+                    proof_only,
+                )?;
                 fields.push(CheckedProofTermField {
                     field_symbol: field.field_symbol,
                     term,
@@ -528,6 +568,7 @@ pub(crate) fn lower_direct_call_binding_arguments(
                     program,
                     operators,
                     *argument,
+                    target_parameter.type_reference,
                     parameters,
                     authored_parameters,
                     parameter_types,

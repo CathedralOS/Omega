@@ -1,0 +1,16 @@
+// Checked fixed-array evidence has no runtime argument or storage.
+data Proof {
+    tag: i32;
+    table: [i32; 2];
+}
+
+data Main {
+}
+
+machine Main::main(main: &mut Main) {
+    Main::record(main, Proof { tag: 1, table: [7, 8] }, 4);
+}
+
+machine Main::record(main: &mut Main, w [erased]: Proof, y: i32) {
+    let mut value: i32 = y;
+}

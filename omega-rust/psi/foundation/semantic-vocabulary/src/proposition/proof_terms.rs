@@ -8,11 +8,17 @@ use crate::proposition::{PropositionError, ScalarTerm};
 /// evaluation. A `Construction` is a closed data value such as `Nat::Zero`
 /// or an erased record carrier's exact literal; a `Formal` names the
 /// caller's own erased proof formal so a proof binding passes through a
-/// nested call unchanged; a `Scalar` is one primitive payload leaf inside a
-/// record/enum construction, expressed over the caller's scalar namespace
+/// nested call unchanged; an `Array` retains ordered elements and its exact
+/// type; a `Scalar` is a primitive payload leaf, expressed over the caller's scalar namespace
 /// like any erased scalar actual.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ProofTerm {
+    /// A fixed array in the erased lane. Its normalized type retains element
+    /// and extent identity; elements remain ordered semantic evidence.
+    Array {
+        type_identity: String,
+        elements: Vec<ProofTerm>,
+    },
     /// A closed data construction. Fields stay in authored
     /// declaration order so the canonical encoding is stable.
     Construction {
@@ -61,6 +67,15 @@ impl ProofTerm {
                     for field in fields.iter().rev() {
                         pending.push(Step::Field(field));
                     }
+                }
+                Step::Term(ProofTerm::Array {
+                    type_identity,
+                    elements,
+                }) => {
+                    if type_identity.is_empty() {
+                        return Err(PropositionError::EmptyProofTermTypeIdentity);
+                    }
+                    pending.extend(elements.iter().rev().map(Step::Term));
                 }
                 Step::Term(ProofTerm::Formal { .. }) => {}
                 Step::Term(ProofTerm::Scalar(term)) => term.validate()?,

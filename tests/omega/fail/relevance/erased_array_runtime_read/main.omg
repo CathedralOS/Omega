@@ -1,0 +1,3 @@
+machine keep(witness [erased]: [i32; 2]) -> i32 { witness[0] }
+data Main { result: i32; }
+machine Main::main(main: &mut Main) { main.result = keep([7, 8]); }

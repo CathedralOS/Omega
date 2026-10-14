@@ -1,0 +1,4 @@
+data Proof { tag: i32; table: [i32; 2]; }
+machine keep(n: i32, witness [erased]: Proof) -> i32 { n }
+data Main { result: i32; }
+machine Main::main(main: &mut Main) { main.result = keep(70, Proof { tag: 1, table: [true, false] }); }

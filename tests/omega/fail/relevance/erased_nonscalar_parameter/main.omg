@@ -1,22 +1,4 @@
-// FAIL canary. An erased signature formal on a runtime machine needs a
-// scalar lane or a closed contract term carrier — a checked-shape
-// record/enum whose fields are all term-expressible. `Proof` is a closed
-// record but its `table` field is a fixed array, which has no proof-term
-// form, so shape admission names the refusal rather than omitting the
-// formal without a lane. A record whose fields are all scalars is admitted:
-// see pass/relevance/erased_record_parameter_exit.
-data Proof {
-    tag: i32;
-    table: [i32; 2];
-}
-
-data Main {
-}
-
-machine Main::main(main: &mut Main) {
-    Main::record(main, Proof { tag: 1, table: [7, 8] }, 4);
-}
-
-machine Main::record(main: &mut Main, w [erased]: Proof, y: i32) {
-    let mut value: i32 = y;
-}
+// References have no serialized value in the erased contract-term lane.
+machine keep(w [erased]: &i32) { }
+data Main { value: i32; }
+machine Main::main(main: &mut Main) { keep(&main.value); }
