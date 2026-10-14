@@ -1,0 +1,40 @@
+// Expected exit: 0.
+// A domain whose every predicate is a closed bound on its subject is an
+// interval. A premise that confines the actual inside that interval -- an
+// entry `requires`, a dominating guard -- establishes the membership even
+// when it is spelled differently from the domain's predicate: `x < 10`
+// establishes `value <= 15`. Unsigned, signed and field subjects are shown.
+domain u64::Small(value) requires value <= 15;
+
+domain i32::Centered(value) requires value >= -5 && value <= 5;
+
+data Box [copy] { size: u64; }
+
+machine use_small(x: u64) -> u64 requires x in u64::Small { x }
+
+machine use_centered(x: i32) -> i32 requires x in i32::Centered { x }
+
+machine relay(x: u64) -> u64 requires x < 10 { use_small(x) }
+
+machine relay_field(b: Box) -> u64 requires b.size <= 12 { use_small(b.size) }
+
+machine relay_signed(x: i32) -> i32 requires x > -3 && x < 3 { use_centered(x) }
+
+machine guarded(x: u64) -> u64 {
+    transition x < 16 {
+        true -> small(x)
+        false -> large()
+    }
+    state small(y: u64) -> u64 { use_small(y) }
+    state large() -> u64 { 0 }
+}
+
+machine main() crashes Trap {
+    let a: u64 = relay(3);
+    let b: u64 = guarded(12);
+    let c: u64 = relay_field(Box { size: 11 });
+    let d: i32 = relay_signed(-2);
+    transition a == 3 && b == 12 && c == 11 && d == -2 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

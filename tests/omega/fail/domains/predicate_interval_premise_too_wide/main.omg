@@ -1,0 +1,7 @@
+// `x < 17` admits 16, outside `value <= 15`.
+domain u64::Small(value) requires value <= 15;
+machine use_small(x: u64) -> u64 requires x in u64::Small { x }
+machine relay(x: u64) -> u64 requires x < 17 { use_small(x) }
+machine main() -> u64 {
+    transition { _ -> relay(3) }
+}

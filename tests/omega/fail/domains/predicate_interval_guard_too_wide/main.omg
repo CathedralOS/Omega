@@ -1,0 +1,14 @@
+// A guard `x < 17` admits 16, outside `value <= 15`.
+domain u64::Small(value) requires value <= 15;
+machine use_small(x: u64) -> u64 requires x in u64::Small { x }
+machine guarded(x: u64) -> u64 {
+    transition x < 17 {
+        true -> small(x)
+        false -> large()
+    }
+    state small(y: u64) -> u64 { use_small(y) }
+    state large() -> u64 { 0 }
+}
+machine main() -> u64 {
+    transition { _ -> guarded(3) }
+}

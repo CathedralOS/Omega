@@ -2135,6 +2135,12 @@ fail/domains/offset_borrow_return_unestablished_field rejected 411ms expected @1
 	cannot prove default-domain field requirement for return from pick at statement 2: bag.rows[2].labels[1].text requires [u8; N]::NonEmpty
 	cannot prove default-domain field requirement for return from pick at statement 3: bag.rows[2].labels[1].text requires [u8; N]::NonEmpty
 	cannot prove index `0` is within unknown slice length of `bag.rows[2].labels[1].text` in pick::entry
+fail/domains/predicate_interval_guard_too_wide rejected 1119ms expected @2012446ad74a+wt
+	cannot prove requires contract for call use_small from guarded: y in u64::Small in state `small`
+fail/domains/predicate_interval_premise_too_wide rejected 1206ms expected @2012446ad74a+wt
+	cannot prove requires contract for call use_small from relay: x in u64::Small in state `entry`
+fail/domains/predicate_interval_unread_conjunct rejected 1222ms expected @2012446ad74a+wt
+	cannot prove requires contract for call use_sparse from relay: x in u64::Sparse in state `entry`
 fail/domains/qualified_mutable_invalid_field rejected 106ms expected @dca1c7cd7e6f+wt
 	reading `packet.<whole value>` crosses an open default-domain invariant window before data `Packet` is established: the zeroed representation is not yet a `Packet` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/domains/qualified_record_authored_arithmetic rejected 925ms expected @868a854ecd4d+wt
@@ -8097,6 +8103,7 @@ run/domains/issued_owned_reinitialized_home checked 5390ms check-target:macos_ar
 run/domains/issued_owned_state_arrivals checked 5608ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/domains/issued_owned_temporary_observation checked 5609ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/domains/module_qualified_cast_domain checked 13309ms check-target:macos_arm64 @2012446ad74a+wt
+run/domains/predicate_interval_premises checked 13508ms check-target:macos_arm64 @2012446ad74a+wt
 run/domains/qualified_record_transfer checked 6006ms check-target:macos_arm64 @868a854ecd4d+wt
 run/domains/semantic_predicate_domain_admission checked 11814ms check-target:macos_arm64 @896172b5d9d8+wt
 run/domains/structural_qualification_cast_transitions checked 12461ms check-target:macos_arm64 @2012446ad74a+wt

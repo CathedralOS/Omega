@@ -93,7 +93,7 @@ pub(super) fn predicate_only_domain_interval(
     facts: &CheckFacts,
     fact: &facts::Fact,
 ) -> Option<(String, numerics::bignum::BigInt, numerics::bignum::BigInt)> {
-    let Some((_, _, domain_symbol, _)) = fact.payload.domain_membership() else {
+    let Some((_, _, domain_symbol, semantic_domain)) = fact.payload.domain_membership() else {
         return None;
     };
     let place_handle = fact.place.as_place()?;
@@ -107,6 +107,7 @@ pub(super) fn predicate_only_domain_interval(
     }
     let constraint = typed_trees::types::DomainConstraint {
         symbol: domain_symbol,
+        semantic_id: semantic_domain,
         ..Default::default()
     };
     let (minimum, maximum) = validation::exact_declared_domain_interval(program, &constraint)?;

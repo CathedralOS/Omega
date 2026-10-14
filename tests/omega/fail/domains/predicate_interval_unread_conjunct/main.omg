@@ -1,0 +1,8 @@
+// `value != 7` is not an interval bound, so the domain is not an interval;
+// `x < 10` leaves 7 possible.
+domain u64::Sparse(value) requires value <= 15 && value != 7;
+machine use_sparse(x: u64) -> u64 requires x in u64::Sparse { x }
+machine relay(x: u64) -> u64 requires x < 10 { use_sparse(x) }
+machine main() -> u64 {
+    transition { _ -> relay(3) }
+}
