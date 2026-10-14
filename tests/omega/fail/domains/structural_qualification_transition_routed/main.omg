@@ -1,0 +1,14 @@
+// `as` cannot mint routed provenance for a successor argument any more than
+// for a call argument.
+data Token [copy] { value: u64; }
+domain Token::Issued established by issue;
+machine issue(value: u64) -> Token in Token::Issued { Token { value: value } }
+machine main() -> u64 {
+    let t: Token = Token { value: 3 };
+    transition t.value == 3 {
+        true -> later(t as Token in Issued)
+        false -> done()
+    }
+    state later(c: Token in Issued) -> u64 { c.value }
+    state done() -> u64 { 0 }
+}

@@ -1,0 +1,15 @@
+// A successor argument qualified into `Other` cannot fill a parameter that
+// requires `Ready`: an explicit qualification establishes only the domain
+// it names.
+data Counter [copy] { code: u64; }
+domain Counter::Ready;
+domain Counter::Other;
+machine main() -> u64 {
+    let x: Counter = Counter { code: 3 };
+    transition x.code == 3 {
+        true -> later(x as Counter in Other)
+        false -> done()
+    }
+    state later(c: Counter in Ready) -> u64 { c.code }
+    state done() -> u64 { 0 }
+}

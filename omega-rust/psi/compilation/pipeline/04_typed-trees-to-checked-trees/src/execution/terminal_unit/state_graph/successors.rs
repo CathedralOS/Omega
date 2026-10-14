@@ -325,6 +325,13 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 && (source_parameter.access == target.access
                     || (source_parameter.access == CheckedStructuralAccess::MutableBorrow
                         && target.access == CheckedStructuralAccess::SharedBorrow))
+                // A whole owned move carries the source's complete contract.
+                // An argument that adds or erases a membership is a fresh
+                // value with the target's contract, established below.
+                && (target.access != CheckedStructuralAccess::Owned
+                    || (source_parameter.qualifications == target.qualifications
+                        && source_parameter.projected_qualifications
+                            == target.projected_qualifications))
             {
                 mark(SuccessorGuard::ParameterTransfer);
                 return Some(CheckedStructuralControlTransferPlan {
@@ -437,6 +444,17 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     && let Some(symbol) = place.root.as_symbol()
                     && let Some(CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }) =
                         super::super::local_storage::source(program, source, operations, symbol)
+                    // As for a forwarded parameter: an owned move carries the
+                    // local's declared contract, and an argument adding or
+                    // erasing a membership is established below instead.
+                    && (target.access != CheckedStructuralAccess::Owned
+                        || program.state_local_declaration(source, symbol).is_some_and(|(_, local)| {
+                            super::super::types::parameter_qualifications(
+                                program, shapes, local.type_reference,
+                                &super::super::types::machine_binders(program, machine),
+                            )
+                            .is_some_and(|qualifications| qualifications == target.qualifications)
+                        }))
                 {
                     let mut matches = operations.iter()
                         .filter(|operation| !operand_owned_construction(operation))
@@ -552,7 +570,11 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 let multiplicity = if stored_reference {
                     validation::reference_result_custody::result_multiplicity(program, root.type_reference)
                 } else if target.access == CheckedStructuralAccess::Owned {
-                    if program.normalized_type_identity(root.type_reference)
+                    // The edge transfers storage, so storage identities must
+                    // agree. A qualified operand (`x as Counter in Ready`)
+                    // keeps its carrier's storage; checking owns whether its
+                    // memberships meet the successor's declared domains.
+                    if super::super::types::base_type_identity(program, root.type_reference, &[], &[])?
                         != target.type_identity
                     {
                         return None;

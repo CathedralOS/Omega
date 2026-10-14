@@ -1,0 +1,65 @@
+// Expected exit: 0.
+// A qualification cast written directly as a successor argument denotes a
+// fresh value with the cast's membership, exactly as it does as a call
+// argument. The edge establishes that value rather than forwarding the
+// operand's storage, whose own contract lacks the membership. Each argument
+// reaches its state through a different operand: a local, a record literal,
+// a field projection, a call result, and a state parameter, one edge passing
+// two of them at once.
+data Counter [copy] { code: u64; }
+
+domain Counter::Ready;
+
+data Holder [copy] { counter: Counter; }
+
+machine make(code: u64) -> Counter { Counter { code: code } }
+
+machine main() crashes Trap {
+    let local: Counter = Counter { code: 1 };
+    let holder: Holder = Holder { counter: Counter { code: 3 } };
+    let produced: Counter = make(5);
+    transition local.code == 1 && produced.code == 5 {
+        true -> literal(
+            local as Counter in Ready,
+            Counter { code: 2 } as Counter in Ready,
+            holder,
+            produced,
+        )
+        false -> wrong()
+    }
+    state literal(first: Counter in Ready, second: Counter in Ready, box: Holder, kept: Counter) {
+        transition first.code == 1 && second.code == 2 {
+            true -> field(box.counter as Counter in Ready, kept)
+            false -> wrong()
+        }
+    }
+    state field(counter: Counter in Ready, kept: Counter) {
+        transition counter.code == 3 {
+            true -> result(make(4) as Counter in Ready, kept)
+            false -> wrong()
+        }
+    }
+    state result(counter: Counter in Ready, produced: Counter) {
+        transition counter.code == 4 {
+            true -> stored(produced as Counter in Ready)
+            false -> wrong()
+        }
+    }
+    state stored(counter: Counter in Ready) {
+        transition counter.code == 5 {
+            true -> plain(Counter { code: 6 })
+            false -> wrong()
+        }
+    }
+    state plain(counter: Counter) {
+        transition counter.code == 6 {
+            true -> requalified(counter as Counter in Ready)
+            false -> wrong()
+        }
+    }
+    state requalified(counter: Counter in Ready) {
+        transition counter.code == 6 { true -> done() false -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
