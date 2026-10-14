@@ -118,8 +118,14 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
         .pre_physical_manifest()
         .record()
         .identity;
+    // The post-allocation phase run must have executed exactly this build's
+    // projection of that phase and must have produced exactly the plan every
+    // later stage consumed.
+    let post_allocation_run = machine.optimization();
     if selected_lowering.identity() != expected_lowering_selections
-        || !post_allocation.is_empty()
+        || post_allocation_run.complete_selection() != selections.identity()
+        || post_allocation_run.phase_selections() != post_allocation.identity()
+        || post_allocation_run.result() != machine.machine().receipt().identity()
         || post.pre_physical != pre_physical
         || post.selected_transformations != expected_transformations
         || post.selected_lowering_completion != expected_lowering_completion

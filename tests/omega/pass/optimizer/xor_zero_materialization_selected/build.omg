@@ -1,0 +1,15 @@
+// The build selects the x86-64 xor-zero materialization by exact name, so
+// compilation exercises its execution through the post-allocation stage
+// catalog on both x86-64 targets and the native run observes the result:
+// the program exits 0 when `zero()` still returns 0 and traps otherwise.
+// The rule is target-specific, so no AArch64 entry is bound.
+
+machine build(builder: &mut Build) {
+    Build::application(builder, "xor_zero_materialization_selected");
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Optimizations::enable(
+        &mut builder.optimizations,
+        Optimization::X86SelectXorZeroI64MaterializationV1,
+    );
+}

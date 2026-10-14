@@ -1,0 +1,21 @@
+// `X86SelectXorZeroI64MaterializationV1` realizes an exact i64 zero with the
+// three-byte `xor r64, r64` idiom in place of the ten-byte `mov r64, imm64`.
+// `zero()` returns the literal through a selected `MaterializeI64` whose
+// destination is the return home and whose RFLAGS are dead until `main`'s
+// compare redefines them, so the post-allocation phase rewrites that
+// materialization onto the idiom. `main` observes the value: an idiom that
+// left anything but zero in the return home fails the `observed == 0i64`
+// transition and traps instead of reaching the authored exit 0.
+
+machine zero() -> i64 { 0i64 }
+
+machine main() crashes Trap {
+    let observed: i64 = zero();
+    transition observed == 0i64 {
+        true -> done()
+        _ -> bad()
+    }
+
+    state done() { }
+    state bad() { crash Trap; }
+}

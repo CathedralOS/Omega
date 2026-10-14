@@ -495,6 +495,19 @@ pub(crate) fn encode_unchecked(
         }
         SelectedInstructionKind::AtomicFence => bytes.extend_from_slice(&[0x0f, 0xae, 0xf0]),
         SelectedInstructionKind::Crash => bytes.extend_from_slice(&[0x0f, 0x0b]),
+        SelectedInstructionKind::MaterializeI64 { value } if alternative.variant == 1 => {
+            // The dependency-breaking zero idiom realizes exactly zero; any
+            // other value has no three-byte form and names the wrong variant.
+            if integer_bits(value)? != 0 {
+                return Err(X86_64SelectedFormEncodingError::AlternativeMismatch);
+            }
+            let register = registers[0];
+            bytes.extend([
+                rex(register, 0, register),
+                0x31,
+                modrm(3, register, register),
+            ]);
+        }
         SelectedInstructionKind::MaterializeI64 { value } => {
             bytes.extend([0x48 | (registers[0] >> 3), 0xb8 | (registers[0] & 7)]);
             bytes.extend(integer_bits(value)?.to_le_bytes());

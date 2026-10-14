@@ -230,6 +230,10 @@ pub fn encode_machine_alternative_identity<Sink: MachineIdentityBytes + ?Sized>(
             bytes.identity_bytes(&right.to_le_bytes());
             bytes.identity_bytes(&excluded_view.0.to_le_bytes());
         }
+        MachineAlternativeApplicability::OptimizationSelected { optimization } => {
+            bytes.identity_bytes(&[6]);
+            bytes.identity_bytes(&[optimization as u8]);
+        }
     }
     match alternative.size {
         MachineSizeKnowledge::ExactBytes(count) => {

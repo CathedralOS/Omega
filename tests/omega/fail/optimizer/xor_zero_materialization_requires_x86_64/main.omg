@@ -1,0 +1,17 @@
+// Invalid control for `X86SelectXorZeroI64MaterializationV1`: the rule is
+// x86-64-specific, so a build that selects it while binding only an AArch64
+// entry is rejected by the post-allocation stage naming the rule, the
+// required architecture and the actual one. The program itself is valid.
+
+machine zero() -> i64 { 0i64 }
+
+machine main() crashes Trap {
+    let observed: i64 = zero();
+    transition observed == 0i64 {
+        true -> done()
+        _ -> bad()
+    }
+
+    state done() { }
+    state bad() { crash Trap; }
+}

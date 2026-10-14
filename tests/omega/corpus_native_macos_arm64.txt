@@ -1600,6 +1600,7 @@ pass/optimizer/rollback_sparse_conditional_constant_propagation_control built 31
 pass/optimizer/rollback_sparse_conditional_constant_propagation_selected built 3306ms rollback:requested=[SparseConditionalConstantPropagation];applied=[SparseConditionalConstantPropagation];effective=[] exit:0 @9beb2be72f2d+wt
 pass/optimizer/rollback_to_no_selection_empty_entry built 3404ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] @693920652f41
 pass/optimizer/stored_load_forwarding_selection_exit built 3222ms exit:0 @9beb2be72f2d+wt
+pass/optimizer/xor_zero_materialization_selected built 24617ms @e5140c7a7be2+wt
 pass/ownership/conditional_linear_sum checked 210ms
 pass/ownership/conditional_linear_sum_with_drop checked 9320ms @5041ef1af684+wt
 pass/ownership/copied_parameter_case_field_store_exit built 1978ms exit:70 @02be27637e24+wt
@@ -2120,8 +2121,7 @@ pass/terminal_psi/integer_control_contract checked 361ms
 pass/terminal_psi/member_crash_contract_boundary checked 193ms
 pass/terminal_psi/portable_contract_component built 319ms
 pass/terminal_psi/selected_empty_component built 216ms
-pass/terminal_psi/selected_lowering_optimizer_component rejected 7838ms @6c75d91f0312
-	selected optimization `X86SelectXorZeroI64MaterializationV1` failed in the complete verified optimizer pipeline during selected/physical validation: common physical staging failed: UnconsumedPostTerminalPhase(PostAllocationMachine); no alternate compiler route was run and no output was installed
+pass/terminal_psi/selected_lowering_optimizer_component built 24911ms @e5140c7a7be2+wt
 pass/terminal_psi/selected_optimizer_component built 253ms
 pass/terminal_psi/structural_content_passthrough checked 176ms
 pass/terminal_psi/structural_scalar_trait_operator built 323ms

@@ -549,6 +549,15 @@ pub enum MachineAlternativeApplicability {
         right: u16,
         excluded_view: RegisterViewId,
     },
+    /// An alternative the post-allocation legality rule never chooses: only
+    /// the named post-allocation optimization, when selected by the build and
+    /// executed by the post-allocation stage, rewrites an instruction onto it
+    /// after proving the rule's own guard. The catalog declares the form once,
+    /// beside the baseline alternatives, so the rule consumes the declared
+    /// entry rather than a second name-to-form table.
+    OptimizationSelected {
+        optimization: optimization_core::Optimization,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

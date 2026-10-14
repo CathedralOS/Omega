@@ -1697,6 +1697,7 @@ dependencies = [
  "selected-instructions",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
+ "target",
 ]
 
 [[package]]

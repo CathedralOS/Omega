@@ -1107,6 +1107,14 @@ pub(crate) fn validate_decoded(
         SelectedInstructionKind::Crash => {
             registers.is_empty() && decoded == [DecodedInstruction::Crash]
         }
+        SelectedInstructionKind::MaterializeI64 { value } if alternative.variant == 1 => {
+            integer_bits(value)? == 0
+                && decoded
+                    == [DecodedInstruction::Xor {
+                        source: registers[0],
+                        destination: registers[0],
+                    }]
+        }
         SelectedInstructionKind::MaterializeI64 { value } => {
             decoded
                 == [DecodedInstruction::Materialize {
@@ -2065,10 +2073,11 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
             (vec![], vec![operands[0]], false)
         }
-        SelectedInstructionKind::MaterializeI64 { .. }
-        | SelectedInstructionKind::ImmutableImageAddress { .. } => {
-            (vec![], vec![operands[0]], false)
+        // The optimizer-selected `xor r64, r64` zero idiom writes RFLAGS.
+        SelectedInstructionKind::MaterializeI64 { .. } => {
+            (vec![], vec![operands[0]], alternative.variant == 1)
         }
+        SelectedInstructionKind::ImmutableImageAddress { .. } => (vec![], vec![operands[0]], false),
         SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ZeroExtendU8
         | SelectedInstructionKind::ZeroExtendU16
@@ -2336,6 +2345,9 @@ pub(crate) fn footprint(
         ) {
             effects.implicit_unit_clobbers = units("rflags");
             effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+        }
+        if writes_rflags && matches!(kind, SelectedInstructionKind::MaterializeI64 { .. }) {
+            effects.implicit_unit_clobbers = units("rflags");
         }
         effects
     };

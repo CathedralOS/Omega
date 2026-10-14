@@ -3332,6 +3332,10 @@ fail/operators/root_operator_alpha_equivalent_generic_duplicate rejected 797ms e
 	duplicate operator declaration `Slice::index`
 fail/operators/selected_crash_invocation rejected 1861ms expected @a9ae30e1c334+wt
 	`left == right` in `compare` selects operator `Float::equal`, which has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/optimizer/unexecutable_post_allocation_rule_rejected rejected 28691ms expected @e5140c7a7be2+wt
+	selected optimization `Aarch64ElideSameViewCopyI64BeforeReturnV1` failed in the complete verified optimizer pipeline during selected/physical validation: common physical staging failed: PostAllocationMachine(Optimization(NoExecutor { optimization: Aarch64ElideSameViewCopyI64BeforeReturnV1 })); no alternate compiler route was run and no output was installed
+fail/optimizer/xor_zero_materialization_requires_x86_64 rejected 29325ms expected @e5140c7a7be2+wt
+	selected optimization `X86SelectXorZeroI64MaterializationV1` failed in the complete verified optimizer pipeline during selected/physical validation: common physical staging failed: PostAllocationMachine(Optimization(TargetMismatch { optimization: X86SelectXorZeroI64MaterializationV1, required: X86_64, actual: Aarch64 })); no alternate compiler route was run and no output was installed
 fail/ownership/assign_immutable_parameter rejected 889ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `overwrite` assignment cannot write `input_value` because it is not mutable in this state (if `input_value` is undeclared -- a typo -- no such field or local exists)
 fail/ownership/borrowed_carrier_transform_keeps_backing_loan rejected 1648ms expected @a9ae30e1c334+wt
@@ -6979,6 +6983,7 @@ pass/optimizer/rollback_sparse_conditional_constant_propagation_selected checked
 pass/optimizer/rollback_to_no_selection_empty_entry checked 32961ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:9541e70f59508201 rolled-back-semantic:9541e70f59508201 module:same check-target:macos_arm64 @a9ae30e1c334+wt
 pass/optimizer/selected_comparison_demand_exit checked 7508ms check-target:macos_arm64 @dfc9dc858b3e+wt
 pass/optimizer/stored_load_forwarding_selection_exit checked 11197ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/optimizer/xor_zero_materialization_selected checked 28850ms check-target:linux_x86_64 @e5140c7a7be2+wt
 pass/ownership/aliased_shared_views_compile checked 1794ms @a9ae30e1c334+wt
 pass/ownership/borrowed_claim_repair_roundtrip_compile checked 1761ms @a9ae30e1c334+wt
 pass/ownership/boundary_requirement_loan_compile checked 1788ms @a9ae30e1c334+wt
@@ -7684,8 +7689,7 @@ pass/terminal_psi/integer_control_contract checked 4148ms @a9ae30e1c334+wt
 pass/terminal_psi/member_crash_contract_boundary checked 1704ms @a9ae30e1c334+wt
 pass/terminal_psi/portable_contract_component checked 11792ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/terminal_psi/selected_empty_component checked 12124ms check-target:linux_x86_64 @a9ae30e1c334+wt
-pass/terminal_psi/selected_lowering_optimizer_component rejected 10998ms check-target:linux_x86_64 @a9ae30e1c334+wt
-	selected optimization `X86SelectXorZeroI64MaterializationV1` failed in the complete verified optimizer pipeline during selected/physical validation: common physical staging failed: UnconsumedPostTerminalPhase(PostAllocationMachine); no alternate compiler route was run and no output was installed
+pass/terminal_psi/selected_lowering_optimizer_component checked 29237ms check-target:linux_x86_64 @e5140c7a7be2+wt
 pass/terminal_psi/selected_optimizer_component checked 11710ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/terminal_psi/structural_content_passthrough checked 1666ms @a9ae30e1c334+wt
 pass/terminal_psi/structural_scalar_trait_operator checked 12611ms check-target:linux_x86_64 @a9ae30e1c334+wt

@@ -76,8 +76,9 @@ fn family_and_operand_count(
         SelectedInstructionKind::CompareI64Immediate { .. } => {
             (MachineAlternativeFamily::CompareI64Immediate, 1, 0..=0)
         }
+        // Variant 1 is the optimizer-selected `xor r64, r64` zero idiom.
         SelectedInstructionKind::MaterializeI64 { .. } => {
-            (MachineAlternativeFamily::MaterializeI64, 1, 0..=0)
+            (MachineAlternativeFamily::MaterializeI64, 1, 0..=1)
         }
         SelectedInstructionKind::ImmutableImageAddress { .. } => {
             (MachineAlternativeFamily::ImmutableImageAddress, 1, 0..=0)

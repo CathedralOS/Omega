@@ -677,6 +677,14 @@ fn decode_alternative_for_version(
             right: cursor.u16()?,
             excluded_view: register_model::RegisterViewId(cursor.u16()?),
         },
+        6 => {
+            let tag = cursor.byte()?;
+            let optimization = optimization_core::Optimization::ALL
+                .into_iter()
+                .find(|optimization| *optimization as u8 == tag)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?;
+            MachineAlternativeApplicability::OptimizationSelected { optimization }
+        }
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let size = match cursor.byte()? {

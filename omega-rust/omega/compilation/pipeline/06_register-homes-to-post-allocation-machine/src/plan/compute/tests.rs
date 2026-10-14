@@ -143,3 +143,33 @@ fn x86_lea_add_accepts_r12_as_a_rex_extended_sib_index() {
         add.key
     );
 }
+
+#[test]
+fn the_legality_rule_never_chooses_an_optimizer_selected_form() {
+    let physical = physical();
+    let rax = view(&physical, "rax");
+    let operands = [operand(2, rax)];
+    // The declared optimizer form sits beside the always-applicable
+    // baseline; the unique-applicable rule sees only the baseline.
+    let alternatives = [
+        alternative(0, MachineAlternativeApplicability::Always),
+        alternative(
+            1,
+            MachineAlternativeApplicability::OptimizationSelected {
+                optimization: optimization_core::Optimization::X86SelectXorZeroI64MaterializationV1,
+            },
+        ),
+    ];
+    assert_eq!(
+        choose(9, &operands, &alternatives, &physical)
+            .unwrap()
+            .key
+            .variant,
+        0
+    );
+    // Without the baseline the instruction has no legal alternative at all.
+    assert_eq!(
+        choose(9, &operands, &alternatives[1..], &physical),
+        Err(crate::PostAllocationMachineError::NoApplicableAlternative { instruction: 9 })
+    );
+}

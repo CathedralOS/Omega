@@ -76,5 +76,8 @@ fn is_applicable(
             right,
             excluded_view,
         } => !aliases(view(left)?, excluded_view) || !aliases(view(right)?, excluded_view),
+        // The legality rule never chooses an optimizer form; the
+        // post-allocation phase rewrites onto it under the named rule's guard.
+        MachineAlternativeApplicability::OptimizationSelected { .. } => false,
     })
 }

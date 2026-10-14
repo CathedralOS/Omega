@@ -1,0 +1,10 @@
+// Invalid control for the post-allocation phase: a catalog rule the stage
+// has no executor for is declared, not supported. Selecting
+// `Aarch64ElideSameViewCopyI64BeforeReturnV1` on its own architecture is
+// rejected by name instead of being dropped as a no-op. The program itself
+// is valid.
+
+machine main()
+terminates;
+{
+}

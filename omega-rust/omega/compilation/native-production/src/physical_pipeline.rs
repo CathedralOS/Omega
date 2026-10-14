@@ -37,7 +37,7 @@ pub(crate) fn stage_optimized_verified_physical_pipeline(
         register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan(
             &allocation.current(),
         )
-        .map_err(OptimizedVerifiedPhysicalPipelineError::from)?;
+        .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
     let budget = allocation.current().budget_per_pass();
     machine_emission::stage_fixed_frame_function_relative_realization(allocation, machine, budget)
         .map(StagedOptimizedFunctionFragmentEmissionSource::from)

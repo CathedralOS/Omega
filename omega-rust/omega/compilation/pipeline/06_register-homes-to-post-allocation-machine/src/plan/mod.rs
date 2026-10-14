@@ -1,7 +1,11 @@
-//! Optimizer module role: executable entrance. Deterministic post-allocation machine-plan construction and replay.
+//! Optimizer module role: executable entrance. Deterministic post-allocation
+//! machine-plan construction and sealing. The post-allocation optimization
+//! phase runs between the two in `post_allocation_machine.rs`.
 
 mod compute;
 mod validate;
+
+pub(crate) use validate::seal_post_allocation_machine_plan;
 
 use optimization_core::PostAllocationOptimizationManifestIdentity;
 use physical_instructions::{PostAllocationMachineIdentity, PostAllocationMachinePlan};
@@ -12,10 +16,11 @@ use selected_instructions_to_register_homes::RegisterHomeIdentity;
 use std::sync::Arc;
 
 /// Join one validated selected CFG, its pre-allocation machine effects, and
-/// its independently validated physical homes. Target applicability must
-/// identify exactly one legal alternative for every instruction.
+/// its independently validated physical homes into the unsealed baseline
+/// plan. Target applicability must identify exactly one legal alternative for
+/// every instruction; optimizer-selected alternatives wait for the phase.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn analyze_post_allocation_machine_plan<
+pub(crate) fn compute_post_allocation_machine_plan<
     S: selected_instructions_to_register_homes::ValidatedSelectedAnalysis,
 >(
     selected: &S,
@@ -27,8 +32,8 @@ pub(crate) fn analyze_post_allocation_machine_plan<
     register_environment: register_model::TargetRegisterEnvironmentIdentity,
     physical: &register_model::ValidatedPhysicalRegisterModel,
     constraints: &register_model::ValidatedRegisterConstraintCatalog,
-) -> Result<ValidatedPostAllocationMachinePlan, PostAllocationMachineError> {
-    let plan = compute::compute_terminal_post_allocation_machine_plan(
+) -> Result<PostAllocationMachinePlan, PostAllocationMachineError> {
+    compute::compute_terminal_post_allocation_machine_plan(
         selected,
         effects,
         ranges,
@@ -38,8 +43,7 @@ pub(crate) fn analyze_post_allocation_machine_plan<
         register_environment,
         physical,
         constraints,
-    )?;
-    validate::seal_post_allocation_machine_plan(plan)
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

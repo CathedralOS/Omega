@@ -14,6 +14,7 @@ selected-instructions-to-register-homes = { path = "../05_selected-instructions-
 register-environment = { path = "../../backend/register-environment" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 register-model = { path = "../../backend/register-model" }
+target = { path = "../../backend/target" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 

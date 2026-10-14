@@ -453,6 +453,26 @@ fn declaration(
             MachineAlternativeApplicability::Always,
             MachineSizeKnowledge::ExactBytes(6),
         )],
+        // Variant 1 is the three-byte `xor r64, r64` zero idiom. The
+        // legality rule never chooses it: `X86SelectXorZeroI64MaterializationV1`
+        // rewrites a zero materialization onto it after proving RFLAGS dead.
+        MachineSemanticKind::MaterializeI64 => vec![
+            alternative(
+                semantic,
+                0,
+                MachineAlternativeApplicability::Always,
+                size(semantic),
+            ),
+            alternative(
+                semantic,
+                1,
+                MachineAlternativeApplicability::OptimizationSelected {
+                    optimization:
+                        optimization_core::Optimization::X86SelectXorZeroI64MaterializationV1,
+                },
+                MachineSizeKnowledge::ExactBytes(3),
+            ),
+        ],
         _ => vec![alternative(
             semantic,
             0,
@@ -862,6 +882,17 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                     encoded.control,
                 )
             }
+            // The xor-zero idiom defines its destination from no input and
+            // clobbers RFLAGS; the baseline `mov r64, imm64` touches no flag.
+            MachineSemanticKind::MaterializeI64 if variant == 1 => (
+                vec![],
+                vec![],
+                units("rflags"),
+                MachineEncodedMemoryEffect::NoneV1,
+                MachineEncodedStackEffect::UnchangedV1,
+                MachineEncodedTrapBehavior::NeverV1,
+                MachineEncodedControlEffect::FallThroughV1,
+            ),
             _ => (
                 vec![],
                 vec![],

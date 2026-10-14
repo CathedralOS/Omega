@@ -533,3 +533,106 @@ fn subtract_immediate_lea_is_negative_canonical_and_flag_transparent() {
         );
     }
 }
+
+#[test]
+fn materialize_i64_variant_one_is_the_optimizer_selected_xor_zero_idiom() {
+    let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+    let zero = SelectedInstructionKind::MaterializeI64 {
+        value: IntegerValue::Unsigned(0),
+    };
+    let xor_zero = alternative(MachineAlternativeFamily::MaterializeI64, 1);
+    for (name, bytes) in [
+        ("rax", [0x48, 0x31, 0xc0]),
+        ("rdi", [0x48, 0x31, 0xff]),
+        ("r8", [0x4d, 0x31, 0xc0]),
+        ("r15", [0x4d, 0x31, 0xff]),
+    ] {
+        let destination = [physical.model().view_named(name).unwrap().id];
+        let encoded = encode_x86_64_selected_form(&physical, zero, xor_zero, &destination).unwrap();
+        assert_eq!(encoded.bytes(), bytes);
+        assert!(encoded.footprint().writes_rflags);
+        assert_eq!(
+            encoded.footprint().encoded.implicit_unit_clobbers,
+            physical.model().view_named("rflags").unwrap().units
+        );
+        assert_eq!(encoded.footprint().register_writes, destination);
+        assert!(encoded.footprint().register_reads.is_empty());
+        validate_x86_64_selected_form_encoding(&physical, zero, xor_zero, &destination, &bytes)
+            .unwrap();
+        // The baseline ten-byte move is not the variant-one form and the
+        // variant-one bytes are not the baseline.
+        let baseline = alternative(MachineAlternativeFamily::MaterializeI64, 0);
+        let moved = encode_x86_64_selected_form(&physical, zero, baseline, &destination).unwrap();
+        assert_eq!(moved.bytes().len(), 10);
+        assert!(!moved.footprint().writes_rflags);
+        assert!(
+            validate_x86_64_selected_form_encoding(&physical, zero, baseline, &destination, &bytes)
+                .is_err()
+        );
+        assert!(
+            validate_x86_64_selected_form_encoding(
+                &physical,
+                zero,
+                xor_zero,
+                &destination,
+                moved.bytes()
+            )
+            .is_err()
+        );
+        crate::selected_form_encoding::assert_byte_fragility(&bytes, |candidate| {
+            validate_x86_64_selected_form_encoding(
+                &physical,
+                zero,
+                xor_zero,
+                &destination,
+                candidate,
+            )
+            .is_err()
+        });
+    }
+    // Only an exact zero has the three-byte form.
+    let destination = [physical.model().view_named("rax").unwrap().id];
+    for value in [IntegerValue::Signed(-1), IntegerValue::Unsigned(1)] {
+        assert_eq!(
+            encode_x86_64_selected_form(
+                &physical,
+                SelectedInstructionKind::MaterializeI64 { value },
+                xor_zero,
+                &destination,
+            ),
+            Err(X86_64SelectedFormEncodingError::AlternativeMismatch)
+        );
+    }
+    // The catalog declares the form once, tagged with its owning rule, so
+    // the legality rule never chooses it and the rule finds it by tag.
+    let constraints = crate::validate_x86_64_register_constraint_catalog(
+        crate::x86_64_register_constraint_catalog(&physical),
+        &physical,
+    )
+    .unwrap();
+    let catalog =
+        crate::x86_64_machine_effect_catalog(target::NativeTarget::linux_x64(), &constraints)
+            .unwrap();
+    let declaration = catalog
+        .declarations
+        .iter()
+        .find(|declaration| {
+            declaration.semantic == selected_instructions::MachineSemanticKind::MaterializeI64
+        })
+        .unwrap();
+    assert_eq!(declaration.alternatives.len(), 2);
+    assert_eq!(
+        declaration.alternatives[1].applicability,
+        selected_instructions::MachineAlternativeApplicability::OptimizationSelected {
+            optimization: optimization_core::Optimization::X86SelectXorZeroI64MaterializationV1,
+        }
+    );
+    assert_eq!(
+        declaration.alternatives[1].size,
+        selected_instructions::MachineSizeKnowledge::ExactBytes(3)
+    );
+    assert_eq!(
+        declaration.alternatives[1].encoded.implicit_unit_clobbers,
+        physical.model().view_named("rflags").unwrap().units
+    );
+}

@@ -501,10 +501,18 @@ fn validate_encoded_effects(
     // Implicit custody restates the row with the same exactness as operand
     // custody: every contracted implicit definition and declared clobber is
     // one the encoding performs. A row that drops one understates the
-    // interference its register homes are allocated against.
-    if encoded.implicit_unit_defs != constraint.implicit_defs
-        || encoded.implicit_unit_clobbers != constraint.clobbers
-    {
+    // interference its register homes are allocated against. An
+    // optimizer-selected form may clobber units beyond its row — the units
+    // the post-allocation phase proves dead before selecting it — but never
+    // fewer.
+    let clobbers_match = match applicability {
+        MachineAlternativeApplicability::OptimizationSelected { .. } => constraint
+            .clobbers
+            .iter()
+            .all(|unit| encoded.implicit_unit_clobbers.contains(unit)),
+        _ => encoded.implicit_unit_clobbers == constraint.clobbers,
+    };
+    if encoded.implicit_unit_defs != constraint.implicit_defs || !clobbers_match {
         return Err(());
     }
     let implicit_uses_match = match encoded.control {
@@ -1355,5 +1363,13 @@ fn validate_applicability(
                 .then_some(())
                 .ok_or(())
         }
+        // Only a post-allocation rule can rewrite an already-homed
+        // instruction onto a declared form; an earlier phase's rule has no
+        // physical homes to guard against.
+        MachineAlternativeApplicability::OptimizationSelected { optimization } => (optimization
+            .execution_phase()
+            == optimization_core::OptimizationExecutionPhase::PostAllocationMachine)
+            .then_some(())
+            .ok_or(()),
     }
 }
