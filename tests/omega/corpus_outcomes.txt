@@ -6555,8 +6555,7 @@ pass/generics/machine_type_equations checked 1760ms @a9ae30e1c334+wt
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 1943ms @a9ae30e1c334+wt
 pass/generics/omitted_data_binder_range_equation checked 12628ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/omitted_fixed_domain_array_equation checked 3667ms @a9ae30e1c334+wt
-pass/generics/open_computed_quantity_result rejected 2976ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	machine `add_indexed` cannot materialize const parameter `A` as its declared value type `u64`
+pass/generics/open_computed_quantity_result checked 24313ms check-target:macos_arm64 @f6326ba5a76f
 pass/generics/ranged_const_parameter_attached_shape checked 15081ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_borrowed_value_inference_exit checked 16121ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_captured_map_borrowed_type checked 17222ms check-target:macos_arm64 @4730b1ac8a84
