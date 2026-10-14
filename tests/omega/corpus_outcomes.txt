@@ -8015,6 +8015,7 @@ pass/traits/nominal_generic_reference_forwarding_exit checked 11241ms check-targ
 pass/traits/nominal_machine_binder_static_dispatch checked 11071ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/operator_machine_add checked 9822ms @5041ef1af684+wt
 pass/traits/prepared_callable_nested_borrow_paths_exit checked 3390ms check-target:macos_arm64 @992d27dd3135+wt
+pass/traits/public_nested_machine_contract_scopes checked 5693ms check-target:macos_arm64 @eb2c4b6a1507
 pass/traits/renamed_invocation_contract_binders checked 4765ms @f3014db3f225+wt
 pass/traits/resultless_law_float_equality_exit checked 24646ms check-target:macos_arm64 @9c4d1c444502
 pass/traits/ring_requirement_satisfies_exit checked 5521ms check-target:macos_arm64 @b7248b14be49
