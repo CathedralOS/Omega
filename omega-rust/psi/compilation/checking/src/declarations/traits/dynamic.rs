@@ -497,6 +497,7 @@ pub fn resolve_selected_dynamic_call_targets(
                         state,
                         call.receiver_symbol,
                         call.target_symbol,
+                        &call.machine_arguments,
                         arguments,
                         call.source_span,
                         &mut diagnostics,
@@ -777,6 +778,7 @@ fn collect_dynamic_expression_call_updates(
                 state,
                 qualifier,
                 call.target_symbol,
+                &call.machine_arguments,
                 program.expression_table.expression_handles(call.arguments),
                 program.expression_table.source_span(expression),
                 diagnostics,
@@ -854,10 +856,23 @@ fn explicit_binding_authority(
     state: &State,
     qualifier: symbols::SymbolHandle,
     target: symbols::SymbolHandle,
+    machine_arguments: &[typed_trees::expression::StaticMachineArgument],
     arguments: &[ExpressionHandle],
     span: source::SourceSpan,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
+    // Typing binds service authority before static specialization closes
+    // conformance applications. An authored implementation operand chooses
+    // that static route, not a runtime Binding. Leave its exact map request
+    // intact for conformance preparation; neither a Build provider nor an
+    // arbitrary type argument can enter this lane. A malformed or unrelated
+    // map still fails that ordinary selection check before execution.
+    if machine_arguments
+        .iter()
+        .any(|argument| argument.names_implementation(&program.symbols))
+    {
+        return None;
+    }
     // A named implementation or static conformance binder selects its own
     // realization. Only qualification by the boundary trait consumes Binding
     // authority. A normalized runtime receiver cannot satisfy this guard.

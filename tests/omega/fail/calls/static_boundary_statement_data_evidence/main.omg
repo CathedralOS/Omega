@@ -1,0 +1,7 @@
+pub data Observation { value: i32; }
+pub boundary trait RawSource { machine fill(destination: &mut Observation); }
+data NotAnImplementation {}
+machine main() {
+    let mut observed: Observation;
+    RawSource::fill<NotAnImplementation>(&mut observed);
+}

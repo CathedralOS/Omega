@@ -192,8 +192,10 @@ impl DefaultBodyScope {
 
 /// A call through a named implementation (`Ascending::before(left, right)`)
 /// selects that implementation's row for the requirement it names. The row's
-/// realization is an ordinary checked machine, so the call becomes a direct
-/// static call to it with its explicit arguments. A requirement name that
+/// public requirement remains the call target until typed preparation closes
+/// and retains the selected map. Replacing it with the private realization
+/// here would erase that source selection before its contract can be checked.
+/// A requirement name that
 /// matches no row, or several inherited rows, leaves the call unresolved so
 /// checking rejects it rather than choosing one.
 pub(crate) fn route_named_implementation_calls(program: &mut SymbolResolvedTrees) {
@@ -206,7 +208,7 @@ pub(crate) fn route_named_implementation_calls(program: &mut SymbolResolvedTrees
                 conformance
                     .rows
                     .iter()
-                    .map(|row| (row.requirement_name.clone(), row.realization_state))
+                    .map(|row| (row.requirement_name.clone(), row.requirement))
                     .collect::<Vec<_>>(),
             )
         })

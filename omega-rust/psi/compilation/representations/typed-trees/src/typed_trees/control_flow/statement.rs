@@ -233,19 +233,21 @@ impl StatementTable {
                                     }),
                             )
                         });
+                    let (authored_machine_application, static_requirement_dispatch) =
+                        target_expressions.copy_call_static_applications_from(
+                            source_expressions,
+                            call.authored_machine_application,
+                            call.static_requirement_dispatch.clone(),
+                        );
                     StatementNode::Call(TableCall {
-                        authored_machine_application: target_expressions
-                            .copy_static_machine_application_from(
-                                source_expressions,
-                                call.authored_machine_application,
-                            ),
+                        authored_machine_application,
                         static_machine_parameter: call.static_machine_parameter,
                         receiver_root_symbol: call.receiver_root_symbol,
                         receiver_symbol: call.receiver_symbol,
                         target_symbol: call.target_symbol,
                         receiver,
                         target: call.target.clone(),
-                        static_requirement_dispatch: call.static_requirement_dispatch.clone(),
+                        static_requirement_dispatch,
                         machine_arguments: call.machine_arguments.clone(),
                         arguments,
                         evidence_arguments: call.evidence_arguments.clone(),
@@ -405,28 +407,11 @@ impl StatementTable {
                     expressions.remap_symbols_in(assignment.value, symbols);
                 }
                 StatementNode::Call(call) => {
-                    if call.authored_machine_application.is_valid() {
-                        let application = expressions
-                            .static_machine_application_mut(call.authored_machine_application);
-                        application.lexical_owner = remapped(application.lexical_owner, symbols);
-                        for argument in expressions.static_machine_application_arguments_mut(
-                            call.authored_machine_application,
-                        ) {
-                            argument.remap_symbols(symbols);
-                        }
-                        for binding in expressions.static_machine_application_bindings_mut(
-                            call.authored_machine_application,
-                        ) {
-                            binding.remap_symbols(symbols);
-                        }
-                        for argument in expressions
-                            .static_machine_application_selected_machines_mut(
-                                call.authored_machine_application,
-                            )
-                        {
-                            argument.remap_symbols(symbols);
-                        }
-                    }
+                    expressions.remap_call_static_applications(
+                        call.authored_machine_application,
+                        call.static_requirement_dispatch.as_ref(),
+                        symbols,
+                    );
                     for argument in self.expression_handles(call.arguments).to_vec() {
                         expressions.remap_symbols_in(argument, symbols);
                     }

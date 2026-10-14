@@ -1,0 +1,8 @@
+// A method's own tuple cannot close the selected map's separate telescope.
+trait Choice { machine pick<const Own: i32>() -> i32; }
+Selected<const Captured: i32> satisfies Choice {
+    machine pick<const Own: i32>() -> i32 { Captured }
+}
+machine main() {
+    let observed: i32 = Selected::pick<2>();
+}

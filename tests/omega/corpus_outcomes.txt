@@ -1404,6 +1404,12 @@ fail/calls/static_binding_owned_return rejected 263ms expected @3ac38090e82f
 	machine `invalid` state `entry` return type places the routed `Binding<R>` carrier outside the first direct field/owned concrete-machine-parameter rung
 fail/calls/static_binding_wrong_authority rejected 51ms expected @3ac38090e82f
 	projected binding call target belongs to a different requirement
+fail/calls/static_boundary_statement_data_evidence rejected 36ms expected @93ba1f664f65+wt
+	a boundary call requires an explicit shared `&Binding<R>` authority argument
+fail/calls/static_boundary_statement_misplaced_evidence rejected 50ms expected @93ba1f664f65+wt
+	`RawSource::fill` names its implementation as its one last static argument, after the trait's arguments
+fail/calls/static_boundary_statement_unrelated_evidence rejected 46ms expected @93ba1f664f65+wt
+	`Unrelated` implements `Other<>`, which neither is nor inherits `RawSource`, the trait that declares `RawSource::fill`
 fail/calls/static_tail_local_custody_no_decrease rejected 1528ms expected @a9ae30e1c334+wt
 	machine call cycle: `Counter::even`, `Counter::odd` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 	cannot prove requires contract for call take from Main::main: constructor:79:package:0101010101010101010101010101010101010101010101010101010101010101::Point6:record13:common:name:x1:113:common:name:y1:0 == Point.zero() (needs fact `p == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
@@ -4770,6 +4776,8 @@ fail/traits/implementation_binder_missing_refinement rejected 170ms expected @a9
 	trait `Forward` parent `Consumer` cannot bind implementation `Reader`: forwarded binder `Reader` does not guarantee the exact `LocalReading` trait application
 fail/traits/implementation_call_unknown_requirement rejected 859ms expected @a9ae30e1c334+wt
 	implementation `NormalIncrement` has no row for requirement `decrement`
+fail/traits/implementation_method_argument_not_map_capture rejected 46ms expected @93ba1f664f65+wt
+	generic conformance `Selected` requires 1 explicit non-lifetime argument(s), got 0; expected subject and trait shape never fill its own telescope
 fail/traits/inherited_default_ambiguous rejected 840ms expected @a9ae30e1c334+wt
 	implementation `CounterResettable` has 2 rows named `reset` (`LeftReset::reset`, `RightReset::reset`); a call through the implementation must select exactly one
 fail/traits/inherited_region_application_descendant_ambiguity rejected 1343ms expected @a9ae30e1c334+wt
@@ -8089,6 +8097,7 @@ run/proofs/quotient_copy_paths checked 19698ms check-target:macos_arm64 @73e466d
 run/providers/module_named_float_conversion_family_exit checked 16353ms check-target:macos_arm64 @77cde1c51efd+wt
 run/stores/runtime_float_indexed_call_result_exit checked 16446ms check-target:macos_arm64 @77cde1c51efd+wt
 run/stores/runtime_float_store_selector_snapshot_exit checked 16333ms check-target:macos_arm64 @77cde1c51efd+wt
+run/traits/static_implementation_method_arguments checked 5547ms check-target:macos_arm64 @93ba1f664f65+wt
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
 fail/contracts/scalar_copy_guard_after_selector_write rejected 40145ms expected @7912abbc354e

@@ -38,6 +38,20 @@ pub enum StaticArgumentCall<'call> {
 }
 
 impl<'call> StaticArgumentCall<'call> {
+    /// The exact static map selection is independent of a method invocation's
+    /// own type/const/machine operands. A qualifier can supply the former even
+    /// when the latter is empty, and specialization must preserve both.
+    pub fn selection_application(
+        &self,
+    ) -> crate::static_applications::StaticMachineApplicationHandle {
+        match self {
+            Self::Expression(_, call) => call.static_requirement_dispatch.as_ref(),
+            Self::Statement(call) => call.static_requirement_dispatch.as_ref(),
+        }
+        .map(|dispatch| dispatch.selection_application)
+        .unwrap_or_default()
+    }
+
     /// Retained source operands, or zero while no application has been recorded.
     pub fn application(&self) -> crate::static_applications::StaticMachineApplicationHandle {
         match self {
@@ -284,11 +298,12 @@ impl Extend<SymbolHandle> for TypeOccurrences {
 
 impl TypedReferences for TypeOccurrences {
     fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
-        let handle = call.application();
-        if handle.is_valid() {
-            let source = program.expression_table.static_machine_application(handle);
-            if source.lexical_owner == self.owner && source.conformance_selection.is_some() {
-                self.applications.insert(handle);
+        for handle in [call.application(), call.selection_application()] {
+            if handle.is_valid() {
+                let source = program.expression_table.static_machine_application(handle);
+                if source.lexical_owner == self.owner && source.conformance_selection.is_some() {
+                    self.applications.insert(handle);
+                }
             }
         }
         true
@@ -1326,9 +1341,39 @@ fn visit_name_path(
     }
 }
 
+/// Static selection and method invocation can have different source rows.
+/// Traverse the explicitly selected map as a semantic dependency, not merely
+/// its realized callee or the unrelated method operands. This neither chooses
+/// another implementation nor grants runtime boundary authority.
+fn visit_static_requirement_dispatch(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    dispatch: &crate::typed_trees::StaticRequirementDispatch,
+    invocation: crate::static_applications::StaticMachineApplicationHandle,
+) {
+    visit_symbol(retained, dispatch.realization_machine);
+    visit_symbol(retained, dispatch.realization_state);
+    visit_symbol(retained, dispatch.requirement);
+    visit_symbol(retained, dispatch.contract_signature);
+    visit_symbol(retained, dispatch.declaring_trait);
+    let selected = dispatch.selection_application;
+    if selected.is_valid() && selected != invocation {
+        let application = program
+            .expression_table
+            .static_machine_application(selected);
+        visit_symbol(retained, application.registration_operation);
+        for argument in program
+            .expression_table
+            .static_machine_application_arguments(selected)
+        {
+            visit_static_argument(program, retained, argument);
+        }
+        visit_static_machine_bindings(program, retained, selected);
+    }
+}
+
 /// Retain the call target and every static argument of one typed call
-/// expression, including static requirement dispatch and sealed-operation
-/// applications.
+/// expression, including static requirement dispatch and sealed operations.
 fn visit_call_expression(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
@@ -1355,11 +1400,12 @@ fn visit_call_expression(
     }
     visit_expression(program, retained, call.receiver);
     if let Some(dispatch) = &call.static_requirement_dispatch {
-        visit_symbol(retained, dispatch.realization_machine);
-        visit_symbol(retained, dispatch.realization_state);
-        visit_symbol(retained, dispatch.requirement);
-        visit_symbol(retained, dispatch.contract_signature);
-        visit_symbol(retained, dispatch.declaring_trait);
+        visit_static_requirement_dispatch(
+            program,
+            retained,
+            dispatch,
+            call.authored_machine_application,
+        );
     }
     if retained.call_arguments(program, StaticArgumentCall::Expression(expression, call)) {
         for argument in StaticArgumentCall::Expression(expression, call).arguments(program) {
@@ -1431,11 +1477,12 @@ fn visit_statement(
                 );
             }
             if let Some(dispatch) = &call.static_requirement_dispatch {
-                visit_symbol(retained, dispatch.requirement);
-                visit_symbol(retained, dispatch.contract_signature);
-                visit_symbol(retained, dispatch.declaring_trait);
-                visit_symbol(retained, dispatch.realization_machine);
-                visit_symbol(retained, dispatch.realization_state);
+                visit_static_requirement_dispatch(
+                    program,
+                    retained,
+                    dispatch,
+                    call.authored_machine_application,
+                );
             }
             if retained.call_arguments(program, StaticArgumentCall::Statement(call)) {
                 for argument in StaticArgumentCall::Statement(call).arguments(program) {

@@ -1,0 +1,56 @@
+// Expected exit: 0.
+// The portable binding pins an explicitly selected raw implementation map.
+// An unrelated Build selection for RawSource must not retarget that map.
+use omega::language::core::binding;
+pub data Observation { value: i32; }
+
+pub boundary trait RawSource {
+    machine read() -> i32;
+    machine fill(destination: &mut Observation);
+}
+pub boundary trait PortableSource {
+    machine read() -> i32 invokes RawSource;
+}
+data RawProvider {}
+data OtherRawProvider {}
+data PortableProvider {}
+machine RawProvider::read() -> i32 satisfies RawSource::read { 41 }
+machine RawProvider::fill(destination: &mut Observation) satisfies RawSource::fill {
+    destination.value = 41;
+}
+machine OtherRawProvider::read() -> i32 satisfies RawSource::read { 99 }
+machine OtherRawProvider::fill(destination: &mut Observation) satisfies RawSource::fill {
+    destination.value = 99;
+}
+RawImplementation satisfies RawSource {
+    RawSource::read = RawProvider::read;
+    RawSource::fill = RawProvider::fill;
+}
+machine through_evidence<Selected satisfies RawSource>() -> i32 {
+    RawSource::read<Selected>()
+}
+machine fill_through_evidence<Selected satisfies RawSource>(destination: &mut Observation) {
+    RawSource::fill<Selected>(destination);
+}
+machine PortableProvider::read() -> i32 satisfies PortableSource::read {
+    let mut observed: Observation;
+    RawSource::fill<RawImplementation>(&mut observed);
+    let mut qualified_observation: Observation;
+    RawImplementation::fill(&mut qualified_observation);
+    let mut forwarded_observation: Observation;
+    fill_through_evidence<RawImplementation>(&mut forwarded_observation);
+    let direct: i32 = RawSource::read<RawImplementation>();
+    let qualified: i32 = RawImplementation::read();
+    let forwarded: i32 = through_evidence<RawImplementation>();
+    transition observed.value == 41 && qualified_observation.value == 41 && forwarded_observation.value == 41 && direct == 41 && qualified == 41 && forwarded == 41 {
+        true -> (41)
+        false -> (0)
+    }
+}
+data Main { source: Binding<PortableSource>; }
+machine Main::main(context: &mut Main) crashes Trap {
+    let answer: i32 = PortableSource::read(&context.source);
+    transition answer == 41 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

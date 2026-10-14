@@ -1,0 +1,32 @@
+// Expected exit: 0.
+data Observation { value: i32; }
+trait Choice {
+    machine pick<const Value: i32>() -> i32;
+    machine fill<const Value: i32>(destination: &mut Observation);
+    machine keep<Value>(value: Value) -> Value;
+}
+Selected satisfies Choice {
+    machine pick<const Value: i32>() -> i32 { Value }
+    machine fill<const Value: i32>(destination: &mut Observation) {
+        destination.value = Value;
+    }
+    machine keep<Value>(value: Value) -> Value { value }
+}
+machine keep_value<Value>(value: Value) -> Value { Selected::keep<Value>(value) }
+machine verify<const Expected: i32>() crashes Trap {
+    let observed: i32 = Selected::pick<Expected>();
+    let mut destination: Observation;
+    Selected::fill<Expected>(&mut destination);
+    transition observed == Expected && destination.value == Expected { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}
+machine main() crashes Trap {
+    verify<2>();
+    verify<4>();
+    let first: i32 = keep_value<i32>(2);
+    let second: u64 = keep_value<u64>(4u64);
+    transition first == 2 && second == 4u64 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

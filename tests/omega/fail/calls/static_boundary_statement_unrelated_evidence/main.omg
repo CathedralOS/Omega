@@ -1,0 +1,10 @@
+pub data Observation { value: i32; }
+pub boundary trait RawSource { machine fill(destination: &mut Observation); }
+trait Other { machine fill(destination: &mut Observation); }
+Unrelated satisfies Other {
+    machine fill(destination: &mut Observation) { destination.value = 99; }
+}
+machine main() {
+    let mut observed: Observation;
+    RawSource::fill<Unrelated>(&mut observed);
+}

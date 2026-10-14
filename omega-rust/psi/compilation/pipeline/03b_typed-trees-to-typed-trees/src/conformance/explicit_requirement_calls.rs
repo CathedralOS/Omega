@@ -14,6 +14,8 @@ use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use typed_trees::statement::{StatementHandle, StatementNode};
+use typed_trees::static_applications::StaticMachineApplicationHandle;
 use typed_trees::typed_trees::StaticRequirementDispatch;
 use typed_trees::types::TypeReferenceHandle;
 use validation::conformance_applications::close_conformance_application;
@@ -21,17 +23,38 @@ use validation::conformance_applications::close_conformance_application;
 mod application_arguments;
 use application_arguments::{ApplicationArguments, ApplicationScope};
 
+#[derive(Clone, Copy)]
+enum RequirementCallSite {
+    Expression(ExpressionHandle),
+    Statement(StatementHandle),
+}
+
+#[derive(Clone, Copy)]
+struct RequirementCallOccurrence {
+    site: RequirementCallSite,
+    application: StaticMachineApplicationHandle,
+}
+
+/// Selection written as a qualifier or as the final static operand has the
+/// same checked map. A qualifier leaves the method's invocation telescope
+/// untouched; its map selection gets a separate retained source application.
+enum ImplementationSelection {
+    StaticOperand,
+    Qualifier(SymbolHandle),
+}
+
 struct ExplicitRequirementRewrite {
-    call: ExpressionHandle,
+    call: RequirementCallOccurrence,
     target: SymbolHandle,
     name: typed_trees::name::Identifier,
     application_arguments: Box<[StaticMachineArgument]>,
     /// Present for a concrete implementation; a binder's requirement call is
     /// dispatched by specialization.
     dispatch: Option<StaticRequirementDispatch>,
-    /// A binder's requirement call keeps the binder as its receiver, the
-    /// spelling `Order::compare(left, right)` checks and specializes.
-    binder_receiver: Option<(typed_trees::name::Identifier, SymbolHandle)>,
+    /// Keep the selected namespace, not a runtime receiver. A named map owns
+    /// source selection/visibility even when its executable row specializes;
+    /// a binder remains available for later evidence specialization.
+    implementation_receiver: Option<(typed_trees::name::Identifier, SymbolHandle)>,
 }
 
 /// Retarget every requirement call whose static arguments name one
@@ -54,86 +77,246 @@ pub(crate) fn route_explicit_requirement_calls(
     }
     let mut rewrites = Vec::new();
     let mut diagnostics = Vec::new();
-    let calls = program
-        .expression_table
-        .iter_expressions()
-        .filter_map(|(handle, node)| {
-            let ExpressionNode::Call(call) = node else {
-                return None;
-            };
-            let (requirement, declaring_trait) = requirements
-                .iter()
-                .find(|(requirement, _)| *requirement == call.target_symbol)?;
-            call.machine_arguments
-                .iter()
-                .any(|argument| names_implementation(program, argument))
-                .then(|| {
-                    (
-                        handle,
-                        *requirement,
-                        *declaring_trait,
-                        call.machine_arguments.clone(),
-                    )
-                })
-        })
-        .collect::<Vec<_>>();
-    for (handle, requirement, declaring_trait, arguments) in calls {
+    // A Unit statement and an expression select the same map. Collect their
+    // actual source occurrences before closing applications, then publish the
+    // one checked rewrite into each syntax carrier. Leaving statements out
+    // would silently redispatch them through Build's unrelated raw provider.
+    let mut calls = Vec::new();
+    let mut collect = |occurrence, target, qualifier, arguments: &[StaticMachineArgument]| {
+        let Some((requirement, declaring_trait)) = requirements
+            .iter()
+            .find(|(requirement, _)| *requirement == target)
+        else {
+            return;
+        };
+        let selection = if program.conformance_by_symbol(qualifier).is_some() {
+            ImplementationSelection::Qualifier(qualifier)
+        } else if arguments
+            .iter()
+            .any(|argument| argument.names_implementation(&program.symbols))
+        {
+            ImplementationSelection::StaticOperand
+        } else {
+            return;
+        };
+        calls.push((
+            occurrence,
+            *requirement,
+            *declaring_trait,
+            arguments.to_vec(),
+            selection,
+        ));
+    };
+    for (handle, node) in program.expression_table.iter_expressions() {
+        if let ExpressionNode::Call(call) = node {
+            collect(
+                RequirementCallOccurrence {
+                    site: RequirementCallSite::Expression(handle),
+                    application: call.authored_machine_application,
+                },
+                call.target_symbol,
+                program
+                    .expression_table
+                    .name_path_node(call.receiver)
+                    .map_or_else(SymbolHandle::invalid, |path| path.symbol),
+                &call.machine_arguments,
+            );
+        }
+    }
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (handle, statement) in program
+                .statement_table
+                .iter_statements(state.statement_nodes)
+            {
+                if let Some(call) = statement.as_call() {
+                    collect(
+                        RequirementCallOccurrence {
+                            site: RequirementCallSite::Statement(handle),
+                            application: call.authored_machine_application,
+                        },
+                        call.target_symbol,
+                        call.receiver_symbol,
+                        &call.machine_arguments,
+                    );
+                }
+            }
+        }
+    }
+    for (mut occurrence, requirement, declaring_trait, mut arguments, selection) in calls {
+        let source_span = match occurrence.site {
+            RequirementCallSite::Expression(handle) => program.expression_table.source_span(handle),
+            RequirementCallSite::Statement(handle) => program
+                .statement_table
+                .statement(handle)
+                .as_call()
+                .map(|call| call.source_span)
+                .unwrap_or_default(),
+        };
+        let mut implementation_receiver = None;
+        let execution_arguments = match selection {
+            ImplementationSelection::StaticOperand => Box::default(),
+            ImplementationSelection::Qualifier(implementation) => {
+                implementation_receiver = Some((
+                    typed_trees::name::Identifier::generated(program.symbols.name(implementation)),
+                    implementation,
+                ));
+                let invocation_arguments = arguments.into_boxed_slice();
+                let normalized = qualified_selection_arguments(
+                    program,
+                    occurrence,
+                    requirement,
+                    declaring_trait,
+                    implementation,
+                );
+                match normalized {
+                    Ok((application, selected)) => {
+                        occurrence.application = application;
+                        arguments = selected;
+                    }
+                    Err(message) => {
+                        diagnostics.push(Diagnostic::error(message).with_source_span(source_span));
+                        continue;
+                    }
+                }
+                invocation_arguments
+            }
+        };
         match explicit_requirement_rewrite(
             program,
-            handle,
+            occurrence,
             requirement,
             declaring_trait,
             &arguments,
         ) {
-            Ok(rewrite) => rewrites.push(rewrite),
-            Err(message) => diagnostics.push(
-                Diagnostic::error(message)
-                    .with_source_span(program.expression_table.source_span(handle)),
-            ),
+            Ok(mut rewrite) => {
+                rewrite.application_arguments = execution_arguments;
+                if implementation_receiver.is_some() {
+                    rewrite.implementation_receiver = implementation_receiver;
+                }
+                rewrites.push(rewrite);
+            }
+            Err(message) => {
+                diagnostics.push(Diagnostic::error(message).with_source_span(source_span))
+            }
         }
     }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
     for rewrite in rewrites {
-        let receiver =
-            rewrite
-                .binder_receiver
-                .map_or_else(ExpressionHandle::invalid, |(name, binder)| {
-                    crate::monomorphization::insert_subject_name(
-                        &mut program.expression_table,
-                        name,
-                        binder,
-                    )
-                });
-        let ExpressionNode::Call(call) = program.expression_table.expression_mut(rewrite.call)
-        else {
-            continue;
-        };
-        call.target_symbol = rewrite.target;
-        call.target = rewrite.name;
-        call.receiver = receiver;
-        call.machine_arguments = rewrite.application_arguments;
-        call.static_requirement_dispatch = rewrite.dispatch;
+        match rewrite.call.site {
+            RequirementCallSite::Expression(handle) => {
+                let receiver = rewrite.implementation_receiver.map_or_else(
+                    ExpressionHandle::invalid,
+                    |(name, binder)| {
+                        crate::monomorphization::insert_subject_name(
+                            &mut program.expression_table,
+                            name,
+                            binder,
+                        )
+                    },
+                );
+                let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
+                else {
+                    continue;
+                };
+                call.target_symbol = rewrite.target;
+                call.target = rewrite.name;
+                call.receiver = receiver;
+                call.machine_arguments = rewrite.application_arguments;
+                call.static_requirement_dispatch = rewrite.dispatch;
+            }
+            RequirementCallSite::Statement(handle) => {
+                let mut receiver = arena::HandleSpan::default();
+                let binder = if let Some((name, binder)) = rewrite.implementation_receiver {
+                    program
+                        .statement_table
+                        .push_name_path_member(&mut receiver, name);
+                    binder
+                } else {
+                    SymbolHandle::invalid()
+                };
+                let StatementNode::Call(call) = program.statement_table.statement_mut(handle)
+                else {
+                    continue;
+                };
+                call.target_symbol = rewrite.target;
+                call.target = rewrite.name;
+                call.receiver = receiver;
+                call.receiver_root_symbol = binder;
+                call.receiver_symbol = binder;
+                call.machine_arguments = rewrite.application_arguments;
+                call.static_requirement_dispatch = rewrite.dispatch;
+            }
+        }
     }
     Ok(())
 }
 
-fn names_implementation(
-    program: &dyn ::validation::CheckingInput,
-    argument: &StaticMachineArgument,
-) -> bool {
-    matches!(
-        program.symbols.get(argument.symbol).kind,
-        SymbolKind::Conformance | SymbolKind::ConformanceParameter
-    )
+/// Turn the explicitly authored map qualifier into the same selection operand
+/// as `Trait::member<..., Map>`, retaining method arguments on their original
+/// application. No provider availability, expected result, or method tuple
+/// supplies missing map captures. Inherited rows use the exact declaring scope.
+fn qualified_selection_arguments(
+    program: &mut TypedTrees,
+    occurrence: RequirementCallOccurrence,
+    requirement: SymbolHandle,
+    declaring_trait: SymbolHandle,
+    implementation: SymbolHandle,
+) -> Result<(StaticMachineApplicationHandle, Vec<StaticMachineArgument>), String> {
+    if !occurrence.application.is_valid() {
+        return Err("named implementation call lost its authored application".to_owned());
+    }
+    let owner = program
+        .expression_table
+        .static_machine_application(occurrence.application)
+        .lexical_owner;
+    let conformance = program
+        .conformance_by_symbol(implementation)
+        .ok_or("named implementation call lost its selected map")?;
+    let environment =
+        typed_trees::trait_definition::AppliedTraitScope::from_conformance(program, conformance)
+            .and_then(|scope| scope.declaring_scope(program, declaring_trait))
+            .map(|scope| scope.environment())
+            .ok_or("named implementation call lost its exact declaring application")?;
+    let references = program
+        .materialize_trait_application_arguments(&environment)
+        .map_err(str::to_owned)?;
+    let mut arguments = references
+        .into_iter()
+        .map(|reference| {
+            program
+                .static_operand_from_type_reference(reference)
+                .map_err(str::to_owned)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    arguments.push(StaticMachineArgument {
+        symbol: implementation,
+        path: Box::from([typed_trees::name::Identifier::generated(
+            program.symbols.name(implementation),
+        )]),
+        ..StaticMachineArgument::default()
+    });
+    let requirement_name =
+        typed_trees::name::Identifier::generated(program.symbols.name(requirement));
+    let application = program.expression_table.retain_static_machine_application(
+        requirement,
+        requirement_name,
+        &arguments,
+    );
+    program
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = owner;
+    Ok((application, arguments))
 }
 
 /// The implementation is the last static argument; every argument before it
 /// is the trait's application, in the trait's declaration order.
 fn explicit_requirement_rewrite(
     program: &mut TypedTrees,
-    call: ExpressionHandle,
+    call: RequirementCallOccurrence,
     requirement: SymbolHandle,
     declaring_trait: SymbolHandle,
     arguments: &[StaticMachineArgument],
@@ -146,14 +329,14 @@ fn explicit_requirement_rewrite(
         .trait_definition_by_symbol(declaring_trait)
         .ok_or_else(|| format!("`{requirement_name}` lost its declaring trait"))?;
     let parameters = program.trait_type_parameters(definition);
-    if !names_implementation(program, implementation)
+    if !implementation.names_implementation(&program.symbols)
         || trait_arguments.len() != parameters.len()
         || parameters
             .iter()
             .zip(trait_arguments)
             .any(|(parameter, argument)| {
                 (parameter.kind == typed_trees::data::TypeParameterKind::Implementation)
-                    != names_implementation(program, argument)
+                    != argument.names_implementation(&program.symbols)
             })
     {
         return Err(format!(
@@ -179,17 +362,14 @@ fn explicit_requirement_rewrite(
                 .map_err(str::to_owned)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let lexical_owner = program
-        .expression_table
-        .call_node(call)
-        .filter(|call| call.authored_machine_application.is_valid())
-        .map(|call| {
-            program
-                .expression_table
-                .static_machine_application(call.authored_machine_application)
-                .lexical_owner
-        })
-        .unwrap_or_default();
+    let lexical_owner = if call.application.is_valid() {
+        program
+            .expression_table
+            .static_machine_application(call.application)
+            .lexical_owner
+    } else {
+        SymbolHandle::invalid()
+    };
     let mut request = ExplicitApplication {
         program,
         call,
@@ -211,7 +391,7 @@ fn explicit_requirement_rewrite(
 
 struct ExplicitApplication<'a> {
     program: &'a mut TypedTrees,
-    call: ExpressionHandle,
+    call: RequirementCallOccurrence,
     requirement: SymbolHandle,
     requirement_name: String,
     declaring_trait: SymbolHandle,
@@ -287,10 +467,7 @@ impl ExplicitApplication<'_> {
                 self.requirement_name
             ));
         };
-        let source_application = program
-            .expression_table
-            .call_node(self.call)
-            .map(|call| call.authored_machine_application)
+        let source_application = Some(self.call.application)
             .filter(|handle| handle.is_valid())
             .ok_or_else(|| {
                 "direct conformance selection lost its authored application".to_owned()
@@ -324,7 +501,7 @@ impl ExplicitApplication<'_> {
                     .unwrap_or(row.realization_name.as_str()),
             ),
             application_arguments: Box::new([]),
-            binder_receiver: None,
+            implementation_receiver: None,
             dispatch: Some(StaticRequirementDispatch {
                 selection_application: source_application,
                 application_report_fingerprint: application.report_fingerprint,
@@ -404,7 +581,7 @@ impl ExplicitApplication<'_> {
             name: target_name,
             application_arguments: Box::default(),
             dispatch: None,
-            binder_receiver: Some((bound.binder_name.clone(), binder)),
+            implementation_receiver: Some((bound.binder_name.clone(), binder)),
         })
     }
 
@@ -561,26 +738,20 @@ pub(crate) fn refresh_occurrence_selections(
     let mut statements = Vec::new();
     for (handle, node) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = node
-            && live.contains(&call.authored_machine_application)
-            && call
-                .static_requirement_dispatch
-                .as_ref()
-                .is_some_and(|d| d.selection_application.is_valid())
+            && let Some(dispatch) = call.static_requirement_dispatch.as_ref()
+            && live.contains(&dispatch.selection_application)
         {
-            expressions.push((handle, call.authored_machine_application));
+            expressions.push((handle, dispatch.selection_application));
         }
     }
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for handle in state.statement_nodes.handles() {
                 if let Some(call) = program.statement_table.statement(handle).as_call()
-                    && live.contains(&call.authored_machine_application)
-                    && call
-                        .static_requirement_dispatch
-                        .as_ref()
-                        .is_some_and(|d| d.selection_application.is_valid())
+                    && let Some(dispatch) = call.static_requirement_dispatch.as_ref()
+                    && live.contains(&dispatch.selection_application)
                 {
-                    statements.push((handle, call.authored_machine_application));
+                    statements.push((handle, dispatch.selection_application));
                 }
             }
         }

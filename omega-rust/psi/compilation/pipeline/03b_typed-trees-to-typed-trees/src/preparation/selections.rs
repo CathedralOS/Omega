@@ -78,7 +78,11 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
         };
         if call.authored_machine_application.is_valid()
             || (call.machine_arguments.is_empty()
-                && !has_region_telescope(program, call.target_symbol))
+                && !has_region_telescope(program, call.target_symbol)
+                && !program
+                    .expression_table
+                    .name_path_node(call.receiver)
+                    .is_some_and(|path| program.conformance_by_symbol(path.symbol).is_some()))
         {
             continue;
         }
@@ -108,7 +112,10 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
                     .filter_map(|(handle, statement)| {
                         let call = statement.as_call()?;
                         ((!call.machine_arguments.is_empty()
-                            || has_region_telescope(program, call.target_symbol))
+                            || has_region_telescope(program, call.target_symbol)
+                            || program
+                                .conformance_by_symbol(call.receiver_symbol)
+                                .is_some())
                             && !call.authored_machine_application.is_valid())
                         .then(|| (handle, machine.symbol, call.clone()))
                     })

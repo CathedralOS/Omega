@@ -53,14 +53,75 @@ fn retain_every_field(_: &TableStructLiteral, _: &TableStructLiteralField) -> bo
 }
 
 impl ExpressionTable {
-    /// Copy a statement call's retained source edge into the same payload
-    /// owner as its ordinary expression operands.
-    pub fn copy_static_machine_application_from(
+    /// Copy the invocation and its selected-map occurrence together. A map
+    /// qualifier owns a distinct telescope; only an operand selection shares
+    /// the invocation's application. Neither may retain the template's handle.
+    pub fn copy_call_static_applications_from(
         &mut self,
         source: &ExpressionTable,
         application: crate::static_applications::StaticMachineApplicationHandle,
-    ) -> crate::static_applications::StaticMachineApplicationHandle {
-        self.copy_static_machine_application(CopySource::Table(source), application)
+        dispatch: Option<crate::typed_trees::StaticRequirementDispatch>,
+    ) -> (
+        crate::static_applications::StaticMachineApplicationHandle,
+        Option<crate::typed_trees::StaticRequirementDispatch>,
+    ) {
+        self.copy_call_static_applications(CopySource::Table(source), application, dispatch)
+    }
+
+    fn copy_call_static_applications(
+        &mut self,
+        source: CopySource<'_>,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        mut dispatch: Option<crate::typed_trees::StaticRequirementDispatch>,
+    ) -> (
+        crate::static_applications::StaticMachineApplicationHandle,
+        Option<crate::typed_trees::StaticRequirementDispatch>,
+    ) {
+        let copied = self.copy_static_machine_application(source, application);
+        if let Some(dispatch) = &mut dispatch {
+            dispatch.selection_application = if dispatch.selection_application == application {
+                copied
+            } else {
+                self.copy_static_machine_application(source, dispatch.selection_application)
+            };
+        }
+        (copied, dispatch)
+    }
+
+    /// Rebase both retained source telescopes into the cloned lexical owner.
+    pub fn remap_call_static_applications(
+        &mut self,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        dispatch: Option<&crate::typed_trees::StaticRequirementDispatch>,
+        symbols: &[(SymbolHandle, SymbolHandle)],
+    ) {
+        let selected = dispatch.map_or(Default::default(), |dispatch| {
+            dispatch.selection_application
+        });
+        if application.is_valid() {
+            self.remap_static_application(application, symbols);
+        }
+        if selected.is_valid() && selected != application {
+            self.remap_static_application(selected, symbols);
+        }
+    }
+
+    fn remap_static_application(
+        &mut self,
+        handle: crate::static_applications::StaticMachineApplicationHandle,
+        symbols: &[(SymbolHandle, SymbolHandle)],
+    ) {
+        let application = self.static_machine_application_mut(handle);
+        application.lexical_owner = remapped(application.lexical_owner, symbols);
+        for argument in self.static_machine_application_arguments_mut(handle) {
+            argument.remap_symbols(symbols);
+        }
+        for binding in self.static_machine_application_bindings_mut(handle) {
+            binding.remap_symbols(symbols);
+        }
+        for argument in self.static_machine_application_selected_machines_mut(handle) {
+            argument.remap_symbols(symbols);
+        }
     }
 
     fn copy_static_machine_application(
@@ -193,26 +254,11 @@ impl ExpressionTable {
             ExpressionNode::Cast(cast) => self.remap_symbols_in_inner(cast.value, symbols, visited),
             ExpressionNode::Call(call) => {
                 self.remap_symbols_in_inner(call.receiver, symbols, visited);
-                if call.authored_machine_application.is_valid() {
-                    let application =
-                        self.static_machine_application_mut(call.authored_machine_application);
-                    application.lexical_owner = remapped(application.lexical_owner, symbols);
-                    for argument in self
-                        .static_machine_application_arguments_mut(call.authored_machine_application)
-                    {
-                        argument.remap_symbols(symbols);
-                    }
-                    for binding in self
-                        .static_machine_application_bindings_mut(call.authored_machine_application)
-                    {
-                        binding.remap_symbols(symbols);
-                    }
-                    for argument in self.static_machine_application_selected_machines_mut(
-                        call.authored_machine_application,
-                    ) {
-                        argument.remap_symbols(symbols);
-                    }
-                }
+                self.remap_call_static_applications(
+                    call.authored_machine_application,
+                    call.static_requirement_dispatch.as_ref(),
+                    symbols,
+                );
                 let arguments = self.expression_handles(call.arguments).to_vec();
                 for argument in arguments {
                     self.remap_symbols_in_inner(argument, symbols, visited);
@@ -410,15 +456,19 @@ impl ExpressionTable {
             ExpressionNode::Call(call) => {
                 let receiver = self.copy_optional_subtree(source, call.receiver, retain, copies);
                 let arguments = self.copy_expression_span(source, call.arguments, retain, copies);
-                let authored_machine_application =
-                    self.copy_static_machine_application(source, call.authored_machine_application);
+                let (authored_machine_application, static_requirement_dispatch) = self
+                    .copy_call_static_applications(
+                        source,
+                        call.authored_machine_application,
+                        call.static_requirement_dispatch,
+                    );
                 self.insert(ExpressionNode::Call(TableCallExpression {
                     authored_machine_application,
                     exact_coercion_target: call.exact_coercion_target,
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target,
-                    static_requirement_dispatch: call.static_requirement_dispatch,
+                    static_requirement_dispatch,
                     static_machine_parameter: call.static_machine_parameter,
                     machine_arguments: call.machine_arguments,
                     quotient_operation: call.quotient_operation,

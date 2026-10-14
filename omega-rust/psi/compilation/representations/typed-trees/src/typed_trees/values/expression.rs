@@ -1551,6 +1551,17 @@ pub struct StaticMachineArgument {
 }
 
 impl StaticMachineArgument {
+    /// Whether this authored operand names static implementation evidence.
+    /// This classifies a selection request, not an admitted map: preparation
+    /// still closes its exact trait application and checks every selected row.
+    pub fn names_implementation(&self, symbols: &symbols::SymbolTable) -> bool {
+        self.symbol.is_valid()
+            && matches!(
+                symbols.get(self.symbol).kind,
+                symbols::SymbolKind::Conformance | symbols::SymbolKind::ConformanceParameter
+            )
+    }
+
     /// Remap every nested lexical operand. The generic declaration governing
     /// an enclosing retained application is not part of this operand map.
     pub fn remap_symbols(&mut self, symbols: &[(SymbolHandle, SymbolHandle)]) {
