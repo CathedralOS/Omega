@@ -53,9 +53,13 @@ Renew while working. Release when the work lands or the session stops, not
 every commit. Expiry is not completion. Preserve abandoned work before
 recovery; never remove another session's claim merely for overlap.
 
-Notes survive release. `notes` lists pending entries; `--ticket` (unique
-prefix), `--owner`, and `--all` filter them. A swarm launcher folds justified
-remaining work into the boards, then `sweep --owner <wave>`. Notes are not
+Notes survive release for a while. Every note on a live claim stays; a
+released or expired ticket keeps only its newest note, for three days, after
+which a continuation reads the sample README instead. Every write applies this
+bound: the whole registry is one record rewritten on each claim, renew and
+note, and unswept notes once grew it to 6.4 MB, past the coordination timeout.
+`notes` lists pending entries; `--ticket` (unique prefix), `--owner`, and
+`--all` filter them. `sweep --owner <wave>` marks notes consumed. Notes are not
 another backlog; board conflicts are reconciled, not union-merged.
 
 `audit --worktree PATH --owner LABEL --base origin/main` reports changes,

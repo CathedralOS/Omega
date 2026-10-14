@@ -80,6 +80,41 @@ class PathTests(unittest.TestCase):
             self.assertFalse(module.is_directory_fence(repository, name))
 
 
+class NoteRetentionTests(unittest.TestCase):
+    """Every write rewrites the whole registry, so trim_notes bounds it."""
+
+    def setUp(self):
+        self.claims = load_claims()
+        self.now = datetime.now(timezone.utc)
+
+    def stamp(self, days_ago):
+        return (self.now - timedelta(days=days_ago)).isoformat()
+
+    def note(self, ticket, days_ago, swept=False):
+        return {"ticket": ticket, "item": "ITEM", "owner": "owner", "text": "t",
+                "created_utc": self.stamp(days_ago),
+                "swept_utc": self.stamp(days_ago) if swept else None}
+
+    def test_live_notes_stay_and_finished_tickets_keep_their_newest_recent_note(self):
+        live, done, old = "a" * 32, "b" * 32, "c" * 32
+        record = {"claims": [{"ticket": live, "expires_utc": (self.now + timedelta(hours=1)).isoformat()},
+                             {"ticket": done, "expires_utc": self.stamp(1)}],
+                  "notes": [self.note(live, 40), self.note(live, 0.1),
+                            self.note(done, 2), self.note(done, 1),
+                            self.note(old, 10)]}
+        self.claims.trim_notes(record)
+        kept = [(note["ticket"], note["created_utc"]) for note in record["notes"]]
+        self.assertEqual(kept, [(live, self.stamp(40)), (live, self.stamp(0.1)),
+                                (done, self.stamp(1))])
+
+    def test_swept_history_keeps_its_own_bound(self):
+        ticket = "d" * 32
+        record = {"claims": [], "notes": [self.note(ticket, 0, swept=True)
+                                         for _ in range(self.claims.SWEPT_NOTE_RETENTION + 5)]}
+        self.claims.trim_notes(record)
+        self.assertEqual(len(record["notes"]), self.claims.SWEPT_NOTE_RETENTION)
+
+
 class RegistrationBudgetTests(unittest.TestCase):
     def registry(self):
         module = load_claims()

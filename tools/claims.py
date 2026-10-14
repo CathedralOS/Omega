@@ -44,6 +44,10 @@ MIN_LEASE_MINUTES = 15
 MAX_LEASE_MINUTES = 1440
 NOTE_TEXT_LIMIT = 2000
 SWEPT_NOTE_RETENTION = 100
+# A note on a released or expired ticket is a continuation record, not a
+# backlog: its work has landed or its frontier is in the sample README. Keep
+# the newest such note per ticket for this long, then drop it.
+FINISHED_NOTE_RETENTION_DAYS = 3
 SNAPSHOT_ATTEMPTS = 3
 MAINTENANCE_LIMIT = 20
 # Transport stall bounds. ls-remote, fetch, and push are the only calls that
@@ -191,14 +195,29 @@ def validate_note(note):
         utc(note["swept_utc"])
 
 def trim_notes(record):
-    """Bound the ledger: pending notes always stay; only swept history trims."""
+    """Bound the ledger, which every write rewrites in full.
+
+    Every note on a live claim stays. A ticket with no live claim keeps only
+    its newest pending note, for FINISHED_NOTE_RETENTION_DAYS. Swept history
+    keeps SWEPT_NOTE_RETENTION entries. Without this bound the registry grew
+    to 7487 notes (6.4 MB) because nothing swept them, and every claim, renew
+    and note write fetched, rewrote and pushed all of it within the 15-second
+    coordination budget.
+    """
+    live = {claim["ticket"] for claim in live_claims(record)}
+    cutoff = datetime.now(timezone.utc) - timedelta(days=FINISHED_NOTE_RETENTION_DAYS)
     swept_seen = 0
+    finished_seen = set()
     kept = []
     for note in reversed(record["notes"]):
         if note.get("swept_utc") is not None:
             swept_seen += 1
             if swept_seen > SWEPT_NOTE_RETENTION:
                 continue
+        elif note["ticket"] not in live:
+            if note["ticket"] in finished_seen or utc(note["created_utc"]) < cutoff:
+                continue
+            finished_seen.add(note["ticket"])
         kept.append(note)
     record["notes"] = list(reversed(kept))
 
@@ -369,6 +388,7 @@ class Claims:
             return None
         record = snapshot["record"]
         record["claims"] = live_claims(record)
+        trim_notes(record)
         updated = coordination.commit_record(self.repository, record, snapshot["version"],
                                              deadline=self.deadline)
         return self.publish(snapshot["version"], updated)
@@ -436,7 +456,6 @@ class Claims:
                 stamp = now()
                 for note in marked:
                     note["swept_utc"] = stamp
-                trim_notes(record)
                 result = {"state": "swept", "swept": len(marked),
                           "pending_left": len(pending) - len(marked)}
             else:
@@ -451,7 +470,6 @@ class Claims:
                         {"ticket": claim["ticket"], "item": claim["item"],
                          "owner": claim["owner"], "text": options.text.strip(),
                          "created_utc": now(), "swept_utc": None})
-                    trim_notes(record)
                     result = {"state": "noted", "ticket": claim["ticket"],
                               "item": claim["item"]}
                 elif options.command == "renew":
@@ -482,6 +500,7 @@ class Claims:
                 if options.command == "renew":
                     record["claims"].append(claim)
 
+            trim_notes(record)
             updated = coordination.commit_record(self.repository, record,
                                                  snapshot["version"], deadline=self.deadline)
             if options.command == "claim":
