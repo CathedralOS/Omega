@@ -1560,6 +1560,30 @@ def main() -> None:
         "a-reference-field-is-written-through",
         b"data Cell { value: i64; }\ndata Held { target: &mut Cell; }\nmachine same(x: i64) requires x == 89 {}\n"
         b"machine f(held: &mut Held) { held.target.value = 89; same(held.target.value); }",
+    # A range slice of a placed collection is a view with the range's extent
+    # as its live length (wiki/spec/terminal-psi/byte_views.md); a write
+    # through it forgets the collection's contents.
+    accepted(
+        program,
+        "a-range-view-knows-its-length",
+        b"machine two(n: u64) requires n == 2 {}\nmachine four(n: u64) requires n == 4 {}\n"
+        b"machine f(items: &[u8; 4]) -> u8 {\n    let view: &[u8] = &items[..];\n    let middle: &[u8] = view[1..3];\n"
+        b"    four(view.len);\n    two(middle.len);\n    view[3]\n}",
+    )
+    rejected(
+        program,
+        "a-range-view-bounds-its-elements",
+        b"machine f(items: &[u8; 4]) -> u8 {\n    let middle: &[u8] = items[1..3];\n    middle[2]\n}",
+        "IndexOutOfBounds",
+        b"middle[2]",
+    )
+    rejected(
+        program,
+        "a-write-through-a-view-forgets-the-collection",
+        b"machine three(x: u8) requires x == 3 {}\n"
+        b"machine f(items: &mut [u8; 4]) requires items[0] == 3 {\n    let head: &mut [u8] = &mut items[0..2];\n    head[0] = 9;\n    three(items[0]);\n}",
+        "RequirementUnproven",
+        b"three(items[0])",
     )
     # A declared measure ranks its subject by its body, or lexicographically
     # by the subject's named fields (wiki/spec/language/termination.md#ranking).

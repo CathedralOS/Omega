@@ -414,6 +414,33 @@ pub machine Checker::forget_place(checker: &mut Checker, typing: &Typing, place:
 crashes Trap
 {
     Checker::forget_storage(checker, typing, place, false);
+    Checker::forget_backing(checker, typing, place);
+}
+
+// A view (a range slice's place, a referent below its collection with the
+// slice's node as its handle) shares its collection's storage: writing or
+// lending it exclusively may change any of the collection's contents.
+pub machine Checker::forget_backing(checker: &mut Checker, typing: &Typing, place: u64 in Trapping)
+crashes Trap
+{
+    transition place > 0 && place <= 256 {
+        true -> entered(checker, typing, place)
+        _ -> done()
+    }
+
+    state entered(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) {
+        let entry: Place = Checker::place_at(checker, place - 1);
+        transition entry.kind == PlaceKind::Referent && entry.handle > 0 && entry.parent > 0 {
+            true -> backing(checker, typing, entry.parent)
+            _ -> done()
+        }
+    }
+
+    state backing(checker: &mut Checker, typing: &Typing, collection: u64 in Trapping) {
+        Checker::forget_storage(checker, typing, collection, true);
+    }
+
+    state done() {}
 }
 
 // An element store changes collection contents, not the collection's own
@@ -423,6 +450,7 @@ pub machine Checker::forget_contents(checker: &mut Checker, typing: &Typing, pla
 crashes Trap
 {
     Checker::forget_storage(checker, typing, place, true);
+    Checker::forget_backing(checker, typing, place);
 }
 
 machine Checker::forget_storage(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool)

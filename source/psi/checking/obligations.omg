@@ -5,6 +5,7 @@ use psi::checking::constructions;
 use psi::checking::contracts;
 use psi::checking::domains;
 use psi::checking::evaluation;
+use psi::checking::flow;
 use psi::checking::matches;
 use psi::checking::places;
 use psi::checking::references;
@@ -137,7 +138,7 @@ crashes Trap
         let length: Value = Checker::collection_length(checker, typing, collection, base);
         let operand: Expression = SyntaxTrees::expression(syntax, expression.right);
         transition operand.kind == ExpressionKind::Range {
-            true -> sliced(checker, handle, expression, operand, row, length, checking)
+            true -> sliced(checker, typing, handle, expression, operand, row, length, base, checking)
             _ -> element(checker, handle, expression, row, length, checking)
         }
     }
@@ -159,7 +160,7 @@ crashes Trap
     // length; an omitted end is the length, and an inclusive end `b` is the
     // exclusive end `b + 1`, valid when `b` is a valid index: neither
     // negative nor past the last element.
-    state sliced(checker: &mut Checker, handle: u64 in Trapping, expression: Expression, operand: Expression, row: TypeRow, length: Value, checking: bool) {
+    state sliced(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression, operand: Expression, row: TypeRow, length: Value, base: Value, checking: bool) {
         let zero: Value = Value::constant(ExactInteger { negative: false, magnitude: 0 });
         let one: Value = Value::constant(ExactInteger { negative: false, magnitude: 1 });
         let start: Value = Checker::range_endpoint(checker, operand.first == 1, operand.left, zero);
@@ -174,10 +175,32 @@ crashes Trap
         let nonnegative: bool = Checker::proves_at_most(checker, zero, start);
         let end_index: bool = Checker::proves_at_most(checker, zero, end) && index_valid;
         let valid: bool = nonnegative && ((inclusive && end_index && ordered_inclusive) || (!inclusive && within && ordered));
+        let bound: Value = Checker::range_end(end, successor, inclusive);
         transition checking && !valid {
             true -> out_of_bounds(checker, handle, expression, row)
+            _ -> viewed(checker, typing, handle, row, base, start, bound)
+        }
+    }
+
+    // A range slice of a placed collection is a view: a place of its own
+    // below the collection, whose live length is the range's extent
+    // (wiki/spec/terminal-psi/byte_views.md). A write through it forgets
+    // the collection's contents (`Checker::forget_backing`).
+    state viewed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, row: TypeRow, base: Value, start: Value, bound: Value) {
+        transition base.place > 0 {
+            true -> view_place(checker, typing, handle, base.place, start, bound)
             _ -> typed(checker, handle, row)
         }
+    }
+
+    state view_place(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, collection: u64 in Trapping, start: Value, bound: Value) {
+        let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
+        let view: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Referent, handle, collection, type_handle);
+        let length_place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Length, 0, view, 0);
+        let extent: Value = Value::difference(bound, start);
+        Checker::bind_place(checker, typing, length_place, extent);
+        let value: Value = Value::at_place(view);
+        Checker::set_value(checker, handle, value);
     }
 
     state out_of_bounds(checker: &mut Checker, handle: u64 in Trapping, expression: Expression, row: TypeRow) {
@@ -555,6 +578,19 @@ crashes Trap
 }
 
 // A range endpoint's value when it is written, else `omitted`'s.
+// A range's exclusive end: the written end, or its successor when the
+// range is inclusive.
+machine Checker::range_end(end: Value, successor: Value, inclusive: bool) -> Value {
+    transition inclusive {
+        true -> answer(successor)
+        _ -> answer(end)
+    }
+
+    state answer(bound: Value) -> Value {
+        bound
+    }
+}
+
 machine Checker::range_endpoint(checker: &Checker, written: bool, handle: u64 in Trapping, omitted: Value) -> Value
 crashes Trap
 {
