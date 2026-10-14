@@ -131,8 +131,10 @@ pub struct OutcomeSpecificCallResultSubstitution {
 
 /// Source-handle-free roots of the checked guarded-term validity intersection.
 ///
-/// The bounded payloadless call has no arguments or payload projections, so
-/// every retained occurrence can name only its exact structural result root.
+/// The bounded payloadless call has no structural arguments or payload
+/// projections, so every retained occurrence can name only its exact
+/// structural result root; its scalar arguments decide the returned case
+/// and enter no retained occurrence.
 /// Interface identity is repeated deliberately so codec and verifier replay
 /// cannot silently detach validity from the selected witness carrier.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -376,8 +376,10 @@ pub(super) fn validate_call_structural(
     let Some(actual_result) = operation.result.structural() else {
         return malformed("structural call has no structural operation result");
     };
-    let exact_payloadless = callee.parameters.is_empty()
-        && callee.structural_parameters.is_empty()
+    // Scalar parameters decide which payloadless case the callee returns and
+    // carry no custody, so they leave the guarded-selection surface intact;
+    // the arity check below still binds them to the call's arguments.
+    let exact_payloadless = callee.structural_parameters.is_empty()
         && callee.entry_claims.is_empty()
         && callee.content_entry_claims.is_empty()
         && callee.contract.requires.is_empty()

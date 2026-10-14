@@ -90,8 +90,11 @@ pub(crate) fn lower_outcome_specific_call_evidence(
             (result.place, *callee)
         };
         // A selection rides only a call whose callee is an exact payloadless
-        // producer: no inputs, entry claims, other contract rows or crash
-        // routes. The Terminal contract replays the same callee surface.
+        // producer: scalar inputs decide the case but carry no custody, and
+        // there are no structural inputs, entry claims, other contract rows
+        // or crash routes. The Terminal contract replays the same callee
+        // surface. A proposition that names an input needs the substitution
+        // refused below; a closed proposition does not.
         let callee =
             lowered
                 .semantic_module
@@ -99,8 +102,7 @@ pub(crate) fn lower_outcome_specific_call_evidence(
                 .ok_or(LoweringError::Unsupported(
                     "outcome-specific arm callee is absent",
                 ))?;
-        if !callee.parameters.is_empty()
-            || !callee.structural_parameters.is_empty()
+        if !callee.structural_parameters.is_empty()
             || !callee.entry_claims.is_empty()
             || !callee.content_entry_claims.is_empty()
             || !callee.contract.requires.is_empty()
@@ -110,7 +112,7 @@ pub(crate) fn lower_outcome_specific_call_evidence(
                 .is_empty()
         {
             return Err(LoweringError::Unsupported(
-                "outcome-specific selection from a callee with inputs or other contracts is unimplemented",
+                "outcome-specific selection from a callee with structural inputs or other contracts is unimplemented",
             ));
         }
         let ensure_rows = outcome_specific_ensure_rows(

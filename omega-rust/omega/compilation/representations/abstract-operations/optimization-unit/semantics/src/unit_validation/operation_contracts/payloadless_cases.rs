@@ -254,8 +254,9 @@ pub(crate) fn exact_payloadless_structural_call(
     let Some(contract) = callee.verified_contract.as_ref() else {
         return false;
     };
-    callee.parameters.is_empty()
-        && callee.structural_parameters.is_empty()
+    // Scalar parameters decide the returned case and carry no custody; the
+    // ordinary call contract binds them to the arguments.
+    callee.structural_parameters.is_empty()
         && callee.entry_claim_declarations.is_empty()
         && callee.content_entry_claims.is_empty()
         && contract.requires.is_empty()

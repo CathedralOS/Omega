@@ -1,0 +1,48 @@
+// A witness of an outcome-specific guarantee may be assigned only on exits
+// of the guaranteed case. `pick` assigns `selected` before deciding between
+// `Success` and `Failure`, so the `Failure` exit carries a witness its case
+// never promised; checking rejects the assignment.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Outcome [copy] {
+    case Success;
+    case Failure;
+}
+
+trait Evidence {
+}
+
+proposition selected_ready() evidence Evidence;
+
+Fresh satisfies Evidence {
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine pick(threshold: u32) -> Outcome
+ensures Outcome::Success -> { selected: selected_ready(); }
+{
+    selected = Fresh;
+    transition threshold > 3 {
+        true -> (Outcome::Success)
+        false -> (Outcome::Failure)
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    transition pick(5) {
+        Outcome::Success { ; selected: proof } -> ok(main)
+        _ -> bad(main)
+    }
+
+    state ok(main: &mut Main) {
+        main.console.exit_process(0);
+    }
+
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
+    }
+}

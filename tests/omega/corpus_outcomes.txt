@@ -1356,6 +1356,8 @@ fail/calls/numeric_scalar_call_boolean_guard rejected 1879ms expected @1f63ee648
 	machine `evaluate` state `entry` applies an operator to a numeric value and a boolean -- Omega does not coerce a boolean to a number -- compare booleans directly (`b == true`) or convert a number explicitly (`n != 0`)
 fail/calls/ordered_bound_requires_argument_rejected rejected 2758ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` value call to `Main::pick` violates required fact `d > 5`: the instantiated fact is structurally false
+fail/calls/outcome_specific_witness_on_nonmatching_exit rejected 5994ms expected @d9bcab492255+wt
+	outcome-specific evidence `selected` is assigned on a nonmatching ordinary exit through pick::entry
 fail/calls/plain_let_reassign_rejected rejected 2932ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` assignment cannot write `x` because it is not mutable in this state (if `x` is undeclared -- a typo -- no such field or local exists)
 fail/calls/qualified_nontail_self_call_rejected rejected 978ms expected @a9ae30e1c334+wt
@@ -8107,6 +8109,7 @@ run/calls/fixed_dividend_across_console_calls checked 8916ms check-target:macos_
 run/calls/nested_range_call_operands checked 6080ms check-target:macos_arm64 @0553d60b9b91+wt
 run/calls/ordered_literal_call_operands checked 6036ms check-target:macos_arm64 @0553d60b9b91+wt
 run/calls/outcome_specific_selected_guarantee_exit checked 12421ms check-target:macos_arm64 @55ccf9be57c4
+run/calls/outcome_specific_selected_guarantee_inputs_exit checked 12280ms check-target:macos_arm64 @d9bcab492255+wt
 run/calls/outcome_specific_selected_guarantee_nested_exit checked 9800ms check-target:macos_arm64 @9f9aac0513f8+wt
 run/calls/outcome_specific_selected_guarantee_variants_exit checked 12113ms check-target:macos_arm64 @55ccf9be57c4
 run/calls/owned_literal_call_operands checked 6033ms check-target:macos_arm64 @0553d60b9b91+wt

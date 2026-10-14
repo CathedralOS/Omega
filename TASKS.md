@@ -3267,14 +3267,19 @@ never a new per-route case. Land coherent cuts that delete their superseded
 code and preserve check/native behavior for the named customer slices.
 
 - **OUTCOME-SPECIFIC-CALL-EVIDENCE.** (split-of:RETURN-ROSTERS-RETIRED)
-  Selection from an input-free callee runs end to end since `1c794804e9f`:
-  `run/calls/outcome_specific_selected_guarantee_exit` and its `_variants_exit`
-  sibling (selection from a helper machine and from a later state) exit 0
-  natively on macOS arm64, carried on both structural call kinds. Frontier: a
-  selection from a callee with inputs or other contracts is refused with
-  "outcome-specific selection from a callee with inputs or other contracts is
-  unimplemented"; that needs result substitution and proposition/interface
-  dependencies in the Terminal evidence term. Coordinate operator returns with
+  Selection runs end to end from an input-free callee (`1c794804e9f`,
+  `run/calls/outcome_specific_selected_guarantee_exit` and `_variants_exit`)
+  and from a callee that takes scalar inputs and returns from several
+  payloadless case exits (`run/calls/outcome_specific_selected_guarantee_inputs_exit`,
+  exit 0 natively and interpreted on macOS arm64; the control
+  `fail/calls/outcome_specific_witness_on_nonmatching_exit` pins the checker's
+  refusal of a witness assigned on a nonmatching exit). Frontier: a selected
+  proposition that names a callee input, a callee with structural inputs,
+  entry claims, other contract rows or crash routes, and proposition or
+  interface dependencies are refused ("outcome-specific result substitution
+  is unimplemented", "... with structural inputs or other contracts is
+  unimplemented"); those need result substitution and dependency places in
+  the Terminal evidence term. Coordinate operator returns with
   **OPERATOR-BOUNDARY-CALLS**.
 
 ## Checker simplification
@@ -3360,18 +3365,6 @@ before starting; paths drift. Each coherent repair lands with the cited corpus
 slice unchanged (check plus `--native` where the code is backend-visible).
 Re-checking stays allowed at trust boundaries; these items remove repetition
 of a check the same flow already performed, not the check itself.
-
-- **TERMINAL-IDENTITY-TABLE.** (new-scope) Depends on **CHECKED-IDENTITY-IDS**.
-  Terminal Psi is the persisted boundary, so its identities stay
-  content-derived, but they should be stored once. `terminal-psi`'s module
-  repeats rendered text in `*identity: String` fields
-  (`omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/boundary/dynamic_dispatch.rs`,
-  `.../terminal_module/ownership/borrows.rs`, placement, conformances,
-  outputs, recursion). Add one identity table section to the module and the
-  codec; fields hold indices into it, and decoding checks the table once. Bump
-  the codec version in the same commit. Acceptance: no `String`-typed identity
-  field remains in `terminal-psi` outside the identity table (source-scanning
-  guard); the native corpus is unchanged.
 
 - **TYPED-FROZEN-BEFORE-CHECKING.** (new-scope) Complete qualification of the
   frozen typed-to-checked boundary. Typed elaboration now belongs to
@@ -3502,14 +3495,6 @@ of a check the same flow already performed, not the check itself.
   and compare it. The `linux_x86_64` build leg is unchanged. Acceptance still
   owed: the `linux_x86_64` native corpus leg on a Linux host, with execution,
   is unchanged.
-
-- **RED-WINDOWS-HOST.** (new-scope)
-  Windows leg landed `ab6ba3198a5`+`289501b5c2f`: both named failures were
-  incorrect host assumptions in the tests, fixed without `cfg` gating —
-  `mbx nextest run -p package-source --no-fail-fast` is 93/93 green on
-  Windows x86-64. Remaining: run the same command on macOS to complete the
-  two-host acceptance; the repairs are host-portable by construction
-  (`MAIN_SEPARATOR` traversal, `DirEntry::metadata` identity source).
 
 ## PCC removal
 
@@ -6465,8 +6450,9 @@ report a missing runtime leg explicitly.
 
 - **RC-BUILD-AND-PACKAGES.** Pass the gate's two commands (nextest and
   doctests for `build-declarations`, `package-source` and
-  `resolver-execution`) at the release commit; **RED-WINDOWS-HOST** owns the
-  current `package-source` Windows failures. These commands alone do not
+  `resolver-execution`) at the release commit; the `package-source` host
+  failures were repaired on both hosts (`ab6ba3198a5`, `289501b5c2f`; 141 of
+  141 on macOS and 93 of 93 on Windows). These commands alone do not
   establish compiler integration. The following integration requirements lost
   their Rust tests; each needs a corpus or package fixture under its capability
   owner:

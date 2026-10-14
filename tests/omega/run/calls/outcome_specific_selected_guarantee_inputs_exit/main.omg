@@ -1,0 +1,66 @@
+// A caller arm selects an output of the callee's outcome-specific guarantee
+// from a callee that takes a scalar input. `pick` decides its result case
+// from `threshold`; its `selected: selected_ready()` guarantee names no
+// input, so the selection needs no substitution. The input arrives through a
+// local and through a state parameter. Exit 0 means the call with a high
+// threshold selected the term and the low-threshold call did not.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Outcome [copy] {
+    case Success;
+    case Failure;
+}
+
+trait Evidence {
+}
+
+proposition selected_ready() evidence Evidence;
+
+Fresh satisfies Evidence {
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine pick(threshold: u32) -> Outcome
+ensures Outcome::Success -> { selected: selected_ready(); }
+{
+    transition threshold > 3 {
+        true -> succeed()
+        false -> fail()
+    }
+
+    state succeed() {
+        selected = Fresh;
+        Outcome::Success
+    }
+
+    state fail() {
+        Outcome::Failure
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let high: u32 = 5;
+    transition pick(high) {
+        Outcome::Success { ; selected: proof } -> low(main, 1)
+        _ -> bad(main)
+    }
+
+    state low(main: &mut Main, threshold: u32) {
+        transition pick(threshold) {
+            Outcome::Success { ; selected: proof } -> bad(main)
+            _ -> ok(main)
+        }
+    }
+
+    state ok(main: &mut Main) {
+        main.console.exit_process(0);
+    }
+
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
+    }
+}
