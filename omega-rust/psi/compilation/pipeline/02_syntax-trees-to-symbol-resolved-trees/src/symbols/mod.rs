@@ -330,7 +330,7 @@ fn assign_program_symbols(
     symbols: &symbols::SymbolTable,
     generic_origin_frontier: usize,
 ) -> Vec<diagnostics::Diagnostic> {
-    let diagnostics = assign_top_level_symbols(program, symbols);
+    let mut diagnostics = assign_top_level_symbols(program, symbols);
     type_references::assign_generic_application_origin_symbols(
         program,
         symbols,
@@ -343,7 +343,9 @@ fn assign_program_symbols(
     measures::assign_measure_expression_symbols(program, symbols);
     assign_contract_reference_symbols(program, symbols);
     assign_domain_fact_symbols(program, symbols);
-    assign_machine_signature_reference_symbols(program, symbols);
+    if let Err(errors) = assign_machine_signature_reference_symbols(program, symbols) {
+        diagnostics.extend(errors);
+    }
     diagnostics
 }
 
@@ -548,7 +550,7 @@ pub(crate) fn assign_body_symbols(
         &mut lowerer.symbol_resolved_trees,
         &symbols,
         selected_machines,
-    );
+    )?;
     // Synthesized states may introduce contracts after declaration indexing.
     // This resolves references, not declaration identities or child allocation.
     assign_contract_reference_symbols(&mut lowerer.symbol_resolved_trees, &symbols);
@@ -586,7 +588,7 @@ pub(crate) fn assign_lexical_inputs(
         &mut lowerer.symbol_resolved_trees,
         &symbols,
         &mut inputs,
-    );
+    )?;
     normalize_static_module_calls(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_static_module_calls,

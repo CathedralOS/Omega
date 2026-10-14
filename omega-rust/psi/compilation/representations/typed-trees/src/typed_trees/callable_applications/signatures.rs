@@ -129,7 +129,7 @@ impl CallableApplication {
         Ok(applied)
     }
 
-    fn parameter_kind(
+    pub(super) fn parameter_kind(
         &mut self,
         program: &mut TypedTrees,
         kind: data::TypeParameterKind,

@@ -66,8 +66,16 @@ pub fn validate_static_machine_bindings(
     // A symbolic selected provider has no executable specialization yet. Its
     // occurrence-owned tuple still owes every declared bound, including unused
     // binders. Only views reachable from live calls become obligations.
+    let map_applications = program
+        .machine_specializations
+        .iter()
+        .flat_map(|receipt| receipt.conformance_applications.iter())
+        .map(|application| application.callable_application)
+        .filter(|handle| handle.is_valid())
+        .collect::<Vec<_>>();
     let providers = applications
         .iter()
+        .chain(map_applications.iter())
         .flat_map(|application| {
             program
                 .applied_machine_callables(*application)
@@ -448,6 +456,7 @@ fn conformance_arguments_match(
     let required = crate::conformance_applications::applied_bound_argument_identities(
         program,
         bound,
+        machine.symbol,
         lexical_owner,
         &[machine_scope],
     );
@@ -457,6 +466,7 @@ fn conformance_arguments_match(
         program
             .type_reference_table
             .type_reference_handles(conformance.arguments),
+        conformance.symbol,
         lexical_owner,
         &[actual_scope],
     );

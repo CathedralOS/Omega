@@ -1,0 +1,27 @@
+trait Arithmetic<Value> {
+    operator + combine(left: Value, right: Value) -> Value blocks;
+}
+
+ConstantThree satisfies Arithmetic<i32> {
+    machine combine(left: i32, right: i32) -> i32 { 3 }
+}
+
+Selected<const Output: i32> satisfies Arithmetic<i32> {
+    machine combine(left: i32, right: i32) -> i32 { Output }
+}
+
+machine choose<Operations satisfies Arithmetic<i32>>(left: i32, right: i32) -> i32
+blocks;
+requires 0 <= left && left <= 100
+requires 0 <= right && right <= 100
+{
+    left + right
+}
+
+machine main() blocks; crashes Trap {
+    let selected: i32 = block choose<ConstantThree>(5, 6);
+    let applied: i32 = block choose<Selected<7>>(5, 6);
+    transition selected == 3 && applied == 7 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

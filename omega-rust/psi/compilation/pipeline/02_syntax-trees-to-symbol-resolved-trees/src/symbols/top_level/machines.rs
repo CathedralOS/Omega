@@ -56,8 +56,13 @@ pub(super) fn assign_machine_symbols(
     // after its caller or outside its carrier's module. Bodies borrow this exact
     // declaration cohort instead of rebuilding attachment identity from a name.
     program.machines.for_each_mut(|machine| {
+        let declaration = next_child_of_kind(root_children, symbols, SymbolKind::Machine);
         if !machine.symbol.is_valid() {
-            machine.symbol = next_child_of_kind(root_children, symbols, SymbolKind::Machine);
+            machine.symbol = declaration;
+        } else if declaration.is_valid() && machine.symbol != declaration {
+            diagnostics.push(Diagnostic::error(
+                "retained machine declaration differs from its indexed root child",
+            ));
         }
         machine.attached_data_symbol = machine
             .attached_data
@@ -66,6 +71,13 @@ pub(super) fn assign_machine_symbols(
             .unwrap_or_else(SymbolHandle::invalid);
     });
     let attached_machines = crate::symbols::scope::attached_machines(program);
+    let conformance_scopes = match crate::symbols::scope::ConformanceTypeScopes::of(program) {
+        Ok(scopes) => scopes,
+        Err(errors) => {
+            diagnostics.extend(errors);
+            return diagnostics;
+        }
+    };
     let tables = &mut program.tables;
     let type_constraints = &tables.types.constraints;
     let declarations = &mut tables.declarations;
@@ -89,20 +101,28 @@ pub(super) fn assign_machine_symbols(
         let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten();
 
         for type_parameter in data_type_parameters.span_mut_or_empty(machine.type_parameters) {
-            if type_parameter.symbol.is_valid() {
-                continue;
-            }
             let kind = match type_parameter.kind {
                 symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                     SymbolKind::MachineParameter
                 }
                 _ => SymbolKind::TypeParameter,
             };
-            type_parameter.symbol = next_child_of_kind(&mut machine_children, symbols, kind);
+            // The iterator is declaration positional even on a seeded revisit.
+            // Retaining an already assigned binder does not remove its child
+            // slot: the following entry state must consume its own declaration.
+            let declaration = next_child_of_kind(&mut machine_children, symbols, kind);
+            if !type_parameter.symbol.is_valid() {
+                type_parameter.symbol = declaration;
+            } else if symbols.get(type_parameter.symbol).kind != kind {
+                diagnostics.push(Diagnostic::error(
+                    "retained machine parameter has a different declaration kind",
+                ));
+            }
         }
-        let mut local_type_parameters = data_type_parameters
-            .span_or_empty(machine.type_parameters)
-            .to_vec();
+        let mut local_type_parameters = crate::symbols::scope::declaration_type_scope(
+            data_type_parameters.span_or_empty(machine.type_parameters),
+            conformance_scopes.parameters(machine.symbol),
+        );
 
         // Seeded resolution revisits retained declarations. Their application
         // is already resolved; preserve its exact arena span rather than

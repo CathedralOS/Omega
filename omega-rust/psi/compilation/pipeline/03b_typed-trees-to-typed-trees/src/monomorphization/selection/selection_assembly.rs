@@ -85,13 +85,59 @@ pub(crate) fn selection_from_proposals(
     const_proposals: Vec<(usize, usize, TypeReferenceHandle)>,
     runtime_value_proposals: Vec<(usize, usize, StaticMachineArgument)>,
 ) -> CallSelection {
-    let mut selection = CallSelection {
+    let bindings = proposal_bindings(
+        program,
+        candidate,
+        machine_proposals,
+        evidence_proposals,
+        type_proposals,
+        const_proposals,
+        runtime_value_proposals,
+    );
+    CallSelection {
         site,
         lexical_owner: SymbolHandle::invalid(),
         lexical_state: SymbolHandle::invalid(),
         callee_symbol: callee.symbol,
         candidate_index: callee.candidate_index,
         caller_is_generic,
+        explicit_argument_overflow: false,
+        unresolved_type_parameters: bindings.unresolved_type_parameters,
+        unresolved_machine_parameters: bindings.unresolved_machine_parameters,
+        unresolved_evidence_parameters: bindings.unresolved_evidence_parameters,
+        unresolved_const_parameters: bindings.unresolved_const_parameters,
+        type_bindings: bindings.type_bindings,
+        const_bindings: bindings.const_bindings,
+        runtime_value_bindings: bindings.runtime_value_bindings,
+        machine_bindings: bindings.machine_bindings,
+        evidence_bindings: bindings.evidence_bindings,
+        conflicted: bindings.conflicted,
+    }
+}
+
+pub(crate) struct ProposalBindings {
+    pub(crate) unresolved_type_parameters: bool,
+    pub(crate) unresolved_machine_parameters: bool,
+    pub(crate) unresolved_evidence_parameters: bool,
+    pub(crate) unresolved_const_parameters: bool,
+    pub(crate) type_bindings: Vec<Option<TypeReferenceHandle>>,
+    pub(crate) const_bindings: Vec<Option<TypeReferenceHandle>>,
+    pub(crate) runtime_value_bindings: Vec<Option<StaticMachineArgument>>,
+    pub(crate) machine_bindings: Vec<Option<StaticMachineArgument>>,
+    pub(crate) evidence_bindings: Vec<Option<StaticMachineArgument>>,
+    pub(crate) conflicted: bool,
+}
+
+pub(crate) fn proposal_bindings(
+    program: &dyn ::validation::CheckingInput,
+    candidate: &Candidate,
+    machine_proposals: Vec<(usize, usize, StaticMachineArgument)>,
+    evidence_proposals: Vec<(usize, usize, StaticMachineArgument)>,
+    type_proposals: Vec<(usize, usize, TypeReferenceHandle)>,
+    const_proposals: Vec<(usize, usize, TypeReferenceHandle)>,
+    runtime_value_proposals: Vec<(usize, usize, StaticMachineArgument)>,
+) -> ProposalBindings {
+    let mut selection = ProposalBindings {
         unresolved_type_parameters: false,
         unresolved_machine_parameters: false,
         unresolved_evidence_parameters: false,
@@ -102,7 +148,6 @@ pub(crate) fn selection_from_proposals(
         machine_bindings: vec![None; candidate.template.machine_parameters.len()],
         evidence_bindings: vec![None; candidate.template.evidence_parameters.len()],
         conflicted: false,
-        explicit_argument_overflow: false,
     };
     for (_, parameter, argument) in runtime_value_proposals {
         // A runtime subject never conflicts: distinct argument values share

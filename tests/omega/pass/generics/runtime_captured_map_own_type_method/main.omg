@@ -1,0 +1,14 @@
+trait Identity { machine keep<Value>(value: Value) -> Value blocks; }
+Selected<Captured> satisfies Identity {
+    machine keep<Value>(value: Value) -> Value { value }
+}
+machine choose<Operations satisfies Identity>(value: i32) -> i32 blocks; {
+    block Operations::keep<i32>(value)
+}
+// Expected exit: 0. Captured bool and invoked i32 belong to separate frames.
+machine main() blocks; crashes Trap {
+    let observed: i32 = block choose<Selected<bool>>(53);
+    transition observed == 53 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

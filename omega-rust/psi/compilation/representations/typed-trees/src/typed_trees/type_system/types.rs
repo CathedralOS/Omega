@@ -442,6 +442,13 @@ impl TypeReferenceTable {
             })
     }
 
+    /// Live type nodes, retaining their exact generational handles.
+    pub fn references(
+        &self,
+    ) -> impl Iterator<Item = (TypeReferenceHandle, &TypeReferenceNode)> + '_ {
+        self.type_references.iter()
+    }
+
     /// Every NAMED type reference in the table, as `(handle, symbol)` pairs.
     /// The machine-monomorphization pass scans these for generic type-parameter
     /// references to substitute before checking/layout (a type parameter's

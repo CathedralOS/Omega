@@ -522,6 +522,7 @@ fn selected_call_target(
                         parameter.type_reference
                     }),
                 dispatch: Some(StaticRequirementDispatch {
+                    selection_application: Default::default(),
                     application_report_fingerprint: meaning.application.report_fingerprint,
                     application_commitment: meaning.application.commitment,
                     declaring_trait: meaning.row.declaring_trait,
@@ -530,7 +531,7 @@ fn selected_call_target(
                     realization_machine: meaning.row.realization_machine,
                     realization_state: meaning.row.realization_state,
                 }),
-                arguments: meaning.application.arguments.clone(),
+                arguments: Box::default(),
             }));
         }
         if !closed.is_empty() {

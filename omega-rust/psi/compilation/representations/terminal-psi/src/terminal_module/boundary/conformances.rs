@@ -13,6 +13,11 @@ pub struct ClosedConformanceApplication {
     /// source-machine closure. Rows name entries by canonical callable
     /// identity without duplicating the artifact-local machine coordinate.
     pub realization_callables: Vec<ClosedConformanceRealizationCallable>,
+    /// Complete authored inventory, including uncalled open generic methods.
+    /// These schemas supply neither executable coverage nor authority.
+    pub schemas: Vec<ClosedConformanceSchema>,
+    /// Exact static applications are independent of finite dynamic rosters.
+    pub static_applications: Vec<ClosedConformanceStaticApplication>,
     pub rows: Vec<ClosedConformanceRow>,
     /// Historical compact report/index coordinate. It cannot authorize a
     /// dispatch or replay without the adjacent strong commitment.
@@ -20,6 +25,41 @@ pub struct ClosedConformanceApplication {
     /// Domain-separated SHA-256 commitment to the exact source-free
     /// application structure.
     pub commitment: ClosedConformanceApplicationCommitment,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ClosedConformanceSchemaKind {
+    Nongeneric,
+    Finite,
+    Open,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ClosedConformanceSchema {
+    pub declaring_trait_identity: TerminalIdentityIndex,
+    pub public_requirement_identity: TerminalIdentityIndex,
+    pub requirement_identity: TerminalIdentityIndex,
+    pub realization_identity: TerminalIdentityIndex,
+    /// Canonical original declaration, including its independent telescope.
+    pub definition: Vec<u8>,
+    pub kind: ClosedConformanceSchemaKind,
+    pub lifetime_parameter_count: u32,
+    pub parameter_kinds: Vec<u8>,
+    /// Complete source-checked explicit roster, never observed call tuples.
+    pub finite_tuples: Option<Vec<Vec<TerminalIdentityIndex>>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ClosedConformanceStaticApplication {
+    pub public_requirement_identity: TerminalIdentityIndex,
+    pub realization_identity: TerminalIdentityIndex,
+    pub source_callable_identity: TerminalIdentityIndex,
+    pub machine: MachineId,
+    /// Checked method application, including its independently checked capture
+    /// commitment when this invocation's template was capture-applied.
+    pub application_commitment: Option<[u8; 32]>,
+    /// The independently retained method tuple, excluding map captures.
+    pub method_arguments: Vec<crate::ClosedReachArgument>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -92,8 +132,8 @@ pub struct ClosedConformanceRealizationCallable {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ClosedConformanceCallableResult {
     Unit,
-    I32,
-    Bool,
+    Scalar(semantic_vocabulary::ScalarType),
+    Structural(semantic_vocabulary::StructuralTypeId),
 }
 
 pub fn closed_conformance_application_report_fingerprint(
@@ -146,12 +186,9 @@ pub fn closed_conformance_application_report_fingerprint(
                 .unwrap_or_default(),
         );
         bytes.extend(callable.machine.get().to_le_bytes());
-        bytes.push(match callable.result {
-            ClosedConformanceCallableResult::Unit => 1,
-            ClosedConformanceCallableResult::I32 => 2,
-            ClosedConformanceCallableResult::Bool => 3,
-        });
+        bytes.extend(callable_result_bytes(callable.result));
     }
+    bytes.extend(schema_application_bytes(identities, application));
     bytes.extend((application.rows.len() as u64).to_le_bytes());
     for row in &application.rows {
         push(
@@ -192,6 +229,134 @@ pub fn closed_conformance_application_report_fingerprint(
     hash.finish()
 }
 
+// Both report and authority commitments include the complete original schema
+// and the separate exact static applications. Interned indices never hash as
+// semantic identity; portable declaration identities supply their text.
+fn callable_result_bytes(result: ClosedConformanceCallableResult) -> Vec<u8> {
+    use semantic_vocabulary::{IeeeFloatFormat, IntegerCarrier, IntegerSign, ScalarType};
+    match result {
+        ClosedConformanceCallableResult::Unit => vec![1],
+        ClosedConformanceCallableResult::Structural(identity) => {
+            let mut bytes = vec![3];
+            bytes.extend(identity.get().to_le_bytes());
+            bytes
+        }
+        ClosedConformanceCallableResult::Scalar(ScalarType::Boolean) => vec![2, 1],
+        ClosedConformanceCallableResult::Scalar(ScalarType::Integer(integer)) => {
+            let mut bytes = vec![
+                2,
+                2,
+                match (integer.carrier(), integer.sign()) {
+                    (IntegerCarrier::Fixed, IntegerSign::Signed) => 1,
+                    (IntegerCarrier::Fixed, IntegerSign::Unsigned) => 2,
+                    (IntegerCarrier::Address, IntegerSign::Unsigned) => 3,
+                    (IntegerCarrier::Address, IntegerSign::Signed) => {
+                        unreachable!("address carriers are unsigned")
+                    }
+                },
+            ];
+            bytes.extend(integer.bits().to_le_bytes());
+            bytes
+        }
+        ClosedConformanceCallableResult::Scalar(ScalarType::IeeeFloat(format)) => vec![
+            2,
+            3,
+            match format {
+                IeeeFloatFormat::Binary32 => 1,
+                IeeeFloatFormat::Binary64 => 2,
+            },
+        ],
+    }
+}
+
+fn schema_application_bytes(
+    identities: &TerminalIdentityTable,
+    application: &ClosedConformanceApplication,
+) -> Vec<u8> {
+    fn text(
+        bytes: &mut Vec<u8>,
+        identities: &TerminalIdentityTable,
+        identity: TerminalIdentityIndex,
+    ) {
+        let value = identities.text(identity).unwrap_or_default().as_bytes();
+        bytes.extend((value.len() as u64).to_le_bytes());
+        bytes.extend(value);
+    }
+    let mut bytes = Vec::new();
+    bytes.extend((application.schemas.len() as u64).to_le_bytes());
+    for schema in &application.schemas {
+        for identity in [
+            schema.declaring_trait_identity,
+            schema.public_requirement_identity,
+            schema.requirement_identity,
+            schema.realization_identity,
+        ] {
+            text(&mut bytes, identities, identity);
+        }
+        bytes.push(match schema.kind {
+            ClosedConformanceSchemaKind::Nongeneric => 1,
+            ClosedConformanceSchemaKind::Finite => 2,
+            ClosedConformanceSchemaKind::Open => 3,
+        });
+        bytes.extend((schema.definition.len() as u64).to_le_bytes());
+        bytes.extend(&schema.definition);
+        bytes.extend(schema.lifetime_parameter_count.to_le_bytes());
+        bytes.extend((schema.parameter_kinds.len() as u64).to_le_bytes());
+        bytes.extend(&schema.parameter_kinds);
+        bytes.push(u8::from(schema.finite_tuples.is_some()));
+        if let Some(tuples) = &schema.finite_tuples {
+            bytes.extend((tuples.len() as u64).to_le_bytes());
+            for tuple in tuples {
+                bytes.extend((tuple.len() as u64).to_le_bytes());
+                for member in tuple {
+                    text(&mut bytes, identities, *member);
+                }
+            }
+        }
+    }
+    bytes.extend((application.static_applications.len() as u64).to_le_bytes());
+    for applied in &application.static_applications {
+        for identity in [
+            applied.public_requirement_identity,
+            applied.realization_identity,
+            applied.source_callable_identity,
+        ] {
+            text(&mut bytes, identities, identity);
+        }
+        bytes.extend(applied.machine.get().to_le_bytes());
+        bytes.push(u8::from(applied.application_commitment.is_some()));
+        if let Some(commitment) = applied.application_commitment {
+            bytes.extend(commitment);
+        }
+        bytes.extend((applied.method_arguments.len() as u64).to_le_bytes());
+        for argument in &applied.method_arguments {
+            match argument {
+                crate::ClosedReachArgument::Type(identity) => {
+                    bytes.push(1);
+                    text(&mut bytes, identities, *identity);
+                }
+                crate::ClosedReachArgument::Const(identity) => {
+                    bytes.push(2);
+                    text(&mut bytes, identities, *identity);
+                }
+                crate::ClosedReachArgument::Proposition(identity) => {
+                    bytes.push(3);
+                    text(&mut bytes, identities, *identity);
+                }
+                crate::ClosedReachArgument::Machine {
+                    identity,
+                    contract_commitment,
+                } => {
+                    bytes.push(4);
+                    text(&mut bytes, identities, *identity);
+                    bytes.extend(contract_commitment);
+                }
+            }
+        }
+    }
+    bytes
+}
+
 /// Authority-bearing identity for a closed conformance application.
 ///
 /// The owner is deliberately outside this commitment: ownership is an exact
@@ -207,7 +372,7 @@ pub fn closed_conformance_application_commitment(
     }
 
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.psi.terminal.closed-conformance-application.v5\0",
+        b"omega.psi.terminal.closed-conformance-application.v6\0",
     );
     push(
         &mut digest,
@@ -249,12 +414,9 @@ pub fn closed_conformance_application_commitment(
                 .unwrap_or_default(),
         );
         digest.raw(&callable.machine.get().to_le_bytes());
-        digest.byte(match callable.result {
-            ClosedConformanceCallableResult::Unit => 1,
-            ClosedConformanceCallableResult::I32 => 2,
-            ClosedConformanceCallableResult::Bool => 3,
-        });
+        digest.raw(&callable_result_bytes(callable.result));
     }
+    digest.raw(&schema_application_bytes(identities, application));
     digest.u64(application.rows.len() as u64);
     for row in &application.rows {
         push(
@@ -313,6 +475,8 @@ mod tests {
             trait_lifetime_arguments: Vec::new(),
             trait_arguments: vec!["package::Carrier".into()],
             realization_callables: Vec::new(),
+            schemas: Vec::new(),
+            static_applications: Vec::new(),
             rows: vec![ClosedConformanceRow {
                 declaring_trait_identity: identities.intern("package::Scanner"),
                 public_requirement_identity: identities.intern("package::Scanner::scan()"),

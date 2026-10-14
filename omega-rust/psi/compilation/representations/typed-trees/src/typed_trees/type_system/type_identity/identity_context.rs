@@ -22,6 +22,7 @@ pub(crate) struct TypeIdentityContext<'binders> {
     pub(crate) storage_value_indices: bool,
     pub(crate) application_scopes: &'binders [super::AppliedTypeIdentityScope<'binders>],
     pub(crate) application_owner: SymbolHandle,
+    pub(crate) application_argument_owner: SymbolHandle,
     pub(crate) invalid_application: Option<&'binders Cell<bool>>,
     pub(crate) encountered_regions: Option<&'binders Cell<bool>>,
     pub(crate) binders: &'binders [(SymbolHandle, String)],
@@ -88,6 +89,11 @@ impl TypeIdentityContext<'_> {
                     *argument,
                     Self {
                         application_scopes: &self.application_scopes[..ordinal],
+                        application_owner: if self.application_argument_owner.is_valid() {
+                            self.application_argument_owner
+                        } else {
+                            self.application_owner
+                        },
                         ..*self
                     },
                 ));
@@ -100,9 +106,14 @@ impl TypeIdentityContext<'_> {
         // Invocation signatures own regions even when they have no executable
         // Machine row. Captured regions retain their enclosing declaration's
         // identity rather than acquiring the child's parameter ordinal.
-        if let Some(region) = super::applied_lifetime_parameter_identity(
+        if let Some((region, _)) = super::applied_lifetime_parameter_identity_with_supplier(
             program,
             self.application_owner,
+            if self.application_argument_owner.is_valid() {
+                self.application_argument_owner
+            } else {
+                self.application_owner
+            },
             name,
             self.application_scopes,
         ) {

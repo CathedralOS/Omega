@@ -27,7 +27,15 @@ pub fn canonical_template_contract_bytes(
 ) -> Result<Vec<u8>, Diagnostic> {
     let machine = &program.machines()[machine_index];
     let parameters = program.machine_type_parameters(machine);
-    let binders = type_parameter_binders(parameters, &[]);
+    let captured = program
+        .conformance_by_symbol(program.declaration_scope_parent(machine.symbol))
+        .map(|map| program.conformance_type_parameters(map))
+        .unwrap_or(&[]);
+    let capture_binders = type_parameter_binders(captured, &[])
+        .into_iter()
+        .map(|(symbol, name)| (symbol, format!("$capture{name}")))
+        .collect::<Vec<_>>();
+    let binders = type_parameter_binders(parameters, &capture_binders);
     let content_conservation = crate::content_conservation_plans(program);
     let mut bytes = Vec::new();
     bytes.push(u8::from(machine.structural_type_equations_pending));
@@ -266,7 +274,91 @@ pub fn prepare_specialization_contract_identities(
         Vec<u8>,
         typed_trees::typed_trees::MachineTemplateCommitment,
     )> = Vec::new();
-    let mut identities = Vec::with_capacity(program.machine_specializations.len());
+    let mut identities = Vec::with_capacity(
+        program.machine_specializations.len() + program.captured_machine_applications.len(),
+    );
+    for (_, capture) in program.captured_machine_applications.iter() {
+        super::calls::capture_binding_is_exact(program, capture).map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "capture application does not replay its complete supplying substitution: {reason}"
+            ))]
+        })?;
+        if program
+            .executable_application_template(capture.instance)
+            .map_err(|message| vec![Diagnostic::error(message)])?
+            != Some(capture.template)
+        {
+            return Err(vec![Diagnostic::error(
+                "capture application has conflicting executable ownership",
+            )]);
+        }
+        let template = program.machine(capture.template).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "capture application lost its authored template",
+            )]
+        })?;
+        let instance = program.machine(capture.instance).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "capture application lost its retained executable instance",
+            )]
+        })?;
+        let states = program
+            .captured_machine_states
+            .span(capture.states)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "capture application has a stale state correspondence",
+                )]
+            })?;
+        let originals = program.machine_states(template);
+        let applied = program.machine_states(instance);
+        if states.len() != originals.len()
+            || states.len() != applied.len()
+            || !states.iter().zip(originals.iter().zip(applied)).all(
+                |(mapping, (original, applied))| {
+                    mapping.template == original.symbol && mapping.instance == applied.symbol
+                },
+            )
+        {
+            return Err(vec![Diagnostic::error(
+                "capture application does not retain its complete original state correspondence",
+            )]);
+        }
+        let index = program
+            .machine_position_by_symbol(capture.template)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "capture application lost its authored template",
+                )]
+            })?;
+        let template_bytes = canonical_template_contract_bytes(
+            program,
+            index,
+            &effects.service_reaches,
+            &effects.operational,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+        let template_commitment = machine_template_commitment(&template_bytes);
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+            b"omega.machine-capture-application.v1\0",
+        );
+        digest.raw(&template_commitment.as_bytes());
+        let bytes = canonical_capture_application_bytes(program, contracts, capture)
+            .map_err(|diagnostic| vec![diagnostic])?;
+        digest.raw(&bytes);
+        identities.push(checked_trees::CheckedMachineSpecializationIdentity {
+            instance: capture.instance,
+            template_contract_commitment: template_commitment,
+            machine_argument_contract_commitments: captured_machine_contracts(
+                program, contracts, capture,
+            )
+            .map_err(|diagnostic| vec![diagnostic])?
+            .into_boxed_slice(),
+            commitment: typed_trees::typed_trees::MachineSpecializationCommitment::from_digest(
+                digest.finish(),
+            ),
+        });
+    }
     for specialization in &program.machine_specializations {
         let template_index = match templates
             .iter()
@@ -295,13 +387,21 @@ pub fn prepare_specialization_contract_identities(
             }
         };
         let (_, template_bytes, template_commitment) = &templates[template_index];
+        let mut composed_template_bytes = template_bytes.clone();
+        if let Some(capture_identity) = identities
+            .iter()
+            .find(|identity| identity.instance == specialization.template)
+        {
+            composed_template_bytes.extend(b"omega.invocation-of-captured-method.v1\0");
+            composed_template_bytes.extend(capture_identity.commitment.as_bytes());
+        }
         identities.push(
             machine_specialization_identity(
                 program,
                 contracts,
                 specialization,
                 &effects.operational,
-                template_bytes,
+                &composed_template_bytes,
                 *template_commitment,
             )
             .map_err(|diagnostic| vec![diagnostic])?,
@@ -310,6 +410,137 @@ pub fn prepare_specialization_contract_identities(
     Ok(checked_trees::CheckedSpecializationIdentities::with_rows(
         identities,
     ))
+}
+
+fn captured_machine_contracts(
+    program: &dyn crate::CheckingInput,
+    contracts: &checked_trees::MachineContractPlans,
+    capture: &typed_trees::typed_trees::CapturedMachineApplication,
+) -> Result<Vec<[u8; 32]>, Diagnostic> {
+    let application = &capture.conformance_application;
+    let selected = if application.machine_arguments.is_empty() {
+        &[][..]
+    } else {
+        if !application.callable_application.is_valid() {
+            return Err(Diagnostic::error(
+                "capture lost its checked callback application",
+            ));
+        }
+        program
+            .expression_table
+            .static_machine_application_selected_machines(application.callable_application)
+    };
+    if selected.len() != application.machine_arguments.len() {
+        return Err(Diagnostic::error(
+            "capture callback contract roster differs from map telescope",
+        ));
+    }
+    selected
+        .iter()
+        .map(|argument| {
+            let selected = argument.symbol;
+            let owner = program
+                .machines()
+                .iter()
+                .find(|machine| {
+                    program
+                        .machine_states(machine)
+                        .iter()
+                        .any(|state| state.symbol == selected)
+                })
+                .ok_or_else(|| {
+                    Diagnostic::error("capture machine operand has no exact callable owner")
+                })?;
+            contracts
+                .for_machine(owner.symbol)
+                .map(|contract| contract.commitment.as_bytes())
+                .ok_or_else(|| {
+                    Diagnostic::error("capture machine operand has no checked public contract")
+                })
+        })
+        .collect()
+}
+
+fn canonical_capture_application_bytes(
+    program: &dyn crate::CheckingInput,
+    contracts: &checked_trees::MachineContractPlans,
+    capture: &typed_trees::typed_trees::CapturedMachineApplication,
+) -> Result<Vec<u8>, Diagnostic> {
+    use typed_trees::static_applications::StaticMachineBindingValue;
+    let application = &capture.conformance_application;
+    let declaration = program
+        .conformance_by_symbol(application.declaration)
+        .ok_or_else(|| Diagnostic::error("capture application lost its map declaration"))?;
+    let bindings = program
+        .expression_table
+        .static_machine_application_bindings(capture.binding_application);
+    let mut bytes = Vec::new();
+    bytes.extend(application.commitment.as_bytes());
+    encode_identity_text(&capture.normalized_template_identity, &mut bytes);
+    let owner = program
+        .expression_table
+        .static_machine_application(capture.supplying_application)
+        .lexical_owner;
+    encode_identity_text(&conformance_symbol_identity(program, owner), &mut bytes);
+    let parameters = program.conformance_type_parameters(declaration);
+    let binders = type_parameter_binders(parameters, &[]);
+    let conservation = crate::content_conservation_plans(program);
+    bytes.extend((parameters.len() as u64).to_le_bytes());
+    for parameter in parameters {
+        encode_data_properties(parameter.bounds, &mut bytes);
+        encode_generic_parameter_contract(
+            program,
+            &parameter.kind,
+            &binders,
+            &conservation,
+            &mut bytes,
+        )?;
+        let binding = bindings
+            .iter()
+            .find(|binding| binding.parameter == parameter.symbol)
+            .ok_or_else(|| {
+                Diagnostic::error("capture application has an incomplete typed binder tuple")
+            })?;
+        match &binding.value {
+            StaticMachineBindingValue::Type(reference) => {
+                bytes.push(1);
+                encode_identity_text(
+                    &program.normalized_type_identity_text(*reference),
+                    &mut bytes,
+                );
+            }
+            StaticMachineBindingValue::Const(reference) => {
+                bytes.push(2);
+                encode_identity_text(
+                    &program.normalized_type_identity_text(*reference),
+                    &mut bytes,
+                );
+            }
+            StaticMachineBindingValue::Machine(argument) => {
+                bytes.push(3);
+                encode_identity_text(
+                    &conformance_symbol_identity(program, argument.symbol),
+                    &mut bytes,
+                );
+            }
+            _ => {
+                return Err(Diagnostic::error(
+                    "capture application retains a runtime or unsupported evidence operand",
+                ));
+            }
+        }
+    }
+    for contract in captured_machine_contracts(program, contracts, capture)? {
+        bytes.extend(contract);
+    }
+    match &capture.accepted_template_commitment {
+        Some(commitment) => {
+            bytes.push(1);
+            encode_identity_text(commitment, &mut bytes);
+        }
+        None => bytes.push(0),
+    }
+    Ok(bytes)
 }
 
 /// Encode one specialization's identity from the template contract and
@@ -675,6 +906,56 @@ pub fn canonical_state_signature_bytes(
     bytes
 }
 
+/// Complete original callable schema, independent of closed applications.
+/// Unlike an overload key, this includes binder categories, demands, domains,
+/// predicates and the public operational/termination contract.
+pub fn canonical_requirement_schema_bytes(
+    program: &dyn crate::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+) -> Result<Vec<u8>, Diagnostic> {
+    let binders = crate::contract_structure::signature_generic_binders(program, signature);
+    let content = crate::content_conservation_plans(program);
+    let mut bytes = b"omega.requirement-schema.v1\0".to_vec();
+    let signature_bytes = canonical_state_signature_bytes(program, signature);
+    bytes.extend((signature_bytes.len() as u64).to_le_bytes());
+    bytes.extend(signature_bytes);
+    bytes.extend((signature.lifetime_parameters.len() as u64).to_le_bytes());
+    let parameters = program.state_signature_type_parameters(signature);
+    bytes.extend((parameters.len() as u64).to_le_bytes());
+    for parameter in parameters {
+        bytes.push(match parameter.kind {
+            TypeParameterKind::Type => 1,
+            TypeParameterKind::Const { .. } => 2,
+            TypeParameterKind::Value { .. } => 3,
+            TypeParameterKind::Machine { .. } => 4,
+            TypeParameterKind::Implementation => 5,
+            TypeParameterKind::Proposition { .. } => 6,
+        });
+        encode_data_properties(parameter.bounds, &mut bytes);
+        let contract = generic_parameter_contract_bytes(program, parameter, &binders, &content)?;
+        bytes.extend((contract.len() as u64).to_le_bytes());
+        bytes.extend(contract);
+    }
+    let predicates = program
+        .proof_facts
+        .span_or_empty(signature.where_facts)
+        .iter()
+        .map(|fact| checked_trees::DeclaredContractClause {
+            kind: checked_trees::DeclaredContractKind::Requires,
+            fact: Some(crate::contract_structure::declared_fact(
+                program, fact, &binders, &content,
+            )),
+        })
+        .collect::<Vec<_>>();
+    bytes.extend(
+        program
+            .type_identities
+            .with(|table| checked_trees::contract_declarations_commitment(&predicates, table))
+            .as_bytes(),
+    );
+    Ok(bytes)
+}
+
 fn encode_state_shape(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
@@ -751,7 +1032,10 @@ pub fn specialization_selection_report_fingerprint(
     hash.finish()
 }
 
-fn conformance_symbol_identity(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> String {
+pub(crate) fn conformance_symbol_identity(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> String {
     let path = program.symbols.display_path(symbol, "::");
     let Some(package) = program.symbols.symbol_package_identity(symbol) else {
         return format!("unmanaged::{path}");

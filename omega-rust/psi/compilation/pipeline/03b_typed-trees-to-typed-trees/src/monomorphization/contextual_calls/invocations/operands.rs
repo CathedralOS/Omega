@@ -6,7 +6,7 @@ use symbols::SymbolKind;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 
 pub(super) fn derive(
-    program: &TypedTrees,
+    program: &mut TypedTrees,
     caller: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     site: CallSite,
@@ -61,6 +61,24 @@ pub(super) fn derive(
         .zip(selected_types)
         .map(|((symbol, _), actual)| (*symbol, actual))
         .collect::<Vec<_>>();
+    let selected_constants = selected
+        .iter()
+        .filter(|argument| {
+            argument.const_literal.is_some()
+                || program.static_const_argument_identity(argument).is_some()
+                || (argument.symbol.is_valid()
+                    && program
+                        .data_type_parameter_by_symbol(argument.symbol)
+                        .is_some_and(|parameter| parameter.kind.is_const_or_value()))
+        })
+        .collect::<Vec<_>>();
+    if selected_constants.len() > const_parameters.len() {
+        return None;
+    }
+    for ((symbol, _, _), argument) in const_parameters.iter().zip(selected_constants) {
+        let actual = program.static_operand_type_reference(argument).ok()?;
+        types.push((*symbol, actual));
+    }
     let mut proposals = Vec::new();
     let mut constants = Vec::new();
     for (required, argument) in runtime.iter().zip(arguments) {

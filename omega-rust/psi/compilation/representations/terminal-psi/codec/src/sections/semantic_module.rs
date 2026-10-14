@@ -78,7 +78,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Returned storage origins retain admitted declaration-relative interpretations.
 // Placed input rows retain their dense formal coordinate and carrier identity.
 // Returned origins distinguish precise projections from public input regions.
-pub(crate) const FORMAT_MARKER: u16 = 154;
+pub(crate) const FORMAT_MARKER: u16 = 155;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

@@ -11,8 +11,8 @@ pub(super) fn assign_statement_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
     selected_machines: &[symbols::SymbolHandle],
-) {
-    assign_machine_references(program, symbols, Some(selected_machines), &mut []);
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    assign_machine_references(program, symbols, Some(selected_machines), &mut [])
 }
 
 /// Signature value expressions and ranking declarations are needed before any
@@ -20,16 +20,16 @@ pub(super) fn assign_statement_reference_symbols(
 pub(super) fn assign_machine_signature_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
-) {
-    assign_machine_references(program, symbols, None, &mut []);
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    assign_machine_references(program, symbols, None, &mut [])
 }
 
 pub(super) fn assign_lexical_input_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
     inputs: &mut [crate::lowering::state::StateLexicalInputs],
-) {
-    assign_machine_references(program, symbols, None, inputs);
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    assign_machine_references(program, symbols, None, inputs)
 }
 
 fn assign_machine_references(
@@ -37,9 +37,10 @@ fn assign_machine_references(
     symbols: &SymbolTable,
     selected_bodies: Option<&[symbols::SymbolHandle]>,
     lexical_inputs: &mut [crate::lowering::state::StateLexicalInputs],
-) {
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let attached_machines = super::scope::attached_machines(program);
     let trait_scopes = super::scope::TraitLexicalScopes::of(program);
+    let conformance_scopes = super::scope::ConformanceTypeScopes::of(program)?;
     let SymbolResolvedTrees {
         roots:
             symbol_resolved_trees::SymbolResolvedRoots {
@@ -72,8 +73,12 @@ fn assign_machine_references(
             .find(|data_definition| data_definition.symbol == machine.attached_data_symbol);
         let inherited_data_members = data_definition
             .map(|data_definition| data_members.span_or_empty(data_definition.members));
-        let lexical_type_parameters = super::scope::declaration_type_scope(
+        let invocation_scope = super::scope::declaration_type_scope(
             data_type_parameters.span_or_empty(machine_type_parameters),
+            conformance_scopes.parameters(machine_symbol),
+        );
+        let lexical_type_parameters = super::scope::declaration_type_scope(
+            &invocation_scope,
             data_definition.map_or(&[], |owner| {
                 data_type_parameters.span_or_empty(owner.type_parameters)
             }),
@@ -239,4 +244,5 @@ fn assign_machine_references(
             }
         }
     });
+    Ok(())
 }

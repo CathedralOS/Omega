@@ -233,11 +233,26 @@ pub fn collect_program_type_occurrences(program: &TypedTrees) -> Vec<TypeOccurre
     occurrences.types
 }
 
+/// Exact authored call applications reached from retained declaration/body
+/// roots. This inventory creates neither execution reach nor admission.
+pub fn collect_program_conformance_occurrences(
+    program: &TypedTrees,
+) -> Vec<crate::static_applications::StaticMachineApplicationHandle> {
+    let mut occurrences = TypeOccurrences::default();
+    visit_program(program, &mut occurrences);
+    program
+        .expression_table
+        .static_machine_applications()
+        .filter_map(|(handle, _)| occurrences.applications.contains(&handle).then_some(handle))
+        .collect()
+}
+
 #[derive(Default)]
 struct TypeOccurrences {
     owner: SymbolHandle,
     outer_owners: Vec<SymbolHandle>,
     types: Vec<TypeOccurrence>,
+    applications: HashSet<crate::static_applications::StaticMachineApplicationHandle>,
     seen_types: Vec<Vec<(SymbolHandle, TypeReferenceHandle)>>,
     seen_expressions: Vec<Vec<(SymbolHandle, ExpressionHandle)>>,
     seen_mathematical_types: Vec<Vec<(SymbolHandle, crate::mathematical::MathematicalTypeHandle)>>,
@@ -268,6 +283,17 @@ impl Extend<SymbolHandle> for TypeOccurrences {
 }
 
 impl TypedReferences for TypeOccurrences {
+    fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
+        let handle = call.application();
+        if handle.is_valid() {
+            let source = program.expression_table.static_machine_application(handle);
+            if source.lexical_owner == self.owner && source.conformance_selection.is_some() {
+                self.applications.insert(handle);
+            }
+        }
+        true
+    }
+
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
         self.owner = symbol;
         true
@@ -610,11 +636,28 @@ pub fn visit_static_machine_bindings(
     retained: &mut impl TypedReferences,
     application: crate::static_applications::StaticMachineApplicationHandle,
 ) {
-    if !application.is_valid() {
+    visit_static_machine_bindings_inner(program, retained, application, &mut HashSet::new());
+}
+
+fn visit_static_machine_bindings_inner(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    application: crate::static_applications::StaticMachineApplicationHandle,
+    visited: &mut HashSet<crate::static_applications::StaticMachineApplicationHandle>,
+) {
+    if !application.is_valid() || !visited.insert(application) {
         return;
     }
+    if let Some(selection) = &program
+        .expression_table
+        .static_machine_application(application)
+        .conformance_selection
+        && let Some(selected) = selection.application.as_deref()
+    {
+        visit_closed_conformance_inner(program, retained, selected, visited);
+    }
     for applied in program.applied_machine_callables(application) {
-        visit_static_machine_bindings(program, retained, applied.provider);
+        visit_static_machine_bindings_inner(program, retained, applied.provider, visited);
         visit_signature(program, retained, applied.required);
         visit_signature(program, retained, applied.selected);
     }
@@ -656,7 +699,22 @@ pub fn visit_closed_conformance(
     retained: &mut impl TypedReferences,
     application: &crate::typed_trees::ClosedConformanceApplication,
 ) {
+    visit_closed_conformance_inner(program, retained, application, &mut HashSet::new());
+}
+
+fn visit_closed_conformance_inner(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    application: &crate::typed_trees::ClosedConformanceApplication,
+    visited: &mut HashSet<crate::static_applications::StaticMachineApplicationHandle>,
+) {
     application.trait_scope.visit_references(program, retained);
+    visit_static_machine_bindings_inner(
+        program,
+        retained,
+        application.callable_application,
+        visited,
+    );
     for argument in &application.const_arguments {
         use crate::typed_trees::ClosedConformanceConstArgument;
         let (parameter, argument) = match argument {
@@ -1450,6 +1508,24 @@ pub fn visit_machine(
     machine: &crate::machine::Machine,
 ) {
     retained.enter_lexical_scope(machine.symbol);
+    // Capture admission replays the authored map and the exact supplying
+    // invocation. Selecting a captured executable therefore retains those
+    // declarations; an unrelated checking projection retains none of them.
+    for (_, capture) in program
+        .captured_machine_applications
+        .iter()
+        .filter(|(_, capture)| capture.instance == machine.symbol)
+    {
+        visit_symbol(retained, capture.template);
+        let source = program
+            .expression_table
+            .static_machine_application(capture.supplying_application);
+        retained.declaration_description_dependency(source.lexical_owner);
+        visit_symbol(retained, capture.conformance_application.declaration);
+        visit_static_machine_bindings(program, retained, capture.binding_application);
+        visit_static_machine_bindings(program, retained, capture.supplying_application);
+        visit_closed_conformance(program, retained, &capture.conformance_application);
+    }
     for specialization in program
         .machine_specializations
         .iter()
@@ -1583,5 +1659,169 @@ fn visit_mathematical_type(
                 visit_expression(program, retained, *argument);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod conformance_occurrence_tests {
+    use super::*;
+    use crate::static_applications::StaticConformanceSelection;
+    #[derive(Default)]
+    struct Sink(Vec<SymbolHandle>);
+    impl Extend<SymbolHandle> for Sink {
+        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, iter: T) {
+            self.0.extend(iter);
+        }
+    }
+    impl TypedReferences for Sink {}
+
+    fn occurrence_call(
+        program: &mut TypedTrees,
+        owner: SymbolHandle,
+    ) -> (
+        ExpressionHandle,
+        crate::static_applications::StaticMachineApplicationHandle,
+    ) {
+        let application = program.expression_table.retain_static_machine_application(
+            Default::default(),
+            Default::default(),
+            &[],
+        );
+        let source = program
+            .expression_table
+            .static_machine_application_mut(application);
+        source.lexical_owner = owner;
+        source.conformance_selection = Some(Box::new(StaticConformanceSelection::default()));
+        let expression =
+            program
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    authored_machine_application: application,
+                    exact_coercion_target: Default::default(),
+                    receiver: Default::default(),
+                    target_symbol: Default::default(),
+                    static_machine_parameter: Default::default(),
+                    target: Default::default(),
+                    static_requirement_dispatch: None,
+                    machine_arguments: Box::new([]),
+                    quotient_operation: None,
+                    private_layout_operation: None,
+                    layout_query: None,
+                    arguments: Default::default(),
+                    evidence_arguments: Box::new([]),
+                    operational_acknowledgement: Default::default(),
+                }));
+        (expression, application)
+    }
+
+    #[test]
+    fn conformance_census_excludes_removed_same_owner_expression() {
+        let mut program = TypedTrees::default();
+        let owner = SymbolHandle::from_parts(1, 1);
+        let (removed, application) = occurrence_call(&mut program, owner);
+        // The owner still exists, and the expression/application arena rows
+        // survive removal of the actual body edge.
+        let mut machine = crate::machine::Machine {
+            symbol: owner,
+            ..Default::default()
+        };
+        program.push_machine_owned_data(
+            &mut machine,
+            crate::machine::OwnedData {
+                initial_value: removed,
+                ..Default::default()
+            },
+        );
+        machine.owned_data = Default::default();
+        program.push_machine(machine);
+        assert!(
+            program
+                .expression_table
+                .iter_expressions()
+                .any(|(h, _)| h == removed)
+        );
+        assert!(
+            !program
+                .live_conformance_occurrence_applications()
+                .contains(&application)
+        );
+    }
+
+    #[test]
+    fn conformance_census_keeps_uncalled_retained_body() {
+        let mut program = TypedTrees::default();
+        let owner = SymbolHandle::from_parts(1, 1);
+        let (expression, application) = occurrence_call(&mut program, owner);
+        let mut machine = crate::machine::Machine {
+            symbol: owner,
+            ..Default::default()
+        };
+        program.push_machine_owned_data(
+            &mut machine,
+            crate::machine::OwnedData {
+                initial_value: expression,
+                ..Default::default()
+            },
+        );
+        program.push_machine(machine);
+        assert_eq!(
+            program.live_conformance_occurrence_applications(),
+            vec![application]
+        );
+    }
+
+    #[test]
+    fn conformance_census_keeps_non_machine_declaration_expression() {
+        let mut program = TypedTrees::default();
+        let owner = SymbolHandle::from_parts(1, 1);
+        let (expression, application) = occurrence_call(&mut program, owner);
+        program.push_const_declaration(crate::constant::ConstDeclaration {
+            symbol: owner,
+            authored_initializer: expression,
+            ..Default::default()
+        });
+        assert_eq!(
+            program.live_conformance_occurrence_applications(),
+            vec![application]
+        );
+    }
+
+    #[test]
+    fn cyclic_derived_occurrence_views_do_not_recurse_or_admit() {
+        let mut program = TypedTrees::default();
+        let a = program.expression_table.retain_static_machine_application(
+            SymbolHandle::invalid(),
+            Default::default(),
+            &[],
+        );
+        let b = program.expression_table.retain_static_machine_application(
+            SymbolHandle::invalid(),
+            Default::default(),
+            &[],
+        );
+        // Deliberately malformed derivation metadata: reference collection is
+        // neither selection admission nor a trusted receipt constructor.
+        for (handle, next) in [(a, b), (b, a)] {
+            program
+                .expression_table
+                .static_machine_application_mut(handle)
+                .conformance_selection = Some(Box::new(StaticConformanceSelection {
+                operand_ordinal: 0,
+                application: Some(Box::new(crate::typed_trees::ClosedConformanceApplication {
+                    callable_application: next,
+                    ..Default::default()
+                })),
+            }));
+        }
+        let mut sink = Sink::default();
+        visit_static_machine_bindings(&program, &mut sink, a);
+        assert!(sink.0.is_empty());
+        assert_eq!(
+            program
+                .expression_table
+                .static_machine_applications()
+                .count(),
+            2
+        );
     }
 }

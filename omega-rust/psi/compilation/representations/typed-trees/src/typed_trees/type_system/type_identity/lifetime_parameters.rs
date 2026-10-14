@@ -71,26 +71,63 @@ pub fn applied_lifetime_parameter_identity(
     name: &str,
     scopes: &[super::AppliedTypeIdentityScope<'_>],
 ) -> Option<LifetimeParameterIdentity> {
-    if let Some((ordinal, scope)) = scopes.iter().enumerate().next_back()
-        && let Some((_, argument)) = scope
+    applied_lifetime_parameter_identity_with_supplier(
+        program,
+        lexical_owner,
+        lexical_owner,
+        name,
+        scopes,
+    )
+    .map(|(identity, _)| identity)
+}
+
+/// A retained receiving binder and its incoming operands have distinct custody.
+/// Resolve the former before switching to the latter's lexical declaration.
+/// The flag records an actual retained substitution, never a name's presence
+/// in an unrelated frame or the availability of a similarly named region.
+pub fn applied_lifetime_parameter_identity_with_supplier(
+    program: &TypedTrees,
+    lexical_owner: SymbolHandle,
+    argument_owner: SymbolHandle,
+    name: &str,
+    scopes: &[super::AppliedTypeIdentityScope<'_>],
+) -> Option<(LifetimeParameterIdentity, bool)> {
+    let lexical_declaration = program.lifetime_declaration_owner(lexical_owner);
+    if let Some(region) = lifetime_parameter_identity(program, lexical_owner, name)
+        && region.declaration == lexical_declaration
+        && !scopes.iter().any(|scope| {
+            program.lifetime_declaration_owner(scope.declaration) == lexical_declaration
+        })
+    {
+        // An invocation-local binder outside the supplied capture frames is
+        // rigid. An outer map with the same spelling cannot capture it.
+        return Some((region, false));
+    }
+    // Applications form a lexical stack. A final trait frame may introduce
+    // no regions while an earlier map supplies a capture; stopping at that
+    // final frame would erase the map's declared argument. A local unsupplied
+    // binder remains rigid and shadows every outer application.
+    for (ordinal, scope) in scopes.iter().enumerate().rev() {
+        if let Some((_, argument)) = scope
             .lifetimes
             .iter()
             .find(|(parameter, _)| parameter == name)
-    {
-        return applied_lifetime_parameter_identity(
-            program,
-            lexical_owner,
-            argument,
-            &scopes[..ordinal],
-        );
+        {
+            return applied_lifetime_parameter_identity(
+                program,
+                argument_owner,
+                argument,
+                &scopes[..ordinal],
+            )
+            .map(|identity| (identity, true));
+        }
+        if let Some(region) = lifetime_parameter_identity(program, scope.declaration, name)
+            && region.declaration == program.lifetime_declaration_owner(scope.declaration)
+        {
+            return Some((region, false));
+        }
     }
-    lifetime_parameter_identity(
-        program,
-        scopes
-            .last()
-            .map_or(lexical_owner, |scope| scope.declaration),
-        name,
-    )
+    lifetime_parameter_identity(program, lexical_owner, name).map(|identity| (identity, false))
 }
 
 /// Find a region in the supplied lexical telescope, including captured outer

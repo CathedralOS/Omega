@@ -1,0 +1,12 @@
+// Expected exit: 0. Exact captured callable admission.
+trait Getter { machine get() -> i32 blocks; }
+Selected<const Count: u64, machine Callback> satisfies Getter
+where machine Callback(value: &[u8; Count]) -> i32;
+{ machine get() -> i32 { 83 } }
+machine read(value: &[u8; 3]) -> i32 { 83 }
+machine choose<Operations satisfies Getter>() -> i32 blocks; { block Operations::get() }
+machine main() blocks; crashes Trap {
+ let observed: i32 = block choose<Selected<3, read>>();
+ transition observed == 83 { true -> done() _ -> bad() }
+ state done() {} state bad() { crash Trap; }
+}

@@ -43,6 +43,7 @@ pub(super) fn clone_specialization(
             ordinal,
             template_identity,
             template_commitment,
+            None,
         );
     };
     if family.members.is_empty() {
@@ -144,6 +145,7 @@ pub(super) fn clone_specialization(
                 instance_ordinal,
                 identity,
                 commitment,
+                None,
             )?
         };
         let instance =

@@ -414,6 +414,9 @@ impl Lowerer<'_> {
             wire_encode_obligations: _,
             wire_schema_plans: _,
             machine_specializations: _,
+            // Capture applications are produced after authored typing.
+            captured_machine_applications: _,
+            captured_machine_states: _,
             // Checking instantiates selector slots after specialization.
             dynamic_slots: _,
             // Family records are produced after all typed bodies settle.

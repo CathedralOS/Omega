@@ -1,0 +1,23 @@
+trait Hook<Value> { machine keep(value: Value) -> Value; }
+trait Getter { machine get() -> i32 blocks; }
+Selected<Value, machine Callback> satisfies Getter
+where machine Callback satisfies Hook<Value>::keep;
+{ machine get() -> i32 { 83 } }
+machine chosen(value: i32) -> i32 satisfies Hook<i32>::keep { value }
+trait SizedHook<const Count: u64> { machine read(value: &[u8; Count]) -> i32; }
+Sized<const Count: u64, machine Callback> satisfies Getter
+where machine Callback satisfies SizedHook<Count>::read;
+{ machine get() -> i32 { 83 } }
+machine fixed<const Count: u64>(value: &[u8; Count]) -> i32 satisfies SizedHook<Count>::read { 83 }
+machine choose<Operations satisfies Getter>() -> i32 blocks; { block Operations::get() }
+machine forward<machine Callback>() -> i32
+where machine Callback satisfies Hook<i32>::keep;
+blocks;
+{ block choose<Selected<i32, Callback>>() }
+machine main() blocks; crashes Trap {
+ let first: i32 = block choose<Selected<i32, chosen>>();
+ let second: i32 = block choose<Sized<4, fixed<3>>>();
+ let third: i32 = block forward<chosen>();
+ transition first == 83 && second == 83 && third == 83 { true -> done() _ -> bad() }
+ state done() {} state bad() { crash Trap; }
+}

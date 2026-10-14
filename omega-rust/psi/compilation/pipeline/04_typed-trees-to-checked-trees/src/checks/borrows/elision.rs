@@ -26,8 +26,9 @@ pub(super) fn check_view_return_elision(
 ) {
     let mut deferred = Vec::new();
     for machine in program.machines() {
-        let parameters = program
-            .machine_type_parameters(machine)
+        let (scope, _) =
+            program.machine_type_reference_scope(machine, |left, right| left.name == right.name);
+        let parameters = scope
             .iter()
             .filter(|parameter| {
                 matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)

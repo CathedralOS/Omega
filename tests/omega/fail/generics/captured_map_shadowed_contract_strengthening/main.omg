@@ -1,0 +1,18 @@
+const Counts::SEVEN: u32 = 7;
+trait Bounded<const Limit: u32> {
+ machine identity<const Own: u32>(value: u32) -> u32 blocks;
+ requires value <= Limit;
+}
+Selected<const Maximum: u32> satisfies Bounded<Maximum> {
+ machine identity<const Maximum: u32>(input: u32) -> u32
+ requires input <= Maximum
+ { input }
+}
+machine choose<Operations satisfies Bounded<Counts::SEVEN>>() -> u32 blocks; {
+ block Operations::identity<9>(3u32)
+}
+machine main() blocks; crashes Trap {
+ let observed: u32 = block choose<Selected<7>>();
+ transition observed == 3u32 { true -> done() _ -> bad() }
+ state done() {} state bad() { crash Trap; }
+}

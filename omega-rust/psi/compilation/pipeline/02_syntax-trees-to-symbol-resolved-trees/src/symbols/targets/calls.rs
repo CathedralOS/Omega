@@ -254,12 +254,25 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
     } else {
         machine.symbol
     };
-    let machine_parameter = child_symbol_by_kinds(
-        symbols,
-        generic_owner,
-        &[SymbolKind::MachineParameter],
-        target.as_str(),
-    );
+    let machine_parameter = machine
+        .type_parameters
+        .iter()
+        .find(|parameter| {
+            parameter.name.as_str() == target.as_str()
+                && matches!(
+                    parameter.kind,
+                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+                )
+        })
+        .map(|parameter| parameter.symbol)
+        .unwrap_or_else(|| {
+            child_symbol_by_kinds(
+                symbols,
+                generic_owner,
+                &[SymbolKind::MachineParameter],
+                target.as_str(),
+            )
+        });
     if machine_parameter.is_valid() {
         return machine_parameter;
     }

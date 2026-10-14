@@ -65,6 +65,30 @@ pub(crate) fn check_contract_refinement(
         // Signature correspondence owns the arity diagnostic.
         return;
     }
+    // Capture binders remain lexical operands, independent of the member's
+    // invocation family. Both sides of trait application share their exact
+    // symbols, while equally spelled invocation binders keep their own slots.
+    let captured = program
+        .machine_type_reference_scope(machine, |left, right| left.symbol == right.symbol)
+        .0
+        .into_iter()
+        .filter(|parameter| {
+            !invocation_parameters
+                .iter()
+                .any(|local| local.symbol == parameter.symbol)
+        })
+        .enumerate()
+        .map(|(position, parameter)| (parameter.symbol, format!("$capture{position}")))
+        .collect::<Vec<_>>();
+    let required_generic = program.state_signature_type_parameters(requirement);
+    if !binder_mapping_is_unique(&generic_binders(required_generic), &captured)
+        || !binder_mapping_is_unique(&generic_binders(invocation_parameters), &captured)
+    {
+        diagnostics.push(Diagnostic::error(
+            "contract refinement has duplicate declaration-symbol binder mappings",
+        ));
+        return;
+    }
     let mut required = ContractFacts::collect(
         program,
         requirement.symbol,
@@ -72,14 +96,19 @@ pub(crate) fn check_contract_refinement(
         required_parameters,
         requirement.return_type,
         program.state_signature_type_parameters(requirement),
+        &captured,
     );
-    required.instantiate_family_packs(
+    if let Err(diagnostic) = required.instantiate_family_packs(
         program,
         program.state_signature_type_parameters(requirement),
         required_parameters,
         invocation_parameters,
         member_parameters,
-    );
+        &captured,
+    ) {
+        diagnostics.push(diagnostic);
+        return;
+    }
     let member = ContractFacts::collect(
         program,
         machine.symbol,
@@ -90,6 +119,7 @@ pub(crate) fn check_contract_refinement(
         member_parameters,
         entry.return_type,
         invocation_parameters,
+        &captured,
     );
     let owes_through_edge = program
         .machine_trait_conformances(machine)
@@ -147,8 +177,11 @@ impl ContractFacts {
         parameters: &[StateParameter],
         result: TypeReferenceHandle,
         generics: &[typed_trees::data::TypeParameter],
+        captured: &[(SymbolHandle, String)],
     ) -> Self {
-        let binders = callable_binders(&generic_binders(generics), parameters);
+        let mut generic = generic_binders(generics);
+        generic.extend_from_slice(captured);
+        let binders = callable_binders(&generic, parameters);
         let mut facts = Self {
             owner,
             bindings: Vec::new(),
@@ -214,9 +247,21 @@ impl ContractFacts {
         required_parameters: &[StateParameter],
         member_generics: &[typed_trees::data::TypeParameter],
         member_parameters: &[StateParameter],
-    ) {
+        captured: &[(SymbolHandle, String)],
+    ) -> Result<(), Diagnostic> {
         let mut generics = generic_binders(required_generics);
-        generics.extend(generic_binders(member_generics));
+        generics.extend_from_slice(captured);
+        for (symbol, name) in generic_binders(member_generics) {
+            if let Some((_, existing)) = generics.iter().find(|(existing, _)| *existing == symbol) {
+                if *existing != name {
+                    return Err(Diagnostic::error(
+                        "contract family refinement has conflicting declaration-symbol binder mappings",
+                    ));
+                }
+            } else {
+                generics.push((symbol, name));
+            }
+        }
         let binders = callable_binders(&generics, required_parameters);
         for conjunct in &mut self.requires {
             let ProofFact::Proposition(application) = &conjunct.fact else {
@@ -240,6 +285,7 @@ impl ContractFacts {
             conjunct.identity =
                 correspondence_fact(program, &ProofFact::Proposition(completed), &binders);
         }
+        Ok(())
     }
 
     fn bind_integer(
@@ -366,4 +412,19 @@ fn render(program: &dyn crate::CheckingInput, fact: &ProofFact) -> String {
         ),
         ProofFact::Proposition(application) => application.name.as_str().to_owned(),
     }
+}
+
+fn binder_mapping_is_unique(
+    own: &[(SymbolHandle, String)],
+    captures: &[(SymbolHandle, String)],
+) -> bool {
+    let mut seen = Vec::new();
+    own.iter().chain(captures).all(|(symbol, _)| {
+        if seen.contains(symbol) {
+            false
+        } else {
+            seen.push(*symbol);
+            true
+        }
+    })
 }

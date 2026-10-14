@@ -1,0 +1,17 @@
+// Expected exit: 0. Record Const captures preserve exact values and carriers.
+data Config [copy] { value: i32; }
+const FIRST: Config = Config { value: 41 };
+const SECOND: Config = Config { value: 73 };
+trait Getter { machine get() -> i32; }
+Selected<const Output: Config> satisfies Getter {
+    machine get() -> i32 { Output.value }
+}
+machine choose<Operations satisfies Getter>() -> i32 { Operations::get() }
+machine main() crashes Trap {
+    let first: i32 = choose<Selected<FIRST>>();
+    let second: i32 = choose<Selected<SECOND>>();
+    transition first == 41 && second == 73 && first + second == 114 {
+        true -> done() _ -> bad()
+    }
+    state done() {} state bad() { crash Trap; }
+}

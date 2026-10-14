@@ -6,7 +6,34 @@ pub(super) fn from_machine(
     machine_index: usize,
 ) -> Candidate<'static> {
     let machine = &program.machines()[machine_index];
-    let parameters = program.machine_type_parameters(machine);
+    from_parameters(
+        program,
+        machine_index,
+        program.machine_type_parameters(machine),
+        machine.conformance_bounds.clone(),
+    )
+}
+
+pub(super) fn from_capture(
+    program: &dyn ::validation::CheckingInput,
+    machine_index: usize,
+    conformance: &typed_trees::trait_definition::Conformance,
+) -> Candidate<'static> {
+    from_parameters(
+        program,
+        machine_index,
+        program.conformance_type_parameters(conformance),
+        Vec::new(),
+    )
+}
+
+fn from_parameters(
+    program: &dyn ::validation::CheckingInput,
+    machine_index: usize,
+    parameters: &[typed_trees::data::TypeParameter],
+    evidence_parameters: Vec<typed_trees::machine::GenericConformanceBound>,
+) -> Candidate<'static> {
+    let machine = &program.machines()[machine_index];
     let mut type_parameters = Vec::new();
     let mut const_parameters = Vec::new();
     let mut value_const_parameters = Vec::new();
@@ -47,7 +74,6 @@ pub(super) fn from_machine(
             TypeParameterKind::Implementation | TypeParameterKind::Proposition { .. } => {}
         }
     }
-    let evidence_parameters = machine.conformance_bounds.clone();
     Candidate {
         binding_application:
             typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),

@@ -8,12 +8,14 @@
 //! declaration. No contract is inferred from a provider's body.
 
 mod applications;
+mod conformance_demands;
+pub(super) use conformance_demands::prepare as prepare_conformance_machine_demands;
 mod demands;
 mod invocations;
 mod providers;
 mod static_operands;
 
-pub(super) use static_operands::names_any;
+pub(super) use static_operands::{is_open as operand_is_open, names_any};
 
 use super::{CallSite, Diagnostic, ExpressionNode, StatementNode, SymbolHandle, TypedTrees};
 
@@ -27,6 +29,47 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
         // enclosing preparation pass, which normally already retained it.
         let application =
             super::applications::retain_authored_call(program, invocation.site, invocation.owner);
+        // Forwarded binders owe the same complete caller tuple as concrete
+        // providers. Retain symbolic Source operands independently of whether
+        // closing a provider rewrites an executable entry.
+        let declaration = program
+            .symbols
+            .get(invocation.requirements[0].parameter)
+            .parent;
+        let retained = program
+            .expression_table
+            .static_machine_application_mut(application);
+        if !retained.binding_declaration.is_valid() {
+            retained.binding_declaration = declaration;
+        }
+        let mut bindings = program
+            .expression_table
+            .static_machine_application_bindings(application)
+            .to_vec();
+        for (parameter, actual) in &invocation.types {
+            let value = if program
+                .data_type_parameter_by_symbol(*parameter)
+                .is_some_and(|parameter| parameter.kind.is_const_or_value())
+            {
+                typed_trees::static_applications::StaticMachineBindingValue::Const(*actual)
+            } else {
+                typed_trees::static_applications::StaticMachineBindingValue::Type(*actual)
+            };
+            if let Some(binding) = bindings
+                .iter_mut()
+                .find(|binding| binding.parameter == *parameter)
+            {
+                binding.value = value;
+            } else {
+                bindings.push(typed_trees::static_applications::StaticMachineBinding {
+                    parameter: *parameter,
+                    value,
+                });
+            }
+        }
+        program
+            .expression_table
+            .set_static_machine_application_bindings(application, &bindings);
         let mut selected = invocation.machine_arguments.clone();
         let mut replaced = false;
         for (ordinal, (argument, expected)) in selected
@@ -40,7 +83,6 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
                 expected.parameter,
                 &expected.signature,
                 &invocation.types,
-                invocation.site,
                 application,
                 ordinal,
             )?;

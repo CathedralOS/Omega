@@ -76,28 +76,7 @@ pub(crate) fn encode(
             writer.bytes(&application.specialization_commitment);
             writer.len("reach call arguments", application.arguments.len())?;
             for argument in &application.arguments {
-                match argument {
-                    ClosedReachArgument::Type(identity) => {
-                        writer.u8(0);
-                        writer.u32(identity.0);
-                    }
-                    ClosedReachArgument::Const(identity) => {
-                        writer.u8(1);
-                        writer.u32(identity.0);
-                    }
-                    ClosedReachArgument::Proposition(identity) => {
-                        writer.u8(2);
-                        writer.u32(identity.0);
-                    }
-                    ClosedReachArgument::Machine {
-                        identity,
-                        contract_commitment,
-                    } => {
-                        writer.u8(3);
-                        writer.u32(identity.0);
-                        writer.bytes(contract_commitment);
-                    }
-                }
+                encode_argument(writer, argument);
             }
         }
     }
@@ -165,26 +144,7 @@ pub(crate) fn decode(
                     Some(ClosedReachCallApplication {
                         callee: reader.id("MachineId")?,
                         specialization_commitment: reader.array()?,
-                        arguments: decode_counted(reader, |reader| {
-                            Ok(match reader.u8()? {
-                                0 => {
-                                    ClosedReachArgument::Type(TerminalIdentityIndex(reader.u32()?))
-                                }
-                                1 => {
-                                    ClosedReachArgument::Const(TerminalIdentityIndex(reader.u32()?))
-                                }
-                                2 => ClosedReachArgument::Proposition(TerminalIdentityIndex(
-                                    reader.u32()?,
-                                )),
-                                3 => ClosedReachArgument::Machine {
-                                    identity: TerminalIdentityIndex(reader.u32()?),
-                                    contract_commitment: reader.array()?,
-                                },
-                                tag => {
-                                    return Err(CodecError::InvalidTag("ClosedReachArgument", tag));
-                                }
-                            })
-                        })?,
+                        arguments: decode_counted(reader, decode_argument)?,
                     })
                 } else {
                     None
@@ -192,4 +152,43 @@ pub(crate) fn decode(
             })
         })?,
     }))
+}
+
+/// One closed argument uses the same canonical wire across method applications
+/// and reach applications; the receiving context owns its tuple role.
+pub(crate) fn encode_argument(writer: &mut Writer, argument: &ClosedReachArgument) {
+    match argument {
+        ClosedReachArgument::Type(identity) => {
+            writer.u8(0);
+            writer.u32(identity.0);
+        }
+        ClosedReachArgument::Const(identity) => {
+            writer.u8(1);
+            writer.u32(identity.0);
+        }
+        ClosedReachArgument::Proposition(identity) => {
+            writer.u8(2);
+            writer.u32(identity.0);
+        }
+        ClosedReachArgument::Machine {
+            identity,
+            contract_commitment,
+        } => {
+            writer.u8(3);
+            writer.u32(identity.0);
+            writer.bytes(contract_commitment);
+        }
+    }
+}
+pub(crate) fn decode_argument(reader: &mut Reader<'_>) -> Result<ClosedReachArgument, CodecError> {
+    Ok(match reader.u8()? {
+        0 => ClosedReachArgument::Type(TerminalIdentityIndex(reader.u32()?)),
+        1 => ClosedReachArgument::Const(TerminalIdentityIndex(reader.u32()?)),
+        2 => ClosedReachArgument::Proposition(TerminalIdentityIndex(reader.u32()?)),
+        3 => ClosedReachArgument::Machine {
+            identity: TerminalIdentityIndex(reader.u32()?),
+            contract_commitment: reader.array()?,
+        },
+        tag => return Err(CodecError::InvalidTag("ClosedReachArgument", tag)),
+    })
 }

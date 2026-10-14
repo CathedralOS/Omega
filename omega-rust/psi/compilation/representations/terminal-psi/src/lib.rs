@@ -43,6 +43,7 @@ pub use terminal_module::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
     ClosedConformanceParameterKind, ClosedConformanceRealizationCallable, ClosedConformanceRow,
+    ClosedConformanceSchema, ClosedConformanceSchemaKind, ClosedConformanceStaticApplication,
     ClosedReachApplication, ClosedReachArgument, ClosedReachCall, ClosedReachCallApplication,
     ClosedReachMachineBinding, ClosedReachParameter, ClosedReachSchema, CompletionReceipt,
     ContentConservationGuarantee, ContentEntryClaim, ContentIdentityReshuffle,

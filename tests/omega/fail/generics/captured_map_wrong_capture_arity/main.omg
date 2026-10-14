@@ -1,0 +1,4 @@
+trait Getter { machine get() -> i32 blocks; }
+Selected<const Captured: i32> satisfies Getter { machine get() -> i32 { Captured } }
+machine choose<Operations satisfies Getter>() -> i32 blocks; { block Operations::get() }
+machine main() blocks; { let observed: i32 = block choose<Selected<7, 8>>(); }

@@ -1,0 +1,13 @@
+trait Identity<Value> { machine keep(value: Value) -> Value blocks; }
+Selected<Captured> satisfies Identity<Captured> {
+    machine keep(value: Captured) -> Captured { value }
+}
+machine choose<Operations satisfies Identity<i32>>(value: i32) -> i32 blocks; {
+    block Operations::keep(value)
+}
+machine main() blocks; crashes Trap {
+    let observed: i32 = block choose<Selected<i32>>(37);
+    transition observed == 37 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,9 @@
+// Reject: an open Type method has no finite runtime invocation roster.
+trait Generic { machine code<Value>(value: Value) -> Value; }
+Selected satisfies Generic {
+    machine code<Value>(value: Value) -> Value { value }
+}
+machine invoke(selected: dyn Generic) -> i32 {
+    Generic::code<i32>(selected, 37)
+}
+machine main() {}

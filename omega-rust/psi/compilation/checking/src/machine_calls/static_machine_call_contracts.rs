@@ -65,14 +65,34 @@ pub fn static_machine_template_reach_contract_bytes(
         ));
     }
     let mut ordinals = Vec::with_capacity(dependencies.len());
+    let capture = program.conformance_by_symbol(program.declaration_scope_parent(machine.symbol));
+    let captured_parameters = capture
+        .map(|declaration| program.conformance_type_parameters(declaration))
+        .unwrap_or(&[]);
+    if capture
+        .is_some_and(|declaration| captured_parameters.len() != declaration.type_parameters.len())
+    {
+        return Err(Diagnostic::error(
+            "capture reach dependency lost its map telescope",
+        ));
+    }
+    let mut captured_ordinals = Vec::new();
     for dependency in dependencies {
-        let mut matches = parameters
+        let (scope, scope_parameters) = if parameters
+            .iter()
+            .any(|parameter| parameter.symbol == *dependency)
+        {
+            (false, parameters)
+        } else {
+            (true, captured_parameters)
+        };
+        let mut matches = scope_parameters
             .iter()
             .enumerate()
             .filter(|(_, parameter)| parameter.symbol == *dependency);
         let Some((ordinal, parameter)) = matches.next() else {
             return Err(Diagnostic::error(
-                "generic reach variable is outside its telescope",
+                "generic reach variable is outside its invocation and capture telescopes",
             ));
         };
         if matches.next().is_some()
@@ -87,7 +107,11 @@ pub fn static_machine_template_reach_contract_bytes(
                 "generic reach variable is not one exact nominal binder",
             ));
         }
-        ordinals.push(ordinal as u64);
+        if scope {
+            captured_ordinals.push(ordinal as u64);
+        } else {
+            ordinals.push(ordinal as u64);
+        }
     }
     ordinals.sort_unstable();
     if ordinals.windows(2).any(|pair| pair[0] == pair[1]) {
@@ -100,6 +124,27 @@ pub fn static_machine_template_reach_contract_bytes(
         bytes.extend(ordinal.to_le_bytes());
     }
     bytes.extend(static_machine_parameter_contract_bytes(program, parameters));
+    if let Some(capture) = capture {
+        // Owned rows retain their map's nominal dependencies independently of
+        // invocation binders. Splicing these into the invocation telescope
+        // would give same-spelled local binders the wrong contract authority.
+        bytes.extend(b"omega.static-machine-capture-reach.v1\0");
+        encode_declaration(program, capture.symbol, &mut bytes);
+        captured_ordinals.sort_unstable();
+        if captured_ordinals.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(Diagnostic::error(
+                "capture reach dependency repeats a binder",
+            ));
+        }
+        bytes.extend((captured_ordinals.len() as u64).to_le_bytes());
+        for ordinal in captured_ordinals {
+            bytes.extend(ordinal.to_le_bytes());
+        }
+        bytes.extend(static_machine_parameter_contract_bytes(
+            program,
+            captured_parameters,
+        ));
+    }
     Ok(bytes)
 }
 

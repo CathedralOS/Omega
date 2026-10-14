@@ -7,7 +7,6 @@ use checked_trees::{
     CheckedEvidenceTerm, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
 };
 use symbols::SymbolHandle;
-use typed_trees::closed_conformance_applications_of;
 use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 pub(crate) fn bind_proof_output_call_facts(
@@ -616,9 +615,10 @@ fn checked_static_requirement_dispatch<'program>(
         ));
     }
 
-    let applications = closed_conformance_applications_of(
-        &program.machine_specializations,
+    let applications = program.selected_conformance_applications(
         caller_machine,
+        dispatch.selection_application,
+        dispatch.requirement,
         dispatch.application_report_fingerprint,
         dispatch.application_commitment,
     );
@@ -738,10 +738,12 @@ fn checked_static_requirement_dispatch<'program>(
 
     Ok(Some((
         checked_trees::StaticRequirementDispatchFact {
+            selection_application: dispatch.selection_application,
             application_report_fingerprint: dispatch.application_report_fingerprint,
             application_commitment: dispatch.application_commitment,
             declaring_trait: dispatch.declaring_trait,
             requirement: dispatch.requirement,
+            contract_signature: dispatch.contract_signature,
             realization_machine: dispatch.realization_machine,
             realization_state: dispatch.realization_state,
         },

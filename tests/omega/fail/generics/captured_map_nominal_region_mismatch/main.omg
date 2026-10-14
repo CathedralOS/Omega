@@ -1,0 +1,8 @@
+trait Borrowing<Input, Output> { machine borrow(value: Input) -> Output; }
+machine forward<Input, Output, machine Callback>()
+where machine Callback satisfies Borrowing<Input, Output>::borrow;
+{}
+machine bridge<'left, 'right, machine Callback>()
+where machine Callback satisfies Borrowing<&'right i32, &'right i32>::borrow;
+{ forward<&'left i32, &'left i32, Callback>(); }
+machine main() {}

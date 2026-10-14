@@ -337,6 +337,7 @@ pub(super) fn build(
                 parameter,
                 target_identity,
                 caller_operations,
+                trace,
             )?);
             continue;
         }

@@ -75,6 +75,7 @@ pub(super) fn validate(
         let required_arguments = crate::conformance_applications::applied_bound_argument_identities(
             program,
             required,
+            machine.symbol,
             application.lexical_owner,
             &[scope],
         );
@@ -89,6 +90,7 @@ pub(super) fn validate(
                         crate::conformance_applications::applied_bound_argument_identities(
                             program,
                             actual,
+                            program.symbols.get(actual.binder).parent,
                             application.lexical_owner,
                             &[],
                         )

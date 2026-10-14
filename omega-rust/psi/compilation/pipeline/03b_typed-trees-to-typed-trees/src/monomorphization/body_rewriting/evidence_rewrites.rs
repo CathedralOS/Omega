@@ -80,7 +80,6 @@ pub(crate) struct EvidenceRequirementRewrite {
     pub(crate) placeholder: SymbolHandle,
     pub(crate) target: SymbolHandle,
     pub(crate) name: typed_trees::name::Identifier,
-    pub(crate) application_arguments: Box<[StaticMachineArgument]>,
     pub(crate) dispatch: typed_trees::typed_trees::StaticRequirementDispatch,
 }
 
@@ -135,11 +134,8 @@ pub(crate) fn evidence_requirement_rewrites(
                         .next()
                         .unwrap_or(row.realization_name.as_str()),
                 ),
-                application_arguments: binding
-                    .application
-                    .as_ref()
-                    .map_or_else(Box::default, |application| application.arguments.clone()),
                 dispatch: typed_trees::typed_trees::StaticRequirementDispatch {
+                    selection_application: Default::default(),
                     application_report_fingerprint: application.report_fingerprint,
                     application_commitment: application.commitment,
                     declaring_trait: row.declaring_trait,

@@ -23,12 +23,7 @@ pub(super) fn bind(
     let machine = program
         .machines()
         .iter()
-        .find(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == selected)
-        })
+        .find(|machine| program.machine_or_state_symbol(machine, selected))
         .ok_or_else(|| {
             vec![Diagnostic::error(
                 "nested lifetime application lost its selected declaration",

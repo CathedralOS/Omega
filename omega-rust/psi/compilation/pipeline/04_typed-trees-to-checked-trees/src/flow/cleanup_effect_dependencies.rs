@@ -201,7 +201,7 @@ pub(crate) fn derive_cleanup_effect_dependencies(
             continue;
         };
         if machine.supply_mode != MachineSupplyMode::CheckedBody
-            || !program.machine_type_parameters(machine).is_empty()
+            || program.callable_body_has_open_parameters(machine)
             || proof_only.is_proof_machine(program, machine)
         {
             continue;
@@ -209,7 +209,7 @@ pub(crate) fn derive_cleanup_effect_dependencies(
         for state in operational.states.span_or_empty(caller.states) {
             for call in operational.calls.span_or_empty(state.calls) {
                 if let Some(target) = program.machine_by_symbol(call.target_machine_symbol)
-                    && !program.machine_type_parameters(target).is_empty()
+                    && program.callable_body_has_open_parameters(target)
                 {
                     return Err(vec![Diagnostic::error(format!(
                         "cleanup effect preparation for `{}` requires a complete specialization of `{}`",
@@ -228,7 +228,7 @@ pub(crate) fn derive_cleanup_effect_dependencies(
                         // disposition. Each exact instance has its own substituted
                         // body and custody rows; never union instance effects back
                         // onto the template or another application.
-                        && program.machine_type_parameters(machine).is_empty()
+                        && !program.callable_body_has_open_parameters(machine)
                         && !proof_only.is_proof_machine(program, machine)
             })
         {

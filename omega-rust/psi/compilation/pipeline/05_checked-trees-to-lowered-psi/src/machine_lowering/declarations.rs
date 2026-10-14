@@ -74,17 +74,15 @@ pub(crate) fn identity(
         .as_bytes();
     let specialization = checked
         .typed
-        .machine_specializations
-        .iter()
-        .find(|row| row.instance == machine)
-        .map(|row| {
+        .executable_application_template(machine)?
+        .map(|template| {
             let identity = checked
                 .facts
                 .specialization_identities
                 .for_instance(machine)
-                .ok_or("checked machine declaration has no specialization identity")?;
+                .ok_or("checked executable application has no retained identity")?;
             Ok::<_, &'static str>(CheckedMachineSpecialization {
-                template: nominal(row.template)?,
+                template: nominal(template)?,
                 commitment: identity.commitment.as_bytes(),
             })
         })

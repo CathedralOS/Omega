@@ -35,7 +35,8 @@ pub use language_semantics::type_identity::{
     TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,
 };
 pub use lifetime_parameters::{
-    LifetimeParameterIdentity, applied_lifetime_parameter_identity, lifetime_parameter_identity,
+    LifetimeParameterIdentity, applied_lifetime_parameter_identity,
+    applied_lifetime_parameter_identity_with_supplier, lifetime_parameter_identity,
     lifetime_parameter_name, portable_lifetime_parameter_identity,
 };
 pub use normalized_identities::{
@@ -103,6 +104,26 @@ pub fn applied_type_identity(
         program,
         reference,
         lexical_owner,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::Ordinary,
+    )
+}
+
+/// Compare an authored receiving type under operands supplied by another
+/// declaration. The two owners remain distinct throughout region lookup.
+pub fn applied_type_identity_in_scope(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    receiving_owner: SymbolHandle,
+    argument_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_type_identity(
+        program,
+        reference,
+        receiving_owner,
+        argument_owner,
         scopes,
         TypeIdentityQualification::Ordinary,
     )
@@ -145,6 +166,7 @@ pub fn portable_applied_type_identity(
         program,
         reference,
         lexical_owner,
+        lexical_owner,
         scopes,
         TypeIdentityQualification::PackageQualified,
     )
@@ -154,6 +176,7 @@ fn qualified_applied_type_identity(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
     lexical_owner: SymbolHandle,
+    argument_owner: SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
     qualification: TypeIdentityQualification,
 ) -> Option<NormalizedTypeIdentity> {
@@ -164,6 +187,7 @@ fn qualified_applied_type_identity(
         &TypeIdentityContext {
             application_scopes: scopes,
             application_owner: lexical_owner,
+            application_argument_owner: argument_owner,
             qualification,
             invalid_application: Some(&invalid),
             invalid_index_argument: Some(&invalid),
@@ -770,6 +794,39 @@ impl TypedTrees {
     pub fn type_identity_request_text(&self, request: TypeIdentityRequest<'_>) -> String {
         self.type_identity_text(self.type_identity(request))
             .unwrap_or_default()
+    }
+
+    /// Compare only an array's index under exact declaration substitutions.
+    /// Carrier refinement remains a separate judgment over its element type.
+    pub fn fixed_array_length_identity(
+        &self,
+        length: &crate::types::FixedArrayLength,
+        binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Option<NormalizedTypeIdentity> {
+        if let crate::types::FixedArrayLength::Expression(reference) = length
+            && (!self
+                .type_reference_table
+                .contains_type_reference(*reference)
+                || !matches!(
+                    self.type_reference_table.type_reference(*reference),
+                    crate::types::TypeReferenceNode::ConstExpression(_)
+                ))
+        {
+            return None;
+        }
+        let invalid = Cell::new(false);
+        let identity = constraint_identity::normalize_array_length(
+            self,
+            length,
+            &TypeIdentityContext {
+                binders,
+                substitutions,
+                invalid_index_argument: Some(&invalid),
+                ..Default::default()
+            },
+        );
+        (!invalid.get()).then(|| program_intern_type_identity(self, identity))
     }
 
     pub fn type_identity(&self, request: TypeIdentityRequest<'_>) -> NormalizedTypeIdentity {

@@ -57,6 +57,12 @@ impl TypedTrees {
         &self,
         signature: &crate::signature::StateSignature,
     ) -> FamilyProbe {
+        if !signature.lifetime_parameters.is_empty() {
+            return FamilyProbe::NotFinite(
+                "invocation lifetimes are arbitrary regions, not an enumerable value roster"
+                    .to_owned(),
+            );
+        }
         let type_parameters = self.state_signature_type_parameters(signature);
         let binders = type_parameters
             .iter()

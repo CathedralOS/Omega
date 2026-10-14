@@ -148,6 +148,7 @@ impl CallableApplication {
         (
             crate::name::Identifier,
             crate::type_identity::LifetimeParameterIdentity,
+            bool,
         ),
         &'static str,
     > {
@@ -156,18 +157,24 @@ impl CallableApplication {
             .iter()
             .any(|(parameter, _)| parameter == original)
         {
-            return Ok((self.lifetime(original), Default::default()));
+            return Ok((self.lifetime(original), Default::default(), false));
         }
         let Some((environment, preceding_frames)) = &self.trait_region_application else {
-            return Ok((original.clone(), Default::default()));
+            return Ok((original.clone(), Default::default(), false));
         };
-        let region = environment
-            .lifetime_identity(program, reference, *preceding_frames, original.as_str())
+        let (region, substituted) = environment
+            .lifetime_identity(
+                program,
+                reference,
+                *preceding_frames,
+                original.as_str(),
+                self.region_scope,
+            )
             .ok_or("applied trait operand has no exact supplying region")?;
         let name = crate::type_identity::lifetime_parameter_name(program, region)
             .ok_or("applied trait operand lost its region declaration ordinal")?
             .clone();
-        Ok((name, region))
+        Ok((name, region, substituted))
     }
 
     fn lifetime(&self, original: &crate::name::Identifier) -> crate::name::Identifier {
@@ -286,6 +293,44 @@ impl TypedTrees {
             ..CallableApplication::default()
         }
         .type_reference(self, original)
+    }
+
+    /// Apply captured regions through their original simultaneous frames.
+    /// A method's own region telescope masks equally spelled outer captures.
+    pub fn apply_captured_callable_type(
+        &mut self,
+        original: types::TypeReferenceHandle,
+        environment: &crate::trait_definition::TraitApplicationEnvironment,
+        local_lifetimes: &[crate::name::Identifier],
+        declaration: SymbolHandle,
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
+        CallableApplication {
+            region_scope: declaration,
+            trait_region_application: Some((environment.clone(), environment.frame_count())),
+            lifetimes: local_lifetimes
+                .iter()
+                .map(|name| (name.clone(), name.clone()))
+                .collect(),
+            ..CallableApplication::default()
+        }
+        .type_reference(self, original)
+    }
+
+    /// Copy a retained callable binder contract with exact lexical remapping.
+    /// Nested callable telescopes are freshened by the same application owner
+    /// as ordinary selected signatures; copying establishes no admission.
+    pub fn copy_callable_parameter_kind(
+        &mut self,
+        kind: data::TypeParameterKind,
+        symbols: &[(SymbolHandle, SymbolHandle)],
+        declaration: SymbolHandle,
+    ) -> Result<data::TypeParameterKind, &'static str> {
+        CallableApplication {
+            region_scope: declaration,
+            symbols: symbols.to_vec(),
+            ..CallableApplication::default()
+        }
+        .parameter_kind(self, kind)
     }
 
     /// Prepare nominal callable applications after all declarations are lowered.

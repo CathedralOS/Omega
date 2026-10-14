@@ -129,6 +129,92 @@ impl TypedTrees {
     ) -> Result<types::TypeReferenceHandle, &'static str> {
         CallableApplication::selected_argument_reference(self, selected)
     }
+
+    /// Materialize an incoming operand in its retained application's lexical
+    /// scope. Newly copied nodes keep that supplier; existing explicit custody
+    /// is preserved. This carries representation, never a region or loan grant.
+    pub fn static_operand_type_reference_in_scope(
+        &mut self,
+        selected: &expression::StaticMachineArgument,
+        owner: symbols::SymbolHandle,
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
+        if !owner.is_valid() {
+            return Err("static operand lost its supplying declaration");
+        }
+        let start = self.type_reference_table.type_reference_count() + 1;
+        let supplied = CallableApplication::selected_argument_reference(self, selected)?;
+        let copied = self.apply_callable_type(supplied, &[], &[], owner)?;
+        let references = self
+            .type_reference_table
+            .references()
+            .filter(|(handle, _)| handle.arena_index() as usize >= start)
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        for reference in references {
+            if !self
+                .type_reference_table
+                .operand_lifetime_owner(reference)
+                .is_valid()
+            {
+                self.type_reference_table
+                    .retain_operand_lifetime_owner(reference, owner)?;
+            }
+        }
+        Ok(copied)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn supplied_operand_does_not_acquire_preexisting_region_node() {
+        let mut program = TypedTrees::default();
+        let unit = program
+            .type_reference_table
+            .insert(types::TypeReferenceNode::Unit);
+        let incoming = program
+            .type_reference_table
+            .insert(types::TypeReferenceNode::Reference {
+                referee: unit,
+                access: language_semantics::ReferenceAccess::Shared,
+                lifetime: Some(crate::name::Identifier::generated("incoming")),
+            });
+        let unrelated = program
+            .type_reference_table
+            .insert(types::TypeReferenceNode::Reference {
+                referee: unit,
+                access: language_semantics::ReferenceAccess::Shared,
+                lifetime: Some(crate::name::Identifier::generated("unrelated")),
+            });
+        // This test checks representation transport, not declaration admission
+        // or loan authority. The owner is a distinct nonzero transport key.
+        let owner = symbols::SymbolHandle::from_parts(1, 1);
+        let selected = expression::StaticMachineArgument {
+            type_reference: incoming,
+            ..Default::default()
+        };
+        let copied = program
+            .static_operand_type_reference_in_scope(&selected, owner)
+            .unwrap();
+        assert!(
+            !program
+                .type_reference_table
+                .operand_lifetime_owner(unrelated)
+                .is_valid()
+        );
+        assert!(
+            !program
+                .type_reference_table
+                .operand_lifetime_owner(incoming)
+                .is_valid()
+        );
+        assert_eq!(
+            program.type_reference_table.operand_lifetime_owner(copied),
+            owner
+        );
+    }
 }
 
 impl CallableApplication {

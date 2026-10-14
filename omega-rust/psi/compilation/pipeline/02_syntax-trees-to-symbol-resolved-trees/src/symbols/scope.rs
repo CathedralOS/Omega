@@ -27,6 +27,96 @@ pub(super) fn declaration_type_scope(
     parameters
 }
 
+/// Source lexical captures of owned map rows. Invocation binders remain in
+/// the machine's own telescope; an ordinary referenced row captures nothing.
+pub(super) struct ConformanceTypeScopes {
+    owned: Vec<(SymbolHandle, Vec<TypeParameter>)>,
+}
+
+impl ConformanceTypeScopes {
+    pub(super) fn of(
+        program: &symbol_resolved_trees::SymbolResolvedTrees,
+    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
+        let mut owned = Vec::new();
+        let mut diagnostics = Vec::new();
+        for conformance in program.conformances.iter() {
+            for row in conformance
+                .rows
+                .iter()
+                .filter(|row| row.source.owns_realization())
+            {
+                let provisional = row
+                    .provisional_realization_ordinal
+                    .and_then(|ordinal| program.machines.iter().nth(ordinal))
+                    .map(|machine| machine.symbol);
+                let retained = row.realization_machine;
+                if row.provisional_realization_ordinal.is_some() && provisional.is_none() {
+                    diagnostics.push(diagnostics::Diagnostic::error(
+                        "owned conformance realization has an invalid construction ordinal",
+                    ));
+                    continue;
+                }
+                let selected = if retained.is_valid() {
+                    // Completion consumes the finalized row after selection
+                    // clears its construction ordinal. Retain that exact
+                    // declaration instead of losing its enclosing binders.
+                    provisional
+                        .is_none_or(|symbol| symbol == retained)
+                        .then_some(retained)
+                } else {
+                    provisional.filter(|symbol| symbol.is_valid())
+                };
+                if let Some(machine) = selected {
+                    if program
+                        .machines
+                        .iter()
+                        .filter(|declaration| declaration.symbol == machine)
+                        .count()
+                        != 1
+                    {
+                        diagnostics.push(diagnostics::Diagnostic::error(
+                            "owned conformance realization has no unique retained machine declaration",
+                        ));
+                        continue;
+                    }
+                    if owned.iter().any(|(owner, _)| *owner == machine) {
+                        diagnostics.push(diagnostics::Diagnostic::error(
+                            "owned conformance realization has ambiguous enclosing capture scope",
+                        ));
+                        continue;
+                    }
+                    owned.push((
+                        machine,
+                        program
+                            .data_type_parameters(conformance.type_parameters)
+                            .to_vec(),
+                    ));
+                } else {
+                    diagnostics.push(diagnostics::Diagnostic::error(
+                        "owned conformance realization lost its exact enclosing capture scope",
+                    ));
+                }
+            }
+        }
+        if diagnostics.is_empty() {
+            Ok(Self { owned })
+        } else {
+            Err(diagnostics)
+        }
+    }
+
+    pub(super) fn parameters(&self, machine: SymbolHandle) -> &[TypeParameter] {
+        let mut owners = self.owned.iter().filter(|(owner, _)| *owner == machine);
+        let Some((_, parameters)) = owners.next() else {
+            return &[];
+        };
+        if owners.next().is_some() {
+            return &[];
+        }
+        parameters
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct AttachedMachine {
     pub(super) owner: SymbolHandle,

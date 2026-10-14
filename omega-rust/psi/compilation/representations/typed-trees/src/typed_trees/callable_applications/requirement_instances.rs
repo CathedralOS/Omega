@@ -194,14 +194,11 @@ impl TypedTrees {
             .scope(self)
             .ok_or("closed requirement lost its declaring trait scope")?;
         let declaring_trait = receiving_scope.declaration.symbol;
-        if receiving_scope.argument_owner != lexical_owner {
-            return Err("closed requirement source application has a different supplying owner");
-        }
         // Closure consumes the same source environment that defines the key.
         // Discarding it here either rejects retained regions or licenses a
         // later consumer to rebuild a different application from erased types.
         self.require_receiving_trait_operands(&receiving_scope)?;
-        self.require_receiving_application_operands(&local_arguments, &receiving_scope)?;
+        self.require_owned_application_operands(&local_arguments, lexical_owner)?;
         let trait_application_identity = receiving_scope
             .application_identity(self)
             .ok_or("closed requirement has no complete declaring application identity")?;
@@ -231,6 +228,21 @@ impl TypedTrees {
                 && existing.portable_trait_application_identity
                     == portable_trait_application_identity
                 && existing.portable_local_arguments == portable_local_arguments
+                && self
+                    .expression_table
+                    .static_machine_application_lifetimes(existing.application)
+                    == self
+                        .expression_table
+                        .static_machine_application_lifetimes(application)
+                && (self
+                    .expression_table
+                    .static_machine_application_lifetimes(application)
+                    .is_empty()
+                    || self
+                        .expression_table
+                        .static_machine_application(existing.application)
+                        .lexical_owner
+                        == lexical_owner)
                 && self
                     .expression_table
                     .static_machine_application_bindings(existing.application)

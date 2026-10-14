@@ -96,6 +96,8 @@ pub struct ClosedConformanceApplication {
     /// scope is unavailable, not permission to recover operands from report
     /// strings. Local arena handles do not contribute portable authority.
     pub trait_scope: crate::trait_definition::RetainedTraitScope,
+    /// Occurrence-owned map telescope used to admit every captured callable.
+    pub callable_application: crate::static_applications::StaticMachineApplicationHandle,
     /// Exact ordered source-resolved arguments retained for structural policy
     /// projection. This added tree does not participate in the historical
     /// application report or commitment; equal legacy coordinates cannot
@@ -200,6 +202,39 @@ pub struct ClosedConformanceRowIdentity {
     pub realization_state: symbols::SymbolHandle,
 }
 
+/// Exact storage coordinates for complete derived application views. Invocation
+/// and direct occurrence sources remain distinct even when their tuples agree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClosedConformanceApplicationSite {
+    Invocation {
+        specialization: usize,
+        application: usize,
+    },
+    Occurrence(crate::static_applications::StaticMachineApplicationHandle),
+}
+
+/// An owned map row with its capture telescope applied. The method's own
+/// invocation telescope remains independently authored on the instance.
+/// This relation is substitution custody, never conformance admission.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CapturedMachineApplication {
+    pub template: symbols::SymbolHandle,
+    pub instance: symbols::SymbolHandle,
+    pub binding_application: crate::static_applications::StaticMachineApplicationHandle,
+    /// Exact source invocation that supplied the selected evidence operand.
+    pub supplying_application: crate::static_applications::StaticMachineApplicationHandle,
+    pub conformance_application: ClosedConformanceApplication,
+    pub normalized_template_identity: String,
+    pub accepted_template_commitment: Option<String>,
+    pub states: HandleSpan<CapturedMachineState>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CapturedMachineState {
+    pub template: symbols::SymbolHandle,
+    pub instance: symbols::SymbolHandle,
+}
+
 /// One requirement call resolved through an exact closed static conformance.
 ///
 /// Monomorphization rewrites the executable target to `realization_state`, but
@@ -209,6 +244,9 @@ pub struct ClosedConformanceRowIdentity {
 /// identity.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StaticRequirementDispatch {
+    /// Direct selections retain their exact authored occurrence. Evidence-bound
+    /// dispatch keeps its independent invocation-specialization source.
+    pub selection_application: crate::static_applications::StaticMachineApplicationHandle,
     /// Non-authoritative compatibility coordinate for the selected
     /// application. `application_commitment` is the authoritative join.
     pub application_report_fingerprint: u64,

@@ -680,10 +680,12 @@ impl Builder<'_, '_> {
                             return None;
                         }
                         Some(checked_trees::StaticRequirementDispatchFact {
+                            selection_application: dispatch.selection_application,
                             application_report_fingerprint: dispatch.application_report_fingerprint,
                             application_commitment: dispatch.application_commitment,
                             declaring_trait: dispatch.declaring_trait,
                             requirement: dispatch.requirement,
+                            contract_signature: dispatch.contract_signature,
                             realization_machine: dispatch.realization_machine,
                             realization_state: dispatch.realization_state,
                         })

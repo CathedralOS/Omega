@@ -93,6 +93,13 @@ impl ExpressionTable {
         self.static_machine_application_mut(copy).lexical_owner = declaration.lexical_owner;
         self.static_machine_application_mut(copy)
             .binding_declaration = declaration.binding_declaration;
+        self.static_machine_application_mut(copy)
+            .conformance_selection = declaration.conformance_selection.map(|mut selection| {
+            // Raw operands are copied and rewritten below. Derived scopes and
+            // callback views must be rebuilt in that new occurrence.
+            selection.application = None;
+            selection
+        });
         self.set_static_machine_application_bindings(copy, &bindings);
         self.set_static_machine_application_selected_machines(copy, &selected);
         self.set_static_machine_application_lifetimes(copy, &lifetimes);

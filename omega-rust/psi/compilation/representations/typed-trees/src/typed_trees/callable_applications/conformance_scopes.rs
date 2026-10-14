@@ -10,27 +10,11 @@ use crate::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
 impl TypedTrees {
     pub fn prepare_closed_conformance_scopes(&mut self) -> Result<(), &'static str> {
         let pending = self
-            .machine_specializations
-            .iter()
-            .enumerate()
-            .flat_map(|(specialization_position, specialization)| {
-                specialization
-                    .conformance_applications
-                    .iter()
-                    .enumerate()
-                    .map(move |(application_position, application)| {
-                        (
-                            specialization_position,
-                            application_position,
-                            specialization.binding_application,
-                            application.clone(),
-                        )
-                    })
-            })
+            .closed_conformance_application_sites()
+            .into_iter()
+            .map(|(site, _, supplying, application)| (site, supplying, application.clone()))
             .collect::<Vec<_>>();
-        for (specialization_position, application_position, binding_application, application) in
-            pending
-        {
+        for (site, binding_application, application) in pending {
             if !binding_application.is_valid() {
                 return Err(
                     "closed implementation application lost its supplying source application",
@@ -67,8 +51,8 @@ impl TypedTrees {
             )
             .ok_or("closed implementation application lost its complete source telescope")?;
             let scope = scope.environment().retain(self)?;
-            self.machine_specializations[specialization_position].conformance_applications
-                [application_position]
+            self.closed_conformance_application_at_mut(site)
+                .ok_or("closed implementation application lost its occurrence")?
                 .trait_scope = scope;
         }
         Ok(())

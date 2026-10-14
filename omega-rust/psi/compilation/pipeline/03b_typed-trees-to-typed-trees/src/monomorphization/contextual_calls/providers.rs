@@ -6,8 +6,8 @@ mod explicit_arguments;
 mod lifetime_arguments;
 
 use super::super::{
-    CallSite, Diagnostic, StaticMachineArgument, SymbolHandle, TypeReferenceHandle, TypedTrees,
-    candidate, saved_calls,
+    Diagnostic, StaticMachineArgument, SymbolHandle, TypeReferenceHandle, TypedTrees, candidate,
+    saved_calls,
 };
 use typed_trees::signature::StateSignature;
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
@@ -18,7 +18,6 @@ pub(super) fn close(
     demand: SymbolHandle,
     expected: &StateSignature,
     caller_types: &[(SymbolHandle, TypeReferenceHandle)],
-    site: CallSite,
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
     ordinal: usize,
 ) -> Result<Option<SymbolHandle>, Vec<Diagnostic>> {
@@ -38,12 +37,11 @@ pub(super) fn close(
     if !program.state_signature_type_parameters(expected).is_empty() {
         return Ok(None);
     }
-    let Some(machine_index) = program.machines().iter().position(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == source_selected)
-    }) else {
+    let Some(machine_index) = program
+        .machines()
+        .iter()
+        .position(|machine| program.machine_or_state_symbol(machine, source_selected))
+    else {
         return Ok(None);
     };
     let mut provider = candidate::from_machine(program, machine_index);
@@ -54,10 +52,20 @@ pub(super) fn close(
         .machine_states(&program.machines()[machine_index])
         .iter()
         .find(|state| state.symbol == source_selected)
+        .or_else(|| {
+            (program.machines()[machine_index].symbol == source_selected)
+                .then(|| {
+                    program
+                        .machine_states(&program.machines()[machine_index])
+                        .first()
+                })
+                .flatten()
+        })
         .cloned();
     let Some(state) = state else {
         return Ok(None);
     };
+    let source_entry = state.symbol;
     let lifetimes =
         lifetime_arguments::bind(program, source_selected, &source_selection, application)?;
     if let Some(explicit) = &source_selection.application {
@@ -65,8 +73,7 @@ pub(super) fn close(
             program,
             &mut provider,
             &state,
-            source_selected,
-            site,
+            source_entry,
             &explicit.arguments,
         )?;
     }
@@ -83,6 +90,16 @@ pub(super) fn close(
     if actual_types.len() != expected_types.len() {
         return Ok(None);
     }
+    let supplied_types = provider
+        .type_bindings
+        .iter()
+        .map(Option::is_some)
+        .collect::<Vec<_>>();
+    let supplied_constants = provider
+        .const_bindings
+        .iter()
+        .map(Option::is_some)
+        .collect::<Vec<_>>();
     let mut type_proposals = Vec::new();
     let mut const_proposals = Vec::new();
     for (actual, required) in actual_types
@@ -109,8 +126,9 @@ pub(super) fn close(
         match provider.type_bindings[ordinal] {
             None => provider.type_bindings[ordinal] = Some(actual),
             Some(previous)
-                if program.normalized_type_identity_text(previous)
-                    != program.normalized_type_identity_text(actual) =>
+                if !supplied_types[ordinal]
+                    && program.normalized_type_identity_text(previous)
+                        != program.normalized_type_identity_text(actual) =>
             {
                 provider.conflicted = true
             }
@@ -121,8 +139,17 @@ pub(super) fn close(
         match provider.const_bindings[ordinal] {
             None => provider.const_bindings[ordinal] = Some(actual),
             Some(previous)
-                if program.normalized_type_identity_text(previous)
-                    != program.normalized_type_identity_text(actual) =>
+                if !supplied_constants[ordinal]
+                    && program
+                        .static_const_type_reference_identity(previous)
+                        .zip(program.static_const_type_reference_identity(actual))
+                        .map_or_else(
+                            || {
+                                program.normalized_type_identity_text(previous)
+                                    != program.normalized_type_identity_text(actual)
+                            },
+                            |(previous, actual)| previous != actual,
+                        ) =>
             {
                 provider.conflicted = true
             }
@@ -173,7 +200,7 @@ pub(super) fn close(
             expected,
             caller_types,
         )?;
-        return Ok(Some(source_selected));
+        return Ok(Some(source_entry));
     }
     // Admission consumes the complete determined symbolic tuple, not the
     // original universal declaration. Executable instances still require closed
@@ -223,7 +250,7 @@ pub(super) fn close(
             .template
             .state_symbols
             .iter()
-            .position(|symbol| *symbol == source_selected);
+            .position(|symbol| *symbol == source_entry);
         let entry = program
             .machine_by_symbol(existing)
             .and_then(|machine| {
@@ -266,7 +293,7 @@ pub(super) fn close(
     )?;
     let entry = states
         .into_iter()
-        .find(|(original, _)| *original == source_selected)
+        .find(|(original, _)| *original == source_entry)
         .map(|(_, concrete)| concrete);
     if let Some(entry) = entry {
         super::applications::retain_view(

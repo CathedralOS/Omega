@@ -52,7 +52,9 @@ fn fence_generic_value_callee(
     // specializes the template. Keep the fence for concrete callers whose
     // selected callee somehow remains generic: that is still an incomplete
     // lowering and must fail loudly.
-    if !program.machine_type_parameters(caller_machine).is_empty()
+    if program
+        .typed_program()
+        .callable_body_has_open_parameters(caller_machine)
         || program.machine_type_parameters(callee_machine).is_empty()
     {
         return;
@@ -261,6 +263,7 @@ fn validate_expression_call_bounds(
                 Some(current_state),
                 value_environment,
                 program.expression_table.expression_handles(call.arguments),
+                &call.machine_arguments,
                 &requirement,
                 writable_roots,
                 diagnostics,

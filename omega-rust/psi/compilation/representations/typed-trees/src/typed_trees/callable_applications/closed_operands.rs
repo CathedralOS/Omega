@@ -117,6 +117,14 @@ impl TypedTrees {
         self.require_application_operand_bindings(arguments, scope.argument_owner, false, None)
     }
 
+    pub fn require_owned_application_operands(
+        &self,
+        arguments: &[types::TypeReferenceHandle],
+        lexical_owner: SymbolHandle,
+    ) -> Result<(), &'static str> {
+        self.require_application_operand_bindings(arguments, lexical_owner, false, None)
+    }
+
     /// Close trait actuals in their supplying prefixes. A raw caller actual
     /// must not be normalized as a type written inside the receiving trait.
     /// Each simultaneous frame retains the exact earlier inherited/data scopes.

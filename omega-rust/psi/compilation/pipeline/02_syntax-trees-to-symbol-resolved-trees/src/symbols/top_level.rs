@@ -12,10 +12,8 @@
 //! 1. domains (`domains`), then data (`data`);
 //! 2. named conformances, done here: each takes its symbol, then
 //!    `assign_conformance_parameter_symbols` assigns every conformance's type
-//!    parameters and their signatures, and
-//!    `attach_conformance_parameter_scopes` gives the machines that realize a
-//!    closed conformance's inline and trait-default rows that conformance's
-//!    lifetime and type parameters;
+//!    parameters and their signatures. Owned rows retain their own invocation
+//!    telescope and read map captures through their exact row association;
 //! 3. machines, propositions, mathematical definitions, root operators,
 //!    measures and traits, each in its own child module;
 //! 4. wire schemas, done here.
@@ -183,7 +181,6 @@ pub(super) fn assign_top_level_symbols(
         }
     });
     assign_conformance_parameter_symbols(program, symbols);
-    attach_conformance_parameter_scopes(program);
     let mut diagnostics = assign_machine_symbols(program, symbols, &mut root_children);
     assign_proposition_symbols(program, symbols, &mut root_children);
     assign_mathematical_symbols(program, symbols, &mut root_children);
@@ -199,37 +196,6 @@ pub(super) fn assign_top_level_symbols(
     });
 
     diagnostics
-}
-
-fn attach_conformance_parameter_scopes(program: &mut SymbolResolvedTrees) {
-    let scopes = program
-        .conformances
-        .iter()
-        .map(|conformance| {
-            (
-                conformance
-                    .rows
-                    .iter()
-                    .filter(|row| row.source.owns_realization())
-                    .filter_map(|row| row.provisional_realization_ordinal)
-                    .collect::<Vec<_>>(),
-                conformance.type_parameters,
-            )
-        })
-        .collect::<Vec<_>>();
-    let mut ordinal = 0usize;
-    program.machines.for_each_mut(|machine| {
-        if let Some((_, parameters)) = scopes
-            .iter()
-            .find(|(realizations, _)| realizations.contains(&ordinal))
-        {
-            // Invocation lifetimes belong to the authored row. The map's
-            // regions are captured through its exact row association, never
-            // substituted for the row's own (possibly unused) telescope.
-            machine.type_parameters = *parameters;
-        }
-        ordinal += 1;
-    });
 }
 
 fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
@@ -270,7 +236,7 @@ fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbo
         .resolve_type_parameter_kind_symbols(
             conformance.type_parameters,
             &local_type_parameters,
-            MachineParameterArm::Resolve,
+            MachineParameterArm::ResolveWithAuthoredTraitArguments,
             false,
         );
     });
@@ -417,7 +383,6 @@ impl SignatureSymbolTables<'_> {
 #[derive(Clone, Copy)]
 pub(super) enum MachineParameterArm {
     Skip,
-    Resolve,
     ResolveWithAuthoredTraitArguments,
 }
 

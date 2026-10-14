@@ -394,7 +394,14 @@ impl ExpressionTable {
                 bindings: HandleSpan::empty(),
                 lifetime_bindings: HandleSpan::empty(),
                 binding_declaration: SymbolHandle::invalid(),
+                conformance_selection: None,
             })
+    }
+
+    pub fn static_machine_applications(
+        &self,
+    ) -> impl Iterator<Item = (StaticMachineApplicationHandle, &StaticMachineApplication)> {
+        self.static_machine_applications.iter()
     }
 
     pub fn static_machine_application(

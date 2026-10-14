@@ -460,7 +460,8 @@ fn apply_evidence_dispatch_rewrite(
     }
     if let Some(rewrite) = evidence_dispatch {
         *static_requirement_dispatch = Some(rewrite.dispatch.clone());
-        *machine_arguments = rewrite.application_arguments.clone();
+        // Map captures belong to the selected conformance application. The
+        // method's own invocation operands retain their independent telescope.
     }
     substitute_forwarded_machine_arguments(
         machine_arguments,

@@ -1,0 +1,16 @@
+data Ticket { value: i32; }
+trait Identity<Value> { machine keep(value: Value) -> Value blocks; }
+Selected<Captured> satisfies Identity<Captured> {
+    machine keep(value: Captured) -> Captured { value }
+}
+machine choose<Operations satisfies Identity<&Ticket>>(value: &Ticket) -> &Ticket blocks; {
+    block Operations::keep(value)
+}
+// Expected exit: 0. The captured Type preserves its caller-owned borrowed region.
+machine main() blocks; crashes Trap {
+    let ticket: Ticket = Ticket { value: 61 };
+    let observed: &Ticket = block choose<Selected<&Ticket>>(&ticket);
+    transition observed.value == 61 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

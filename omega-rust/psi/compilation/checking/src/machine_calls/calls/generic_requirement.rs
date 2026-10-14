@@ -48,8 +48,7 @@ pub fn selected_requirement_signature(
         .or_else(|| program.applied_callable_signature(application, requirement.signature.symbol))
         .or_else(|| {
             (application.substitutions.is_empty()
-                && application.declaration.lifetime_parameters.is_empty()
-                && requirement.signature.type_parameters.is_empty())
+                && application.declaration.lifetime_parameters.is_empty())
             .then_some(requirement.signature)
         })?;
     Some((application.declaration, signature))
@@ -188,16 +187,32 @@ pub(super) fn named_conformance_requirement<'program>(
         .conformance_bounds
         .iter()
         .filter(|bound| bound.binder == receiver);
-    let bound = bounds.next().ok_or_else(failure)?;
-    if bounds.next().is_some()
-        || !target.is_valid()
-        || program.symbols.get(target).kind != symbols::SymbolKind::State
-        || !program
+    let bound = bounds
+        .next()
+        .ok_or_else(|| format!("{}: its receiver has no authored bound", failure()))?;
+    if bounds.next().is_some() {
+        return Err(format!(
+            "{}: its receiver has multiple authored bounds",
+            failure()
+        ));
+    }
+    if !target.is_valid() || program.symbols.get(target).kind != symbols::SymbolKind::State {
+        return Err(format!(
+            "{}: its selected target is not a requirement state",
+            failure()
+        ));
+    }
+    let prepared = program.closed_requirement_application(target);
+    if prepared.is_none()
+        && !program
             .symbols
             .child_handles(receiver)
             .is_some_and(|mut children| children.any(|child| child == target))
     {
-        return Err(failure());
+        return Err(format!(
+            "{}: its selected target is not owned by the receiver",
+            failure()
+        ));
     }
     let carrier = program
         .trait_definition_by_symbol(bound.trait_symbol)
@@ -212,12 +227,23 @@ pub(super) fn named_conformance_requirement<'program>(
             lifetimes: &[],
         },
     )
-    .ok_or_else(failure)?;
+    .ok_or_else(|| {
+        format!(
+            "{}: its complete trait application cannot be represented",
+            failure()
+        )
+    })?;
     let mut selected: Option<crate::declarations::traits::GenericBoundRequirement<'program>> = None;
     let mut ambiguous = false;
     root.visit(program, &mut |application| {
         for signature in program.trait_machine_signatures(application.declaration) {
-            if signature.name.as_str() != program.symbols.name(target) {
+            let matches = if let Some(prepared) = &prepared {
+                prepared.template == signature.symbol
+                    && program.requirement_application_matches_scope(target, application)
+            } else {
+                signature.name.as_str() == program.symbols.name(target)
+            };
+            if !matches {
                 continue;
             }
             if let Some(known) = &selected {
@@ -232,9 +258,17 @@ pub(super) fn named_conformance_requirement<'program>(
         }
     });
     if ambiguous {
-        return Err(failure());
+        return Err(format!(
+            "{}: reachable declarations disagree on the requirement application",
+            failure()
+        ));
     }
-    selected.map(Some).ok_or_else(failure)
+    selected.map(Some).ok_or_else(|| {
+        format!(
+            "{}: its selected name has no reachable authored requirement",
+            failure()
+        )
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -244,10 +278,43 @@ pub(super) fn validate_named_conformance_arguments(
     state: Option<&State>,
     value_environment: &ValueEnvironment,
     arguments: &[ExpressionHandle],
+    machine_arguments: &[typed_trees::expression::StaticMachineArgument],
     requirement: &crate::declarations::traits::GenericBoundRequirement<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // The enclosing trait and the member's own invocation telescope are
+    // simultaneous independent frames. Derive the latter from this exact call,
+    // never from another cached application of the same requirement.
+    let mut applied = requirement.clone();
+    if program
+        .state_signature_type_parameters(requirement.signature)
+        .iter()
+        .any(|parameter| matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type))
+    {
+        let Some(bindings) = state.and_then(|state| {
+            crate::closed_static_call_type_bindings(
+                program,
+                machine,
+                state,
+                requirement.signature,
+                machine_arguments,
+                arguments,
+            )
+        }) else {
+            diagnostics.push(Diagnostic::error(
+                "conformance method has no exact closed requirement-local Type application",
+            ));
+            return;
+        };
+        applied
+            .application
+            .substitution_scope_starts
+            .push(applied.application.substitutions.len());
+        applied.application.substitutions.extend(bindings);
+        applied.application.argument_owner = machine.symbol;
+    }
+    let requirement = &applied;
     let mut parameters = program
         .state_signature_parameters(requirement.signature)
         .to_vec();

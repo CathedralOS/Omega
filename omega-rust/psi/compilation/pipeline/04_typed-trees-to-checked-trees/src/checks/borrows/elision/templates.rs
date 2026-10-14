@@ -22,7 +22,7 @@ pub(super) fn check_calls(
         // body cloning clears their specialization parameters. Source-body
         // checking still runs, but this closed-application fence belongs to
         // those instances, not to calls with deliberately unbound operands.
-        if machine.has_specialization_parameters() {
+        if program.callable_body_has_open_parameters(machine) {
             continue;
         }
         for state in program.machine_states(machine) {

@@ -185,6 +185,125 @@ pub(crate) struct CheckedRequirementFamilyRow {
     pub realization_state: symbols::SymbolHandle,
 }
 
+/// Complete original declaration inventory; open methods remain schemas even
+/// when no closed call demands a body. This is not finite execution coverage.
+pub(crate) fn checked_requirement_schema(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    declaring_trait: symbols::SymbolHandle,
+    requirement: symbols::SymbolHandle,
+    realization_state: symbols::SymbolHandle,
+) -> Result<terminal_psi::ClosedConformanceSchema, LoweringError> {
+    let exact = exact_trait_requirement(checked, declaring_trait, requirement)?;
+    let kind = if !exact.declares_local_generic_binders {
+        terminal_psi::ClosedConformanceSchemaKind::Nongeneric
+    } else {
+        match checked.typed.finite_signature_family(exact.signature) {
+            checked_trees::finite_family::FamilyProbe::Finite { .. } => {
+                terminal_psi::ClosedConformanceSchemaKind::Finite
+            }
+            checked_trees::finite_family::FamilyProbe::NotFinite(_) => {
+                terminal_psi::ClosedConformanceSchemaKind::Open
+            }
+        }
+    };
+    let definition = validation::contract_identities::canonical_requirement_schema_bytes(
+        checked,
+        exact.signature,
+    )
+    .map_err(|_| {
+        LoweringError::Unsupported("original conformance schema contract cannot be encoded")
+    })?;
+    let parameter_kinds = checked
+        .typed
+        .state_signature_type_parameters(exact.signature)
+        .iter()
+        .map(|parameter| match parameter.kind {
+            checked_trees::data::TypeParameterKind::Type => 1,
+            checked_trees::data::TypeParameterKind::Const { .. } => 2,
+            checked_trees::data::TypeParameterKind::Value { .. } => 3,
+            checked_trees::data::TypeParameterKind::Machine { .. } => 4,
+            checked_trees::data::TypeParameterKind::Implementation => 5,
+            checked_trees::data::TypeParameterKind::Proposition { .. } => 6,
+        })
+        .collect();
+    let finite_tuples = if kind == terminal_psi::ClosedConformanceSchemaKind::Finite {
+        match checked.typed.finite_signature_family(exact.signature) {
+            checked_trees::finite_family::FamilyProbe::Finite { mut tuples, .. } => {
+                tuples.sort_by(|left, right| left.identities.cmp(&right.identities));
+                Some(
+                    tuples
+                        .iter()
+                        .map(|tuple| {
+                            tuple
+                                .identities
+                                .iter()
+                                .map(|identity| identities.intern(identity))
+                                .collect()
+                        })
+                        .collect(),
+                )
+            }
+            _ => return unsupported("finite conformance schema lost its original declared roster"),
+        }
+    } else {
+        None
+    };
+    Ok(terminal_psi::ClosedConformanceSchema {
+        declaring_trait_identity: identities
+            .intern(&checked.symbols.display_path(declaring_trait, "::")),
+        public_requirement_identity: identities.intern(&checked_evidence_requirement_identity(
+            checked,
+            declaring_trait,
+            requirement,
+        )?),
+        requirement_identity: identities.intern(&checked.symbols.display_path(requirement, "::")),
+        realization_identity: identities
+            .intern(&checked.symbols.display_path(realization_state, "::")),
+        definition,
+        kind,
+        lifetime_parameter_count: exact
+            .signature
+            .lifetime_parameters
+            .len()
+            .try_into()
+            .map_err(|_| {
+                LoweringError::Unsupported(
+                    "conformance method lifetime telescope exceeds portable positions",
+                )
+            })?,
+        parameter_kinds,
+        finite_tuples,
+    })
+}
+
+/// Static selection retains open schemas without inventing a finite tuple.
+/// Dynamic consumers continue to use the strict finite-family operation below.
+pub(crate) fn checked_static_conformance_rows(
+    checked: &CheckedTrees,
+    declaring_trait: symbols::SymbolHandle,
+    requirement: symbols::SymbolHandle,
+    realization_machine: symbols::SymbolHandle,
+    realization_state: symbols::SymbolHandle,
+) -> Result<Vec<CheckedRequirementFamilyRow>, LoweringError> {
+    let exact = exact_trait_requirement(checked, declaring_trait, requirement)?;
+    if exact.declares_local_generic_binders
+        && matches!(
+            checked.typed.finite_signature_family(exact.signature),
+            checked_trees::finite_family::FamilyProbe::NotFinite(_)
+        )
+    {
+        return Ok(Vec::new());
+    }
+    checked_requirement_family_rows(
+        checked,
+        declaring_trait,
+        requirement,
+        realization_machine,
+        realization_state,
+    )
+}
+
 /// The terminal table rows one checked conformance row lowers to: one row for
 /// a nongeneric requirement, or one row per declared roster tuple for a finite
 /// generic family. Each family row names the unique bare value-tuple
@@ -322,10 +441,11 @@ fn exact_trait_requirement<'a>(
     Ok(ExactTraitRequirement {
         signature,
         overload_identity,
-        declares_local_generic_binders: !checked
-            .typed
-            .state_signature_type_parameters(signature)
-            .is_empty(),
+        declares_local_generic_binders: !signature.lifetime_parameters.is_empty()
+            || !checked
+                .typed
+                .state_signature_type_parameters(signature)
+                .is_empty(),
     })
 }
 
@@ -347,27 +467,24 @@ pub(crate) fn checked_evidence_machine_identity(
     let mut identity = checked
         .typed
         .callable_identity_text(checked.typed.machine_callable_identity(machine));
-    let mut specializations = checked
+    if checked
         .typed
-        .machine_specializations
-        .iter()
-        .filter(|specialization| specialization.instance == machine.symbol);
-    if let Some(specialization) = specializations.next() {
+        .executable_application_template(machine.symbol)
+        .map_err(|message| LoweringError::Unsupported(message))?
+        .is_some()
+    {
         let checked_identity = checked
             .facts
             .specialization_identities
-            .for_instance(specialization.instance)
+            .for_instance(machine.symbol)
             .ok_or(LoweringError::Unsupported(
-                "evidence machine lost its checked specialization identity",
+                "evidence machine lost its checked executable application identity",
             ))?;
-        if specializations.next().is_some() {
-            return unsupported("evidence machine has ambiguous generic application identity");
-        }
         identity = format!(
             "specialized-machine|callable={}:{}|application={}",
             identity.len(),
             identity,
-            hex_bytes(&checked_identity.commitment.as_bytes()),
+            hex_bytes(&checked_identity.commitment.as_bytes())
         );
     }
     Ok(identity)

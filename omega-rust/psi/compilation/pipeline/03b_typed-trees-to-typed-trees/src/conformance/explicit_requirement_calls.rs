@@ -275,6 +275,7 @@ impl ExplicitApplication<'_> {
             scopes: vec![scope],
         };
         self.check_trait_arguments(&implemented, expected)?;
+        let program = &mut *self.program;
         let Some(row) = conformance
             .rows
             .iter()
@@ -286,9 +287,35 @@ impl ExplicitApplication<'_> {
                 self.requirement_name
             ));
         };
+        let source_application = program
+            .expression_table
+            .call_node(self.call)
+            .map(|call| call.authored_machine_application)
+            .filter(|handle| handle.is_valid())
+            .ok_or_else(|| {
+                "direct conformance selection lost its authored application".to_owned()
+            })?;
+        let ordinal = program
+            .expression_table
+            .static_machine_application_arguments(source_application)
+            .len()
+            .checked_sub(1)
+            .and_then(|value| u32::try_from(value).ok())
+            .ok_or_else(|| "direct conformance selection lost its explicit operand".to_owned())?;
+        let target = row.realization_state;
+        let row = row.clone();
+        program
+            .expression_table
+            .static_machine_application_mut(source_application)
+            .conformance_selection = Some(Box::new(
+            typed_trees::static_applications::StaticConformanceSelection {
+                operand_ordinal: ordinal,
+                application: Some(Box::new(application.clone())),
+            },
+        ));
         Ok(ExplicitRequirementRewrite {
             call: self.call,
-            target: row.realization_state,
+            target,
             name: typed_trees::name::Identifier::generated(
                 row.realization_name
                     .as_str()
@@ -296,9 +323,10 @@ impl ExplicitApplication<'_> {
                     .next()
                     .unwrap_or(row.realization_name.as_str()),
             ),
-            application_arguments: application.arguments.clone(),
+            application_arguments: Box::new([]),
             binder_receiver: None,
             dispatch: Some(StaticRequirementDispatch {
+                selection_application: source_application,
                 application_report_fingerprint: application.report_fingerprint,
                 application_commitment: application.commitment,
                 declaring_trait: row.declaring_trait,
@@ -451,4 +479,161 @@ impl ExplicitApplication<'_> {
             self.requirement_name,
         ))
     }
+}
+
+/// Rebuild copied occurrence selections from their rewritten explicit operand.
+/// Cloning transports source operands, never old derived application authority.
+pub(crate) fn refresh_occurrence_selections(
+    program: &mut TypedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    let live = program.live_conformance_occurrence_applications();
+    let pending = live
+        .iter()
+        .copied()
+        .filter_map(|handle| {
+            let source = program.expression_table.static_machine_application(handle);
+            source.conformance_selection.as_ref().map(|selection| {
+                (
+                    handle,
+                    selection.operand_ordinal,
+                    selection.application.clone(),
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut changed = Vec::new();
+    for (handle, ordinal, previous) in pending {
+        let operand = program
+            .expression_table
+            .static_machine_application_arguments(handle)
+            .get(ordinal as usize)
+            .cloned()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "direct conformance occurrence lost its selected operand",
+                )]
+            })?;
+        let mut application =
+            close_conformance_application(program, &operand).map_err(|d| vec![d])?;
+        let mut old = previous.as_deref().cloned();
+        if let Some(old) = &mut old {
+            old.callable_application = Default::default();
+            old.trait_scope = Default::default();
+        }
+        if old.as_ref() == Some(&application) {
+            let previous = previous.as_ref().unwrap();
+            let source_owner = program
+                .expression_table
+                .static_machine_application(handle)
+                .lexical_owner;
+            if previous.trait_scope.scope(program).is_some()
+                && previous.trait_scope.supplying_owner() != source_owner
+            {
+                return Err(vec![Diagnostic::error(
+                    "refreshed conformance scope has another supplying owner",
+                )]);
+            }
+            if previous.callable_application.is_valid()
+                && program
+                    .expression_table
+                    .static_machine_application(previous.callable_application)
+                    .lexical_owner
+                    != source_owner
+            {
+                return Err(vec![Diagnostic::error(
+                    "refreshed capture view has another supplying owner",
+                )]);
+            }
+            application.callable_application = previous.callable_application;
+            application.trait_scope = previous.trait_scope;
+        } else {
+            changed.push(handle);
+        }
+        program
+            .expression_table
+            .static_machine_application_mut(handle)
+            .conformance_selection
+            .as_mut()
+            .unwrap()
+            .application = Some(Box::new(application));
+    }
+    let mut expressions = Vec::new();
+    let mut statements = Vec::new();
+    for (handle, node) in program.expression_table.iter_expressions() {
+        if let ExpressionNode::Call(call) = node
+            && live.contains(&call.authored_machine_application)
+            && call
+                .static_requirement_dispatch
+                .as_ref()
+                .is_some_and(|d| d.selection_application.is_valid())
+        {
+            expressions.push((handle, call.authored_machine_application));
+        }
+    }
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for handle in state.statement_nodes.handles() {
+                if let Some(call) = program.statement_table.statement(handle).as_call()
+                    && live.contains(&call.authored_machine_application)
+                    && call
+                        .static_requirement_dispatch
+                        .as_ref()
+                        .is_some_and(|d| d.selection_application.is_valid())
+                {
+                    statements.push((handle, call.authored_machine_application));
+                }
+            }
+        }
+    }
+    let update = |program: &TypedTrees,
+                  handle|
+     -> Result<
+        (
+            u64,
+            typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
+        ),
+        Vec<Diagnostic>,
+    > {
+        let app = program
+            .expression_table
+            .static_machine_application(handle)
+            .conformance_selection
+            .as_ref()
+            .and_then(|s| s.application.as_deref())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "direct dispatch lost its occurrence-owned application",
+                )]
+            })?;
+        Ok((app.report_fingerprint, app.commitment))
+    };
+    for (expression, handle) in expressions {
+        let (fingerprint, commitment) = update(program, handle)?;
+        let call = match program.expression_table.expression_mut(expression) {
+            ExpressionNode::Call(call) => call,
+            _ => unreachable!(),
+        };
+        let dispatch = call.static_requirement_dispatch.as_mut().unwrap();
+        if changed.contains(&handle) || dispatch.selection_application != handle {
+            dispatch.contract_signature = SymbolHandle::invalid();
+        }
+        dispatch.selection_application = handle;
+        dispatch.application_report_fingerprint = fingerprint;
+        dispatch.application_commitment = commitment;
+    }
+    for (statement, handle) in statements {
+        let (fingerprint, commitment) = update(program, handle)?;
+        let call = match program.statement_table.statement_mut(statement) {
+            typed_trees::statement::StatementNode::Call(call) => call,
+            _ => unreachable!(),
+        };
+        let dispatch = call.static_requirement_dispatch.as_mut().unwrap();
+        if changed.contains(&handle) || dispatch.selection_application != handle {
+            dispatch.contract_signature = SymbolHandle::invalid();
+        }
+        dispatch.selection_application = handle;
+        dispatch.application_report_fingerprint = fingerprint;
+        dispatch.application_commitment = commitment;
+    }
+    Ok(())
 }

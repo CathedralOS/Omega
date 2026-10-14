@@ -7,7 +7,6 @@
 //! operator invocations, and closed reach or conformance applications.
 
 use checked_trees::CheckedTrees;
-use checked_trees::types::PrimitiveType;
 use language_semantics::Multiplicity;
 use lowered_psi::LoweredSourceCallOccurrence;
 use semantic_vocabulary::{
@@ -30,3 +29,7 @@ pub(crate) mod placed_view_inputs;
 pub(crate) mod reborrow_restored_call_use;
 pub(crate) mod retained_borrow_custody;
 pub(crate) mod suspension_call_plan;
+
+pub(crate) use conformance_applications::{
+    checked_application_telescope, checked_method_arguments,
+};

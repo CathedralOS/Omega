@@ -371,6 +371,19 @@ pub fn retain_machine_roster(
     program
         .machine_specializations
         .retain(|row| retained.contains(&row.instance));
+    // Capture records are keyed by their executable owner, just as invocation
+    // records are. They have no inbound arena handles; backing state mappings
+    // retain their handles. An unrelated private checking projection must not
+    // acquire capture obligations from a removed application body.
+    let captures = program
+        .captured_machine_applications
+        .iter()
+        .filter(|(_, row)| retained.contains(&row.instance))
+        .map(|(_, row)| row.clone())
+        .collect::<Vec<_>>();
+    let mut applications = arena::Arena::default();
+    applications.insert_many(captures);
+    program.captured_machine_applications = applications;
     // Trait requirement signatures own reach rows too; only rows owned by a
     // pruned machine leave.
     program

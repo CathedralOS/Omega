@@ -63,14 +63,9 @@ impl TypedTrees {
                     .map(AppliedTraitScope::abstract_scope),
             )
             .chain(
-                self.machine_specializations
-                    .iter()
-                    .flat_map(|specialization| {
-                        specialization
-                            .conformance_applications
-                            .iter()
-                            .filter_map(|application| application.trait_scope.scope(self))
-                    }),
+                self.closed_conformance_application_sites()
+                    .into_iter()
+                    .filter_map(|(_, _, _, application)| application.trait_scope.scope(self)),
             )
             .chain(source_fields::service_application_roots(self))
             .collect()

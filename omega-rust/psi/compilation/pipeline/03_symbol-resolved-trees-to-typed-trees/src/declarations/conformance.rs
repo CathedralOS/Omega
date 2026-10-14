@@ -123,26 +123,10 @@ pub(crate) fn lower_conformance(
                 source_type_parameters,
             )
         })?;
-    // Inline/default realization machines close over the conformance
-    // name's type telescope. Publish that telescope as the machine template's
-    // generic surface as well, so ordinary specialization can clone
-    // and substitute the selected row instead of leaving family symbols
-    // such as `Element` in executable checked code. Referenced external
-    // machines keep their independently declared telescope. Regions instead
-    // retain lexical capture through the exact owned-row association: copying
-    // them into the invocation telescope would erase local binders and make
-    // captured coordinates fresh.
-    let realization_machines = conformance
-        .rows
-        .iter()
-        .filter(|row| row.source.owns_realization())
-        .map(|row| row.realization_machine)
-        .collect::<Vec<_>>();
-    for machine in lowerer.typed_trees.machines_mut() {
-        if realization_machines.contains(&machine.symbol) {
-            machine.type_parameters = conformance.type_parameters;
-        }
-    }
+    // The row keeps its independently authored invocation telescope. Capture
+    // belongs to the exact owned-row relationship, queried through the map's
+    // declaration scope; replacing the row's binders would erase generic
+    // method authority and recapture same-spelled local parameters.
     lowerer.typed_trees.push_conformance(conformance);
     Ok(())
 }

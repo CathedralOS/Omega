@@ -119,12 +119,12 @@ pub(super) fn zero_argument_invocation_discharges(
 pub(super) fn argument_independent_closure_discharges(
     program: &TypedTrees,
     machine: &Machine,
-) -> bool {
+) -> Result<bool, String> {
     let entry_is_unconditional = !has_authored_requires(program.machine_contracts(machine))
         && entry_state(program, machine)
             .is_some_and(|entry| !has_authored_requires(program.state_contracts(entry)));
     if !entry_is_unconditional {
-        return false;
+        return Ok(false);
     }
     // A layout policy may be admitted before unrelated runtime declarations
     // have their authoritative layout/accessor plans. Those declarations are
@@ -141,12 +141,12 @@ pub(super) fn argument_independent_closure_discharges(
     probe.pending_const_range_endpoints.clear();
     let preparation_request = typed_trees_to_typed_trees::PreparationRequest::preliminary();
     let checking = typed_trees_to_checked_trees::CheckingRequest::new();
-    let Ok((probe, preparation)) =
+    let (probe, preparation) =
         typed_trees_to_typed_trees::prepare_typed_trees(probe, &preparation_request)
-    else {
-        return false;
-    };
-    typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, &checking).is_ok()
+            .map_err(|error| format!("demanded premise closure preparation failed: {error:?}"))?;
+    typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, &checking)
+        .map_err(|error| format!("demanded premise closure checking failed: {error:?}"))?;
+    Ok(true)
 }
 
 /// The state an invocation of `machine` enters: the one named by the

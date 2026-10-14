@@ -67,30 +67,48 @@ fn required_type_matches_inner<const EXACT: bool>(
         }
         // An applied telescope owns fresh symbols. An unrelated declaration
         // with the same spelling is not an inference variable in that scope.
+        if let Some(binding) = bindings.iter().find(|binding| binding.symbol == *symbol) {
+            // Supplied operands are exact substitutions, even when their
+            // declaration is no longer an eligible inference variable.
+            if program
+                .data_type_parameter_by_symbol(*symbol)
+                .is_some_and(|parameter| parameter.kind.is_const_or_value())
+            {
+                return program
+                    .static_const_type_reference_identity(actual)
+                    .zip(program.static_const_type_reference_identity(binding.actual))
+                    .map_or_else(
+                        || match (
+                            program.type_reference_table.type_reference(actual),
+                            program.type_reference_table.type_reference(binding.actual),
+                        ) {
+                            (
+                                TypeReferenceNode::Named { symbol: actual, .. },
+                                TypeReferenceNode::Named {
+                                    symbol: required, ..
+                                },
+                            ) if actual.is_valid() && required.is_valid() => actual == required,
+                            _ => {
+                                program.normalized_type_identity(actual)
+                                    == program.normalized_type_identity(binding.actual)
+                            }
+                        },
+                        |(actual, required)| actual == required,
+                    );
+            }
+            return required_type_matches_inner::<EXACT>(
+                program,
+                actual,
+                binding.actual,
+                &[],
+                &mut Vec::new(),
+                binder_bindings,
+            );
+        }
         if let Some(parameter) = generic_types
             .iter()
             .find(|parameter| parameter.symbol.is_valid() && parameter.symbol == *symbol)
         {
-            if let Some(binding) = bindings
-                .iter()
-                .find(|binding| binding.symbol == parameter.symbol)
-            {
-                if matches!(
-                    parameter.kind,
-                    typed_trees::data::TypeParameterKind::Const { .. }
-                ) {
-                    return program.normalized_type_identity(actual)
-                        == program.normalized_type_identity(binding.actual);
-                }
-                return required_type_matches_inner::<EXACT>(
-                    program,
-                    actual,
-                    binding.actual,
-                    &[],
-                    &mut Vec::new(),
-                    binder_bindings,
-                );
-            }
             bindings.push(TypeBinding {
                 symbol: parameter.symbol,
                 actual,
@@ -180,15 +198,20 @@ fn required_type_matches_inner<const EXACT: bool>(
                 length: required_length,
             },
         ) => {
-            fixed_array_lengths_match(actual_length, required_length, binder_bindings)
-                && required_type_matches_inner::<EXACT>(
-                    program,
-                    *actual_element,
-                    *required_element,
-                    generic_types,
-                    bindings,
-                    binder_bindings,
-                )
+            fixed_array_lengths_match(
+                program,
+                actual_length,
+                required_length,
+                bindings,
+                binder_bindings,
+            ) && required_type_matches_inner::<EXACT>(
+                program,
+                *actual_element,
+                *required_element,
+                generic_types,
+                bindings,
+                binder_bindings,
+            )
         }
         (
             TypeReferenceNode::Slice {
@@ -261,10 +284,29 @@ fn required_type_matches_inner<const EXACT: bool>(
 }
 
 fn fixed_array_lengths_match(
+    program: &dyn crate::CheckingInput,
     actual: &FixedArrayLength,
     required: &FixedArrayLength,
+    bindings: &[TypeBinding],
     binder_bindings: &[BinderBinding],
 ) -> bool {
+    let mut binders = Vec::with_capacity(binder_bindings.len() * 2);
+    for (ordinal, binding) in binder_bindings.iter().enumerate() {
+        let label = format!("$formation{ordinal}");
+        binders.push((binding.required, label.clone()));
+        binders.push((binding.actual, label));
+    }
+    let substitutions = bindings
+        .iter()
+        .map(|binding| (binding.symbol, binding.actual))
+        .collect::<Vec<_>>();
+    if program
+        .fixed_array_length_identity(actual, &binders, &substitutions)
+        .zip(program.fixed_array_length_identity(required, &binders, &substitutions))
+        .is_some_and(|(actual, required)| actual == required)
+    {
+        return true;
+    }
     match (actual, required) {
         (FixedArrayLength::Literal(actual), FixedArrayLength::Literal(required)) => {
             actual == required

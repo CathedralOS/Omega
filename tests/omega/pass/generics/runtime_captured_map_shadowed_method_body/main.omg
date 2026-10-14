@@ -1,0 +1,13 @@
+trait Choice { machine pick<const Output: i32>() -> i32 blocks; }
+Selected<const Output: i32> satisfies Choice {
+    machine pick<const Output: i32>() -> i32 { Output }
+}
+machine choose<Operations satisfies Choice>() -> i32 blocks; {
+    block Operations::pick<2>()
+}
+machine main() blocks; crashes Trap {
+    let observed: i32 = block choose<Selected<7>>();
+    transition observed == 2 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

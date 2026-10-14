@@ -1,9 +1,7 @@
 //! Bind an explicitly applied provider through ordinary static argument proposals.
 //! Authored evidence and unused operands remain part of the same complete tuple.
 
-use super::super::super::{
-    CallSite, Candidate, Diagnostic, StaticMachineArgument, SymbolHandle, TypedTrees,
-};
+use super::super::super::{Candidate, Diagnostic, StaticMachineArgument, SymbolHandle, TypedTrees};
 use typed_trees::state::State;
 
 pub(super) fn bind(
@@ -11,7 +9,6 @@ pub(super) fn bind(
     provider: &mut Candidate<'_>,
     state: &State,
     selected: SymbolHandle,
-    site: CallSite,
     arguments: &[StaticMachineArgument],
 ) -> Result<(), Vec<Diagnostic>> {
     let callee = super::super::super::CalleeState {
@@ -47,12 +44,9 @@ pub(super) fn bind(
             "nested machine application supplies an argument beyond its declared telescope",
         )]);
     }
-    let supplied = super::super::super::selection::selection_from_proposals(
+    let supplied = super::super::super::selection::proposal_bindings(
         program,
-        site,
-        &callee,
         provider,
-        true,
         machines,
         evidence,
         types,

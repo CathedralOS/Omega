@@ -48,6 +48,7 @@ pub(super) fn argument(
     parameter: &StateParameter,
     target_identity: typed_trees::type_identity::TypeIdentityId,
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+    trace: &super::super::control::LocalConstructionTrace,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let mut argument = argument_contract(
         program,
@@ -61,6 +62,7 @@ pub(super) fn argument(
         parameter,
         target_identity,
         operations,
+        trace,
     )?;
     // Bind producer operands to the current home without replacing an explicit
     // loan descriptor: its source already retains captured geometry and access.
@@ -69,6 +71,7 @@ pub(super) fn argument(
         CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
     ) && let Some(symbol) = place.root.as_symbol()
     {
+        trace.phase("call operation: result argument: current storage home");
         let source_state = program.state_by_symbol(state)?;
         argument.source =
             super::super::local_storage::source(program, source_state, operations, symbol)?;
@@ -89,6 +92,7 @@ fn argument_contract(
     parameter: &StateParameter,
     target_identity: typed_trees::type_identity::TypeIdentityId,
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+    trace: &super::super::control::LocalConstructionTrace,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let (source_machine, source_state) = validation::find_state(program, state)?;
     if let Some(argument) = super::super::reference_results::record_argument(
@@ -442,6 +446,7 @@ fn argument_contract(
     let (value_expression, referent) = match access {
         CheckedStructuralAccess::Owned => (expression, formal_type),
         CheckedStructuralAccess::SharedBorrow => {
+            trace.phase("call operation: result argument: shared referent");
             let (referent_expression, referee) = crate::semantic::calls::shared_argument_referent(
                 program,
                 expression,
@@ -450,6 +455,7 @@ fn argument_contract(
             let referee = if array_view { storage_type? } else { referee };
             match place.root {
                 facts::PlaceRoot::Symbol(_) => {
+                    trace.phase("call operation: result argument: retained local loan");
                     if exact_structural_argument_access(
                         program, facts, machine, state, call, place, access,
                     )? != access
@@ -525,6 +531,7 @@ fn argument_contract(
     // The result owns the referent; a bounded byte view may retain its
     // reference shell in the call presentation identity. Compare storage
     // against storage, while preserving that presentation on the argument.
+    trace.phase("call operation: result argument: referent storage identity");
     let storage_identity_matches = projected
         || array_view
         || if access == CheckedStructuralAccess::Owned {
@@ -551,6 +558,21 @@ fn argument_contract(
     } else {
         result.multiplicity
     };
+    if !storage_identity_matches && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        eprintln!(
+            "RESULT_ARGUMENT_IDENTITY machine={} state={} statement={} root={:?} access={:?} referent={} storage={:?} established={:?} formal={:?}",
+            program.symbols.display_path(machine, "::"),
+            program.symbols.display_path(state, "::"),
+            call.statement_index,
+            place,
+            access,
+            program.normalized_type_identity_text(referent),
+            base_type_identity(program, referent, &[], &[])
+                .and_then(|id| program.type_identity_text(id)),
+            program.type_identity_text(result.type_identity),
+            program.type_identity_text(target_identity)
+        );
+    }
     if !storage_identity_matches
         || (access == CheckedStructuralAccess::Owned
             && validation::reference_result_custody::result_multiplicity(program, referent)
@@ -561,12 +583,14 @@ fn argument_contract(
     }
     match place.root {
         facts::PlaceRoot::Symbol(symbol) => {
+            trace.phase("call operation: result argument: earlier whole local correspondence");
             if usize::try_from(result.statement_index).ok()? == call.statement_index
                 || !symbol.is_valid()
                 || (!projected && !names_whole_local(program, call, value_expression, symbol))
             {
                 return None;
             }
+            trace.phase("call operation: result argument: local binding custody");
             let source_state = program.state_by_symbol(state)?;
             let local = program
                 .statement_table

@@ -133,6 +133,7 @@ pub(super) fn validate_dynamic_selector_arguments(
         state,
         value_environment,
         &arguments[1..],
+        machine_arguments,
         &requirement,
         writable_roots,
         diagnostics,

@@ -243,6 +243,7 @@ pub(crate) fn structural_call_arguments(
                 target,
                 target_identity,
                 caller_operations,
+                trace,
             )?);
             continue;
         }

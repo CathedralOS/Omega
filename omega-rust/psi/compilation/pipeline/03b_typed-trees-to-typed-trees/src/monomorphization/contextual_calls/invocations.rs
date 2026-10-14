@@ -48,30 +48,30 @@ pub(super) fn is_machine(program: &TypedTrees, symbol: SymbolHandle) -> bool {
     symbol.is_valid()
         && matches!(
             program.symbols.get(symbol).kind,
-            SymbolKind::State | SymbolKind::MachineParameter
+            SymbolKind::Machine | SymbolKind::State | SymbolKind::MachineParameter
         )
 }
 
-pub(super) fn collect(program: &TypedTrees) -> Vec<Invocation> {
-    let mut invocations = Vec::new();
+pub(super) fn collect(program: &mut TypedTrees) -> Vec<Invocation> {
+    let mut pending = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_handle, statement) in program
                 .statement_table
                 .iter_statements(state.statement_nodes)
             {
-                if let Some(call) = statement.as_call()
-                    && let Some(invocation) = proposal(
-                        program,
-                        machine,
-                        state,
+                if let Some(call) = statement.as_call() {
+                    pending.push((
+                        machine.clone(),
+                        state.clone(),
                         CallSite::Statement(statement_handle),
                         call.target_symbol,
-                        &call.machine_arguments,
-                        program.statement_table.expression_handles(call.arguments),
-                    )
-                {
-                    invocations.push(invocation);
+                        call.machine_arguments.to_vec(),
+                        program
+                            .statement_table
+                            .expression_handles(call.arguments)
+                            .to_vec(),
+                    ));
                 }
                 let mut expressions = Vec::new();
                 validation::collect_statement_expression_trees(
@@ -81,34 +81,45 @@ pub(super) fn collect(program: &TypedTrees) -> Vec<Invocation> {
                 );
                 for expression in expressions {
                     let site = CallSite::Expression(expression);
-                    if invocations.iter().any(|invocation| invocation.site == site) {
-                        continue;
-                    }
                     let ExpressionNode::Call(call) =
                         program.expression_table.expression(expression)
                     else {
                         continue;
                     };
-                    if let Some(invocation) = proposal(
-                        program,
-                        machine,
-                        state,
+                    pending.push((
+                        machine.clone(),
+                        state.clone(),
                         site,
                         call.target_symbol,
-                        &call.machine_arguments,
-                        program.expression_table.expression_handles(call.arguments),
-                    ) {
-                        invocations.push(invocation);
-                    }
+                        call.machine_arguments.to_vec(),
+                        program
+                            .expression_table
+                            .expression_handles(call.arguments)
+                            .to_vec(),
+                    ));
                 }
             }
+        }
+    }
+    let mut invocations = Vec::new();
+    for (caller, state, site, target, selected, arguments) in pending {
+        if invocations
+            .iter()
+            .any(|invocation: &Invocation| invocation.site == site)
+        {
+            continue;
+        }
+        if let Some(invocation) = proposal(
+            program, &caller, &state, site, target, &selected, &arguments,
+        ) {
+            invocations.push(invocation);
         }
     }
     invocations
 }
 
 fn proposal(
-    program: &TypedTrees,
+    program: &mut TypedTrees,
     caller: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     site: CallSite,
@@ -143,13 +154,15 @@ fn proposal(
                 .registration_operation,
             program
                 .expression_table
-                .static_machine_application_arguments(application),
+                .static_machine_application_arguments(application)
+                .to_vec(),
             program
                 .expression_table
-                .static_machine_application_selected_machines(application),
+                .static_machine_application_selected_machines(application)
+                .to_vec(),
         )
     } else {
-        (target, selected, &[][..])
+        (target, selected.to_vec(), Vec::new())
     };
     if !selected
         .iter()
@@ -203,24 +216,22 @@ fn proposal(
             .cloned()
             .collect::<Vec<_>>()
     } else {
-        selected_machines.to_vec()
+        selected_machines
     };
-    if !machine_arguments.iter().any(|argument| {
-        program.machines().iter().any(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == argument.symbol)
-        })
-    }) {
-        return None;
-    }
-    let requirements = machine_demands(program, parameters);
+    let parameters = parameters.to_vec();
+    let requirements = machine_demands(program, &parameters);
     if requirements.len() != machine_arguments.len() {
         return None;
     }
     let types = operands::derive(
-        program, caller, state, site, parameters, selected, &runtime, arguments,
+        program,
+        caller,
+        state,
+        site,
+        &parameters,
+        &selected,
+        &runtime,
+        arguments,
     )?;
     Some(Invocation {
         site,

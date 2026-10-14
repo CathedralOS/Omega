@@ -7,7 +7,7 @@ use typed_trees::{
     data::TypeParameterKind,
     type_identity::{
         AppliedTypeIdentityScope, IndexIdentityArgument, NormalizedTypeIdentity,
-        applied_index_identity, applied_type_identity,
+        applied_index_identity, applied_type_identity_in_scope,
     },
 };
 use typed_trees::{expression::StaticMachineArgument, machine::GenericConformanceBound};
@@ -57,13 +57,21 @@ pub(crate) fn validate_forwarded_argument(
 pub(crate) fn applied_bound_argument_identities(
     program: &dyn crate::CheckingInput,
     bound: &GenericConformanceBound,
-    owner: symbols::SymbolHandle,
+    receiving_owner: symbols::SymbolHandle,
+    argument_owner: symbols::SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<Vec<NormalizedTypeIdentity>> {
     let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
     let identity = |arguments: &[typed_trees::types::TypeReferenceHandle],
                     scopes: &[AppliedTypeIdentityScope<'_>]| {
-        applied_trait_argument_identities(program, carrier.base, arguments, owner, scopes)
+        applied_trait_argument_identities(
+            program,
+            carrier.base,
+            arguments,
+            receiving_owner,
+            argument_owner,
+            scopes,
+        )
     };
     if let Some((refinement, base)) = carrier
         .refinement
@@ -93,10 +101,14 @@ pub(crate) fn applied_bound_argument_identities(
             arguments: &head,
             lifetimes: &[],
         });
-        identity(
+        applied_trait_argument_identities(
+            program,
+            carrier.base,
             program
                 .type_reference_table
                 .type_reference_handles(base.arguments),
+            refinement.symbol,
+            argument_owner,
             &scopes,
         )
     } else {
@@ -111,7 +123,8 @@ pub(crate) fn applied_trait_argument_identities(
     program: &dyn crate::CheckingInput,
     declaration: symbols::SymbolHandle,
     arguments: &[typed_trees::types::TypeReferenceHandle],
-    owner: symbols::SymbolHandle,
+    receiving_owner: symbols::SymbolHandle,
+    argument_owner: symbols::SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<Vec<NormalizedTypeIdentity>> {
     let definition = program.trait_definition_by_symbol(declaration)?;
@@ -127,11 +140,17 @@ pub(crate) fn applied_trait_argument_identities(
                 applied_index_identity(
                     program.typed_program(),
                     IndexIdentityArgument::TypeReference(*argument),
-                    owner,
+                    argument_owner,
                     scopes,
                 )
             }
-            _ => applied_type_identity(program.typed_program(), *argument, owner, scopes),
+            _ => applied_type_identity_in_scope(
+                program.typed_program(),
+                *argument,
+                receiving_owner,
+                argument_owner,
+                scopes,
+            ),
         })
         .collect()
 }

@@ -1,0 +1,14 @@
+trait SizedHook<const Count: u64> { machine read(value: &[u8; Count]) -> i32; }
+machine fixed<const Count: u64>(value: &[u8; Count]) -> i32 satisfies SizedHook<Count>::read { 83 }
+machine forward<const Expected: u64, machine Callback>() -> i32
+where machine Callback satisfies SizedHook<Expected>::read;
+{ 83 }
+machine bridge<const Left: u64, machine Callback>() -> i32
+where machine Callback satisfies SizedHook<Left>::read;
+{ forward<Left, Callback>() }
+// Expected exit: 0. Forwarded nominal Const authority retains its exact open binder.
+machine main() crashes Trap {
+ let observed: i32 = bridge<3, fixed<3>>();
+ transition observed == 83 { true -> done() _ -> bad() }
+ state done() {} state bad() { crash Trap; }
+}

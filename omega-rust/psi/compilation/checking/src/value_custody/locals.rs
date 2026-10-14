@@ -97,11 +97,13 @@ pub(crate) fn state_value_root_is_known(
     // A generic attached method may use its container's const parameter as a
     // value in the authored template. Instance desugaring replaces this name
     // with the concrete integer before the executable clone is validated.
-    if program
-        .machine_type_parameters(machine)
-        .iter()
-        .any(|parameter| parameter.name.as_str() == name && parameter.kind.is_const_or_value())
-    {
+    let (scope, _) =
+        program.machine_type_reference_scope(machine, |left, right| left.name == right.name);
+    if scope.iter().any(|parameter| {
+        parameter.name.as_str() == name
+            && parameter.kind.is_const_or_value()
+            && (!root.is_valid() || parameter.symbol == root)
+    }) {
         return true;
     }
     if let Some(attached_data) = &machine.attached_data

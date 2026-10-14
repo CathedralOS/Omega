@@ -1,0 +1,21 @@
+// Expected exit: 0. Provider and demanding invocation retain separate region custody.
+trait Borrowing<Input, Output> { machine borrow(value: Input) -> Output blocks; }
+Selected<'capture, machine Callback> satisfies Borrowing<&'capture i32, &'capture i32>
+where machine Callback satisfies Borrowing<&'capture i32, &'capture i32>::borrow;
+{
+    machine borrow(value: &'capture i32) -> &'capture i32 { block Callback(value) }
+}
+machine exact_borrow<'source>(value: &'source i32) -> &'source i32
+satisfies Borrowing<&'source i32, &'source i32>::borrow { value }
+machine invoke<'invocation, Operations satisfies Borrowing<&'invocation i32, &'invocation i32>>(
+    value: &'invocation i32
+) -> &'invocation i32 blocks; { block Operations::borrow(value) }
+machine observed<'environment>(value: &'environment i32) -> &'environment i32 blocks; {
+    block invoke<Selected<'environment, exact_borrow<'environment>>>(value)
+}
+machine main() blocks; crashes Trap {
+    let value: i32 = 37;
+    let result: &i32 = block observed(&value);
+    transition result as i32 == 37 { true -> done() _ -> bad() }
+    state done() {} state bad() { crash Trap; }
+}

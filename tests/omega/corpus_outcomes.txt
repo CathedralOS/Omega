@@ -2623,6 +2623,35 @@ fail/generics/attached_machine_unresolved_extent rejected 869ms expected @a9ae30
 fail/generics/borrowed_applied_field_static_selection_wrong_predicate rejected 148ms expected @d1fa4738e67a+wt
 	machine argument `small` for `scan_batch` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
 	machine argument `small` for `count` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
+fail/generics/captured_map_dynamic_open_method rejected 417ms expected @4730b1ac8a84
+	dynamic requirement call `Generic::code` supplies static machine arguments, but the requirement declares no finite family
+fail/generics/captured_map_foreign_nominal_region rejected 132ms expected @4730b1ac8a84
+	nested machine lifetime argument is not declared in its lexical owner
+fail/generics/captured_map_machine_contract_dependent_const rejected 334ms expected @4730b1ac8a84
+	machine argument `read` for `Selected` does not refine `Callback`: parameter 0 expects `&[u8; 3]`, got `&[u8; 4]`
+fail/generics/captured_map_machine_contract_dependent_type rejected 352ms expected @4730b1ac8a84
+	machine argument `wrong` for `Selected` does not refine `Callback`: parameter 0 expects `i32`, got `bool`
+	machine argument `wrong` for `Selected` does not refine `Callback`: expected return `i32`, got `bool`
+fail/generics/captured_map_machine_contract_effect rejected 347ms expected @4730b1ac8a84
+	machine argument `effectful` for `Selected` does not refine `Callback`: service reach `Console` exceeds its authored ceiling
+fail/generics/captured_map_machine_contract_incomplete_tuple rejected 172ms expected @4730b1ac8a84
+	captured Machine argument requires a complete selected provider tuple
+fail/generics/captured_map_machine_contract_nominal_const rejected 582ms expected @4730b1ac8a84
+	static machine argument `fixed` for nominal parameter `Callback` retains 0 authored satisfaction row(s) for exact requirement `SizedHook::read`; exactly one is required and structural coincidence establishes none; required operands [Count], provider [fixed::Count=3], caller [Sized::Count=const <expression>], contextual demand true, operand mismatch actual index/type identity Some("integer(3)"), required Some("integer(4)")
+fail/generics/captured_map_machine_contract_nominal_type rejected 378ms expected @4730b1ac8a84
+	static machine argument `chosen` for nominal parameter `Callback` retains 0 authored satisfaction row(s) for exact requirement `Hook::keep`; exactly one is required and structural coincidence establishes none; required operands [Value], provider [], caller [Selected::Value=bool], contextual demand true, operand mismatch actual index/type identity Some("named(name(i32))"), required Some("named(name(bool))")
+fail/generics/captured_map_machine_contract_unused_effect rejected 404ms expected @4730b1ac8a84
+	machine argument `effectful` for `Selected` does not refine `Callback`: service reach `Console` exceeds its authored ceiling
+fail/generics/captured_map_nominal_open_const_mismatch rejected 654ms expected @4730b1ac8a84
+	machine parameter `Callback` forwarded into `forward` does not carry the exact nominal requirement of `Callback`; matching callable structure establishes no satisfaction row
+fail/generics/captured_map_nominal_region_mismatch rejected 325ms expected @4730b1ac8a84
+	machine parameter `Callback` forwarded into `forward` does not carry the exact nominal requirement of `Callback`; matching callable structure establishes no satisfaction row
+fail/generics/captured_map_shadowed_contract_strengthening rejected 1033ms expected @4730b1ac8a84
+	machine `Selected::identity` realizes `Bounded::identity` but requires `input <= Maximum`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/generics/captured_map_wrong_capture_arity rejected 227ms expected @4730b1ac8a84
+	generic conformance `Selected` requires 1 explicit non-lifetime argument(s), got 2; expected subject and trait shape never fill its own telescope
+fail/generics/captured_map_wrong_capture_category rejected 233ms expected @4730b1ac8a84
+	conformance `Selected` parameter `Captured` requires a const argument, but `bool` has another static category
 fail/generics/closed_indexed_domain_mismatch rejected 1362ms expected @a9ae30e1c334+wt
 	index compatibility condition `index-equality:Quantity:mismatch::entry:statement-0:Quantity<Unit { exponent: 0 }>==Quantity<Unit { exponent: 1 }>` is not established: actual `Quantity<Unit { exponent: 0 }>` and expected `Quantity<Unit { exponent: 1 }>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/generics/concrete_applied_argument_call_argument_mismatch rejected 310ms expected @7c0518fd7afd+wt
@@ -2698,8 +2727,8 @@ fail/generics/const_extent_guard_wrong_arm rejected 1061ms expected @d80baff24c7
 	cannot prove index `0` is within const extent `Count` of `moments` in first::entry
 fail/generics/const_generic_runtime_argument rejected 900ms expected @a9ae30e1c334+wt
 	a value call to generic machine `prefix_count` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
-fail/generics/contextual_static_machine_ambiguous_carried_result rejected 1636ms expected @a9ae30e1c334+wt
-	machine `apply$specialized$5cd7674055cbcc11$0` returns a view but takes 2 candidate ref inputs (`context carried source [Field(Handle { arena_index: 295, generation: 1 })]`, `item carried source []`); cannot infer which input the returned view borrows — annotate the return type with the lifetime of the input it borrows, e.g. `-> &'a T` matching an input `&'a T`
+fail/generics/contextual_static_machine_ambiguous_carried_result rejected 3511ms expected @4730b1ac8a84
+	machine `apply$specialized$5cd7674055cbcc11$0` returns a view but takes 2 candidate ref inputs (`context carried source [Field(Handle { arena_index: 293, generation: 1 })]`, `item carried source []`); cannot infer which input the returned view borrows — annotate the return type with the lifetime of the input it borrows, e.g. `-> &'a T` matching an input `&'a T`
 	machine `relay` returns a view borrowing the local `__hoist_15`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/generics/contextual_static_machine_applied_evidence_effect_ceiling rejected 714ms expected @a9ae30e1c334+wt
 	machine argument `probe` for `apply` does not refine `Callback`: its `crashes Trap` routes are not contained by the required crash ceiling
@@ -2734,14 +2763,16 @@ fail/generics/contextual_static_machine_returned_view_keeps_item_loan rejected 1
 	statement 4 mutates `right` while local borrow `result` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/generics/contextual_static_machine_returned_view_local_escape rejected 1555ms expected @a9ae30e1c334+wt
 	machine `apply` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/generics/contextual_static_machine_type_bound rejected 698ms expected @a9ae30e1c334+wt
+fail/generics/contextual_static_machine_type_bound rejected 363ms expected @4730b1ac8a84
+	static tuple for `Routine` lost its original binding declaration
 	generic machine `copy_probe` has a call tuple that does not satisfy its authored type bounds
 fail/generics/contextual_static_machine_undeclared_lifetime rejected 2711ms expected @a9ae30e1c334+wt
 	nested machine lifetime argument is not declared in its lexical owner
 fail/generics/contextual_static_machine_universal_contract rejected 697ms expected @a9ae30e1c334+wt
 	machine argument `fixed` for `invoke` does not refine `Routine`: its callable signature expects 1 generic parameter(s), got 0
 	machine argument `fixed` for `invoke` does not refine `Routine`: parameter 0 expects `Context`, got `u64`
-fail/generics/contextual_static_machine_unused_binder rejected 724ms expected @a9ae30e1c334+wt
+fail/generics/contextual_static_machine_unused_binder rejected 345ms expected @4730b1ac8a84
+	static tuple for `Routine` lost its original binding declaration
 	machine argument `accepts` for `Routine` does not refine `Callback`: its callable signature expects 0 generic parameter(s), got 2
 	machine argument `accepts` for `Routine` does not refine `Callback`: parameter 0 expects `Context`, got `Kind`
 fail/generics/contextual_static_machine_unused_const_binder rejected 693ms expected @a9ae30e1c334+wt
@@ -4561,8 +4592,8 @@ fail/traits/conformance_unused_lifetime_header_undeclared rejected 175ms expecte
 	trait `Invalid` parent `Uses` cannot bind implementation `Reader`: conformance application `ReadingMap<'undeclared>` supplies undeclared lifetime argument `'undeclared'; declare it in the lexical owner's lifetime telescope
 fail/traits/conformance_unused_lifetime_undeclared rejected 170ms expected @a9ae30e1c334+wt
 	conformance application `ReadingMap<'undeclared>` supplies undeclared lifetime argument `'undeclared'; declare it in the lexical owner's lifetime telescope
-fail/traits/contextual_static_machine_nominal_authority rejected 753ms expected @a9ae30e1c334+wt
-	static machine argument `wrong` for nominal parameter `Selected` retains 0 authored satisfaction row(s) for exact requirement `Expected::test`; exactly one is required and structural coincidence establishes none
+fail/traits/contextual_static_machine_nominal_authority rejected 480ms expected @4730b1ac8a84
+	static machine argument `wrong` for nominal parameter `Selected` retains 0 authored satisfaction row(s) for exact requirement `Expected::test`; exactly one is required and structural coincidence establishes none; required operands [Heavy], provider [wrong::Kind=Heavy], caller [], contextual demand true, operand mismatch unresolved source correspondence
 fail/traits/contract_call_distinct_static_arguments rejected 913ms expected @f3014db3f225+wt
 	machine `identity` realizes `Bounded::take` but requires `below<Right>(input)`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/traits/contract_proposition_distinct_declarations rejected 479ms expected @f3014db3f225+wt
@@ -6519,6 +6550,23 @@ pass/generics/open_computed_quantity_result rejected 2976ms check-target:macos_a
 	machine `add_indexed` cannot materialize const parameter `A` as its declared value type `u64`
 pass/generics/ranged_const_parameter_attached_shape checked 15081ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_borrowed_value_inference_exit checked 16121ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/runtime_captured_map_borrowed_type checked 17222ms check-target:macos_arm64 @4730b1ac8a84
+pass/generics/runtime_captured_map_const_body checked 14987ms check-target:macos_arm64 @4730b1ac8a84
+pass/generics/runtime_captured_map_const_machine checked 17544ms check-target:macos_arm64 @4730b1ac8a84
+pass/generics/runtime_captured_map_dependent_machine checked 14394ms check-target:macos_arm64 @4730b1ac8a84
+pass/generics/runtime_captured_map_forwarded_machine checked 15961ms check-target:macos_arm64 @4730b1ac8a84
+pass/generics/runtime_captured_map_generic_method_body checked 18698ms check-target:macos_arm64 @4730b1ac8a84
+pass/generics/runtime_captured_map_machine_body checked 13000ms check-target:macos_arm64 @4730b1ac8a84
+pass/generics/runtime_captured_map_machine_tuples checked 17029ms check-target:macos_arm64 @4730b1ac8a84
+pass/generics/runtime_captured_map_nominal_const_forward checked 13551ms check-target:macos_arm64 @4730b1ac8a84
+pass/generics/runtime_captured_map_nominal_machine checked 16520ms check-target:macos_arm64 @4730b1ac8a84
+pass/generics/runtime_captured_map_nominal_regions checked 13508ms check-target:macos_arm64 @4730b1ac8a84
+pass/generics/runtime_captured_map_own_type_method checked 16547ms check-target:macos_arm64 @4730b1ac8a84
+pass/generics/runtime_captured_map_record_const checked 16564ms check-target:macos_arm64 @ddfb87fb8ef4
+pass/generics/runtime_captured_map_shadowed_contract checked 18127ms check-target:macos_arm64 @4730b1ac8a84
+pass/generics/runtime_captured_map_shadowed_method_body checked 19091ms check-target:macos_arm64 @4730b1ac8a84
+pass/generics/runtime_captured_map_two_method_tuples checked 35123ms check-target:macos_arm64 terminal-inspections:match @4730b1ac8a84
+pass/generics/runtime_captured_map_type_body checked 17227ms check-target:macos_arm64 @4730b1ac8a84
 pass/generics/runtime_case_qualified_reference_storage_exit checked 16232ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_closed_case_array_payload_exit checked 14309ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_const_container_methods_exit checked 15682ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7170,7 +7218,7 @@ pass/providers/foreign_register_record_reuse_exit checked 6773ms check-target:li
 pass/providers/generic_provider_structural_result_composition_exit checked 11133ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/inherited_applied_binding_borrowed_result_exit checked 12259ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/inherited_applied_binding_dispatch_exit checked 11707ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/inherited_applied_binding_finite_family_exit checked 11251ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/inherited_applied_binding_finite_family_exit checked 17338ms check-target:macos_arm64 @4730b1ac8a84
 pass/providers/inherited_applied_binding_forwarded_value_exit checked 11056ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/inherited_boundary_field_postcondition_exit checked 3376ms check-target:macos_arm64 @2430f497a77c+wt
 pass/providers/kernel_import_result_chain_exit checked 11433ms check-target:linux_x86_64 @a9ae30e1c334+wt
@@ -7827,12 +7875,13 @@ pass/traits/applied_qualified_signature_region_scope_exit checked 10523ms check-
 pass/traits/boundary_trait_effects_host_call checked 10528ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/conformance_unused_lifetime_scope_exit checked 11299ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/contract_proposition_alias_correspondence checked 1696ms @f3014db3f225+wt
-pass/traits/default_row_captured_invocation_regions_exit checked 2765ms check-target:macos_arm64 @21c44dfab69b
+pass/traits/default_row_captured_invocation_regions_exit checked 16549ms check-target:macos_arm64 @4730b1ac8a84
 pass/traits/default_row_domain_region_scopes checked 485ms @21c44dfab69b
 pass/traits/default_row_mixed_captured_operand checked 470ms @eee96af606fc+wt
 pass/traits/default_row_nested_captured_reference_exit checked 3567ms check-target:macos_arm64 @619f89e4fed6+wt
+pass/traits/default_row_same_spelled_supplier_region_exit checked 17540ms check-target:macos_arm64 @4730b1ac8a84
 pass/traits/default_row_shadowed_captured_operand checked 470ms @eee96af606fc+wt
-pass/traits/default_row_shadowed_captured_operand_exit checked 2755ms check-target:macos_arm64 @eee96af606fc+wt
+pass/traits/default_row_shadowed_captured_operand_exit checked 14328ms check-target:macos_arm64 @4730b1ac8a84
 pass/traits/dyn_finite_family checked 10417ms @5041ef1af684+wt
 pass/traits/dyn_finite_family_dispatch checked 1661ms @a9ae30e1c334+wt
 pass/traits/equatable_implementation_selection_exit checked 8420ms check-target:macos_arm64 @dd191203ff08+wt
@@ -7965,6 +8014,9 @@ run/domains/qualified_record_transfer checked 6006ms check-target:macos_arm64 @8
 run/domains/semantic_predicate_domain_admission checked 11814ms check-target:macos_arm64 @896172b5d9d8+wt
 run/domains/structural_qualification_cast_values checked 11150ms check-target:macos_arm64 @0bb0340f378d+wt
 run/domains/structural_qualification_nested_values checked 11004ms check-target:macos_arm64 @73e466d6222f+wt
+run/dyn_finite_family_correlated checked 49536ms check-target:linux_x86_64 @4730b1ac8a84
+run/dyn_finite_family_owned_carrier checked 34492ms check-target:linux_x86_64 @4730b1ac8a84
+run/dyn_finite_family_runtime_dispatch checked 16041ms check-target:linux_x86_64 @4730b1ac8a84
 run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:macos_arm64 @9c4d1c444502
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/ownership/temporary_case_observation checked 5301ms check-target:macos_arm64 @0e81fb3e4cce+wt

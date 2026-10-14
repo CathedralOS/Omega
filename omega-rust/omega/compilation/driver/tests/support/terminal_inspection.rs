@@ -29,12 +29,13 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
     let mut inspected = false;
     for selection in selections {
         let words = selection.split_whitespace().collect::<Vec<_>>();
-        let (machine, requires_debug) = match words.as_slice() {
-            [machine] => (*machine, false),
-            [machine, "debug"] => (*machine, true),
+        let (machine, requires_debug, conformance_controls) = match words.as_slice() {
+            [machine] => (*machine, false, false),
+            [machine, "debug"] => (*machine, true, false),
+            [machine, "closed-conformance-controls"] => (*machine, false, true),
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`"
+                    "{ORACLE} needs a machine name and optional `debug` or `closed-conformance-controls`"
                 ));
             }
         };
@@ -61,6 +62,27 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
             || decoded.manifest() != artifact.manifest()
         {
             return Err(format!("inspection {machine} changed during transport"));
+        }
+        if conformance_controls {
+            if let Some(directory) = std::env::var_os("OMEGA_CORPUS_ARTIFACT_DIR") {
+                let directory = std::path::PathBuf::from(directory);
+                std::fs::create_dir_all(&directory)
+                    .map_err(|error| format!("cannot preserve canonical artifact: {error}"))?;
+                let fingerprint = artifact
+                    .manifest()
+                    .semantic()
+                    .program_fingerprint
+                    .as_bytes()
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>();
+                std::fs::write(
+                    directory.join(format!("{fingerprint}.psiart")),
+                    &transported,
+                )
+                .map_err(|error| format!("cannot preserve canonical artifact: {error}"))?;
+            }
+            closed_conformance_controls(&decoded)?;
         }
         let Some(debug) = artifact.debug_bytes() else {
             if requires_debug {
@@ -95,4 +117,143 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
         return Err(format!("{ORACLE} needs at least one machine selection"));
     }
     Ok(())
+}
+
+/// Mutate actual Source-produced payloads at the public artifact ingress seam.
+/// These are fixture-authored invalid exchange controls, not fabricated compiler
+/// trees or logical Source proofs. Ordinary producer trust remains explicit.
+fn closed_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
+    let module = artifact.semantic_module();
+    let position = module
+        .closed_conformance_applications
+        .iter()
+        .position(|application| {
+            application
+                .static_applications
+                .iter()
+                .any(|row| !row.method_arguments.is_empty())
+        })
+        .ok_or("artifact control fixture needs a generic exact static application")?;
+    let application = &module.closed_conformance_applications[position];
+    let row = application
+        .static_applications
+        .iter()
+        .position(|row| !row.method_arguments.is_empty())
+        .ok_or("missing generic application")?;
+    let mut controls = Vec::new();
+    let mut bad = module.clone();
+    bad.closed_conformance_applications[position]
+        .schemas
+        .push(application.schemas[0].clone());
+    controls.push(("duplicate original schema", "canonical", bad));
+    let mut bad = module.clone();
+    bad.closed_conformance_applications[position]
+        .schemas
+        .clear();
+    controls.push(("missing original schema", "schema", bad));
+    let mut bad = module.clone();
+    bad.closed_conformance_applications[position]
+        .static_applications
+        .push(application.static_applications[row].clone());
+    controls.push(("duplicate exact application", "canonical", bad));
+    let other = module
+        .closed_conformance_applications
+        .iter()
+        .flat_map(|application| &application.static_applications)
+        .find(|other| {
+            other.public_requirement_identity
+                == application.static_applications[row].public_requirement_identity
+                && other.realization_identity
+                    == application.static_applications[row].realization_identity
+                && other.method_arguments != application.static_applications[row].method_arguments
+        })
+        .ok_or("wrong-tuple control needs distinct actual member applications")?;
+    let mut bad = module.clone();
+    bad.closed_conformance_applications[position].static_applications[row].method_arguments =
+        other.method_arguments.clone();
+    refresh_conformance_commitment(&mut bad, position);
+    controls.push((
+        "wrong member invocation tuple",
+        "retained executable invocation",
+        bad,
+    ));
+    let mut bad = module.clone();
+    bad.closed_conformance_applications[position].static_applications[row]
+        .method_arguments
+        .clear();
+    controls.push(("missing member invocation tuple", "telescope", bad));
+    let mut bad = module.clone();
+    bad.closed_conformance_applications[position].static_applications[row].application_commitment =
+        None;
+    controls.push(("missing executable commitment", "commitment", bad));
+    let mut bad = module.clone();
+    bad.closed_conformance_applications[position].schemas[0]
+        .definition
+        .push(0);
+    controls.push(("trailing original definition", "trailing", bad));
+    let callable = application
+        .realization_callables
+        .iter()
+        .find(|callable| {
+            callable.source_callable_identity
+                == application.static_applications[row].source_callable_identity
+        })
+        .ok_or("exact application lost its callable registry")?;
+    let mut bad = module.clone();
+    bad.closed_conformance_applications[position]
+        .realization_callables
+        .push(callable.clone());
+    controls.push(("duplicate callable registry", "registry", bad));
+    let mut bad = module.clone();
+    bad.closed_conformance_applications[position]
+        .static_applications
+        .clear();
+    bad.closed_conformance_applications[position]
+        .realization_callables
+        .push(callable.clone());
+    refresh_conformance_commitment(&mut bad, position);
+    controls.push(("duplicate unreferenced callable registry", "duplicate", bad));
+    for (name, reason, invalid) in controls {
+        let error = CanonicalTerminalArtifact::from_parts(
+            invalid,
+            terminal_codec::decode_psi_optimization_execution_record(artifact.optimization_bytes())
+                .map_err(|error| format!("original optimization record: {error:?}"))?,
+            None,
+        )
+        .err()
+        .ok_or_else(|| format!("artifact ingress accepted {name}"))?;
+        let error = format!("{error:?}");
+        if !error.contains(reason) {
+            return Err(format!(
+                "artifact control {name} refused for another reason: {error}"
+            ));
+        }
+    }
+    let domain = b"omega.requirement-schema.v1\0";
+    let mut wire = artifact.to_bytes();
+    let position = wire
+        .windows(domain.len())
+        .position(|bytes| bytes == domain)
+        .ok_or("artifact has no original definition bytes")?;
+    wire[position] ^= 1;
+    let error = CanonicalTerminalArtifact::from_bytes(&wire)
+        .err()
+        .ok_or("wire ingress accepted an unknown original schema domain")?;
+    if !format!("{error:?}").contains("unknown definition domain") {
+        return Err(format!(
+            "malformed schema wire refused for another reason: {error:?}"
+        ));
+    }
+    Ok(())
+}
+
+fn refresh_conformance_commitment(module: &mut terminal_psi::TerminalModule, position: usize) {
+    let application = &mut module.closed_conformance_applications[position];
+    application.report_fingerprint =
+        terminal_psi::closed_conformance_application_report_fingerprint(
+            &module.identities,
+            application,
+        );
+    application.commitment =
+        terminal_psi::closed_conformance_application_commitment(&module.identities, application);
 }

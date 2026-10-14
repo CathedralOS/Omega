@@ -33,6 +33,242 @@ impl TypedTrees {
         self.symbols.get(owner).parent
     }
 
+    /// Authored applications still joined to retained source calls. Arena rows
+    /// survive projection and therefore cannot define checking obligations.
+    /// Uncalled authored bodies remain in the full Source machine roster.
+    pub fn live_conformance_occurrence_applications(
+        &self,
+    ) -> Vec<crate::static_applications::StaticMachineApplicationHandle> {
+        crate::references::collect_program_conformance_occurrences(self)
+    }
+
+    /// Census of occurrence/evidence selections, preserving each source anchor.
+    pub fn closed_conformance_application_sites(
+        &self,
+    ) -> Vec<(
+        super::ClosedConformanceApplicationSite,
+        symbols::SymbolHandle,
+        crate::static_applications::StaticMachineApplicationHandle,
+        &super::ClosedConformanceApplication,
+    )> {
+        let mut sites = Vec::new();
+        for (s, receipt) in self.machine_specializations.iter().enumerate() {
+            for (a, application) in receipt.conformance_applications.iter().enumerate() {
+                sites.push((
+                    super::ClosedConformanceApplicationSite::Invocation {
+                        specialization: s,
+                        application: a,
+                    },
+                    receipt.instance,
+                    receipt.binding_application,
+                    application,
+                ));
+            }
+        }
+        for handle in self.live_conformance_occurrence_applications() {
+            let source = self.expression_table.static_machine_application(handle);
+            if let Some(application) = source
+                .conformance_selection
+                .as_ref()
+                .and_then(|s| s.application.as_deref())
+            {
+                sites.push((
+                    super::ClosedConformanceApplicationSite::Occurrence(handle),
+                    source.lexical_owner,
+                    handle,
+                    application,
+                ));
+            }
+        }
+        sites
+    }
+
+    pub fn closed_conformance_application_at_mut(
+        &mut self,
+        site: super::ClosedConformanceApplicationSite,
+    ) -> Option<&mut super::ClosedConformanceApplication> {
+        match site {
+            super::ClosedConformanceApplicationSite::Invocation {
+                specialization,
+                application,
+            } => self
+                .machine_specializations
+                .get_mut(specialization)?
+                .conformance_applications
+                .get_mut(application),
+            super::ClosedConformanceApplicationSite::Occurrence(handle) => self
+                .expression_table
+                .static_machine_application_mut(handle)
+                .conformance_selection
+                .as_mut()?
+                .application
+                .as_deref_mut(),
+        }
+    }
+
+    /// Rejoin the exact direct occurrence or the evidence-bound invocation.
+    /// Neither an executable target nor another caller's tuple selects a map.
+    pub fn selected_conformance_applications<'a>(
+        &'a self,
+        owner: symbols::SymbolHandle,
+        selection_application: crate::static_applications::StaticMachineApplicationHandle,
+        requirement: symbols::SymbolHandle,
+        report_fingerprint: u64,
+        commitment: super::ClosedConformanceApplicationCommitment,
+    ) -> Vec<&'a super::ClosedConformanceApplication> {
+        if selection_application.is_valid() {
+            let source = self
+                .expression_table
+                .static_machine_application(selection_application);
+            if source.lexical_owner != owner || source.registration_operation != requirement {
+                return Vec::new();
+            }
+            let Some(selection) = &source.conformance_selection else {
+                return Vec::new();
+            };
+            let Some(application) = selection.application.as_deref() else {
+                return Vec::new();
+            };
+            let Some(operand) = self
+                .expression_table
+                .static_machine_application_arguments(selection_application)
+                .get(selection.operand_ordinal as usize)
+            else {
+                return Vec::new();
+            };
+            let raw_arguments = operand
+                .application
+                .as_ref()
+                .map_or(&[][..], |a| a.arguments.as_ref());
+            let raw_lifetimes = operand
+                .application
+                .as_ref()
+                .map_or(&[][..], |a| a.lifetime_arguments.as_ref());
+            if raw_arguments != application.arguments.as_ref()
+                || raw_lifetimes.len() != application.lifetime_arguments.len()
+                || raw_lifetimes
+                    .iter()
+                    .zip(&application.lifetime_arguments)
+                    .any(|(raw, actual)| raw.as_str() != actual)
+                || operand.symbol != application.declaration
+                || application.commitment != commitment
+                || application.report_fingerprint != report_fingerprint
+            {
+                return Vec::new();
+            }
+            return vec![application];
+        }
+        super::closed_conformance_applications_of(
+            &self.machine_specializations,
+            owner,
+            report_fingerprint,
+            commitment,
+        )
+    }
+
+    /// An authored member may be open because its selecting map owns captures,
+    /// even when the member's independent invocation telescope is empty.
+    /// Closed executable copies are not authored rows in that map.
+    pub fn callable_body_has_open_parameters(&self, machine: &crate::machine::Machine) -> bool {
+        machine.has_specialization_parameters()
+            || self.conformances().iter().any(|conformance| {
+                (!self.conformance_type_parameters(conformance).is_empty()
+                    || !conformance.lifetime_parameters.is_empty())
+                    && conformance.rows.iter().any(|row| {
+                        row.source.owns_realization() && row.realization_machine == machine.symbol
+                    })
+            })
+    }
+
+    /// The unique authored template relation for an executable application.
+    /// Capture and invocation are different records; consumers may project
+    /// their shared declaration coordinate without replacing either frame.
+    pub fn executable_application_template(
+        &self,
+        instance: symbols::SymbolHandle,
+    ) -> Result<Option<symbols::SymbolHandle>, &'static str> {
+        let mut templates = self
+            .machine_specializations
+            .iter()
+            .filter(|row| row.instance == instance)
+            .map(|row| row.template)
+            .chain(
+                self.captured_machine_applications
+                    .iter()
+                    .filter(|(_, row)| row.instance == instance)
+                    .map(|(_, row)| row.template),
+            );
+        let template = templates.next();
+        if templates.next().is_some() {
+            return Err("executable application has ambiguous template ownership");
+        }
+        Ok(template)
+    }
+
+    /// Rejoin an executable entry through its invocation and capture applications.
+    /// A selected map can supply captures only to its own exact authored row.
+    pub fn realization_entry_template(
+        &self,
+        mut entry: symbols::SymbolHandle,
+        application: &super::ClosedConformanceApplication,
+    ) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
+        let mut visited = Vec::new();
+        loop {
+            let machine = self.machines().iter().find(|machine| {
+                self.machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == entry)
+            })?;
+            if visited.contains(&machine.symbol) {
+                return None;
+            }
+            visited.push(machine.symbol);
+            let invocations = self
+                .machine_specializations
+                .iter()
+                .filter(|invocation| invocation.instance == machine.symbol)
+                .collect::<Vec<_>>();
+            let captures = self
+                .captured_machine_applications
+                .iter()
+                .filter(|(_, capture)| capture.instance == machine.symbol)
+                .map(|(_, capture)| capture)
+                .collect::<Vec<_>>();
+            if invocations.len() + captures.len() > 1 {
+                return None;
+            }
+            if let [invocation] = invocations.as_slice() {
+                let ordinal = self
+                    .machine_states(machine)
+                    .iter()
+                    .position(|state| state.symbol == entry)?;
+                let template = self.machine_by_symbol(invocation.template)?;
+                entry = self.machine_states(template).get(ordinal)?.symbol;
+                continue;
+            }
+            if let [capture] = captures.as_slice() {
+                if &capture.conformance_application != application {
+                    return None;
+                }
+                let selecting = self.conformance_by_symbol(application.declaration)?;
+                if !selecting.rows.iter().any(|row| {
+                    row.source.owns_realization() && row.realization_machine == capture.template
+                }) {
+                    return None;
+                }
+                let states = self.captured_machine_states.span_or_empty(capture.states);
+                let mut states = states.iter().filter(|state| state.instance == entry);
+                let template = states.next()?.template;
+                if states.next().is_some() {
+                    return None;
+                }
+                entry = template;
+                continue;
+            }
+            return Some((machine.symbol, entry));
+        }
+    }
+
     /// Executable copying does not create new authored lifetime binders.
     /// Cyclic or malformed specialization custody has no declaration owner.
     pub fn lifetime_declaration_owner(
@@ -43,16 +279,29 @@ impl TypedTrees {
         if let Some(application) = self.closed_requirement_application(owner) {
             owner = application.template;
         }
-        while let Some(application) = self
-            .machine_specializations
-            .iter()
-            .find(|application| application.instance == owner)
-        {
+        loop {
+            let mut templates = self
+                .machine_specializations
+                .iter()
+                .filter(|application| application.instance == owner)
+                .map(|application| application.template)
+                .chain(
+                    self.captured_machine_applications
+                        .iter()
+                        .filter(|(_, application)| application.instance == owner)
+                        .map(|(_, application)| application.template),
+                );
+            let Some(template) = templates.next() else {
+                break;
+            };
+            if templates.next().is_some() {
+                return symbols::SymbolHandle::invalid();
+            }
             if visited.contains(&owner) {
                 return symbols::SymbolHandle::invalid();
             }
             visited.push(owner);
-            owner = application.template;
+            owner = template;
         }
         owner
     }

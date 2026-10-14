@@ -60,26 +60,59 @@ impl TraitApplicationEnvironment {
         reference: TypeReferenceHandle,
         preceding_frames: usize,
         name: &str,
-    ) -> Option<crate::type_identity::LifetimeParameterIdentity> {
+        lexical_owner: SymbolHandle,
+    ) -> Option<(crate::type_identity::LifetimeParameterIdentity, bool)> {
         let scope = self.scope(program)?;
         scope.with_identity_scopes(program, |frames| {
             let mut visible = frames.get(..preceding_frames)?;
-            let retained_owner = program
+            let recorded_owner = program
                 .type_reference_table
                 .operand_lifetime_owner(reference);
+            let retained_owner = if recorded_owner.is_valid() {
+                recorded_owner
+            } else {
+                lexical_owner
+            };
             let owner = if retained_owner.is_valid() {
-                visible = visible
-                    .iter()
-                    .rposition(|frame| {
-                        program.lifetime_declaration_owner(frame.declaration)
-                            == program.lifetime_declaration_owner(retained_owner)
-                    })
-                    .map_or(&[][..], |ordinal| &visible[..=ordinal]);
-                retained_owner
+                // A reference in an owned row can name its map's region.
+                // Match the actual declaring telescope, respecting any local
+                // shadow, before choosing the visible application prefix.
+                let region_owner = crate::type_identity::lifetime_parameter_identity(
+                    program,
+                    retained_owner,
+                    name,
+                )?
+                .declaration;
+                let frame = visible.iter().rposition(|frame| {
+                    program.lifetime_declaration_owner(frame.declaration)
+                        == program.lifetime_declaration_owner(region_owner)
+                });
+                if let Some(ordinal) = frame {
+                    visible = &visible[..=ordinal];
+                    // The retained owner selects the receiving telescope.
+                    // Its actual region operands still belong to the original
+                    // supplier, rather than to the map being instantiated.
+                    return crate::type_identity::applied_lifetime_parameter_identity_with_supplier(
+                        program,
+                        retained_owner,
+                        self.argument_owner,
+                        name,
+                        visible,
+                    );
+                } else {
+                    visible = &[];
+                    retained_owner
+                }
             } else {
                 self.argument_owner
             };
-            crate::type_identity::applied_lifetime_parameter_identity(program, owner, name, visible)
+            crate::type_identity::applied_lifetime_parameter_identity_with_supplier(
+                program,
+                owner,
+                self.argument_owner,
+                name,
+                visible,
+            )
         })
     }
 
@@ -153,6 +186,10 @@ impl TraitApplicationEnvironment {
 }
 
 impl RetainedTraitScope {
+    pub fn supplying_owner(self) -> SymbolHandle {
+        self.argument_owner
+    }
+
     /// Supplying declarations describe the telescope; actual operands remain
     /// live dependencies. Retaining a scope must not turn its owner's unrelated
     /// body into an execution root, nor drop a captured const/type declaration.

@@ -1,0 +1,7 @@
+trait Getter { machine get() -> i32 blocks; }
+Selected<Value, machine Callback> satisfies Getter
+where machine Callback(value: Value) -> Value;
+{ machine get() -> i32 { 83 } }
+machine wrong(value: bool) -> bool { value }
+machine choose<Operations satisfies Getter>() -> i32 blocks; { block Operations::get() }
+machine main() blocks; { let observed: i32 = block choose<Selected<i32, wrong>>(); }

@@ -17,7 +17,8 @@ pub(crate) use callee_proposals::{
     state_by_symbol,
 };
 pub(crate) use selection_assembly::{
-    selection_for_call, selection_from_proposals, unique_complete_selections, upsert_selection,
+    proposal_bindings, selection_for_call, selection_from_proposals, unique_complete_selections,
+    upsert_selection,
 };
 pub(crate) use static_bindings::{infer_static_bindings, names_type_binder};
 
@@ -104,7 +105,9 @@ pub(super) fn collect_call_proposals(
         ) else {
             continue;
         };
-        if !caller_machine.has_specialization_parameters()
+        if !program
+            .typed_program()
+            .callable_body_has_open_parameters(caller_machine)
             && static_bindings::names_type_binder(program, actual)
         {
             continue;
@@ -189,7 +192,9 @@ pub(super) fn collect_call_selections(
                             &call.machine_arguments,
                             program.statement_table.expression_handles(call.arguments),
                             None,
-                            machine.has_specialization_parameters(),
+                            program
+                                .typed_program()
+                                .callable_body_has_open_parameters(machine),
                         ) {
                             upsert_selection(&mut selections, selection);
                         }
@@ -213,7 +218,9 @@ pub(super) fn collect_call_selections(
                                 program.expression_table.expression_handles(call.arguments),
                                 (local.type_reference.is_valid() && !local.type_is_inferred)
                                     .then_some(local.type_reference),
-                                machine.has_specialization_parameters(),
+                                program
+                                    .typed_program()
+                                    .callable_body_has_open_parameters(machine),
                             ) {
                                 upsert_selection(&mut selections, selection);
                             }
@@ -237,7 +244,9 @@ pub(super) fn collect_call_selections(
                                 &call.machine_arguments,
                                 program.expression_table.expression_handles(call.arguments),
                                 None,
-                                machine.has_specialization_parameters(),
+                                program
+                                    .typed_program()
+                                    .callable_body_has_open_parameters(machine),
                             ) {
                                 upsert_selection(&mut selections, selection);
                             }
@@ -324,7 +333,9 @@ pub(super) fn collect_call_selections(
                     &call.machine_arguments,
                     program.expression_table.expression_handles(call.arguments),
                     None,
-                    machine.has_specialization_parameters(),
+                    program
+                        .typed_program()
+                        .callable_body_has_open_parameters(machine),
                 ) {
                     upsert_selection(&mut selections, selection);
                 }

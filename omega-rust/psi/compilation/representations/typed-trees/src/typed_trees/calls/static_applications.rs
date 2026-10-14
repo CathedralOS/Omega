@@ -15,6 +15,14 @@ use symbols::SymbolHandle;
 
 pub type StaticMachineApplicationHandle = Handle<StaticMachineApplication>;
 
+/// Derived selection at one authored occurrence. The ordinal rejoins the
+/// explicit operand; this is neither callable admission nor a trust receipt.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StaticConformanceSelection {
+    pub operand_ordinal: u32,
+    pub application: Option<Box<crate::typed_trees::ClosedConformanceApplication>>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StaticMachineApplication {
     /// The authored operation, possibly a trait requirement, never its private
@@ -41,6 +49,7 @@ pub struct StaticMachineApplication {
     /// The original declaration whose binders the derived rows substitute.
     /// A requirement call's authored operation may instead belong to a trait.
     pub binding_declaration: SymbolHandle,
+    pub conformance_selection: Option<Box<StaticConformanceSelection>>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

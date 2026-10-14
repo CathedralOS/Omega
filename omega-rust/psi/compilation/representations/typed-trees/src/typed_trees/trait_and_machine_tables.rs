@@ -282,6 +282,14 @@ impl TypedTrees {
         let mut enclosing = self.declaration_scope_parent(machine.symbol);
         while enclosing.is_valid() {
             if let Some(conformance) = self.conformance_by_symbol(enclosing) {
+                for parameter in self.conformance_type_parameters(conformance) {
+                    if !type_parameters
+                        .iter()
+                        .any(|existing| same_type_parameter(existing, parameter))
+                    {
+                        type_parameters.push(parameter.clone());
+                    }
+                }
                 for parameter in &conformance.lifetime_parameters {
                     if !lifetime_parameters.contains(parameter) {
                         lifetime_parameters.push(parameter.clone());
@@ -365,14 +373,39 @@ impl TypedTrees {
         machine: &machine::Machine,
         symbol: SymbolHandle,
     ) -> Option<&signature::StateSignature> {
-        self.machine_type_parameters(machine)
-            .iter()
-            .find_map(|parameter| match &parameter.kind {
-                data::TypeParameterKind::Machine { contract } if parameter.symbol == symbol => self
-                    .machine_parameter_contract_view(contract)
-                    .map(data::MachineParameterContractView::signature),
-                _ => None,
-            })
+        let own = self.machine_type_parameters(machine);
+        let mut parameters = own;
+        let mut enclosing = machine.symbol;
+        let mut visited = Vec::new();
+        loop {
+            if let Some(parameter) = parameters
+                .iter()
+                .find(|parameter| parameter.symbol == symbol)
+            {
+                return match &parameter.kind {
+                    data::TypeParameterKind::Machine { contract } => self
+                        .machine_parameter_contract_view(contract)
+                        .map(data::MachineParameterContractView::signature),
+                    _ => None,
+                };
+            }
+            enclosing = self.declaration_scope_parent(enclosing);
+            if !enclosing.is_valid() || visited.contains(&enclosing) {
+                return None;
+            }
+            visited.push(enclosing);
+            if let Some(map) = self.conformance_by_symbol(enclosing) {
+                parameters = self.conformance_type_parameters(map);
+                if parameters.iter().any(|parameter| {
+                    parameter.symbol == symbol
+                        && own.iter().any(|local| local.name == parameter.name)
+                }) {
+                    return None;
+                }
+            } else {
+                parameters = &[];
+            }
+        }
     }
 
     /// Rejoin the original binder contract after specialization removed its

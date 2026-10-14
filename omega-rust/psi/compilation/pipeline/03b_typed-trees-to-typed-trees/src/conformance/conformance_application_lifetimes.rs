@@ -10,9 +10,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::name::Identifier;
 use typed_trees::statement::{StatementHandle, StatementNode};
-use typed_trees::type_identity::{
-    AppliedTypeIdentityScope, IndexIdentityArgument, applied_type_identity,
-};
+use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod argument_scopes;
@@ -229,9 +227,10 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                     .iter()
                     .zip(&bound.arguments)
                     .all(|(declared, expected)| {
-                        applied_type_identity(
+                        typed_trees::type_identity::applied_type_identity_in_scope(
                             program,
                             *declared,
+                            conformance.symbol,
                             call.caller_machine,
                             &[AppliedTypeIdentityScope {
                                 declaration: conformance.symbol,
@@ -239,9 +238,10 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                                 lifetimes: &inferred_substitutions,
                             }],
                         )
-                        .zip(applied_type_identity(
+                        .zip(typed_trees::type_identity::applied_type_identity_in_scope(
                             program,
                             *expected,
+                            callee_machine.symbol,
                             call.caller_machine,
                             &[AppliedTypeIdentityScope {
                                 declaration: callee_machine.symbol,

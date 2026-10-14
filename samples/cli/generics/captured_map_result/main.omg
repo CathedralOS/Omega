@@ -1,0 +1,44 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+trait Arithmetic<Value> {
+    operator + combine(left: Value, right: Value) -> Value blocks;
+}
+
+ConstantThree satisfies Arithmetic<i32> {
+    machine combine(left: i32, right: i32) -> i32 { 3 }
+}
+
+Selected<const Output: i32> satisfies Arithmetic<i32> {
+    machine combine(left: i32, right: i32) -> i32 { Output }
+}
+
+machine choose<Operations satisfies Arithmetic<i32>>(left: i32, right: i32) -> i32
+blocks;
+requires 0 <= left && left <= 100
+requires 0 <= right && right <= 100
+{
+    left + right
+}
+
+// Expected exit: 0
+// Expected output contains: 78
+// The returned scalar observes two distinct applications of one captured map.
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) blocks; reaches Console crashes Trap {
+    let seven: i32 = block choose<Selected<7>>(5, 6);
+    let eight: i32 = block choose<Selected<8>>(5, 6);
+    transition 0 <= seven && seven <= 9 && 0 <= eight && eight <= 9 {
+        true -> combined(main, seven, eight)
+        _ -> bad()
+    }
+    state combined(main: &mut Main, first: i32[0..=9], second: i32[0..=9]) {
+        let combined: i32 = first * 10 + second;
+        Console::write_byte(&main.console, first + 48);
+        Console::write_byte(&main.console, second + 48);
+        Console::write_line(&main.console, "");
+        transition combined == 78 { true -> done() _ -> bad() }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

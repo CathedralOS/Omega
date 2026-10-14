@@ -1,0 +1,26 @@
+// Expected exit: 0. The map's 'storage binds to the supplier's 'environment,
+// independently of the supplier's unrelated same-spelled 'storage binder.
+trait Reading<Context> {
+    machine read<'item, 'unused>(context: Context, item: &'item i32) -> i32 {
+        item as i32
+    }
+}
+Reader<'storage> satisfies Reading<&'storage i32> {}
+
+machine invoke<'captured, 'invocation,
+    Selected satisfies Reading<&'captured i32>>(
+    context: &'captured i32, item: &'invocation i32
+) -> i32 { Selected::read(context, item) }
+machine observed<'environment, 'storage, 'call>(
+    context: &'environment i32, item: &'call i32
+) -> i32 { invoke<Reader<'environment>>(context, item) }
+
+data Main { context: i32; item: i32; }
+machine Main::main(main: &mut Main) crashes Trap {
+    main.context = 19;
+    main.item = 37;
+    let result: i32 = observed(&main.context, &main.item);
+    transition result == 37 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

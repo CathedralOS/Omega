@@ -6,21 +6,98 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{TypedTrees, expression::StaticMachineArgument, types::TypeReferenceHandle};
 
+#[derive(Clone, PartialEq, Eq)]
+pub(super) struct InvocationTuple {
+    pub owner: SymbolHandle,
+    pub arguments: Vec<StaticMachineArgument>,
+    pub lifetimes: Vec<typed_trees::static_applications::StaticMachineLifetimeBinding>,
+}
+
+fn occurrence(
+    program: &TypedTrees,
+    owner: SymbolHandle,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    arguments: &[StaticMachineArgument],
+) -> InvocationTuple {
+    if application.is_valid() {
+        InvocationTuple {
+            owner: program
+                .expression_table
+                .static_machine_application(application)
+                .lexical_owner,
+            arguments: program
+                .expression_table
+                .static_machine_application_arguments(application)
+                .to_vec(),
+            lifetimes: program
+                .expression_table
+                .static_machine_application_lifetimes(application)
+                .to_vec(),
+        }
+    } else {
+        InvocationTuple {
+            owner,
+            arguments: arguments.to_vec(),
+            lifetimes: Vec::new(),
+        }
+    }
+}
+
 fn instance(
     program: &TypedTrees,
     lexical_owner: SymbolHandle,
     target: SymbolHandle,
     receiver: Option<TypeReferenceHandle>,
-    arguments: &[StaticMachineArgument],
-) -> SymbolHandle {
+    invocation: &InvocationTuple,
+) -> Result<SymbolHandle, Vec<Diagnostic>> {
+    let Some((template, scope)) = source_scope(program, lexical_owner, target, receiver)? else {
+        return Ok(SymbolHandle::invalid());
+    };
+    Ok(instance_in_scope(program, template, &scope, invocation))
+}
+
+fn source_scope<'p>(
+    program: &'p TypedTrees,
+    lexical_owner: SymbolHandle,
+    target: SymbolHandle,
+    receiver: Option<TypeReferenceHandle>,
+) -> Result<
+    Option<(
+        SymbolHandle,
+        typed_trees::trait_definition::AppliedTraitScope<'p>,
+    )>,
+    Vec<Diagnostic>,
+> {
+    if let Some(closed) = program.closed_requirement_application(target) {
+        return closed
+            .trait_scope
+            .scope(program)
+            .map(|scope| Some((closed.template, scope)))
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "applied public call lost its retained source scope",
+                )]
+            });
+    }
+    if program.trait_machine_signature(target).is_none()
+        && let Some(machine) = program.machine_by_symbol(lexical_owner)
+        && let Some(requirement) =
+            validation::named_conformance_target_requirement(program, machine, target)
+                .map_err(|message| vec![Diagnostic::error(message)])?
+    {
+        return Ok(Some((
+            requirement.signature.symbol,
+            requirement.application,
+        )));
+    }
     let template = program
         .closed_requirement_application(target)
         .map_or(target, |application| application.template);
     let Some((owner, _)) = program.trait_machine_signature(template) else {
-        return SymbolHandle::invalid();
+        return Ok(None);
     };
-    let scope = match receiver.and_then(|reference| {
-        typed_trees::service::classify_exact_service_parameter_carrier(
+    let carrier = match receiver {
+        Some(reference) => typed_trees::service::classify_exact_service_parameter_carrier(
             program,
             typed_trees::service::ServiceCarrierOccurrence {
                 type_reference: reference,
@@ -28,9 +105,10 @@ fn instance(
                 enclosing_data_applications: &[],
             },
         )
-        .ok()
-        .flatten()
-    }) {
+        .map_err(|message| vec![Diagnostic::error(message)])?,
+        None => None,
+    };
+    let scope = match carrier {
         Some(carrier) => carrier
             .carrier
             .application(program, lexical_owner, &[])
@@ -42,25 +120,23 @@ fn instance(
         }
         None => None,
     };
-    let Some(scope) = scope else {
-        return SymbolHandle::invalid();
-    };
-    instance_in_scope(program, template, &scope, arguments)
+    Ok(scope.map(|scope| (template, scope)))
 }
 
 fn instance_in_scope(
     program: &TypedTrees,
     template: SymbolHandle,
     scope: &typed_trees::trait_definition::AppliedTraitScope<'_>,
-    arguments: &[StaticMachineArgument],
+    invocation: &InvocationTuple,
 ) -> SymbolHandle {
-    let Some(tuple) = arguments
-        .iter()
-        .map(|argument| program.static_const_argument_identity(argument))
-        .collect::<Option<Vec<_>>>()
-    else {
+    let arguments = &invocation.arguments;
+    let Some((_, signature)) = program.trait_machine_signature(template) else {
         return SymbolHandle::invalid();
     };
+    let parameters = program.state_signature_type_parameters(signature);
+    if parameters.len() != arguments.len() {
+        return SymbolHandle::invalid();
+    }
     let mut matches = program
         .closed_requirement_applications()
         .filter(|application| {
@@ -69,12 +145,39 @@ fn instance_in_scope(
                     .requirement_application_matches_scope(application.signature.symbol, scope)
                 && program
                     .expression_table
-                    .static_machine_application_arguments(application.application)
+                    .static_machine_application_lifetimes(application.application)
+                    == invocation.lifetimes
+                && (invocation.lifetimes.is_empty()
+                    || program
+                        .expression_table
+                        .static_machine_application(application.application)
+                        .lexical_owner
+                        == invocation.owner)
+                && parameters
                     .iter()
-                    .map(|argument| program.static_const_argument_identity(argument))
-                    .collect::<Option<Vec<_>>>()
-                    .as_ref()
-                    == Some(&tuple)
+                    .zip(arguments)
+                    .all(|(parameter, argument)| {
+                        let bindings = program
+                            .expression_table
+                            .static_machine_application_bindings(application.application);
+                        let mut selected = bindings
+                            .iter()
+                            .filter(|binding| binding.parameter == parameter.symbol);
+                        let Some(binding) = selected.next() else {
+                            return false;
+                        };
+                        selected.next().is_none()
+                            && program.static_binding_matches_argument(
+                                &parameter.kind,
+                                &binding.value,
+                                argument,
+                                invocation.owner,
+                                program
+                                    .expression_table
+                                    .static_machine_application(application.application)
+                                    .lexical_owner,
+                            )
+                    })
         });
     let Some(application) = matches.next() else {
         return SymbolHandle::invalid();
@@ -85,6 +188,109 @@ fn instance_in_scope(
     application.signature.symbol
 }
 
+/// Static calls instantiate their own complete invocation tuples. These rows
+/// are public contract applications, never a finite dynamic-dispatch roster.
+pub(super) fn invocation_tuples(
+    program: &TypedTrees,
+    requirement: SymbolHandle,
+    scope: &typed_trees::trait_definition::AppliedTraitScope<'_>,
+) -> Result<Vec<InvocationTuple>, Vec<Diagnostic>> {
+    let mut tuples = Vec::new();
+    let mut add = |owner,
+                   target,
+                   receiver,
+                   dispatch: Option<&typed_trees::typed_trees::StaticRequirementDispatch>,
+                   invocation: InvocationTuple|
+     -> Result<(), Vec<Diagnostic>> {
+        let selected = if let Some(dispatch) = dispatch {
+            let applications = program.selected_conformance_applications(
+                owner,
+                dispatch.selection_application,
+                dispatch.requirement,
+                dispatch.application_report_fingerprint,
+                dispatch.application_commitment,
+            );
+            if applications.len() != 1 {
+                return Err(vec![Diagnostic::error(
+                    "static method occurrence has no unique selected conformance",
+                )]);
+            }
+            let template = program
+                .closed_requirement_application(dispatch.requirement)
+                .map_or(dispatch.requirement, |application| application.template);
+            applications[0]
+                .trait_scope
+                .scope(program)
+                .map(|scope| (template, scope))
+        } else {
+            source_scope(program, owner, target, receiver)?
+        };
+        let Some((template, selected)) = selected else {
+            return Ok(());
+        };
+        if template == requirement
+            && selected.same_application(program, scope)
+            && !tuples.contains(&invocation)
+        {
+            tuples.push(invocation);
+        }
+        Ok(())
+    };
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (position, statement) in program
+                .statement_table
+                .indexed_statements(state.statement_nodes)
+            {
+                if let Some(call) = statement.as_call() {
+                    add(
+                        machine.symbol,
+                        call.target_symbol,
+                        validation::projected_statement_receiver_type_reference(
+                            program, state, position, call,
+                        ),
+                        call.static_requirement_dispatch.as_ref(),
+                        occurrence(
+                            program,
+                            machine.symbol,
+                            call.authored_machine_application,
+                            &call.machine_arguments,
+                        ),
+                    )?;
+                }
+                let mut expressions = Vec::new();
+                validation::collect_statement_expression_trees(
+                    program,
+                    statement,
+                    &mut expressions,
+                );
+                for expression in expressions {
+                    if let Some(call) = program.expression_table.call_node(expression) {
+                        add(
+                            machine.symbol,
+                            call.target_symbol,
+                            validation::expression_type_reference_in_state(
+                                program,
+                                state.symbol,
+                                position,
+                                call.receiver,
+                            ),
+                            call.static_requirement_dispatch.as_ref(),
+                            occurrence(
+                                program,
+                                machine.symbol,
+                                call.authored_machine_application,
+                                &call.machine_arguments,
+                            ),
+                        )?;
+                    }
+                }
+            }
+        }
+    }
+    Ok(tuples)
+}
+
 /// The executable target remains the chosen provider. Only its public contract
 /// coordinate is applied, through the same committed map and exact scope that
 /// call admission checks. A provider's stronger private contract is irrelevant.
@@ -92,11 +298,12 @@ fn dispatch_instance(
     program: &TypedTrees,
     owner: SymbolHandle,
     dispatch: &typed_trees::typed_trees::StaticRequirementDispatch,
-    arguments: &[StaticMachineArgument],
+    invocation: &InvocationTuple,
 ) -> SymbolHandle {
-    let applications = typed_trees::closed_conformance_applications_of(
-        &program.machine_specializations,
+    let applications = program.selected_conformance_applications(
         owner,
+        dispatch.selection_application,
+        dispatch.requirement,
         dispatch.application_report_fingerprint,
         dispatch.application_commitment,
     );
@@ -109,7 +316,7 @@ fn dispatch_instance(
     let template = program
         .closed_requirement_application(dispatch.requirement)
         .map_or(dispatch.requirement, |closed| closed.template);
-    instance_in_scope(program, template, &scope, arguments)
+    instance_in_scope(program, template, &scope, invocation)
 }
 
 pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -130,7 +337,12 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                             program,
                             machine.symbol,
                             dispatch,
-                            &call.machine_arguments,
+                            &occurrence(
+                                program,
+                                machine.symbol,
+                                call.authored_machine_application,
+                                &call.machine_arguments,
+                            ),
                         );
                         if selected.is_valid() {
                             statement_dispatch_updates
@@ -145,8 +357,13 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                         machine.symbol,
                         call.target_symbol,
                         receiver,
-                        &call.machine_arguments,
-                    );
+                        &occurrence(
+                            program,
+                            machine.symbol,
+                            call.authored_machine_application,
+                            &call.machine_arguments,
+                        ),
+                    )?;
                     if selected.is_valid() {
                         statement_updates
                             .push((state.statement_nodes.handle_at(position as u32), selected));
@@ -167,7 +384,12 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                             program,
                             machine.symbol,
                             dispatch,
-                            &call.machine_arguments,
+                            &occurrence(
+                                program,
+                                machine.symbol,
+                                call.authored_machine_application,
+                                &call.machine_arguments,
+                            ),
                         );
                         if selected.is_valid() {
                             if let Some((_, prior)) = expression_dispatch_updates
@@ -193,8 +415,13 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                         machine.symbol,
                         call.target_symbol,
                         receiver,
-                        &call.machine_arguments,
-                    );
+                        &occurrence(
+                            program,
+                            machine.symbol,
+                            call.authored_machine_application,
+                            &call.machine_arguments,
+                        ),
+                    )?;
                     if !selected.is_valid() {
                         continue;
                     }

@@ -3,7 +3,7 @@
 use crate::proofs::evidence_lowering::evidence_terms::lower_evidence_interface;
 use crate::proofs::evidence_lowering::{
     checked_evidence_machine_identity, checked_evidence_requirement_identity,
-    checked_requirement_family_rows, evidence_projection_identity,
+    checked_requirement_schema, checked_static_conformance_rows, evidence_projection_identity,
 };
 use crate::proofs::{
     CheckedTrees, EvidenceTermId, LoweringError, MachineId, PrimitiveType, ProofOutput,
@@ -12,7 +12,6 @@ use crate::proofs::{
     StaticRequirementDispatch, TerminalModule, terminal_scalar_type, unsupported,
 };
 use terminal_psi::ProofOutputRuntimeResult;
-use typed_trees::closed_conformance_applications_of;
 
 pub(crate) fn lower_proof_output_calls(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -184,11 +183,7 @@ fn lower_static_requirement_dispatch(
     let Some(dispatch) = invocation.static_requirement_dispatch else {
         return Ok(None);
     };
-    if dispatch.application_report_fingerprint == 0
-        || dispatch.application_commitment.is_zero()
-        || invocation.target_machine_symbol != dispatch.realization_machine
-        || invocation.target_state_symbol != dispatch.realization_state
-    {
+    if dispatch.application_report_fingerprint == 0 || dispatch.application_commitment.is_zero() {
         return unsupported("static requirement proof output lost its exact checked realization");
     }
     let bounded_result = matches!(runtime_result, Some(ProofOutputRuntimeResult::Unit))
@@ -223,9 +218,10 @@ fn lower_static_requirement_dispatch(
     {
         return unsupported("static requirement proof output has an empty dispatch identity");
     }
-    let checked_applications = closed_conformance_applications_of(
-        &checked.machine_specializations,
+    let checked_applications = checked.typed.selected_conformance_applications(
         invocation.caller_machine_symbol,
+        dispatch.selection_application,
+        dispatch.requirement,
         dispatch.application_report_fingerprint,
         dispatch.application_commitment,
     );
@@ -234,15 +230,40 @@ fn lower_static_requirement_dispatch(
             "static requirement proof output has no unique checked conformance application",
         );
     };
-    if !checked_application.lifetime_arguments.is_empty()
-        || !checked_application.type_arguments.is_empty()
-        || !checked_application.const_arguments.is_empty()
-        || !checked_application.machine_arguments.is_empty()
+    if checked
+        .typed
+        .realization_entry_template(invocation.target_state_symbol, checked_application)
+        != Some((dispatch.realization_machine, dispatch.realization_state))
     {
         return unsupported(
-            "static requirement proof output is outside the non-generic conformance rung",
+            "static requirement proof output target does not rejoin its original schema",
         );
     }
+    let expected_telescope =
+        crate::retention::checked_application_telescope(checked, checked_application)?;
+    let mut expected_schemas = checked_application
+        .rows
+        .iter()
+        .map(|row| {
+            checked_requirement_schema(
+                identities,
+                checked,
+                row.declaring_trait,
+                row.requirement,
+                row.realization_state,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    expected_schemas.sort_by(|left, right| {
+        (
+            identities.text(left.declaring_trait_identity),
+            identities.text(left.public_requirement_identity),
+        )
+            .cmp(&(
+                identities.text(right.declaring_trait_identity),
+                identities.text(right.public_requirement_identity),
+            ))
+    });
     let declaration_identity = checked
         .symbols
         .display_path(checked_application.declaration, "::");
@@ -255,7 +276,7 @@ fn lower_static_requirement_dispatch(
         let public_requirement_identity =
             checked_evidence_requirement_identity(checked, row.declaring_trait, row.requirement)?;
         let requirement_identity = checked.symbols.display_path(row.requirement, "::");
-        for family_row in checked_requirement_family_rows(
+        for family_row in checked_static_conformance_rows(
             checked,
             row.declaring_trait,
             row.requirement,
@@ -287,7 +308,10 @@ fn lower_static_requirement_dispatch(
         .filter(|application| {
             application.owner == terminal_machine
                 && application.declaration_identity == identities.intern(&declaration_identity)
-                && application.telescope.is_empty()
+                && application.telescope == expected_telescope
+                && application.schemas == expected_schemas
+                && application.trait_lifetime_arguments
+                    == checked_application.trait_lifetime_arguments
                 && application.trait_identity == identities.intern(&trait_identity)
                 && application.trait_arguments == checked_application.trait_arguments
                 && application.rows.len() == expected_rows.len()
@@ -320,34 +344,29 @@ fn lower_static_requirement_dispatch(
             "static requirement proof output selected a different conformance trait",
         );
     }
-    // A static requirement dispatch carries no tuple coordinate, so it joins
-    // the application's nongeneric row for the requirement.
-    let mut rows = application.rows.iter().filter(|row| {
-        row.declaring_trait_identity == identities.intern(&declaring_trait_identity)
-            && row.public_requirement_identity == identities.intern(&public_requirement_identity)
-            && row.family_tuple.is_empty()
-            && row.requirement_identity == identities.intern(&requirement_identity)
-            && row.realization_identity == identities.intern(&realization_identity)
-    });
-    if rows.next().is_none() || rows.next().is_some() {
-        return unsupported(
-            "static requirement proof output lost its exact closed conformance row",
-        );
-    }
     let realization_callable_identity =
-        checked_evidence_machine_identity(checked, dispatch.realization_machine)?;
-    let mut bound_rows = application.rows.iter().filter(|row| {
-        row.declaring_trait_identity == identities.intern(&declaring_trait_identity)
-            && row.public_requirement_identity == identities.intern(&public_requirement_identity)
-            && row.family_tuple.is_empty()
-            && row.requirement_identity == identities.intern(&requirement_identity)
-            && row.realization_identity == identities.intern(&realization_identity)
-            && row.realization_callable_identity
-                == Some(identities.intern(&realization_callable_identity))
+        checked_evidence_machine_identity(checked, invocation.target_machine_symbol)?;
+    let expected_commitment = checked
+        .facts
+        .specialization_identities
+        .for_instance(invocation.target_machine_symbol)
+        .map(|identity| identity.commitment.as_bytes());
+    let expected_arguments = crate::retention::checked_method_arguments(
+        identities,
+        checked,
+        invocation.target_machine_symbol,
+    )?;
+    let mut applications = application.static_applications.iter().filter(|applied| {
+        applied.public_requirement_identity == identities.intern(&public_requirement_identity)
+            && applied.realization_identity == identities.intern(&realization_identity)
+            && applied.source_callable_identity == identities.intern(&realization_callable_identity)
+            && applied.machine == runtime_call.callee
+            && applied.application_commitment == expected_commitment
+            && applied.method_arguments == expected_arguments
     });
-    if bound_rows.next().is_none() || bound_rows.next().is_some() {
+    if applications.next().is_none() || applications.next().is_some() {
         return unsupported(
-            "static requirement proof output lost its source-callable realization binding",
+            "static requirement proof output lost its exact checked method application",
         );
     }
     let mut callables = application.realization_callables.iter().filter(|callable| {

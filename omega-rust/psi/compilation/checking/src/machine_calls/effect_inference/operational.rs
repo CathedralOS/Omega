@@ -334,6 +334,7 @@ fn collect_transition_target_expression_calls(
                     program,
                     &target_name,
                     target,
+                    SymbolHandle::invalid(),
                     *static_machine_parameter,
                     &[],
                     SymbolHandle::invalid(),
@@ -392,6 +393,11 @@ fn push_statement_call(
         program,
         call.target.as_str(),
         call.target_symbol,
+        call.static_requirement_dispatch
+            .as_ref()
+            .map_or(SymbolHandle::invalid(), |dispatch| {
+                dispatch.contract_symbol()
+            }),
         call.static_machine_parameter,
         &call.machine_arguments,
         target_operator_symbol,
@@ -508,6 +514,11 @@ fn push_expression_call(
         program,
         call.target.as_str(),
         target_state_symbol,
+        call.static_requirement_dispatch
+            .as_ref()
+            .map_or(SymbolHandle::invalid(), |dispatch| {
+                dispatch.contract_symbol()
+            }),
         call.static_machine_parameter,
         &call.machine_arguments,
         target_operator_symbol,
@@ -523,6 +534,7 @@ fn push_call(
     program: &dyn crate::CheckingInput,
     target_name: &str,
     target_state_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
     static_machine_parameter: SymbolHandle,
     static_machine_arguments: &[typed_trees::expression::StaticMachineArgument],
     target_operator_symbol: SymbolHandle,
@@ -537,7 +549,13 @@ fn push_call(
     let direct = program
         .retained_static_machine_contract(static_machine_parameter)
         .map(|contract| signature_operational(program, contract.signature()))
-        .unwrap_or_else(|| signature_effects.for_symbol(target_state_symbol));
+        .unwrap_or_else(|| {
+            signature_effects.for_symbol(if requirement_symbol.is_valid() {
+                requirement_symbol
+            } else {
+                target_state_symbol
+            })
+        });
     calls.push(CallWork {
         statement_index,
         call_ordinal: *call_ordinal,

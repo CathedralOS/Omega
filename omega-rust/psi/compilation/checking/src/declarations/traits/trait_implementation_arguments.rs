@@ -195,6 +195,7 @@ pub(super) fn validate_trait_implementation_application(
             program,
             bound,
             *argument,
+            definition.symbol,
             owner,
             &[AppliedTypeIdentityScope {
                 declaration: definition.symbol,
@@ -214,6 +215,7 @@ fn validate_binding(
     program: &dyn crate::CheckingInput,
     bound: &GenericConformanceBound,
     argument: TypeReferenceHandle,
+    receiving_owner: SymbolHandle,
     owner: SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Result<(), String> {
@@ -224,16 +226,25 @@ fn validate_binding(
         return Err("expected an explicitly named implementation, not a data argument".to_owned());
     }
     let carrier = super::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
-    let expected_arguments = applied_bound_argument_identities(program, bound, owner, scopes)
-        .ok_or_else(|| "implementation slot has incomplete applied argument identity".to_owned())?;
+    let expected_arguments =
+        applied_bound_argument_identities(program, bound, receiving_owner, owner, scopes)
+            .ok_or_else(|| {
+                "implementation slot has incomplete applied argument identity".to_owned()
+            })?;
     if program.symbols.get(selected.symbol).kind == SymbolKind::ConformanceParameter {
         return super::conformance_applications::validate_forwarded_argument(
             program,
             bound,
             &selected,
             |actual| {
-                applied_bound_argument_identities(program, actual, owner, &[])
-                    .is_some_and(|actual| actual == expected_arguments)
+                applied_bound_argument_identities(
+                    program,
+                    actual,
+                    program.symbols.get(actual.binder).parent,
+                    owner,
+                    &[],
+                )
+                .is_some_and(|actual| actual == expected_arguments)
             },
         );
     }
@@ -269,6 +280,7 @@ fn validate_binding(
         program
             .type_reference_table
             .type_reference_handles(implementation.arguments),
+        implementation.symbol,
         owner,
         &[AppliedTypeIdentityScope {
             declaration: implementation.symbol,

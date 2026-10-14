@@ -31,6 +31,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod closed_dispatch;
 pub use closed_dispatch::closed_requirement_dispatch_is_valid;
+pub(crate) use closed_dispatch::{capture_binding_is_exact, conformance_binding_is_exact};
 mod argument_bounds;
 mod call_gates;
 pub(crate) mod dynamic_requirement;
@@ -509,6 +510,16 @@ pub(crate) fn validate_call_arguments(
         let slot_context = format!("argument `{}` for state `{argument_scope}`", parameter.name);
 
         if !type_matches(*argument, parameter.type_reference) {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "ARGUMENT_MISMATCH caller={} scope={} target={} formal={} actual={}",
+                    current_machine.name,
+                    argument_scope,
+                    target_name,
+                    expected_type,
+                    expression_type_name_handle(program, *argument)
+                );
+            }
             diagnostics.push(Diagnostic::error(format!(
                 "argument `{}` for state `{}` expects `{}`, got `{}`",
                 parameter.name,
@@ -662,6 +673,25 @@ fn validate_value_call_arguments(
     // Reject incomplete bindings before type substitution or precondition
     // instantiation can zip arguments against the declared parameters.
     let parameters = program.state_parameters(callee_state);
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+        && program
+            .typed_program()
+            .callable_body_has_open_parameters(callee_machine)
+        && !program
+            .typed_program()
+            .callable_body_has_open_parameters(current_machine)
+    {
+        eprintln!(
+            "OPEN_CALLEE caller={} callee={} entry={} static={:?} retained={:?}",
+            current_machine.name,
+            callee_machine.name,
+            callee_state.name,
+            static_arguments,
+            program
+                .typed_program()
+                .executable_application_template(callee_machine.symbol)
+        );
+    }
     if report_callable_argument_count_mismatch(
         callee_state.name.as_str(),
         parameters.len(),

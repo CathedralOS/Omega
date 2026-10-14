@@ -37,7 +37,9 @@ use validation::contract_identities::{accepted_template_commitment, normalized_m
 
 mod applications;
 mod candidate;
+mod captured_rows;
 mod contextual_calls;
+mod provider_tuple_closure;
 mod selection;
 pub(crate) use selection::infer_static_bindings;
 
@@ -191,6 +193,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
 ) -> Result<typed_trees::references::DeclarationSelection, Vec<Diagnostic>> {
     let mut changed_owners = Vec::new();
     loop {
+        crate::conformance::explicit_requirement_calls::refresh_occurrence_selections(program)?;
         // Provider clones may restore old inferred types even when this round
         // discovers no further ordinary specialization.
         let unavailable = crate::constructed_results::retain_constructed_result_types(program);
@@ -200,9 +203,16 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         crate::preparation::elaborate_projected_receivers(program)?;
         changed_owners.extend(contextual_calls::close(program)?);
         crate::constructed_results::retain_constructed_result_types(program);
+        contextual_calls::prepare_conformance_machine_demands(program)?;
+        let captured_owners = captured_rows::close(program)?;
+        let captures_changed = !captured_owners.is_empty();
+        changed_owners.extend(captured_owners);
         let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);
         if candidates.is_empty() {
+            if captures_changed {
+                continue;
+            }
             return Ok(typed_trees::references::DeclarationSelection::from_symbols(
                 changed_owners,
             ));
@@ -236,7 +246,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             &selections,
         )?);
         let mut diagnostics = Vec::new();
-        let mut applied_any = false;
+        let mut applied_any = captures_changed;
         for (candidate_index, candidate) in candidates.iter().enumerate() {
             // Open callers keep their symbolic applications. Concrete applications
             // of the same template are independent tuples, never evidence with

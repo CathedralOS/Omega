@@ -301,11 +301,14 @@ pub struct ProofOutputCallFact {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct StaticRequirementDispatchFact {
+    pub selection_application: typed_trees::static_applications::StaticMachineApplicationHandle,
     /// Compact report coordinate; authority uses `application_commitment`.
     pub application_report_fingerprint: u64,
     pub application_commitment: typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
     pub declaring_trait: SymbolHandle,
     pub requirement: SymbolHandle,
+    /// Exact applied public signature, independent of the original schema key.
+    pub contract_signature: SymbolHandle,
     pub realization_machine: SymbolHandle,
     pub realization_state: SymbolHandle,
 }

@@ -82,7 +82,7 @@ impl CallableApplication {
                     .filter(|lifetime| !self.elided_lifetimes.contains(lifetime))
                     .map(|lifetime| self.scoped_lifetime(program, original, lifetime))
                     .transpose()?;
-                if let Some((_, region)) = &lifetime
+                if let Some((_, region, _)) = &lifetime
                     && region.declaration.is_valid()
                 {
                     applied_owner = region.declaration;
@@ -90,7 +90,7 @@ impl CallableApplication {
                 types::TypeReferenceNode::Reference {
                     referee: self.type_reference(program, referee)?,
                     access,
-                    lifetime: lifetime.map(|(name, _)| name),
+                    lifetime: lifetime.map(|(name, _, _)| name),
                 }
             }
             types::TypeReferenceNode::Constrained {
@@ -211,12 +211,28 @@ impl CallableApplication {
                     .map(|lifetime| self.scoped_lifetime(program, original, lifetime))
                     .collect::<Result<Vec<_>, _>>()?;
                 if let Some((environment, _)) = &self.trait_region_application {
-                    let owner = if applied_owner.is_valid() {
+                    let captured = lifetimes.iter().any(|(_, _, substituted)| *substituted);
+                    if captured
+                        && lifetimes
+                            .iter()
+                            .any(|(_, region, _)| !region.declaration.is_valid())
+                    {
+                        return Err(
+                            "applied nominal regions have no complete represented supplying telescope",
+                        );
+                    }
+                    // A proven receiving-frame substitution moves the whole
+                    // nominal operand to its exact supplier. Unrelated owned
+                    // operands retain their original scope. Every region must
+                    // still rejoin its declaration/ordinal under that scope.
+                    let owner = if captured {
+                        environment.argument_owner()
+                    } else if applied_owner.is_valid() {
                         applied_owner
                     } else {
                         environment.argument_owner()
                     };
-                    for (name, region) in &lifetimes {
+                    for (name, region, _) in &lifetimes {
                         if region.declaration.is_valid()
                             && crate::type_identity::lifetime_parameter_identity(
                                 program,
@@ -231,7 +247,7 @@ impl CallableApplication {
                     }
                     if lifetimes
                         .iter()
-                        .any(|(_, region)| region.declaration.is_valid())
+                        .any(|(_, region, _)| region.declaration.is_valid())
                     {
                         applied_owner = owner;
                     }
@@ -239,7 +255,7 @@ impl CallableApplication {
                 types::TypeReferenceNode::Generic {
                     base_symbol: self.symbol(base_symbol),
                     base_name,
-                    lifetime_arguments: lifetimes.into_iter().map(|(name, _)| name).collect(),
+                    lifetime_arguments: lifetimes.into_iter().map(|(name, _, _)| name).collect(),
                     arguments: self.type_arguments(program, arguments)?,
                 }
             }

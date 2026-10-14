@@ -1,0 +1,12 @@
+// Expected exit: 0. Exact captured callable admission.
+trait Identity<Value> { machine keep(value: Value) -> Value blocks; }
+Selected<Value, machine Callback> satisfies Identity<Value>
+where machine Callback(value: Value) -> Value;
+{ machine keep(value: Value) -> Value { Callback(value) } }
+machine read<Value>(value: Value) -> Value { value }
+machine choose<Operations satisfies Identity<i32>>(value: i32) -> i32 blocks; { block Operations::keep(value) }
+machine main() blocks; crashes Trap {
+ let observed: i32 = block choose<Selected<i32, read<i32>>>(83);
+ transition observed == 83 { true -> done() _ -> bad() }
+ state done() {} state bad() { crash Trap; }
+}

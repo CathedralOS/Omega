@@ -28,7 +28,7 @@ pub enum CallSite<'program> {
     },
 }
 
-impl CallSite<'_> {
+impl<'program> CallSite<'program> {
     /// A named edge is an internal arrival only when its exact target is a
     /// state owned by this invocation. A machine target remains an invocation,
     /// including a normalized recursive tail call; syntax and marker bits do
@@ -46,7 +46,7 @@ impl CallSite<'_> {
 
     pub fn static_requirement_dispatch(
         &self,
-    ) -> Option<&typed_trees::typed_trees::StaticRequirementDispatch> {
+    ) -> Option<&'program typed_trees::typed_trees::StaticRequirementDispatch> {
         match self {
             Self::Statement(call) => call.static_requirement_dispatch.as_ref(),
             Self::Expression { call, .. } => call.static_requirement_dispatch.as_ref(),

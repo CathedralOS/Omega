@@ -73,6 +73,10 @@ pub(super) fn clone_single_specialized_machine(
     ordinal: usize,
     normalized_template_identity: String,
     accepted_template_commitment: Option<String>,
+    capture: Option<(
+        &typed_trees::typed_trees::ClosedConformanceApplication,
+        typed_trees::static_applications::StaticMachineApplicationHandle,
+    )>,
 ) -> Result<Vec<(SymbolHandle, SymbolHandle)>, Vec<Diagnostic>> {
     // Closure derives the record needed by executable substitution. Fitting
     // that record to the original binder is immutable checking's judgment.
@@ -139,6 +143,22 @@ pub(super) fn clone_single_specialized_machine(
         &generated_name,
     );
 
+    let invocation_binders = if capture.is_some() {
+        source
+            .unwrap_or(program)
+            .machine_type_parameters(&source_machine)
+            .iter()
+            .map(|parameter| {
+                (
+                    parameter.symbol,
+                    source.unwrap_or(program).symbols.get(parameter.symbol).kind,
+                    parameter.name.as_str().to_owned(),
+                )
+            })
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
     let machine_children = program.symbols.insert_generated_children_from(
         machine_symbol,
         source_owned
@@ -148,6 +168,24 @@ pub(super) fn clone_single_specialized_machine(
                 source_states
                     .iter()
                     .map(|state| (state.symbol, SymbolKind::State, state.name.as_str())),
+            )
+            .chain(
+                invocation_binders
+                    .iter()
+                    .map(|(symbol, kind, name)| (*symbol, *kind, name.as_str())),
+            )
+            .chain(
+                source_machine
+                    .conformance_bounds
+                    .iter()
+                    .filter(|_| capture.is_some())
+                    .map(|bound| {
+                        (
+                            bound.binder,
+                            SymbolKind::ConformanceParameter,
+                            bound.binder_name.as_str(),
+                        )
+                    }),
             ),
     );
     let machine_children: Vec<SymbolHandle> =
@@ -165,6 +203,49 @@ pub(super) fn clone_single_specialized_machine(
         .map(|state| (state.symbol, next_child.next().expect("state clone symbol")))
         .collect();
     symbol_map.extend(state_symbols.iter().copied());
+
+    // The method's invocation namespace remains a separate child telescope.
+    if capture.is_some() {
+        for parameter in source
+            .unwrap_or(program)
+            .machine_type_parameters(&source_machine)
+        {
+            symbol_map.push((
+                parameter.symbol,
+                next_child.next().expect("method binder clone symbol"),
+            ));
+        }
+        for bound in &source_machine.conformance_bounds {
+            let fresh = next_child.next().expect("method evidence clone symbol");
+            symbol_map.push((bound.binder, fresh));
+            let children = source
+                .unwrap_or(program)
+                .symbols
+                .child_handles(bound.binder)
+                .into_iter()
+                .flatten()
+                .map(|child| {
+                    (
+                        child,
+                        source.unwrap_or(program).symbols.get(child).kind,
+                        source.unwrap_or(program).symbols.name(child).to_owned(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let copied = program.symbols.insert_generated_children_from(
+                fresh,
+                children
+                    .iter()
+                    .map(|(child, kind, name)| (*child, *kind, name.as_str())),
+            );
+            symbol_map.extend(
+                children
+                    .iter()
+                    .map(|(child, _, _)| *child)
+                    .zip(symbols::SymbolTableBuilder::child_handles(copied)),
+            );
+        }
+    }
 
     // A `Value` binder bound to a runtime argument is realized as an ordinary
     // trailing parameter on every cloned state: executable occurrences remap
@@ -263,7 +344,29 @@ pub(super) fn clone_single_specialized_machine(
         cloned.attached_data = None;
         cloned.attached_data_symbol = SymbolHandle::invalid();
     }
-    cloned.type_parameters = HandleSpan::empty();
+    cloned.type_parameters = if capture.is_some() {
+        let parameters = source
+            .unwrap_or(program)
+            .machine_type_parameters(&source_machine)
+            .to_vec();
+        let parameters = parameters
+            .into_iter()
+            .map(|mut parameter| {
+                parameter.symbol = remapped_symbol(parameter.symbol, &symbol_map);
+                parameter.kind = program
+                    .copy_callable_parameter_kind(
+                        parameter.kind,
+                        &symbol_map,
+                        source_machine.symbol,
+                    )
+                    .map_err(|message| vec![Diagnostic::error(message)])?;
+                Ok(parameter)
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        program.data_type_parameters.insert_many(parameters)
+    } else {
+        HandleSpan::empty()
+    };
     // A newly concrete attachment owns concrete field identities. Its old
     // generic application cannot be used to project those fields. Otherwise
     // copy the retained application into the same substitution watermark as
@@ -279,7 +382,16 @@ pub(super) fn clone_single_specialized_machine(
         } else {
             TypeReferenceHandle::invalid()
         };
-    cloned.conformance_bounds.clear();
+    if capture.is_none() {
+        cloned.conformance_bounds.clear();
+    } else {
+        for bound in &mut cloned.conformance_bounds {
+            bound.binder = remapped_symbol(bound.binder, &symbol_map);
+            for argument in &mut bound.arguments {
+                *argument = copy_type_reference(source, program, *argument, &symbol_map);
+            }
+        }
+    }
     cloned.owned_data = HandleSpan::empty();
     cloned.satisfies = HandleSpan::empty();
     cloned.invokes = HandleSpan::empty();
@@ -535,6 +647,106 @@ pub(super) fn clone_single_specialized_machine(
         }
     }
     copy_cloned_expression_type_payloads(source, program, expression_start, &symbol_map);
+    // Publish the exact authored derivation before applying copied regions.
+    // Type payloads already name the fresh instance, whose source telescope
+    // must be rejoined even while its body is still under construction. This
+    // relation is preparation data; immutable checking still admits its tuple.
+    if let Some((application, supplying_application)) = capture {
+        let retained = program
+            .expression_table
+            .static_machine_application_mut(candidate.binding_application);
+        retained.registration_operation = application.declaration;
+        retained.binding_declaration = application.declaration;
+        let states = program
+            .captured_machine_states
+            .insert_many(state_symbols.iter().map(|(template, instance)| {
+                typed_trees::typed_trees::CapturedMachineState {
+                    template: *template,
+                    instance: *instance,
+                }
+            }));
+        program.captured_machine_applications.insert(
+            typed_trees::typed_trees::CapturedMachineApplication {
+                template: source_machine.symbol,
+                instance: cloned.symbol,
+                binding_application: candidate.binding_application,
+                supplying_application,
+                conformance_application: application.clone(),
+                normalized_template_identity: normalized_template_identity.clone(),
+                accepted_template_commitment: accepted_template_commitment.clone(),
+                states,
+            },
+        );
+    }
+    if let Some((application, supplying_application)) =
+        capture.filter(|(application, _)| !application.lifetime_arguments.is_empty())
+    {
+        let owner = program
+            .expression_table
+            .static_machine_application(supplying_application)
+            .lexical_owner;
+        let arguments = application
+            .arguments
+            .iter()
+            .map(|argument| program.static_operand_type_reference_in_scope(argument, owner))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        let lifetimes = application
+            .lifetime_arguments
+            .iter()
+            .map(typed_trees::name::Identifier::generated)
+            .collect::<Vec<_>>();
+        let selecting = program
+            .conformance_by_symbol(application.declaration)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "capture application lost its selecting declaration",
+                )]
+            })?;
+        let scope = typed_trees::trait_definition::AppliedTraitScope::from_conformance_application(
+            program,
+            selecting,
+            typed_trees::trait_definition::TraitApplicationArguments {
+                lexical_owner: owner,
+                enclosing_data_applications: &[],
+                arguments: &arguments,
+                lifetimes: &lifetimes,
+            },
+        )
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "capture application has no complete supplying scope",
+            )]
+        })?;
+        let environment = scope.environment();
+        let references = program
+            .type_reference_table
+            .references()
+            .filter(|(handle, _)| handle.arena_index() as usize >= type_start)
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        for reference in references {
+            let applied = program
+                .apply_captured_callable_type(
+                    reference,
+                    &environment,
+                    &source_machine.lifetime_parameters,
+                    source_machine.symbol,
+                )
+                .map_err(|message| {
+                    vec![Diagnostic::error(format!(
+                        "captured region application for `{}` type `{}` supplied by `{}` (copied region owner `{}`): {message}",
+                        source_machine.name, program.display_type_reference(reference),
+                        program.symbols.display_path(owner, "::"),
+                        program.symbols.display_path(program.type_reference_table.operand_lifetime_owner(reference), "::")
+                    ))]
+                })?;
+            program
+                .type_reference_table
+                .substitute_from(reference, applied)
+                .map_err(|message| vec![Diagnostic::error(message)])?;
+        }
+    }
     let cloned_expression_roots = cloned_expression_roots(program, &cloned);
     const_values::substitute(
         program,
@@ -625,34 +837,42 @@ pub(super) fn clone_single_specialized_machine(
     validation::resolve_selected_dynamic_call_targets(program, &instance)?;
     let operator_realizations = closed_operator_realizations_for_machine(program, instance_symbol)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let binding_application =
-        super::applications::retain_instance(source, program, candidate, instance_symbol);
-    program
-        .machine_specializations
-        .push(typed_trees::typed_trees::MachineSpecialization {
-            template: candidate.template.template_symbol,
-            instance: instance_symbol,
-            template_parameters: source_machine.type_parameters,
-            binding_application,
-            type_arguments,
-            const_arguments,
-            type_argument_identities: type_identities,
-            const_argument_identities: const_identities,
-            machine_arguments: candidate
-                .machine_bindings
-                .iter()
-                .map(|binding| binding.as_ref().expect("complete specialization").symbol)
-                .collect(),
-            conformance_arguments: candidate
-                .evidence_bindings
-                .iter()
-                .map(|binding| binding.as_ref().expect("complete specialization").symbol)
-                .collect(),
-            conformance_applications,
-            operator_realizations,
-            normalized_template_identity,
-            accepted_template_commitment,
-        });
+    let binding_application = if capture.is_some() {
+        // The capture producer retained the original map operands and the
+        // admitted executable callback roster independently. Reconstructing
+        // it from the executable candidate would erase that source custody.
+        candidate.binding_application
+    } else {
+        super::applications::retain_instance(source, program, candidate, instance_symbol)
+    };
+    if capture.is_none() {
+        program
+            .machine_specializations
+            .push(typed_trees::typed_trees::MachineSpecialization {
+                template: candidate.template.template_symbol,
+                instance: instance_symbol,
+                template_parameters: source_machine.type_parameters,
+                binding_application,
+                type_arguments,
+                const_arguments,
+                type_argument_identities: type_identities,
+                const_argument_identities: const_identities,
+                machine_arguments: candidate
+                    .machine_bindings
+                    .iter()
+                    .map(|binding| binding.as_ref().expect("complete specialization").symbol)
+                    .collect(),
+                conformance_arguments: candidate
+                    .evidence_bindings
+                    .iter()
+                    .map(|binding| binding.as_ref().expect("complete specialization").symbol)
+                    .collect(),
+                conformance_applications,
+                operator_realizations,
+                normalized_template_identity,
+                accepted_template_commitment,
+            });
+    }
 
     // Exact type/const/evidence substitution and retained tuple copying are
     // complete. Publish canonical domain identities with the whole instance,

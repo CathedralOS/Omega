@@ -70,7 +70,10 @@ pub(crate) fn names_any(
         .any(|symbol| symbols.contains(symbol))
 }
 
-pub(super) fn is_open(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+pub(in crate::monomorphization) fn is_open(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
     let references = collect(program, reference);
     references.symbols.iter().any(|symbol| {
         symbol.is_valid()

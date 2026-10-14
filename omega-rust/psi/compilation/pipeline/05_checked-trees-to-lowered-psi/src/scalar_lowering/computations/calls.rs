@@ -208,10 +208,12 @@ impl Expansion<'_> {
                         == dispatch.application_report_fingerprint
                     && fact.declaring_trait == dispatch.declaring_trait
                     && fact.requirement == dispatch.requirement
+                    && fact.contract_signature == dispatch.contract_signature
                     && fact.realization_machine == dispatch.realization_machine
                     && fact.realization_state == dispatch.realization_state
-                    && callee.static_target()
-                        == Some((fact.realization_machine, fact.realization_state))
+                    && callee
+                        .static_target()
+                        .is_some_and(|(_, state)| state == source.target_symbol)
                     && matches!(callee, checked_trees::CheckedScalarCallee::Body { .. })
                     && validation::closed_requirement_dispatch_is_valid(
                         &self.checked.typed,

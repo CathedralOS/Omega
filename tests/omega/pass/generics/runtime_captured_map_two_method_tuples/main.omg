@@ -1,0 +1,15 @@
+trait Choice { machine pick<const Output: i32>() -> i32 blocks; }
+Selected<const Output: i32> satisfies Choice {
+    machine pick<const Output: i32>() -> i32 { Output }
+}
+machine choose<Operations satisfies Choice, const Own: i32>() -> i32 blocks; {
+    block Operations::pick<Own>()
+}
+// Expected exit: 0. Both distinct invocation tuples observe their own binder.
+machine main() blocks; crashes Trap {
+    let first: i32 = block choose<Selected<7>, 2>();
+    let second: i32 = block choose<Selected<7>, 4>();
+    transition first == 2 && second == 4 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

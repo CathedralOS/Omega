@@ -16,12 +16,10 @@ pub(crate) fn lower_closed_conformance_applications(
     module: &mut TerminalModule,
 ) -> Result<(), LoweringError> {
     let carries_applications = checked
-        .machine_specializations
-        .iter()
-        .any(|specialization| {
-            source_machines.contains(&specialization.instance)
-                && !specialization.conformance_applications.is_empty()
-        });
+        .typed
+        .closed_conformance_application_sites()
+        .into_iter()
+        .any(|(_, owner, _, _)| source_machines.contains(&owner));
     if !carries_applications {
         module.closed_conformance_applications.clear();
         return Ok(());
@@ -35,7 +33,7 @@ pub(crate) fn lower_closed_conformance_applications(
     let owners = source_machines
         .iter()
         .zip(&module.machines)
-        .map(|(source, terminal)| (*source, terminal.id))
+        .map(|(source, terminal)| (*source, terminal.id, &terminal.result))
         .collect::<Vec<_>>();
     module.closed_conformance_applications =
         collect_closed_conformance_applications(identities, checked, &owners, &[])?;
@@ -45,180 +43,347 @@ pub(crate) fn lower_closed_conformance_applications(
 fn collect_closed_conformance_applications(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    owners: &[(symbols::SymbolHandle, semantic_vocabulary::MachineId)],
+    owners: &[(
+        symbols::SymbolHandle,
+        semantic_vocabulary::MachineId,
+        &terminal_psi::TerminalMachineResult,
+    )],
     excluded_sources: &[symbols::SymbolHandle],
 ) -> Result<Vec<ClosedConformanceApplication>, LoweringError> {
     let mut applications = Vec::new();
-    for specialization in &checked.machine_specializations {
-        if excluded_sources.contains(&specialization.instance) {
+    let selected_applications = checked
+        .typed
+        .closed_conformance_application_sites()
+        .into_iter()
+        .map(|(_, owner, _, application)| (owner, application));
+    for (source_owner, application) in selected_applications {
+        if excluded_sources.contains(&source_owner) {
             continue;
         }
-        let Some((_, owner)) = owners
-            .iter()
-            .find(|(source, _)| *source == specialization.instance)
+        let Some((_, owner, _)) = owners.iter().find(|(source, _, _)| *source == source_owner)
         else {
             continue;
         };
-        for application in &specialization.conformance_applications {
-            let selected = checked
-                .conformance_by_symbol(application.declaration)
-                .ok_or(LoweringError::Unsupported(
-                    "closed conformance application lost its declaration",
-                ))?;
-            let selected_rows = selected.rows.as_slice();
-            let mut realization_callables = checked
-                .facts
-                .proof
-                .proof_output_calls
-                .iter()
-                .filter_map(|(_, invocation)| {
-                    (invocation.caller_machine_symbol == specialization.instance)
-                        .then_some(invocation.static_requirement_dispatch?)
-                })
-                .filter(|dispatch| {
-                    dispatch.application_report_fingerprint == application.report_fingerprint
-                        && dispatch.application_commitment == application.commitment
-                })
-                .map(|dispatch| {
-                    let selected_row = selected_rows
-                        .iter()
-                        .find(|row| {
-                            row.declaring_trait == dispatch.declaring_trait
-                                && row.requirement == dispatch.requirement
-                                && row.realization_machine == dispatch.realization_machine
-                                && row.realization_state == dispatch.realization_state
-                        })
-                        .ok_or(LoweringError::Unsupported(
-                            "static conformance dispatch lost its normalized row",
-                        ))?;
-                    let machine = owners
-                        .iter()
-                        .find_map(|(source, terminal)| {
-                            (*source == selected_row.realization_machine).then_some(*terminal)
-                        })
-                        .ok_or(LoweringError::Unsupported(
-                            "static conformance realization is absent from the Terminal closure",
-                        ))?;
-                    let realization_state = checked
-                        .typed
-                        .machines()
-                        .iter()
-                        .flat_map(|machine| checked.typed.machine_states(machine))
-                        .find(|state| state.symbol == selected_row.realization_state)
-                        .ok_or(LoweringError::Unsupported(
-                            "static conformance realization state is absent",
-                        ))?;
-                    let requirements = checked
-                        .typed
-                        .trait_definition_by_symbol(dispatch.declaring_trait)
-                        .map(|definition| {
-                            checked
-                                .typed
-                                .trait_machine_signatures(definition)
-                                .iter()
-                                .filter(|requirement| requirement.symbol == dispatch.requirement)
-                                .collect::<Vec<_>>()
-                        })
-                        .ok_or(LoweringError::Unsupported(
-                            "static conformance requirement is absent",
-                        ))?;
-                    let [requirement] = requirements.as_slice() else {
-                        return Err(LoweringError::Unsupported(
-                            "static conformance requirement is absent or ambiguous",
-                        ));
-                    };
-                    let classify = |return_type: checked_trees::types::TypeReferenceHandle| {
-                        if !return_type.is_valid() {
-                            return Ok(ClosedConformanceCallableResult::Unit);
-                        }
-                        match checked.typed.primitive_type_reference(return_type) {
-                            Some(super::PrimitiveType::I32) => {
-                                Ok(ClosedConformanceCallableResult::I32)
-                            }
-                            Some(super::PrimitiveType::Bool) => {
-                                Ok(ClosedConformanceCallableResult::Bool)
-                            }
-                            _ => Err(LoweringError::Unsupported(
-                                "static conformance callable has an unsupported result class",
-                            )),
-                        }
-                    };
-                    let result = classify(realization_state.return_type)?;
-                    if classify(requirement.return_type)? != result {
-                        return Err(LoweringError::Unsupported(
-                            "static conformance requirement and realization result classes differ",
-                        ));
+        let selected = checked
+            .conformance_by_symbol(application.declaration)
+            .ok_or(LoweringError::Unsupported(
+                "closed conformance application lost its declaration",
+            ))?;
+        let selected_rows = selected.rows.as_slice();
+        let realized_calls = checked_static_dispatches(checked, source_owner)?;
+        let telescope = checked_application_telescope(checked, application)?;
+        let mut selected_calls = Vec::new();
+        for (invocation, dispatch) in &realized_calls {
+            if dispatch.application_report_fingerprint != application.report_fingerprint
+                || dispatch.application_commitment != application.commitment
+            {
+                continue;
+            }
+            // Canonical records combine equivalent tuples, but each executable
+            // still rejoins its own exact Source occurrence. Raw type arenas
+            // are not interchangeable between independently authored calls.
+            let selected = checked.typed.selected_conformance_applications(
+                source_owner,
+                dispatch.selection_application,
+                dispatch.requirement,
+                dispatch.application_report_fingerprint,
+                dispatch.application_commitment,
+            );
+            let [source_application] = selected.as_slice() else {
+                return Err(LoweringError::Unsupported(
+                    "static conformance call lost its unique source application",
+                ));
+            };
+            if source_application.declaration != application.declaration
+                || source_application.lifetime_arguments != application.lifetime_arguments
+                || source_application.trait_definition != application.trait_definition
+                || source_application.trait_lifetime_arguments
+                    != application.trait_lifetime_arguments
+                || source_application.trait_arguments != application.trait_arguments
+                || source_application.rows != application.rows
+                || checked_application_telescope(checked, source_application)? != telescope
+            {
+                continue;
+            }
+            selected_calls.push((invocation, dispatch, *source_application));
+        }
+        let realization_callables = selected_calls
+            .into_iter()
+            .map(|(invocation, dispatch, source_application)| {
+                let selected_row = selected_rows
+                    .iter()
+                    .find(|row| {
+                        row.declaring_trait == dispatch.declaring_trait
+                            && row.requirement == dispatch.requirement
+                            && row.realization_machine == dispatch.realization_machine
+                            && row.realization_state == dispatch.realization_state
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "static conformance dispatch lost its normalized row",
+                    ))?;
+                if checked
+                    .typed
+                    .realization_entry_template(invocation.state, source_application)
+                    != Some((
+                        selected_row.realization_machine,
+                        selected_row.realization_state,
+                    ))
+                {
+                    return Err(LoweringError::Unsupported(
+                        "static conformance executable does not rejoin its original schema",
+                    ));
+                }
+                let machine = owners
+                    .iter()
+                    .find_map(|(source, terminal, _)| {
+                        (*source == invocation.machine).then_some(*terminal)
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "static conformance realization is absent from the Terminal closure",
+                    ))?;
+                let realization_state = checked
+                    .typed
+                    .machines()
+                    .iter()
+                    .flat_map(|machine| checked.typed.machine_states(machine))
+                    .find(|state| state.symbol == invocation.state)
+                    .ok_or(LoweringError::Unsupported(
+                        "static conformance realization state is absent",
+                    ))?;
+                let requirements = checked
+                    .typed
+                    .trait_definition_by_symbol(dispatch.declaring_trait)
+                    .map(|definition| {
+                        checked
+                            .typed
+                            .trait_machine_signatures(definition)
+                            .iter()
+                            .filter(|requirement| requirement.symbol == dispatch.requirement)
+                            .collect::<Vec<_>>()
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "static conformance requirement is absent",
+                    ))?;
+                let [requirement] = requirements.as_slice() else {
+                    return Err(LoweringError::Unsupported(
+                        "static conformance requirement is absent or ambiguous",
+                    ));
+                };
+                let emitted_result = owners
+                    .iter()
+                    .find(|(source, _, _)| *source == invocation.machine)
+                    .map(|(_, _, result)| *result)
+                    .ok_or(LoweringError::Unsupported(
+                        "static conformance lost its emitted result signature",
+                    ))?;
+                let classify = |return_type: checked_trees::types::TypeReferenceHandle| {
+                    if !return_type.is_valid() {
+                        return Ok(ClosedConformanceCallableResult::Unit);
                     }
-                    Ok(ClosedConformanceRealizationCallable {
+                    if let Some(primitive) = checked.typed.primitive_type_reference(return_type) {
+                        return super::terminal_scalar_type(primitive)
+                            .map(ClosedConformanceCallableResult::Scalar);
+                    }
+                    match emitted_result {
+                        terminal_psi::TerminalMachineResult::Structural(result) => Ok(
+                            ClosedConformanceCallableResult::Structural(result.structural_type),
+                        ),
+                        _ => Err(LoweringError::Unsupported(
+                            "structured conformance result has no emitted structural signature",
+                        )),
+                    }
+                };
+                let result = classify(realization_state.return_type)?;
+                let public_signature = if dispatch.contract_signature.is_valid() {
+                    &checked
+                        .typed
+                        .closed_requirement_application(dispatch.contract_signature)
+                        .ok_or(LoweringError::Unsupported(
+                            "static conformance lost its applied public signature",
+                        ))?
+                        .signature
+                } else {
+                    let scope = source_application
+                        .trait_scope
+                        .scope(&checked.typed)
+                        .and_then(|scope| {
+                            scope.declaring_scope(&checked.typed, dispatch.declaring_trait)
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "static conformance lost its exact declaring trait application",
+                        ))?;
+                    checked
+                        .typed
+                        .applied_callable_signature(&scope, dispatch.requirement)
+                        .or_else(|| {
+                            (scope.substitutions.is_empty()
+                                && scope.declaration.lifetime_parameters.is_empty())
+                            .then_some(*requirement)
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "static conformance lost its applied public callable signature",
+                        ))?
+                };
+                let public_return =
+                    checked_method_return_reference(checked, public_signature, invocation.machine)?;
+                if classify(public_return)? != result {
+                    return Err(LoweringError::Unsupported(
+                        "static conformance requirement and realization result classes differ",
+                    ));
+                }
+                let source_callable_identity = identities.intern(
+                    &super::evidence_lowering::checked_evidence_machine_identity(
+                        checked,
+                        invocation.machine,
+                    )?,
+                );
+                let applied = terminal_psi::ClosedConformanceStaticApplication {
+                    public_requirement_identity: identities.intern(
+                        &super::evidence_lowering::checked_evidence_requirement_identity(
+                            checked,
+                            dispatch.declaring_trait,
+                            dispatch.requirement,
+                        )?,
+                    ),
+                    realization_identity: identities.intern(
+                        &checked
+                            .symbols
+                            .display_path(selected_row.realization_state, "::"),
+                    ),
+                    source_callable_identity,
+                    machine,
+                    application_commitment: checked
+                        .facts
+                        .specialization_identities
+                        .for_instance(invocation.machine)
+                        .map(|identity| identity.commitment.as_bytes()),
+                    method_arguments: checked_method_arguments(
+                        identities,
+                        checked,
+                        invocation.machine,
+                    )?,
+                };
+                Ok((
+                    ClosedConformanceRealizationCallable {
                         source_callable_identity: identities.intern(
                             &super::evidence_lowering::checked_evidence_machine_identity(
                                 checked,
-                                selected_row.realization_machine,
+                                invocation.machine,
                             )?,
                         ),
                         machine,
                         result,
-                    })
+                    },
+                    applied,
+                ))
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let (mut realization_callables, mut static_applications): (Vec<_>, Vec<_>) =
+            realization_callables.into_iter().unzip();
+        let table = identities.snapshot();
+        let mut keyed = static_applications
+            .into_iter()
+            .map(|row| {
+                terminal_semantics::closed_conformances::static_application_order_key(&table, &row)
+                    .map(|key| (key, row))
+                    .map_err(LoweringError::Unsupported)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        keyed.sort_by(|left, right| left.0.cmp(&right.0));
+        keyed.dedup_by(|left, right| left.0 == right.0);
+        static_applications = keyed.into_iter().map(|(_, row)| row).collect();
+        let mut schemas = application
+            .rows
+            .iter()
+            .map(|row| {
+                super::evidence_lowering::checked_requirement_schema(
+                    identities,
+                    checked,
+                    row.declaring_trait,
+                    row.requirement,
+                    row.realization_state,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        schemas.sort_by(|left, right| {
+            (
+                identities.text(left.declaring_trait_identity),
+                identities.text(left.public_requirement_identity),
+            )
+                .cmp(&(
+                    identities.text(right.declaring_trait_identity),
+                    identities.text(right.public_requirement_identity),
+                ))
+        });
+        if schemas.windows(2).any(|pair| {
+            pair[0].declaring_trait_identity == pair[1].declaring_trait_identity
+                && pair[0].public_requirement_identity == pair[1].public_requirement_identity
+        }) {
+            return Err(LoweringError::Unsupported(
+                "original conformance schema inventory repeats one requirement",
+            ));
+        }
+        let table = identities.snapshot();
+        realization_callables.sort_by(|left, right| {
+            table
+                .text(left.source_callable_identity)
+                .cmp(&table.text(right.source_callable_identity))
+        });
+        realization_callables.dedup();
+        let mut rows = Vec::new();
+        for row in &application.rows {
+            let selected_row = selected_rows
+                .iter()
+                .find(|candidate| {
+                    candidate.declaring_trait == row.declaring_trait
+                        && candidate.requirement == row.requirement
+                        && candidate.realization_state == row.realization_state
                 })
-                .collect::<Result<Vec<_>, LoweringError>>()?;
-            realization_callables.sort();
-            realization_callables.dedup();
-            let mut rows = Vec::new();
-            for row in &application.rows {
-                let selected_row = selected_rows
-                    .iter()
-                    .find(|candidate| {
-                        candidate.declaring_trait == row.declaring_trait
-                            && candidate.requirement == row.requirement
-                            && candidate.realization_state == row.realization_state
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "closed conformance application row no longer matches its declaration",
-                    ))?;
-                let declaring_trait_identity = checked
-                    .symbols
-                    .display_path(selected_row.declaring_trait, "::");
-                let public_requirement_identity =
-                    super::evidence_lowering::checked_evidence_requirement_identity(
-                        checked,
-                        selected_row.declaring_trait,
-                        selected_row.requirement,
-                    )?;
-                let requirement_identity =
-                    checked.symbols.display_path(selected_row.requirement, "::");
-                // A finite generic requirement contributes one row per
-                // declared roster tuple, each naming the exact specialization
-                // instance that tuple selects.
-                for family_row in super::evidence_lowering::checked_requirement_family_rows(
+                .ok_or(LoweringError::Unsupported(
+                    "closed conformance application row no longer matches its declaration",
+                ))?;
+            let declaring_trait_identity = checked
+                .symbols
+                .display_path(selected_row.declaring_trait, "::");
+            let public_requirement_identity =
+                super::evidence_lowering::checked_evidence_requirement_identity(
                     checked,
                     selected_row.declaring_trait,
                     selected_row.requirement,
-                    selected_row.realization_machine,
-                    selected_row.realization_state,
-                )? {
-                    let selected_by_static_dispatch = checked
-                        .facts
-                        .proof
-                        .proof_output_calls
-                        .iter()
-                        .filter_map(|(_, invocation)| {
-                            (invocation.caller_machine_symbol == specialization.instance)
-                                .then_some(invocation.static_requirement_dispatch?)
-                        })
-                        .any(|dispatch| {
-                            dispatch.application_report_fingerprint
-                                == application.report_fingerprint
-                                && dispatch.application_commitment == application.commitment
-                                && dispatch.declaring_trait == selected_row.declaring_trait
-                                && dispatch.requirement == selected_row.requirement
-                                && dispatch.realization_machine == family_row.realization_machine
-                                && dispatch.realization_state == family_row.realization_state
-                        });
-                    let realization_callable_identity = selected_by_static_dispatch
+                )?;
+            let requirement_identity = checked.symbols.display_path(selected_row.requirement, "::");
+            // A finite generic requirement contributes one row per
+            // declared roster tuple, each naming the exact specialization
+            // instance that tuple selects.
+            for family_row in super::evidence_lowering::checked_static_conformance_rows(
+                checked,
+                selected_row.declaring_trait,
+                selected_row.requirement,
+                selected_row.realization_machine,
+                selected_row.realization_state,
+            )? {
+                let selected_by_static_dispatch = checked
+                    .facts
+                    .proof
+                    .proof_output_calls
+                    .iter()
+                    .filter_map(|(_, invocation)| {
+                        (invocation.caller_machine_symbol == source_owner)
+                            .then_some(invocation.static_requirement_dispatch?)
+                    })
+                    .any(|dispatch| {
+                        dispatch.application_report_fingerprint == application.report_fingerprint
+                            && dispatch.application_commitment == application.commitment
+                            && dispatch.declaring_trait == selected_row.declaring_trait
+                            && dispatch.requirement == selected_row.requirement
+                            && dispatch.realization_machine == family_row.realization_machine
+                            && dispatch.realization_state == family_row.realization_state
+                    });
+                let realization_callable_identity = selected_by_static_dispatch
                         .then(|| {
                             let machine = owners
                                 .iter()
-                                .find_map(|(source, terminal)| {
+                                .find_map(|(source, terminal, _)| {
                                     (*source == family_row.realization_machine)
                                         .then_some(*terminal)
                                 })
@@ -242,150 +407,372 @@ fn collect_closed_conformance_applications(
                                 ))
                         })
                         .transpose()?;
-                    rows.push(ClosedConformanceRow {
-                        declaring_trait_identity: identities
-                            .intern(&declaring_trait_identity.clone()),
-                        public_requirement_identity: identities
-                            .intern(&public_requirement_identity.clone()),
-                        family_tuple: family_row
-                            .family_tuple
-                            .iter()
-                            .map(|identity| identities.intern(identity))
-                            .collect(),
-                        requirement_identity: identities.intern(&requirement_identity.clone()),
-                        realization_identity: identities.intern(
-                            &checked
-                                .symbols
-                                .display_path(family_row.realization_state, "::"),
-                        ),
-                        realization_callable_identity: realization_callable_identity
-                            .as_ref()
-                            .map(|identity| identities.intern(identity)),
-                    });
-                }
-            }
-            if selected.lifetime_parameters.len() != application.lifetime_arguments.len() {
-                return Err(LoweringError::Unsupported(
-                    "closed conformance application has an open lifetime telescope",
-                ));
-            }
-            let mut telescope = selected
-                .lifetime_parameters
-                .iter()
-                .zip(&application.lifetime_arguments)
-                .map(|(parameter, argument)| ClosedConformanceParameterBinding {
-                    parameter: parameter.as_str().to_owned(),
-                    kind: ClosedConformanceParameterKind::Lifetime,
-                    argument: argument.clone(),
-                })
-                .collect::<Vec<_>>();
-            let mut type_index = 0usize;
-            let mut const_index = 0usize;
-            let mut machine_index = 0usize;
-            for parameter in checked.conformance_type_parameters(selected) {
-                let (kind, argument) = match &parameter.kind {
-                    TypeParameterKind::Type => {
-                        let argument = application.type_arguments.get(type_index).cloned();
-                        type_index += 1;
-                        (ClosedConformanceParameterKind::Type, argument)
-                    }
-                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
-                        let argument = match application.const_arguments.get(const_index) {
-                            Some(ClosedConformanceConstArgument::Evaluated { value, .. }) => Some(
-                                language_semantics::const_value::CanonicalConstValue::new(
-                                    value.type_name.clone(),
-                                    value.encoding.clone(),
-                                    "",
-                                )
-                                .atom(),
-                            ),
-                            // Nothing substitutes a caller's const binder
-                            // into a retained application, and Terminal's
-                            // telescope names only evaluated values.
-                            Some(ClosedConformanceConstArgument::CallerBinder { .. }) => {
-                                return Err(LoweringError::Unsupported(
-                                    "closed conformance application has an open const binder argument",
-                                ));
-                            }
-                            None => None,
-                        };
-                        const_index += 1;
-                        (ClosedConformanceParameterKind::Const, argument)
-                    }
-                    TypeParameterKind::Machine { .. } => {
-                        let argument = application
-                            .machine_arguments
-                            .get(machine_index)
-                            .map(|argument| checked.symbols.display_path(*argument, "::"));
-                        machine_index += 1;
-                        (ClosedConformanceParameterKind::Machine, argument)
-                    }
-                    TypeParameterKind::Proposition { .. } => {
-                        return Err(LoweringError::Unsupported(
-                            "closed conformance application retains a proposition parameter",
-                        ));
-                    }
-                    TypeParameterKind::Implementation => {
-                        return Err(LoweringError::Unsupported(
-                            "closed conformance telescope retains a trait-only implementation binder",
-                        ));
-                    }
-                };
-                telescope.push(ClosedConformanceParameterBinding {
-                    parameter: parameter.name.as_str().to_owned(),
-                    kind,
-                    argument: argument.ok_or(LoweringError::Unsupported(
-                        "closed conformance application has an open static telescope",
-                    ))?,
+                rows.push(ClosedConformanceRow {
+                    declaring_trait_identity: identities.intern(&declaring_trait_identity.clone()),
+                    public_requirement_identity: identities
+                        .intern(&public_requirement_identity.clone()),
+                    family_tuple: family_row
+                        .family_tuple
+                        .iter()
+                        .map(|identity| identities.intern(identity))
+                        .collect(),
+                    requirement_identity: identities.intern(&requirement_identity.clone()),
+                    realization_identity: identities.intern(
+                        &checked
+                            .symbols
+                            .display_path(family_row.realization_state, "::"),
+                    ),
+                    realization_callable_identity: realization_callable_identity
+                        .as_ref()
+                        .map(|identity| identities.intern(identity)),
                 });
             }
-            if type_index != application.type_arguments.len()
-                || const_index != application.const_arguments.len()
-                || machine_index != application.machine_arguments.len()
-            {
-                return Err(LoweringError::Unsupported(
-                    "closed conformance application telescope has extra arguments",
-                ));
-            }
-            let mut lowered = ClosedConformanceApplication {
-                owner: *owner,
-                declaration_identity: identities
-                    .intern(&checked.symbols.display_path(application.declaration, "::")),
-                telescope,
-                trait_identity: identities.intern(
-                    &checked
-                        .symbols
-                        .display_path(application.trait_definition, "::"),
-                ),
-                trait_lifetime_arguments: application.trait_lifetime_arguments.clone(),
-                trait_arguments: application.trait_arguments.clone(),
-                realization_callables,
-                rows,
-                report_fingerprint: 0,
-                commitment: Default::default(),
-            };
-            lowered.report_fingerprint =
-                closed_conformance_application_report_fingerprint(&identities.snapshot(), &lowered);
-            lowered.commitment =
-                closed_conformance_application_commitment(&identities.snapshot(), &lowered);
+        }
+        let telescope = checked_application_telescope(checked, application)?;
+        let mut lowered = ClosedConformanceApplication {
+            owner: *owner,
+            declaration_identity: identities
+                .intern(&checked.symbols.display_path(application.declaration, "::")),
+            telescope,
+            trait_identity: identities.intern(
+                &checked
+                    .symbols
+                    .display_path(application.trait_definition, "::"),
+            ),
+            trait_lifetime_arguments: application.trait_lifetime_arguments.clone(),
+            trait_arguments: application.trait_arguments.clone(),
+            realization_callables,
+            schemas,
+            static_applications,
+            rows,
+            report_fingerprint: 0,
+            commitment: Default::default(),
+        };
+        lowered.report_fingerprint =
+            closed_conformance_application_report_fingerprint(&identities.snapshot(), &lowered);
+        lowered.commitment =
+            closed_conformance_application_commitment(&identities.snapshot(), &lowered);
+        if !applications.contains(&lowered) {
             applications.push(lowered);
         }
     }
-    sort_applications(&mut applications);
+    sort_applications(&identities.snapshot(), &mut applications);
     Ok(applications)
 }
 
-fn sort_applications(applications: &mut [ClosedConformanceApplication]) {
+fn sort_applications(
+    identities: &terminal_psi::TerminalIdentityTable,
+    applications: &mut [ClosedConformanceApplication],
+) {
     applications.sort_by(|left, right| {
         (
             left.owner,
-            &left.declaration_identity,
+            identities
+                .text(left.declaration_identity)
+                .unwrap_or_default(),
             left.report_fingerprint,
         )
             .cmp(&(
                 right.owner,
-                &right.declaration_identity,
+                identities
+                    .text(right.declaration_identity)
+                    .unwrap_or_default(),
                 right.report_fingerprint,
             ))
     });
+}
+
+/// Shared exact tuple replay for retention and proof-output joins.
+pub(crate) fn checked_application_telescope(
+    checked: &CheckedTrees,
+    application: &typed_trees::typed_trees::ClosedConformanceApplication,
+) -> Result<Vec<ClosedConformanceParameterBinding>, LoweringError> {
+    let selected = checked
+        .conformance_by_symbol(application.declaration)
+        .ok_or(LoweringError::Unsupported(
+            "closed conformance telescope lost its original declaration",
+        ))?;
+    if selected.lifetime_parameters.len() != application.lifetime_arguments.len() {
+        return Err(LoweringError::Unsupported(
+            "closed conformance application has an open lifetime telescope",
+        ));
+    }
+    let mut telescope = selected
+        .lifetime_parameters
+        .iter()
+        .zip(&application.lifetime_arguments)
+        .map(|(parameter, argument)| ClosedConformanceParameterBinding {
+            parameter: parameter.as_str().to_owned(),
+            kind: ClosedConformanceParameterKind::Lifetime,
+            argument: argument.clone(),
+        })
+        .collect::<Vec<_>>();
+    let mut type_index = 0usize;
+    let mut const_index = 0usize;
+    let mut machine_index = 0usize;
+    for parameter in checked.conformance_type_parameters(selected) {
+        let (kind, argument) = match &parameter.kind {
+            TypeParameterKind::Type => {
+                let argument = application.type_arguments.get(type_index).cloned();
+                type_index += 1;
+                (ClosedConformanceParameterKind::Type, argument)
+            }
+            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+                let argument = match application.const_arguments.get(const_index) {
+                    Some(ClosedConformanceConstArgument::Evaluated { value, .. }) => Some(
+                        language_semantics::const_value::CanonicalConstValue::new(
+                            value.type_name.clone(),
+                            value.encoding.clone(),
+                            "",
+                        )
+                        .atom(),
+                    ),
+                    // Nothing substitutes a caller's const binder
+                    // into a retained application, and Terminal's
+                    // telescope names only evaluated values.
+                    Some(ClosedConformanceConstArgument::CallerBinder { .. }) => {
+                        return Err(LoweringError::Unsupported(
+                            "closed conformance application has an open const binder argument",
+                        ));
+                    }
+                    None => None,
+                };
+                const_index += 1;
+                (ClosedConformanceParameterKind::Const, argument)
+            }
+            TypeParameterKind::Machine { .. } => {
+                if !application.callable_application.is_valid() {
+                    return Err(LoweringError::Unsupported(
+                        "closed conformance Machine tuple lost its checked occurrence",
+                    ));
+                }
+                let selected = checked
+                    .expression_table
+                    .static_machine_application_selected_machines(application.callable_application)
+                    .get(machine_index)
+                    .ok_or(LoweringError::Unsupported(
+                        "closed conformance Machine tuple lost its exact selected callback",
+                    ))?;
+                let owner = checked.typed.machine_holding_state(selected.symbol).ok_or(
+                    LoweringError::Unsupported(
+                        "closed conformance Machine tuple is not executable",
+                    ),
+                )?;
+                let argument = Some(super::evidence_lowering::checked_evidence_machine_identity(
+                    checked,
+                    owner.symbol,
+                )?);
+                machine_index += 1;
+                (ClosedConformanceParameterKind::Machine, argument)
+            }
+            TypeParameterKind::Proposition { .. } => {
+                return Err(LoweringError::Unsupported(
+                    "closed conformance application retains a proposition parameter",
+                ));
+            }
+            TypeParameterKind::Implementation => {
+                return Err(LoweringError::Unsupported(
+                    "closed conformance telescope retains a trait-only implementation binder",
+                ));
+            }
+        };
+        telescope.push(ClosedConformanceParameterBinding {
+            parameter: parameter.name.as_str().to_owned(),
+            kind,
+            argument: argument.ok_or(LoweringError::Unsupported(
+                "closed conformance application has an open static telescope",
+            ))?,
+        });
+    }
+    if type_index != application.type_arguments.len()
+        || const_index != application.const_arguments.len()
+        || machine_index != application.machine_arguments.len()
+    {
+        return Err(LoweringError::Unsupported(
+            "closed conformance application telescope has extra arguments",
+        ));
+    }
+    Ok(telescope)
+}
+
+/// The method's invocation frame is independent of its selecting map capture.
+pub(crate) fn checked_method_arguments(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<Vec<terminal_psi::ClosedReachArgument>, LoweringError> {
+    let records = checked
+        .machine_specializations
+        .iter()
+        .filter(|row| row.instance == machine)
+        .collect::<Vec<_>>();
+    let specialization = match records.as_slice() {
+        [] => return Ok(Vec::new()),
+        [record] => record,
+        _ => {
+            return Err(LoweringError::Unsupported(
+                "static method application has duplicate invocation ownership",
+            ));
+        }
+    };
+    let identity = checked
+        .facts
+        .specialization_identities
+        .for_instance(machine)
+        .ok_or(LoweringError::Unsupported(
+            "static method application lost its checked invocation commitment",
+        ))?;
+    let mut types = specialization.type_argument_identities.iter();
+    let mut constants = specialization.const_argument_identities.iter();
+    let mut machines = specialization
+        .machine_arguments
+        .iter()
+        .zip(identity.machine_argument_contract_commitments.iter());
+    let mut arguments = Vec::new();
+    for parameter in checked
+        .typed
+        .data_type_parameters
+        .span_or_empty(specialization.template_parameters)
+    {
+        arguments.push(match parameter.kind {
+            TypeParameterKind::Type => terminal_psi::ClosedReachArgument::Type(identities.intern(types.next().ok_or(LoweringError::Unsupported("static method tuple lost a Type argument"))?)),
+            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => terminal_psi::ClosedReachArgument::Const(identities.intern(constants.next().ok_or(LoweringError::Unsupported("static method tuple lost a const argument"))?)),
+            TypeParameterKind::Machine { .. } => {
+                let (selected, commitment) = machines.next().ok_or(LoweringError::Unsupported("static method tuple lost a Machine argument"))?;
+                terminal_psi::ClosedReachArgument::Machine { identity: identities.intern(&super::evidence_lowering::checked_evidence_machine_identity(checked, checked.typed.machine_holding_state(*selected).map_or(*selected, |machine| machine.symbol))?), contract_commitment: *commitment }
+            }
+            _ => return Err(LoweringError::Unsupported("static method tuple contains an unsupported proposition or implementation argument")),
+        });
+    }
+    if types.next().is_some() || constants.next().is_some() || machines.next().is_some() {
+        return Err(LoweringError::Unsupported(
+            "static method tuple has extra invocation arguments",
+        ));
+    }
+    Ok(arguments)
+}
+
+struct StaticExecutableCall {
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+}
+
+/// Retain every checked ordinary occurrence, including scalar computation calls
+/// with no erased proof outputs. Proof-lane presence does not select execution.
+fn checked_static_dispatches<'program>(
+    checked: &'program CheckedTrees,
+    owner: symbols::SymbolHandle,
+) -> Result<
+    Vec<(
+        StaticExecutableCall,
+        &'program typed_trees::typed_trees::StaticRequirementDispatch,
+    )>,
+    LoweringError,
+> {
+    let machine = checked
+        .typed
+        .machine(owner)
+        .ok_or(LoweringError::Unsupported(
+            "static dispatch lost its checked owner",
+        ))?;
+    let mut calls = Vec::new();
+    for state in checked.typed.machine_states(machine) {
+        for index in 0..checked
+            .typed
+            .statement_table
+            .statements(state.statement_nodes)
+            .len()
+        {
+            for site in validation::collect_call_sites_in_statement(checked, machine, state, index)
+            {
+                let Some(dispatch) = site.static_requirement_dispatch() else {
+                    continue;
+                };
+                let target = match site {
+                    validation::CallSite::Statement(call) => call.target_symbol,
+                    validation::CallSite::Expression { call, .. } => call.target_symbol,
+                    validation::CallSite::TransitionNamed { .. } => continue,
+                };
+                if !validation::closed_requirement_dispatch_is_valid(
+                    checked, owner, target, dispatch,
+                ) {
+                    return Err(LoweringError::Unsupported(
+                        "static executable call lost its checked closed selection",
+                    ));
+                }
+                let realized = checked.typed.machine_holding_state(target).ok_or(
+                    LoweringError::Unsupported(
+                        "static executable call lost its exact target owner",
+                    ),
+                )?;
+                calls.push((
+                    StaticExecutableCall {
+                        machine: realized.symbol,
+                        state: target,
+                    },
+                    dispatch,
+                ));
+            }
+        }
+    }
+    Ok(calls)
+}
+
+fn checked_method_return_reference(
+    checked: &CheckedTrees,
+    signature: &checked_trees::signature::StateSignature,
+    target: symbols::SymbolHandle,
+) -> Result<checked_trees::types::TypeReferenceHandle, LoweringError> {
+    let result = signature.return_type;
+    if !result.is_valid() {
+        return Ok(result);
+    }
+    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        checked.typed.type_reference_table.type_reference(result)
+    else {
+        return Ok(result);
+    };
+    let parameters = checked.typed.state_signature_type_parameters(signature);
+    let Some(position) = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == *symbol)
+    else {
+        return Ok(result);
+    };
+    let specialization = checked
+        .machine_specializations
+        .iter()
+        .find(|row| row.instance == target)
+        .ok_or(LoweringError::Unsupported(
+            "generic conformance result lost its exact method invocation",
+        ))?;
+    let private = checked
+        .typed
+        .data_type_parameters
+        .span_or_empty(specialization.template_parameters)
+        .get(position)
+        .ok_or(LoweringError::Unsupported(
+            "generic conformance result has no corresponding method binder",
+        ))?;
+    let bindings = checked
+        .typed
+        .expression_table
+        .static_machine_application_bindings(specialization.binding_application);
+    let selected = bindings
+        .iter()
+        .filter(|binding| binding.parameter == private.symbol)
+        .collect::<Vec<_>>();
+    match selected.as_slice() {
+        [selected] => match selected.value {
+            typed_trees::static_applications::StaticMachineBindingValue::Type(reference) => {
+                Ok(reference)
+            }
+            _ => Err(LoweringError::Unsupported(
+                "generic conformance result binder is not a Type",
+            )),
+        },
+        _ => Err(LoweringError::Unsupported(
+            "generic conformance result has no unique applied Type",
+        )),
+    }
 }

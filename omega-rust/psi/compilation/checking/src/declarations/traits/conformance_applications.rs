@@ -344,6 +344,14 @@ pub fn close_conformance_application(
         &type_arguments,
         &const_arguments,
         &machine_arguments,
+        &parameters
+            .iter()
+            .zip(supplied)
+            .filter_map(|(parameter, argument)| {
+                matches!(parameter.kind, TypeParameterKind::Machine { .. })
+                    .then_some(argument.clone())
+            })
+            .collect::<Vec<_>>(),
         trait_definition.name.as_str(),
         &trait_lifetime_arguments,
         &trait_arguments,
@@ -352,6 +360,7 @@ pub fn close_conformance_application(
     Ok(ClosedConformanceApplication {
         declaration: conformance.symbol,
         trait_scope: Default::default(),
+        callable_application: Default::default(),
         arguments: supplied.into(),
         lifetime_arguments,
         type_arguments,
@@ -671,6 +680,7 @@ fn application_identity(
     type_arguments: &[String],
     const_arguments: &[ClosedConformanceConstArgument],
     machine_arguments: &[SymbolHandle],
+    machine_operands: &[StaticMachineArgument],
     trait_name: &str,
     trait_lifetime_arguments: &[String],
     trait_arguments: &[String],
@@ -759,6 +769,12 @@ fn application_identity(
         bytes.extend((identity.len() as u64).to_le_bytes());
         bytes.extend(identity.as_bytes());
     }
+    // The declaration symbol alone aliases explicit callback applications.
+    // Retain the complete authored tuple independently of executable selection.
+    bytes.extend((machine_operands.len() as u64).to_le_bytes());
+    for operand in machine_operands {
+        encode_machine_operand(program, operand, &mut bytes);
+    }
     for row in rows {
         for item in [
             row.declaring_trait_name.as_str(),
@@ -786,7 +802,7 @@ fn application_identity(
     }
     let mut hash = semantic_vocabulary::Fnv1a::new();
     let mut strong = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.psi.closed-conformance-application.v3\0",
+        b"omega.psi.closed-conformance-application.v4\0",
     );
     strong.raw(&bytes);
     hash.bytes(&bytes);
@@ -795,5 +811,44 @@ fn application_identity(
         commitment: typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
             strong.finish(),
         ),
+    }
+}
+
+fn encode_machine_operand(
+    program: &dyn crate::CheckingInput,
+    operand: &StaticMachineArgument,
+    bytes: &mut Vec<u8>,
+) {
+    let identity = if let Some(value) = program.static_const_argument_identity(operand) {
+        bytes.push(1);
+        value
+    } else if operand.type_reference.is_valid()
+        || (operand.symbol.is_valid()
+            && matches!(
+                program.symbols.get(operand.symbol).kind,
+                SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter
+            ))
+    {
+        bytes.push(2);
+        type_argument_identity(program, operand)
+    } else {
+        bytes.push(3);
+        crate::contract_identities::conformance_symbol_identity(program, operand.symbol)
+    };
+    bytes.extend((identity.len() as u64).to_le_bytes());
+    bytes.extend(identity.as_bytes());
+    if let Some(application) = &operand.application {
+        bytes.push(1);
+        bytes.extend((application.lifetime_arguments.len() as u64).to_le_bytes());
+        for lifetime in &application.lifetime_arguments {
+            bytes.extend((lifetime.as_str().len() as u64).to_le_bytes());
+            bytes.extend(lifetime.as_str().as_bytes());
+        }
+        bytes.extend((application.arguments.len() as u64).to_le_bytes());
+        for argument in &application.arguments {
+            encode_machine_operand(program, argument, bytes);
+        }
+    } else {
+        bytes.push(0);
     }
 }

@@ -47,6 +47,7 @@ pub(super) fn validate_named_conformance_call(
                 current_state,
                 value_environment,
                 arguments,
+                &call.machine_arguments,
                 &requirement,
                 writable_roots,
                 diagnostics,

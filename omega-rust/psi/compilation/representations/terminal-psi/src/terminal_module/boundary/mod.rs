@@ -16,6 +16,7 @@ pub use conformances::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
     ClosedConformanceParameterKind, ClosedConformanceRealizationCallable, ClosedConformanceRow,
+    ClosedConformanceSchema, ClosedConformanceSchemaKind, ClosedConformanceStaticApplication,
     closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
 };
 pub use declarations::{

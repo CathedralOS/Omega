@@ -121,13 +121,33 @@ pub(super) fn validate_selected_callable_shape(
             "machine parameter `{}` forwarded into `{generic_call}`",
             actual_parameter.name
         );
+        let applied = program.applied_machine_callable(
+            application,
+            ordinal,
+            selected_symbol,
+            parameter.symbol,
+            requirement,
+        );
+        if program.has_applied_machine_selection(application, ordinal, selected_symbol)
+            && applied.is_none()
+        {
+            diagnostics.push(Diagnostic::error(
+                "forwarded callable lost its exact applied demand",
+            ));
+            return;
+        }
+        let (required, selected) = applied
+            .as_ref()
+            .map_or((requirement, actual_signature), |view| {
+                (view.required, view.selected)
+            });
         validate_callable_parts(
             program,
             &label,
             parameter,
-            requirement,
-            &CallableParts::of_signature(program, actual_signature),
-            actual_signature,
+            required,
+            &CallableParts::of_signature(program, selected),
+            selected,
             generic_types,
             bindings,
             &mut Vec::new(),

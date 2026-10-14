@@ -172,6 +172,7 @@ pub(crate) fn form_static_machine_selections(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> FormedStaticMachineSelections {
     let mut selections = FormedStaticMachineSelections::default();
+    validate_conformance_machine_selections(program, diagnostics);
     let mathematical_expressions = crate::mathematical_applications::expression_nodes(program);
     // Every call site resolves its machine/state target through this index;
     // the program is frozen for the duration of the pass so one build covers
@@ -490,11 +491,8 @@ fn form_call_selection(
                 contract_and_type_parameters(program.machine_type_parameters(declaring_machine)).1,
             );
             (requirements, generic_types, invocation_type_count)
-        } else if let Some(signature) = program
-            .traits()
-            .iter()
-            .flat_map(|definition| program.trait_machine_signatures(definition))
-            .find(|signature| signature.symbol == target_symbol)
+        } else if let Some((_, signature)) =
+            crate::selected_requirement_signature(program, target_symbol)
         {
             let (requirements, generic_types) =
                 contract_and_type_parameters(program.state_signature_type_parameters(signature));
@@ -545,6 +543,32 @@ fn form_call_selection(
     }
 
     let mut bindings = initial_bindings.to_vec();
+    // Source operands survive executable retargeting in the occurrence tuple.
+    // Const operands are exact substitutions too, even though they are not
+    // eligible Type inference variables in this callable shape pass.
+    if application.is_valid() {
+        for binding in program
+            .expression_table
+            .static_machine_application_bindings(application)
+        {
+            let actual = match binding.value {
+                typed_trees::static_applications::StaticMachineBindingValue::Type(actual)
+                | typed_trees::static_applications::StaticMachineBindingValue::Const(actual) => {
+                    actual
+                }
+                _ => continue,
+            };
+            if !bindings
+                .iter()
+                .any(|known| known.symbol == binding.parameter)
+            {
+                bindings.push(TypeBinding {
+                    symbol: binding.parameter,
+                    actual,
+                });
+            }
+        }
+    }
     // Invocation-local arguments bind the callable's telescope, not the
     // enclosing machine's. Establish authored type selections before matching
     // nested callbacks, so their shapes cannot reselect a fixed argument.
@@ -609,6 +633,8 @@ fn form_call_selection(
             requirement,
             selected.symbol,
             &rendered,
+            application,
+            static_machine_ordinal,
             &generic_types,
             &mut bindings,
             diagnostics,
@@ -709,8 +735,43 @@ pub(crate) fn validate_data_machine_selection(
     generic_types: &[&TypeParameter],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_declaration_machine_selection(
+        program,
+        family_name,
+        parameter,
+        requirement,
+        selected_symbol,
+        selected_name,
+        generic_types,
+        typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
+        0,
+        &[],
+        diagnostics,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_declaration_machine_selection(
+    program: &dyn crate::CheckingInput,
+    family_name: &str,
+    parameter: &TypeParameter,
+    requirement: &MachineParameterContract,
+    selected_symbol: SymbolHandle,
+    selected_name: &str,
+    generic_types: &[&TypeParameter],
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    ordinal: usize,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let index = machine_state_index(program);
-    let mut bindings = Vec::new();
+    let mut bindings = substitutions
+        .iter()
+        .map(|(symbol, actual)| TypeBinding {
+            symbol: *symbol,
+            actual: *actual,
+        })
+        .collect::<Vec<_>>();
     if validate_nominal_machine_selection(
         program,
         &index,
@@ -719,6 +780,8 @@ pub(crate) fn validate_data_machine_selection(
         requirement,
         selected_symbol,
         selected_name,
+        application,
+        ordinal,
         generic_types,
         &mut bindings,
         diagnostics,
@@ -742,13 +805,22 @@ pub(crate) fn validate_data_machine_selection(
         parameter,
         requirement,
         selected_symbol,
-        typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
-        0,
+        application,
+        ordinal,
         selected_name,
         generic_types,
         &mut bindings,
         diagnostics,
     );
+    let applied_requirement = program
+        .applied_machine_callable(
+            application,
+            ordinal,
+            selected_symbol,
+            parameter.symbol,
+            requirement,
+        )
+        .map_or(requirement, |applied| applied.required);
     if let Some((machine, state)) = machine_and_state(program, &index, selected_symbol) {
         let label = format!("machine argument `{}` for `{family_name}`", machine.name);
         validate_selected_callable_effects(
@@ -759,7 +831,7 @@ pub(crate) fn validate_data_machine_selection(
             &invocations,
             &label,
             parameter,
-            requirement,
+            applied_requirement,
             machine,
             state,
             diagnostics,
@@ -783,6 +855,15 @@ fn machine_parameter_contract_definition(
         if let Some(found) = machine_parameter_contract_definition_in(
             program,
             program.machine_type_parameters(machine),
+            symbol,
+        ) {
+            return Some(found);
+        }
+    }
+    for conformance in program.conformances() {
+        if let Some(found) = machine_parameter_contract_definition_in(
+            program,
+            program.conformance_type_parameters(conformance),
             symbol,
         ) {
             return Some(found);
@@ -881,4 +962,279 @@ fn machine_and_state<'a>(
         .get(*state_position as usize)
         .expect("machine-state index state out of range");
     Some((machine, state))
+}
+
+fn validate_conformance_machine_selections(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for (_, _, supplying, application) in program
+        .typed_program()
+        .closed_conformance_application_sites()
+    {
+        let Some(declaration) = program.conformance_by_symbol(application.declaration) else {
+            diagnostics.push(Diagnostic::error(
+                "selected map Machine demand lost its declaration",
+            ));
+            continue;
+        };
+        let parameters = program.conformance_type_parameters(declaration);
+        if !parameters
+            .iter()
+            .any(|p| matches!(p.kind, TypeParameterKind::Machine { .. }))
+        {
+            continue;
+        }
+        let invocation = application.callable_application;
+        if !invocation.is_valid() {
+            diagnostics.push(Diagnostic::error(
+                "closed map Machine argument lost its occurrence-owned callable demand",
+            ));
+            continue;
+        }
+        if let Err(reason) =
+            super::calls::conformance_binding_is_exact(program, supplying, invocation, application)
+        {
+            diagnostics.push(Diagnostic::error(reason));
+            continue;
+        }
+        let selected = program
+            .expression_table
+            .static_machine_application_selected_machines(invocation);
+        let substitutions = program
+            .expression_table
+            .static_machine_application_bindings(invocation)
+            .iter()
+            .filter_map(|binding| match binding.value {
+                typed_trees::static_applications::StaticMachineBindingValue::Type(actual)
+                | typed_trees::static_applications::StaticMachineBindingValue::Const(actual) => {
+                    Some((binding.parameter, actual))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let generic_types = parameters
+            .iter()
+            .filter(|p| {
+                matches!(
+                    p.kind,
+                    TypeParameterKind::Type
+                        | TypeParameterKind::Const { .. }
+                        | TypeParameterKind::Value { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut ordinal = 0;
+        for parameter in parameters {
+            let TypeParameterKind::Machine { contract } = &parameter.kind else {
+                continue;
+            };
+            let Some(argument) = selected.get(ordinal) else {
+                diagnostics.push(Diagnostic::error(
+                    "closed map lost a captured Machine selection",
+                ));
+                break;
+            };
+            let required = machine_parameter_signature(program, contract);
+            let original =
+                application
+                    .arguments
+                    .iter()
+                    .zip(parameters)
+                    .find_map(|(argument, binder)| {
+                        (binder.symbol == parameter.symbol).then_some(argument)
+                    });
+            let view = program.applied_machine_callable(
+                invocation,
+                ordinal,
+                argument.symbol,
+                parameter.symbol,
+                required,
+            );
+            let exact = original.zip(view).is_some_and(|(original, view)| {
+                let provider = program
+                    .expression_table
+                    .static_machine_application(view.provider);
+                provider_tuple_matches_source(program, original, view.provider)
+                    && provider.registration_operation
+                        == program
+                            .machine_by_symbol(original.symbol)
+                            .and_then(|machine| program.machine_states(machine).first())
+                            .map_or(original.symbol, |state| state.symbol)
+                    && provider.lexical_owner
+                        == program
+                            .expression_table
+                            .static_machine_application(invocation)
+                            .lexical_owner
+                    && view.caller_operands.len() == substitutions.len()
+                    && view.caller_operands.iter().zip(&substitutions).all(
+                        |(binding, (parameter, actual))| {
+                            binding.parameter == *parameter && binding.actual == *actual
+                        },
+                    )
+                    && view.caller_lifetimes
+                        == program
+                            .expression_table
+                            .static_machine_application_lifetimes(invocation)
+            });
+            if !exact {
+                diagnostics.push(Diagnostic::error("captured Machine selection differs from its exact source operand and applied demand"));
+                ordinal += 1;
+                continue;
+            }
+            validate_declaration_machine_selection(
+                program,
+                declaration
+                    .alias
+                    .as_ref()
+                    .map_or("<conformance>", |n| n.as_str()),
+                parameter,
+                contract,
+                argument.symbol,
+                &argument.display_name(),
+                &generic_types,
+                invocation,
+                ordinal,
+                &substitutions,
+                diagnostics,
+            );
+            ordinal += 1;
+        }
+        if ordinal != selected.len() {
+            diagnostics.push(Diagnostic::error(
+                "closed map has surplus captured Machine selections",
+            ));
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum StaticOperandCategory {
+    Type,
+    Const,
+    Machine,
+    Implementation,
+}
+
+fn provider_tuple_matches_source(
+    program: &dyn crate::CheckingInput,
+    original: &StaticMachineArgument,
+    handle: typed_trees::static_applications::StaticMachineApplicationHandle,
+) -> bool {
+    let descriptor = program.expression_table.static_machine_application(handle);
+    let Some(application) = &original.application else {
+        return true;
+    };
+    let Some(machine) = program.machine_by_symbol(descriptor.binding_declaration) else {
+        return application.arguments.is_empty() && application.lifetime_arguments.is_empty();
+    };
+    let parameters = program.machine_type_parameters(machine);
+    let bindings = program
+        .expression_table
+        .static_machine_application_bindings(handle);
+    let mut type_ordinal = 0;
+    let mut const_ordinal = 0;
+    let mut machine_ordinal = 0;
+    let mut evidence_ordinal = 0;
+    for argument in &application.arguments {
+        let kind = if argument.type_reference.is_valid()
+            || (argument.symbol.is_valid()
+                && matches!(
+                    program.symbols.get(argument.symbol).kind,
+                    SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter
+                )) {
+            StaticOperandCategory::Type
+        } else if program.static_const_argument_identity(argument).is_some() {
+            StaticOperandCategory::Const
+        } else if argument.symbol.is_valid()
+            && matches!(
+                program.symbols.get(argument.symbol).kind,
+                SymbolKind::State | SymbolKind::MachineParameter
+            )
+        {
+            StaticOperandCategory::Machine
+        } else {
+            StaticOperandCategory::Implementation
+        };
+        if kind == StaticOperandCategory::Implementation {
+            let Some(bound) = machine.conformance_bounds.get(evidence_ordinal) else {
+                return false;
+            };
+            evidence_ordinal += 1;
+            let selected = bindings
+                .iter()
+                .filter(|binding| binding.parameter == bound.binder)
+                .collect::<Vec<_>>();
+            let [selected] = selected.as_slice() else {
+                return false;
+            };
+            if !matches!(&selected.value, typed_trees::static_applications::StaticMachineBindingValue::Conformance(actual) if actual == argument)
+            {
+                return false;
+            }
+            continue;
+        }
+        let ordinal = match kind {
+            StaticOperandCategory::Type => &mut type_ordinal,
+            StaticOperandCategory::Const => &mut const_ordinal,
+            StaticOperandCategory::Machine => &mut machine_ordinal,
+            StaticOperandCategory::Implementation => {
+                unreachable!("evidence operands were handled above")
+            }
+        };
+        let parameter = parameters
+            .iter()
+            .filter(|parameter| match (kind, &parameter.kind) {
+                (StaticOperandCategory::Type, TypeParameterKind::Type)
+                | (
+                    StaticOperandCategory::Const,
+                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+                )
+                | (StaticOperandCategory::Machine, TypeParameterKind::Machine { .. }) => true,
+                _ => false,
+            })
+            .nth(*ordinal);
+        *ordinal += 1;
+        let Some(parameter) = parameter else {
+            return false;
+        };
+        let selected = bindings
+            .iter()
+            .filter(|binding| binding.parameter == parameter.symbol)
+            .collect::<Vec<_>>();
+        let [selected] = selected.as_slice() else {
+            return false;
+        };
+        if !program.static_binding_matches_argument(
+            &parameter.kind,
+            &selected.value,
+            argument,
+            descriptor.lexical_owner,
+            descriptor.lexical_owner,
+        ) {
+            return false;
+        }
+    }
+    if !application.lifetime_arguments.is_empty() {
+        let lifetimes = program
+            .expression_table
+            .static_machine_application_lifetimes(handle);
+        if lifetimes.len() != application.lifetime_arguments.len()
+            || lifetimes.len() != machine.lifetime_parameters.len()
+            || lifetimes
+                .iter()
+                .zip(
+                    machine
+                        .lifetime_parameters
+                        .iter()
+                        .zip(application.lifetime_arguments.iter()),
+                )
+                .any(|(binding, (parameter, argument))| {
+                    binding.parameter != *parameter || binding.argument != *argument
+                })
+        {
+            return false;
+        }
+    }
+    true
 }

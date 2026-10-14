@@ -62,6 +62,87 @@ impl TypedTrees {
             .map(|spelling| static_const_identity_from_spelling(&spelling))
     }
 
+    /// Callable applications retain expression-valued const operands while
+    /// specialization tuples may retain literal names. Compare their values
+    /// in the same canonical namespace rather than their storage encodings.
+    pub fn static_const_type_reference_identity(
+        &self,
+        reference: types::TypeReferenceHandle,
+    ) -> Option<String> {
+        if let Some(literal) = self.static_const_literal_from_type_reference(reference) {
+            return self.static_const_argument_identity(&expression::StaticMachineArgument {
+                const_literal: Some(literal),
+                ..expression::StaticMachineArgument::default()
+            });
+        }
+        match self.type_reference_table.type_reference(reference) {
+            types::TypeReferenceNode::ConstExpression(value) => {
+                let expression::ExpressionNode::Boolean(value) =
+                    self.expression_table.expression(*value)
+                else {
+                    return None;
+                };
+                Some(static_const_identity_from_spelling(
+                    &language_semantics::const_value::CanonicalConstValue::boolean(*value).atom(),
+                ))
+            }
+            types::TypeReferenceNode::Named { symbol, name } if symbol.is_valid() => self
+                .static_const_argument_identity(&expression::StaticMachineArgument {
+                    symbol: *symbol,
+                    path: vec![name.clone()].into_boxed_slice(),
+                    ..expression::StaticMachineArgument::default()
+                }),
+            types::TypeReferenceNode::Named { .. } => {
+                Some(self.normalized_type_identity_text(reference))
+            }
+            _ => None,
+        }
+    }
+
+    /// Rejoin a retained static binding with its exact source operand.
+    pub fn static_binding_matches_argument(
+        &self,
+        kind: &crate::data::TypeParameterKind,
+        value: &crate::static_applications::StaticMachineBindingValue,
+        argument: &crate::expression::StaticMachineArgument,
+        source_owner: symbols::SymbolHandle,
+        binding_owner: symbols::SymbolHandle,
+    ) -> bool {
+        use crate::data::TypeParameterKind;
+        use crate::static_applications::StaticMachineBindingValue;
+        match (kind, value) {
+            (TypeParameterKind::Type, StaticMachineBindingValue::Type(actual)) => {
+                let expected = if argument.type_reference.is_valid() {
+                    Some(argument.type_reference)
+                } else {
+                    self.type_reference_table
+                        .find_named_type_reference(argument.symbol)
+                };
+                expected.is_some_and(|expected| {
+                    crate::type_identity::applied_type_identity(self, expected, source_owner, &[])
+                        .zip(crate::type_identity::applied_type_identity(
+                            self,
+                            *actual,
+                            binding_owner,
+                            &[],
+                        ))
+                        .is_some_and(|(expected, actual)| expected == actual)
+                })
+            }
+            (
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+                StaticMachineBindingValue::Const(actual),
+            ) => self
+                .static_const_argument_identity(argument)
+                .zip(self.static_const_type_reference_identity(*actual))
+                .is_some_and(|(expected, actual)| expected == actual),
+            (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(actual)) => {
+                argument == actual
+            }
+            _ => false,
+        }
+    }
+
     pub fn placed_field_plan_for_type_reference(
         &self,
         type_reference: types::TypeReferenceHandle,
