@@ -772,7 +772,7 @@ pub(crate) fn prepare_sequence_observation(
     )>,
     LoweringError,
 > {
-    let mut projection =
+    let projection =
         observation_paths::explicit_path(identities, structural_type, path, declarations)?;
     let (field, carrier) = if let Some(field) = projection.scalar_field {
         if !matches!(
@@ -788,13 +788,7 @@ pub(crate) fn prepare_sequence_observation(
         ) {
             return Ok(None);
         }
-        if !matches!(
-            projection.segments.pop(),
-            Some(CheckedUnitStructuralPathSegment::Field(_))
-        ) {
-            return unsupported("byte length observation lost its field endpoint");
-        }
-        (Some(field.id), super::view_locals::ViewCarrier::Bytes)
+        (Some(field), super::view_locals::ViewCarrier::Bytes)
     } else {
         let declaration = projection.declaration.ok_or(LoweringError::Unsupported(
             "length observation lost its sequence declaration",
@@ -805,13 +799,26 @@ pub(crate) fn prepare_sequence_observation(
         };
         (None, carrier)
     };
-    let steps = super::structural_paths::prepare_argument_path(
+    let mut steps = super::structural_paths::prepare_argument_path(
         identities,
         &projection.segments,
         structural_type,
         declarations,
     )?;
-    Ok(Some((steps, field, carrier)))
+    // The complete path is prepared first, so a case payload field validates
+    // against its selected case. The field endpoint is then carried apart from
+    // the container path, which may end at that case.
+    if let Some(field) = field
+        && steps.pop()
+            != Some(
+                super::structural_paths::PreparedStructuralPathSegment::Static(
+                    terminal_psi::StructuralPathSegment::Field(field.identity),
+                ),
+            )
+    {
+        return unsupported("byte length observation lost its field endpoint");
+    }
+    Ok(Some((steps, field.map(|field| field.id), carrier)))
 }
 
 /// Resolve a readable sequence through the same declared reference crossings

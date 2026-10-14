@@ -7871,7 +7871,8 @@ pass/text/runtime_chained_string_append_exit checked 11544ms check-target:macos_
 pass/text/runtime_decimal_scalar_across_output_alternate_exit checked 7177ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/text/runtime_decimal_scalar_across_output_exit checked 7127ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/text/runtime_element_guard_bounds_parse_exit checked 11540ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/text/runtime_inline_byte_case_values_exit checked 3383ms check-target:macos_arm64 @4dc4eabb2a0d+wt
+pass/text/runtime_inline_byte_case_payload_variants_exit checked 12848ms check-target:macos_arm64 @55ccf9be57c4
+pass/text/runtime_inline_byte_case_values_exit checked 12940ms check-target:macos_arm64 @55ccf9be57c4
 pass/text/runtime_later_arm_guard_reads_exit checked 12030ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_mixed_byte_field_equality_exit checked 11442ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_mutable_string_parameter_concat_write_line checked 5844ms check-target:macos_arm64 @46b51224f047+wt

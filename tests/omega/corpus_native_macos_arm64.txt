@@ -2286,6 +2286,8 @@ pass/text/runtime_chained_string_append_exit built 1941ms exit:70 @fb2178def922
 pass/text/runtime_decimal_scalar_across_output_alternate_exit built 13996ms exit:70 stdout:match stderr:match @589aedee8ebc+wt
 pass/text/runtime_decimal_scalar_across_output_exit built 14077ms exit:70 stdout:match stderr:match @589aedee8ebc+wt
 pass/text/runtime_element_guard_bounds_parse_exit built 1706ms exit:70 @954364ed064e
+pass/text/runtime_inline_byte_case_payload_variants_exit built 12054ms exit:0 @55ccf9be57c4
+pass/text/runtime_inline_byte_case_values_exit built 12034ms exit:0 @55ccf9be57c4
 pass/text/runtime_later_arm_guard_reads_exit built 1892ms exit:70 @954364ed064e
 pass/text/runtime_mixed_byte_field_equality_exit built 2672ms exit:70 @11b293f8af86+wt
 pass/text/runtime_mutable_string_parameter_concat_write_line built 5944ms exit:77 stdout:match @46b51224f047+wt

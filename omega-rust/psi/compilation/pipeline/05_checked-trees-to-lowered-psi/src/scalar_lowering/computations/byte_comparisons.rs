@@ -106,16 +106,7 @@ impl Expansion<'_> {
                 }
                 _ => return unsupported("byte comparison has no observable operand"),
             };
-            let path = subject
-                .path
-                .iter()
-                .map(|segment| match segment {
-                    Path::Field(field) => Ok(Predicate::Field(field.clone())),
-                    Path::FixedIndex(index) => Ok(Predicate::FixedIndex(*index)),
-                    Path::RuntimeIndex(index) => Ok(Predicate::RuntimeIndex(index.clone())),
-                    _ => unsupported("byte comparison has no scalar observation path"),
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let path = observation_path(&subject.path)?;
             (site.bindings, root, path)
         };
         let mut comparison = CheckedBooleanExpression::byte_literal_equality(root, path, bytes)
@@ -239,16 +230,7 @@ impl Expansion<'_> {
                 }
                 _ => return unsupported("byte predicate has no observable operand"),
             };
-            let path = subject
-                .path
-                .iter()
-                .map(|segment| match segment {
-                    Path::Field(field) => Ok(Predicate::Field(field.clone())),
-                    Path::FixedIndex(index) => Ok(Predicate::FixedIndex(*index)),
-                    Path::RuntimeIndex(index) => Ok(Predicate::RuntimeIndex(index.clone())),
-                    _ => unsupported("byte predicate has no scalar observation path"),
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let path = observation_path(&subject.path)?;
             (site.bindings, root, path)
         };
         let evaluation = CheckedBooleanExpression::ByteSequencePredicate {
@@ -371,4 +353,18 @@ impl OperandSelectors {
             _ => {}
         }
     }
+}
+
+/// The completed operand's storage path as an observation path. A case
+/// segment selects the payload whose field the next segment names.
+fn observation_path(path: &[Path]) -> Result<Vec<Predicate>, LoweringError> {
+    path.iter()
+        .map(|segment| match segment {
+            Path::Field(field) => Ok(Predicate::Field(field.clone())),
+            Path::Case(case) => Ok(Predicate::Case(case.clone())),
+            Path::FixedIndex(index) => Ok(Predicate::FixedIndex(*index)),
+            Path::RuntimeIndex(index) => Ok(Predicate::RuntimeIndex(index.clone())),
+            _ => unsupported("byte operand has no scalar observation path"),
+        })
+        .collect()
 }
