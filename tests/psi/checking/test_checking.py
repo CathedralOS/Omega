@@ -1587,6 +1587,18 @@ def main() -> None:
         "RequirementUnproven",
         b"three(items[0])",
     )
+    # A measure's body computes a rank over naturals
+    # (wiki/spec/language/termination.md#ranking): its arithmetic is exact,
+    # while the same operation in an ordinary body keeps its carrier
+    # obligation.
+    accepted(
+        program,
+        "a-measure-body-is-exact",
+        b"data Countdown {}\nmeasure Countdown::Shifted(value: u8) -> u8 { value + 1 }\n"
+        b"machine walk(remaining: u8)\nterminates by remaining -> Countdown::Shifted;\n-> u8 {\n"
+        b"    transition remaining > 0 {\n        true -> walk(remaining - 1)\n        false -> remaining\n    }\n}",
+    )
+    rejected(program, "an-ordinary-body-owes-its-carrier", b"machine shift(value: u8) -> u8 { value + 1 }", "ArithmeticOverflow", b"value + 1")
     # A declared measure ranks its subject by its body, or lexicographically
     # by the subject's named fields (wiki/spec/language/termination.md#ranking).
     measured = (

@@ -1296,6 +1296,7 @@ crashes Trap
         let first: u64 in Trapping = checker.argument_first;
         let count: u64 in Trapping = checker.argument_count;
         let saved: Value = checker.arguments[0];
+        let exact: bool = checker.exact_body;
         Checker::push_frame(checker);
         checker.tree_base = base;
         checker.tree_low = low;
@@ -1304,10 +1305,14 @@ crashes Trap
         checker.substituting = true;
         checker.argument_first = measure.first_parameter;
         checker.argument_count = 1;
+        // The body computes a rank over naturals: its arithmetic is exact
+        // here as in its own check (arithmetic.omg).
+        checker.exact_body = true;
         Checker::set_argument(checker, 0, subject);
         Checker::evaluate_fact_run(checker, syntax, resolution, typing, root, low);
         let value: Value = Checker::value_at(checker, root);
         Checker::set_argument(checker, 0, saved);
+        checker.exact_body = exact;
         checker.substituting = substituting;
         checker.argument_first = first;
         checker.argument_count = count;

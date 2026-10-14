@@ -201,7 +201,7 @@ pub machine Checker::policy_result(checker: &mut Checker, expression: Expression
 crashes Trap
 {
     let fits: bool = Value::within(result, row.builtin);
-    transition fits {
+    transition fits || checker.exact_body {
         true -> exact(result)
         _ -> overflow(checker, expression, row, result, code, checking)
     }

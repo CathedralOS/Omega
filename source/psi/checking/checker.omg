@@ -129,6 +129,11 @@ pub data Checker {
     // While a return's result is decided, the machine being checked is the
     // origin of the routed domains that name it (qualification.omg).
     minting: bool;
+    // Whether the body being walked computes a rank: a measure's body is a
+    // mathematical computation over naturals
+    // (wiki/spec/language/termination.md#ranking), so its fixed-integer
+    // results are exact rather than carrier obligations.
+    exact_body: bool;
     // While a construction's `where` facts are decided, the fields from
     // `field_first` stand for the same argument values.
     field_values: bool;
@@ -319,6 +324,7 @@ crashes Trap
     checker.subjecting = false;
     checker.subject_literal = false;
     checker.minting = false;
+    checker.exact_body = item.container == MachineContainer::Measure;
     checker.field_values = false;
     checker.payload_values = false;
     checker.domains_pending = false;
