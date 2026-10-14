@@ -1,0 +1,54 @@
+// Expected exit: 0.
+// A record declared without an initializer and established field by field is
+// still its declaration's own production. Each selected exit disposes it once:
+// a dispatch whose arm lends it to a successor, a guarded successor, and a
+// guarded value return.
+data Choice { case Full(value: u32); case Empty; }
+data Frame { prefix: u64; item: Choice; }
+
+machine dispatched(value: u32) -> u64 {
+    let mut frame: Frame;
+    frame.prefix = 19;
+    frame.item = Choice::Full { value: value };
+    transition frame.item {
+        Choice::Full { value } -> lent(&mut frame, value)
+        Choice::Empty -> (frame.prefix)
+    }
+    state lent(frame: &mut Frame, value: u32) -> u64 {
+        frame.item = Choice::Empty;
+        transition value == 7 { true -> (frame.prefix) _ -> (0) }
+    }
+}
+
+machine guarded(flag: bool) -> u64 {
+    let mut frame: Frame;
+    frame.prefix = 23;
+    frame.item = Choice::Full { value: 2 };
+    transition flag {
+        true -> kept(&mut frame)
+        _ -> dropped()
+    }
+    state kept(frame: &mut Frame) -> u64 { frame.prefix }
+    state dropped() -> u64 { 1 }
+}
+
+machine returned(flag: bool) -> u64 {
+    let mut frame: Frame;
+    frame.prefix = 29;
+    frame.item = Choice::Empty;
+    transition flag {
+        true -> (frame.prefix)
+        _ -> (3)
+    }
+}
+
+machine main() crashes Trap {
+    transition dispatched(7) == 19 && dispatched(8) == 0
+        && guarded(true) == 23 && guarded(false) == 1
+        && returned(true) == 29 && returned(false) == 3 {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

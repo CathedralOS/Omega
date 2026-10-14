@@ -8130,6 +8130,7 @@ run/dyn_finite_family_owned_carrier checked 34492ms check-target:linux_x86_64 @4
 run/dyn_finite_family_runtime_dispatch checked 12276ms check-target:macos_arm64 @55ccf9be57c4
 run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:macos_arm64 @9c4d1c444502
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/ownership/declared_record_selected_exit_disposal checked 11660ms check-target:macos_arm64 @93ba1f664f65+wt
 run/ownership/temporary_case_observation checked 5301ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/ownership/temporary_projected_copy_argument checked 5449ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/proofs/quotient_copy_paths checked 19698ms check-target:macos_arm64 @73e466d6222f+wt

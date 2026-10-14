@@ -41,12 +41,8 @@ fn validate(
     // A named home can have a later occupant. Only the result still occupying
     // it at this operation prefix can own the home's eventual disposition.
     if let Some(symbol) = root.as_symbol()
-        && super::super::local_storage::source(program, state, operations, symbol)
-            != Some(
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: result.binding_ordinal,
-                },
-            )
+        && super::super::local_storage::occupant(program, state, operations, symbol)
+            != Some(result.binding_ordinal)
     {
         return None;
     }

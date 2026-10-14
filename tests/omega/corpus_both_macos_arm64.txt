@@ -1104,6 +1104,7 @@ pass/proofs/piecewise_call_result_arithmetic checked 1638ms @1f63ee648905+wt
 pass/slices/local_array_element_view_exit built 11362ms exit:70 interpreter-exit:70 interpreter:agrees @1f63ee648905+wt
 run/calls/runtime_float_distinct_operand_calls_exit built 11482ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @1f63ee648905+wt
 run/calls/runtime_float_normalized_operand_single_evaluation_exit built 11407ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @1f63ee648905+wt
+run/ownership/declared_record_selected_exit_disposal built 8685ms exit:0 interpreter-exit:0 interpreter:agrees @93ba1f664f65+wt
 run/ownership/temporary_case_observation built 5551ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 run/ownership/temporary_projected_copy_argument built 5252ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 run/traits/static_implementation_method_arguments built 5625ms exit:0 interpreter-exit:0 interpreter:agrees @93ba1f664f65+wt

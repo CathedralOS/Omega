@@ -33,3 +33,35 @@ pub(crate) fn source(
     }
     None
 }
+
+/// The production still occupying `symbol`'s home after `operations`: the
+/// binding ordinal of its declaration's establishment or initializer result.
+/// A rebind has replaced every earlier production, so none occupies it. An
+/// in-place declaration is still that declaration's own production even
+/// though operands name its home rather than the result.
+pub(crate) fn occupant(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    operations: &[CheckedUnitEffectOperationPlan],
+    symbol: SymbolHandle,
+) -> Option<u32> {
+    match source(program, state, operations, symbol)? {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+            Some(binding_ordinal)
+        }
+        _ => operations
+            .iter()
+            .rev()
+            .find_map(|operation| match operation {
+                _ if operation.ends_local_occurrence(symbol) => Some(None),
+                CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::Structural {
+                        symbol: local,
+                        result,
+                        ..
+                    },
+                ) if *local == symbol => Some(Some(result.binding_ordinal)),
+                _ => None,
+            })?,
+    }
+}
