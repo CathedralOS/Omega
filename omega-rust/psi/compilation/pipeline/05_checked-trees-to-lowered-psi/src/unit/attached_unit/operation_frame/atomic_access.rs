@@ -62,9 +62,6 @@ impl OperationFrame<'_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "atomic event lost its receiver type",
                 ))?;
-        if carrier != crate::unit::lookup_type_id(self.type_ids, &access.receiver.type_identity)? {
-            return unsupported("atomic event receiver changed its checked type");
-        }
         let place = receiver.place;
         let mut path = receiver.path;
         let field_path = access

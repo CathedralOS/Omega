@@ -155,6 +155,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         operands: HandleSpan::empty(),
         receiver_symbol: borrow_call.receiver_symbol,
         target_symbol: borrow_call.target_symbol,
+        static_requirement_dispatch: None,
         has_receiver: borrow_call.has_receiver,
         accesses: borrow_call.accesses,
         entry_semantic_contexts: entry.contexts,

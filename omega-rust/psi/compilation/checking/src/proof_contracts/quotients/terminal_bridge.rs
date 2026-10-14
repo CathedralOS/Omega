@@ -140,5 +140,10 @@ fn extract_one(
         public_state: state.symbol,
         representative_state: request.representative_operation.symbol,
         correspondence,
+        theorems: request
+            .theorem_evidence
+            .iter()
+            .map(|selected| selected.application.symbol)
+            .collect(),
     })
 }

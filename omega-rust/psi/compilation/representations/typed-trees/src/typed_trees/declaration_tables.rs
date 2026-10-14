@@ -106,6 +106,33 @@ impl TypedTrees {
         }
     }
 
+    /// The concrete machines a closed conformance application's occurrence
+    /// telescope selected for its `Machine` binders, in binder order. Empty
+    /// when the application retains no occurrence telescope.
+    pub fn closed_application_selected_machines(
+        &self,
+        application: &super::ClosedConformanceApplication,
+    ) -> &[crate::expression::StaticMachineArgument] {
+        self.expression_table
+            .static_machine_application_selected_machines(application.callable_application)
+    }
+
+    /// The value a specialization substitutes for one of its template's
+    /// binders, when exactly one binding names that binder.
+    pub fn specialization_binding(
+        &self,
+        specialization: &super::MachineSpecialization,
+        parameter: symbols::SymbolHandle,
+    ) -> Option<&crate::static_applications::StaticMachineBindingValue> {
+        let mut bindings = self
+            .expression_table
+            .static_machine_application_bindings(specialization.binding_application)
+            .iter()
+            .filter(|binding| binding.parameter == parameter);
+        let selected = bindings.next()?;
+        bindings.next().is_none().then_some(&selected.value)
+    }
+
     /// Rejoin the exact direct occurrence or the evidence-bound invocation.
     /// Neither an executable target nor another caller's tuple selects a map.
     pub fn selected_conformance_applications<'a>(

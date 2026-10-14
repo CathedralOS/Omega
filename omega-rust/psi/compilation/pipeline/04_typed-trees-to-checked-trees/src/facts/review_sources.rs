@@ -168,6 +168,8 @@ pub(crate) fn bind_checked_body_call_source_spans(
             };
             checked_call.authored_site = site;
             checked_call.authored_target = target;
+            checked_call.static_requirement_dispatch =
+                call_site.static_requirement_dispatch().map(Into::into);
             checked_call.authored_arguments = control
                 .call_arguments
                 .insert_many(arguments.iter().copied());

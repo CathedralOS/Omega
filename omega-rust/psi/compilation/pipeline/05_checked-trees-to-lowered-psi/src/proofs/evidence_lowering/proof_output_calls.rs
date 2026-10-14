@@ -230,15 +230,6 @@ fn lower_static_requirement_dispatch(
             "static requirement proof output has no unique checked conformance application",
         );
     };
-    if checked
-        .typed
-        .realization_entry_template(invocation.target_state_symbol, checked_application)
-        != Some((dispatch.realization_machine, dispatch.realization_state))
-    {
-        return unsupported(
-            "static requirement proof output target does not rejoin its original schema",
-        );
-    }
     let expected_telescope =
         crate::retention::checked_application_telescope(checked, checked_application)?;
     let mut expected_schemas = checked_application

@@ -171,18 +171,6 @@ fn collect_closed_conformance_applications(
                     .ok_or(LoweringError::Unsupported(
                         "static conformance dispatch lost its normalized row",
                     ))?;
-                if checked
-                    .typed
-                    .realization_entry_template(invocation.state, source_application)
-                    != Some((
-                        selected_row.realization_machine,
-                        selected_row.realization_state,
-                    ))
-                {
-                    return Err(LoweringError::Unsupported(
-                        "static conformance executable does not rejoin its original schema",
-                    ));
-                }
                 let callable = emitted_callables
                     .iter()
                     .find_map(|(source, terminal, _)| {
@@ -597,8 +585,8 @@ pub(crate) fn checked_application_telescope(
                     ));
                 }
                 let selected = checked
-                    .expression_table
-                    .static_machine_application_selected_machines(application.callable_application)
+                    .typed
+                    .closed_application_selected_machines(application)
                     .get(machine_index)
                     .ok_or(LoweringError::Unsupported(
                         "closed conformance Machine tuple lost its exact selected callback",
@@ -709,60 +697,48 @@ struct StaticExecutableCall {
 
 /// Retain every checked ordinary occurrence, including scalar computation calls
 /// with no erased proof outputs. Proof-lane presence does not select execution.
-fn checked_static_dispatches<'program>(
-    checked: &'program CheckedTrees,
+/// The occurrences are the owner's live flow call rows: each carries the
+/// static selection the checker resolved, so no statement is walked again;
+/// a row retired by selected execution names a call the body no longer makes.
+fn checked_static_dispatches(
+    checked: &CheckedTrees,
     owner: symbols::SymbolHandle,
 ) -> Result<
     Vec<(
         StaticExecutableCall,
-        &'program typed_trees::typed_trees::StaticRequirementDispatch,
+        checked_trees::StaticRequirementDispatchFact,
     )>,
     LoweringError,
 > {
-    let machine = checked
-        .typed
-        .machine(owner)
-        .ok_or(LoweringError::Unsupported(
-            "static dispatch lost its checked owner",
-        ))?;
+    let control = &checked.facts.flow.control;
     let mut calls = Vec::new();
-    for state in checked.typed.machine_states(machine) {
-        for index in 0..checked
-            .typed
-            .statement_table
-            .statements(state.statement_nodes)
-            .len()
-        {
-            for site in validation::collect_call_sites_in_statement(checked, machine, state, index)
-            {
-                let Some(dispatch) = site.static_requirement_dispatch() else {
-                    continue;
-                };
-                let target = match site {
-                    validation::CallSite::Statement(call) => call.target_symbol,
-                    validation::CallSite::Expression { call, .. } => call.target_symbol,
-                    validation::CallSite::TransitionNamed { .. } => continue,
-                };
-                if !validation::closed_requirement_dispatch_is_valid(
-                    checked, owner, target, dispatch,
-                ) {
-                    return Err(LoweringError::Unsupported(
-                        "static executable call lost its checked closed selection",
-                    ));
-                }
-                let realized = checked.typed.machine_holding_state(target).ok_or(
-                    LoweringError::Unsupported(
-                        "static executable call lost its exact target owner",
-                    ),
-                )?;
-                calls.push((
-                    StaticExecutableCall {
-                        machine: realized.symbol,
-                        state: target,
-                    },
-                    dispatch,
-                ));
+    for (_, state) in control
+        .states
+        .iter()
+        .filter(|(_, state)| state.machine_symbol == owner)
+    {
+        for call in control.calls.span_or_empty(state.calls) {
+            let Some(dispatch) = call.static_requirement_dispatch else {
+                continue;
+            };
+            if control.is_retired(state.state_symbol, call) {
+                continue;
             }
+            let target = call.target_symbol;
+            let realized =
+                checked
+                    .typed
+                    .machine_holding_state(target)
+                    .ok_or(LoweringError::Unsupported(
+                        "static executable call lost its exact target owner",
+                    ))?;
+            calls.push((
+                StaticExecutableCall {
+                    machine: realized.symbol,
+                    state: target,
+                },
+                dispatch,
+            ));
         }
     }
     Ok(calls)
@@ -804,24 +780,17 @@ fn checked_method_return_reference(
         .ok_or(LoweringError::Unsupported(
             "generic conformance result has no corresponding method binder",
         ))?;
-    let bindings = checked
+    match checked
         .typed
-        .expression_table
-        .static_machine_application_bindings(specialization.binding_application);
-    let selected = bindings
-        .iter()
-        .filter(|binding| binding.parameter == private.symbol)
-        .collect::<Vec<_>>();
-    match selected.as_slice() {
-        [selected] => match selected.value {
-            typed_trees::static_applications::StaticMachineBindingValue::Type(reference) => {
-                Ok(reference)
-            }
-            _ => Err(LoweringError::Unsupported(
-                "generic conformance result binder is not a Type",
-            )),
-        },
-        _ => Err(LoweringError::Unsupported(
+        .specialization_binding(specialization, private.symbol)
+    {
+        Some(typed_trees::static_applications::StaticMachineBindingValue::Type(reference)) => {
+            Ok(*reference)
+        }
+        Some(_) => Err(LoweringError::Unsupported(
+            "generic conformance result binder is not a Type",
+        )),
+        None => Err(LoweringError::Unsupported(
             "generic conformance result has no unique applied Type",
         )),
     }

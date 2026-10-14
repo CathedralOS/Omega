@@ -100,19 +100,8 @@ pub(super) fn retain(
             validation::find_machine_by_entry_state(&checked.typed, *representative_state).ok_or(
                 LoweringError::Unsupported("quotient representative is absent"),
             )?;
-        let request = checked
-            .typed
-            .expression_table
-            .call_node(*request)
-            .and_then(|call| call.quotient_operation.as_ref())
-            .ok_or(LoweringError::Unsupported("quotient request is absent"))?;
-        if request.theorem_evidence.len() != row.correspondence.theorem_evidence.len() {
-            return Err(LoweringError::Unsupported(
-                "quotient theorem roster drifted",
-            ));
-        }
-        let theorems = request.theorem_evidence.iter().map(|selected| {
-            let (machine, state) = validation::find_machine_by_entry_state(&checked.typed, selected.application.symbol)
+        let theorems = row.theorems.iter().map(|theorem| {
+            let (machine, state) = validation::find_machine_by_entry_state(&checked.typed, *theorem)
                 .ok_or(LoweringError::Unsupported("quotient theorem declaration is absent"))?;
             if !machine.body_is_present || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
                 || !matches!(checked.typed.type_reference_table.type_reference(state.return_type), typed_trees::types::TypeReferenceNode::Unit)
@@ -153,13 +142,14 @@ pub(super) fn retain(
             type_ids,
             &validation::stored_structural_type_identity(&checked.typed, quotient, &[], &[]),
         )?;
+        // A mint and a result adaptation carry the quotient as their result
+        // and the carrier as their source; an input adaptation reads the
+        // quotient and writes the carrier.
         let (carrier, license) = match license {
-            CheckedQuotientAdaptationLicense::Mint if row.result_type == quotient_id => {
+            CheckedQuotientAdaptationLicense::Mint => {
                 (row.source_type, TerminalQuotientAdaptationLicense::Mint)
             }
-            CheckedQuotientAdaptationLicense::Input { request, position }
-                if row.source_type == quotient_id =>
-            {
+            CheckedQuotientAdaptationLicense::Input { request, position } => {
                 let operation = operation_index(checked, calls, node.machine, request)?;
                 (
                     row.result_type,
@@ -169,19 +159,12 @@ pub(super) fn retain(
                     },
                 )
             }
-            CheckedQuotientAdaptationLicense::Result { request }
-                if row.result_type == quotient_id =>
-            {
+            CheckedQuotientAdaptationLicense::Result { request } => {
                 let operation = operation_index(checked, calls, node.machine, request)?;
                 (
                     row.source_type,
                     TerminalQuotientAdaptationLicense::Result { operation },
                 )
-            }
-            _ => {
-                return Err(LoweringError::Unsupported(
-                    "quotient adaptation nominal endpoints drifted",
-                ));
             }
         };
         let representation = TerminalQuotientRepresentation {

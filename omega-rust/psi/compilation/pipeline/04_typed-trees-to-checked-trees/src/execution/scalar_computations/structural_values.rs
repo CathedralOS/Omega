@@ -770,6 +770,7 @@ impl Builder<'_, '_> {
             state: self.state,
             statement_index: u32::try_from(self.statement_index).ok()?,
             expression,
+            source_span: self.program.expression_table.source_span(expression),
             type_reference,
             qualification_decisions: Default::default(),
             kind,

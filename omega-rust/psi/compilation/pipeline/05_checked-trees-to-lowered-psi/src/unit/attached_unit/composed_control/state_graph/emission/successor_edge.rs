@@ -215,14 +215,6 @@ impl StateGraphEmission<'_, '_> {
                                     "Unit graph established argument has no result binding",
                                 );
                             };
-                            if presentation.type_identity != target_parameter.type_identity
-                                || presentation.access != target_parameter.access
-                                || !matches!(presentation.source,
-                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
-                                        if binding_ordinal == result.binding_ordinal)
-                            {
-                                return unsupported("Unit graph established endpoint differs from its receiving contract");
-                            }
                             let state_bindings = operations.structural_values.clone();
                             let selected_operations = operands.iter()
                                 .chain(std::iter::once(establishment.as_ref()))

@@ -45,11 +45,6 @@ pub(crate) fn emit_call(
         validation::find_machine_by_entry_state(&checked.typed, representative_state).ok_or(
             LoweringError::Unsupported("quotient representative body is absent"),
         )?;
-    if checked.typed.normalized_type_identity(state.return_type)
-        != checked.typed.normalized_type_identity(node.type_reference)
-    {
-        return unsupported("quotient invocation result type drifted");
-    }
     let signature =
         crate::unit::attached_unit::signatures::find(calls.signatures, representative.symbol)?
             .clone();
@@ -86,9 +81,6 @@ pub(crate) fn emit_call(
         .is_empty()
     {
         return unsupported("quotient invocation result carries custody or qualifications");
-    }
-    if actuals.len() != arguments.len() {
-        return unsupported("quotient invocation actual roster drifted");
     }
     let mut arguments = Vec::new();
     for ((actual, ty), formal) in actuals.iter().zip(&signature.parameters) {

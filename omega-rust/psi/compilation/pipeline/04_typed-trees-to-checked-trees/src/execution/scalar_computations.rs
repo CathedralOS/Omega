@@ -209,6 +209,9 @@ pub(crate) fn build_checked_value_computation_plans(
                             state: state.symbol,
                             statement_index: statement_ordinal,
                             expression: local.initial_value,
+                            // No initializer was authored, so there is no
+                            // occurrence to cite.
+                            source_span: Default::default(),
                             type_reference: local.type_reference,
                             qualification_decisions: Default::default(),
                             kind: checked_trees::CheckedStructuralValueKind::ZeroedStructural {},

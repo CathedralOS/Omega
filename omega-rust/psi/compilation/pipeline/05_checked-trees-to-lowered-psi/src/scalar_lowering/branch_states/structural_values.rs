@@ -250,7 +250,7 @@ pub(crate) fn prepare_value(
                 "machine `{}` state `{}` statement {} cannot lower structural value: {}",
                 machine.name, state_declaration.name, statement, reason,
             ))
-            .with_source_span(checked.expression_table.source_span(node.expression));
+            .with_source_span(node.source_span);
             LoweringError::InvalidUnitMachinePlan {
                 machine: machine.name.to_string(),
                 reason,

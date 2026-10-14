@@ -27,6 +27,7 @@ pub fn derive_scalar_boundary_guarantees(
             }
             ClosedScalarContractValue::SourceCheckedGuarantee {
                 facts: source_facts,
+                ..
             } => {
                 for fact in program.proof_facts.span_or_empty(*source_facts) {
                     if let Some(expression) = fact.as_expression()

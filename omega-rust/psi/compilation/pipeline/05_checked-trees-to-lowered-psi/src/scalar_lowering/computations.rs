@@ -720,10 +720,8 @@ impl<'a> Expansion<'a> {
                 active,
             )?,
             CheckedScalarComputationKind::RetainedConstant { expression } => {
-                let typed_trees::expression::ExpressionNode::Integer(literal) =
-                    self.checked.typed.expression_table.expression(expression)
-                else {
-                    return unsupported("retained scalar constant did not close to its literal");
+                let Some(literal) = self.checked.landed_integer_constant(expression) else {
+                    return unsupported("retained scalar constant is not closed for the target");
                 };
                 let expression = site.bindings.expression(
                     identities,
@@ -732,11 +730,6 @@ impl<'a> Expansion<'a> {
                         literal: literal.clone(),
                     },
                 )?;
-                if expression.value_type(input_types)? != result_type {
-                    return unsupported(
-                        "retained scalar constant carrier disagrees with its checked result",
-                    );
-                }
                 self.binding(
                     input_types,
                     input_types.len(),
@@ -837,7 +830,6 @@ impl<'a> Expansion<'a> {
                 self.argument(identities, &operand, input_types, dispatch, site, active)?
             }
             CheckedScalarComputationKind::Call {
-                static_requirement_dispatch,
                 source_call,
                 callee,
                 call_ordinal,
@@ -847,8 +839,6 @@ impl<'a> Expansion<'a> {
                 claim_transfers,
             } => self.call(
                 identities,
-                static_requirement_dispatch,
-                node.authored_root,
                 source_call,
                 &callee,
                 call_ordinal,

@@ -132,6 +132,9 @@ pub struct ValidatedQuotientOperation {
     pub representative_state: SymbolHandle,
     pub correspondence:
         language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence,
+    /// Entry-state symbols of the request's selected theorem machines, in
+    /// role order.
+    pub theorems: Box<[SymbolHandle]>,
 }
 
 /// Rerun the complete quotient-formation judgment without considering any

@@ -313,6 +313,21 @@ pub struct StaticRequirementDispatchFact {
     pub realization_state: SymbolHandle,
 }
 
+impl From<&typed_trees::typed_trees::StaticRequirementDispatch> for StaticRequirementDispatchFact {
+    fn from(dispatch: &typed_trees::typed_trees::StaticRequirementDispatch) -> Self {
+        Self {
+            selection_application: dispatch.selection_application,
+            application_report_fingerprint: dispatch.application_report_fingerprint,
+            application_commitment: dispatch.application_commitment,
+            declaring_trait: dispatch.declaring_trait,
+            requirement: dispatch.requirement,
+            contract_signature: dispatch.contract_signature,
+            realization_machine: dispatch.realization_machine,
+            realization_state: dispatch.realization_state,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProofOutputEvidenceArgumentFact {
     pub input_position: usize,

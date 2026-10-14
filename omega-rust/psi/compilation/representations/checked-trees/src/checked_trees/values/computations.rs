@@ -268,9 +268,12 @@ pub enum CheckedScalarComputationKind {
         operand: CheckedScalarComputationHandle,
         result_type: typed_trees::types::TypeReferenceHandle,
     },
-    /// A checked scalar constant whose value belongs to target closure. The
-    /// carrier is already known; lowering consumes the closed literal at this
-    /// exact canonical expression handle, never a callee or a source spelling.
+    /// A checked scalar constant whose value belongs to target closure: a
+    /// retained `size_of`/`align_of` query, or a `const` whose materialized
+    /// initializer is one. The carrier is already known; the selected
+    /// target's fold lands the `u64` literal at `expression` after checking
+    /// (`CheckedTrees::landed_integer_constant`), and lowering emits that
+    /// literal, never a callee or a source spelling.
     RetainedConstant {
         expression: typed_trees::expression::ExpressionHandle,
     },
@@ -309,9 +312,10 @@ pub enum CheckedScalarComputationKind {
     /// executable runs and, for a boundary, retains its separate contract and
     /// provider identity.
     Call {
-        /// Checked ordinary static selection. Named proof outputs and portable
-        /// boundary calls retain their separate execution and evidence routes.
-        static_requirement_dispatch: Option<crate::StaticRequirementDispatchFact>,
+        /// The invocation's flow row; its `static_requirement_dispatch`
+        /// names a checked ordinary static selection. Named proof outputs
+        /// and portable boundary calls retain their separate execution and
+        /// evidence routes.
         source_call: Handle<crate::FlowCallFact>,
         callee: CheckedScalarCallee,
         /// Authored occurrence identity, not its position in execution order.

@@ -679,16 +679,7 @@ impl Builder<'_, '_> {
                         {
                             return None;
                         }
-                        Some(checked_trees::StaticRequirementDispatchFact {
-                            selection_application: dispatch.selection_application,
-                            application_report_fingerprint: dispatch.application_report_fingerprint,
-                            application_commitment: dispatch.application_commitment,
-                            declaring_trait: dispatch.declaring_trait,
-                            requirement: dispatch.requirement,
-                            contract_signature: dispatch.contract_signature,
-                            realization_machine: dispatch.realization_machine,
-                            realization_state: dispatch.realization_state,
-                        })
+                        Some(checked_trees::StaticRequirementDispatchFact::from(dispatch))
                     } else {
                         None
                     };
@@ -764,7 +755,6 @@ impl Builder<'_, '_> {
                 Some(self.insert(
                     expected_type,
                     CheckedScalarComputationKind::Call {
-                        static_requirement_dispatch,
                         callee: checked_trees::CheckedScalarCallee::Body {
                             machine: target_machine.symbol,
                             state: target_state.symbol,

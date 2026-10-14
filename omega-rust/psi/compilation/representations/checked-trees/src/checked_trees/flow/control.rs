@@ -64,6 +64,11 @@ pub struct FlowCallFact {
     pub authored_selected: bool,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
+    /// The closed static conformance selection the checker resolved for this
+    /// occurrence, when `target_symbol` is a requirement realization reached
+    /// through one. Lowering retains conformance executables and proof
+    /// output targets from these rows; a named transition has none.
+    pub static_requirement_dispatch: Option<crate::StaticRequirementDispatchFact>,
     pub has_receiver: bool,
     pub accesses: HandleSpan<BorrowArgumentAccessFact>,
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,

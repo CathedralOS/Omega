@@ -9,6 +9,10 @@ pub struct CheckedQuotientOperation {
     pub representative_state: symbols::SymbolHandle,
     pub correspondence:
         language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence,
+    /// Entry-state symbols of the selected resultless theorem machines, in
+    /// the request's role order; one per `correspondence.theorem_evidence`
+    /// row. Lowering emits the theorem roster from here.
+    pub theorems: Box<[symbols::SymbolHandle]>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

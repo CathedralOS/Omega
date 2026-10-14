@@ -42,6 +42,9 @@ pub struct CheckedStructuralValue {
     pub state: SymbolHandle,
     pub statement_index: u32,
     pub expression: ExpressionHandle,
+    /// Diagnostic location of the occurrence; lowering refusals cite it
+    /// without reading the expression back.
+    pub source_span: source::SourceSpan,
     /// Complete occurrence type, including its receiving obligations. The
     /// linked source judgments, not this annotation, prove membership.
     pub type_reference: TypeReferenceHandle,

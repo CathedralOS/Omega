@@ -770,23 +770,14 @@ pub(crate) fn authored_result_qualification_domains(
         return qualifications;
     };
     for clause in contract.closed_scalar_values.ensures() {
-        let Some(checked_trees::ClosedScalarContractValue::SourceCheckedGuarantee { facts }) =
-            clause
+        let Some(checked_trees::ClosedScalarContractValue::SourceCheckedGuarantee {
+            result_memberships,
+            ..
+        }) = clause
         else {
             continue;
         };
-        for fact in checked.typed.proof_facts.span_or_empty(*facts) {
-            let typed_trees::domain::ProofFact::Membership(membership) = fact else {
-                continue;
-            };
-            if checked
-                .typed
-                .expression_table
-                .names_reserved_result(membership.value)
-            {
-                qualifications.push(membership.semantic_domain);
-            }
-        }
+        qualifications.extend(result_memberships.iter().copied());
     }
     qualifications.sort_by_key(|domain| domain.0);
     qualifications.dedup();

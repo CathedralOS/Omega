@@ -623,11 +623,29 @@ pub(crate) fn build_callable_scalar_value_contract_plan(
                 // has already been checked against normal-return paths: when this
                 // scalar vocabulary has no useful consequence, retain its source
                 // clause for checker consumers and erase it during publication.
-                (contract.kind == SignatureContractKind::Ensures).then_some(
+                (contract.kind == SignatureContractKind::Ensures).then(|| {
+                    let mut result_memberships = program
+                        .proof_facts
+                        .span_or_empty(contract.facts)
+                        .iter()
+                        .filter_map(|fact| match fact {
+                            typed_trees::domain::ProofFact::Membership(membership)
+                                if program
+                                    .expression_table
+                                    .names_reserved_result(membership.value) =>
+                            {
+                                Some(membership.semantic_domain)
+                            }
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+                    result_memberships.sort_by_key(|domain| domain.0);
+                    result_memberships.dedup();
                     checked_trees::ClosedScalarContractValue::SourceCheckedGuarantee {
                         facts: contract.facts,
-                    },
-                )
+                        result_memberships: result_memberships.into_boxed_slice(),
+                    }
+                })
             })
     };
 
