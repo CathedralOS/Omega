@@ -1207,7 +1207,7 @@ pass/expressions/owned_match_projected_field checked 224ms
 pass/expressions/owned_match_record_values checked 169ms @1fa864024c44+wt
 pass/expressions/owned_match_values checked 193ms
 pass/expressions/qualified_call_result_argument checked 204ms
-pass/expressions/runtime_comparison_store_integer_exit built 6125ms exit:70 @798538de5915+wt
+pass/expressions/runtime_comparison_store_integer_exit built 15424ms exit:70 @2012446ad74a+wt
 pass/expressions/runtime_flat_boolean_logic_exit built 786ms exit:70
 pass/expressions/runtime_float_record_field_reads_exit built 4168ms exit:70 @e28fa01a1e73+wt
 pass/expressions/runtime_indexed_float_record_fields_exit built 5290ms exit:70 @48008365d839

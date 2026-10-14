@@ -68,14 +68,14 @@ pub(super) fn analyze(
     );
     if !is_arithmetic(operator) && !bitwise {
         // Comparison / logical `and`/`or`: a `bool` whose integer value is 0
-        // or 1. Its interval is [0, 1] (NOT unbounded) so it does not poison an
-        // enclosing arithmetic op -- e.g. the match desugar
-        // `d + (s == p) * (v - d)` stays bounded. No arithmetic domain.
+        // or 1, like `!`. Its interval is [0, 1] (NOT unbounded) so it does not
+        // poison an enclosing arithmetic op, and its `bool` primitive lets an
+        // explicit `(a == b) as i32` keep that interval. No arithmetic domain.
         return Analysis {
             recipe: None,
             domain: None,
             interval: BOOLEAN_INTERVAL,
-            primitive: None,
+            primitive: Some(PrimitiveType::Bool),
         };
     }
     operation.reject_provably_zero_divisor(diagnostics);

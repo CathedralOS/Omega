@@ -1,18 +1,17 @@
-// A raw comparison stored into an integer slot is its `{0, 1}` value:
-// checking admits `hits = value == 70` as that coercion, and `as i32` of a
-// Boolean already lowers as a total widening. The implicit store into a local
-// and into an `i32 in Wrapping` field planned no scalar value row, so the
-// state had no executable body ("scalar local: pure initializer",
-// "structural field store: pure source: scalar expression row").
+// A comparison stored into an integer slot spells its `{0, 1}` value with
+// `as`: a comparison is `bool`, and a store adds no conversion
+// (fail/expressions/comparison_result_integer_store_rejected). The converted
+// store into a local and into an `i32 in Wrapping` field each plan a scalar
+// value row, so the state has an executable body.
 use omega_language_std::console;
 use omega::language::core::binding;
 
 data Main { console: Binding<Console>; hits: i32 in Wrapping; }
 machine Main::main(main: &mut Main) reaches Console {
     let value: i32 = 70;
-    let matched: i32 = value == 70;
-    let missed: i32 = value < 7;
-    main.hits = value != 7;
+    let matched: i32 = (value == 70) as i32;
+    let missed: i32 = (value < 7) as i32;
+    main.hits = (value != 7) as i32 in Wrapping;
     let total: i32 = matched + missed + (main.hits as i32);
     transition total == 2 {
         true -> good(main)

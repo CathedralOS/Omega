@@ -321,8 +321,9 @@ fail/atomics/atomic_compare_exchange_failure_stronger_rejected rejected 6ms expe
 	tests/omega/fail/atomics/atomic_compare_exchange_failure_stronger_rejected/main.omg:1:1: atomic compare_exchange failure ordering `GlobalOrder` is invalid for success ordering `Receive`; failure cannot publish or be stronger than success
 fail/atomics/atomic_load_publish_ordering_rejected rejected 3ms expected @a9ae30e1c334+wt
 	tests/omega/fail/atomics/atomic_load_publish_ordering_rejected/main.omg:7:40: atomic load cannot use `Publish` ordering; use `NoOrdering`, `Receive`, or `GlobalOrder`
-fail/atomics/atomic_operand_boolean_arithmetic rejected 166ms expected @e460ea1df091+wt
+fail/atomics/atomic_operand_boolean_arithmetic rejected 190ms expected @2012446ad74a+wt
 	machine `replace` state `entry` applies an operator to a boolean and a numeric value -- Omega does not coerce a boolean to a number -- compare booleans directly (`b == true`) or convert a number explicitly (`n != 0`)
+	store in machine `replace` state `entry` assignment implicitly converts `bool` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 fail/atomics/atomic_operand_call_argument rejected 163ms expected @e460ea1df091+wt
 	argument `value` for state `entry` expects `bool`, got `integer literal`
 fail/atomics/atomic_operand_implicit_narrowing rejected 162ms expected @e460ea1df091+wt
@@ -2328,8 +2329,9 @@ fail/expressions/cast_result_range rejected 880ms expected @a9ae30e1c334+wt
 	cast target range in machine `main` state `entry` cast expression is not proven from the source value; all target predicates must hold before policy qualification (unknown numeric bounds or unsupported non-integer membership require an explicit proof)
 fail/expressions/cast_struct_to_number_rejected rejected 2820ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` casts a `P` value to `i32`, but `as` converts between scalar types only
-fail/expressions/comparison_result_integer_store_rejected rejected 216ms expected @eaa1da764404+wt
+fail/expressions/comparison_result_integer_store_rejected rejected 217ms expected @2012446ad74a+wt
 	machine `Main::record` state `record` assignment stores a boolean into a `i32` place, which holds a numeric value
+	store in machine `Main::record` state `record` assignment implicitly converts `bool` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
 fail/expressions/cross_enum_case_membership_rejected rejected 2781ms expected @a9ae30e1c334+wt
 	case membership must test a value of the exact declaring data type
 fail/expressions/cross_type_equality_rejected rejected 1774ms expected @a9ae30e1c334+wt
@@ -6232,7 +6234,7 @@ pass/expressions/owned_match_projected_field checked 1648ms @a9ae30e1c334+wt
 pass/expressions/owned_match_record_values checked 1568ms @a9ae30e1c334+wt
 pass/expressions/owned_match_values checked 1568ms @a9ae30e1c334+wt
 pass/expressions/qualified_call_result_argument checked 1625ms @a9ae30e1c334+wt
-pass/expressions/runtime_comparison_store_integer_exit checked 6018ms check-target:macos_arm64 @798538de5915+wt
+pass/expressions/runtime_comparison_store_integer_exit checked 15043ms check-target:macos_arm64 @2012446ad74a+wt
 pass/expressions/runtime_flat_boolean_logic_exit checked 11198ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/runtime_float_record_field_reads_exit checked 11200ms check-target:macos_arm64 @9c4d1c444502
 pass/expressions/runtime_indexed_float_record_fields_exit checked 11087ms check-target:macos_arm64 @9c4d1c444502
