@@ -1,5 +1,9 @@
 """The sample queue lists failing sample programs, smallest first."""
 
+from contextlib import redirect_stdout, redirect_stderr
+from datetime import datetime, timedelta, timezone
+import io
+import json
 import importlib.util
 from pathlib import Path
 import tempfile
@@ -42,6 +46,63 @@ class SampleQueueTests(unittest.TestCase):
             (passing, "pass", "")))
         self.assertEqual([row["sample"] for row in rows], [small, big])
         self.assertEqual(rows[0]["lines"], 20)
+
+    def claim(self, sample, expired=False, paths=None):
+        expiry = datetime.now(timezone.utc) + timedelta(hours=-1 if expired else 1)
+        return {"item": sample, "owner": "peer session", "ticket": "a" * 32,
+                "note": "repairing the generic field operation", "paths": paths or [],
+                "expires_utc": expiry.isoformat()}
+
+    def test_unclaimed_programs_precede_smaller_live_assignments(self):
+        occupied = self.sample("samples/cli/occupied", 5)
+        available = self.sample("samples/cli/available", 20)
+        claim = self.claim(occupied + "/main.omg")
+        rows = queue_module.queue(self.record((occupied, "no-native-build", ""),
+                                             (available, "no-native-build", "")),
+                                  live_claims=[claim])
+        self.assertEqual([row["sample"] for row in rows], [available, occupied])
+        self.assertEqual(rows[1]["claims"], [claim])
+        self.assertTrue(all(row["claims_known"] for row in rows))
+
+    def test_expired_claims_and_shared_paths_do_not_occupy_an_outcome(self):
+        small = self.sample("samples/cli/small", 5)
+        big = self.sample("samples/cli/big", 20)
+        rows = queue_module.queue(self.record((small, "no-native-build", ""),
+                                             (big, "no-native-build", "")),
+                                  live_claims=[self.claim(small, expired=True),
+                                               self.claim("another outcome", paths=["samples/cli"])])
+        self.assertEqual([row["sample"] for row in rows], [small, big])
+        self.assertTrue(all(row["claims"] == [] for row in rows))
+
+    def test_cli_keeps_claim_owners_and_notes_visible(self):
+        sample = self.sample("samples/cli/work", 5)
+        record = self.root / "gate.json"
+        record.write_text(json.dumps(self.record((sample, "no-native-build", "refusal"))))
+        output = io.StringIO()
+        with patch.object(queue_module.sys, "argv", ["sample_queue.py", "--record", str(record)]), \
+             patch.object(queue_module, "live_ownership", return_value=[self.claim(sample)]), \
+             redirect_stdout(output):
+            self.assertEqual(queue_module.main(), 0)
+        self.assertIn("active: peer session", output.getvalue())
+        self.assertIn("repairing the generic field operation", output.getvalue())
+
+    def test_json_limit_selects_available_outcome_and_preserves_unknown_state(self):
+        occupied = self.sample("samples/cli/occupied", 5)
+        available = self.sample("samples/cli/available", 20)
+        record = self.root / "gate.json"
+        record.write_text(json.dumps(self.record((occupied, "no-native-build", ""),
+                                                (available, "no-native-build", ""))))
+        for unavailable in (False, True):
+            with self.subTest(unavailable=unavailable):
+                output, errors = io.StringIO(), io.StringIO()
+                snapshot = patch.object(queue_module, "live_ownership", side_effect=queue_module.outcome_claims.ClaimsError("read timed out")) if unavailable else patch.object(queue_module, "live_ownership", return_value=[self.claim(occupied)])
+                with patch.object(queue_module.sys, "argv", ["sample_queue.py", "--record", str(record), "--json", "--limit", "1"]), snapshot, redirect_stdout(output), redirect_stderr(errors):
+                    self.assertEqual(queue_module.main(), 0)
+                rows = json.loads(output.getvalue())
+                self.assertEqual(rows[0]["sample"], occupied if unavailable else available)
+                self.assertEqual(rows[0]["claims_known"], not unavailable)
+                if unavailable:
+                    self.assertIn("ownership unknown", errors.getvalue())
 
     def test_nested_projects_and_build_files_do_not_count(self):
         parent = self.sample("samples/cli/lab", 10)

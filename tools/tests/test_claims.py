@@ -282,6 +282,24 @@ class ClaimsTests(unittest.TestCase):
                         with self.assertRaises(module.coordination.CoordinationTimeout):
                             registry.fetch_version(version)
 
+    def test_cached_reader_gets_acquisition_budget_for_a_new_tip(self):
+        module = load_claims()
+        self.claim(self.a)
+        initial = module.Claims(self.b, "origin").snapshot()
+        self.claim(self.a, "BETA-ITEM", "another session")
+        version = self.git(self.remote, "rev-parse", CLAIMS_REF)
+        self.assertNotEqual(initial["version"], version)
+        registry = module.Claims(self.b, "origin")
+        original_fetch = module.coordination.fetch_object
+        def elapsed_acquisition(*arguments, **keywords):
+            registry.deadline -= 20
+            module.coordination.remaining_seconds(registry.deadline)
+            keywords["deadline"] = registry.deadline
+            return original_fetch(*arguments, **keywords)
+        with mock.patch.object(module.coordination, "fetch_object", side_effect=elapsed_acquisition):
+            registry.fetch_version(version)
+        self.assertEqual(self.git(self.b, "rev-parse", module.coordination.cache_ref(str(self.remote), CLAIMS_REF)), version)
+
     def test_existing_tip_warms_local_cache_without_fetch_or_remote_write(self):
         module = load_claims()
         self.claim(self.a)

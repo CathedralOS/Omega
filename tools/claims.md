@@ -30,6 +30,14 @@ These are estimates, not edit permissions; necessary scope can grow without a
 new claim. Boards remain shared: claim their items, not board-file paths. A
 sample and the compiler repairs it needs are one piece of work under one claim.
 
+`python3 tools/sample_queue.py` reads one live registry snapshot while listing
+failing samples. Unclaimed programs come first; occupied samples show their
+owners, tickets and notes. A failed registry read labels ownership unknown in
+both text and JSON. This is selection guidance, not a fence on shared paths or
+an atomic reservation: inspect the claim registration's overlaps before starting
+a newly selected sample. Named outcomes, continuations and known main regressions
+retain priority.
+
 ## Lifetime and evidence
 
 Default leases last eight hours; `--lease-minutes` accepts 15–1440.
@@ -69,14 +77,17 @@ Deprecated JSON fields `off_board_fences` and audit `violations` remain
 empty for existing consumers. Directory estimates appear in `off_board_paths`;
 audit collisions appear in `overlaps`.
 
-Commands have a 15-second total coordination budget. When the observed registry
-tip is missing locally and no registry cache exists, the first acquisition uses
-a 120-second total budget and reports initialization on stderr. This lets the
-complete registry history establish its cache instead of repeatedly aborting the
-same download. Network stall bounds still apply. Registry fetches use two pack
-workers and a 96 MiB delta-base cache to bound memory used by large snapshot
-histories. Cached commands retain the 15-second limit. `--timeout-seconds` before the subcommand sets an explicit total
-budget up to 300 seconds, including first acquisition; it is never extended.
+Commands whose observed registry tip is present locally have a 15-second total
+coordination budget. A missing tip uses a 120-second total acquisition budget
+and reports that acquisition on stderr. This covers both the first registry
+fetch and catching up with concurrent writers; a cache alone does not mean the
+newest snapshot is available. The complete history can establish or refresh its
+cache instead of repeatedly aborting the same download. Network stall bounds
+still apply. Registry fetches use two pack workers and a 96 MiB delta-base cache
+to bound memory used by large snapshot histories. Locally present snapshots
+retain the 15-second limit. `--timeout-seconds` before the subcommand sets an
+explicit total budget up to 300 seconds, including acquisition; it is never
+extended.
 Timed-out claims save
 `build/claims-pending/<ticket>.json`. Inspect status before retrying an
 uncertain write, retaining its ticket. Removed tickets cannot be resurrected.

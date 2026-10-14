@@ -4,7 +4,7 @@
 Reads the latest complete, unfiltered application or full gate run record (from the
 main checkout's `build/sample-gate-runs/`, shared by every worktree, or
 `--record PATH`) and lists the sample programs that do not yet run on that
-run's target, ordered by their own source size so the next piece of work is
+run's target, ordered with unclaimed programs first, then by their own source size so work is
 the easiest to trace. Each row carries the gate's refusal. The record's
 revision is compared with this checkout's HEAD; a record from an older
 revision may list samples that already run, so rerun the gate when it is far
@@ -26,6 +26,10 @@ sample programs; `--all` includes them after the programs.
     python3 tools/sample_queue.py --limit 5
     python3 tools/sample_queue.py --all --json
 
+Reads the live outcome registry once. Claimed samples stay visible with their
+owners and notes. Failed registry reads mark ownership unknown; they never imply
+that a sample is unclaimed. Shared implementation paths do not change priority.
+
 Standard library only; works on Windows, macOS and Linux.
 """
 
@@ -40,6 +44,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import claims as outcome_claims  # noqa: E402
 import sample_native_gate  # noqa: E402
 from sample_projects import work_kind  # noqa: E402
 
@@ -118,7 +123,22 @@ def commits_behind(revision):
     return int(completed.stdout.strip()) if completed.returncode == 0 else None
 
 
-def queue(record, include_all=False):
+def live_ownership():
+    """One authoritative snapshot; missing coordination is not an empty registry."""
+    snapshot = outcome_claims.Claims(ROOT, "origin").snapshot()
+    return outcome_claims.live_claims(snapshot["record"])
+
+
+def claimed_sample(item):
+    """Claims name outcomes, not shared implementation fences."""
+    return item.replace("\\", "/").removesuffix("/main.omg").rstrip("/")
+
+
+def queue(record, include_all=False, live_claims=None):
+    owners = {}
+    if live_claims is not None:
+        for claim in outcome_claims.live_claims({"claims": live_claims}):
+            owners.setdefault(claimed_sample(claim["item"]), []).append(claim)
     rows = []
     for result in record.get("results", []):
         if result.get("state") not in FAILING:
@@ -139,9 +159,11 @@ def queue(record, include_all=False):
             "lines": source_lines(result["sample"]),
             "state": result["state"],
             "refusal": refusal,
+            "claims_known": live_claims is not None,
+            "claims": owners.get(result["sample"], []),
         })
     order = {"program": 0, "waiting": 1, "no oracle": 2, "probe": 3, "control": 4}
-    return sorted(rows, key=lambda row: (order[row["kind"]], row["lines"], row["sample"]))
+    return sorted(rows, key=lambda row: (order[row["kind"]], bool(row["claims"]), row["lines"], row["sample"]))
 
 
 def main():
@@ -164,8 +186,15 @@ def main():
         print("sample_queue: --all requires a full gate record including probes and controls",
               file=sys.stderr)
         return 2
-    rows = queue(record, arguments.all)
+    try:
+        ownership = live_ownership()
+    except outcome_claims.ClaimsError as error:
+        ownership = None
+        print(f"sample_queue: ownership unknown: {error}; "
+              "do not interpret this list as unclaimed work", file=sys.stderr)
+    rows = queue(record, arguments.all, ownership)
     has_work = any(row["kind"] == "program" for row in rows)
+    has_unclaimed_work = any(row["kind"] == "program" and not row["claims"] for row in rows)
     if arguments.limit is not None:
         rows = rows[:arguments.limit]
     if arguments.json:
@@ -181,8 +210,12 @@ def main():
     if behind and behind > 50:
         print("sample_queue: the record is old; rerun python3 tools/sample_native_gate.py",
               file=sys.stderr)
+    if ownership is None:
+        print("sample_queue: live ownership unavailable; all rows have unknown ownership")
     if not has_work:
         print("sample_queue: no unblocked application failures in this record")
+    elif ownership is not None and not has_unclaimed_work:
+        print("sample_queue: all listed application failures have live owners")
     headings = {"waiting": "waiting on an owner decision (not work until answered):",
                 "no oracle": "no oracle (give it one, or move a check-only program to tests/omega/):"}
     shown = None
@@ -193,6 +226,10 @@ def main():
         refusal = " ".join(row["refusal"].split())[:150]
         print(f"{row['lines']:6d}  {row['sample']}  [{row['state']}{'' if row['kind'] == 'program' else ', ' + row['kind']}]")
         print(f"        {refusal}")
+        for claim in row["claims"]:
+            print(f"        active: {claim['owner']} (ticket {claim['ticket']})")
+            if claim.get("note"):
+                print("        " + " ".join(claim["note"].split()))
     return 0
 
 

@@ -28,7 +28,7 @@ to move elsewhere. Without prior continuity, take work in this order:
 1. A regression `tools/native_watch.py` reports on main, or a sample that ran
    before and no longer does: bisect it and repair it.
 2. A sample the user names.
-3. The smallest failing sample from `python3 tools/sample_queue.py` (run
+3. The smallest unclaimed failing sample from `python3 tools/sample_queue.py` (run
    `python3 tools/sample_native_gate.py` first when no recent run exists).
    Several queued samples with one demonstrated root cause are one piece of
    work.
@@ -46,13 +46,32 @@ user names it, keeps its own acceptance. After landing a sample, measured
 iteration performance or test-environment friction may be the next piece of
 work. Name its workflow, baseline and adequate target first; a minor
 incidental slowdown is not permission to abandon a sample.
-Check live work with `python tools/claims.py status`. Claim your sample
-(`claim --item <sample path> --owner "<label>" --path <paths>`), renew
-a long task before its lease expires, and release it when finished for any
-reason, recording the remaining frontier if interrupted. Another claim on
-the same item or on overlapping paths is information, not a stop: read its
-note, proceed in isolation and reconcile at rebase. An explicitly named program
-limits the work to that program and the repairs it needs to run. State the
+Read the sample queue's live owners and notes before choosing unassigned work.
+It ranks unclaimed samples first; an occupied sample remains visible. Use
+`python tools/claims.py status` to read other live outcomes when their refusals
+suggest a related root cause. Prefer another complete sample outcome already
+outside the live sessions' work; shared implementation paths do not exclude it.
+If every queued failure is already being pursued, write a harder distinct sample
+as in step 4. A named sample, continuation or known main regression keeps its
+priority even when another session claims it: read the note, reuse available repairs and reconcile at rebase.
+
+Claim your sample (`claim --item <sample path> --owner "<label>" --path <paths>`)
+before implementation. Inspect the registration's `overlaps`: if another session
+claimed the same sample between selection and registration, release this ticket
+and choose another unassigned sample before starting its repair. This preference
+for distinct automatic assignments grants no veto and requires no permission;
+named samples, continuations and known main regressions still proceed.
+Overlapping paths are informational.
+Renew long work and release it when finished for any reason, recording the
+remaining frontier if interrupted. An unavailable registry means ownership is
+unknown, never that every sample is free. Report that uncertainty and retain the
+isolated scope required by AGENTS.md; do not claim registration succeeded.
+
+Fetch and inspect incoming main after reducing the failure to its root cause,
+before committing to a long repair or validation run. If another session already
+landed the repair, verify that sample on main and use it rather than duplicating
+its implementation. Repeat integration near publication. An explicitly named
+program limits the work to that program and its necessary repairs. State the
 sample, its oracle, the current failure and the acceptance command.
 
 Keep that short record in the claim note: sample, acceptance, current
