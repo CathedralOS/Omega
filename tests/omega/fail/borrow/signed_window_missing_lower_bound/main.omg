@@ -1,3 +1,5 @@
+// `offset` arrives from the caller unknown: neither the guard nor `run`'s
+// requirement establishes that the window's start is non-negative.
 use omega::language::core::float_operations;
 data Context { residuals: [f64; 8]; offset: i32; count: i32; }
 machine shifted(values: &mut [f64], amount: f64) {
@@ -13,7 +15,7 @@ machine shifted(values: &mut [f64], amount: f64) {
 }
 machine main(context: &mut Context) crashes Trap {
     context.residuals = [40.0, 40.0, 37.0, 33.0, 40.0, 40.0, 40.0, 40.0];
-    context.offset = 1; context.count = 4;
+    context.count = 4;
     transition context.count >= context.offset && context.count <= 8 { true -> run(context) _ -> bad() }
     state run(context: &mut Context)
     requires context.count >= context.offset && context.count <= 8 {

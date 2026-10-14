@@ -1,3 +1,5 @@
+// `count` arrives from the caller with no upper bound: neither the guard nor
+// `run`'s requirement bounds it by the 8-element backing the window borrows.
 use omega::language::core::float_operations;
 data Context { residuals: [f64; 8]; offset: i32; count: i32; }
 machine shifted(values: &mut [f64], amount: f64) {
@@ -13,7 +15,7 @@ machine shifted(values: &mut [f64], amount: f64) {
 }
 machine main(context: &mut Context) crashes Trap {
     context.residuals = [40.0, 40.0, 37.0, 33.0, 40.0, 40.0, 40.0, 40.0];
-    context.offset = 1; context.count = 4;
+    context.offset = 1;
     transition context.offset >= 0 && context.count >= context.offset { true -> run(context) _ -> bad() }
     state run(context: &mut Context)
     requires context.offset >= 0 && context.count >= context.offset {
