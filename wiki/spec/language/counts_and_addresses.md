@@ -191,7 +191,9 @@ Range windows have the separate obligations in [numeric values](numeric_values.m
 
 A fixed array `[T; N]` has length exactly `N`. A growable collection's live length
 is nonnegative and at most its capacity; indexing uses that live length, not
-unused capacity.
+unused capacity. Domain qualification does not change either rule:
+`[T; N] in D` still has length exactly `N`, while `FixedVec<T, N> in D` and
+`Vec<T> in D` retain their explicitly declared live-length semantics.
 
 Index proofs do not create a modular index value or change the operand's
 arithmetic semantics. Once checked, they require no runtime proof object.

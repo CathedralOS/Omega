@@ -1,10 +1,20 @@
 # Domains and qualification
 
+Named decision: `qualified-fixed-byte-array-carrier`, settled 2026-10-14.
+
 A domain attaches a static theory to a carrier without adding a runtime tag,
 wrapper, hidden storage, or second object model. Predicate requirements,
 semantic contributions, authorized establishment routes, and transparent aliases
 are independently normalized aspects of that theory. Multiplicity, content,
 carry, and provider evidence keep their own judgments.
+
+Qualification never selects or changes storage representation, capacity, live
+length, layout, or collection kind. In particular, `[u8; N] in D` is the same
+exact `N`-byte fixed-array carrier as `[u8; N]`; its `.len` is `N`, and erasing a
+predicate-only `D` changes no bits or geometry. A variable-fill owner must name
+an explicit variable-length carrier such as `FixedVec<u8, N> in D` or
+`Vec<u8> in D`. Ordinary accessor machines may lend that owner's live prefix as
+a qualified `&[u8] in D` view.
 
 ## Declaration and membership
 
@@ -406,12 +416,13 @@ An abstract codepoint-text quotient is distinct from any chosen byte encoding;
 its observers obey [quotient contracts](../proofs/quotients.md).
 
 Fixed capacities do not define different meanings for one normalized byte-domain
-name. Declarations over different bounded carriers may share that name when
-their normalized facts agree; differing facts reject rather than selecting a
-declaration by order. Carrier capacities and representation remain distinct.
-Bounded-carrier construction proves the live byte length fits its capacity;
-it neither truncates nor defers capacity failure. This does not change a raw
-fixed array's exact-length construction rule.
+name. Declarations over different carriers may share that name when their
+normalized facts agree; differing facts reject rather than selecting a
+declaration by order. Carrier capacities and representation remain distinct
+from qualification. Construction of an explicit variable-fill carrier such as
+`FixedVec<u8, N> in D` proves its live byte length fits its capacity; it neither
+truncates nor defers capacity failure. A raw `[u8; N] in D` remains an exact
+length-`N` fixed array and never acquires live-length storage from `D`.
 
 A validator may return a sum whose cases carry differently qualified views.
 Matching the successful case imports its established facts; matching does not

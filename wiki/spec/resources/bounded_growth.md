@@ -39,10 +39,13 @@ evidence that the requested finite bound holds.
 
 ## Carrier invariants
 
-An owned variable-fill bounded carrier has exact capacity and live length. A
-zero-initialized carrier has live length zero. A borrowed slice exposes only the
-live initialized range, not unused capacity. Every length-affecting mutation,
-assignment, call, return, case payload, and control-flow edge must preserve:
+An explicitly declared owned variable-fill bounded carrier, such as
+`FixedVec<T, N>`, has exact capacity and live length. A zero-initialized carrier
+has live length zero. A borrowed slice exposes only the live initialized range,
+not unused capacity. Domain qualification may constrain its elements or content
+but never creates this geometry: `[T; N] in D` remains a fixed array of exactly
+`N` elements. Every length-affecting mutation, assignment, call, return, case
+payload, and control-flow edge must preserve:
 
 - Length within the same capacity and matching the initialized prefix.
 - Required value qualifications, such as UTF-8.

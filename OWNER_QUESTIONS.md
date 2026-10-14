@@ -71,57 +71,7 @@ Proposed solutions below are recommendations, not owner rulings. The owner
 removes an entry once it is answered; unfinished implementation stays on its
 owning task.
 
-### Q1 - Is a domain-qualified fixed byte array a bounded carrier?
-
-Named decision: `qualified-fixed-byte-array-carrier`.
-
-**Customer:** bounded text in fixed storage. Most of the 71
-`tests/omega/pass/text` fixtures and Dungeon Crawler's byte snapshots build,
-concatenate and measure text inside `[u8; N] in Utf8`-shaped values, for example
-`pass/text/runtime_bounded_carrier_length_exit` expects `.len` of a
-`[u8; 32] in Utf8` built by `"ALERT " + label` to be 10. The probes
-`samples/cli/probes/write_only_domain_store` and
-`samples/cli/probes/ascii_indexed_write` copy such a value into a plain
-`[u8; 8]` and cannot be realized until this is answered.
-
-**Existing rules, which point both ways:**
-
-- Fixed reading. [Domains](wiki/spec/language/domains.md): "A domain attaches
-  a static theory to a carrier without adding a runtime tag, wrapper, hidden
-  storage, or second object model", "Representation may change only through a
-  unique exact compiler-derived carrier transformation", and "Predicate-only
-  atoms may disappear implicitly". [Counts and addresses](wiki/spec/language/counts_and_addresses.md):
-  "A fixed array `[T; N]` has length exactly `N`". The guide's chapter 8 lists
-  `[u8; 64] in Utf8 // fixed-length encoded byte array`.
-- Bounded reading. Domains, encoded text: "Declarations over different bounded
-  carriers may share that name ... Bounded-carrier construction proves the live
-  byte length fits its capacity ... This does not change a raw fixed array's
-  exact-length construction rule", which contrasts qualified carriers with raw
-  fixed arrays. [Bounded growth](wiki/spec/resources/bounded_growth.md#carrier-invariants)
-  defines "an owned variable-fill bounded carrier" with exact capacity and live
-  length, and Terminal Psi's structural access defines `BoundedOwned` store,
-  concatenation and length.
-- Silent: no contract names the source type that spells an owned
-  variable-fill bounded carrier. The Rust compiler gives `[u8; N] in D` the
-  `BoundedOwned` carrier (`value_custody/reference_shells.rs`), which is
-  implementation, not a ruling.
-
-**Decision needed:** does `[u8; N] in <predicate domain>` denote
-
-1. **the owned variable-fill bounded byte carrier** (capacity `N`, live length
-   `L <= N`, `.len` is `L`). Then dropping the domain to a raw `[u8; N]` is not a
-   predicate-only weakening: it needs `L == N` proved or an explicit operation
-   naming what happens to the unused capacity, and the opening sentence of
-   domains.md needs an exception for capacity-bearing carriers; or
-2. **a raw fixed array of exactly `N` bytes with a static predicate**. Then a
-   different source spelling must carry bounded text, and the text corpus and
-   Dungeon Crawler migrate to it.
-
-Recommendation: option 1, since it matches every existing text program and the
-bounded-carrier paragraph, with the weakening rule stated for capacity-bearing
-carriers.
-
-### Q2 - Does a provider body call its raw services without a binding argument?
+### Q1 - Does a provider body call its raw services without a binding argument?
 
 Named decision: `provider-body-boundary-authority`.
 

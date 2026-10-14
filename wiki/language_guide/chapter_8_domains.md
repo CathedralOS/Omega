@@ -841,10 +841,17 @@ operations. The container owns the layout; the domain states what the bytes
 mean and which operations preserve that meaning.
 
 ```omega
-&[u8] in Utf8         // borrowed encoded bytes
-Vec<u8>::Utf8         // owned, allocator-backed encoded bytes
-[u8; 64] in Utf8      // fixed-length encoded byte array
+&[u8] in Utf8                 // borrowed encoded bytes
+Vec<u8> in Utf8               // owned, allocator-backed encoded bytes
+FixedVec<u8, 64> in Utf8      // inline capacity 64, explicit live length
+[u8; 64] in Utf8              // exactly 64 encoded bytes
 ```
+
+The domain changes none of these carriers. `FixedVec::as_slice` and
+`Vec::as_slice` lend the live prefix; their checked preservation/validation
+contracts may retain `Utf8` on the returned view. Erasing a predicate-only
+`Utf8` qualification from `[u8; 64] in Utf8` produces the same 64-byte array,
+not a variable-length owner or padded conversion.
 
 A quoted literal is raw bytes, not automatically text. An explicit qualification
 must prove the selected encoding predicate. Known literal bytes may make that
@@ -894,9 +901,10 @@ is not a runtime validation outcome.
 
 There are two useful establishment patterns:
 
-- Construction proves known bytes meet the predicate. A bounded carrier also
-  proves live byte length fits capacity, including in arguments and results;
-  it never truncates. A raw fixed array instead has an exact-length rule.
+- Construction proves known bytes meet the predicate. An explicit variable-fill
+    carrier such as `FixedVec<u8, N>` also proves live byte length fits capacity,
+    including in arguments and results; it never truncates. A fixed array,
+    qualified or not, instead has an exact-length rule.
 - Runtime validation checks previously untrusted bytes and returns the fact
   through its successful outcome. Multiple classifications use a sum:
 

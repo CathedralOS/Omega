@@ -1780,6 +1780,25 @@ defines the complete product bar.
   on macOS ARM64. A byte store preserves `Utf8` only with carrier/byte
   evidence: `ValidUtf8` does not imply `AsciiOnly`.
 
+  Restore [representation-erased domain qualification](wiki/spec/language/domains.md):
+  `[u8; N] in D` is the same exact-length fixed array as `[u8; N]`, with
+  `.len == N`. Delete the `has_domain => BoundedOwned` source-shape classifier
+  in `checking/src/value_custody/reference_shells.rs` and every downstream
+  assumption that domain presence supplies live-length storage. Preserve
+  `BoundedOwned` only for explicit variable-fill carriers. Migrate text and
+  Dungeon Crawler values that need inline capacity plus live length to
+  `FixedVec<u8, N> in Utf8`; use `Vec<u8> in Utf8` where growth is intended,
+  and obtain qualified live-prefix views through ordinary checked accessors.
+  Keep genuinely exact-width text as `[u8; N] in Utf8`.
+
+  Acceptance: `samples/cli/probes/{write_only_domain_store,ascii_indexed_write}`
+  realize their authored fixed-array copies/indexed stores without carrier
+  mismatch; predicate erasure changes no storage or length. Fixed-array `.len`
+  remains `N`; `FixedVec`/`Vec` `.len` observes the explicit owner field. Migrate
+  the 71 text fixtures and Dungeon Crawler while preserving their authored
+  content/output oracles. Wrong UTF-8/ASCII writes still reject, and variable
+  growth without proved capacity or allocation remains refused.
+
   The unchanged Dungeon Crawler runs natively on macOS ARM64 through the
   public EOF and `help`/`exit` routes, printing the authored opening room and
   goodbye before exit 0. Qualified byte snapshots retain live contents and

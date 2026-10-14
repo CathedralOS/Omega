@@ -250,10 +250,13 @@ execution checks the actual discriminator. Variant payloads overlay, so differen
 case identities do not prove disjoint storage. This lends the original payload;
 it grants no owned transfer or additional escaping-reference result forms.
 
-An ordinary call may borrow a declared `BoundedOwned` byte owner (including a
-fixed-array element) or an inline bounded-owned field through its original
-root and complete static path. The callee's carrier capacity must equal the
-selected owner's capacity. Shared
+An ordinary call may borrow a declared `BoundedOwned` byte owner (including an
+element of a fixed array of explicit variable-fill owners) or an inline
+bounded-owned field through its original root and complete static path. This IR
+carrier represents a source-visible variable-fill owner such as
+`FixedVec<u8, N>` or `Vec<u8>`; domain qualification alone never selects it, and
+`[u8; N] in D` remains `FixedArray`. The callee's carrier capacity must equal
+the selected owner's capacity. Shared
 access may require fewer primitive byte predicates than the owner guarantees;
 mutable or write-only access requires implication in both directions, so the
 callee cannot return bytes that violate the caller's field invariant. These
