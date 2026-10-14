@@ -2308,6 +2308,8 @@ fail/expressions/arithmetic_domain_mixed rejected 2717ms expected @a9ae30e1c334+
 fail/expressions/bool_numeric_operand_mixing_rejected rejected 2730ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` applies an operator to a boolean and a numeric value -- Omega does not coerce a boolean to a number -- compare booleans directly (`b == true`) or convert a number explicitly (`n != 0`)
 	store in machine `Main::main` state `main` local `n` implicitly converts `bool` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
+fail/expressions/call_result_case_membership_foreign_case_rejected rejected 1450ms expected @7c0518fd7afd+wt
+	case membership must test a value of the exact declaring data type
 fail/expressions/cast_result_range rejected 880ms expected @a9ae30e1c334+wt
 	cast target range in machine `main` state `entry` cast expression is not proven from the source value; all target predicates must hold before policy qualification (unknown numeric bounds or unsupported non-integer membership require an explicit proof)
 fail/expressions/cast_struct_to_number_rejected rejected 2820ms expected @a9ae30e1c334+wt
@@ -5437,6 +5439,7 @@ pass/cases/mid_arm_value_return checked 9490ms @5041ef1af684+wt
 pass/cases/mixed_record_cases checked 9523ms @5041ef1af684+wt
 pass/cases/ordered_underscore_arms checked 9689ms @5041ef1af684+wt
 pass/cases/param_case_payload_return checked 9708ms @5041ef1af684+wt
+pass/cases/runtime_call_result_case_membership_exit checked 13653ms check-target:macos_arm64 @7c0518fd7afd+wt
 pass/cases/runtime_case_payload_policy_cast_exit checked 7965ms check-target:macos_arm64 @31988b31bfed+wt
 pass/cases/runtime_refuted_generic_case_dispatch_exit checked 7328ms check-target:macos_arm64 @c083b963e5ba
 pass/cases/self_payload_return checked 9538ms @5041ef1af684+wt

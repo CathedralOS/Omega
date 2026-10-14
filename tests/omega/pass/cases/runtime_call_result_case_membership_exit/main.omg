@@ -1,0 +1,67 @@
+// RUN CANARY (exit 0). A case-membership test whose subject is a call result
+// (`choose(flag) in Choice::Some`) retains that unrestricted result once and
+// reads its tag, whatever the cases' payloads. The call runs exactly once per
+// test: `counted` bumps a counter through its borrow, and the counter must
+// equal the number of tests. The test is used as an immutable local
+// initializer, a mutable local initializer, both operands of a guard
+// conjunction, a machine's returned value, a call argument and a later
+// state's guard, for a sum with a scalar payload and one with a record
+// payload.
+
+data Point [copy] { x: u32; y: u32; }
+data Choice [copy] { case Some(value: u32); case None; }
+data Shape [copy] { case Dot(at: Point); case Empty; }
+data Counter { count: u64; }
+
+machine choose(flag: bool) -> Choice {
+    transition flag {
+        true -> Choice::Some { value: 7 }
+        _ -> Choice::None
+    }
+}
+
+machine place(flag: bool) -> Shape {
+    transition flag {
+        true -> Shape::Dot { at: Point { x: 1, y: 2 } }
+        _ -> Shape::Empty
+    }
+}
+
+machine counted(counter: &mut Counter, flag: bool) -> Choice {
+    counter.count = ((counter.count as u64 in Wrapping) + 1) as u64;
+    choose(flag)
+}
+
+machine is_some(flag: bool) -> bool {
+    choose(flag) in Choice::Some
+}
+
+machine both(left: bool, right: bool) -> bool {
+    left && right
+}
+
+machine main() crashes Trap {
+    let flag: bool = true;
+    let first: bool = choose(flag) in Choice::Some;
+    let mut second: bool = choose(false) in Choice::None;
+    second = second && (place(true) in Shape::Dot);
+    let returned: bool = is_some(true);
+    let forwarded: bool = both(choose(true) in Choice::Some, place(false) in Shape::Empty);
+    let mut counter: Counter = Counter { count: 0 };
+    let counted_some: bool = counted(&mut counter, true) in Choice::Some;
+    let counted_none: bool = counted(&mut counter, false) in Choice::Some;
+    let count: u64 = counter.count;
+    transition first && second && returned && forwarded && counted_some && !counted_none
+        && (choose(true) in Choice::Some) && !(place(false) in Shape::Dot) {
+        true -> later(count)
+        _ -> bad()
+    }
+    state later(count: u64) {
+        transition count == 2 && !(choose(false) in Choice::Some) {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

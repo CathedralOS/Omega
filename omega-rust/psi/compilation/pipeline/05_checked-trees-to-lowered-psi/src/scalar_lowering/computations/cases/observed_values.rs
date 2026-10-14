@@ -1,6 +1,9 @@
-//! A computed payload-free enum owns one retained result before tag observation.
+//! A computed unrestricted sum owns one retained result before tag observation.
 //! Reservation names its whole value; preparation evaluates the ordinary call
 //! exactly once at the observation, preserving effects and normal completion.
+//! The observation reads only the tag. Payloads of every case stay in the
+//! retained value and are discarded with it, which `[copy]` multiplicity
+//! permits without cleanup; an affine or linear result is refused upstream.
 use super::{
     CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument, CheckedTrees,
     Expansion, LoweredBooleanReturnExpression, LoweredDirectExpression, LoweredScalarBinding,
@@ -63,10 +66,10 @@ pub(super) fn reserve(
         "computed enum membership has no carrier namespace",
     )?;
     let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-        return unsupported("computed enum membership requires a payload-free sum");
+        return unsupported("computed enum membership requires a sum");
     };
-    if cases.is_empty() || cases.iter().any(|case| !case.fields.is_empty()) {
-        return unsupported("computed enum membership cannot discard a payload");
+    if cases.is_empty() {
+        return unsupported("computed enum membership requires a case");
     }
     let identity = structural_case_identity(checked, *case)?;
     let (path, selected) = crate::expression_preparation::bindings::structural_cases::resolve_at(

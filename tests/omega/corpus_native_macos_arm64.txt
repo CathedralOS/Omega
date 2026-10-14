@@ -636,6 +636,7 @@ pass/cases/mid_arm_value_return checked 9613ms @5041ef1af684+wt
 pass/cases/mixed_record_cases checked 9497ms @5041ef1af684+wt
 pass/cases/ordered_underscore_arms checked 9739ms @5041ef1af684+wt
 pass/cases/param_case_payload_return checked 9334ms @5041ef1af684+wt
+pass/cases/runtime_call_result_case_membership_exit built 11654ms exit:0 @7c0518fd7afd+wt
 pass/cases/runtime_refuted_generic_case_dispatch_exit built 7488ms exit:70 @c083b963e5ba
 pass/cases/self_payload_return checked 9550ms @5041ef1af684+wt
 pass/cases/union_guard_paren checked 9419ms @5041ef1af684+wt

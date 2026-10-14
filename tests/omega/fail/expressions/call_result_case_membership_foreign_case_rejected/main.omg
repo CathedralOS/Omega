@@ -1,0 +1,22 @@
+// A case-membership test on a call result names a case of the result's own
+// sum. `Shape::Dot` is not a case of `Choice`, so the test is refused rather
+// than read as some other tag.
+data Choice [copy] { case Some(value: u32); case None; }
+data Shape [copy] { case Dot; case Empty; }
+
+machine choose(flag: bool) -> Choice {
+    transition flag {
+        true -> Choice::Some { value: 7 }
+        _ -> Choice::None
+    }
+}
+
+machine main() crashes Trap {
+    let wrong: bool = choose(true) in Shape::Dot;
+    transition wrong {
+        true -> bad()
+        _ -> done()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

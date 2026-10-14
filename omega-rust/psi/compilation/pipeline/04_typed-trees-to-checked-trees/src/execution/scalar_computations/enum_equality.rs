@@ -179,8 +179,8 @@ impl Builder<'_, '_> {
     }
 
     /// One computed, unrestricted payload-free enum compared with a literal
-    /// case. Retain the complete ordinary call result; observing its tag is
-    /// neither permission to replay the call nor to invent a scalar enum lane.
+    /// case. Builtin equality exists only for payload-free enums; the tag
+    /// observation itself is the shared computed-subject membership.
     fn computed_enum_case_membership(
         &mut self,
         source_expression: ExpressionHandle,
@@ -205,8 +205,6 @@ impl Builder<'_, '_> {
             != self
                 .program
                 .normalized_type_identity(constructor.type_reference)
-            || self.program.type_multiplicity(returned)
-                != language_semantics::Multiplicity::Unrestricted
         {
             return None;
         }
@@ -223,6 +221,38 @@ impl Builder<'_, '_> {
         {
             return None;
         }
+        self.computed_case_membership(source_expression, expression, constructor.case)
+    }
+
+    /// The tag observation of one computed value: a call's complete ordinary
+    /// result is retained once and its case read, whether the authored test
+    /// is `call(..) == Sum::Case` or `call(..) in Sum::Case`, and whatever the
+    /// selected case's payload. Observing a tag is neither permission to
+    /// replay the call nor to invent a scalar enum lane. The result is
+    /// discarded after the read, so only an unrestricted result qualifies.
+    pub(super) fn computed_case_membership(
+        &mut self,
+        source_expression: ExpressionHandle,
+        expression: ExpressionHandle,
+        case: symbols::SymbolHandle,
+    ) -> Option<CheckedScalarComputationHandle> {
+        let call = self.program.expression_table.call_node(expression)?;
+        let target = validation::call_target_symbol(self.program, call);
+        let returned = validation::call_target_return_type(self.program, target)?;
+        if self.program.type_multiplicity(returned)
+            != language_semantics::Multiplicity::Unrestricted
+        {
+            return None;
+        }
+        let owner =
+            crate::values::scalar::structural_fields::structural_data(self.program, returned)?;
+        if !self.program.data_members(owner).iter().any(|member| {
+            member
+                .as_variant()
+                .is_some_and(|variant| variant.symbol == case)
+        }) {
+            return None;
+        }
         let receiver_value = self.retain_structural_argument(expression, returned)?;
         Some(self.insert(PrimitiveType::Bool, CheckedScalarComputationKind::CaseMembership {
             source_expression,
@@ -233,7 +263,7 @@ impl Builder<'_, '_> {
                 type_identity: self.program.normalized_type_identity(returned),
                 access: checked_trees::CheckedStructuralAccess::SharedBorrow,
             }),
-            case: constructor.case,
+            case,
         }))
     }
 

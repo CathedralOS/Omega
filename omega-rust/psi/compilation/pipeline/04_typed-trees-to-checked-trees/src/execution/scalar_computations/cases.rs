@@ -29,20 +29,21 @@ impl Builder<'_, '_> {
         ) {
             return None;
         }
+        let selected_case = match self.program.expression_table.expression(binary.right) {
+            ExpressionNode::Name(selected) => Some(selected.symbol),
+            ExpressionNode::StructLiteral(literal)
+                if self
+                    .program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .is_empty() =>
+            {
+                literal.case_symbol
+            }
+            _ => None,
+        };
         if let Some((_, subject)) = self.readable_case_subject(binary.left, self.statement_index) {
-            let case = match self.program.expression_table.expression(binary.right) {
-                ExpressionNode::Name(selected) => selected.symbol,
-                ExpressionNode::StructLiteral(literal)
-                    if self
-                        .program
-                        .expression_table
-                        .struct_fields(literal.fields)
-                        .is_empty() =>
-                {
-                    literal.case_symbol?
-                }
-                _ => return None,
-            };
+            let case = selected_case?;
             return Some(self.insert(
                 PrimitiveType::Bool,
                 CheckedScalarComputationKind::CaseMembership {
@@ -52,6 +53,17 @@ impl Builder<'_, '_> {
                     case,
                 },
             ));
+        }
+        // A computed subject (`choose(flag) in Choice::Some`) is observed
+        // through its retained result, the same operation `==` uses.
+        if self
+            .program
+            .expression_table
+            .call_node(binary.left)
+            .is_some()
+        {
+            let case = selected_case?;
+            return self.computed_case_membership(expression, binary.left, case);
         }
         let Some(selected) = self.program.expression_table.name_path_node(binary.right) else {
             return None;
