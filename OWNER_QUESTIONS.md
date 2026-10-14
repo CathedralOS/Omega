@@ -120,3 +120,55 @@ concatenate and measure text inside `[u8; N] in Utf8`-shaped values, for example
 Recommendation: option 1, since it matches every existing text program and the
 bounded-carrier paragraph, with the weakening rule stated for capacity-bearing
 carriers.
+
+### Q2 - Does a provider body call its raw services without a binding argument?
+
+Named decision: `provider-body-boundary-authority`.
+
+**Customer:** every provider and native-callback body that reaches a raw
+service. `samples/cli/audio/wav_output` (and the audio samples built on it),
+the portable filesystem providers that
+[provider-closure transport](wiki/spec/build/platform_services.md#provider-closure-transport)
+now requires, and 8 corpus fixtures, among them
+`pass/calls/callback_future_registration_cycle`,
+`pass/modules/same_name_requirement_field_calls_exit` and
+`fail/effects/boundary_empty_provider_hides_reach`. They call a raw requirement
+such as `WindowsConsoleIo::write(1, &mut cell, 1)` from a body whose signature
+is fixed by the requirement it satisfies, so it has no `&Binding<R>` to pass.
+Since `31312173a4e` they are refused with "a boundary call requires an explicit
+shared `&Binding<R>` authority argument".
+
+**Existing rules, which point both ways:**
+
+- Explicit binding always.
+  [Expressions](wiki/spec/language/expressions.md): "A call through an
+  established service binding uses the qualified static form
+  `R::operation(&binding, arguments)` ... A missing, differently typed, or
+  additional binding argument rejects; no ambient binding search or implicit
+  insertion repairs it."
+- Provider bodies reach their closure without one.
+  [Platform services](wiki/spec/build/platform_services.md#provider-closure-transport):
+  "The closure dependency is not a second `Binding<RawFamily>` field in
+  portable data ... or an implicitly manufactured binding value. It is static
+  provider-plan structure beneath the one portable binding. Entered portable
+  calls may invoke only the raw rows retained in that checked closure".
+  [Effects](wiki/spec/language/effects.md): a checked body must declare
+  `reaches` "including for a receiver-free static boundary call", and "A trait
+  identity may name an internally selected binding when no parameter path
+  exists".
+- Silent: the expressions rule speaks of a call "through an established service
+  binding"; no contract says whether a provider's call into its retained
+  closure is such a call, nor what source spelling it uses if it is not.
+
+**Decision needed:** inside a body that `satisfies` a requirement (or installs
+as a native callback), is a call to a raw requirement in that provider's
+checked closure
+
+1. **a closure call with no authority argument**, the static form
+   `R::operation(arguments)` admitted only there, with reach and closure
+   membership checked; or
+2. **an ordinary binding call**, which then needs a stated way for a provider
+   with a fixed signature to obtain `&Binding<R>`.
+
+Recommendation: option 1, since the closure-transport ruling already forbids
+manufacturing a `Binding<RawFamily>` for these dependencies.
