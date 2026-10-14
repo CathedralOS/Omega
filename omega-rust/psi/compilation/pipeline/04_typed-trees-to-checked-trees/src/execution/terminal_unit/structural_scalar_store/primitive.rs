@@ -307,7 +307,7 @@ fn primitive_leaf_type_reference(
 }
 
 /// The scalar-binding closure both store custody proofs share: the binding
-/// must close over exactly the primitive parameters and the immutable
+/// must close over exactly the scalar-position parameters and the immutable
 /// primitive locals declared before its statement — nothing missing,
 /// nothing extra.
 fn scalar_binding_symbols_exact(
@@ -319,36 +319,15 @@ fn scalar_binding_symbols_exact(
     let Ok(statement_index) = usize::try_from(binding.statement_ordinal) else {
         return false;
     };
-    let Some(prefix) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(..statement_index)
+    // The producer's own roster: scalar positions exclude erased parameters,
+    // which take no runtime slot, and reference carriers are not value
+    // bindings. Re-deriving it here by primitive type alone counted an erased
+    // `bound [erased]: i32` and refused every binding of that state.
+    let Some(symbols) = crate::values::unit_scalar_binding_symbols(program, state, statement_index)
     else {
         return false;
     };
-    let symbols = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| {
-            program
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
-        })
-        .map(|parameter| parameter.symbol)
-        .chain(prefix.iter().filter_map(|statement| {
-            match statement {
-                StatementNode::LocalData(local)
-                    if !local.is_mutable
-                        && program
-                            .primitive_type_reference(local.type_reference)
-                            .is_some() =>
-                {
-                    Some(local.symbol)
-                }
-                _ => None,
-            }
-        }));
-    symbols.eq(facts
+    symbols.iter().copied().eq(facts
         .values
         .scalar_expressions
         .binding_symbols

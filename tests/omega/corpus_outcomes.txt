@@ -6492,6 +6492,7 @@ pass/locals/mutable_local_call_initializer_exit checked 11620ms check-target:mac
 pass/locals/mutable_local_call_multistate_reassignment_exit checked 11838ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/locals/mutable_local_call_reassignment_exit checked 11654ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/locals/runtime_deferred_scalar_initialization_exit checked 11932ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/locals/runtime_erased_parameter_mutable_local_exit checked 12057ms check-target:macos_arm64 @896172b5d9d8+wt
 pass/locals/runtime_local_array_member_stores_without_mut_exit checked 11857ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/locals/runtime_local_qualified_view_member_read_exit checked 12024ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/locals/runtime_local_record_array_element_field_reads_exit checked 11686ms check-target:macos_arm64 @a9ae30e1c334+wt

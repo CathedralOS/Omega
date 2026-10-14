@@ -1478,6 +1478,7 @@ pass/locals/mutable_local_call_initializer_exit built 1445ms exit:70 @48008365d8
 pass/locals/mutable_local_call_multistate_reassignment_exit built 1005ms exit:70 @48008365d839
 pass/locals/mutable_local_call_reassignment_exit built 959ms exit:70 @48008365d839
 pass/locals/runtime_deferred_scalar_initialization_exit built 1071ms exit:1 @48008365d839
+pass/locals/runtime_erased_parameter_mutable_local_exit built 12105ms exit:0 @896172b5d9d8+wt
 pass/locals/runtime_local_array_member_stores_without_mut_exit built 2573ms exit:70 @b077958d6785+wt
 pass/locals/runtime_local_qualified_view_member_read_exit built 3235ms exit:71 @9beb2be72f2d+wt
 pass/locals/runtime_local_record_array_element_field_reads_exit built 5683ms exit:70 @9435ec134b74+wt

@@ -1,0 +1,51 @@
+// RUN CANARY (exit 0). An erased parameter takes no runtime slot, so it is
+// not part of the scalar binding roster a mutable primitive local's
+// initializer closes over. A state that declares `bound [erased]: i32`
+// beside runtime scalars still initializes, updates and returns mutable
+// locals from those scalars: in the entry state, in a later state, with the
+// erased parameter first or between runtime parameters, and when the
+// initializer reads an earlier immutable local.
+
+machine total_of(n: i32, bound [erased]: i32, step: i32) -> i32
+requires
+    n < bound,
+    n >= 0,
+    n < 1000,
+    step >= 0,
+    step < 1000,
+{
+    let mut total: i32 = n;
+    total = total + step;
+    total
+}
+
+machine staged(bound [erased]: i32, n: i32) -> i32
+requires
+    n < bound,
+    n >= 0,
+    n < 1000,
+{
+    transition { _ -> store(bound, n) }
+    state store(bound [erased]: i32, n: i32) -> i32
+    requires
+        n < bound,
+        n >= 0,
+        n < 1000,
+    {
+        let doubled: i32 = n + n;
+        let mut total: i32 = doubled;
+        total = total + 1;
+        total
+    }
+}
+
+machine main() crashes Trap {
+    let first: i32 = total_of(3, 10, 4);
+    let second: i32 = staged(50, 20);
+    transition first == 7 && second == 41 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
