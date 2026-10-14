@@ -347,7 +347,7 @@ pass/build/sibling_module_service_exclusion_exit built 7245ms exit:0 @eca66ed24a
 pass/build/sibling_module_slot_family_rows_exit built 6957ms exit:70 @cbb413ac54c3
 pass/build/static_assumed_binding_spelling_exit built 3706ms exit:0 @9beb2be72f2d+wt
 pass/build/uefi_entry_schema_same_leaf built 1457ms @55a23102ccd1+wt
-pass/build/uefi_os_handoff_invocation rejected 3500ms @693920652f41
+pass/build/uefi_os_handoff_invocation rejected 12507ms @6c75d91f0312
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity
 pass/calls/ambient_receiver_scalar_return_exit built 3704ms exit:70 @48d34a64a938+wt
@@ -368,8 +368,7 @@ pass/calls/callback_owned_float_record_packing built 78974ms exit:0 @759f6dbf1df
 pass/calls/callback_owned_indirect_float_record built 80220ms exit:0 @2afb09bae86c
 pass/calls/callback_owned_indirect_record built 5482ms exit:0 @2afb09bae86c
 pass/calls/callback_owned_overaligned_record built 6097ms exit:0 @559de7cca73d
-pass/calls/callback_private_materialization rejected 3342ms @693920652f41
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/callback_private_materialization built 12635ms @6c75d91f0312
 pass/calls/callback_scalar_loan_permutation built 5941ms exit:0 @09084c02ea24
 pass/calls/caller_result_binding_mutable_loan_exit built 555ms exit:70 @0e894def985b+wt
 pass/calls/caller_structural_result_indexed_borrow_exit built 746ms exit:171 @0f26891d973a+wt
@@ -901,8 +900,9 @@ pass/control_flow/termination_index_distance_compile built 525ms exit:0 @d62a4e2
 pass/control_flow/transition_operand_schedule checked 189ms
 pass/control_flow/transition_tail_self_call checked 199ms
 pass/core/carry_permission_provider_adapter built 12252ms @83314997c2b2
-pass/core/content_conservation_contract incomplete 1258ms @e007e1d70f35+wt
-	`Main::main` calls `Main::partition_and_retain`; `Main::partition_and_retain` has no executable body: this compiler does not lower a statement of it yet (call operation: boundary contracts)
+pass/core/content_conservation_contract rejected 7897ms @6c75d91f0312
+	selected compiler intrinsic `<selected target>::RegionSinkProvider::satisfies::RegionSink` for Terminal boundary `named-callable(path(RegionSink::accept),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(Region\\)\\)\\,declared-domain\\(name\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Region::Owned\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
+	selected compiler intrinsic `<selected target>::RegionSplitProvider::satisfies::RegionSplit` for Terminal boundary `named-callable(path(RegionSplit::split),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(Region\\)\\)\\,declared-domain\\(name\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Region::Owned\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 pass/core/content_retained_custody_round_trip built 311ms
 pass/core/extent_core_surface checked 196ms
 pass/core/extent_root_provider_adapter built 12361ms exit:0 @83314997c2b2
@@ -927,8 +927,8 @@ pass/core/runtime_guarded_trapping_addition_exit built 3744ms exit:70 @f53544b20
 pass/core/runtime_guarded_trapping_conversion_exit built 1516ms exit:70 @48008365d839
 pass/core/runtime_natural_termination_exit built 405ms exit:0
 pass/core/self_read_only_receiver_compile checked 221ms
-pass/core/task_lifecycle_operations rejected 3657ms @693920652f41
-	terminal-artifact production failed: Lowering(Unsupported("suspension frontier has live claims without an exact Terminal ClaimId join"))
+pass/core/task_lifecycle_operations rejected 9002ms @6c75d91f0312
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Task::finish$specialized$f1a34b3b312b5f65$0),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,generic\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(Task\\\\\\)\\\\\\)\\)\\,named\\(name\\(i32\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/core/zii_default_composite_exit built 1810ms exit:70 @fb2178def922
 pass/data/case_first_payload_zero_established checked 220ms
 pass/data/case_membership_union_guard_exit built 599ms exit:70
@@ -1410,12 +1410,12 @@ pass/host/runtime_descriptor_record_array_input_exit built 15834ms exit:0 stdout
 pass/host/runtime_descriptor_record_loan_input_exit built 19881ms exit:0 stdout:match @198156d53e16
 pass/host/runtime_descriptor_reference_record_prefix_exit built 5466ms exit:0 stdout:match @9dd545defbc0
 pass/host/runtime_descriptor_scalar_input_exit built 11726ms exit:0 stdout:match @d4c9839eb53d+wt
-pass/host/runtime_gui_foreground_window_exit rejected 839ms @48008365d839
+pass/host/runtime_gui_foreground_window_exit rejected 10703ms @6c75d91f0312
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
-pass/host/runtime_gui_window_lifecycle_exit rejected 1032ms @48008365d839
+pass/host/runtime_gui_window_lifecycle_exit rejected 10534ms @6c75d91f0312
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
 pass/host/std_clock_sleep_exit built 1894ms exit:70 @27fbba584bed+wt
-pass/inline_asm/asm_aarch64_system_registers_compile incomplete 1867ms @47d3b5bbd8c+wt
+pass/inline_asm/asm_aarch64_system_registers_compile incomplete 8632ms @6c75d91f0312
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state)
 pass/inline_asm/asm_block_jmp_state built 301ms
 pass/inline_asm/asm_exact_clobbers checked 9500ms @5041ef1af684+wt
@@ -1429,7 +1429,7 @@ pass/inline_asm/asm_port_out_final_validation rejected 7599ms @73488f3b9a96
 	native artifact terminal-authority closure review failed: root-reachable checked physical operation has no selected provider requirement custody
 pass/inline_asm/asm_reach_inherit checked 9408ms @5041ef1af684+wt
 pass/inline_asm/asm_reach_wrapper checked 9576ms @5041ef1af684+wt
-pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 1809ms @47d3b5bbd8c+wt
+pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 8657ms @6c75d91f0312
 	`Main::main` has no executable body: this compiler does not lower a call of it yet (call operation: call site)
 pass/inline_asm/asm_state_jmp checked 9778ms @5041ef1af684+wt
 pass/inline_asm/asm_sysreg_rw checked 9506ms @5041ef1af684+wt
@@ -1487,13 +1487,13 @@ pass/machines/static_namespace_constant_exit built 3677ms exit:0 @9beb2be72f2d+w
 pass/machines/write_state_forward checked 9965ms @5041ef1af684+wt
 pass/memory/address_translation_canary checked 602ms @3e42cf204024+wt
 pass/memory/bump_allocator_canary built 12681ms @83314997c2b2
-pass/memory/interrupt_table_canary rejected 1746ms regressed-from:checked @693920652f41
-	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(InterruptAcknowledgement\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
+pass/memory/interrupt_table_canary rejected 4037ms regressed-from:checked @6c75d91f0312
+	selected whole provider maps `<selected target>::TimerProviderRoot::satisfies::TimerRoot` and `<selected target>::FatalExceptionProviderRoot::satisfies::FatalExceptionRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
 pass/memory/runtime_large_entry_record_field_exit built 1425ms exit:70 @3ce19b649c88+wt
 pass/memory/runtime_large_frame_console_byte_homes_exit built 1251ms exit:70 stdout:match @3ce19b649c88+wt
 pass/memory/runtime_large_local_record_exit built 1251ms exit:70 @3ce19b649c88+wt
-pass/memory/secondary_processor_canary rejected 998ms regressed-from:built @693920652f41
-	selected overload `named-callable(path(StartupEnvelope::confirm),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(StartupEnvelope\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
+pass/memory/secondary_processor_canary rejected 3553ms regressed-from:built @6c75d91f0312
+	selected whole provider maps `<selected target>::SecondSecondaryProcessorConformance::satisfies::SecondSecondaryProcessorRoot` and `<selected target>::FirstSecondaryProcessorConformance::satisfies::FirstSecondaryProcessorRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
 pass/memory/weak_vacant_qualifier_satisfied checked 158ms
 pass/modules/aggregate_machine_indices checked 213ms
 pass/modules/boolean_equality_indices checked 239ms
@@ -1653,9 +1653,67 @@ pass/proofs/accepted_axiom_cited_exit built 528ms exit:70
 pass/proofs/accumulator_guarantee_exit built 588ms exit:70
 pass/proofs/axiom_citation checked 9691ms @5041ef1af684+wt
 pass/proofs/case_call_premises checked 190ms
-pass/proofs/cauchy_predicates_compile rejected 26ms
+pass/proofs/cauchy_predicates_compile rejected 376ms @6c75d91f0312
+	cannot prove requires contract for specification call `cauchy_at` in machine `unit_sequence_is_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `cauchy_at` in machine `unit_sequence_is_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `cauchy_at` in machine `unit_sequence_is_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	machine `cauchy_at_reflexive` ensures contract proof fact `cauchy_at<Sequence, Modulus>(precision, index, index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	machine `converges_together_at_symmetric` cites `rat_close_symmetric`, but the callee's requires fact `rat_close(p, q, precision) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
+	machine `converges_together_at_symmetric` ensures contract proof fact `converges_together_at<Right, Left, Modulus>(precision, right_index, left_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	machine `converges_together_at_triangle_split` cites `rat_close_triangle_split`, but the callee's requires fact `saturating_sub(Nat, q.den) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 	machine `converges_together_at_triangle_split` ensures contract proof fact `converges_together_at<Left, Right, Modulus>(precision, left_index, right_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+	machine `doubled_nat_max_threshold` ensures contract proof fact `saturating_sub(doubled_nat_max_modulus<FirstModulus, SecondModulus>(precision), index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive$specialized$d3ed47cf61b2fa7c$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive$specialized$d3ed47cf61b2fa7c$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive$specialized$d3ed47cf61b2fa7c$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
 pass/proofs/citation_requires_discharged checked 223ms
 pass/proofs/defined_proposition_premises checked 1161ms @77ecdbf5e7c6
 pass/proofs/family_carrier_relation_laws checked 1653ms @47fae30824a7+wt
@@ -2045,7 +2103,7 @@ pass/terminal_psi/integer_control_contract checked 361ms
 pass/terminal_psi/member_crash_contract_boundary checked 193ms
 pass/terminal_psi/portable_contract_component built 319ms
 pass/terminal_psi/selected_empty_component built 216ms
-pass/terminal_psi/selected_lowering_optimizer_component rejected 228ms
+pass/terminal_psi/selected_lowering_optimizer_component rejected 7838ms @6c75d91f0312
 	selected optimization `X86SelectXorZeroI64MaterializationV1` failed in the complete verified optimizer pipeline during selected/physical validation: common physical staging failed: UnconsumedPostTerminalPhase(PostAllocationMachine); no alternate compiler route was run and no output was installed
 pass/terminal_psi/selected_optimizer_component built 253ms
 pass/terminal_psi/structural_content_passthrough checked 176ms

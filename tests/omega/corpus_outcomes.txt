@@ -4902,8 +4902,7 @@ pass/calls/callback_owned_float_record_packing checked 163840ms check-target:mac
 pass/calls/callback_owned_indirect_float_record checked 165183ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/callback_owned_indirect_record checked 13419ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/callback_owned_overaligned_record checked 6463ms check-target:macos_arm64 @559de7cca73d
-pass/calls/callback_private_materialization checked 5548ms check-target:windows_x86_64 @0684469a73d0
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/callback_private_materialization checked 11896ms check-target:windows_x86_64 @6c75d91f0312
 pass/calls/callback_scalar_loan_permutation checked 12737ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/caller_result_binding_mutable_loan_exit checked 12520ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/caller_structural_result_indexed_borrow_exit checked 12817ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6647,7 +6646,7 @@ pass/proofs/accepted_axiom_cited_exit checked 11306ms check-target:macos_arm64 @
 pass/proofs/accumulator_guarantee_exit checked 11353ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/axiom_citation checked 9748ms @5041ef1af684+wt
 pass/proofs/case_call_premises checked 1644ms @a9ae30e1c334+wt
-pass/proofs/cauchy_predicates_compile rejected 2674ms @a9ae30e1c334+wt
+pass/proofs/cauchy_predicates_compile rejected 409ms @6c75d91f0312
 	cannot prove requires contract for specification call `cauchy_at` in machine `unit_sequence_is_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `cauchy_at` in machine `unit_sequence_is_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `cauchy_at` in machine `unit_sequence_is_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
@@ -6669,12 +6668,15 @@ pass/proofs/cauchy_predicates_compile rejected 2674ms @a9ae30e1c334+wt
 	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	machine `cauchy_at_reflexive` ensures contract proof fact `cauchy_at<Sequence, Modulus>(precision, index, index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	machine `converges_together_at_symmetric` cites `rat_close_symmetric`, but the callee's requires fact `rat_close(p, q, precision) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
+	machine `converges_together_at_symmetric` ensures contract proof fact `converges_together_at<Right, Left, Modulus>(precision, right_index, left_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
@@ -6686,6 +6688,7 @@ pass/proofs/cauchy_predicates_compile rejected 2674ms @a9ae30e1c334+wt
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	machine `converges_together_at_triangle_split` cites `rat_close_triangle_split`, but the callee's requires fact `saturating_sub(Nat, q.den) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 	machine `converges_together_at_triangle_split` ensures contract proof fact `converges_together_at<Left, Right, Modulus>(precision, left_index, right_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+	machine `doubled_nat_max_threshold` ensures contract proof fact `saturating_sub(doubled_nat_max_modulus<FirstModulus, SecondModulus>(precision), index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive$specialized$d3ed47cf61b2fa7c$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive$specialized$d3ed47cf61b2fa7c$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive$specialized$d3ed47cf61b2fa7c$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
