@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Independent cmath reference and strict observation checker; no Omega algorithm reuse."""
-import argparse, cmath, json, math, re
+import argparse, cmath, hashlib, json, math, re
 from pathlib import Path
 ROOT = Path(__file__).resolve().parent
+ORACLE_SHA256 = '3e352196111cd4296a2d556e5e896abc3ad7c7d55df9b233a14a8bafdf9a9699'
 
 def reference(selection):
     positions = [0.0, 0.5, 1.0, 1.5]
@@ -26,10 +27,31 @@ def reference(selection):
                 duplicates=sum(positions[left] == positions[right] for left in range(4) for right in range(left + 1, 4)),
                 symmetry=max(abs(rows[index]['power'] - rows[8-index]['power']) for index in range(4)), samples=rows)
 
+def checked_oracle():
+    payload = (ROOT / 'data/oracle.json').read_bytes()
+    assert hashlib.sha256(payload).hexdigest() == ORACLE_SHA256, 'Frozen oracle identity changed'
+    oracle = json.loads(payload)
+    assert len(oracle['cases']) == 5
+    # cmath/libm may differ by last-bit rounding across supported hosts. The
+    # checksum pins every authored value and tolerance; recomputation checks
+    # the model within those unchanged tolerances instead of requiring one
+    # host's floating-point representation. Discrete observations remain exact.
+    for selection, case in enumerate(oracle['cases']):
+        expected = reference(selection)
+        for key in ('selection', 'positions', 'weights', 'steering', 'duplicates'):
+            assert case[key] == expected[key], (selection, key)
+        assert len(case['samples']) == len(expected['samples']) == 9
+        assert abs(case['symmetry'] - expected['symmetry']) <= oracle['absolute_power_tolerance']
+        for frozen, observed in zip(case['samples'], expected['samples']):
+            for key in ('index', 'u', 'null'):
+                assert frozen[key] == observed[key], (selection, key)
+            for key, tolerance in (('power', 'absolute_power_tolerance'), ('normalized', 'absolute_normalized_tolerance')):
+                assert abs(frozen[key] - observed[key]) <= oracle[tolerance], (selection, key)
+    return oracle
+
+
 def check(path, selection):
-    oracle = json.loads((ROOT / 'data/oracle.json').read_text())
-    for case in oracle['cases']:
-        assert case == reference(case['selection']), 'Frozen oracle differs from independent reference'
+    oracle = checked_oracle()
     lines = Path(path).read_text().splitlines()
     assert lines.pop(0) == 'antenna_array_pattern scalar far-field u=-1:0.25:1; powers in millionths'
     selections = range(5) if selection is None else [selection]
@@ -55,6 +77,5 @@ if __name__ == '__main__':
     options = parser.parse_args()
     if options.output: check(options.output, options.selection)
     else:
-        oracle = json.loads((ROOT / 'data/oracle.json').read_text())
-        assert oracle['cases'] == [reference(index) for index in range(5)]
+        checked_oracle()
         print('PASS frozen independent oracle: 45 direct complex sums')

@@ -6,9 +6,16 @@ pub data Phasor { }
 pub machine Phasor::cosine(angle: f64) -> f64 {
     transition { _ -> reduce(angle) }
     state reduce(angle: f64) {
-        transition angle > 3.141592653589793 { true -> reduce(angle - 6.283185307179586) }
-        transition angle < -3.141592653589793 { true -> reduce(angle + 6.283185307179586) }
-        transition { _ -> polynomial(angle) }
+        transition angle > 3.141592653589793 {
+            true -> reduce(angle - 6.283185307179586)
+            false -> reduce_lower(angle)
+        }
+    }
+    state reduce_lower(angle: f64) {
+        transition angle < -3.141592653589793 {
+            true -> reduce(angle + 6.283185307179586)
+            false -> polynomial(angle)
+        }
     }
     state polynomial(angle: f64) {
         let square: f64 = angle * angle;

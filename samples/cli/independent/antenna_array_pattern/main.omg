@@ -1,6 +1,7 @@
 use omega_language_std::math;
 
 // Expected exit: 0.
+// Selector and phase-reduction ladders use explicit exhaustive dispatches.
 // Expected output contains: antenna_array_pattern complete
 use omega_language_std::console;
 use omega::language::core::binding;
@@ -40,8 +41,13 @@ machine Main::main(main: &mut Main) reaches Console {
         ByteRead::Byte { value } -> select(main, value)
     }
     state select(main: &mut Main, value: i32) {
-        transition value == 10 { true -> blank_suite(main) }
-        transition value == 97 { true -> selected_suite(main) }
+        transition value {
+            10 -> blank_suite(main)
+            97 -> selected_suite(main)
+            _ -> select_digit(main, value)
+        }
+    }
+    state select_digit(main: &mut Main, value: i32) {
         transition value >= 48 && value <= 54 { true -> selected(main, value - 48) false -> invalid_input(main) }
     }
     state selected(main: &mut Main, selection: i32) {

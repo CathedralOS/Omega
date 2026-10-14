@@ -49,12 +49,18 @@ zero normalization, duplicate handling and symmetry diagnostics.
 
 From the repository root, with a compiler built from the same base:
 
-Current frontier: package review on `linux_x86_64` rejects
-`Main::main::select` with a transition-dispatch fall-through diagnostic, before
-native production. An isolated compiler build of `1f63ee648905` reproduces this
-refusal; migrating the numeric helpers to ordinary `std` calls does not remove
-it. The commands below remain the acceptance route, not a claim of current
-runtime acceptance.
+On `linux_x86_64`, all 15 authored input fixtures now agree in native and
+Terminal execution: eight valid selections exit 0, five malformed-input cases
+exit 64, and two invalid geometries exit 65. Both execution streams are checked
+against the frozen 45-row oracle, including symmetry, duplicates, null flags,
+row order and completion markers.
+
+Each selector and phase-reduction dispatch now covers its own subject, following
+[dispatch coverage](../../../../wiki/spec/language/patterns.md#coverage-and-domain-tests).
+The numerical polynomial, geometry fixtures, frozen oracle and its tolerances
+are unchanged. The reference checker verifies the frozen SHA-256 before
+recomputing with cmath; host libm rounding is compared using the authored
+absolute tolerances rather than requiring bit-identical floating-point values.
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
@@ -65,14 +71,17 @@ python3 "$SAMPLE/reference.py"
 # Inspect build/package-manager/review-linux_x86_64.txt and accept only reviewed decisions.
 "$OMEGA" update --project "$SAMPLE" --resume
 "$OMEGA" --check --target linux_x86_64 "$SAMPLE/main.omg"
-"$OMEGA" run --keep --both "$SAMPLE/main.omg" < "$SAMPLE/data/suite.stdin" > "$SAMPLE/build/both.stdout"
-python3 "$SAMPLE/reference.py" "$SAMPLE/build/both.stdout"
+python3 "$SAMPLE/validate.py" --omega "$OMEGA"
 ```
 
-`run --target` is compile-only in the current CLI; host execution and Terminal comparison therefore use `run --both` without that flag. This compares completion and exit status; its stdout is the native process output. A full Terminal output check must inspect the runtime's separately captured stdout and stderr. Native artifact and exact executed commands are recorded in the validation
-report. Execute each `data/*.stdin` fixture serially through the native artifact;
-valid single-case outputs are checked with `reference.py OUTPUT --selection N`.
-A check-only result cannot establish runtime acceptance.
+`validate.py` uses `run --both --inputs DATA --outputs OUTPUTS` to compile once
+and replay all 15 finite inputs. It checks every native and Terminal status,
+checks each stdout against the independent frozen reference, and requires equal
+streams with empty stderr. Captures and command records are retained under
+`build/validation/`. `run --target` is compile-only; matching-host execution uses
+`run --both` without that flag. `--native EXECUTABLE` remains available for
+native-only replay of an already retained artifact. A check-only result cannot
+establish runtime acceptance.
 
 `controls/intended_invalid/invalid.omg` is a separate complete application with build
 metadata and entry binding. It writes index 4 of `[i32;4]`, violating the
