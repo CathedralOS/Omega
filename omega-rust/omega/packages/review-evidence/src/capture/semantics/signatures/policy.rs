@@ -7,6 +7,7 @@ use crate::record::{
     PackageReviewTypeParameterKind,
 };
 pub(crate) mod values;
+use super::SignatureProjection;
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::instantiate_static_parameters;
 use crate::capture::semantics::signatures::parameters::project_policy_type_parameters_after;
@@ -52,15 +53,15 @@ pub(crate) fn project_type_parameters(
     ))
 }
 
-pub(crate) struct PreparedRequirement {
-    pub typed: typed_trees::TypedTrees,
+pub(crate) struct PreparedRequirement<'projection> {
+    pub typed: &'projection typed_trees::TypedTrees,
     pub signature: typed_trees::signature::StateSignature,
     pub lifetimes: Vec<Identifier>,
     pub scopes: Vec<crate::capture::semantics::signatures::parameters::CallingContractScope>,
 }
 
-pub(crate) fn requirement(
-    compilation: &PackageReviewInput<'_>,
+pub(crate) fn requirement<'projection>(
+    projection: &'projection mut SignatureProjection<'_>,
     owner: SymbolHandle,
     source: &typed_trees::signature::StateSignature,
     subject: &str,
@@ -69,13 +70,15 @@ pub(crate) fn requirement(
     outer_lifetimes: &[Identifier],
 ) -> Result<
     (
-        PreparedRequirement,
+        PreparedRequirement<'projection>,
         Vec<(SymbolHandle, String)>,
         Vec<PackagePolicyTypeParameter>,
     ),
     Vec<Diagnostic>,
 > {
-    let mut projected = validation::CheckingProjection::new(compilation.checking_input);
+    let input = projection.input();
+    let compilation = &input;
+    let projected = projection.trees();
     let mut wrapper = [TypeParameter {
         symbol: owner,
         name: source.name.clone(),
@@ -91,7 +94,7 @@ pub(crate) fn requirement(
         .collect::<Vec<_>>();
     let mut scopes = Vec::new();
     instantiate_static_parameters(
-        projected.program_mut(),
+        projected,
         &mut wrapper,
         &[],
         &substitutions,
@@ -114,7 +117,7 @@ pub(crate) fn requirement(
     let mut lifetimes = outer_lifetimes.to_vec();
     lifetimes.extend(signature.lifetime_parameters.iter().cloned());
     let (binders, values) = project_policy_type_parameters_after(
-        &projected,
+        projected,
         compilation,
         projected.state_signature_type_parameters(&signature),
         subject,
@@ -131,7 +134,7 @@ pub(crate) fn requirement(
     )?;
     Ok((
         PreparedRequirement {
-            typed: projected.into_program(),
+            typed: projected,
             signature,
             lifetimes,
             scopes,
@@ -142,7 +145,7 @@ pub(crate) fn requirement(
 }
 
 pub(crate) fn parameters(
-    compilation: &PackageReviewInput<'_>,
+    projection: &mut SignatureProjection<'_>,
     source: &[TypeParameter],
     subject: &str,
     outer_binders: &[(SymbolHandle, String)],
@@ -152,7 +155,9 @@ pub(crate) fn parameters(
     if source.is_empty() {
         return Ok((outer_binders.to_vec(), Vec::new()));
     }
-    let mut projected = validation::CheckingProjection::new(compilation.checking_input);
+    let input = projection.input();
+    let compilation = &input;
+    let projected = projection.trees();
     let mut parameters = source.to_vec();
     let substitutions = lifetimes
         .iter()
@@ -161,7 +166,7 @@ pub(crate) fn parameters(
         .collect::<Vec<_>>();
     let mut scopes = Vec::new();
     instantiate_static_parameters(
-        projected.program_mut(),
+        projected,
         &mut parameters,
         &[],
         &substitutions,
@@ -170,7 +175,7 @@ pub(crate) fn parameters(
         0,
     )?;
     let (binders, values) = project_policy_type_parameters_after(
-        &projected,
+        projected,
         compilation,
         &parameters,
         subject,

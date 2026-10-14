@@ -14,9 +14,8 @@ use effects::provider_plan::{ProviderIdentityTable, ServiceMethod, ServiceSchema
 use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
-pub(crate) use crate::capture::calling::application::signature::{
-    SignatureProjection, declaration_parameters,
-};
+pub(crate) use crate::capture::calling::application::signature::declaration_parameters;
+pub(crate) use crate::capture::semantics::signatures::SignatureProjection;
 
 pub(crate) fn project(
     projection: &mut SignatureProjection<'_>,

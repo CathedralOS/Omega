@@ -6,10 +6,9 @@ mod inheritance;
 mod instantiation;
 mod parameters;
 mod scope;
-mod scratch;
+use crate::capture::semantics::signatures::SignatureProjection;
 pub(crate) use declaration::{declaration_parameters, project_declaration};
 pub(crate) use parameters::instantiate as instantiate_static_parameters;
-pub(crate) use scratch::SignatureProjection;
 
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::rejected;

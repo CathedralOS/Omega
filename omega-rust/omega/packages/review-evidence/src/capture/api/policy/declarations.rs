@@ -4,6 +4,7 @@ use super::{signatures, values};
 use crate::capture::PackageReviewInput;
 use crate::capture::api;
 use crate::capture::semantics::facts::exactly_one;
+use crate::capture::semantics::signatures::SignatureProjection;
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
     PackagePolicyOperatorShape,
@@ -15,6 +16,7 @@ pub(super) fn data(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyDataShape>, Vec<Diagnostic>> {
+    let mut signatures = SignatureProjection::new(*compilation);
     api::data::projection::project_public_data(compilation, package)?
         .into_iter()
         .map(|projected| {
@@ -28,7 +30,7 @@ pub(super) fn data(
             )?;
             let row = projected.row;
             let (_, type_parameters) = signatures::parameters(
-                compilation,
+                &mut signatures,
                 compilation.data_type_parameters(source),
                 &row.identity.path,
                 &[],
@@ -55,6 +57,7 @@ pub(super) fn domains(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyDomainShape>, Vec<Diagnostic>> {
+    let mut signatures = SignatureProjection::new(*compilation);
     api::domains::projection::project_public_domains(compilation, package)?
         .into_iter()
         .map(|projected| {
@@ -68,7 +71,7 @@ pub(super) fn domains(
             )?;
             let row = projected.row;
             let (_, type_parameters) = signatures::parameters(
-                compilation,
+                &mut signatures,
                 compilation.domain_type_parameters(source),
                 &row.identity.path,
                 &[],
@@ -95,6 +98,7 @@ pub(crate) fn conformances(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyConformanceShape>, Vec<Diagnostic>> {
+    let mut signatures = SignatureProjection::new(*compilation);
     api::conformances::project_public_conformances(compilation, package)?
         .into_iter()
         .map(|projected| {
@@ -108,7 +112,7 @@ pub(crate) fn conformances(
             )?;
             let row = projected.row;
             let (_, type_parameters) = signatures::parameters(
-                compilation,
+                &mut signatures,
                 compilation.conformance_type_parameters(source),
                 &row.identity.path,
                 &[],
@@ -129,6 +133,7 @@ pub(super) fn operators(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyOperatorShape>, Vec<Diagnostic>> {
+    let mut signatures = SignatureProjection::new(*compilation);
     api::operators::project_public_operators(compilation, package)?
         .into_iter()
         .map(|projected| {
@@ -148,7 +153,7 @@ pub(super) fn operators(
             )?;
             let row = projected.row;
             let (_, type_parameters) = signatures::parameters(
-                compilation,
+                &mut signatures,
                 compilation.operator_type_parameters(source),
                 row.coordinate.identity().path(),
                 &[],

@@ -6,11 +6,11 @@
 //! and scope-normalized signature copies are allocated.
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::CallingSignatureProjection;
-use crate::capture::calling::application::signature::SignatureProjection;
 use crate::capture::calling::application::signature::count;
 use crate::capture::calling::application::signature::parameters;
 use crate::capture::calling::application::signature::project_with_binders;
 use crate::capture::calling::rejected;
+use crate::capture::semantics::signatures::SignatureProjection;
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::record::PackagePolicyTypeParameter;
 use diagnostics::Diagnostic;

@@ -1,0 +1,15 @@
+// Consecutive public signatures retain their own result types and loan binders.
+// The nested callback binder shadows the surrounding method's lifetime spelling.
+pub trait Predicates<Element> {
+    machine inspect<'scope, machine Callback>(value: &'scope Element) -> bool
+    where machine Callback<'scope>(value: &'scope Element) -> bool;
+    machine borrow<'scope>(value: &'scope Element) -> &'scope Element;
+}
+
+pub trait Measurements<Element> {
+    machine inspect<'scope, machine Callback>(value: &'scope Element) -> i32
+    where machine Callback<'scope>(value: &'scope Element) -> i32;
+    machine borrow_mut<'scope>(value: &'scope mut Element) -> &'scope mut Element;
+}
+
+machine main() {}

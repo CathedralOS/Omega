@@ -7,6 +7,7 @@ use crate::capture::contracts::facts::{
     ContractProjectionContext, project_trait_requirement_contracts,
 };
 use crate::capture::semantics::facts::exactly_one;
+use crate::capture::semantics::signatures::SignatureProjection;
 use crate::capture::semantics::signatures::policy_crashes;
 use crate::capture::semantics::types::signature_type_identity;
 use crate::record::{
@@ -21,6 +22,7 @@ pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyTraitShape>, Vec<Diagnostic>> {
+    let mut signatures = SignatureProjection::new(*compilation);
     api::traits::project_public_traits(compilation, package)?
         .into_iter()
         .map(|projected| {
@@ -35,7 +37,7 @@ pub(super) fn project(
             let row = projected.row;
             let parameters = compilation.trait_type_parameters(source);
             let (mut binders, type_parameters) = signatures::parameters(
-                compilation,
+                &mut signatures,
                 parameters,
                 &row.identity.path,
                 &[],
@@ -54,7 +56,7 @@ pub(super) fn project(
                 .zip(row.requirements)
                 .map(|(requirement, value)| {
                     project_requirement(
-                        compilation,
+                        &mut signatures,
                         source.symbol,
                         requirement,
                         value,
@@ -78,7 +80,7 @@ pub(super) fn project(
 }
 
 fn project_requirement(
-    compilation: &PackageReviewInput<'_>,
+    projection: &mut SignatureProjection<'_>,
     owner: SymbolHandle,
     source: &typed_trees::signature::StateSignature,
     row: PackageReviewTraitRequirement,
@@ -86,8 +88,10 @@ fn project_requirement(
     offset: usize,
     outer_lifetimes: &[typed_trees::name::Identifier],
 ) -> Result<PackagePolicyTraitRequirement, Vec<Diagnostic>> {
+    let input = projection.input();
+    let compilation = &input;
     let (prepared, binders, type_parameters) = signatures::requirement(
-        compilation,
+        projection,
         owner,
         source,
         &row.identity.path,
@@ -122,7 +126,7 @@ fn project_requirement(
                 name: parameter.name.as_str().to_owned(),
                 type_identity: signature_type_identity(
                     compilation,
-                    &prepared.typed,
+                    prepared.typed,
                     compilation.custody.sources().exact_toolchain_sources(),
                     parameter.type_reference,
                     &binders,
@@ -143,7 +147,7 @@ fn project_requirement(
         .then(|| {
             signature_type_identity(
                 compilation,
-                &prepared.typed,
+                prepared.typed,
                 compilation.custody.sources().exact_toolchain_sources(),
                 prepared.signature.return_type,
                 &binders,

@@ -1,6 +1,6 @@
-//! Invocation-local typed-tree scratch for calling-signature instantiation.
+//! Invocation-owned preparation for public and applied signature review.
 //!
-//! Reifying a boundary application writes fresh type-reference and parameter
+//! Reifying a signature writes fresh type-reference and parameter
 //! rows into an arena the capture path owns, while every passthrough row —
 //! substituted arguments, unchanged subterms, declaration lookups — keeps the
 //! source handle space. The scratch therefore seeds exactly the arenas a
@@ -12,6 +12,11 @@
 //! join through. The checked compilation's statement, machine-body, wire,
 //! measure, and proof arenas — the bulk of a real `TypedTrees` — stay
 //! uncloned.
+//!
+//! Public policy and boundary applications use the same instantiator. A batch
+//! retains their read-only vocabulary, while each declaration receives fresh
+//! writable tables. Behavioral contracts and nominal visibility are still read
+//! from the original review input, not from this projection's reduced tables.
 
 use crate::capture::PackageReviewInput;
 use typed_trees::{TypedTreeTables, TypedTrees};
@@ -36,7 +41,7 @@ impl<'a> SignatureProjection<'a> {
         self.compilation
     }
 
-    pub(super) fn trees(&mut self) -> &mut TypedTrees {
+    pub(crate) fn trees(&mut self) -> &mut TypedTrees {
         let projected = match self.projected.take() {
             None => trees(&self.compilation),
             Some(previous) => {

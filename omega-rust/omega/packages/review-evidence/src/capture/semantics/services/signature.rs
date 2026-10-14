@@ -1,7 +1,7 @@
 //! Typed source signatures are retained even without a selected calling plan.
-use crate::capture::calling::application::signature::SignatureProjection;
 use crate::capture::semantics::services::calling;
 use crate::capture::semantics::services::rejected;
+use crate::capture::semantics::signatures::SignatureProjection;
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::record::{
