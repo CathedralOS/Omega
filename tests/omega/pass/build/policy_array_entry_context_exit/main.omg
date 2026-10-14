@@ -1,0 +1,63 @@
+// A hosted entry context is provisioned as zero storage. An arithmetic
+// policy around a whole array (`[Mode; 4] in Trapping`) qualifies element
+// arithmetic and indexing, never the stored element shape, so zero
+// eligibility still reaches each element's own source type: an enum's first
+// case, a record's fields, a scalar. The policy array sits directly on the
+// context, inside a nested record, and over record and scalar elements.
+data Mode [copy] {
+    case Idle;
+    case Busy;
+}
+
+data Cell [copy] {
+    mode: Mode;
+    weight: u64 [0..=9];
+}
+
+data Table {
+    modes: [Mode; 4] in Trapping;
+    count: u64 [0..=4];
+}
+
+data Main {
+    direct: [Mode; 2] in Trapping;
+    table: Table;
+    cells: [Cell; 2] in Trapping;
+    totals: [i32; 3] in Wrapping;
+}
+
+machine weigh(table: &Table, index: u64 in Trapping) -> u64
+crashes Trap
+{
+    transition index < table.count {
+        true -> classify(table, index)
+        _ -> absent()
+    }
+    state classify(table: &Table, index: u64 in Trapping) {
+        transition table.modes[index] {
+            Mode::Idle -> idle()
+            Mode::Busy -> occupied()
+        }
+    }
+    state idle() { 1 }
+    state occupied() { 2 }
+    state absent() { 0 }
+}
+
+machine Main::main(main: &mut Main) crashes Trap {
+    main.table.count = 3;
+    main.table.modes[1] = Mode::Busy;
+    main.cells[1] = Cell { mode: Mode::Busy, weight: 4 };
+    let busy: u64 = weigh(&main.table, 1);
+    let idle: u64 = weigh(&main.table, 2);
+    let absent: u64 = weigh(&main.table, 3);
+    transition busy == 2 && idle == 1 && absent == 0
+        && main.direct[0] in Mode::Idle
+        && main.cells[0].weight == 0 && main.cells[1].weight == 4
+        && main.totals[2] == 0 {
+        true -> passed()
+        _ -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}

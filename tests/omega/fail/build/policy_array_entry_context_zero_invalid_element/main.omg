@@ -1,0 +1,15 @@
+// Peeling an arithmetic policy from a context array reaches the element's
+// own zero judgment; it does not excuse it. A `Slot` whose `level` range
+// excludes zero cannot inhabit zero storage, so the hosted context is not
+// provisioned even though the array's own policy constrains nothing.
+data Slot [copy] {
+    level: u8 [1..=3];
+}
+
+data Main {
+    slots: [Slot; 2] in Trapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.slots[0] = Slot { level: 2 };
+}

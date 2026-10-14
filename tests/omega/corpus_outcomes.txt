@@ -1002,6 +1002,10 @@ fail/build/package_local_calling_copy rejected 2099ms expected @a9ae30e1c334+wt
 	duplicate data `BoundaryEntryPlan`
 	duplicate data `CallingPolicyRejection`
 	duplicate data `BoundaryPlanResult`
+fail/build/policy_array_entry_context_zero_invalid_element rejected 5799ms expected @d3f1f22cbb48+wt
+	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
 fail/build/product_description_forged_provider_path rejected 3123ms expected @a9ae30e1c334+wt
 	build-time evaluation of `build` failed: product-provider path access requires a compiler-issued ProductProviderRef
 fail/build/product_description_forged_schema_path rejected 2828ms expected @a9ae30e1c334+wt
@@ -4867,6 +4871,7 @@ pass/build/freestanding_unselected_completion checked 9595ms @0acd49d4fea4+wt
 pass/build/generated_source_selects_authored checked 14385ms published:files/generated.omg @ca002ac106ad+wt
 pass/build/named_map_target_family_rows_exit checked 7260ms check-target:macos_arm64 @cbb413ac54c3
 pass/build/nested_generated_dependency_dual_purpose checked 8506ms check-target:macos_arm64 @5e2a4e6e927b+wt
+pass/build/policy_array_entry_context_exit checked 11600ms check-target:macos_arm64 @d3f1f22cbb48+wt
 pass/build/product_description_paths_exit checked 10456ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/product_entry_named_user_machine_exit checked 10318ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/runtime_depend_mapping_exit checked 11118ms check-target:macos_arm64 @a9ae30e1c334+wt

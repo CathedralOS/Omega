@@ -335,6 +335,7 @@ pass/build/discarded_provider_selection_exit built 6503ms exit:70 @ac7fc986d407+
 pass/build/entry_schema_same_leaf_exit built 1503ms exit:0 @199028b84b44+wt
 pass/build/named_map_target_family_rows_exit built 6961ms exit:70 @cbb413ac54c3
 pass/build/nested_generated_dependency_dual_purpose built 8795ms exit:0 @5e2a4e6e927b+wt
+pass/build/policy_array_entry_context_exit built 10614ms exit:0 @d3f1f22cbb48+wt
 pass/build/product_description_paths_exit built 953ms exit:0 @5d467687f505+wt
 pass/build/product_entry_named_user_machine_exit built 608ms exit:0 @d7dd90112d31
 pass/build/runtime_depend_mapping_exit built 612ms exit:70

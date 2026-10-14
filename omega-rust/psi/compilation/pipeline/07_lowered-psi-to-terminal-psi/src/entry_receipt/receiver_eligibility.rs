@@ -623,8 +623,14 @@ fn zero_valid_shape(
             // length; a zero element count never excuses an invalid element.
             // Element storage is not a record-field route the fused-service
             // roster can name, so nested erased service fields stay rejected.
+            // An arithmetic policy around the whole array (`[Mode; 4] in
+            // Trapping`) qualifies element arithmetic and indexing, never the
+            // stored element shape, so it is peeled to rejoin the element's
+            // source type; any other constraint keeps the element unresolved.
             let element_reference = source_reference.and_then(|reference| {
-                match checked.type_reference_table.type_reference(reference) {
+                match checked.type_reference_table.type_reference(
+                    validation::peel_arithmetic_policy(&checked.typed, reference),
+                ) {
                     TypeReferenceNode::FixedArray { element_type, .. } => Some(*element_type),
                     _ => None,
                 }
