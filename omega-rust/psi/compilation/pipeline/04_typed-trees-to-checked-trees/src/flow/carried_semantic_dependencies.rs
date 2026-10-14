@@ -61,7 +61,9 @@ pub(crate) fn derive_checked_semantic_dependencies(
     // on ownership-place materialization.
     for (_, state) in facts.flow.control.states.iter() {
         for call in facts.flow.control.calls.span_or_empty(state.calls) {
-            let Some(return_type) = call_return_type_reference(program, call.target_symbol) else {
+            let Some(return_type) =
+                validation::call_target_return_type(program, call.target_symbol)
+            else {
                 continue;
             };
             append_type_dependencies(
@@ -226,7 +228,7 @@ pub(super) fn event_type_reference(
         facts::PlaceRoot::Expression(expression) => {
             let base = match program.expression_table.expression(expression) {
                 typed_trees::expression::ExpressionNode::Call(call) => {
-                    call_return_type_reference(program, call.target_symbol)
+                    validation::call_target_return_type(program, call.target_symbol)
                 }
                 _ => validation::expression_type_reference_in_state(
                     program,
@@ -242,24 +244,6 @@ pub(super) fn event_type_reference(
         }
         facts::PlaceRoot::Unknown => None,
     }
-}
-
-fn call_return_type_reference(
-    program: &dyn ::validation::CheckingInput,
-    target: SymbolHandle,
-) -> Option<TypeReferenceHandle> {
-    for machine in program.machines() {
-        if machine.symbol == target {
-            return program
-                .machine_states(machine)
-                .first()
-                .map(|state| state.return_type);
-        }
-        if let Some(state) = program.state_in_machine(machine, target) {
-            return Some(state.return_type);
-        }
-    }
-    None
 }
 
 fn collect_nominal_symbols(

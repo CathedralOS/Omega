@@ -65,6 +65,22 @@ pub(crate) fn apply_statement_permission_production(
 
     let event_start = permission_events.len();
     let statement_source = PermissionEventSource::Statement { statement_index };
+    let (machine, state) = program
+        .machine_by_symbol(machine_symbol)
+        .zip(program.state_by_symbol(state_symbol))
+        .ok_or_else(|| {
+            diagnostics::Diagnostic::error("permission evaluation has no owning machine/state")
+        })?;
+    let occurrences = statement_steps_at_evaluation(
+        program,
+        machine,
+        state,
+        statement_index,
+        statement,
+        moves,
+        &facts.operators,
+        Some(evaluation),
+    );
     let mut written_targets = written_linear_targets(
         program,
         state_symbol,
@@ -76,41 +92,43 @@ pub(crate) fn apply_statement_permission_production(
     .into_iter()
     .map(|target| (target, statement_source))
     .collect::<Vec<_>>();
-    if let Some((machine, state)) = program
-        .machine_by_symbol(machine_symbol)
-        .zip(program.state_by_symbol(state_symbol))
-    {
-        for (expression, _) in crate::checks::ownership_occurrences::observed_owned_temporaries(
-            program,
-            machine,
-            state,
-            statement_index,
-            statement,
-            &facts.operators,
-        ) {
-            if temporary_owners
-                .iter()
-                .any(|owner| owner.expression == expression)
-            {
-                continue;
-            }
-            let target = validation::CanonicalPlace {
-                root: facts::PlaceRoot::Expression(expression),
-                segments: Vec::new(),
-            };
-            written_targets.extend(
-                written_owner_targets(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    &target,
-                    expression,
-                    places,
-                )
-                .into_iter()
-                .map(|target| (target, statement_source)),
-            );
+    for (expression, _) in crate::checks::ownership_occurrences::observed_owned_temporaries(
+        program,
+        machine,
+        state,
+        statement_index,
+        statement,
+        &facts.operators,
+    ) {
+        // An observed owner is established by its own completion, which
+        // belongs to exactly one evaluation of this statement. Another
+        // evaluation (a transition target reusing its guard's subject)
+        // observes that same owner; it must not establish it again.
+        if temporary_owners
+            .iter()
+            .any(|owner| owner.expression == expression)
+            || !occurrences.iter().any(|occurrence| {
+                matches!(occurrence.step, StatementStep::Complete(completed) if completed == expression)
+            })
+        {
+            continue;
         }
+        let target = validation::CanonicalPlace {
+            root: facts::PlaceRoot::Expression(expression),
+            segments: Vec::new(),
+        };
+        written_targets.extend(
+            written_owner_targets(
+                program,
+                state_symbol,
+                statement_index,
+                &target,
+                expression,
+                places,
+            )
+            .into_iter()
+            .map(|target| (target, statement_source)),
+        );
     }
     for owner in temporary_owners.iter().filter(|owner| {
         matches!(owner.consumer, PermissionEventSource::Call { statement_index: index, .. } if index == statement_index)
@@ -144,22 +162,6 @@ pub(crate) fn apply_statement_permission_production(
         })
         .cloned()
         .collect::<Vec<_>>();
-    let (machine, state) = program
-        .machine_by_symbol(machine_symbol)
-        .zip(program.state_by_symbol(state_symbol))
-        .ok_or_else(|| {
-            diagnostics::Diagnostic::error("permission evaluation has no owning machine/state")
-        })?;
-    let occurrences = statement_steps_at_evaluation(
-        program,
-        machine,
-        state,
-        statement_index,
-        statement,
-        moves,
-        &facts.operators,
-        Some(evaluation),
-    );
     let mut storage_establishments = Vec::new();
     let mut checked_through = event_start;
     let mut custody = (places.to_vec(), remaining.clone());
