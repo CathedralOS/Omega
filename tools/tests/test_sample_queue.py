@@ -36,6 +36,27 @@ class SampleQueueTests(unittest.TestCase):
         return {"results": [{"sample": sample, "state": state, "detail": detail}
                             for sample, state, detail in rows]}
 
+    def test_discovery_prioritizes_real_failure_leads_and_skips_claimed_outcomes(self):
+        tiny = self.sample("samples/tiny", 2)
+        failure = self.sample("samples/failure", 20)
+        occupied = self.sample("samples/occupied", 1)
+        rows = self.record((failure, "oracle-failed", ""), (occupied, "no-native-build", ""))
+        self.assertEqual(queue_module.discovery_candidates([tiny, failure, occupied], rows,
+                                                           [self.claim(occupied)]), [failure, tiny])
+        self.assertEqual(queue_module.discovery_candidates([occupied], rows, None), [occupied])
+
+    def test_discovery_record_supplies_work_but_never_full_release_coverage(self):
+        complete = self.root / "20260101-all.json"
+        partial = self.root / "20260102-discovery.json"
+        empty = self.root / "20260103-discovery.json"
+        complete.write_text(json.dumps(dict(filter="", scope="all", results=[])))
+        partial.write_text(json.dumps(dict(filter="", scope="discovery",
+                                          results=[dict(sample="samples/failure", state="oracle-failed")])))
+        empty.write_text(json.dumps(dict(filter="", scope="discovery", results=[])))
+        with patch.object(queue_module, "RUNS", self.root):
+            self.assertEqual(Path(queue_module.latest_record()), partial)
+            self.assertEqual(Path(queue_module.latest_record(True)), complete)
+
     def test_failing_programs_come_smallest_first(self):
         big = self.sample("samples/cli/big", 300)
         small = self.sample("samples/cli/small", 20)

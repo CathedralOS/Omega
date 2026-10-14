@@ -795,3 +795,17 @@ If small crates each pause for seconds before parsing, inspect `target/` before
 changing test or compiler architecture: a long-lived `target/debug/deps` with
 hundreds of thousands of stale hashed artifacts makes rustc rescan it per
 crate. `cargo clean` fixes it.
+
+### Fast sample work discovery
+
+Use `python3 tools/sample_native_gate.py --programs-only --find-work` to find the
+next application failure. It remeasures previous failures first, excludes live
+claimed outcomes and owner prerequisites, then tries smaller applications. It
+stops scheduling when a confirmed failure supplies work. `sample_queue.py` reads
+that partial discovery record and labels unmeasured applications unknown.
+Historical verdicts guide order only: they never become fresh acceptance.
+
+Discovery does not replace complete application coverage or the full release
+gate. Run without `--find-work` for those gates; `sample_queue.py --all` accepts
+only complete full-gate records. This avoids waiting for every unrelated program
+before starting one repair, while keeping release coverage explicit.

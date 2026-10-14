@@ -96,7 +96,7 @@ Compiler work is one loop, and its unit is a sample: a runnable program under
 1. **Take a failing sample.** `python3 tools/sample_queue.py` lists the
    samples that fail on this host in the latest sample-gate run, smallest
    first, with each one's refusal; run `python3 tools/sample_native_gate.py`
-   with `--programs-only` first when no recent run exists; the full release
+   with `--programs-only --find-work` first when no recent run exists; the full release
    gate still includes probes and controls. A sample the user names comes first. A
    sample that cannot run until the owner decides something says so in its
    README, citing the `OWNER_QUESTIONS.md` entry; the queue lists it apart

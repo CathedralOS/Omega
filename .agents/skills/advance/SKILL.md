@@ -29,7 +29,7 @@ to move elsewhere. Without prior continuity, take work in this order:
    before and no longer does: bisect it and repair it.
 2. A sample the user names.
 3. The smallest unclaimed failing sample from `python3 tools/sample_queue.py` (run
-   `python3 tools/sample_native_gate.py` first when no recent run exists).
+   `python3 tools/sample_native_gate.py --programs-only --find-work` first when no recent run exists).
    Several queued samples with one demonstrated root cause are one piece of
    work.
 4. When the queue is empty, write a harder sample at the language frontier

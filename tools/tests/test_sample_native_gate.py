@@ -21,6 +21,38 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import sample_projects
 
 
+class WorkDiscoveryTests(unittest.TestCase):
+    def test_stops_before_scheduling_unrelated_tail_and_remeasures_lead(self):
+        import sample_queue
+        from types import SimpleNamespace
+        arguments = SimpleNamespace(cli="omega", target="linux_x86_64", timeout=300,
+                                    build_unscored=False)
+        failure = {"sample": "samples/first", "state": "no-native-build", "detail": "real refusal"}
+        with patch.object(sample_queue, "live_ownership", return_value=[]), \
+             patch.object(sample_queue, "latest_record", return_value=None), \
+             patch.object(sample_queue, "discovery_candidates", return_value=["samples/first", "samples/tail"]), \
+             patch.object(sample_queue, "queue", return_value=[failure]), \
+             patch.object(gate, "timed_measure", return_value=failure) as measure:
+            results = gate.find_work(arguments, ["samples/first", "samples/tail"])
+        self.assertEqual(results, [failure])
+        measure.assert_called_once_with("omega", "samples/first", "linux_x86_64", 300, False)
+
+    def test_passing_old_failure_does_not_stop_search(self):
+        import sample_queue
+        from types import SimpleNamespace
+        arguments = SimpleNamespace(cli="omega", target="linux_x86_64", timeout=300,
+                                    build_unscored=False)
+        passing = {"sample": "samples/repaired", "state": "pass"}
+        failure = {"sample": "samples/next", "state": "oracle-failed"}
+        with patch.object(sample_queue, "live_ownership", return_value=[]), \
+             patch.object(sample_queue, "latest_record", return_value=None), \
+             patch.object(sample_queue, "discovery_candidates", return_value=["samples/repaired", "samples/next"]), \
+             patch.object(sample_queue, "queue", side_effect=[[], [failure]]), \
+             patch.object(gate, "timed_measure", side_effect=[passing, failure]) as measure:
+            self.assertEqual(gate.find_work(arguments, []), [passing, failure])
+        self.assertEqual(measure.call_count, 2)
+
+
 class ReviewAcceptanceTests(unittest.TestCase):
     def test_only_pending_decisions_change(self):
         with tempfile.TemporaryDirectory() as directory:

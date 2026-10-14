@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """The sample loop's work queue: failing samples, smallest first.
 
-Reads the latest complete, unfiltered application or full gate run record (from the
-main checkout's `build/sample-gate-runs/`, shared by every worktree, or
-`--record PATH`) and lists the sample programs that do not yet run on that
+Reads the latest unfiltered application coverage or explicit partial work discovery
+record (from the main checkout's `build/sample-gate-runs/`, shared by every
+worktree, or `--record PATH`) and lists measured failing programs on that
 run's target, ordered with unclaimed programs first, then by their own source size so work is
 the easiest to trace. Each row carries the gate's refusal. The record's
 revision is compared with this checkout's HEAD; a record from an older
@@ -19,8 +19,9 @@ are listed after it instead:
   contains`, so nothing defines it running. Give it an oracle, or move a
   check-only program into `tests/omega/` as a fixture.
 
-Probes (`samples/**/probes/`) and invalid controls (`controls/`) are not
-sample programs; `--all` includes them after the programs.
+Partial discovery leaves unmeasured applications unknown. Probes
+(`samples/**/probes/`) and invalid controls (`controls/`) are not sample programs;
+`--all` requires complete full-gate coverage and includes them after the programs.
 
     python3 tools/sample_queue.py
     python3 tools/sample_queue.py --limit 5
@@ -56,11 +57,11 @@ FAILING = ("no-native-build", "oracle-failed", "error", "timeout", "check-fail",
 
 
 def latest_record(include_all=False):
-    """Newest complete application coverage, or full coverage for --all.
+    """Newest application work evidence, or full coverage for --all.
 
-    Filtered runs cannot replace it: they omit applications outside their
-    filter. Application-only runs cover the work queue, not probes/controls.
-    Legacy records without an explicit scope are full gate runs.
+    Explicit partial discovery records can supply measured failures, while an
+    empty discovery never declares the queue exhausted. Ordinary filtered runs
+    cannot replace complete coverage. Legacy records are full gate runs.
     """
     candidates = set(glob.glob(str(RUNS / "*.json")))
     candidates.update(glob.glob(str(ROOT / "build" / "sample-gate-runs" / "*.json")))
@@ -70,9 +71,11 @@ def latest_record(include_all=False):
         except (OSError, ValueError):
             continue
         scope = record.get("scope", "all")
-        if not record.get("filter") and scope in ("all", "programs") \
+        if not record.get("filter") and scope in ("all", "programs", "discovery") \
                 and (not include_all or scope == "all"):
-            return path
+            if scope != "discovery" or any(row.get("state") in FAILING
+                                            for row in record.get("results", [])):
+                return path
     return None
 
 
@@ -166,6 +169,22 @@ def queue(record, include_all=False, live_claims=None):
     return sorted(rows, key=lambda row: (order[row["kind"]], bool(row["claims"]), row["lines"], row["sample"]))
 
 
+def discovery_candidates(samples, record, live_claims):
+    """Reuse failure names as leads, never their historical verdicts.
+
+    Claims name an outcome, not shared paths. Missing ownership stays unknown;
+    owner decisions and programs without an oracle cannot supply advance work.
+    """
+    occupied = {claimed_sample(claim["item"]) for claim in
+                outcome_claims.live_claims({"claims": live_claims or []})}
+    failures = {row["sample"] for row in record.get("results", [])
+                if row.get("state") in FAILING}
+    available = [sample for sample in samples if sample not in occupied
+                 and not owner_question(sample) and has_oracle(sample)]
+    return sorted(available, key=lambda sample:
+                  (sample not in failures, source_lines(sample), sample))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -177,7 +196,7 @@ def main():
 
     path = arguments.record or latest_record(arguments.all)
     if not path:
-        command = "python3 tools/sample_native_gate.py" + ("" if arguments.all else " --programs-only")
+        command = "python3 tools/sample_native_gate.py" + ("" if arguments.all else " --programs-only --find-work")
         print(f"sample_queue: no gate run recorded; run {command} first",
               file=sys.stderr)
         return 2
@@ -208,8 +227,10 @@ def main():
           f"{summary.get('passed', '?')}/{summary.get('scored', '?')} samples meet their oracle"
           + (f", {behind} commits behind HEAD" if behind else ""))
     if behind and behind > 50:
-        print("sample_queue: the record is old; rerun python3 tools/sample_native_gate.py",
+        print("sample_queue: the record is old; rerun python3 tools/sample_native_gate.py --programs-only --find-work",
               file=sys.stderr)
+    if record.get("scope") == "discovery":
+        print("sample_queue: partial work discovery; unmeasured applications remain unknown")
     if ownership is None:
         print("sample_queue: live ownership unavailable; all rows have unknown ownership")
     if not has_work:

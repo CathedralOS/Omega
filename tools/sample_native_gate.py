@@ -535,6 +535,33 @@ def shared_runs_directory():
     return os.path.join(os.path.dirname(completed.stdout.strip()), "build", "sample-gate-runs")
 
 
+def find_work(arguments, samples):
+    """Measure available applications until one real refusal supplies work.
+
+    This is discovery coverage, never a release result. Serial scheduling means
+    finding an outcome cannot leave unrelated compiler children to drain.
+    Previous failures guide ordering; every returned outcome is measured again.
+    """
+    import sample_queue
+
+    try:
+        ownership = sample_queue.live_ownership()
+    except sample_queue.outcome_claims.ClaimsError as error:
+        ownership = None
+        print(f"sample_native_gate: ownership unknown: {error}", file=sys.stderr)
+    previous = sample_queue.latest_record()
+    record = json.loads(Path(previous).read_text(encoding="utf-8")) if previous else {}
+    candidates = sample_queue.discovery_candidates(samples, record, ownership)
+    results = []
+    for sample in candidates:
+        result = timed_measure(arguments.cli, sample, arguments.target,
+                               arguments.timeout, arguments.build_unscored)
+        results.append(result)
+        if sample_queue.queue({"results": [result]}, live_claims=ownership):
+            break
+    return results
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cli",
@@ -546,6 +573,10 @@ def main():
     parser.add_argument("--programs-only", action="store_true",
                         help="discover application work without probe/control trees; "
                              "not a full release gate")
+    parser.add_argument("--find-work", action="store_true",
+                        help="remeasure likely unclaimed application failures first, then "
+                             "small applications; stop at the first confirmed outcome "
+                             "(partial discovery coverage, not a release gate)")
     parser.add_argument("--build-unscored", action="store_true",
                         help="review and natively build samples that state no oracle "
                              "(default: report them as no-oracle without compiling)")
@@ -557,6 +588,10 @@ def main():
                              "main checkout's build/sample-gate-runs, shared by every "
                              "worktree); empty disables")
     arguments = parser.parse_args()
+    if arguments.find_work and (not arguments.programs_only or arguments.filter):
+        parser.error("--find-work requires --programs-only and no --filter")
+    if arguments.find_work:
+        arguments.jobs = 1
     started = datetime.datetime.now(datetime.timezone.utc)
     if arguments.cli is None:
         arguments.cli = build_gate_cli()
@@ -579,15 +614,20 @@ def main():
         return 2
 
     wall_start = time.monotonic()
-    with ThreadPoolExecutor(max_workers=arguments.jobs) as pool:
-        grouped = pool.map(
-            lambda group: [timed_measure(arguments.cli, s, arguments.target, arguments.timeout,
-                                         arguments.build_unscored)
-                           for s in group],
-            nested_groups(samples),
-        )
-        results = sorted((result for group in grouped for result in group),
-                         key=lambda result: result["sample"])
+    if arguments.find_work:
+        results = find_work(arguments, samples)
+        print(f"sample_native_gate: discovery measured {len(results)}/{len(samples)} "
+              "applications; partial coverage cannot establish release health")
+    else:
+        with ThreadPoolExecutor(max_workers=arguments.jobs) as pool:
+            grouped = pool.map(
+                lambda group: [timed_measure(arguments.cli, s, arguments.target, arguments.timeout,
+                                             arguments.build_unscored)
+                               for s in group],
+                nested_groups(samples),
+            )
+            results = sorted((result for group in grouped for result in group),
+                             key=lambda result: result["sample"])
     wall_seconds = time.monotonic() - wall_start
 
     buckets = {}
@@ -760,7 +800,8 @@ def record_run(arguments, started, results, buckets, passed, scored, timing=None
         "jobs": getattr(arguments, "jobs", None),
         "timeout": getattr(arguments, "timeout", None),
         "filter": arguments.filter or "",
-        "scope": "programs" if getattr(arguments, "programs_only", False) else "all",
+        "scope": ("discovery" if getattr(arguments, "find_work", False) else
+                  "programs" if getattr(arguments, "programs_only", False) else "all"),
         "summary": {
             "passed": passed,
             "scored": scored,
