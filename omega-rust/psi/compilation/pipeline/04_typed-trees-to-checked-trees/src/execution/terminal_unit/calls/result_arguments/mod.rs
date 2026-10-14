@@ -130,7 +130,11 @@ fn argument_contract(
     // Anonymous producers publish the same stored descriptor as named locals.
     // Rejoin the unique completed result and its actual source type, whether
     // a call or a value establishment produced it. The descriptor crossing
-    // and access judgment must not depend on that producer's syntax.
+    // and access judgment must not depend on that producer's syntax. The
+    // result's own identity decides whether it holds that descriptor: a
+    // referent moved out of a `&mut` place (`transform(choice)` for
+    // `choice: &mut Choice`) publishes the owned referent, which continues to
+    // the owned-result lane below like any other completed value.
     if let Some(owner) = place.root.as_expression() {
         let reference = facts
             .values
@@ -145,7 +149,9 @@ fn argument_contract(
                     owner,
                 )
             })?;
-        if reference::is_carrier(program, reference) {
+        if reference::is_carrier(program, reference)
+            && result.type_identity == program.normalized_type_identity(reference)
+        {
             if result.statement_index as usize != call.statement_index
                 || operations
                     .iter()

@@ -1,0 +1,97 @@
+// RUN CANARY (exit 70). Moving the referent out of a `&mut` place into an
+// owned formal publishes the owned referent, not the reference descriptor:
+// `slot = rebuild(slot)` passes the extracted value to the callee and
+// restores the returned value to the borrowed storage. The extraction is
+// exercised through a whole local, a record field, a forwarded parameter,
+// a later state of the borrowing machine, and an affine record as well as
+// a sum carrying a linear payload.
+use omega::language::core::drop;
+
+data Token [linear] { value: u64; }
+machine Token::drop(token: &mut Token) {}
+data Choice { case Success(token: Token); case Failure(token: Token); }
+data Holder { marker: u64; choice: Choice; }
+data Counter { count: u64; }
+
+machine change(token: Token) -> Choice {
+    let value: u64 = token.value;
+    drop(token);
+    Choice::Success { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } }
+}
+
+machine transform(choice: Choice) -> Choice {
+    transition choice {
+        Choice::Success { token } -> change(token)
+        Choice::Failure { token } -> change(token)
+    }
+}
+
+// The extraction happens in the entry state.
+machine repair(choice: &mut Choice) {
+    choice = transform(choice);
+}
+
+// The extraction happens in a later state that receives the borrow.
+machine repair_later(choice: &mut Choice, enabled: bool) {
+    transition enabled {
+        true -> apply(choice)
+        _ -> skip()
+    }
+    state apply(choice: &mut Choice) {
+        choice = transform(choice);
+    }
+    state skip() {}
+}
+
+// The borrow is forwarded from this machine's own parameter.
+machine forward(holder: &mut Holder) {
+    repair(&mut holder.choice);
+}
+
+machine bump(counter: Counter) -> Counter {
+    Counter { count: ((counter.count as u64 in Wrapping) + 1) as u64 }
+}
+
+machine advance(counter: &mut Counter) {
+    counter = bump(counter);
+}
+
+machine consume(choice: Choice) -> u64 {
+    transition choice {
+        Choice::Success { token } -> read_and_drop(token)
+        Choice::Failure { token } -> read_and_drop(token)
+    }
+    state read_and_drop(token: Token) -> u64 {
+        let value: u64 = token.value;
+        drop(token);
+        value
+    }
+}
+
+machine main() crashes Trap {
+    // Whole local.
+    let mut local: Choice = Choice::Failure { token: Token { value: 10 } };
+    repair(&mut local);
+    // Record field, through the later state.
+    let mut holder: Holder = Holder {
+        marker: 19,
+        choice: Choice::Failure { token: Token { value: 20 } },
+    };
+    repair_later(&mut holder.choice, true);
+    // Forwarded parameter.
+    forward(&mut holder);
+    // Affine record.
+    let mut counter: Counter = Counter { count: 5 };
+    advance(&mut counter);
+    advance(&mut counter);
+    let from_local: u64 = consume(local);
+    let marker: u64 = holder.marker;
+    let from_field: u64 = consume(holder.choice);
+    let count: u64 = counter.count;
+    transition from_local == 11 && from_field == 22 && marker == 19 && count == 7 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

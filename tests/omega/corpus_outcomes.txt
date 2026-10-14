@@ -6716,6 +6716,7 @@ pass/ownership/runtime_borrowed_operand_order_exit checked 11218ms check-target:
 pass/ownership/runtime_borrowed_projected_claim_transform_exit checked 12190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_borrowed_projected_linear_return_exit checked 11409ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_borrowed_record_transform_exit checked 11635ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/ownership/runtime_borrowed_referent_move_variants_exit checked 12111ms check-target:macos_arm64 @896172b5d9d8+wt
 pass/ownership/runtime_borrowed_shared_alias_carrier_transform_exit checked 12058ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_borrowed_sum_empty_restore_exit checked 11399ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_borrowed_sum_identity_restore_exit checked 10689ms check-target:macos_arm64 @a9ae30e1c334+wt
