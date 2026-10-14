@@ -1354,8 +1354,10 @@ pub fn record_carrier_sources(
         scope: usize,
     ) -> Option<()> {
         let (reference, scope) = scopes.head(program, reference, scope);
+        // Sequence loans retain the view descriptor at every access mode.
+        // Restricting this frontier to shared views loses the source region of
+        // an exclusive element returned through a requirement signature.
         if let Some(shell) = crate::reference_shell(program, reference)
-            && shell.access == language_semantics::ReferenceAccess::Shared
             && matches!(
                 program
                     .type_reference_table
@@ -1369,7 +1371,7 @@ pub fn record_carrier_sources(
                     source: carrier.clone(),
                     path: path.clone(),
                     type_identity: scopes.type_identity(program, reference, scope),
-                    access: CheckedStructuralAccess::SharedBorrow,
+                    access: shell.access.into(),
                 },
             });
             return Some(());

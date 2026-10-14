@@ -1,0 +1,11 @@
+# Omega corpus outcomes, written by `python tools/corpus_gate.py --record`.
+# One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
+# `expected` or `unexpected` when its expected.txt fragments were weighed,
+# then any execution facts such as exit:70 or stdout:match, then
+# `regressed-from:<status>[+fact]*` when the row has lost a success it used
+# to record, then `@<revision>` recording which commit measured the row
+# (`+wt` = dirty tree; rows measured before stamping have no token).
+# Tab-indented lines under a fixture are its diagnostics, in order.
+# A `# context: {...}` line records the conditions of the --record run.
+# context: {"cpus": 16, "jobs": null, "load1_end": 4.82, "load1_start": 4.38, "machine": "x86_64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/borrows/returned_slice_record_reference_custody_exit built 14599ms exit:0 interpreter-exit:0 interpreter:agrees @761f5fae99a7+wt

@@ -1,0 +1,57 @@
+// Expected exit: 0.
+// Runtime-selected record references edit caller storage without copying it.
+data Event [copy] {
+    identifier: u64;
+    score: i32;
+    enabled: bool;
+}
+
+trait Select<T> {
+    machine pick(values: &mut [T]) -> &mut T requires values.len > 0;
+}
+
+First satisfies Select<Event> {
+    machine pick(values: &mut [Event]) -> &mut Event
+        requires values.len > 0;
+    { &mut values[0] }
+}
+
+Last satisfies Select<Event> {
+    machine pick(values: &mut [Event]) -> &mut Event
+        requires values.len > 0;
+    { &mut values[values.len - 1] }
+}
+
+machine selected<'input>(strategy: dyn Select<Event>, values: &'input mut [Event])
+    -> &'input mut Event
+    requires values.len > 0;
+{
+    Select::pick(strategy, values)
+}
+
+machine main() crashes Trap {
+    let mut events: [Event; 3] = [
+        Event { identifier: 18446744073709551615, score: 0, enabled: false },
+        Event { identifier: 31, score: 5, enabled: false },
+        Event { identifier: 9223372036854775808, score: 0, enabled: false }
+    ];
+    let mut strategy: dyn Select<Event> = First as dyn Select<Event>;
+    let first: &mut Event = selected(strategy, &mut events);
+    first.score = 17;
+    first.enabled = true;
+    strategy = Last as dyn Select<Event>;
+    let last: &mut Event = selected(strategy, &mut events);
+    last.score = 23;
+    last.enabled = true;
+    transition events[0].score == 17 && events[2].score == 23
+        && events[1].score == 5
+        && events[0].enabled && !events[1].enabled && events[2].enabled
+        && events[0].identifier == 18446744073709551615
+        && events[1].identifier == 31
+        && events[2].identifier == 9223372036854775808 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

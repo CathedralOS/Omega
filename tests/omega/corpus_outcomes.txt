@@ -770,6 +770,14 @@ fail/borrows/returned_review_cannot_substitute_other_input rejected 492ms expect
 	machine `wrong` returns a view borrowing input `second`, which is not permitted by the declared result lifetime relation
 fail/borrows/returned_review_keeps_original_backing_loan rejected 417ms expected @22286cb27fcc
 	statement 1 mutates `main.source.second` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
+fail/borrows/returned_slice_record_reference_cannot_widen_access rejected 5314ms expected @761f5fae99a7+wt
+	machine `forbid` returns a view whose access cannot be supplied by matching input `values`
+	statement 2 cannot resolve the complete borrowed destination of `chosen.count`
+fail/borrows/returned_slice_record_reference_conflict rejected 5366ms expected @761f5fae99a7+wt
+	state `selected` receives `events` while local borrow `first` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 creates local borrow `last` while local borrow `first` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 4 mutates `first.score` while local borrow `last` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 3 mutates `events` while local borrow `first` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/borrows/returned_view_temporary_backing rejected 1767ms expected @a9ae30e1c334+wt
 	machine `escape` returns a view borrowing temporary storage, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/runtime_index_mut_borrow rejected 5619ms expected @a9ae30e1c334+wt
@@ -4609,6 +4617,7 @@ pass/borrows/returned_record_case_field_store_exit checked 11260ms check-target:
 pass/borrows/returned_record_field_read_exit checked 11204ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_record_method_receiver_exit checked 11062ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_record_projected_call_exit checked 11044ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/returned_slice_record_reference_custody_exit checked 17190ms check-target:macos_arm64 @761f5fae99a7+wt
 pass/borrows/runtime_affine_local_case_return_exit checked 11337ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_affine_local_scalar_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_array_primitive_reference_capture_exit checked 10285ms check-target:macos_arm64 @a9ae30e1c334+wt

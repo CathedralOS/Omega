@@ -1,0 +1,68 @@
+data Pair [copy] { count: u32; enabled: bool; }
+data Bag { guard: u64; pairs: [Pair; 2]; }
+
+machine lend<'input>(pairs: &'input mut [Pair]) -> &'input mut Pair
+    requires pairs.len > 0;
+{ &mut pairs[0] }
+
+machine view<'input>(bag: &'input mut Bag) -> &'input mut [Pair]
+    ensures result.len == 2;
+{
+    &mut bag.pairs
+}
+
+machine edit(pairs: &mut [Pair]) requires pairs.len > 0; {
+    let target: &mut Pair = lend(pairs);
+    target.count = 11;
+    target.enabled = true;
+}
+
+machine choose<'left, 'right>(left: &'left mut [Pair], right: &'right mut [Pair])
+    -> &'left mut Pair
+    requires left.len > 0 && right.len > 0;
+{
+    right[0].count = 19;
+    &mut left[0]
+}
+
+machine main() crashes Trap {
+    let mut pairs: [Pair; 2] = [
+        Pair { count: 0, enabled: false },
+        Pair { count: 19, enabled: false }
+    ];
+    let target: &mut Pair = lend(&mut pairs);
+    target.count = 7;
+    target.enabled = true;
+    let first: bool = pairs[0].count == 7 && pairs[0].enabled;
+    let values: &mut [Pair] = &mut pairs;
+    edit(values);
+    let second: bool = pairs[0].count == 11 && pairs[0].enabled;
+    let mut left: [Pair; 1] = [Pair { count: 0, enabled: false }];
+    let mut right: [Pair; 1] = [Pair { count: 0, enabled: false }];
+    let chosen: &mut Pair = choose(&mut left, &mut right);
+    chosen.count = 7;
+    let fourth: bool = left[0].count == 7 && right[0].count == 19;
+    let mut bag: Bag = Bag {
+        guard: 18446744073709551615,
+        pairs: [Pair { count: 0, enabled: false }, Pair { count: 31, enabled: false }]
+    };
+    let nested: &mut Pair = lend(view(&mut bag));
+    nested.count = 23;
+    nested.enabled = true;
+    let third: bool = bag.pairs[0].count == 23 && bag.pairs[0].enabled;
+    transition first && second && third && fourth && pairs[1].count == 19 && !pairs[1].enabled {
+        true -> finish(&mut bag)
+        false -> wrong()
+    }
+    state finish(bag: &mut Bag) {
+        edit(&mut bag.pairs);
+        transition bag.pairs[0].count == 11 && bag.pairs[0].enabled
+            && bag.pairs[1].count == 31 && !bag.pairs[1].enabled
+            && bag.guard == 18446744073709551615 {
+            true -> done()
+            false -> wrong()
+        }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -9,6 +9,11 @@
 //! Named homes are not permanent aliases of their first result. Cleanup and
 //! construction resolve the value at their operation prefix, sharing operand
 //! storage selection so replacement neither loses nor revives an occurrence.
+//! Anonymous input views and returned children can share a statement without
+//! sharing custody. Loan dispositions join the result's captured holder, never
+//! every claim established by that statement.
+//! For a holder with captured loans, whole physical cleanup realizes its
+//! checked release. Both inventories must close; they are one result death.
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
     CheckedStructuralControlSuccessorPlan, CheckedUnitEffectOperationPlan,
@@ -651,32 +656,38 @@ pub(super) fn account(
                 )
             })
             .flatten();
-        let view_releases = if release_owned_view {
-            facts
-                .flow
-                .ownership
-                .permissions
-                .iter()
-                .filter(|(_, event)| {
-                    event.kind == PermissionEventKind::Consume
-                        && Some(event.claim_identity) != installed_view_claim
-                        && event.machine_symbol == machine.symbol
-                        && event.state_symbol == state.symbol
-                        && matches!(
-                            event.claim_identity,
-                            language_semantics::PermissionClaimIdentity::Established {
-                                machine_symbol: claim_machine,
-                                state_symbol: claim_state,
-                                source: PermissionEventSource::Statement { statement_index },
-                                ..
-                            } if claim_machine == machine.symbol
-                                && claim_state == state.symbol
-                                && statement_index == result.statement_index as usize
-                        )
-                })
-                .count()
+        let (has_captured_view_loans, view_releases) = if release_owned_view {
+            view_loan_releases(
+                facts,
+                machine.symbol,
+                state.symbol,
+                result,
+                operation,
+                installed_view_claim,
+            )
+            .map_err(|reason| {
+                trace.phase(reason);
+                trace.statement(Some(result.statement_index));
+            })
+            .ok()?
         } else {
+            (false, 0)
+        };
+        // A named view's lexical cleanup retires the actual descriptor at
+        // the same boundary as its source loan. Anonymous descriptors without
+        // a captured source loan owe only physical cleanup. Rejoin the exact
+        // holder above before sharing these receipts; another operand or a
+        // returned child's Consume must never discharge this result.
+        let cleanup_realizes_view_release = retired_whole && has_captured_view_loans;
+        if cleanup_realizes_view_release && view_releases != 1 {
+            trace.phase("state graph: view cleanup has no unique captured loan disposition");
+            trace.statement(Some(result.statement_index));
+            return None;
+        }
+        let independent_view_releases = if cleanup_realizes_view_release {
             0
+        } else {
+            view_releases
         };
         // The checked loan release is the semantic owner of an affine view,
         // while Terminal's structural frontier owns the materialized carrier.
@@ -722,7 +733,7 @@ pub(super) fn account(
             + cleanup_discards
             + construction_transfers
             + reference_releases
-            + view_releases;
+            + independent_view_releases;
         if total != 1 && !(total == 0 && abandons_custody) {
             trace.phase(if total == 0 {
                 "state graph: structural result has no selected disposition"
@@ -743,6 +754,84 @@ pub(super) fn account(
         *discard_result_on_return = true;
     }
     Some(())
+}
+
+/// Statement coordinates can contain several independent formations: an
+/// anonymous input descriptor, a returned child, or another operand's view.
+/// Only the loans captured by this exact holder can dispose its result.
+/// A temporary descriptor with no source loan still needs its own physical
+/// cleanup; another holder's Consume cannot stand in for that disposition.
+fn view_loan_releases(
+    facts: &CheckFacts,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+    producer: &CheckedUnitEffectOperationPlan,
+    installed_claim: Option<language_semantics::PermissionClaimIdentity>,
+) -> Result<(bool, usize), &'static str> {
+    // The producer names its holder even for an anonymous return operand,
+    // which need not appear in the state's named-result inventory.
+    let owner = if result.local.symbol.is_valid() {
+        facts::PlaceRoot::Symbol(result.local.symbol)
+    } else {
+        let CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+        ) = producer
+        else {
+            return Err("state graph: view result has no captured formation");
+        };
+        let formation = facts.values.structural_values.nodes.get(*value).expression;
+        if !formation.is_valid() {
+            return Err("state graph: view result has an invalid captured formation");
+        }
+        facts::PlaceRoot::Expression(formation)
+    };
+    let mut states = facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, borrowing)| borrowing)
+        .filter(|borrowing| borrowing.machine_symbol == machine && borrowing.state_symbol == state);
+    let Some(borrowing) = states.next() else {
+        return Ok((false, 0));
+    };
+    if states.next().is_some() {
+        return Err("state graph: view result has ambiguous borrow states");
+    }
+    let loans = facts
+        .borrow
+        .storage_loans(borrowing, owner, result.statement_index as usize)
+        .ok_or("state graph: view holder has no complete captured loan group")?;
+    let captured_loans = facts
+        .borrow
+        .loans
+        .span(loans)
+        .ok_or("state graph: view holder has an invalid captured loan group")?;
+    let releases = facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.kind == PermissionEventKind::Consume
+                && Some(event.claim_identity) != installed_claim
+                && event.machine_symbol == machine
+                && event.state_symbol == state
+                && matches!(event.claim_identity,
+                        language_semantics::PermissionClaimIdentity::Established {
+                            machine_symbol, state_symbol,
+                            source: PermissionEventSource::Statement { statement_index }, ..
+                        } if machine_symbol == machine && state_symbol == state
+                            && statement_index == result.statement_index as usize)
+                && captured_loans.iter().any(|loan| {
+                    loan.root == event.root
+                        && facts.borrow.loan_owner_path(loan).is_empty()
+                        && facts.borrow.loan_segments(loan)
+                            == facts.flow.ownership.segments.span_or_empty(event.segments)
+                })
+        })
+        .count();
+    Ok((!captured_loans.is_empty(), releases))
 }
 
 /// The state-local result a closed-sum dispatch consumes: an owned subject

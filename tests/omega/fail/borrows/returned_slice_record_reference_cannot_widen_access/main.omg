@@ -1,0 +1,9 @@
+data Pair [copy] { count: u32; enabled: bool; }
+machine forbid<'input>(values: &'input [Pair]) -> &'input mut Pair
+ requires values.len > 0;
+{ &mut values[0] }
+machine main() {
+ let values: [Pair; 1] = [Pair { count: 0, enabled: false }];
+ let chosen: &mut Pair = forbid(&values);
+ chosen.count = 7;
+}
