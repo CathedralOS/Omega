@@ -1629,6 +1629,35 @@ def main() -> None:
         b"    state first(pending: u64) {\n        transition { _ -> second(pending) }\n    }\n"
         b"    state second(left: u64) {\n        transition left > 0 {\n            true -> second(left - 1)\n            false -> left\n        }\n    }\n}",
     )
+    # A `Slice::Length` witness rooted at a field path ranks the record's
+    # slice by its live length. A rebuilt record's field takes the paths
+    # below the view it was written from, so the view's shorter length
+    # arrives in the state's formal.
+    rebuilt = (
+        b"data Bag { items: &[u32]; }\n"
+        b"machine walk(bag: Bag, capacity: u64)\nrequires bag.items.len <= capacity;\n"
+        b"terminates by bag.items -> Slice::Length in 0..=capacity;\n-> u64 {\n"
+        b"    transition { _ -> step(bag, capacity) }\n"
+        b"    state step(current: Bag, bound: u64) {\n        transition current.items.len > 0 {\n"
+        b"            true -> step(Bag { items: current.items[RANGE] }, bound)\n            false -> 0\n        }\n    }\n}"
+    )
+    accepted(program, "a-rebuilt-record-field-ranks-by-its-view-length", rebuilt.replace(b"RANGE", b"1.."))
+    rejected(
+        program,
+        "a-rebuilt-record-field-of-the-same-length-ranks-nothing",
+        rebuilt.replace(b"RANGE", b"0.."),
+        "RankUnproven",
+        b"step(Bag { items: current.items[0..] }, bound)",
+    )
+    accepted(
+        program,
+        "a-nested-rebuilt-record-field-ranks-by-its-view-length",
+        b"data Inner { items: &[u32]; }\ndata Outer { inner: Inner; }\n"
+        b"machine walk(outer: Outer)\nterminates by outer.inner.items -> Slice::Length;\n-> u64 {\n"
+        b"    transition { _ -> step(outer) }\n"
+        b"    state step(current: Outer) {\n        transition current.inner.items.len > 0 {\n"
+        b"            true -> step(Outer { inner: Inner { items: current.inner.items[1..] } })\n            false -> 0\n        }\n    }\n}",
+    )
     # A declared measure ranks its subject by its body, or lexicographically
     # by the subject's named fields (wiki/spec/language/termination.md#ranking).
     measured = (

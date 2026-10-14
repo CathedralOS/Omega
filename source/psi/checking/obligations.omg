@@ -197,7 +197,10 @@ crashes Trap
         let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
         let view: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Referent, handle, collection, type_handle);
         let length_place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Length, 0, view, 0);
-        let extent: Value = Value::difference(bound, start);
+        // Kept as a linear term when the start is a constant, so
+        // `items[1..]` is one shorter than `items` in the zone.
+        let interval: Value = Value::difference(bound, start);
+        let extent: Value = Value::offset_difference(bound, start, interval);
         Checker::bind_place(checker, typing, length_place, extent);
         let value: Value = Value::at_place(view);
         Checker::set_value(checker, handle, value);

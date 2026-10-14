@@ -860,7 +860,6 @@ machine Checker::descends(
 crashes Trap
 {
     transition view {
-        RankingView::SliceLength -> sliced(checker, syntax, resolution, typing, call, target_first, target_count, item, termination)
         RankingView::Default -> unsupported()
         _ -> valued(checker, syntax, resolution, typing, call, target_first, target_count, item, termination, view)
     }
@@ -883,64 +882,6 @@ crashes Trap
         let after: Rank = Checker::rank(checker, syntax, resolution, typing, item, termination, view);
         let descended: bool = Checker::rank_descends(checker, before, after, view);
         descended
-    }
-
-    // `Slice::Length` ranks a slice parameter by its length; the argument
-    // may be a range slice of it, whose length its endpoints give.
-    state sliced(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
-        call: Expression,
-        target_first: u64 in Trapping,
-        target_count: u64 in Trapping,
-        item: MachineItem,
-        termination: TerminationClause
-    ) -> bool {
-        let written: Clause = SyntaxTrees::clause(syntax, termination.handle);
-        let root: u64 in Trapping = SyntaxTrees::argument(syntax, written.first_argument);
-        let binding: ValueBinding = NameResolution::value_binding(resolution, root);
-        transition binding {
-            ValueBinding::Parameter { parameter } -> entry_subject(checker, syntax, resolution, typing, call, target_first, target_count, item, parameter)
-            _ -> unsupported()
-        }
-    }
-
-    state entry_subject(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
-        call: Expression,
-        target_first: u64 in Trapping,
-        target_count: u64 in Trapping,
-        item: MachineItem,
-        parameter: u64 in Trapping
-    ) -> bool {
-        transition parameter >= item.first_parameter && parameter - item.first_parameter < item.parameter_count {
-            true -> subject(checker, syntax, resolution, typing, call, target_first, target_count, item, parameter)
-            _ -> unsupported()
-        }
-    }
-
-    state subject(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
-        call: Expression,
-        target_first: u64 in Trapping,
-        target_count: u64 in Trapping,
-        item: MachineItem,
-        parameter: u64 in Trapping
-    ) -> bool {
-        let entry: u64 in Trapping = parameter - item.first_parameter;
-        let before: Value = Checker::source_length(checker, syntax, resolution, typing, item, entry);
-        let argument: u64 in Trapping = Checker::carried_argument(syntax, resolution, call, item, target_first, target_count, entry);
-        let after: Value = Checker::slice_length(checker, syntax, typing, argument);
-        let shorter: bool = Checker::proves_less(checker, after, before);
-        shorter
     }
 
     state unsupported() -> bool {
@@ -1360,7 +1301,8 @@ crashes Trap
     }
 }
 
-// Whether `after` ranks strictly below `before`. Naturals descend; a
+// Whether `after` ranks strictly below `before`. Naturals and slice
+// lengths descend; a
 // bounded distance from `first` up to `second` shrinks when the bound does
 // not grow and the lower subject climbs, or the bound falls and the lower
 // subject does not, from a positive distance; a declared measure's rank
@@ -1371,6 +1313,7 @@ crashes Trap
 {
     transition view {
         RankingView::Descending -> descending(checker, before, after)
+        RankingView::SliceLength -> descending(checker, before, after)
         RankingView::BoundedDistance -> distance(checker, before, after)
         RankingView::IncreasingTo -> distance(checker, before, after)
         RankingView::Measure -> ordered(checker, before, after)
@@ -1400,92 +1343,5 @@ crashes Trap
 
     state no() -> bool {
         false
-    }
-}
-
-// The length of entry parameter `entry`'s slice in the node being walked.
-machine Checker::source_length(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, entry: u64 in Trapping) -> Value
-crashes Trap
-{
-    let first: u64 in Trapping = checker.argument_first;
-    let count: u64 in Trapping = checker.argument_count;
-    Checker::capture_source(checker, syntax, resolution, item);
-    checker.argument_first = item.first_parameter;
-    checker.argument_count = item.parameter_count;
-    let base: Value = Checker::argument_value(checker, entry);
-    checker.argument_first = first;
-    checker.argument_count = count;
-    let parameter: Parameter = SyntaxTrees::parameter(syntax, item.first_parameter + entry);
-    let declared: u64 in Trapping = Typing::reference_type(typing, parameter.type_reference);
-    let row: TypeRow = Checker::referent_row(typing, declared);
-    let length: Value = Checker::collection_length(checker, typing, row, base);
-    length
-}
-
-// The length of the slice argument `argument` (an expression handle plus
-// one) evaluates to: a range slice's from its endpoints, a borrow's from its
-// operand, else its place's length; unknown otherwise.
-pub machine Checker::slice_length(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, argument: u64 in Trapping) -> Value
-crashes Trap
-{
-    transition argument > 0 {
-        true -> expression(checker, syntax, typing, argument - 1)
-        _ -> unknown()
-    }
-
-    state expression(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> Value {
-        let written: Expression = SyntaxTrees::expression(syntax, handle);
-        let operand: Expression = SyntaxTrees::expression(syntax, written.right);
-        transition written.kind == ExpressionKind::Index && operand.kind == ExpressionKind::Range {
-            true -> ranged(checker, typing, written, operand)
-            _ -> borrowed(checker, syntax, typing, handle, written)
-        }
-    }
-
-    state borrowed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, written: Expression) -> Value {
-        let borrow: bool = written.kind == ExpressionKind::Unary
-            && (written.operator == OperatorKind::Borrow || written.operator == OperatorKind::BorrowMutable
-                || written.operator == OperatorKind::BorrowWrite);
-        transition borrow {
-            true -> expression(checker, syntax, typing, written.left)
-            _ -> placed(checker, typing, handle)
-        }
-    }
-
-    state placed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping) -> Value {
-        let base: Value = Checker::value_at(checker, handle);
-        let row: TypeRow = Checker::collection_row(typing, handle);
-        let length: Value = Checker::collection_length(checker, typing, row, base);
-        length
-    }
-
-    state ranged(checker: &mut Checker, typing: &Typing, written: Expression, operand: Expression) -> Value {
-        let base: Value = Checker::value_at(checker, written.left);
-        let row: TypeRow = Checker::collection_row(typing, written.left);
-        let length: Value = Checker::collection_length(checker, typing, row, base);
-        let zero: Value = Value::constant(ExactInteger { negative: false, magnitude: 0 });
-        let one: Value = Value::constant(ExactInteger { negative: false, magnitude: 1 });
-        let start: Value = Checker::range_endpoint(checker, operand.first == 1, operand.left, zero);
-        let written_end: Value = Checker::range_endpoint(checker, operand.count == 1, operand.right, length);
-        let interval: Value = Value::sum(written_end, one);
-        let successor: Value = Value::offset_sum(written_end, one, interval);
-        let inclusive: bool = operand.flag && operand.count == 1;
-        transition inclusive {
-            true -> counted(start, successor)
-            _ -> counted(start, written_end)
-        }
-    }
-
-    // Kept as a linear term when the start is a constant, so `items[1..]`
-    // is one shorter than `items` in the zone.
-    state counted(start: Value, end: Value) -> Value {
-        let interval: Value = Value::difference(end, start);
-        let length: Value = Value::offset_difference(end, start, interval);
-        length
-    }
-
-    state unknown() -> Value {
-        let value: Value = Value::unknown();
-        value
     }
 }

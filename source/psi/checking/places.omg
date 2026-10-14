@@ -1,4 +1,5 @@
 use psi::checking::aliases;
+use psi::checking::arrivals;
 use psi::checking::checker;
 use psi::checking::constructions;
 use psi::checking::contracts;
@@ -863,62 +864,64 @@ crashes Trap
         0
     }
 }
-
-// A record bound from another place takes that place's known fields: each
-// integer field place directly below `source` equals the same field below
-// `target` from here on, and each field pending below `source` is pending
-// below `target` too. Deeper fields are not carried.
+// A record bound from another place takes that place's known paths: each
+// subject place within `source` by at most four field or `.len` steps
+// (arrivals.omg) equals the same path below `target` from here on, and
+// each field pending below `source` is pending below `target` too. A
+// slice bound from a view thus keeps the view's length.
 pub machine Checker::copy_fields(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping)
 crashes Trap
 {
     Checker::copy_pending(checker, typing, target, source);
+    let end: u64 in Trapping = checker.place_count as u64 in Trapping;
     transition target > 0 && source > 0 && target != source {
-        true -> next(checker, typing, target, source, 0)
+        true -> next(checker, typing, target, source, 0, end)
         _ -> done()
     }
 
-    state next(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping) {
-        transition index < checker.place_count && index < 256 {
-            true -> candidate(checker, typing, target, source, index)
+    // Places the copy enters lie past `end`.
+    state next(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping) {
+        transition index < end && index < 256 {
+            true -> candidate(checker, typing, target, source, index, end)
             _ -> done()
         }
     }
 
-    state candidate(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping) {
+    state candidate(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping) {
         let entry: Place = Checker::place_at(checker, index);
-        let field: bool = entry.parent == source && entry.kind == PlaceKind::Field && entry.subject > 0;
-        transition field {
-            true -> copied(checker, typing, target, source, index, entry)
-            _ -> next(checker, typing, target, source, index + 1)
+        let path: ArrivalPath = Checker::path_below(checker, source, index + 1, 0);
+        transition entry.subject > 0 && path.depth > 0 {
+            true -> copied(checker, typing, target, source, index, end, entry.subject, path)
+            _ -> next(checker, typing, target, source, index + 1, end)
         }
     }
 
-    state copied(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, entry: Place) {
-        let copy: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Field, entry.handle, target, entry.type_handle);
+    state copied(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, subject: u64 in Trapping, path: ArrivalPath) {
+        let copy: u64 in Trapping = Checker::enter_path(checker, typing, target, path);
         transition copy > 0 {
-            true -> equated(checker, typing, target, source, index, entry.subject, copy)
+            true -> equated(checker, typing, target, source, index, end, subject, copy)
             _ -> done()
         }
     }
 
     // copy - source <= 0 and source - copy <= 0.
-    state equated(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, subject: u64 in Trapping, copy: u64 in Trapping) {
+    state equated(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, subject: u64 in Trapping, copy: u64 in Trapping) {
         let copied: Place = Checker::place_at(checker, copy - 1);
         let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
         let unknown: Value = Value::unknown();
         let original: Value = Value { place: 0, known: true, subject: subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
         let duplicate: Value = Value { place: 0, known: true, subject: copied.subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
         transition copied.subject > 0 {
-            true -> related(checker, typing, target, source, index, original, duplicate)
-            _ -> next(checker, typing, target, source, index + 1)
+            true -> related(checker, typing, target, source, index, end, original, duplicate)
+            _ -> next(checker, typing, target, source, index + 1, end)
         }
     }
 
-    state related(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, original: Value, duplicate: Value) {
+    state related(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, original: Value, duplicate: Value) {
         let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
         Checker::constrain_difference(checker, original, duplicate, zero);
         Checker::constrain_difference(checker, duplicate, original, zero);
-        transition { _ -> next(checker, typing, target, source, index + 1) }
+        transition { _ -> next(checker, typing, target, source, index + 1, end) }
     }
 
     state done() {}

@@ -94,7 +94,65 @@ crashes Trap
     ) {
         let declared: DataField = SyntaxTrees::field(syntax, field);
         let field_type: u64 in Trapping = Typing::reference_type(typing, declared.type_reference);
+        let carrier: BuiltinType = Checker::carrier(typing, field_type);
+        let integer: bool = Checker::has_subject(carrier);
+        transition integer {
+            true -> pending(checker, syntax, typing, handle, expression, place, offset, field, field_type, value)
+            _ -> held(checker, syntax, typing, handle, expression, place, offset, field, field_type, value)
+        }
+    }
+
+    state pending(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        handle: u64 in Trapping,
+        expression: Expression,
+        place: u64 in Trapping,
+        offset: u64 in Trapping,
+        field: u64 in Trapping,
+        field_type: u64 in Trapping,
+        value: Value
+    ) {
         Checker::write_pending(checker, typing, place, field, field_type, value);
+        transition { _ -> next_field(checker, syntax, typing, handle, expression, place, offset + 1) }
+    }
+
+    // A slice or record field written from a place (a view, another
+    // construction) takes the subject paths below that place, so the
+    // record's `items.len` is the view's length.
+    state held(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        handle: u64 in Trapping,
+        expression: Expression,
+        place: u64 in Trapping,
+        offset: u64 in Trapping,
+        field: u64 in Trapping,
+        field_type: u64 in Trapping,
+        value: Value
+    ) {
+        transition value.place > 0 {
+            true -> adopted(checker, syntax, typing, handle, expression, place, offset, field, field_type, value.place)
+            _ -> next_field(checker, syntax, typing, handle, expression, place, offset + 1)
+        }
+    }
+
+    state adopted(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        handle: u64 in Trapping,
+        expression: Expression,
+        place: u64 in Trapping,
+        offset: u64 in Trapping,
+        field: u64 in Trapping,
+        field_type: u64 in Trapping,
+        source: u64 in Trapping
+    ) {
+        let written: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Field, field, place, field_type);
+        Checker::copy_fields(checker, typing, written, source);
         transition { _ -> next_field(checker, syntax, typing, handle, expression, place, offset + 1) }
     }
 
