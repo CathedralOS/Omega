@@ -26,6 +26,10 @@ pub(crate) struct LoweredSelectedMachine {
     pub(crate) terminal: LoweredPsi,
     /// Checked source closure selected by the producer; not inferred from emitted ordinals.
     pub(crate) source_machine_ids: Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>,
+    pub(crate) source_boundary_ids: Vec<(
+        symbols::SymbolHandle,
+        semantic_vocabulary::BoundaryMachineId,
+    )>,
     pub(crate) completion: LoweringCompletion,
 }
 
@@ -38,6 +42,7 @@ impl LoweredSelectedMachine {
         Self {
             terminal: lowered.terminal,
             source_machine_ids: lowered.source_machine_ids,
+            source_boundary_ids: lowered.source_boundary_ids,
             completion,
         }
     }
@@ -47,12 +52,20 @@ pub(crate) struct SourceMappedLowered {
     pub(crate) terminal: LoweredPsi,
     /// Exact catalog owners, ordered by the emitted machine table.
     pub(crate) source_machine_ids: Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>,
+    pub(crate) source_boundary_ids: Vec<(
+        symbols::SymbolHandle,
+        semantic_vocabulary::BoundaryMachineId,
+    )>,
 }
 
 impl SourceMappedLowered {
     pub(crate) fn new(
         terminal: LoweredPsi,
         sources: Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>,
+        boundary_sources: Vec<(
+            symbols::SymbolHandle,
+            semantic_vocabulary::BoundaryMachineId,
+        )>,
     ) -> Result<Self, LoweringError> {
         if sources.len() != terminal.semantic_module.machines.len()
             || sources.iter().enumerate().any(|(index, (source, id))| {
@@ -77,9 +90,32 @@ impl SourceMappedLowered {
                     ))
             })
             .collect::<Result<Vec<_>, _>>()?;
+        if boundary_sources.len() != terminal.semantic_module.boundary_machines.len()
+            || boundary_sources
+                .iter()
+                .enumerate()
+                .any(|(position, (source, identity))| {
+                    source_machine_ids
+                        .iter()
+                        .any(|(machine_source, _)| machine_source == source)
+                        || boundary_sources[..position].iter().any(
+                            |(prior_source, prior_identity)| {
+                                prior_source == source || prior_identity == identity
+                            },
+                        )
+                        || !terminal
+                            .semantic_module
+                            .boundary_machines
+                            .iter()
+                            .any(|boundary| boundary.id == *identity)
+                })
+        {
+            return unsupported("source owners do not match the exact boundary catalog");
+        }
         Ok(Self {
             terminal,
             source_machine_ids,
+            source_boundary_ids: boundary_sources,
         })
     }
 }

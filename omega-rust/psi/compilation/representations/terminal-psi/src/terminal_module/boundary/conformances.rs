@@ -54,7 +54,7 @@ pub struct ClosedConformanceStaticApplication {
     pub public_requirement_identity: TerminalIdentityIndex,
     pub realization_identity: TerminalIdentityIndex,
     pub source_callable_identity: TerminalIdentityIndex,
-    pub machine: MachineId,
+    pub callable: crate::TargetMachineCallable,
     /// Checked method application, including its independently checked capture
     /// commitment when this invocation's template was capture-applied.
     pub application_commitment: Option<[u8; 32]>,
@@ -120,8 +120,8 @@ pub struct ClosedConformanceRow {
 pub struct ClosedConformanceRealizationCallable {
     /// Canonical checked callable identity, not a declaration display path.
     pub source_callable_identity: TerminalIdentityIndex,
-    /// Artifact-local Terminal machine emitted for that exact callable.
-    pub machine: MachineId,
+    /// Artifact-local callable: a body or its opaque portable contract head.
+    pub callable: crate::TargetMachineCallable,
     /// Source-derived matched requirement/realization result class for the
     /// bounded static requirement cohort.
     /// Callable identity intentionally excludes return type, so this separately
@@ -185,7 +185,7 @@ pub fn closed_conformance_application_report_fingerprint(
                 .text(callable.source_callable_identity)
                 .unwrap_or_default(),
         );
-        bytes.extend(callable.machine.get().to_le_bytes());
+        bytes.extend(callable_bytes(callable.callable));
         bytes.extend(callable_result_bytes(callable.result));
     }
     bytes.extend(schema_application_bytes(identities, application));
@@ -269,6 +269,16 @@ fn callable_result_bytes(result: ClosedConformanceCallableResult) -> Vec<u8> {
     }
 }
 
+fn callable_bytes(callable: crate::TargetMachineCallable) -> Vec<u8> {
+    let (tag, identity) = match callable {
+        crate::TargetMachineCallable::Machine(machine) => (1, machine.get()),
+        crate::TargetMachineCallable::Boundary(boundary) => (2, boundary.get()),
+    };
+    let mut bytes = vec![tag];
+    bytes.extend(identity.to_le_bytes());
+    bytes
+}
+
 fn schema_application_bytes(
     identities: &TerminalIdentityTable,
     application: &ClosedConformanceApplication,
@@ -323,7 +333,7 @@ fn schema_application_bytes(
         ] {
             text(&mut bytes, identities, identity);
         }
-        bytes.extend(applied.machine.get().to_le_bytes());
+        bytes.extend(callable_bytes(applied.callable));
         bytes.push(u8::from(applied.application_commitment.is_some()));
         if let Some(commitment) = applied.application_commitment {
             bytes.extend(commitment);
@@ -372,7 +382,7 @@ pub fn closed_conformance_application_commitment(
     }
 
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.psi.terminal.closed-conformance-application.v6\0",
+        b"omega.psi.terminal.closed-conformance-application.v7\0",
     );
     push(
         &mut digest,
@@ -413,7 +423,7 @@ pub fn closed_conformance_application_commitment(
                 .text(callable.source_callable_identity)
                 .unwrap_or_default(),
         );
-        digest.raw(&callable.machine.get().to_le_bytes());
+        digest.raw(&callable_bytes(callable.callable));
         digest.raw(&callable_result_bytes(callable.result));
     }
     digest.raw(&schema_application_bytes(identities, application));

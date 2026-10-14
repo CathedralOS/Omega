@@ -15,6 +15,12 @@ use crate::fixture_package_inputs::{
 
 pub(super) const ORACLE: &str = "expected_terminal_inspections.txt";
 
+#[derive(Clone, Copy)]
+enum ConformanceControls {
+    MethodApplications,
+    BoundaryCallables,
+}
+
 pub(super) fn inspect(root: &Path, fixture: &Path) -> Result<(), Vec<Diagnostic>> {
     inspect_machines(root, fixture).map_err(|message| vec![Diagnostic::error(message)])
 }
@@ -30,12 +36,21 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
     for selection in selections {
         let words = selection.split_whitespace().collect::<Vec<_>>();
         let (machine, requires_debug, conformance_controls) = match words.as_slice() {
-            [machine] => (*machine, false, false),
-            [machine, "debug"] => (*machine, true, false),
-            [machine, "closed-conformance-controls"] => (*machine, false, true),
+            [machine] => (*machine, false, None),
+            [machine, "debug"] => (*machine, true, None),
+            [machine, "closed-conformance-controls"] => (
+                *machine,
+                false,
+                Some(ConformanceControls::MethodApplications),
+            ),
+            [machine, "boundary-conformance-controls"] => (
+                *machine,
+                false,
+                Some(ConformanceControls::BoundaryCallables),
+            ),
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug` or `closed-conformance-controls`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls` or `boundary-conformance-controls`"
                 ));
             }
         };
@@ -63,7 +78,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
         {
             return Err(format!("inspection {machine} changed during transport"));
         }
-        if conformance_controls {
+        if let Some(controls) = conformance_controls {
             if let Some(directory) = std::env::var_os("OMEGA_CORPUS_ARTIFACT_DIR") {
                 let directory = std::path::PathBuf::from(directory);
                 std::fs::create_dir_all(&directory)
@@ -82,7 +97,10 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
                 )
                 .map_err(|error| format!("cannot preserve canonical artifact: {error}"))?;
             }
-            closed_conformance_controls(&decoded)?;
+            match controls {
+                ConformanceControls::MethodApplications => closed_conformance_controls(&decoded)?,
+                ConformanceControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
+            }
         }
         let Some(debug) = artifact.debug_bytes() else {
             if requires_debug {
@@ -122,6 +140,151 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
 /// Mutate actual Source-produced payloads at the public artifact ingress seam.
 /// These are fixture-authored invalid exchange controls, not fabricated compiler
 /// trees or logical Source proofs. Ordinary producer trust remains explicit.
+fn boundary_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
+    use terminal_psi::TargetMachineCallable;
+    let module = artifact.semantic_module();
+    let (position, row, boundary) = module
+        .closed_conformance_applications
+        .iter()
+        .enumerate()
+        .find_map(|(position, application)| {
+            application
+                .static_applications
+                .iter()
+                .enumerate()
+                .find_map(|(row, applied)| {
+                    if let TargetMachineCallable::Boundary(boundary) = applied.callable {
+                        Some((position, row, boundary))
+                    } else {
+                        None
+                    }
+                })
+        })
+        .ok_or("artifact control fixture needs a static boundary callable")?;
+    let original = module
+        .boundary_machine(boundary)
+        .ok_or("static boundary is absent")?;
+    let declaration = original
+        .declaration
+        .as_ref()
+        .ok_or("static boundary has no source declaration")?;
+    let other = module
+        .boundary_machines
+        .iter()
+        .find(|candidate| {
+            candidate.id != boundary
+                && candidate.result == original.result
+                && candidate.owner != original.owner
+        })
+        .ok_or("retarget control needs another same-result boundary")?;
+    let mut controls = Vec::new();
+    let mut bad = module.clone();
+    let replacement = bad
+        .boundary_machines
+        .iter_mut()
+        .find(|candidate| candidate.id == other.id)
+        .ok_or("replacement boundary is absent")?;
+    replacement.declaration = Some(declaration.clone());
+    let application = &mut bad.closed_conformance_applications[position];
+    application.static_applications[row].callable = TargetMachineCallable::Boundary(other.id);
+    for callable in &mut application.realization_callables {
+        if callable.callable == TargetMachineCallable::Boundary(boundary) {
+            callable.callable = TargetMachineCallable::Boundary(other.id);
+        }
+    }
+    refresh_conformance_commitment(&mut bad, position);
+    controls.push((
+        "retargeted boundary with copied declaration",
+        "exact machine owner",
+        bad,
+    ));
+
+    let mut bad = module.clone();
+    bad.boundary_machines
+        .iter_mut()
+        .find(|candidate| candidate.id == boundary)
+        .ok_or("boundary is absent")?
+        .role = terminal_psi::BoundaryDeclarationRole::ContractEvidence;
+    controls.push((
+        "contract evidence as runtime callable",
+        "contract evidence",
+        bad,
+    ));
+
+    let mut bad = module.clone();
+    bad.boundary_machines
+        .iter_mut()
+        .find(|candidate| candidate.id == boundary)
+        .ok_or("boundary is absent")?
+        .declaration = None;
+    controls.push((
+        "missing boundary source declaration",
+        "checked declaration",
+        bad,
+    ));
+
+    let mut bad = module.clone();
+    bad.boundary_machines
+        .iter_mut()
+        .find(|candidate| candidate.id == boundary)
+        .and_then(|candidate| candidate.declaration.as_mut())
+        .ok_or("boundary declaration is absent")?
+        .source
+        .contract = [7; 32];
+    controls.push(("wrong family contract", "family contract", bad));
+
+    let mut bad = module.clone();
+    bad.boundary_machines
+        .iter_mut()
+        .find(|candidate| candidate.id == boundary)
+        .and_then(|candidate| candidate.declaration.as_mut())
+        .ok_or("boundary declaration is absent")?
+        .source
+        .state =
+        terminal_psi::NominalDeclarationIdentity::new(terminal_psi::TerminalIdentityIndex::ABSENT);
+    controls.push((
+        "invalid boundary declaration identity",
+        "invalid or empty identity",
+        bad,
+    ));
+
+    let mut bad = module.clone();
+    let unexpected = declaration.source.callable;
+    bad.boundary_machines
+        .iter_mut()
+        .find(|candidate| candidate.id == boundary)
+        .and_then(|candidate| candidate.declaration.as_mut())
+        .ok_or("boundary declaration is absent")?
+        .method_arguments
+        .push(terminal_psi::ClosedReachArgument::Const(unexpected));
+    controls.push((
+        "extra boundary invocation argument",
+        if declaration.source.specialization.is_some() {
+            "retained boundary invocation"
+        } else {
+            "unspecialized boundary carries method arguments"
+        },
+        bad,
+    ));
+
+    for (name, reason, invalid) in controls {
+        let error = CanonicalTerminalArtifact::from_parts(
+            invalid,
+            terminal_codec::decode_psi_optimization_execution_record(artifact.optimization_bytes())
+                .map_err(|error| format!("original optimization record: {error:?}"))?,
+            None,
+        )
+        .err()
+        .ok_or_else(|| format!("artifact ingress accepted {name}"))?;
+        if !format!("{error:?}").contains(reason) {
+            return Err(format!(
+                "artifact control {name} refused for another reason: {error:?}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn closed_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
     let module = artifact.semantic_module();
     let position = module

@@ -122,7 +122,11 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
                 matches!(&field.value, terminal_psi::RecordFieldValue::Structural(argument)
                     if argument.place == place && !argument.path.is_empty())),
             LegalizedScalarInstructionKind::EstablishReference { source, .. }
-            | LegalizedScalarInstructionKind::EstablishPlacedReference { source, .. } => source.place == place,
+            | LegalizedScalarInstructionKind::EstablishPlacedReference { source, .. }
+            // A collection view lends the owner's backing too. Its incoming
+            // ABI fragments need a home even when no scalar field read or
+            // later call independently happens to demand one.
+            | LegalizedScalarInstructionKind::EstablishElementView { source, .. } => source.place == place,
             LegalizedScalarInstructionKind::AtomicAccess { location, .. }
                 | LegalizedScalarInstructionKind::PlacedScalarAccess { location, .. } => location.place == place,
             // Byte operations read the owner's length and backing, not a

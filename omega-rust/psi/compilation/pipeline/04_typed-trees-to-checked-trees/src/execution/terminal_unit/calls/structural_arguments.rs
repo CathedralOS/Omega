@@ -133,12 +133,11 @@ pub(crate) fn structural_call_arguments(
                     output.push(literal);
                     continue;
                 }
-                // A shared range is one evaluated descriptor operation. Failure
-                // to establish its custody or endpoint evidence cannot fall back
-                // to presenting the source as a fixed byte-window loan.
-                if callee.supply_mode == MachineSupplyMode::CheckedBody
-                    && validation::subslice_expression(program, expression).is_some()
-                {
+                // Selection can retain a bodyless requirement for a checked
+                // target body. Its range operand is still the same evaluated
+                // value, not a static storage path. Admission precedes the
+                // shared call-scoped fixed-window presentation decision.
+                if validation::subslice_expression(program, expression).is_some() {
                     let subslice = view_subslice::admit(
                         program,
                         facts,
@@ -153,8 +152,15 @@ pub(crate) fn structural_call_arguments(
                             argument_ordinal: u32::try_from(argument_ordinal).ok()?,
                         },
                     )?;
-                    output.push(subslice.argument());
-                    continue;
+                    if let Some(argument) = subslice.call_argument(
+                        program,
+                        caller_state,
+                        statement_index,
+                        callee.has_bodyless_signature(),
+                    ) {
+                        output.push(argument);
+                        continue;
+                    }
                 }
                 // A fixed range projection must still name the builtin slice
                 // operation. Canonical storage identity alone does not authorize

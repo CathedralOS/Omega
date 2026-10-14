@@ -22,8 +22,9 @@ pub use conformances::{
 pub use declarations::{
     BoundaryContentGuarantee, BoundaryDeclarationRole, BoundaryMachineDeclaration,
     BoundaryMachineResult, BoundaryParameterKind, BoundaryStructuralResultDeclaration,
-    ContentConservationGuarantee, ProgramLocalRootIntroductionSchema, StructuralDomainRequirement,
-    find_boundary_machine, program_local_root_introduction_compatibility_report_identity,
+    CheckedBoundaryCallable, ContentConservationGuarantee, ProgramLocalRootIntroductionSchema,
+    StructuralDomainRequirement, find_boundary_machine,
+    program_local_root_introduction_compatibility_report_identity,
 };
 pub use dynamic_dispatch::{
     TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,

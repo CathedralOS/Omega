@@ -251,14 +251,18 @@ pub(crate) fn checked_unit_boundary_identity(
         }
         return Ok(BoundaryIdentity::Requirement(identity));
     }
-    // Top-level installation dependencies are keyed by the normalized machine
-    // overload, not its display name. Boundary calls must use that same exact
-    // requirement identity or independent root replay sees an unused bound.
+    // Nominal requirements, including portable target-family heads, are keyed
+    // by the normalized machine overload, not a foreign export spelling.
+    // Installation dependencies use that same exact requirement identity;
+    // a bodyless head is not a physical foreign leaf.
     let mut requirements = checked.typed.machines().iter().filter(|machine| {
         machine.symbol == symbol
-            && (machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                || (machine.supply_mode == language_semantics::MachineSupplyMode::Boundary
-                    && machine.service_reach_is_installation_bound))
+            && (matches!(
+                machine.supply_mode,
+                language_semantics::MachineSupplyMode::Requirement
+                    | language_semantics::MachineSupplyMode::TopLevelRequirement
+            ) || (machine.supply_mode == language_semantics::MachineSupplyMode::Boundary
+                && machine.service_reach_is_installation_bound))
     });
     if let Some(requirement) = requirements.next() {
         if requirements.next().is_some() {

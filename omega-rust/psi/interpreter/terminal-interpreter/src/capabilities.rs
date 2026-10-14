@@ -462,6 +462,7 @@ mod tests {
         boundary: BoundaryMachineId,
     ) -> terminal_psi::BoundaryMachineDeclaration {
         terminal_psi::BoundaryMachineDeclaration {
+            declaration: None,
             role: terminal_psi::BoundaryDeclarationRole::Callable,
             id: boundary,
             kind: semantic_vocabulary::BoundaryRequirementKind::Machine,

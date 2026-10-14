@@ -764,6 +764,7 @@ pass/wire/runtime_wire_utf8_edge_verdicts_exit built 7756ms exit:70 interpreter-
 pass/wire/wire_preserving_decode_relay_exit built 1783ms exit:70 interpreter-exit:70 interpreter:agrees @bf6726603463+wt
 pass/write_only/state_forwarded_scalar_store_exit built 1360ms exit:70 interpreter-exit:70 interpreter:agrees @2bde2a770491
 run/borrows/incoming_carrier_transport built 5794ms exit:0 interpreter-exit:0 interpreter:agrees @5930657b943b
+run/borrows/owned_array_view_establishment built 5886ms exit:0 interpreter-exit:0 interpreter:agrees @a68c584655e1+wt
 run/borrows/qualified_owner_views built 5481ms exit:0 interpreter-exit:0 interpreter:agrees @5797c45a64c3+wt
 run/borrows/reference_local_binding_routes built 6013ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3fa817733300+wt
 run/borrows/reference_result_call_binding built 5902ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3fa817733300+wt
@@ -779,6 +780,7 @@ run/calls/byte_literal_expression_values built 6121ms exit:0 interpreter-exit:0 
 run/calls/nested_range_call_operands built 6127ms exit:0 interpreter-exit:0 interpreter:agrees @0553d60b9b91+wt
 run/calls/ordered_literal_call_operands built 6121ms exit:0 interpreter-exit:0 interpreter:agrees @0553d60b9b91+wt
 run/calls/owned_literal_call_operands built 6121ms exit:0 interpreter-exit:0 interpreter:agrees @0553d60b9b91+wt
+run/calls/selected_provider_range_arguments built 11365ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @a68c584655e1+wt
 run/calls/static_binding_authority built 5912ms exit:0 interpreter-exit:0 interpreter:agrees @8073da6ab7ac
 run/contracts/captured_bound_unused_mutation built 5614ms exit:0 interpreter-exit:0 interpreter:agrees @7e164e32caf5+wt
 run/domains/checked_provider_issued_field built 5882ms exit:0 interpreter-exit:0 interpreter:agrees @e5140c7a7be2+wt
@@ -1103,3 +1105,4 @@ run/calls/runtime_float_normalized_operand_single_evaluation_exit built 11407ms 
 run/ownership/temporary_case_observation built 5551ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 run/ownership/temporary_projected_copy_argument built 5252ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 run/traits/static_implementation_method_arguments built 5625ms exit:0 interpreter-exit:0 interpreter:agrees @93ba1f664f65+wt
+run/traits/target_scoped_map_method_arguments built 11151ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @a68c584655e1+wt

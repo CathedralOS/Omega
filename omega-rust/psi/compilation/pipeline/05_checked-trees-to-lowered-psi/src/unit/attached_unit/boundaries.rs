@@ -102,6 +102,26 @@ pub(crate) fn lower_declarations(
         let requirement_count = scalar_requires.len();
         let id = boundary_machine_id(dense_identity(index)?);
         declarations.push(BoundaryMachineDeclaration {
+            declaration: checked
+                .machine(plan.machine)
+                .map(|_| {
+                    Ok::<_, LoweringError>(terminal_psi::CheckedBoundaryCallable {
+                        source: crate::machine_lowering::declarations::identity(
+                            identities,
+                            checked,
+                            exact_toolchain_sources,
+                            plan.machine,
+                        )
+                        .map_err(LoweringError::Unsupported)?,
+                        method_arguments:
+                            crate::retention::conformance_applications::checked_method_arguments(
+                                identities,
+                                checked,
+                                plan.machine,
+                            )?,
+                    })
+                })
+                .transpose()?,
             role: terminal_psi::BoundaryDeclarationRole::Callable,
             unconditional_termination: unconditional_termination(checked, plan)?,
             completion: validation::boundary_requirement_completion(&checked.typed, plan.machine),

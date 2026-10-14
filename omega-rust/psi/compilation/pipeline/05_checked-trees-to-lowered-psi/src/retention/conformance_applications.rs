@@ -1,10 +1,19 @@
+//! Retain the complete selected map and each exact executable application.
+//!
+//! Application owners are emitted machine bodies. Their selected realizations
+//! are callables: an ordinary body or an opaque requirement, including a
+//! portable target-family head. Keeping these coordinates distinct preserves
+//! the public contract without choosing a target in Psi or borrowing a
+//! provider body's identity. Both callable kinds retain their independent
+//! checked declaration, result class and method tuple for artifact ingress.
 use checked_trees::data::TypeParameterKind;
 use checked_trees::{CheckedTrees, ClosedConformanceConstArgument};
 use terminal_psi::{
     ClosedConformanceApplication, ClosedConformanceCallableResult,
     ClosedConformanceParameterBinding, ClosedConformanceParameterKind,
-    ClosedConformanceRealizationCallable, ClosedConformanceRow, TerminalModule,
-    closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
+    ClosedConformanceRealizationCallable, ClosedConformanceRow, TargetMachineCallable,
+    TerminalModule, closed_conformance_application_commitment,
+    closed_conformance_application_report_fingerprint,
 };
 
 use super::LoweringError;
@@ -13,6 +22,10 @@ pub(crate) fn lower_closed_conformance_applications(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source_machines: &[symbols::SymbolHandle],
+    source_boundaries: &[(
+        symbols::SymbolHandle,
+        semantic_vocabulary::BoundaryMachineId,
+    )],
     module: &mut TerminalModule,
 ) -> Result<(), LoweringError> {
     let carries_applications = checked
@@ -35,8 +48,40 @@ pub(crate) fn lower_closed_conformance_applications(
         .zip(&module.machines)
         .map(|(source, terminal)| (*source, terminal.id, &terminal.result))
         .collect::<Vec<_>>();
+    let mut callables = owners
+        .iter()
+        .map(|(source, machine, result)| {
+            let result = match result {
+                terminal_psi::TerminalMachineResult::Unit => ClosedConformanceCallableResult::Unit,
+                terminal_psi::TerminalMachineResult::Scalar(result) => {
+                    ClosedConformanceCallableResult::Scalar(result.scalar_type)
+                }
+                terminal_psi::TerminalMachineResult::Structural(result) => {
+                    ClosedConformanceCallableResult::Structural(result.structural_type)
+                }
+            };
+            (*source, TargetMachineCallable::Machine(*machine), result)
+        })
+        .collect::<Vec<_>>();
+    for (source, boundary) in source_boundaries {
+        let declaration = module
+            .boundary_machine(*boundary)
+            .ok_or(LoweringError::Unsupported(
+                "static conformance boundary owner is absent",
+            ))?;
+        let result = match &declaration.result {
+            terminal_psi::BoundaryMachineResult::Unit => ClosedConformanceCallableResult::Unit,
+            terminal_psi::BoundaryMachineResult::Scalar(result) => {
+                ClosedConformanceCallableResult::Scalar(*result)
+            }
+            terminal_psi::BoundaryMachineResult::Structural(result) => {
+                ClosedConformanceCallableResult::Structural(result.structural_type)
+            }
+        };
+        callables.push((*source, TargetMachineCallable::Boundary(*boundary), result));
+    }
     module.closed_conformance_applications =
-        collect_closed_conformance_applications(identities, checked, &owners, &[])?;
+        collect_closed_conformance_applications(identities, checked, &owners, &callables, &[])?;
     Ok(())
 }
 
@@ -47,6 +92,11 @@ fn collect_closed_conformance_applications(
         symbols::SymbolHandle,
         semantic_vocabulary::MachineId,
         &terminal_psi::TerminalMachineResult,
+    )],
+    emitted_callables: &[(
+        symbols::SymbolHandle,
+        TargetMachineCallable,
+        ClosedConformanceCallableResult,
     )],
     excluded_sources: &[symbols::SymbolHandle],
 ) -> Result<Vec<ClosedConformanceApplication>, LoweringError> {
@@ -133,7 +183,7 @@ fn collect_closed_conformance_applications(
                         "static conformance executable does not rejoin its original schema",
                     ));
                 }
-                let machine = owners
+                let callable = emitted_callables
                     .iter()
                     .find_map(|(source, terminal, _)| {
                         (*source == invocation.machine).then_some(*terminal)
@@ -169,7 +219,7 @@ fn collect_closed_conformance_applications(
                         "static conformance requirement is absent or ambiguous",
                     ));
                 };
-                let emitted_result = owners
+                let emitted_result = emitted_callables
                     .iter()
                     .find(|(source, _, _)| *source == invocation.machine)
                     .map(|(_, _, result)| *result)
@@ -185,9 +235,9 @@ fn collect_closed_conformance_applications(
                             .map(ClosedConformanceCallableResult::Scalar);
                     }
                     match emitted_result {
-                        terminal_psi::TerminalMachineResult::Structural(result) => Ok(
-                            ClosedConformanceCallableResult::Structural(result.structural_type),
-                        ),
+                        ClosedConformanceCallableResult::Structural(result) => {
+                            Ok(ClosedConformanceCallableResult::Structural(result))
+                        }
                         _ => Err(LoweringError::Unsupported(
                             "structured conformance result has no emitted structural signature",
                         )),
@@ -251,7 +301,7 @@ fn collect_closed_conformance_applications(
                             .display_path(selected_row.realization_state, "::"),
                     ),
                     source_callable_identity,
-                    machine,
+                    callable,
                     application_commitment: checked
                         .facts
                         .specialization_identities
@@ -271,7 +321,7 @@ fn collect_closed_conformance_applications(
                                 invocation.machine,
                             )?,
                         ),
-                        machine,
+                        callable,
                         result,
                     },
                     applied,
@@ -381,7 +431,7 @@ fn collect_closed_conformance_applications(
                     });
                 let realization_callable_identity = selected_by_static_dispatch
                         .then(|| {
-                            let machine = owners
+                            let callable_target = emitted_callables
                                 .iter()
                                 .find_map(|(source, terminal, _)| {
                                     (*source == family_row.realization_machine)
@@ -399,7 +449,7 @@ fn collect_closed_conformance_applications(
                                 .iter()
                                 .any(|callable| {
                                     callable.source_callable_identity == identities.intern(&identity)
-                                        && callable.machine == machine
+                                        && callable.callable == callable_target
                                 })
                                 .then_some(identity)
                                 .ok_or(LoweringError::Unsupported(

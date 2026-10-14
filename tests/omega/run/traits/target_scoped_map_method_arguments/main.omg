@@ -1,0 +1,24 @@
+boundary trait Counter { machine count<const Answer: u64>(bytes: &[u8]) -> u64; }
+data ByteProvider {}
+Selected satisfies Counter { Counter::count = ByteProvider::count; }
+macos_arm64 machine ByteProvider::count<const Answer: u64>(bytes: &[u8]) -> u64 satisfies Counter::count { Answer }
+linux_arm64 machine ByteProvider::count<const Answer: u64>(bytes: &[u8]) -> u64 satisfies Counter::count { Answer }
+linux_x86_64 machine ByteProvider::count<const Answer: u64>(bytes: &[u8]) -> u64 satisfies Counter::count { Answer }
+windows_x86_64 machine ByteProvider::count<const Answer: u64>(bytes: &[u8]) -> u64 satisfies Counter::count { Answer }
+data Payload [copy] { bytes: [u8; 8]; length: u64; }
+data CountResult { case Error; case Ok; }
+machine inspect(payload: Payload) -> CountResult
+requires payload.length <= payload.bytes.len;
+{
+    let first: u64 = Selected::count<2>(payload.bytes[0..payload.length]);
+    let second: u64 = Selected::count<4>(payload.bytes[0..payload.length]);
+    transition first == 2 && second == 4 { true -> CountResult::Ok false -> CountResult::Error }
+}
+machine main() crashes Trap {
+    let mut payload: Payload;
+    payload.length = 3;
+    let result: CountResult = inspect(payload);
+    transition result { CountResult::Ok -> done() CountResult::Error -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

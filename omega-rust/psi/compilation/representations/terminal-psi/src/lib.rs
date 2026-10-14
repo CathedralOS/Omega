@@ -38,7 +38,7 @@ pub use terminal_module::{
     BoundaryApplicationArgument, BoundaryApplicationCandidate, BoundaryContentGuarantee,
     BoundaryDeclarationRole, BoundaryMachineDeclaration, BoundaryMachineResult,
     BoundaryOperatorRequirement, BoundaryParameterKind, BoundaryStructuralResultDeclaration,
-    BoundaryTypeIdentity, ByteSequenceCarrier, CheckedMachineDeclaration,
+    BoundaryTypeIdentity, ByteSequenceCarrier, CheckedBoundaryCallable, CheckedMachineDeclaration,
     CheckedMachineSpecialization, ClaimContentProjection, ClaimTransfer,
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,

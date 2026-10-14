@@ -73,6 +73,10 @@ pub struct CheckedUnitEffectPlans {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedUnitPlanGap {
     pub machine: SymbolHandle,
+    /// Exact construction site; the zero state handle means the machine header.
+    pub state: SymbolHandle,
+    /// Zero-based authored statement position, when construction reached one.
+    pub statement_index: Option<u32>,
     pub reason: CheckedUnitPlanGapReason,
     /// The authored construct or call the reason names. A compiler-generated
     /// site keeps its enclosing state's or machine's declaration span.
@@ -218,6 +222,17 @@ impl CheckedUnitEffectPlans {
                 name(gap.machine),
                 opaque = name(opaque)
             ),
+        };
+        let reason = if gap.state.is_valid() {
+            match gap.statement_index {
+                Some(statement_index) => format!(
+                    "{reason}; in state `{}`, statement {statement_index}",
+                    name(gap.state)
+                ),
+                None => format!("{reason}; in state `{}`", name(gap.state)),
+            }
+        } else {
+            reason
         };
         let message = if chain.len() == 1 {
             reason

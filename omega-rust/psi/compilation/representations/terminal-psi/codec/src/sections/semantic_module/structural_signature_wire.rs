@@ -39,6 +39,14 @@ pub(crate) fn encode_boundary_machine(
     declaration: &BoundaryMachineDeclaration,
 ) -> Result<(), CodecError> {
     writer.id(declaration.id);
+    writer.boolean(declaration.declaration.is_some());
+    if let Some(checked) = &declaration.declaration {
+        super::machine_declaration_wire::encode(writer, &checked.source)?;
+        writer.len("boundary method arguments", checked.method_arguments.len())?;
+        for argument in &checked.method_arguments {
+            super::reach_application_wire::encode_argument(writer, argument);
+        }
+    }
     writer.u32(declaration.identity.0);
     writer.u32(declaration.owner.identity().0);
     writer.u8(match declaration.role {
@@ -244,6 +252,17 @@ pub(crate) fn decode_boundary_machine(
 ) -> Result<BoundaryMachineDeclaration, CodecError> {
     Ok(BoundaryMachineDeclaration {
         id: reader.id("BoundaryMachineId")?,
+        declaration: if reader.boolean()? {
+            Some(terminal_psi::CheckedBoundaryCallable {
+                source: super::machine_declaration_wire::decode(reader)?,
+                method_arguments: decode_counted(
+                    reader,
+                    super::reach_application_wire::decode_argument,
+                )?,
+            })
+        } else {
+            None
+        },
         identity: TerminalIdentityIndex(reader.u32()?),
         owner: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
         role: match reader.u8()? {

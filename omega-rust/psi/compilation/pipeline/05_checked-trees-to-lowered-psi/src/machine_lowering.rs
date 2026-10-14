@@ -257,6 +257,7 @@ fn lower_terminal_selection(
         terminal: mut lowered,
         completion,
         source_machine_ids,
+        source_boundary_ids,
     } = lower_selected_machine(
         identities,
         checked,
@@ -347,6 +348,7 @@ fn lower_terminal_selection(
         identities,
         checked,
         &source_machines,
+        &source_boundary_ids,
         &mut lowered.semantic_module,
     )?;
     crate::unit::dynamic_dispatch::lower_dynamic_dispatch_catalog(

@@ -52,6 +52,8 @@ pub(super) fn validate_boundary_machine(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
 ) -> Result<(), CodecError> {
+    terminal_semantics::closed_conformances::validate_boundary_callable(module, boundary)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     if module
         .identities
         .text(boundary.owner.identity())

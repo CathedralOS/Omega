@@ -646,7 +646,14 @@ pub(crate) fn lower_unit_closure(
         selected_integer_comparison_occurrences: occurrences.integer_comparisons,
         state_blocks: occurrences.state_blocks,
     };
-    crate::producer_result::SourceMappedLowered::new(lowered, machine_ids)
+    crate::producer_result::SourceMappedLowered::new(
+        lowered,
+        machine_ids,
+        lowered_boundary_parameters
+            .iter()
+            .map(|boundary| (boundary.source, boundary.id))
+            .collect(),
+    )
 }
 
 /// Occurrence rows every emitted machine publishes beside its Terminal

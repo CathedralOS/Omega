@@ -61,6 +61,14 @@ pub(crate) fn plan_gap(
     };
     CheckedUnitPlanGap {
         machine,
+        state: match site {
+            GapSite::Machine => SymbolHandle::default(),
+            GapSite::State(state) | GapSite::Statement { state, .. } => state,
+        },
+        statement_index: match site {
+            GapSite::Statement { index, .. } => Some(index),
+            _ => None,
+        },
         reason,
         source_span,
         coverage,

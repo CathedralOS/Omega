@@ -1,0 +1,16 @@
+// Views need the owned backing's address without an unrelated field read.
+machine count(bytes: &[u8]) -> u64 { bytes.len }
+machine small_window(bytes: [u8; 8]) -> u64 { count(bytes[..]) }
+machine large_window(bytes: [u8; 32]) -> u64 { count(bytes[..]) }
+machine main() crashes Trap {
+    let small: [u8; 8];
+    let large: [u8; 32];
+    let small_count: u64 = small_window(small);
+    let large_count: u64 = large_window(large);
+    transition small_count == 8 && large_count == 32 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

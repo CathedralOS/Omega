@@ -8070,6 +8070,7 @@ run/borrows/incoming_carrier_transport checked 5826ms check-target:macos_arm64 @
 run/borrows/indexed_loan_element_write checked 11734ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/local_mut_borrow checked 11276ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/mut_record_loan_member_access checked 11486ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/borrows/owned_array_view_establishment checked 5660ms check-target:macos_arm64 @a68c584655e1+wt
 run/borrows/probe_shared_len checked 11488ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/qualified_owner_views checked 5319ms check-target:macos_arm64 @5797c45a64c3+wt
 run/borrows/recast_mut_borrow checked 11805ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8096,6 +8097,7 @@ run/calls/owned_literal_call_operands checked 6033ms check-target:macos_arm64 @0
 run/calls/resultless_scalar_parameters checked 11475ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/calls/runtime_float_distinct_operand_calls_exit checked 11431ms check-target:macos_arm64 @1f63ee648905+wt
 run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 11428ms check-target:macos_arm64 @1f63ee648905+wt
+run/calls/selected_provider_range_arguments checked 11196ms check-target:macos_arm64 terminal-inspections:match @a68c584655e1+wt
 run/calls/static_binding_authority checked 8787ms check-target:macos_arm64 @3ac38090e82f
 run/calls/table_report_call_survival checked 5492ms check-target:macos_arm64 @589aedee8ebc+wt
 run/contained_health_loop_command_branch checked 1918ms @a9ae30e1c334+wt
@@ -8130,6 +8132,7 @@ run/providers/module_named_float_conversion_family_exit checked 16353ms check-ta
 run/stores/runtime_float_indexed_call_result_exit checked 16446ms check-target:macos_arm64 @77cde1c51efd+wt
 run/stores/runtime_float_store_selector_snapshot_exit checked 16333ms check-target:macos_arm64 @77cde1c51efd+wt
 run/traits/static_implementation_method_arguments checked 5547ms check-target:macos_arm64 @93ba1f664f65+wt
+run/traits/target_scoped_map_method_arguments checked 11040ms check-target:macos_arm64 terminal-inspections:match @a68c584655e1+wt
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
 fail/contracts/scalar_copy_guard_after_selector_write rejected 40145ms expected @7912abbc354e

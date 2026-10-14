@@ -346,9 +346,12 @@ fn local_initializer_has_operand_evaluation(
     let Some(call) = program.expression_table.call_node(value) else {
         return false;
     };
-    if !call.carries_only_positional_arguments() || !call.selects_only_nominal_route() {
+    if !call.carries_only_positional_arguments() {
         return false;
     }
+    // An explicit implementation map retains its selection syntax, but that
+    // does not change the local's ordered operand-evaluation owner. Actual
+    // receiver, selection and custody admission remain ordinary call checks.
     program.machine_states(machine).iter().any(|state| {
         if crate::expression_result_type_reference(program, machine, state, value).is_none() {
             return false;

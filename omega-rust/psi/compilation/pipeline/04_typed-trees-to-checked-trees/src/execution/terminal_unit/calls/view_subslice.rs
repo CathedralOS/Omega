@@ -79,6 +79,34 @@ pub(crate) struct ViewSubslice {
 }
 
 impl ViewSubslice {
+    /// A bodyless signature cannot prove that a result does not retain its
+    /// descriptor argument. Preserve fixed projected windows as call-scoped
+    /// places instead; dynamic windows and whole views keep their evaluated
+    /// descriptor. This presentation depends on the declared retention
+    /// boundary, not whether provider selection reached it through a map.
+    /// `None` means an admitted fixed projection, not a failed range admission.
+    pub(crate) fn call_argument(
+        self,
+        program: &dyn ::validation::CheckingInput,
+        state: &typed_trees::state::State,
+        statement_index: usize,
+        bodyless_signature: bool,
+    ) -> Option<CheckedUnitStructuralArgumentPlan> {
+        let fixed_projection = bodyless_signature
+            && !(self.range.kind == ViewKind::Bytes && self.range.collection.is_empty())
+            && matches!(
+                validation::canonical_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    self.expression,
+                )
+                .and_then(|place| place.segments.last().cloned()),
+                Some(facts::PlaceSegment::FixedRange { .. })
+            );
+        (!fixed_projection).then(|| self.argument())
+    }
+
     /// The access-preserving argument plan a call, a return or a view-local
     /// binding carries for this range.
     pub(crate) fn argument(self) -> CheckedUnitStructuralArgumentPlan {

@@ -277,29 +277,10 @@ pub(super) fn build(
                         argument_ordinal: u32::try_from(structural_arguments.len()).ok()?,
                     },
                 )?;
-                // A boundary callee has no body for Terminal to inspect, so a
-                // descriptor it receives beside a structural result counts as
-                // retained and pins its backing for the descriptor's whole life:
-                // `read_line(&mut line[0..0])` would freeze `line` for every later
-                // state. An admitted window with fixed bounds over a projected
-                // collection is that collection's place projection, lending
-                // exactly the window with no descriptor; it takes the place route
-                // below. A runtime window, or one over a whole byte view, keeps
-                // its descriptor.
-                let fixed_projection = !(subslice.range.kind == view_subslice::ViewKind::Bytes
-                    && subslice.range.collection.is_empty())
-                    && matches!(
-                        validation::canonical_place_from_expression_in_state(
-                            program,
-                            state.symbol,
-                            call.statement_index,
-                            *argument,
-                        )
-                        .and_then(|place| place.segments.last().cloned()),
-                        Some(facts::PlaceSegment::FixedRange { .. })
-                    );
-                if !fixed_projection {
-                    structural_arguments.push(subslice.argument());
+                if let Some(argument) =
+                    subslice.call_argument(program, state, call.statement_index, true)
+                {
+                    structural_arguments.push(argument);
                     continue;
                 }
             }

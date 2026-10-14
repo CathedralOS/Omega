@@ -1,0 +1,146 @@
+// Expected exit: 0.
+// Target-scoped implementations retain a requirement signature at selection.
+// Range operands still evaluate into the same access-preserving view values.
+boundary trait ByteObserver {
+    machine count(prefix: u64, bytes: &[u8], suffix: u64) -> u64;
+    machine observe(bytes: &[u8], destination: &mut Observation);
+}
+data Observation [copy] { count: u64; }
+data ByteProvider {}
+Selected satisfies ByteObserver {
+    ByteObserver::count = ByteProvider::count;
+    ByteObserver::observe = ByteProvider::observe;
+}
+macos_arm64 machine ByteProvider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteObserver::count { validated_count(prefix, bytes, suffix) }
+linux_arm64 machine ByteProvider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteObserver::count { validated_count(prefix, bytes, suffix) }
+linux_x86_64 machine ByteProvider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteObserver::count { validated_count(prefix, bytes, suffix) }
+windows_x86_64 machine ByteProvider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteObserver::count { validated_count(prefix, bytes, suffix) }
+macos_arm64 machine ByteProvider::observe(bytes: &[u8], destination: &mut Observation) satisfies ByteObserver::observe { destination.count = validated_count(17, bytes, 23); }
+linux_arm64 machine ByteProvider::observe(bytes: &[u8], destination: &mut Observation) satisfies ByteObserver::observe { destination.count = validated_count(17, bytes, 23); }
+linux_x86_64 machine ByteProvider::observe(bytes: &[u8], destination: &mut Observation) satisfies ByteObserver::observe { destination.count = validated_count(17, bytes, 23); }
+windows_x86_64 machine ByteProvider::observe(bytes: &[u8], destination: &mut Observation) satisfies ByteObserver::observe { destination.count = validated_count(17, bytes, 23); }
+
+machine validated_count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 {
+    transition prefix == 17 && suffix == 23 { true -> window(bytes) false -> (255) }
+    state window(bytes: &[u8]) -> u64 {
+        transition bytes.len > 0 { true -> first(bytes) false -> (0) }
+    }
+    state first(bytes: &[u8]) -> u64 requires bytes.len > 0 {
+        transition bytes[0] == 41 { true -> (bytes.len) false -> (255) }
+    }
+}
+
+data Payload [copy] { bytes: [u8; 8]; length: u64; }
+data CountResult { case Error; case Ok(count: u64); }
+data Sequence [copy] { digits: u64 in Wrapping; }
+machine ordered_prefix(sequence: &mut Sequence) -> u64 {
+    sequence.digits = sequence.digits * 10 + 1;
+    17
+}
+machine range_start(sequence: &mut Sequence) -> u64 ensures result == 0; {
+    sequence.digits = sequence.digits * 10 + 2;
+    0
+}
+machine range_end(sequence: &mut Sequence) -> u64 ensures result == 3; {
+    sequence.digits = sequence.digits * 10 + 3;
+    3
+}
+machine ordered_suffix(sequence: &mut Sequence) -> u64 {
+    sequence.digits = sequence.digits * 10 + 4;
+    23
+}
+machine from_ordered(payload: Payload) -> CountResult {
+    let mut sequence: Sequence;
+    sequence.digits = 0;
+    let count: u64 = Selected::count(
+        ordered_prefix(&mut sequence),
+        payload.bytes[range_start(&mut sequence)..range_end(&mut sequence)],
+        ordered_suffix(&mut sequence)
+    );
+    transition count == 3 && sequence.digits == 1234 {
+        true -> CountResult::Ok { count: count }
+        false -> CountResult::Error
+    }
+}
+
+machine from_owned(payload: Payload) -> CountResult
+requires payload.length <= payload.bytes.len;
+{
+    let count: u64 = Selected::count(17, payload.bytes[0..payload.length], 23);
+    let mut observed: Observation;
+    Selected::observe(payload.bytes[0..payload.length], &mut observed);
+    transition count == observed.count {
+        true -> CountResult::Ok { count: count }
+        false -> CountResult::Error
+    }
+}
+machine from_borrowed(payload: &Payload) -> CountResult
+requires payload.length <= payload.bytes.len;
+{
+    transition { _ -> inspect(payload) }
+    state inspect(payload: &Payload) -> CountResult
+    requires payload.length <= payload.bytes.len;
+    {
+        let count: u64 = ByteObserver::count<Selected>(17, payload.bytes[0..payload.length], 23);
+        CountResult::Ok { count: count }
+    }
+}
+machine from_view(bytes: &[u8]) -> CountResult {
+    let count: u64 = Selected::count(17, bytes[0..bytes.len], 23);
+    CountResult::Ok { count: count }
+}
+machine main() crashes Trap {
+    let mut payload: Payload;
+    payload.bytes[0] = 41;
+    payload.length = 3;
+    let owned: CountResult = from_owned(payload);
+    transition owned {
+        CountResult::Error -> wrong()
+        CountResult::Ok { count } -> borrowed(payload, count)
+    }
+    state borrowed(payload: Payload, previous: u64)
+    requires payload.length == 3;
+    {
+        let result: CountResult = from_borrowed(&payload);
+        transition result {
+            CountResult::Error -> wrong()
+            CountResult::Ok { count } -> view(payload, previous, count)
+        }
+    }
+    state view(payload: Payload, owned: u64, borrowed: u64)
+    requires payload.length == 3;
+    {
+        let result: CountResult = from_view(payload.bytes[0..payload.length]);
+        transition result {
+            CountResult::Error -> wrong()
+            CountResult::Ok { count } -> ordered(payload, owned, borrowed, count)
+        }
+    }
+    state ordered(payload: Payload, owned: u64, borrowed: u64, view: u64) {
+        let result: CountResult = from_ordered(payload);
+        transition result {
+            CountResult::Error -> wrong()
+            CountResult::Ok { count } -> ordered_count(owned, borrowed, view, count)
+        }
+    }
+    state ordered_count(owned: u64, borrowed: u64, view: u64, count: u64) {
+        transition count == 3 { true -> empty(owned, borrowed, view) false -> wrong() }
+    }
+    state empty(owned: u64, borrowed: u64, view: u64) {
+        let mut payload: Payload;
+        payload.length = 0;
+        let result: CountResult = from_owned(payload);
+        transition result {
+            CountResult::Error -> wrong()
+            CountResult::Ok { count } -> verify(owned, borrowed, view, count)
+        }
+    }
+    state verify(owned: u64, borrowed: u64, view: u64, empty: u64) {
+        transition owned == 3 && borrowed == 3 && view == 3 && empty == 0 {
+            true -> done()
+            false -> wrong()
+        }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

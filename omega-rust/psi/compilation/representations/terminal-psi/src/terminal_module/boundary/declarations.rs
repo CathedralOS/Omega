@@ -149,6 +149,10 @@ pub enum BoundaryDeclarationRole {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BoundaryMachineDeclaration {
     pub id: BoundaryMachineId,
+    /// Exact checked callable behind an opaque signature, when one exists.
+    /// Schema-only requirements and synthetic contract evidence have no body
+    /// declaration. This is the head's provenance, never a provider donation.
+    pub declaration: Option<CheckedBoundaryCallable>,
     pub role: BoundaryDeclarationRole,
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
     /// Exact opaque completion contract; installation must authenticate it.
@@ -210,6 +214,14 @@ pub struct BoundaryMachineDeclaration {
     pub owning_service: Option<ServiceId>,
     /// Strictly ordered normalized published ceiling.
     pub published_service_ceiling: Vec<ServiceId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CheckedBoundaryCallable {
+    pub source: crate::CheckedMachineDeclaration,
+    /// Independent invocation tuple for a specialized opaque callable. Its
+    /// published reach remains on the boundary; no body graph is invented.
+    pub method_arguments: Vec<crate::ClosedReachArgument>,
 }
 
 impl BoundaryMachineDeclaration {

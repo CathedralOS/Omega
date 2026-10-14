@@ -252,6 +252,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
                 "retained-borrow boundary identity space is exhausted",
             ))?;
         module.boundary_machines.push(BoundaryMachineDeclaration {
+            declaration: None,
             role: terminal_psi::BoundaryDeclarationRole::ContractEvidence,
             unconditional_termination: false,
             completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,

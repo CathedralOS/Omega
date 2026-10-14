@@ -1,0 +1,30 @@
+// A target-scoped map row remains an opaque family head, not a chosen body.
+boundary trait Counter { machine count(bytes: &[u8]) -> u64; }
+data ByteProvider {}
+Selected satisfies Counter { Counter::count = ByteProvider::count; }
+macos_arm64 machine ByteProvider::count(bytes: &[u8]) -> u64 satisfies Counter::count { bytes.len }
+linux_arm64 machine ByteProvider::count(bytes: &[u8]) -> u64 satisfies Counter::count { bytes.len }
+linux_x86_64 machine ByteProvider::count(bytes: &[u8]) -> u64 satisfies Counter::count { bytes.len }
+windows_x86_64 machine ByteProvider::count(bytes: &[u8]) -> u64 satisfies Counter::count { bytes.len }
+data Payload [copy] { bytes: [u8; 8]; length: u64; }
+data CountResult { case Error; case Ok(length: u64); }
+machine inspect(payload: Payload) -> CountResult
+requires payload.length <= payload.bytes.len;
+{
+    let length: u64 = Selected::count(payload.bytes[0..payload.length]);
+    CountResult::Ok { length: length }
+}
+machine main() crashes Trap {
+    let mut payload: Payload;
+    payload.length = 3;
+    let result: CountResult = inspect(payload);
+    transition result {
+        CountResult::Error -> wrong()
+        CountResult::Ok { length } -> verify(length)
+    }
+    state verify(length: u64) {
+        transition length == 3 { true -> done() false -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

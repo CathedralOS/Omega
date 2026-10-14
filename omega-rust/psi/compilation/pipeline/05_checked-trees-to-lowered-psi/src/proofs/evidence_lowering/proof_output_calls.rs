@@ -360,7 +360,7 @@ fn lower_static_requirement_dispatch(
         applied.public_requirement_identity == identities.intern(&public_requirement_identity)
             && applied.realization_identity == identities.intern(&realization_identity)
             && applied.source_callable_identity == identities.intern(&realization_callable_identity)
-            && applied.machine == runtime_call.callee
+            && applied.callable == terminal_psi::TargetMachineCallable::Machine(runtime_call.callee)
             && applied.application_commitment == expected_commitment
             && applied.method_arguments == expected_arguments
     });
@@ -371,7 +371,8 @@ fn lower_static_requirement_dispatch(
     }
     let mut callables = application.realization_callables.iter().filter(|callable| {
         callable.source_callable_identity == identities.intern(&realization_callable_identity)
-            && callable.machine == runtime_call.callee
+            && callable.callable
+                == terminal_psi::TargetMachineCallable::Machine(runtime_call.callee)
     });
     if callables.next().is_none() || callables.next().is_some() {
         return unsupported(

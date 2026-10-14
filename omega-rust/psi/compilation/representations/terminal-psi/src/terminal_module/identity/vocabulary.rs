@@ -18,7 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Provider candidates retain the complete source-to-instance association.
-        126
+        // Static implementation maps retain body or opaque-head callables.
+        127
     }
 }

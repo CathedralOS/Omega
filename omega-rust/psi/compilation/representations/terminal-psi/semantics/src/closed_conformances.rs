@@ -8,8 +8,167 @@
 
 use terminal_psi::{
     ClosedConformanceSchema, ClosedConformanceSchemaKind, ClosedReachArgument,
-    ClosedReachParameter, TerminalIdentityIndex, TerminalModule,
+    ClosedReachParameter, TargetMachineCallable, TerminalIdentityIndex, TerminalModule,
 };
+
+/// A machine-backed opaque signature retains that machine's own declaration,
+/// not its provider's. Trait/operator schemas and synthetic evidence can have
+/// no such source. A portable family additionally authenticates its independent
+/// published overload and contract; a foreign leaf's export name is not that
+/// overload and is never parsed to recover one.
+pub fn validate_boundary_callable(
+    module: &TerminalModule,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+) -> Result<(), &'static str> {
+    let Some(checked) = &boundary.declaration else {
+        return Ok(());
+    };
+    if boundary.role != terminal_psi::BoundaryDeclarationRole::Callable {
+        return Err("contract evidence cannot carry an executable boundary declaration");
+    }
+    let declaration = &checked.source;
+    for coordinate in [
+        declaration.machine.identity(),
+        declaration.state.identity(),
+        declaration.semantic_declaration,
+        declaration.callable,
+        declaration.result_type,
+    ]
+    .into_iter()
+    .chain(declaration.parameter_types.iter().copied())
+    {
+        identity(module, coordinate)?;
+    }
+    if declaration.contract == [0; 32]
+        || !declaration.machine.same_identity_as(
+            &module.identities,
+            &boundary.owner,
+            &module.identities,
+        )
+    {
+        return Err("checked boundary declaration differs from its exact machine owner");
+    }
+    match &declaration.specialization {
+        Some(specialization) => {
+            identity(module, specialization.template.identity())?;
+            if specialization.commitment == [0; 32] {
+                return Err("checked boundary specialization has an empty commitment");
+            }
+        }
+        None if !checked.method_arguments.is_empty() => {
+            return Err("unspecialized boundary carries method arguments");
+        }
+        None => {}
+    }
+    for argument in &checked.method_arguments {
+        let coordinate = match argument {
+            ClosedReachArgument::Type(coordinate)
+            | ClosedReachArgument::Const(coordinate)
+            | ClosedReachArgument::Proposition(coordinate) => *coordinate,
+            ClosedReachArgument::Machine {
+                identity,
+                contract_commitment,
+            } => {
+                if *contract_commitment == [0; 32] {
+                    return Err("boundary method argument has an empty contract commitment");
+                }
+                *identity
+            }
+        };
+        identity(module, coordinate)?;
+    }
+    if let Some(family) = module
+        .target_machine_families
+        .iter()
+        .find(|family| family.canonical == TargetMachineCallable::Boundary(boundary.id))
+    {
+        if family.head_contract != declaration.contract {
+            return Err("checked boundary declaration differs from its published family contract");
+        }
+        if !family
+            .members
+            .iter()
+            .any(|member| member.callable == family.canonical)
+            && identity(module, declaration.callable)? != identity(module, boundary.identity)?
+        {
+            return Err("checked boundary declaration differs from its published family overload");
+        }
+    }
+    Ok(())
+}
+
+fn callable_declaration(
+    module: &TerminalModule,
+    callable: TargetMachineCallable,
+) -> Result<&terminal_psi::CheckedMachineDeclaration, &'static str> {
+    match callable {
+        TargetMachineCallable::Machine(machine) => module
+            .machine(machine)
+            .and_then(|machine| machine.declaration.as_ref()),
+        TargetMachineCallable::Boundary(boundary) => module
+            .boundary_machine(boundary)
+            .filter(|boundary| boundary.role == terminal_psi::BoundaryDeclarationRole::Callable)
+            .and_then(|boundary| boundary.declaration.as_ref())
+            .map(|declaration| &declaration.source),
+    }
+    .ok_or("static conformance target has no checked declaration")
+}
+
+fn callable_result(
+    module: &TerminalModule,
+    callable: TargetMachineCallable,
+) -> Result<terminal_psi::ClosedConformanceCallableResult, &'static str> {
+    use terminal_psi::{
+        BoundaryMachineResult, ClosedConformanceCallableResult as ResultClass,
+        TerminalMachineResult,
+    };
+    match callable {
+        TargetMachineCallable::Machine(machine) => match &module
+            .machine(machine)
+            .ok_or("conformance callable registry names an absent machine")?
+            .result
+        {
+            TerminalMachineResult::Unit => Ok(ResultClass::Unit),
+            TerminalMachineResult::Scalar(result) => Ok(ResultClass::Scalar(result.scalar_type)),
+            TerminalMachineResult::Structural(result) => {
+                Ok(ResultClass::Structural(result.structural_type))
+            }
+        },
+        TargetMachineCallable::Boundary(boundary) => match &module
+            .boundary_machine(boundary)
+            .ok_or("conformance callable registry names an absent boundary")?
+            .result
+        {
+            BoundaryMachineResult::Unit => Ok(ResultClass::Unit),
+            BoundaryMachineResult::Scalar(result) => Ok(ResultClass::Scalar(*result)),
+            BoundaryMachineResult::Structural(result) => {
+                Ok(ResultClass::Structural(result.structural_type))
+            }
+        },
+    }
+}
+
+fn declared_callable_identity(
+    module: &TerminalModule,
+    declaration: &terminal_psi::CheckedMachineDeclaration,
+) -> Result<String, &'static str> {
+    let callable = identity(module, declaration.callable)?;
+    Ok(match &declaration.specialization {
+        None => callable.to_owned(),
+        Some(specialization) => {
+            let commitment = specialization
+                .commitment
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            format!(
+                "specialized-machine|callable={}:{}|application={commitment}",
+                callable.len(),
+                callable
+            )
+        }
+    })
+}
 
 fn identity(
     module: &TerminalModule,
@@ -126,6 +285,9 @@ fn argument_matches(
 /// Receiving replay over immutable, producer-trusted semantic inputs. Run
 /// before realization or interpreter execution; this never grants host access.
 pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'static str> {
+    for boundary in &module.boundary_machines {
+        validate_boundary_callable(module, boundary)?;
+    }
     for application in &module.closed_conformance_applications {
         identity(module, application.declaration_identity)?;
         identity(module, application.trait_identity)?;
@@ -229,33 +391,23 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
             if registry_identities
                 .last()
                 .is_some_and(|previous| *previous >= callable_identity)
-                || registry_machines.contains(&callable.machine)
+                || registry_machines.contains(&callable.callable)
             {
                 return Err(
                     "conformance callable registry has duplicate identities or machine bindings, or is not canonical",
                 );
             }
             registry_identities.push(callable_identity);
-            registry_machines.push(callable.machine);
-            let machine = module
-                .machine(callable.machine)
-                .ok_or("conformance callable registry names an absent machine")?;
-            let matches = match callable.result {
-                terminal_psi::ClosedConformanceCallableResult::Unit => {
-                    matches!(machine.result, terminal_psi::TerminalMachineResult::Unit)
-                }
-                terminal_psi::ClosedConformanceCallableResult::Scalar(expected) => machine
-                    .result
-                    .scalar()
-                    .is_some_and(|result| result.scalar_type == expected),
-                terminal_psi::ClosedConformanceCallableResult::Structural(expected) => machine
-                    .result
-                    .structural()
-                    .is_some_and(|result| result.structural_type == expected),
-            };
-            if !matches {
+            registry_machines.push(callable.callable);
+            if callable.result != callable_result(module, callable.callable)? {
                 return Err(
                     "conformance callable registry result differs from its emitted declaration",
+                );
+            }
+            let declaration = callable_declaration(module, callable.callable)?;
+            if declared_callable_identity(module, declaration)? != callable_identity {
+                return Err(
+                    "conformance callable registry differs from its checked declaration identity",
                 );
             }
         }
@@ -315,13 +467,7 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
                     );
                 }
             }
-            let machine = module
-                .machine(applied.machine)
-                .ok_or("static conformance application target is absent")?;
-            let declaration = machine
-                .declaration
-                .as_ref()
-                .ok_or("static conformance target has no checked declaration")?;
+            let declaration = callable_declaration(module, applied.callable)?;
             if declaration
                 .specialization
                 .as_ref()
@@ -337,29 +483,46 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
                 .iter()
                 .filter(|callable| {
                     callable.source_callable_identity == applied.source_callable_identity
-                        && callable.machine == applied.machine
+                        && callable.callable == applied.callable
                 })
                 .count()
                 != 1
             {
                 return Err("static conformance application has no unique callable registry entry");
             }
-            if !applied.method_arguments.is_empty() {
-                let invocation = machine.closed_reach_application.as_ref().ok_or(
-                    "static conformance method tuple has no independent retained invocation",
-                )?;
-                if Some(invocation.specialization_commitment) != applied.application_commitment
-                    || invocation.telescope.len() != applied.method_arguments.len()
-                    || !applied
-                        .method_arguments
-                        .iter()
-                        .zip(&invocation.telescope)
-                        .all(|(expected, actual)| argument_matches(module, expected, actual))
-                {
-                    return Err(
-                        "static conformance method tuple differs from its retained executable invocation",
-                    );
+            match applied.callable {
+                TargetMachineCallable::Boundary(boundary) => {
+                    let arguments = module
+                        .boundary_machine(boundary)
+                        .and_then(|boundary| boundary.declaration.as_ref())
+                        .ok_or("static conformance boundary has no independent invocation")?;
+                    if arguments.method_arguments != applied.method_arguments {
+                        return Err(
+                            "static conformance method tuple differs from its retained boundary invocation",
+                        );
+                    }
                 }
+                TargetMachineCallable::Machine(machine) if !applied.method_arguments.is_empty() => {
+                    let machine = module
+                        .machine(machine)
+                        .ok_or("static conformance application target is absent")?;
+                    let invocation = machine.closed_reach_application.as_ref().ok_or(
+                        "static conformance method tuple has no independent retained invocation",
+                    )?;
+                    if Some(invocation.specialization_commitment) != applied.application_commitment
+                        || invocation.telescope.len() != applied.method_arguments.len()
+                        || !applied
+                            .method_arguments
+                            .iter()
+                            .zip(&invocation.telescope)
+                            .all(|(expected, actual)| argument_matches(module, expected, actual))
+                    {
+                        return Err(
+                            "static conformance method tuple differs from its retained executable invocation",
+                        );
+                    }
+                }
+                TargetMachineCallable::Machine(_) => {}
             }
         }
         if terminal_psi::closed_conformance_application_commitment(&module.identities, application)
@@ -412,7 +575,7 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
                 applied.public_requirement_identity == dispatch.public_requirement_identity
                     && applied.realization_identity == dispatch.realization_identity
                     && applied.source_callable_identity == dispatch.realization_callable_identity
-                    && applied.machine == dispatch.realization
+                    && applied.callable == TargetMachineCallable::Machine(dispatch.realization)
             })
             .count()
             != 1

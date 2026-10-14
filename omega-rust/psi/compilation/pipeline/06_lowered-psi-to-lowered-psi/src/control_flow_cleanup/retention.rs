@@ -341,7 +341,9 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     for application in &module.closed_conformance_applications {
         roots.insert(application.owner);
         for callable in &application.realization_callables {
-            roots.insert(callable.machine);
+            if let terminal_psi::TargetMachineCallable::Machine(machine) = callable.callable {
+                roots.insert(machine);
+            }
         }
     }
     for use_row in &module.reborrow_restored_call_uses {
