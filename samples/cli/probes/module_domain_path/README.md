@@ -7,11 +7,8 @@ Compile-scope probe. No standard-library dependency.
   u64::Distance::add` operator home.
 - `u64 in units::u64::Distance` as a parameter constraint;
   literals satisfy the `> 0` requires at `measure(3, 4)`.
-
-## Gaps found while authoring (filed)
-
-- `x as (u64 in units::u64::Distance)` — module-qualified domain
-  paths don't parse in `as` cast targets (params only).
+- `3 as u64 in units::u64::Distance` names the same domain through
+  its module path in a cast.
 
 Compile-checked only (no ProcessExit provider):
 

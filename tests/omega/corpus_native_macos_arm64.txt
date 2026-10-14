@@ -2421,6 +2421,7 @@ run/calls/runtime_float_distinct_operand_calls_exit built 12474ms exit:0 stdout:
 run/calls/runtime_float_normalized_operand_single_evaluation_exit built 11046ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
 run/calls/table_report_call_survival built 6386ms exit:0 stdout:match @589aedee8ebc+wt
 run/contained_health_loop_command_branch checked 192ms
+run/domains/module_qualified_cast_domain built 12035ms exit:0 @2012446ad74a+wt
 run/domains/qualified_record_transfer built 6237ms exit:0 @868a854ecd4d+wt
 run/domains/semantic_predicate_domain_admission built 11653ms exit:0 @896172b5d9d8+wt
 run/domains/structural_qualification_cast_transitions built 12508ms exit:0 @2012446ad74a+wt

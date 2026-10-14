@@ -1,0 +1,10 @@
+// The declaring module of every domain the cast fixture names.
+module units;
+
+pub domain u64::Distance(value) requires value > 0;
+
+pub domain u64::Km;
+
+pub data Leg [copy] { length: u64; }
+
+pub domain Leg::Ready;

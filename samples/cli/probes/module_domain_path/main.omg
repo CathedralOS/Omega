@@ -5,9 +5,8 @@
 // parameters.
 //
 //   * `measure(a: u64 in units::u64::Distance, ...)` — the domain
-//     is spelled through the module path (declaration surface —
-//     `as` cast targets reject the `units::` path, so no caller
-//     side is authored here; see README).
+//     is spelled through the module path, in the parameter type and
+//     in the caller's explicit `as` qualification.
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit
@@ -25,7 +24,7 @@ data Main {
 
 machine Main::main(main: &mut Main) {
     main.hits = 0;
-    transition measure(3, 4) {
+    transition measure(3 as u64 in units::u64::Distance, 4) {
         true -> pass(main)
         _ -> fail(main)
     }

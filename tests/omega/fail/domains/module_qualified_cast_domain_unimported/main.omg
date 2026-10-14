@@ -1,0 +1,5 @@
+// Without `use units;` the module's domains are not exposed to this file,
+// even through their full path.
+machine main() -> u64 {
+    transition { _ -> (3 as u64 in units::u64::Km) as u64 }
+}

@@ -20,9 +20,10 @@ use syntax_trees::types::{
 };
 use tokens::PunctuationKind;
 
-/// Type, extent and domain names share the ordinary static-path grammar.
-/// Keep one source span so later selection retains the authored occurrence.
-fn parse_static_name<'tokens, 'source>(
+/// Type, extent and domain names share the ordinary static-path grammar,
+/// including a cast's `in <Domain>` qualification. Keep one source span so
+/// later selection retains the authored occurrence.
+pub(crate) fn parse_static_name<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Identifier> {
     let (first, mut input) = input.take_identifier()?;

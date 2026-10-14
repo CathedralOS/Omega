@@ -1,0 +1,7 @@
+// A module-qualified predicate domain in a cast still owes its predicate:
+// zero refutes `value > 0`.
+use units;
+machine measure(a: u64 in units::u64::Distance) -> u64 { a as u64 }
+machine main() -> u64 {
+    transition { _ -> measure(0 as u64 in units::u64::Distance) }
+}

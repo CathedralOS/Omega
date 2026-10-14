@@ -2117,6 +2117,12 @@ fail/domains/issued_state_arrival_unissued rejected 609ms expected @0e81fb3e4cce
 	cannot prove requires contract for call received from main: resource in Resource::Open in state `entry`
 fail/domains/module_domain_broad_import_hides_leaf rejected 853ms expected @a9ae30e1c334+wt
 	data `Main` field `span` uses `in Distance`, but no `domain` named `Distance` is declared for `u64` (domains are bound to their storage type)
+fail/domains/module_qualified_cast_domain_false rejected 285ms expected @2012446ad74a+wt
+	`as ... in units::u64::Distance` cannot mint: a `units::u64::Distance` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
+fail/domains/module_qualified_cast_domain_unimported rejected 285ms expected @2012446ad74a+wt
+	unknown cast domain `units::u64::Km` for target `u64`
+fail/domains/module_qualified_cast_domain_unknown rejected 285ms expected @2012446ad74a+wt
+	unknown cast domain `units::u64::Missing` for target `u64`
 fail/domains/named_const_subject_binding rejected 15ms expected @a9ae30e1c334+wt
 	constrained const `INVALID` is invalid: domain constraint `Below::Inherited` for the const leaf value is false; failed domain `u64::Below::Inherited`
 fail/domains/nested_field_domain_write_unestablished rejected 5734ms expected @a9ae30e1c334+wt
@@ -8090,6 +8096,7 @@ run/domains/issued_owned_case_temporary checked 5352ms check-target:macos_arm64 
 run/domains/issued_owned_reinitialized_home checked 5390ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/domains/issued_owned_state_arrivals checked 5608ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/domains/issued_owned_temporary_observation checked 5609ms check-target:macos_arm64 @0e81fb3e4cce+wt
+run/domains/module_qualified_cast_domain checked 13309ms check-target:macos_arm64 @2012446ad74a+wt
 run/domains/qualified_record_transfer checked 6006ms check-target:macos_arm64 @868a854ecd4d+wt
 run/domains/semantic_predicate_domain_admission checked 11814ms check-target:macos_arm64 @896172b5d9d8+wt
 run/domains/structural_qualification_cast_transitions checked 12461ms check-target:macos_arm64 @2012446ad74a+wt

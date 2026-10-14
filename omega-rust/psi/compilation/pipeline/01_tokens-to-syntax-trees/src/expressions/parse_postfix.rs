@@ -291,7 +291,11 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                     ));
                 }
                 let after_in = input.take_contextual("in")?;
-                let (domain_name, rest) = after_in.take_identifier()?;
+                // The same static path a type's domain constraint takes:
+                // `in Km`, `in u64::Km`, or a module-qualified
+                // `in units::u64::Km`.
+                let (domain_name, rest) =
+                    crate::type_syntax::parse_type::parse_static_name(after_in)?;
                 match numerics::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
                     Some(parsed) => domain = parsed,
                     // A non-policy name is the semantic-domain qualification

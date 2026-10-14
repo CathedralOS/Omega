@@ -208,9 +208,12 @@ fn expression_data_symbol(
         return base_data_symbol(program, type_reference);
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::StructLiteral(literal) => program
-            .data_definition_by_name_str(literal.type_name.as_str())
-            .map(|definition| definition.symbol),
+        // The resolved declaration, never its spelling: a module-qualified
+        // `units::Leg { .. }` names the same carrier as `Leg { .. }`.
+        ExpressionNode::StructLiteral(literal) => literal
+            .type_symbol
+            .is_valid()
+            .then_some(literal.type_symbol),
         ExpressionNode::Borrow(inner) => {
             expression_data_symbol(program, machine, state, inner.target)
         }

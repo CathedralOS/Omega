@@ -1,0 +1,33 @@
+// Expected exit: 0.
+// A cast's `in <Domain>` takes the same static path a type's domain
+// constraint does, so the declaring-owner-first address
+// `units::u64::Distance` (modules.md, foreign attached declaration paths)
+// selects a foreign domain in a cast just as it does in a parameter type.
+// The casts below name a predicate domain, a predicate-free tag and a
+// record domain over a module-qualified carrier, from a literal, a local, a
+// record literal and a successor argument; the carrier-qualified spelling
+// without the module still selects the exposed domain.
+use units;
+
+machine measure(a: u64 in units::u64::Distance) -> u64 { a as u64 }
+
+machine tag(a: u64 in units::u64::Km) -> u64 { a as u64 }
+
+machine leg(l: units::Leg in units::Leg::Ready) -> u64 { l.length }
+
+machine main() crashes Trap {
+    let plain: u64 = 4;
+    let local: u64 in units::u64::Distance = plain as u64 in units::u64::Distance;
+    let short: u64 = measure(2 as u64 in u64::Distance);
+    let tagged: u64 = tag(5 as u64 in units::u64::Km);
+    let ready: u64 = leg(units::Leg { length: 6 } as units::Leg in units::Leg::Ready);
+    transition measure(local) == 4 && short == 2 && tagged == 5 && ready == 6 {
+        true -> later(7 as u64 in units::u64::Distance)
+        false -> wrong()
+    }
+    state later(d: u64 in units::u64::Distance) {
+        transition measure(d) == 7 { true -> done() false -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
