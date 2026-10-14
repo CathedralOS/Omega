@@ -1,0 +1,68 @@
+// Mechanical variants of the selected outcome-specific guarantee: the
+// guaranteeing callee is not the program entry, and its evidence is selected
+// (a) from a non-entry state of the caller, (b) inside a helper machine whose
+// own caller is the entry, and (c) for two distinct guaranteeing callees in
+// one closure. Each callee returns one exact payloadless case; each matching
+// arm binds the guaranteed term and the next state consumes nothing but the
+// outcome. Exit 0 when every arm selects its evidence.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Outcome [copy] {
+    case Success;
+    case Failure;
+}
+
+trait Evidence {
+}
+
+proposition selected_ready() evidence Evidence;
+proposition other_ready() evidence Evidence;
+
+Fresh satisfies Evidence {
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine pick() -> Outcome
+ensures Outcome::Success -> { selected: selected_ready(); }
+{
+    selected = Fresh;
+    Outcome::Success
+}
+
+machine pick_other() -> Outcome
+ensures Outcome::Success -> { other: other_ready(); }
+{
+    other = Fresh;
+    Outcome::Success
+}
+
+machine helper() -> i32 {
+    transition pick_other() {
+        Outcome::Success { ; other: proof } -> 0
+        _ -> 2
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    transition { _ -> second(main) }
+
+    state second(main: &mut Main) {
+        transition pick() {
+            Outcome::Success { ; selected: proof } -> third(main)
+            _ -> finish(main, 1)
+        }
+    }
+
+    state third(main: &mut Main) {
+        let nested: i32 = helper();
+        transition { _ -> finish(main, nested) }
+    }
+
+    state finish(main: &mut Main, code: i32) {
+        main.console.exit_process(code);
+    }
+}

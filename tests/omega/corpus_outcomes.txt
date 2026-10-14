@@ -8094,6 +8094,7 @@ run/calls/fixed_dividend_across_console_calls checked 8916ms check-target:macos_
 run/calls/nested_range_call_operands checked 6080ms check-target:macos_arm64 @0553d60b9b91+wt
 run/calls/ordered_literal_call_operands checked 6036ms check-target:macos_arm64 @0553d60b9b91+wt
 run/calls/outcome_specific_selected_guarantee_exit checked 12421ms check-target:macos_arm64 @55ccf9be57c4
+run/calls/outcome_specific_selected_guarantee_nested_exit checked 9800ms check-target:macos_arm64 @9f9aac0513f8+wt
 run/calls/outcome_specific_selected_guarantee_variants_exit checked 12113ms check-target:macos_arm64 @55ccf9be57c4
 run/calls/owned_literal_call_operands checked 6033ms check-target:macos_arm64 @0553d60b9b91+wt
 run/calls/qualified_atomic_operation_names checked 5445ms check-target:macos_arm64 @c043a6de8fe3+wt

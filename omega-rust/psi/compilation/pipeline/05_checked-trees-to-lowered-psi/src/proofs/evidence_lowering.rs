@@ -12,7 +12,7 @@ mod outcome_specific_calls;
 mod outcome_specific_ensures;
 mod proof_output_calls;
 
-use super::{CheckedTrees, LoweredPsi, LoweringError, unsupported};
+use super::{CheckedTrees, EvidenceTermId, LoweredPsi, LoweringError, unsupported};
 use crate::proofs::evidence_lowering::evidence_terms::{
     lower_evidence_contract_lanes, lower_evidence_term_ids, lower_evidence_terms,
     lower_proposition_vocabulary,
@@ -20,6 +20,7 @@ use crate::proofs::evidence_lowering::evidence_terms::{
 use crate::proofs::evidence_lowering::outcome_specific_calls::lower_outcome_specific_call_evidence;
 use crate::proofs::evidence_lowering::outcome_specific_ensures::outcome_specific_ensure_rows;
 use crate::proofs::evidence_lowering::proof_output_calls::lower_proof_output_calls;
+use std::collections::BTreeMap;
 
 pub(crate) fn lower_and_install_evidence_artifacts(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -42,16 +43,57 @@ pub(crate) fn lower_and_install_evidence_artifacts(
     }
     // Checked handles, including forwarded aliases, share one namespace across
     // the emitted bodies. Per-body allocation would collide or lose vocabulary.
-    let evidence_term_ids = lower_evidence_term_ids(checked, source_machine_ids)?;
-    let (declarations, applications, declaration_ids) =
-        lower_proposition_vocabulary(identities, checked, &evidence_term_ids.term_ids)?;
-    let evidence_terms = lower_evidence_terms(
-        identities,
-        checked,
-        &declaration_ids,
-        &applications,
-        evidence_term_ids.term_ids,
-    )?;
+    // Identities are first minted in lane order (machine, contract lane,
+    // position), which fixes which checked terms share one identity. The
+    // module's canonical order then requires every term identity to be
+    // monotone in (proposition application, interface): propositions are
+    // numbered by content and a proposition may project another term, so the
+    // numbering is settled by renumbering in canonical order and re-lowering
+    // the vocabulary until the identities stop moving.
+    let mut term_ids = lower_evidence_term_ids(checked, source_machine_ids)?.term_ids;
+    let mut rounds = 0_u8;
+    let (declarations, applications, evidence_terms) = loop {
+        let (declarations, applications, declaration_ids) =
+            lower_proposition_vocabulary(identities, checked, &term_ids)?;
+        let evidence_terms = lower_evidence_terms(
+            identities,
+            checked,
+            &declaration_ids,
+            &applications,
+            term_ids.clone(),
+        )?;
+        let mut canonical = evidence_terms
+            .declarations
+            .iter()
+            .map(|term| (term.proposition, term.interface.clone(), term.id))
+            .collect::<Vec<_>>();
+        canonical.sort();
+        let renumbered = canonical
+            .iter()
+            .enumerate()
+            .map(|(position, (_, _, previous))| {
+                let id = EvidenceTermId::new(
+                    u64::try_from(position)
+                        .expect("evidence term count fits u64")
+                        .checked_add(1)
+                        .expect("one-based evidence term identity fits u64"),
+                )
+                .expect("one-based evidence term identity is nonzero");
+                (*previous, id)
+            })
+            .collect::<BTreeMap<_, _>>();
+        if renumbered.iter().all(|(previous, id)| previous == id) {
+            break (declarations, applications, evidence_terms);
+        }
+        rounds += 1;
+        if rounds > 4 {
+            return unsupported("evidence term identities reach no canonical order");
+        }
+        term_ids = term_ids
+            .iter()
+            .map(|id| id.map(|previous| renumbered[&previous]))
+            .collect();
+    };
     let mut evidence_contract_lanes = Vec::new();
     let mut proof_output_calls = Vec::new();
     for &(machine, terminal_machine) in source_machine_ids {
