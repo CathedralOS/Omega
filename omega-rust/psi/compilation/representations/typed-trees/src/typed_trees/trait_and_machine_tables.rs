@@ -435,6 +435,12 @@ impl TypedTrees {
         &self,
         symbol: SymbolHandle,
     ) -> Option<(&machine::Machine, &signature::StateSignature)> {
+        // Machine and conformance parameter spans share this arena. Most call
+        // targets are not parameters: use its revision-aware identity index to
+        // avoid walking every machine's declaration scopes for those misses.
+        // Presence is not authority or contract selection; the lexical walk
+        // still decides ownership, shadowing and the first matching contract.
+        self.data_type_parameter_by_symbol(symbol)?;
         self.machines().iter().find_map(|machine| {
             self.machine_parameter_signature_in(machine, symbol)
                 .map(|signature| (machine, signature))
@@ -981,8 +987,67 @@ impl TypedTrees {
 #[cfg(test)]
 mod tests {
     use crate::TypedTrees;
+    use crate::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
     use crate::machine::Machine;
+    use crate::signature::StateSignature;
     use symbols::SymbolHandle;
+
+    #[test]
+    fn machine_parameter_lookup_refreshes_misses_without_selecting_index_duplicates() {
+        let original = SymbolHandle::from_parts(1, 1);
+        let replacement = SymbolHandle::from_parts(1, 2);
+        let contract_symbol = SymbolHandle::from_parts(2, 1);
+        let mut program = TypedTrees::default();
+        assert!(program.machine_parameter_signature(original).is_none());
+        let mut machine = Machine::default();
+        let parameter = program.data_type_parameters.append_to_span(
+            &mut machine.type_parameters,
+            TypeParameter {
+                symbol: original,
+                kind: TypeParameterKind::Machine {
+                    contract: MachineParameterContract::Structural(StateSignature {
+                        symbol: contract_symbol,
+                        ..StateSignature::default()
+                    }),
+                },
+                ..TypeParameter::default()
+            },
+        );
+        program.push_machine(machine);
+        assert_eq!(
+            program
+                .machine_parameter_signature(original)
+                .map(|(_, signature)| signature.symbol),
+            Some(contract_symbol)
+        );
+        assert!(program.machine_parameter_signature(replacement).is_none());
+        program.data_type_parameters.get_mut(parameter).symbol = replacement;
+        assert!(program.machine_parameter_signature(original).is_none());
+        assert_eq!(
+            program
+                .machine_parameter_signature(replacement)
+                .map(|(_, signature)| signature.symbol),
+            Some(contract_symbol)
+        );
+
+        // The index keeps the last duplicate, but only the roster's first
+        // matching binder selects the contract, even for malformed input.
+        program.data_type_parameters.insert(TypeParameter {
+            symbol: replacement,
+            ..TypeParameter::default()
+        });
+        assert_eq!(
+            program
+                .machine_parameter_signature(replacement)
+                .map(|(_, signature)| signature.symbol),
+            Some(contract_symbol)
+        );
+        assert!(
+            program
+                .machine_parameter_signature(SymbolHandle::invalid())
+                .is_none()
+        );
+    }
 
     #[test]
     fn machine_lookup_retains_first_match_and_refreshes_after_mutation() {
