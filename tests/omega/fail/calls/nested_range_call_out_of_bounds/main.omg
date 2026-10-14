@@ -1,0 +1,7 @@
+use omega::language::core::option;
+machine measure(bytes: &[u8]) -> Optional<u64> { Optional::Some { value: bytes.len } }
+machine consume(value: Optional<u64>) {}
+machine main() {
+    let bytes: [u8; 3] = [1, 2, 3];
+    consume(measure(&bytes[..4]));
+}

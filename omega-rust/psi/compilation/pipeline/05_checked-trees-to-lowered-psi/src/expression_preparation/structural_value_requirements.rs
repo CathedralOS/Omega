@@ -82,6 +82,21 @@ fn collect_domains(
         }
         visited.push((value, reference));
         let node = plans.nodes.get(value);
+        // A call result depends on its retained operand producers as well as
+        // its result shape. Their formations can require theories absent from
+        // every published parameter (for example a qualified literal field).
+        // Follow checked schedule edges, never unrelated arena occurrences.
+        for call in plans.calls_for_root(value).unwrap_or(&[]) {
+            for operation in call.operands().iter() {
+                if let checked_trees::CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+                ) = operation
+                {
+                    let child = plans.nodes.get(*value);
+                    pending.push((*value, child.type_reference));
+                }
+            }
+        }
         // Every completed occurrence uses its checked membership judgments.
         // Their catalog dependencies are independent of whether the producer
         // is a literal, copy or fresh aggregate. Do not infer a theory from the

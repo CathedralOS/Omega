@@ -1,0 +1,183 @@
+// Expected exit: 0.
+// Parse hex byte pairs with per-nibble wildcards, then scan overlapping starts.
+use omega::language::core::option;
+
+data Nibble [copy] where value < 16, mask < 16 { value: u8; mask: u8; }
+data PatternByte [copy] { value: u8; mask: u8; }
+
+machine nibble(character: u8) -> Optional<Nibble> {
+    transition character == 63 {
+        true -> Optional::Some { value: Nibble { value: 0, mask: 0 } }
+        false -> decimal(character)
+    }
+    state decimal(character: u8) -> Optional<Nibble> {
+        transition character >= 48 && character <= 57 {
+            true -> digit(character)
+            false -> upper(character)
+        }
+    }
+    state digit(character: u8) -> Optional<Nibble>
+    requires character >= 48 && character <= 57 {
+        Optional::Some { value: Nibble { value: character - 48, mask: 15 } }
+    }
+    state upper(character: u8) -> Optional<Nibble> {
+        transition character >= 65 && character <= 70 {
+            true -> upper_digit(character)
+            false -> lower(character)
+        }
+    }
+    state upper_digit(character: u8) -> Optional<Nibble>
+    requires character >= 65 && character <= 70 {
+        Optional::Some { value: Nibble { value: character - 55, mask: 15 } }
+    }
+    state lower(character: u8) -> Optional<Nibble> {
+        transition character >= 97 && character <= 102 {
+            true -> lower_digit(character)
+            false -> Optional::None
+        }
+    }
+    state lower_digit(character: u8) -> Optional<Nibble>
+    requires character >= 97 && character <= 102 {
+        Optional::Some { value: Nibble { value: character - 87, mask: 15 } }
+    }
+}
+
+machine pair(upper: u8, lower: u8) -> Optional<PatternByte> {
+    let high: Optional<Nibble> = nibble(upper);
+    transition high {
+        Optional::Some { value } -> second(value, lower)
+        Optional::None -> Optional::None
+    }
+    state second(high: Nibble, lower: u8) -> Optional<PatternByte> {
+        let low: Optional<Nibble> = nibble(lower);
+        transition low {
+            Optional::Some { value } -> Optional::Some { value: PatternByte {
+                value: high.value * 16 + value.value,
+                mask: high.mask * 16 + value.mask
+            } }
+            Optional::None -> Optional::None
+        }
+    }
+}
+
+machine parse(input: &[u8], output: &mut [PatternByte]) -> Optional<u64> {
+    transition { _ -> next(input, output, 0) }
+    state next(input: &[u8], output: &mut [PatternByte], count: u64) -> Optional<u64>
+    requires count <= output.len {
+        transition input.len == 0 {
+            true -> Optional::Some { value: count }
+            false -> available(input, output, count)
+        }
+    }
+    state available(input: &[u8], output: &mut [PatternByte], count: u64) -> Optional<u64> {
+        transition input.len >= 2 && count < output.len {
+            true -> decode(input, output, count)
+            false -> Optional::None
+        }
+    }
+    state decode(input: &[u8], output: &mut [PatternByte], count: u64) -> Optional<u64>
+    requires input.len >= 2 && count < output.len {
+        let decoded: Optional<PatternByte> = pair(input[0], input[1]);
+        transition decoded {
+            Optional::Some { value } -> save(input, output, count, value)
+            Optional::None -> Optional::None
+        }
+    }
+    state save(input: &[u8], output: &mut [PatternByte], count: u64, value: PatternByte)
+        -> Optional<u64>
+    requires input.len >= 2 && count < output.len {
+        output[count] = value;
+        transition { _ -> next(input[2..], output, count + 1) }
+    }
+}
+
+machine prefix(bytes: &[u8], pattern: &[PatternByte]) -> bool {
+    transition pattern.len == 0 {
+        true -> true
+        false -> available(bytes, pattern)
+    }
+    state available(bytes: &[u8], pattern: &[PatternByte]) -> bool
+    requires pattern.len > 0 {
+        transition bytes.len > 0 {
+            true -> compare(bytes, pattern)
+            false -> false
+        }
+    }
+    state compare(bytes: &[u8], pattern: &[PatternByte]) -> bool
+    requires bytes.len > 0 && pattern.len > 0 {
+        transition (bytes[0] & pattern[0].mask) == pattern[0].value {
+            true -> prefix(bytes[1..], pattern[1..])
+            false -> false
+        }
+    }
+}
+
+machine scan(bytes: &[u8], pattern: &[PatternByte], positions: &mut [u64]) -> u64
+requires pattern.len > 0 {
+    transition { _ -> next(bytes, pattern, positions, 0, 0) }
+    state next(bytes: &[u8], pattern: &[PatternByte], positions: &mut [u64], start: u64, count: u64) -> u64
+    requires start <= bytes.len && count <= positions.len {
+        transition start < bytes.len && count < positions.len {
+            true -> inspect(bytes, pattern, positions, start, count)
+            false -> count
+        }
+    }
+    state inspect(bytes: &[u8], pattern: &[PatternByte], positions: &mut [u64], start: u64, count: u64) -> u64
+    requires start < bytes.len && count < positions.len {
+        transition prefix(bytes[start..], pattern) {
+            true -> record(bytes, pattern, positions, start, count)
+            false -> next(bytes, pattern, positions, start + 1, count)
+        }
+    }
+    state record(bytes: &[u8], pattern: &[PatternByte], positions: &mut [u64], start: u64, count: u64) -> u64
+    requires start < bytes.len && count < positions.len {
+        positions[count] = start;
+        transition { _ -> next(bytes, pattern, positions, start + 1, count + 1) }
+    }
+}
+
+machine count_is(parsed: Optional<u64>, expected: u64) -> bool {
+    transition parsed {
+        Optional::Some { value } -> (value == expected)
+        Optional::None -> false
+    }
+}
+machine rejected(parsed: Optional<u64>) -> bool {
+    transition parsed {
+        Optional::Some { value } -> false
+        Optional::None -> true
+    }
+}
+
+machine main() crashes Trap {
+    let mut pattern: [PatternByte; 3];
+    let parsed: bool = count_is(parse("4???7F", &mut pattern[..]), 3);
+    let masks: bool = pattern[0].value == 64 && pattern[0].mask == 240
+        && pattern[1].value == 0 && pattern[1].mask == 0
+        && pattern[2].value == 127 && pattern[2].mask == 255;
+    let bytes: [u8; 7] = [65, 0, 127, 79, 170, 127, 79];
+    let mut positions: [u64; 4] = [99, 99, 99, 99];
+    let count: u64 = scan(&bytes[..], &pattern[..], &mut positions[..]);
+    let matches: bool = count == 2 && positions[0] == 0 && positions[1] == 3
+        && positions[2] == 99 && positions[3] == 99;
+    let exact: bool = count_is(parse("4141", &mut pattern[..]), 2);
+    let overlap: u64 = scan("AAAA", &pattern[..2], &mut positions[..]);
+    let overlapping: bool = overlap == 3 && positions[0] == 0
+        && positions[1] == 1 && positions[2] == 2 && positions[3] == 99;
+    let wildcard: bool = count_is(parse("??", &mut pattern[..]), 1);
+    let limited: u64 = scan(&bytes[..], &pattern[..1], &mut positions[..2]);
+    let empty: u64 = scan("", &pattern[..1], &mut positions[..]);
+    let lower: bool = count_is(parse("fF", &mut pattern[..]), 1)
+        && pattern[0].value == 255 && pattern[0].mask == 255;
+    let empty_parse: bool = count_is(parse("", &mut pattern[..0]), 0);
+    let invalid: bool = rejected(parse("G0", &mut pattern[..]));
+    let odd: bool = rejected(parse("0", &mut pattern[..]));
+    let full: bool = rejected(parse("0000", &mut pattern[..1]));
+    transition parsed && masks && matches && exact && overlapping && wildcard
+        && limited == 2 && empty == 0 && lower && empty_parse && invalid && odd && full {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -184,9 +184,22 @@ pub(crate) fn emit(
                     case, values, next_value, operations, calls,
                 )?
             }
-            LoweredScalarEffect::EstablishByteSequenceLiteral(literal) => {
+            LoweredScalarEffect::EstablishByteSequenceLiteral {
+                literal,
+                memberships,
+            } => {
+                let qualifications = memberships
+                    .iter()
+                    .map(|domain| {
+                        crate::terminal_identities::lookup_domain_id_for_carrier(
+                            calls.domain_ids,
+                            *domain,
+                            literal.structural_type,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 literal.emit(
-                    Vec::new(),
+                    qualifications,
                     next_value,
                     &mut calls.next_obligation_identity,
                     operations,

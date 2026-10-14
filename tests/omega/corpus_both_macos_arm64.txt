@@ -774,6 +774,10 @@ run/borrows/stored_subview_identity built 5957ms exit:0 interpreter-exit:0 inter
 run/borrows/stored_subview_nested_call_result built 5958ms exit:0 interpreter-exit:0 interpreter:agrees @3224bdead711
 run/borrows/stored_subview_repeated_updates built 5957ms exit:0 interpreter-exit:0 interpreter:agrees @3224bdead711
 run/borrows/transition_shared_borrow built 5289ms exit:0 interpreter-exit:0 interpreter:agrees @3fa817733300+wt
+run/calls/byte_literal_expression_values built 6121ms exit:0 interpreter-exit:0 interpreter:agrees @0553d60b9b91+wt
+run/calls/nested_range_call_operands built 6127ms exit:0 interpreter-exit:0 interpreter:agrees @0553d60b9b91+wt
+run/calls/ordered_literal_call_operands built 6121ms exit:0 interpreter-exit:0 interpreter:agrees @0553d60b9b91+wt
+run/calls/owned_literal_call_operands built 6121ms exit:0 interpreter-exit:0 interpreter:agrees @0553d60b9b91+wt
 run/calls/static_binding_authority built 5912ms exit:0 interpreter-exit:0 interpreter:agrees @8073da6ab7ac
 run/contracts/captured_bound_unused_mutation built 5614ms exit:0 interpreter-exit:0 interpreter:agrees @7e164e32caf5+wt
 run/domains/checked_provider_issued_field built 5882ms exit:0 interpreter-exit:0 interpreter:agrees @e5140c7a7be2+wt

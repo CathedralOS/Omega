@@ -53,6 +53,7 @@ pub(super) fn prepare(
         u32,
         crate::emission::operation_emission::buffer::StructuralBinding,
     )],
+    completed_arguments: &[(usize, PreparedStructuralArgument)],
 ) -> Result<Prepared, LoweringError> {
     let call = operation.call().ok_or(LoweringError::Unsupported(
         "expression call preparation received a non-call operation",
@@ -106,16 +107,22 @@ pub(super) fn prepare(
     let (caller_machine, caller_state) =
         crate::declarations::state_declaration(checked, caller.state)?;
     let mut structural_arguments = Vec::with_capacity(call.structural_arguments.len());
-    for (argument, parameter) in call
+    for (ordinal, (argument, parameter)) in call
         .structural_arguments
         .iter()
         .zip(target.structural_parameters)
+        .enumerate()
     {
         if parameter.access != argument.access || parameter.type_identity != argument.type_identity
         {
             return unsupported("expression call argument disagrees with its published formal");
         }
-        let prepared = if argument.access == checked_trees::CheckedStructuralAccess::Owned {
+        let prepared = if let Some((_, completed)) = completed_arguments
+            .iter()
+            .find(|(position, _)| *position == ordinal)
+        {
+            completed.clone()
+        } else if argument.access == checked_trees::CheckedStructuralAccess::Owned {
             let source = bindings.owned_call_argument(identities, argument, results)?;
             let root_type = bindings.structural_place_type(source.place).or_else(|| {
                 results

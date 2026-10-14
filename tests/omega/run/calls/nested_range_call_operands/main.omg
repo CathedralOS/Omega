@@ -1,0 +1,68 @@
+// Expected exit: 0.
+use omega::language::core::option;
+data ResultBox { value: Optional<u64>; }
+machine measure(owned: [u8; 3], bytes: &[u8]) -> Optional<u64> {
+ transition owned[0] == 97 {
+  true -> Optional::Some { value: bytes.len }
+  false -> Optional::None
+ }
+}
+data Cell [copy] { value: u64; }
+data Counter { value: u64; }
+machine mark(counter: &mut Counter, digit: u64) requires digit <= 2 {
+ transition counter.value < 10 {
+  true -> append(counter, digit)
+  false -> overflow(counter)
+ }
+ state append(counter: &mut Counter, digit: u64)
+ requires counter.value < 10 && digit <= 2 {
+  counter.value = counter.value * 10 + digit;
+ }
+ state overflow(counter: &mut Counter) { counter.value = 99; }
+}
+machine start(counter: &mut Counter) -> u64 ensures result == 1 {
+ mark(counter, 1);
+ 1
+}
+machine end(counter: &mut Counter) -> u64 ensures result == 2 {
+ mark(counter, 2);
+ 2
+}
+machine change(cells: &mut [Cell]) -> Optional<u64> {
+ transition cells.len > 0 {
+  true -> write(cells)
+  false -> Optional::Some { value: 0 }
+ }
+ state write(cells: &mut [Cell]) -> Optional<u64> requires cells.len > 0 {
+  cells[0].value = 77;
+  Optional::Some { value: cells.len }
+ }
+}
+machine count_is(result: Optional<u64>, expected: u64) -> bool {
+ transition result {
+  Optional::Some { value } -> (value == expected)
+  Optional::None -> false
+ }
+}
+machine main() crashes Trap {
+ let bytes: [u8; 3] = [1, 2, 3];
+ let mut cells: [Cell; 3];
+ let mut counter: Counter = Counter { value: 0 };
+ let changed: bool = count_is(change(&mut cells[start(&mut counter)..end(&mut counter)]), 1);
+ let observed: bool = changed && counter.value == 12 && cells[1].value == 77
+     && cells[0].value == 0 && cells[2].value == 0;
+ cells[1].value = 99;
+ let empty: bool = count_is(change(&mut cells[1..1]), 0);
+ let restored: bool = empty && cells[1].value == 99;
+ transition observed && restored { true -> boxed(bytes) false -> wrong() }
+ state boxed(bytes: [u8; 3]) {
+ let result: ResultBox = ResultBox { value: measure("abc", &bytes[..2]) };
+ transition result.value {
+  Optional::Some { value } -> check(value)
+  Optional::None -> wrong()
+ }
+ }
+ state check(value: u64) { transition value == 2 { true -> done() false -> wrong() } }
+ state done() {}
+ state wrong() { crash Trap; }
+}

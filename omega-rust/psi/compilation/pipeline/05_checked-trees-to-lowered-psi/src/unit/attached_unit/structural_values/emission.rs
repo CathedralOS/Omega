@@ -41,6 +41,7 @@ pub(super) type StructuralOperandEmitter<'a> = dyn FnMut(
         &CheckedUnitEffectOperationPlan,
         Option<&[ValueDeclaration]>,
         Option<&[ValueDeclaration]>,
+        &[PlaceId],
         usize,
         &mut argument_evaluation::Evaluation,
         &mut Vec<ValueDeclaration>,
@@ -1027,6 +1028,7 @@ impl Emission<'_, '_, '_> {
             argument_schedule::build_operations(self.checked, self.machine, self.state, &planned)?;
         let mut staged_values = vec![Vec::new(); planned.len()];
         let mut staged_selectors = vec![Vec::new(); planned.len()];
+        let mut staged_ranges = vec![Vec::new(); planned.len()];
         let mut source_count = None;
         let mut completed = None;
         for step in schedule {
@@ -1113,10 +1115,36 @@ impl Emission<'_, '_, '_> {
                     self.values.push(value);
                     continue;
                 }
-                Step::Subslice { .. } => {
-                    return unsupported(
-                        "structural value call requires retained slice argument transport",
-                    );
+                Step::Subslice { operation, ordinal } => {
+                    let count = source_count.ok_or(LoweringError::Unsupported(
+                        "structural range operand has no source prefix",
+                    ))?;
+                    let bindings = self.evaluation.contextual_bindings();
+                    let context = super::super::byte_subslices::StagingContext {
+                        state: self.state,
+                        structural_types: self.structural_types,
+                        type_ids: self.type_ids,
+                        bindings: &bindings,
+                    };
+                    let place = super::super::byte_subslices::emit(
+                        identities,
+                        self.checked,
+                        &context,
+                        &planned[operation],
+                        ordinal,
+                        self.evaluation,
+                        count,
+                        self.values,
+                        self.temporary_places,
+                        self.next_place,
+                        self.next_value,
+                        self.next_block,
+                        self.next_edge,
+                        self.operations,
+                        self.calls,
+                    )?;
+                    staged_ranges[operation].push((ordinal, place));
+                    continue;
                 }
                 Step::Produce(index) | Step::Call(index) if source_count.is_some() => (index, true),
                 Step::Ordinary(index) if source_count.is_none() => (index, false),
@@ -1166,11 +1194,18 @@ impl Emission<'_, '_, '_> {
                         ))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
+            let range_places = super::super::byte_subslices::argument_places(
+                operation.call_structural_arguments(),
+                &[],
+                &mut 0,
+                &staged_ranges[index],
+            )?;
             let declaration = (self.operand_emitter)(
                 identities,
                 operation,
                 evaluated.as_deref(),
                 staged.then_some(selectors.as_slice()),
+                &range_places,
                 count,
                 self.evaluation,
                 self.values,

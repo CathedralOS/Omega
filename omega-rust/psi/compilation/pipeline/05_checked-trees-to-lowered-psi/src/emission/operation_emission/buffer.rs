@@ -224,6 +224,9 @@ pub(crate) struct OperationBuffer {
     /// completed joins. Cleanup uses this chronology, never local declarations
     /// alone; each selected exit still supplies its own disposal authority.
     pub(crate) structural_establishments: Vec<PlaceId>,
+    /// Literal operations have Unit results, so their emitting owner retains
+    /// the carrier here rather than recovering it from a source-call shape.
+    pub(crate) literal_types: Vec<(PlaceId, semantic_vocabulary::StructuralTypeId)>,
     /// Value-establishment obligations accompany the exact private arrival.
     pub(crate) scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
     pub(crate) selected_ieee_float_comparisons:
@@ -354,6 +357,7 @@ impl OperationBuffer {
             dynamic_dispatch,
             structural_values: Vec::new(),
             structural_establishments: Vec::new(),
+            literal_types: Vec::new(),
             scalar_block_invariants: Vec::new(),
             next_identity: identity_base
                 .checked_add(1)

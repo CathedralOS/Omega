@@ -1,0 +1,36 @@
+// Expected exit: 0.
+use omega::language::core::option;
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+data Text [copy] { bytes: &[u8] in Utf8; }
+
+machine measure(bytes: &[u8]) -> Optional<u64> {
+    Optional::Some { value: bytes.len }
+}
+machine field(text: Text) -> Optional<u64> {
+    measure(text.bytes)
+}
+machine count_is(result: Optional<u64>, expected: u64) -> bool {
+    transition result {
+        Optional::Some { value } -> (value == expected)
+        Optional::None -> false
+    }
+}
+machine main() crashes Trap {
+    let nested: bool = count_is(measure("abcdefg"), 7);
+    let qualified_field: bool = count_is(field(Text { bytes: "h\xC3\xA9" }), 3);
+    let empty: bool = count_is(measure(""), 0);
+    let raw: bool = count_is(measure("\0\xFF"), 2);
+    transition nested && qualified_field && empty && raw {
+        true -> later()
+        false -> wrong()
+    }
+    state later() {
+        let through_local: Optional<u64> = measure("abcdefg");
+        transition count_is(through_local, 7) {
+            true -> done()
+            false -> wrong()
+        }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

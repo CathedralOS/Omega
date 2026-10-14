@@ -83,8 +83,10 @@ pub(super) fn reserve(
         return unsupported("computed enum membership selected a foreign case");
     }
     let storage = crate::scalar_lowering::branch_states::structural_values::Storage::reserve(
+        identities,
         checked,
         *receiver_value,
+        types,
         next_place,
     )?;
     Ok(Some(Slot {

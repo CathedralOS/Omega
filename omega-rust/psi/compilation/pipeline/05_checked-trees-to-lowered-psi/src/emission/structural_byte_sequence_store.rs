@@ -42,6 +42,27 @@ enum LiteralStorage {
 }
 
 impl ByteLiteral {
+    /// A checked shared literal uses the expression schedule's reserved home.
+    /// Its image backing never acquires owned or mutable storage authority.
+    pub(crate) fn borrowed(
+        place: semantic_vocabulary::PlaceId,
+        structural_type: StructuralTypeId,
+        bytes: &[u8],
+        types: &[StructuralTypeDeclaration],
+    ) -> Result<Self, LoweringError> {
+        if !terminal_psi::find_structural_type(types, structural_type)
+            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
+        {
+            return unsupported("shared byte literal has a non-view carrier");
+        }
+        Ok(Self {
+            place,
+            structural_type,
+            bytes: bytes.to_vec(),
+            storage: LiteralStorage::Borrowed,
+        })
+    }
+
     pub(crate) fn reserve(
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         bytes: &[u8],
@@ -77,23 +98,6 @@ impl ByteLiteral {
         })
     }
 
-    /// Unit literal operations have no typed result. Their reserved physical
-    /// inputs supply the declaration namespace, not another semantic check.
-    pub(crate) fn literal_type(
-        &self,
-        place: semantic_vocabulary::PlaceId,
-    ) -> Option<StructuralTypeId> {
-        match self.storage {
-            LiteralStorage::Borrowed if place == self.place => Some(self.structural_type),
-            LiteralStorage::Owned {
-                source,
-                empty,
-                view_type,
-            } if place == source || place == empty => Some(view_type),
-            _ => None,
-        }
-    }
-
     fn declare_views(
         &self,
         places: &mut Vec<StructuralPlaceDeclaration>,
@@ -126,12 +130,23 @@ impl ByteLiteral {
         next_obligation: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<(semantic_vocabulary::OperationId, OperationResult), LoweringError> {
-        let LiteralStorage::Owned { source, empty, .. } = self.storage else {
-            let id = emit_literal(self.place, &self.bytes, qualifications, operations);
+        let LiteralStorage::Owned {
+            source,
+            empty,
+            view_type,
+        } = self.storage
+        else {
+            let id = emit_literal(
+                self.place,
+                self.structural_type,
+                &self.bytes,
+                qualifications,
+                operations,
+            );
             return Ok((id, OperationResult::Unit));
         };
         let mut operand = |place, bytes: &[u8]| -> Result<ByteSequenceOperand, LoweringError> {
-            emit_literal(place, bytes, Vec::new(), operations);
+            emit_literal(place, view_type, bytes, Vec::new(), operations);
             let length = value_id(allocate_dense(next_value)?);
             operations.push_leaf(
                 scalar_result_declaration(length, terminal_scalar_type(PrimitiveType::U64)?),
@@ -749,16 +764,20 @@ pub(crate) fn emit_literal_view(
             structural_type,
         },
     });
-    emit_literal(source, bytes, qualifications, operations);
+    emit_literal(source, structural_type, bytes, qualifications, operations);
     Ok(source)
 }
 
 fn emit_literal(
     destination: semantic_vocabulary::PlaceId,
+    structural_type: StructuralTypeId,
     bytes: &[u8],
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     operations: &mut OperationBuffer,
 ) -> semantic_vocabulary::OperationId {
+    operations
+        .literal_types
+        .push((destination, structural_type));
     let id = operations.allocate();
     operations.push(Operation {
         id,
@@ -772,6 +791,31 @@ fn emit_literal(
         },
     });
     id
+}
+
+/// Publish emitted literal homes regardless of which expression consumed them.
+/// Reservations alone are not declarations: only actual producers enter this
+/// roster. Existing Unit/local emitters may already have published a home.
+/// Owned copies have ordinary typed operation results and join the common
+/// result-declaration collector instead of this image-storage namespace.
+pub(crate) fn retain_literal_declarations(
+    operations: &OperationBuffer,
+    declarations: &mut Vec<StructuralPlaceDeclaration>,
+) -> Result<(), LoweringError> {
+    for &(place, structural_type) in &operations.literal_types {
+        if declarations
+            .iter()
+            .any(|declaration| declaration.id == place)
+        {
+            continue;
+        }
+        let kind = StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal: super::next_byte_sequence_literal_ordinal(declarations)?,
+            structural_type,
+        };
+        declarations.push(StructuralPlaceDeclaration { id: place, kind });
+    }
+    Ok(())
 }
 
 /// Establish an owned bounded byte local from its checked initializer.

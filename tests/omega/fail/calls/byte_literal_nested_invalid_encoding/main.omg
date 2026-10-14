@@ -1,0 +1,6 @@
+use omega::language::core::option;
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+data Text [copy] { bytes: &[u8] in Utf8; }
+machine produce(text: Text) -> Optional<u64> { Optional::Some { value: text.bytes.len } }
+machine consume(value: Optional<u64>) {}
+machine main() { consume(produce(Text { bytes: "\xFF" })); }

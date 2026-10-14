@@ -228,13 +228,8 @@ impl StateGraphEmission<'_, '_> {
             self.block_ranks
                 .extend(evaluation.blocks.iter().map(|block| (block.id, rank)));
         }
-        crate::scalar_lowering::computations::literals::retain_declarations(
-            &evaluation.literals,
-            evaluation
-                .blocks
-                .iter()
-                .chain(&edge_blocks)
-                .flat_map(|block| &block.operations),
+        crate::emission::structural_byte_sequence_store::retain_literal_declarations(
+            &operations,
             &mut self.catalogs.temporary_places,
         )?;
         evaluation.blocks.extend(edge_blocks);

@@ -1,0 +1,27 @@
+// Expected exit: 0.
+use omega::language::core::option;
+data Counter { value: u64; }
+machine tick(counter: &mut Counter) -> u64 {
+ transition counter.value < 100 { true -> increment(counter) false -> 100 }
+ state increment(counter: &mut Counter) -> u64 requires counter.value < 100 {
+  counter.value = counter.value + 1;
+  counter.value
+ }
+}
+machine stamped(bytes: &[u8], counter: &mut Counter) -> Optional<u64> {
+ transition bytes.len == 3 {
+  true -> Optional::Some { value: tick(counter) }
+  false -> Optional::None
+ }
+}
+machine ascending(result: Optional<u64>, later: u64) -> bool {
+ transition result { Optional::Some { value } -> (value < later) Optional::None -> false }
+}
+machine main() crashes Trap {
+ let mut counter: Counter = Counter { value: 0 };
+ let first: bool = ascending(stamped("abc", &mut counter), tick(&mut counter));
+ let second: bool = ascending(stamped("def", &mut counter), tick(&mut counter));
+ transition first && second && counter.value == 4 { true -> done() false -> wrong() }
+ state done() {}
+ state wrong() { crash Trap; }
+}

@@ -771,9 +771,10 @@ impl Expansion<'_> {
                     erased_formal_types: Vec::new(),
                     erased_proof_formals: Vec::new(),
                     bindings: Vec::new(),
-                    structural_effects: vec![LoweredScalarEffect::EstablishByteSequenceLiteral(
-                        slot.literal.clone(),
-                    )],
+                    structural_effects: vec![LoweredScalarEffect::EstablishByteSequenceLiteral {
+                        literal: slot.literal.clone(),
+                        memberships: Vec::new(),
+                    }],
                     terminator: LoweredScalarBranchTerminator::jump(
                         continuation,
                         super::parameters(prefix),

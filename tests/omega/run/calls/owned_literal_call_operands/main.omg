@@ -1,0 +1,15 @@
+// Expected exit: 0.
+use omega::language::core::option;
+machine inspect(bytes: [u8; 3]) -> Optional<u64> {
+ Optional::Some { value: bytes.len }
+}
+machine accepted(result: Optional<u64>) -> bool {
+ transition result { Optional::Some { value } -> (value == 3) Optional::None -> false }
+}
+machine main() crashes Trap {
+ let first: bool = accepted(inspect("abc"));
+ let second: bool = accepted(inspect("xyz"));
+ transition first && second { true -> done() false -> wrong() }
+ state done() {}
+ state wrong() { crash Trap; }
+}

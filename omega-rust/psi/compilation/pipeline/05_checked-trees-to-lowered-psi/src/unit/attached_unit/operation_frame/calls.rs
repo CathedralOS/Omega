@@ -763,6 +763,7 @@ impl OperationFrame<'_, '_> {
              operand: &CheckedUnitEffectOperationPlan,
              evaluated: Option<&[ValueDeclaration]>,
              evaluated_selectors: Option<&[ValueDeclaration]>,
+             byte_places: &[PlaceId],
              source_value_count: usize,
              evaluation: &mut argument_evaluation::Evaluation,
              values: &mut Vec<ValueDeclaration>,
@@ -824,7 +825,7 @@ impl OperationFrame<'_, '_> {
                     operand,
                     CallInputs {
                         evaluated_scalar_arguments: evaluated,
-                        byte_places: &[],
+                        byte_places,
                         evaluated_selectors,
                     },
                 )?;

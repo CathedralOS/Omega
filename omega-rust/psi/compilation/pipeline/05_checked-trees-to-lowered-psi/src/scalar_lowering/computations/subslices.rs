@@ -13,15 +13,15 @@ use terminal_psi::StructuralTypeDeclaration;
 
 #[derive(Clone)]
 pub(crate) struct Slot {
-    pub(super) expression: ExpressionHandle,
-    pub(super) place: PlaceId,
-    pub(super) structural_type: StructuralTypeId,
+    pub(crate) expression: ExpressionHandle,
+    pub(crate) place: PlaceId,
+    pub(crate) structural_type: StructuralTypeId,
     bytes: bool,
     storage: view_ranges::RangeStorage,
     whole_view: Option<PlaceId>,
 }
 
-pub(super) use crate::unit::attached_unit::view_ranges::range;
+pub(crate) use crate::unit::attached_unit::view_ranges::range;
 
 pub(crate) fn prepare(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -89,7 +89,7 @@ pub(crate) fn prepare(
     Ok(slots)
 }
 
-fn reserve(
+pub(crate) fn reserve(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
@@ -125,6 +125,34 @@ fn reserve(
 }
 
 impl super::Expansion<'_> {
+    /// Structural and scalar callers use the same range evaluator, including
+    /// selector capture, endpoint sequencing and descriptor narrowing.
+    pub(crate) fn range_argument(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        state: symbols::SymbolHandle,
+        statement: u32,
+        argument: &CheckedUnitStructuralArgumentPlan,
+        slot: &Slot,
+        bindings: &crate::expression_preparation::bindings::ScalarBindings,
+        input_types: &[super::QualifiedScalarType],
+        target: usize,
+    ) -> Result<usize, LoweringError> {
+        self.subslice(
+            identities,
+            argument,
+            slot,
+            input_types,
+            target,
+            &super::Site {
+                state,
+                statement,
+                bindings,
+            },
+            &mut Vec::new(),
+        )
+    }
+
     /// Capture each endpoint once, in start/end order, and retire those scalar
     /// temporaries only after the ordinary descriptor operation consumes them.
     pub(super) fn subslice(

@@ -111,7 +111,7 @@ pub(crate) fn prepare(
                 }
                 continue;
             }
-            let storage = Storage::reserve(checked, root.root, next_place)?;
+            let storage = Storage::reserve(identities, checked, root.root, types, next_place)?;
             let place = storage.place(root.root)?;
             slots.push(Slot {
                 source_call,

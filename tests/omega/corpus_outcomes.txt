@@ -1219,6 +1219,11 @@ fail/calls/boundary_nested_argument_conflicting_loan rejected 1504ms expected @a
 	state `Math::inspect` receives `buffer` as both mutable and read-only
 fail/calls/boundary_projected_subslice_past_end rejected 1564ms expected @a9ae30e1c334+wt
 	cannot prove subslice range start bound `main.start..9` is within slice length 8
+fail/calls/byte_literal_nested_invalid_encoding rejected 690ms expected @0553d60b9b91+wt
+	cannot prove default-domain field requirement for call produce from main::entry: parameter text.bytes requires [u8]::Utf8
+	construction of `Text` field `bytes` is not proven in domain `[u8]::Utf8`; a field declared `in [u8]::Utf8` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+fail/calls/byte_literal_nested_mutable_authority rejected 198ms expected @0553d60b9b91+wt
+	mutable argument for state `entry` must be a named place
 fail/calls/callback_shared_program_excluded_trap rejected 24191ms expected @eee96af606fc+wt
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in machine `PointHandler::visit` (Terminal machine 2) at crash terminator in block 12
@@ -1321,6 +1326,8 @@ fail/calls/nested_call_argument_constraints_unproven rejected 945ms expected @a9
 	cannot prove call argument `30.0` satisfies bounded parameter `value` for `admit` in `terminal.entry`; expected 0..=0.5
 	cannot prove call argument `40.0` satisfies bounded parameter `value` for `admit` in `nested.entry`; expected 0..=0.5
 	cannot prove call argument `left / right` satisfies `finite` for bounded parameter `value` for `finite` in `divided.entry`
+fail/calls/nested_range_call_out_of_bounds rejected 691ms expected @0553d60b9b91+wt
+	cannot prove subslice range end bound `..4` is within slice length 3
 fail/calls/non_unit_compound_expression_requires_use rejected 880ms expected @a9ae30e1c334+wt
 	machine `invalid` state `entry` expression statement discards its non-Unit value; consume the value or discard a call explicitly with `_ = call(...);`
 fail/calls/nontail_value_self_call_rejected rejected 3116ms expected @a9ae30e1c334+wt
@@ -8029,9 +8036,13 @@ run/borrows/stored_subview_identity checked 6293ms check-target:macos_arm64 @322
 run/borrows/stored_subview_nested_call_result checked 6293ms check-target:macos_arm64 @3224bdead711
 run/borrows/stored_subview_repeated_updates checked 6293ms check-target:macos_arm64 @3224bdead711
 run/borrows/transition_shared_borrow checked 11798ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/calls/byte_literal_expression_values checked 6095ms check-target:macos_arm64 @0553d60b9b91+wt
 run/calls/fixed_dividend_across_console_calls checked 8916ms check-target:macos_arm64 @16ed47526a08
+run/calls/nested_range_call_operands checked 6080ms check-target:macos_arm64 @0553d60b9b91+wt
+run/calls/ordered_literal_call_operands checked 6036ms check-target:macos_arm64 @0553d60b9b91+wt
 run/calls/outcome_specific_selected_guarantee_exit rejected 11486ms check-target:macos_arm64 @a9ae30e1c334+wt
 	terminal-artifact production failed: Lowering(Unsupported("outcome-specific guarantees require guarded exit and caller-arm lowering"))
+run/calls/owned_literal_call_operands checked 6033ms check-target:macos_arm64 @0553d60b9b91+wt
 run/calls/resultless_scalar_parameters checked 11475ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/calls/runtime_float_distinct_operand_calls_exit checked 11431ms check-target:macos_arm64 @1f63ee648905+wt
 run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 11428ms check-target:macos_arm64 @1f63ee648905+wt

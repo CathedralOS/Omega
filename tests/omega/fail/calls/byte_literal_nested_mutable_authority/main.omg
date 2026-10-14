@@ -1,0 +1,4 @@
+use omega::language::core::option;
+machine produce(bytes: &mut [u8]) -> Optional<u64> { Optional::Some { value: bytes.len } }
+machine consume(value: Optional<u64>) {}
+machine main() { consume(produce(&mut "abc")); }

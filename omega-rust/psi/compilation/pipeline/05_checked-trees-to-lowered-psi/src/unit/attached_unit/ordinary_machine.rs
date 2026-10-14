@@ -980,9 +980,8 @@ pub(super) fn emit(
                 })
         }
     });
-    crate::scalar_lowering::computations::literals::retain_declarations(
-        &evaluation.literals,
-        evaluation.blocks.iter().flat_map(|block| &block.operations),
+    crate::emission::structural_byte_sequence_store::retain_literal_declarations(
+        &operations,
         &mut private_places,
     )?;
     let computed_array_places = evaluation

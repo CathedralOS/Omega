@@ -50,20 +50,24 @@ pub(crate) struct Storage {
     /// Keep that raw producer separate from the completed operand's home.
     producers: Vec<(checked_trees::CheckedStructuralValueHandle, PlaceId)>,
     results: Vec<(u32, PlaceId)>,
+    ranges: Vec<computations::subslices::Slot>,
 }
 
 impl Storage {
     pub(crate) fn reserve(
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         root: checked_trees::CheckedStructuralValueHandle,
+        types: &[StructuralTypeDeclaration],
         next_place: &mut u64,
     ) -> Result<Self, LoweringError> {
         let mut storage = Self {
             places: Vec::new(),
             producers: Vec::new(),
             results: Vec::new(),
+            ranges: Vec::new(),
         };
-        storage.reserve_value(checked, root, next_place)?;
+        storage.reserve_value(identities, checked, root, types, next_place)?;
         Ok(storage)
     }
 
@@ -92,6 +96,13 @@ pub(crate) struct PreparedValue {
 }
 
 enum Step {
+    Range {
+        argument: checked_trees::CheckedUnitStructuralArgumentPlan,
+        slot: computations::subslices::Slot,
+        bindings: storage::ScalarBindings,
+        statement: u32,
+        prefix: Vec<QualifiedScalarType>,
+    },
     Argument {
         coordinate: checked_trees::CheckedUnitCallCoordinate,
         ordinal: usize,
@@ -200,7 +211,7 @@ pub(crate) fn prepare_value(
     types: &[StructuralTypeDeclaration],
     reserved: &Storage,
 ) -> Result<PreparedValue, LoweringError> {
-    let (machine, _) = crate::declarations::state_declaration(checked, state)?;
+    let (machine, state_declaration) = crate::declarations::state_declaration(checked, state)?;
     let structural_type = carrier_declaration(identities, checked, types, reference)?.id;
     let claims = prepare_establishment_claims(
         identities,
@@ -228,7 +239,24 @@ pub(crate) fn prepare_value(
         storage: Vec::new(),
         claims,
     };
-    let argument = preparation.operand(identities, value, reference, &[])?;
+    let argument = preparation
+        .operand(identities, value, reference, &[])
+        .map_err(|error| {
+            let LoweringError::Unsupported(reason) = error else {
+                return error;
+            };
+            let node = checked.facts.values.structural_values.nodes.get(value);
+            let diagnostic = diagnostics::Diagnostic::error(format!(
+                "machine `{}` state `{}` statement {} cannot lower structural value: {}",
+                machine.name, state_declaration.name, statement, reason,
+            ))
+            .with_source_span(checked.expression_table.source_span(node.expression));
+            LoweringError::InvalidUnitMachinePlan {
+                machine: machine.name.to_string(),
+                reason,
+                gap: Some(diagnostic),
+            }
+        })?;
     let mut place = argument.place;
     if preparation.consumed_calls.len() != calls.len() {
         return unsupported("structural value contains unconsumed call producers");
@@ -438,6 +466,23 @@ impl Preparation<'_> {
         let plans = &self.checked.facts.values.structural_values;
         let node = plans.nodes.get(value);
         let declaration = carrier_declaration(identities, self.checked, self.types, reference)?;
+        if let CheckedStructuralValueKind::ByteLiteralView { bytes } = &node.kind {
+            let place = self.reserved.place(value)?;
+            self.steps.push(Step::Establish {
+                effect: LoweredScalarEffect::EstablishByteSequenceLiteral {
+                    literal:
+                        crate::emission::structural_byte_sequence_store::ByteLiteral::borrowed(
+                            place,
+                            declaration.id,
+                            bytes,
+                            self.types,
+                        )?,
+                    memberships: self.checked_memberships(value)?,
+                },
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
+        }
         if let CheckedStructuralValueKind::BorrowedSliceView { source, region }
         | CheckedStructuralValueKind::MutableSliceView { source, region } = &node.kind
         {
@@ -1301,6 +1346,7 @@ impl PreparedValue {
                 | Step::Establish { prefix, .. }
                 | Step::Zeroed { prefix, .. }
                 | Step::Bind { prefix, .. } => prefix,
+                Step::Range { prefix, .. } => prefix,
             })
             .ok_or(LoweringError::Unsupported(
                 "record construction has no completion",
@@ -1314,6 +1360,15 @@ impl PreparedValue {
         ));
         for step in self.steps.into_iter().rev() {
             target = match step {
+                Step::Range {
+                    argument,
+                    slot,
+                    bindings,
+                    statement,
+                    prefix,
+                } => computations.range_argument(
+                    identities, state, statement, &argument, &slot, &bindings, &prefix, target,
+                )?,
                 Step::Call { prepared, prefix } => {
                     prepared.finish_completed(&prefix, target, computations)
                 }

@@ -1076,8 +1076,10 @@ pub(crate) fn prepare(
                     subject: subject.clone(),
                     receiver: if receiver_value.is_valid() {
                         Some(structural_values::Storage::reserve(
+                            identities,
                             checked,
                             *receiver_value,
+                            types,
                             next_place,
                         )?)
                     } else {
@@ -1168,8 +1170,10 @@ pub(crate) fn prepare(
                 subject: subject.clone(),
                 receiver: if receiver_value.is_valid() {
                     Some(structural_values::Storage::reserve(
+                        identities,
                         checked,
                         *receiver_value,
+                        types,
                         next_place,
                     )?)
                 } else {
