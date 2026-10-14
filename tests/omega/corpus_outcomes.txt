@@ -995,6 +995,18 @@ fail/build/captured_named_input_missing_slot rejected 5188ms expected published:
 	build-time evaluation of `build` failed: named build input `absent` is not assigned to this activation
 fail/build/captured_source_write_grant_refused rejected 5667ms expected published:none @a9ae30e1c334+wt
 	required output `admitted.txt` of `build` failed: captured source write grant denied
+fail/build/component_assumption_malformed rejected 2567ms expected @763aa6f05710+wt
+	component assumption acceptance takes one digest spelled as 64 hexadecimal characters
+fail/build/component_assumption_other_builder rejected 3078ms expected @763aa6f05710+wt
+	the compiler-owned Build activation cannot be copied into local `other`
+	source cannot construct the compiler-owned Build activation
+fail/build/component_assumption_short rejected 3292ms expected @763aa6f05710+wt
+	component assumption acceptance takes one digest spelled as 64 hexadecimal characters
+fail/build/component_assumption_swapped rejected 754ms expected @763aa6f05710+wt
+	argument `builder` for state `accept_component_assumption` is declared `&mut` (`&mut Build`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+	argument `digest` for state `accept_component_assumption` expects `&[u8]`, got `named value`
+fail/build/component_assumption_wrong_arity rejected 763ms expected @763aa6f05710+wt
+	state `accept_component_assumption` expects 2 argument(s), got 1
 fail/build/crash_exclusion_trapping_provider rejected 21854ms expected @a9ae30e1c334+wt
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 4, reached through machine `CheckingAssert::check` (Terminal machine 2) at crash terminator in block 6
@@ -5015,6 +5027,13 @@ pass/build/build_source_gen checked 9734ms @5041ef1af684+wt
 pass/build/build_state_machine checked 9751ms @5041ef1af684+wt
 pass/build/captured_named_input_required_output checked 20687ms published:files/named.txt @a9ae30e1c334+wt
 pass/build/captured_source_generated_constant checked 20839ms published:files/generated.omg @a9ae30e1c334+wt
+pass/build/component_assumption_acceptance checked 17956ms @763aa6f05710+wt
+pass/build/component_assumption_mechanism checked 18016ms @763aa6f05710+wt
+pass/build/component_assumption_policy_accepted checked 18030ms @763aa6f05710+wt
+pass/build/component_assumption_policy_changed checked 18360ms @763aa6f05710+wt
+pass/build/component_assumption_policy_missing checked 17454ms @763aa6f05710+wt
+pass/build/component_assumption_reborrow checked 18131ms @763aa6f05710+wt
+pass/build/component_assumption_user_declaration checked 18148ms @763aa6f05710+wt
 pass/build/conditional_root_binding checked 10302ms check-target:windows_x86_64 @a9ae30e1c334+wt
 pass/build/const_index_dependency_order_exit checked 10505ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/crash_exclusion_untrapping_provider_exit checked 10378ms check-target:macos_arm64 @a9ae30e1c334+wt

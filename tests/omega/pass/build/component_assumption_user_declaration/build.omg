@@ -1,0 +1,8 @@
+data Policy {}
+machine Policy::accept_component_assumption(policy: &Policy, digest: &[u8]) {}
+machine build(builder: &mut Build) {
+    Build::application(builder, "component_assumption_user_declaration");
+    builder.freestanding = true;
+    let policy: Policy = Policy {};
+    Policy::accept_component_assumption(&policy, "not an assumption");
+}

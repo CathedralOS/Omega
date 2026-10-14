@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "component_assumption_swapped");
+    builder.freestanding = true;
+    Build::accept_component_assumption("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", builder);
+}

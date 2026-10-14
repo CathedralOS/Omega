@@ -251,6 +251,18 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             }
             return Ok(value);
         }
+        if let Some(value) = self.try_component_assumption_acceptance(
+            call.target_symbol,
+            self.program
+                .expression_table
+                .expression_handles(call.arguments),
+            frame,
+        )? {
+            if self.guard_depth > 0 {
+                frame.record_guard_call_result(handle, &value);
+            }
+            return Ok(value);
+        }
         // Evaluated behavior exclusions (see the statement-call twin): the
         // call records the selection only when it actually runs against the
         // activation's root Build.

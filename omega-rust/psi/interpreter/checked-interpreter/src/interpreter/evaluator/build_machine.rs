@@ -24,6 +24,31 @@ use super::{Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, Value};
 use symbols::SymbolHandle;
 
 impl Evaluator<'_> {
+    /// Acceptance remains a declaration harvested by the Build owner. Its
+    /// execution still borrows this activation's Build, just like other Build
+    /// operations; a same-typed copy is not authority for the current product.
+    pub(in crate::interpreter::evaluator) fn try_component_assumption_acceptance(
+        &mut self,
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        frame: &mut Frame,
+    ) -> EvalResult<Option<Value>> {
+        if !target.is_valid()
+            || !self.exact_build_facet_method("Build", "accept_component_assumption", target)
+        {
+            return Ok(None);
+        }
+        let [builder, digest] = arguments else {
+            return Err(Halt::Trap(
+                "component assumption acceptance takes an explicit Build argument and one digest spelling".to_owned(),
+            ));
+        };
+        let builder = self.eval_argument(*builder, frame)?;
+        self.require_root_build_argument(self.deref_cell(builder), "accept_component_assumption")?;
+        self.eval_expression(*digest, frame)?;
+        Ok(Some(Value::Unit))
+    }
+
     /// Shared 2-operand product description call: facet-method match, the
     /// facet+path operand pair, then the per-kind issuer.
     pub(in crate::interpreter::evaluator) fn try_build_product_description_call(

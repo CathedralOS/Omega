@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "component_assumption_mechanism");
+    builder.freestanding = true;
+}

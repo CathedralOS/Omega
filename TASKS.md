@@ -3215,27 +3215,6 @@ crash and native exit behavior.
   actual regressions under those owners rather than changing source or
   expected results to make the report empty.
 
-- **COMPONENT-ASSUMPTION-ACCEPTANCE-SHAPE.** (new-scope)
-  `Build::accept_component_assumption` declares signature
-  `(builder: &mut Build, digest: &[u8])` but no authored spelling can
-  reach its behavior: `Build::accept_component_assumption(builder,
-  "64-hex")` — the only arity the checker accepts — reaches the digest
-  harvester
-  (`omega-rust/omega/compilation/realization/trust-model/src/component_assumptions.rs`)
-  with the builder among the call's value arguments, so it reports
-  "component assumption acceptance takes exactly one digest spelling";
-  dropping the builder to satisfy the harvester fails arity ("expects 2
-  argument(s), got 1"); and value-qualified `builder.accept_component_assumption(...)`
-  is retired syntax. The accepted-assumption row family is therefore
-  unreachable from authored builds. Staged in
-  `samples/cli/probes/build_component_assumptions/controls/`:
-  `invalid_assumption_two_arg` and `invalid_assumption_one_arg` pin both
-  rejections. Acceptance: one authored spelling both type-checks and
-  harvests — either the harvester skips the leading builder argument or
-  the row takes a call form whose value arguments exclude it; a
-  well-formed 64-hex digest then lands in the build's accepted-assumption
-  records, a malformed spelling still rejects at its authored span, and
-  the staged controls are flipped/removed accordingly.
 
 ## Lowering simplification
 

@@ -37,16 +37,16 @@ pub fn harvest_component_assumption_acceptances(
 ) -> Result<Vec<AuthoredComponentAssumptionAcceptance>, Vec<Diagnostic>> {
     let mut acceptances: Vec<AuthoredComponentAssumptionAcceptance> = Vec::new();
     let mut diagnostics = Vec::new();
-    let mut record = |target: &str,
+    let mut record = |target: SymbolHandle,
                       value_arguments: &[typed_trees::expression::ExpressionHandle],
                       source_span: source::SourceSpan| {
-        if target != "accept_component_assumption" {
+        if !is_component_assumption_declaration(typed, target) {
             return;
         }
-        let [argument] = value_arguments else {
+        let [_builder, argument] = value_arguments else {
             diagnostics.push(
                 Diagnostic::error(
-                    "component assumption acceptance takes exactly one digest spelling",
+                    "component assumption acceptance takes an explicit Build argument and one digest spelling",
                 )
                 .with_source_span(source_span),
             );
@@ -89,7 +89,7 @@ pub fn harvest_component_assumption_acceptances(
                         typed.expression_table.expression(*expression)
                     {
                         record(
-                            call.target.as_str(),
+                            call.target_symbol,
                             typed.expression_table.expression_handles(call.arguments),
                             typed.expression_table.source_span(*expression),
                         );
@@ -97,7 +97,7 @@ pub fn harvest_component_assumption_acceptances(
                 }
                 typed_trees::statement::StatementNode::Call(call) => {
                     record(
-                        call.target.as_str(),
+                        call.target_symbol,
                         typed.statement_table.expression_handles(call.arguments),
                         call.source_span,
                     );
@@ -111,6 +111,22 @@ pub fn harvest_component_assumption_acceptances(
     } else {
         Err(diagnostics)
     }
+}
+
+/// Ordinary same-named declarations are not acceptance authority. The checked
+/// call must resolve the exact state supplied by the toolchain Build prelude.
+fn is_component_assumption_declaration(typed: &TypedTrees, target: SymbolHandle) -> bool {
+    typed.symbols.is_build_prelude_symbol(target)
+        && typed.machines().iter().any(|machine| {
+            typed.symbols.is_build_prelude_symbol(machine.symbol)
+                && machine
+                    .attached_data
+                    .as_ref()
+                    .is_some_and(|name| name.as_str() == "Build")
+                && typed.machine_states(machine).iter().any(|state| {
+                    state.symbol == target && state.name.as_str() == "accept_component_assumption"
+                })
+        })
 }
 
 /// Decode one authored digest spelling: exactly 64 hexadecimal characters

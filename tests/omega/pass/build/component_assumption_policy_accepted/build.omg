@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "component_assumption_policy_accepted");
+    builder.freestanding = true;
+    Build::depend(builder, Source::Path { location: "../component_assumption_mechanism" });
+    Build::accept_component_assumption(builder, "911df406cf3928bc12f1df49472d755b4e66b224bb36bf88fd18aa93990b718e");
+}

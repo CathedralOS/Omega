@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_assumption_two_arg` with 1 diagnostic(s)
-  error: component assumption acceptance takes exactly one digest spelling

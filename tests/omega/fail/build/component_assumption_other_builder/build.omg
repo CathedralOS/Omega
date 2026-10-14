@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "component_assumption_other_builder");
+    builder.freestanding = true;
+    let mut other: Build = Build {};
+    Build::accept_component_assumption(&mut other, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+}

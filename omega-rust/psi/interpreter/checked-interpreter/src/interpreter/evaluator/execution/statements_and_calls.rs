@@ -296,6 +296,15 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(Value::Unit);
         }
+        if let Some(value) = self.try_component_assumption_acceptance(
+            call.target_symbol,
+            self.program
+                .statement_table
+                .expression_handles(call.arguments),
+            frame,
+        )? {
+            return Ok(value);
+        }
         // Exclusions include exact static Build calls: their authority is an
         // explicit argument, so namespace classification cannot bypass them.
         if let Some(value) = self.try_behavior_exclusion_statement(statement, call, frame)? {

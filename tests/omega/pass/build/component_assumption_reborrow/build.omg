@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "component_assumption_reborrow");
+    builder.freestanding = true;
+    Build::accept_component_assumption(&mut builder, "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF");
+}

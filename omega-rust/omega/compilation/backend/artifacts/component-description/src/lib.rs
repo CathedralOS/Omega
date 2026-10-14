@@ -36,7 +36,7 @@ pub use component_description::{
     decode_component_description, description_subject, encode_component_description,
 };
 pub use component_verification::{
-    ComponentVerificationRequest, IndependentRealizationMismatch, VerifiedComponent,
-    verify_component,
+    ComponentVerificationRejection, ComponentVerificationRequest, IndependentRealizationMismatch,
+    VerifiedComponent, verify_component,
 };
 pub use publication::publish_component_description;

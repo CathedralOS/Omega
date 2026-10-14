@@ -1,0 +1,5 @@
+// Inspect only: no host execution of this physical mechanism is authorized.
+use omega::language::core::assembly;
+pub machine emit() reaches PortIo {
+    asm where clobbers r10, r11, r15, rax, rdx { out 0x3F8, 0x41 }
+}

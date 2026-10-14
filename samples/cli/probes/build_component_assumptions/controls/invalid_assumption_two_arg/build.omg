@@ -1,9 +1,0 @@
-// `Build::accept_component_assumption(builder, digest)` — the only arity
-// the checker accepts — reaches the digest harvester carrying the builder
-// as a value argument, so it reports "takes exactly one digest spelling".
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_assumption_two_arg");
-    builder.freestanding = true;
-    Build::accept_component_assumption(builder, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
-}
