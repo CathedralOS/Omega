@@ -656,6 +656,7 @@ pass/collections/case_array_literal_callee_store_exit built 617ms exit:7 @480083
 pass/collections/case_array_literal_field_store_exit built 796ms exit:42 @48008365d839
 pass/collections/case_array_literal_nested_store_exit built 670ms exit:9 @48008365d839
 pass/collections/case_array_literal_row_store_exit built 728ms exit:3 @48008365d839
+pass/collections/contract_length_results_exit built 26497ms exit:0 @55ccf9be57c4
 pass/collections/cyclic_shared_plain_array_parameter_exit built 39901ms exit:42 @e8b552c0b9a5+wt
 pass/collections/element_policy_array_literal_store built 1426ms exit:0 @bed5f45e9185+wt
 pass/collections/element_view_borrow_local built 966ms exit:181 @2c44d70118d1+wt
@@ -2416,6 +2417,7 @@ run/contained_health_loop_command_branch checked 192ms
 run/domains/qualified_record_transfer built 6237ms exit:0 @868a854ecd4d+wt
 run/domains/semantic_predicate_domain_admission built 11653ms exit:0 @896172b5d9d8+wt
 run/domains/structural_qualification_cast_values built 11442ms exit:0 @0bb0340f378d+wt
+run/dyn_finite_family_runtime_dispatch built 10116ms exit:70 @55ccf9be57c4
 run/nested_mut_alias_assignment_return built 944ms exit:0 stdout:match @874bbd295e3e+wt
 run/stores/runtime_float_indexed_call_result_exit built 9716ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
 run/stores/runtime_float_store_selector_snapshot_exit built 9116ms exit:0 stdout:match stderr:match @589aedee8ebc+wt

@@ -5634,7 +5634,7 @@ pass/collections/case_array_literal_callee_store_exit checked 11758ms check-targ
 pass/collections/case_array_literal_field_store_exit checked 11763ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/case_array_literal_nested_store_exit checked 11592ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/case_array_literal_row_store_exit checked 11436ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/contract_length_results_exit checked 21721ms check-target:linux_x86_64 @510dbaffdefa
+pass/collections/contract_length_results_exit checked 26531ms check-target:macos_arm64 @55ccf9be57c4
 pass/collections/cyclic_shared_plain_array_parameter_exit checked 38123ms check-target:macos_arm64 @1f63ee648905+wt
 pass/collections/element_policy_array_literal_store checked 11771ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/element_view_borrow_local checked 11588ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8077,7 +8077,7 @@ run/domains/structural_qualification_cast_values checked 11150ms check-target:ma
 run/domains/structural_qualification_nested_values checked 11004ms check-target:macos_arm64 @73e466d6222f+wt
 run/dyn_finite_family_correlated checked 49536ms check-target:linux_x86_64 @4730b1ac8a84
 run/dyn_finite_family_owned_carrier checked 34492ms check-target:linux_x86_64 @4730b1ac8a84
-run/dyn_finite_family_runtime_dispatch checked 16041ms check-target:linux_x86_64 @4730b1ac8a84
+run/dyn_finite_family_runtime_dispatch checked 12276ms check-target:macos_arm64 @55ccf9be57c4
 run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:macos_arm64 @9c4d1c444502
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/ownership/temporary_case_observation checked 5301ms check-target:macos_arm64 @0e81fb3e4cce+wt
