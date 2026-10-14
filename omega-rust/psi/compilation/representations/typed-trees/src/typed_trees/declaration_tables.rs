@@ -215,6 +215,26 @@ impl TypedTrees {
             .span_or_empty(data_definition.type_parameters)
     }
 
+    /// Syntax lowering places each ordinary Value binder's descriptor before
+    /// authored members, in telescope order. Keep that producer association;
+    /// executable consumers select the resulting field by its symbol.
+    pub fn data_value_parameter_fields<'a>(
+        &'a self,
+        definition: &data::DataDefinition,
+    ) -> impl Iterator<Item = (&'a data::TypeParameter, &'a data::DataField)> + 'a {
+        self.data_type_parameters(definition)
+            .iter()
+            .filter(|parameter| matches!(parameter.kind, data::TypeParameterKind::Value { .. }))
+            .zip(self.data_members(definition))
+            .filter_map(|(parameter, member)| {
+                let data::DataMember::Field(field) = member else {
+                    return None;
+                };
+                // This is a producer invariant, never a spelling-based search.
+                (parameter.name == field.name).then_some((parameter, field))
+            })
+    }
+
     pub fn push_data_member(
         &mut self,
         data_definition: &mut data::DataDefinition,

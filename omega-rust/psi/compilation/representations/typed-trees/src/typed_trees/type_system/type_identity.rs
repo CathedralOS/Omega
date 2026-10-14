@@ -24,6 +24,7 @@ mod lifetime_parameters;
 mod normalized_identities;
 mod open_index_identity;
 mod result_dispatch_terms;
+mod storage_identity;
 mod substitution;
 
 pub use callable_identity::{
@@ -776,6 +777,29 @@ impl TypedTrees {
             request,
             SubstitutionSemantics::Transitive,
             &[],
+        )
+    }
+
+    /// Identity for a retained storage plan, never application compatibility.
+    /// Only declaration-identified value positions proven independent of every
+    /// member's complete type may share storage across runtime subjects.
+    pub fn storage_type_identity(
+        &self,
+        request: TypeIdentityRequest<'_>,
+    ) -> NormalizedTypeIdentity {
+        program_intern_type_identity(
+            self,
+            normalize_type_reference(
+                self,
+                request.type_reference,
+                &TypeIdentityContext {
+                    storage_value_indices: true,
+                    binders: request.binders,
+                    substitutions: request.substitutions,
+                    qualification: request.qualification,
+                    ..TypeIdentityContext::default()
+                },
+            ),
         )
     }
 

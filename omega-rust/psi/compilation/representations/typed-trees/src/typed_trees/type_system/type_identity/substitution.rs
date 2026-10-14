@@ -112,9 +112,7 @@ pub(super) fn index_name(
     if let Some(value) = integer(program, symbol, spelling) {
         return atom("integer", &value.to_string());
     }
-    if !symbol.is_valid()
-        && let Some(value) = language_semantics::const_value::boolean_literal_spelling(spelling)
-    {
+    if let Some(value) = boolean(program, symbol, spelling) {
         return atom("boolean", &value.to_string());
     }
     normalize_const_or_nominal_name(program, symbol, spelling, "const-name", context)
@@ -309,6 +307,25 @@ fn rejected(context: &TypeIdentityContext<'_>) -> String {
         missing.set(true);
     }
     "unsupported-const-substitution".to_owned()
+}
+
+// A named evaluated Boolean and its literal denote the same exact index.
+// Runtime symbols never enter this decoder: only admitted const declarations do.
+fn boolean(program: &TypedTrees, symbol: SymbolHandle, spelling: &str) -> Option<bool> {
+    let value = if symbol.is_valid() {
+        let declaration = program.const_declaration_by_symbol(symbol)?;
+        let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
+        CanonicalConstValue::new("", encoding.to_owned(), "").decode_encoding()?
+    } else {
+        if let Some(value) = language_semantics::const_value::boolean_literal_spelling(spelling) {
+            return Some(value);
+        }
+        CanonicalConstValue::from_atom(spelling)?.decode_encoding()?
+    };
+    match value {
+        DecodedCanonicalConstValue::Boolean(value) => Some(value),
+        _ => None,
+    }
 }
 
 fn integer(program: &TypedTrees, symbol: SymbolHandle, spelling: &str) -> Option<i128> {

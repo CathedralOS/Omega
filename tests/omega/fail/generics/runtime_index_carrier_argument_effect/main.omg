@@ -1,0 +1,4 @@
+data Indexed<Limit:u32>{value:u32;}
+machine change(slot:&mut u32)->u32 { slot=13; 0 }
+machine observe(limit:u32,later:u32,item:Indexed<limit>)->u32 { item.Limit }
+machine preserve(value:u32)->u32 { let mut limit:u32=7; observe(limit,change(&mut limit),Indexed{value:value}) }

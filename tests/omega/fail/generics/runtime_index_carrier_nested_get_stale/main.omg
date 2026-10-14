@@ -1,0 +1,9 @@
+data Indexed<Limit: u32> { value: u32; }
+data Wrapper<Limit: u32> { child: Indexed<Limit>; }
+machine read(limit:u32,item:Indexed<limit>)->u32 { item.value }
+machine preserve(value:u32)->u32 {
+let mut a:u32=7;
+let wrapper: Wrapper<a> = Wrapper { child: Indexed { value: value } };
+a=13;
+read(a,wrapper.child)
+}

@@ -105,6 +105,7 @@ fn assign_machine_references(
             prior_statements: &[],
             data_definitions,
             data_members,
+            data_type_parameters,
             data_payload_fields: &tables.declarations.data_payload_fields,
             type_constraints,
         };

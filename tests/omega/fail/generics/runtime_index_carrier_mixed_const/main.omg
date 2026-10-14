@@ -1,0 +1,6 @@
+data Tagged<T, const Count: u32, Limit: u32> { value: T; }
+machine preserve(limit:u32,value:u32) -> u32 {
+let item: Tagged<u32, 3, limit> = Tagged { value:value };
+let wrong: Tagged<u32, 4, limit> = item;
+value
+}

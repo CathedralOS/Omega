@@ -94,7 +94,7 @@ pub fn structural_type_identity(
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> typed_trees::type_identity::TypeIdentityId {
-    program.type_identity(TypeIdentityRequest {
+    program.storage_type_identity(TypeIdentityRequest {
         binders,
         substitutions,
         ..TypeIdentityRequest::ordinary(structural_identity_type(
@@ -130,7 +130,7 @@ pub fn stored_structural_type_identity(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> typed_trees::type_identity::TypeIdentityId {
     if stores_reference_shape(program, type_reference, substitutions) {
-        return program.type_identity(TypeIdentityRequest {
+        return program.storage_type_identity(TypeIdentityRequest {
             binders,
             substitutions,
             ..TypeIdentityRequest::ordinary(type_reference)

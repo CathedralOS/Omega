@@ -1,0 +1,7 @@
+data Indexed<Flag:bool>{value:u32;}
+const FLAG:bool=true;
+machine preserve(value:u32)->u32 {
+let item:Indexed<FLAG> = Indexed {value:value};
+let copy:Indexed<FLAG> = item;
+copy.value
+}

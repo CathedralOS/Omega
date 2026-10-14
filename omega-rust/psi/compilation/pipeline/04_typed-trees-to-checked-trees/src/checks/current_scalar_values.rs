@@ -154,7 +154,7 @@ impl<'program> CurrentScalarValues<'program> {
         if statement_index > statements.len() {
             return None;
         }
-        for statement in &statements[..statement_index] {
+        for (ordinal, statement) in statements[..statement_index].iter().enumerate() {
             if validation::is_arm_pattern_marker(statement) {
                 continue;
             }
@@ -187,7 +187,13 @@ impl<'program> CurrentScalarValues<'program> {
                         local.type_reference,
                         local.initial_value,
                     );
-                    if integer_carrier(program, local.type_reference).is_some() {
+                    if let Some(primitive) = integer_carrier(program, local.type_reference) {
+                        // The executed initializer has one value even when its
+                        // computation is unavailable to arithmetic reasoning.
+                        // Keep that observation, not a replay of the initializer.
+                        let value = value.or_else(|| {
+                            Some(observed_scalar(state, local.symbol, ordinal, primitive))
+                        });
                         values.current.push(Binding {
                             symbol: local.symbol,
                             name: local.name.to_string(),
@@ -207,7 +213,16 @@ impl<'program> CurrentScalarValues<'program> {
                             .iter_mut()
                             .find(|binding| binding.symbol == name.symbol)
                     {
-                        binding.value = value;
+                        binding.value = value.or_else(|| {
+                            let reference = validation::expression_result_type_reference(
+                                program,
+                                machine,
+                                state,
+                                assignment.target,
+                            )?;
+                            let primitive = integer_carrier(program, reference)?;
+                            Some(observed_scalar(state, name.symbol, ordinal, primitive))
+                        });
                     } else if let ExpressionNode::Name(name) =
                         program.expression_table.expression(assignment.target)
                         && name.symbol == name.head_symbol
@@ -496,6 +511,17 @@ impl<'program> CurrentScalarValues<'program> {
         })
         .flatten()
         .map(ScopedArithmeticValue::Term)
+    }
+
+    /// Exact value of a runtime index at this occurrence. Its declaration
+    /// symbol remains storage identity; the returned roster value captures
+    /// assignments and unknown write effects at the selected program point.
+    pub(crate) fn current_symbol(&self, symbol: SymbolHandle) -> Option<ScopedArithmeticValue> {
+        self.current
+            .iter()
+            .find(|binding| binding.symbol == symbol)?
+            .value
+            .clone()
     }
 
     pub(crate) fn initial_symbol(&self, symbol: SymbolHandle) -> Option<ScopedArithmeticValue> {
@@ -826,6 +852,24 @@ fn field_occurrence(
         ),
         unsigned: unsigned(primitive),
     })
+}
+
+/// Identity belongs to this executed store on the current state activation.
+/// Distinct stores never share an unknown merely because they have the same
+/// destination or initializer; subsequent effects still retire the binding.
+fn observed_scalar(
+    state: &State,
+    symbol: SymbolHandle,
+    statement: usize,
+    primitive: PrimitiveType,
+) -> ScopedArithmeticValue {
+    ScopedArithmeticValue::Atom {
+        identity: format!(
+            "state:{:?}:store:{statement}:scalar:{symbol:?}",
+            state.symbol
+        ),
+        unsigned: unsigned(primitive),
+    }
 }
 
 fn admitted(

@@ -43,6 +43,7 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
                 prior_statements: &[],
                 data_definitions: &program.roots.data_definitions,
                 data_members: &declarations.data_members,
+                data_type_parameters: &declarations.data_type_parameters,
                 data_payload_fields: &declarations.data_payload_fields,
                 type_constraints: &program.tables.types.constraints,
             };
@@ -75,6 +76,7 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
             prior_statements: &[],
             data_definitions: &program.roots.data_definitions,
             data_members: &declarations.data_members,
+            data_type_parameters: &declarations.data_type_parameters,
             data_payload_fields: &declarations.data_payload_fields,
             type_constraints: &program.tables.types.constraints,
         };
@@ -237,6 +239,41 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
         TypeReference::Generic(generic) => {
             for argument in generic.arguments.handles() {
                 child(argument);
+            }
+            // Value-index operands inhabit the surrounding value scope. Their
+            // exact declaration survives typing; a spelling is not a static
+            // value and cannot become an application identity by itself.
+            let telescope = machine
+                .data_definitions
+                .iter()
+                .find(|data| data.symbol == generic.base_symbol)
+                .map(|data| {
+                    machine
+                        .data_type_parameters
+                        .span_or_empty(data.type_parameters)
+                });
+            if let Some(telescope) = telescope {
+                for (parameter, argument) in telescope.iter().zip(generic.arguments.handles()) {
+                    if !matches!(
+                        parameter.kind,
+                        symbol_resolved_trees::data::TypeParameterKind::Value { .. }
+                            | symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+                    ) {
+                        continue;
+                    }
+                    if let TypeReference::Named { symbol, name, .. } = child_types.get_mut(argument)
+                    {
+                        let lexical = crate::symbols::expressions::lexical_value_head(
+                            machine,
+                            parameters,
+                            name.as_str(),
+                            false,
+                        );
+                        if lexical.is_valid() {
+                            *symbol = lexical;
+                        }
+                    }
+                }
             }
         }
         TypeReference::Constrained(constrained) => {

@@ -1,0 +1,2 @@
+data Indexed<Limit:u32>{value:u32;}
+machine preserve(limit:u32,value:u32)->u32 { let item:Indexed<limit> = Indexed{value:value}; item.Limit }

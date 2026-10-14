@@ -54,6 +54,7 @@ mod requirement_applications;
 pub(crate) use requirement_applications::instantiate_requirement_applications;
 pub(crate) use type_reference_walk::{for_each_type_reference, type_reference_endpoints};
 mod const_values;
+pub(crate) use const_values::value as materialize_static_value;
 mod range_arguments;
 mod result_locals;
 mod saved_calls;

@@ -283,9 +283,18 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
     {
         return;
     }
-    let mut is_closed = arguments
+    // A runtime-capable index need not be static to have fixed storage.
+    // Its substituted fields still prove representation closure below; this
+    // never admits a dynamic inline extent or erases application identity.
+    let mut is_closed = parameters
         .iter()
-        .all(|argument| closed_type(program, *argument));
+        .zip(&arguments)
+        .all(|(parameter, argument)| {
+            matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Value { .. }
+            ) || closed_type(program, *argument)
+        });
     // Const evaluation can already have retained a declaration with exact
     // extents and constructor facts. Runtime carrier equality alone is not
     // enough to reuse its fields: it erases regions inside type arguments.

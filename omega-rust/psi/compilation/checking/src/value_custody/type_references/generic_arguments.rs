@@ -324,6 +324,26 @@ pub(crate) fn validate_const_data_argument(
     type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // Ordinary value binders retain a runtime subject, independently of its
+    // carrier. Const binders continue through static admission below.
+    if matches!(parameter.kind, TypeParameterKind::Value { .. })
+        && let TypeReferenceNode::Named { symbol, name } =
+            program.type_reference_table.type_reference(argument)
+        && symbol.is_valid()
+        && matches!(
+            program.symbols.get(*symbol).kind,
+            symbols::SymbolKind::Local | symbols::SymbolKind::Parameter
+        )
+    {
+        let actual = crate::value_custody::places::declaration_type_reference(program, *symbol);
+        if !actual.is_some_and(|actual| type_references_match(program, actual, parameter_type)) {
+            diagnostics.push(Diagnostic::error(format!(
+                "value parameter `{}` of `{base_name}` requires `{}`, but runtime subject `{name}` has a different carrier",
+                parameter.name, type_reference_label(program, parameter_type),
+            )));
+        }
+        return;
+    }
     let primitive = program.type_reference_table.primitive_type(parameter_type);
     let is_integer_parameter = primitive.is_some_and(PrimitiveType::accepts_integer_literal);
     if let TypeReferenceNode::ConstExpression(root) =

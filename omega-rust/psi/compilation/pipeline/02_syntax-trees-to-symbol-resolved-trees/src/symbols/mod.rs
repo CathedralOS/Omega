@@ -433,6 +433,7 @@ pub(crate) fn assign_constant_expression_symbols(
         prior_statements: &[],
         data_definitions: &program.roots.data_definitions,
         data_members: &declarations.data_members,
+        data_type_parameters: &declarations.data_type_parameters,
         data_payload_fields: &declarations.data_payload_fields,
         type_constraints: &program.tables.types.constraints,
     };

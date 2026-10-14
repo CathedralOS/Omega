@@ -1,0 +1,3 @@
+data Indexed<Limit: u32> { value: u32; }
+const LIMIT: u32 = 9;
+machine preserve(value:u32)->u32 { let item:Indexed<LIMIT> = Indexed { value:value }; let copy:Indexed<LIMIT> = item; copy.value }

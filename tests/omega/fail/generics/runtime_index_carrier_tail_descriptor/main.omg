@@ -1,0 +1,2 @@
+data Indexed<Limit:u32>{value:u32;}
+machine wrong(limit:u32,value:u32)->Indexed<limit> { Indexed{Limit:0,value:value} }

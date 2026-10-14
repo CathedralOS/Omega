@@ -1,0 +1,5 @@
+data Indexed<const Limit: u32> { value: u32; }
+machine preserve(limit: u32, value: u32) -> u32 {
+ let indexed: Indexed<limit> = Indexed { value: value };
+ indexed.value
+}

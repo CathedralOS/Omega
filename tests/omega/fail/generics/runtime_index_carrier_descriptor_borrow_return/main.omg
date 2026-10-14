@@ -1,0 +1,2 @@
+data Indexed<Limit:u32>{value:u32;}
+machine expose<'a>(item:&'a mut Indexed<9>)->&'a mut u32 { &mut item.Limit }

@@ -1,0 +1,8 @@
+data Indexed<Limit:u32>{value:u32;}
+machine select(value:u32)->u32 { value }
+machine preserve(limit:u32,value:u32)->u32 {
+ let mut selected:u32=select(limit);
+ let item:Indexed<selected> = Indexed{value:value};
+ selected=select(value);
+ let wrong:Indexed<selected> = item; wrong.value
+}

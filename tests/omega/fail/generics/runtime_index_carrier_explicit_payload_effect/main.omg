@@ -1,0 +1,3 @@
+data Indexed<Limit:u32>{value:u32;}
+machine change(slot:&mut u32)->u32 { slot=13; 0 }
+machine preserve()->u32 { let mut limit:u32=7; let item:Indexed<limit> = Indexed{value:change(&mut limit),Limit:limit}; item.Limit }

@@ -19,6 +19,7 @@ use symbols::SymbolHandle;
 
 #[derive(Default)]
 pub(crate) struct TypeIdentityContext<'binders> {
+    pub(crate) storage_value_indices: bool,
     pub(crate) application_scopes: &'binders [super::AppliedTypeIdentityScope<'binders>],
     pub(crate) application_owner: SymbolHandle,
     pub(crate) invalid_application: Option<&'binders Cell<bool>>,
@@ -337,7 +338,7 @@ fn generic_reference_identity<'program>(
     // The declaration's telescope owns argument roles for code selections as
     // well as data applications. A const in a nested implementation must use
     // the same index grammar before and after caller-side substitution.
-    let parameters = if context.invalid_application.is_some() {
+    let parameters = if context.invalid_application.is_some() || context.storage_value_indices {
         application_parameters(program, symbol)
     } else {
         &[]
@@ -353,6 +354,15 @@ fn generic_reference_identity<'program>(
             .iter()
             .enumerate()
             .map(|(ordinal, argument)| {
+                if context.storage_value_indices
+                    && parameters.get(ordinal).is_some_and(|parameter| {
+                        super::storage_identity::independent_value_index(program, symbol, parameter)
+                    })
+                {
+                    // This positional marker describes storage only. Source
+                    // application equality always keeps the actual subject.
+                    return "unit".to_owned();
+                }
                 let is_index = context.invalid_application.is_some()
                     && parameters
                         .get(ordinal)

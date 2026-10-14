@@ -1,0 +1,2 @@
+data Indexed<Limit:u32>{value:u32;}
+machine wrong(mut limit:u32,value:u32)->Indexed<limit> { let item:Indexed<limit> = Indexed{value:value}; limit=13; Indexed{value:value} }

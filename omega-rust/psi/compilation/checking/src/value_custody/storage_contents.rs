@@ -40,6 +40,8 @@ enum ContentType {
     /// A closed const argument. It fills a const parameter's slot so data
     /// arguments stay positional, and is never itself a member's contents.
     ConstValue,
+    /// An admitted value index is an application operand, never a stored type.
+    RuntimeIndex,
     /// An existing provider handle; borrowing it neither installs a provider
     /// nor authorizes erasure. Shape collection retains that separate receipt.
     Provider,
@@ -48,7 +50,12 @@ enum ContentType {
 impl ContentType {
     fn size(&self) -> usize {
         match self {
-            Self::Scalar(_) | Self::Atomic(_) | Self::ConstValue | Self::View | Self::Provider => 1,
+            Self::Scalar(_)
+            | Self::Atomic(_)
+            | Self::ConstValue
+            | Self::RuntimeIndex
+            | Self::View
+            | Self::Provider => 1,
             Self::Array(element, _) => 1 + element.size(),
             Self::Slice(element) | Self::Shared(element) => 1 + element.size(),
             Self::Data { arguments, .. } => 1 + arguments.iter().map(Self::size).sum::<usize>(),
@@ -360,6 +367,10 @@ fn resolve_parameter_argument(
     requirement: ContentsRequirement,
 ) -> Option<ContentType> {
     match parameter.kind {
+        // Argument admission and captured-subject equality are separate
+        // checks. Contents follow the substituted fields, so this marker
+        // cannot supply a field type, extent, loan, or cleanup permission.
+        typed_trees::data::TypeParameterKind::Value { .. } => Some(ContentType::RuntimeIndex),
         typed_trees::data::TypeParameterKind::Type => {
             resolve(program, reference, arguments, requirement)
         }
@@ -441,7 +452,8 @@ fn resolve(
             // stays unclassified. A member that sizes storage by it needs an
             // independently retained closed instance below; this classifier
             // never evaluates const arguments or guesses array lengths.
-            // Runtime-capable value binders and machine parameters stay out.
+            // Runtime indices likewise carry no storage here; their ordinary
+            // represented fields must independently satisfy this judgment.
             let resolved = parameters
                 .iter()
                 .zip(source_arguments)
@@ -774,7 +786,7 @@ fn check_contents(
             ContentType::View | ContentType::Provider => true,
             // A const parameter named where a member type belongs is not
             // storage the classifier understands.
-            ContentType::ConstValue => false,
+            ContentType::ConstValue | ContentType::RuntimeIndex => false,
             ContentType::Data { .. } => unreachable!(),
         };
     };

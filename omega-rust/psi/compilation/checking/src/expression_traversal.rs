@@ -16,6 +16,49 @@ use typed_trees::expression::{
 };
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+/// Only already-inert value trees permit another observation of an argument.
+/// Unknown operator and indexing behavior is deliberately not called pure here;
+/// preparation has no checked effect judgment authorizing such a replay.
+pub fn inert_value_tree(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
+    inert_value_tree_with_calls(program, expression, |_| false)
+}
+
+/// Permit a call only when its caller supplies an exact no-write judgment.
+/// Operators and atomic evaluation retain their conservative boundary; this
+/// callback does not authorize unknown executable node families.
+pub fn inert_value_tree_with_calls(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    mut allow_call: impl FnMut(ExpressionHandle) -> bool,
+) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    let mut expressions = Vec::new();
+    collect_expression_tree(program, expression, &mut expressions);
+    expressions.iter().all(|expression| {
+        if matches!(
+            program.expression_table.expression(*expression),
+            ExpressionNode::Call(_)
+        ) {
+            return allow_call(*expression);
+        }
+        matches!(
+            program.expression_table.expression(*expression),
+            ExpressionNode::Name(_)
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::Boolean(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::String(_)
+                | ExpressionNode::StructLiteral(_)
+                | ExpressionNode::ArrayLiteral(_)
+                | ExpressionNode::Borrow(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Match(_)
+        )
+    })
+}
+
 pub fn children(
     program: &dyn crate::CheckingInput,
     node: &ExpressionNode,

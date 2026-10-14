@@ -1,0 +1,6 @@
+data Indexed<Limit: u32> { value: u32; }
+machine preserve(a:u32,b:u32,value:u32)->u32 {
+let item: Indexed<a> = Indexed { value: value };
+let wrong: [Indexed<b>; 1] = [item];
+wrong[0].value
+}

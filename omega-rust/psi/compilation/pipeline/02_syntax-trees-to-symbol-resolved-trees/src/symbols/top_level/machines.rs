@@ -219,6 +219,7 @@ pub(super) fn assign_machine_symbols(
             inherited_data_members: None,
             data_definitions,
             data_members,
+            data_type_parameters,
             data_payload_fields: &declarations.data_payload_fields,
             type_constraints,
         };

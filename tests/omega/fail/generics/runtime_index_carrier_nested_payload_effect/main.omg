@@ -1,0 +1,4 @@
+data Indexed<Limit:u32>{value:u32;}
+data Pair<T> { first:u32; second:T; }
+machine change(slot:&mut u32)->u32 { slot=13; 0 }
+machine preserve()->u32 { let mut limit:u32=7; let item:Pair<Indexed<limit>> = Pair{first:change(&mut limit),second:Indexed{value:31}}; item.second.Limit }

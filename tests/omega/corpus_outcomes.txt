@@ -2856,6 +2856,73 @@ fail/generics/returned_applied_field_does_not_widen_access rejected 168ms expect
 	mutable argument `returned` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/generics/returned_generic_result_parameter_mismatch rejected 254ms expected @6ef08ceefee0+wt
 	machine `wrong` state `entry` local `__hoist_14` expects `Output`, but the value is delivered as `Input`
+fail/generics/runtime_index_carrier_argument_effect rejected 267ms expected @afe3f46cebb2+wt
+	cannot retain runtime index descriptor `Limit` from its application argument without an evaluated scalar subject
+fail/generics/runtime_index_carrier_array_extent_mismatch rejected 1790ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_array_mismatch rejected 1734ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_borrow_mismatch rejected 2186ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_call_selected_mutated rejected 1859ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_call_selected_stale rejected 2380ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_cast_stale rejected 2436ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_const rejected 23ms expected @afe3f46cebb2+wt
+	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
+fail/generics/runtime_index_carrier_descriptor_borrow_alias rejected 2078ms expected @afe3f46cebb2+wt
+	mutable scalar loan cannot preserve a runtime index descriptor
+fail/generics/runtime_index_carrier_descriptor_borrow_call rejected 2148ms expected @afe3f46cebb2+wt
+	mutable scalar loan cannot preserve a runtime index descriptor
+fail/generics/runtime_index_carrier_descriptor_borrow_return rejected 1870ms expected @afe3f46cebb2+wt
+	mutable scalar loan cannot preserve a runtime index descriptor
+fail/generics/runtime_index_carrier_descriptor_indexed_write rejected 1846ms expected @afe3f46cebb2+wt
+	cannot prove runtime index descriptor equals its captured index
+fail/generics/runtime_index_carrier_descriptor_whole_write rejected 1946ms expected @afe3f46cebb2+wt
+	cannot prove runtime index descriptor equals its captured index
+fail/generics/runtime_index_carrier_explicit_argument_effect rejected 200ms expected @afe3f46cebb2+wt
+	cannot validate runtime index descriptor `Limit` across argument or field effects without an evaluated scalar snapshot
+fail/generics/runtime_index_carrier_explicit_payload_effect rejected 199ms expected @afe3f46cebb2+wt
+	cannot validate runtime index descriptor `Limit` across argument or field effects without an evaluated scalar snapshot
+fail/generics/runtime_index_carrier_match_mismatch rejected 881ms expected @afe3f46cebb2+wt
+	owned match requires one existing whole plain-affine or linear-owned local per path and an immutable local or return destination; projections, calls and borrowed custody require additional ownership evidence
+fail/generics/runtime_index_carrier_metadata_mismatch rejected 1952ms expected @afe3f46cebb2+wt
+	cannot prove runtime index descriptor equals its captured index
+fail/generics/runtime_index_carrier_metadata_write rejected 1763ms expected @afe3f46cebb2+wt
+	cannot prove runtime index descriptor equals its captured index
+fail/generics/runtime_index_carrier_mismatch rejected 1648ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_mixed_const rejected 1788ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_mixed_type rejected 1991ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_nested_get_stale rejected 2101ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_nested_mismatch rejected 1843ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_nested_payload_effect rejected 218ms expected @afe3f46cebb2+wt
+	cannot retain runtime index descriptor `Limit` from its application argument without an evaluated scalar subject
+fail/generics/runtime_index_carrier_nested_stale rejected 1922ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_nested_type_extent_mismatch rejected 1922ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_result_argument_effect rejected 1964ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_shadow rejected 1919ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_stale rejected 1672ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_state_mismatch rejected 1741ms expected @afe3f46cebb2+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_tail_descriptor rejected 1776ms expected @afe3f46cebb2+wt
+	cannot prove runtime index descriptor equals its captured index
+fail/generics/runtime_index_carrier_tail_mismatch rejected 1756ms expected @afe3f46cebb2+wt
+	machine `wrong` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_tail_stale rejected 1759ms expected @afe3f46cebb2+wt
+	cannot prove runtime index descriptor equals its captured index
 fail/generics/selected_operator_preserves_blocking_ceiling rejected 1353ms expected @a9ae30e1c334+wt
 	machine `choose` omits `blocks;` from its published contract, but its body may block
 fail/generics/state_argument_generic_result_parameter_mismatch rejected 259ms expected @6ef08ceefee0+wt
@@ -6371,6 +6438,25 @@ pass/generics/runtime_generic_qualified_constructor_shadow_exit checked 5707ms c
 pass/generics/runtime_generic_selected_extent_fields_exit checked 5782ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/generics/runtime_grouped_decimal_const_argument_exit checked 11028ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit checked 9250ms check-target:macos_arm64 @77cde1c51efd+wt
+pass/generics/runtime_index_carrier_array_valid checked 6482ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_call_result checked 5963ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_call_selected_index checked 5898ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_call_selected_preserved checked 6117ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_call_selected_replacement checked 7185ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_descriptor_whole_preserve checked 6614ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_direct_call_result checked 7196ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_indexed_element_valid checked 7029ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_local checked 6825ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_match_valid checked 6499ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_metadata_read checked 6777ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_metadata_valid checked 6664ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_mutable_survival checked 6424ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_named_static checked 6530ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_nested_valid checked 6228ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_parameter checked 6749ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_runtime checked 6072ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_static checked 6006ms @afe3f46cebb2+wt
+pass/generics/runtime_index_carrier_static_bool checked 5957ms @afe3f46cebb2+wt
 pass/generics/runtime_inherited_composite_requirement_exit checked 12296ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_linear_constructor_instances_exit checked 11286ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_machine_equation_nested_boolean_exit checked 5659ms check-target:macos_arm64 @589aedee8ebc+wt

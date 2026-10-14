@@ -43,6 +43,7 @@ pub(crate) mod collection_extents;
 pub(crate) mod contracts;
 pub(crate) mod current_scalar_values;
 pub(crate) mod float_implications;
+mod runtime_indices;
 mod stored_integer_calls;
 
 // Ownership and custody: linear obligations, retained content, and values
@@ -115,6 +116,7 @@ pub(crate) fn check_checked_facts_recording(
         diagnostics.append(&mut borrow_diagnostics);
     }
 
+    runtime_indices::check(program, facts, call_frames.as_ref(), &mut diagnostics);
     case_access::check(program, facts, &mut diagnostics);
     atomic_fences::check(program, facts, &mut diagnostics);
 

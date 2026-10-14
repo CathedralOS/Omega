@@ -1,0 +1,1 @@
+mutable scalar loan cannot preserve a runtime index descriptor

@@ -1,0 +1,7 @@
+data Indexed<Limit:u32>{value:u32;}
+const limit:u32=9;
+machine preserve(limit:u32,value:u32)->u32 {
+let indexed:Indexed<limit> = Indexed{value:value};
+let wrong:Indexed<9> = indexed;
+wrong.value
+}

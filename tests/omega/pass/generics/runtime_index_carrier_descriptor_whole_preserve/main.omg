@@ -1,0 +1,3 @@
+data Indexed<Limit:u32>{value:u32;}
+machine preserve_field(limit:u32,item:&mut Indexed<limit>) { item.Limit=limit; }
+machine preserve(limit:u32,value:u32)->u32 { let mut item:Indexed<limit> = Indexed{Limit:limit,value:value}; preserve_field(limit,&mut item); item.Limit }

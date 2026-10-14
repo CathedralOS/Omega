@@ -8,6 +8,7 @@ mod data_applications;
 mod default_domain_zero;
 mod deferred_constants;
 mod opaque_property_receipts;
+mod runtime_index_fields;
 mod selections;
 
 pub(crate) use data_applications::elaborate_projected_receivers;
@@ -263,6 +264,7 @@ pub fn prepare_typed_trees(
     // substituted member edges do not become new application demands.
     crate::constructed_results::retain_constructed_result_types(&mut program);
     data_applications::elaborate(&mut program)?;
+    runtime_index_fields::materialize(&mut program)?;
     // A projected receiver reads its elaborated field telescope. Binding it
     // before that producer would borrow the declaration's open field instead
     // of the caller's exact application. This is the ordinary dependency order,

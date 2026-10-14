@@ -1,0 +1,3 @@
+data Indexed<Limit:u32>{value:u32;}
+machine select(value:u32)->u32 { value }
+machine preserve(limit:u32,value:u32)->u32 { let selected:u32=select(limit); let item:Indexed<selected> = Indexed{value:value}; item.value }

@@ -100,16 +100,22 @@ pub(super) fn substitute(
     Ok(())
 }
 
-fn value(
+pub(crate) fn value(
     program: &mut TypedTrees,
     binding: TypeReferenceHandle,
     declared_type: TypeReferenceHandle,
 ) -> Option<ExpressionNode> {
-    let TypeReferenceNode::Named { name, .. } =
+    let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(binding)
     else {
         return None;
     };
+    if symbol.is_valid() {
+        let declaration = program.const_declaration_by_symbol(*symbol)?;
+        let encoding = declaration.evaluated_value.as_ref()?.encoding()?.to_owned();
+        let value = CanonicalConstValue::new("", encoding, "").decode_encoding()?;
+        return structured::materialize(program, declared_type, &value);
+    }
     if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
         return structured::materialize(program, declared_type, &value.decode_encoding()?);
     }

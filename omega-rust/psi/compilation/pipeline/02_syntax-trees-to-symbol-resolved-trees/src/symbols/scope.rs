@@ -252,6 +252,7 @@ pub(super) struct MachineScope<'program> {
     /// receivers do not occur.
     pub(super) data_definitions: &'program OrderedRootArena<DataDefinition>,
     pub(super) data_members: &'program Arena<DataMember>,
+    pub(super) data_type_parameters: &'program Arena<TypeParameter>,
     pub(super) data_payload_fields: &'program Arena<symbol_resolved_trees::data::DataField>,
     pub(super) type_constraints: &'program Arena<symbol_resolved_trees::types::TypeConstraint>,
 }
@@ -264,6 +265,7 @@ pub(super) struct ContractScopeContext<'program> {
     pub(super) resolution_indexes: &'program ResolvedIndexes,
     pub(super) data_definitions: &'program OrderedRootArena<DataDefinition>,
     pub(super) data_members: &'program Arena<DataMember>,
+    pub(super) data_type_parameters: &'program Arena<TypeParameter>,
     pub(super) data_payload_fields: &'program Arena<symbol_resolved_trees::data::DataField>,
     pub(super) type_constraints: &'program Arena<symbol_resolved_trees::types::TypeConstraint>,
 }
@@ -292,6 +294,7 @@ impl<'program> ContractScopeContext<'program> {
             prior_statements: &[],
             data_definitions: self.data_definitions,
             data_members: self.data_members,
+            data_type_parameters: self.data_type_parameters,
             data_payload_fields: self.data_payload_fields,
             type_constraints: self.type_constraints,
         }
