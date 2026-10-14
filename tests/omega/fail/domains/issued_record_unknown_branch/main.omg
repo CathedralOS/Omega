@@ -1,0 +1,9 @@
+data Handle { value: u64; }
+domain Handle::Open(handle) requires handle.value != 0 established by issue;
+machine choose(chosen: bool) -> u64 {
+    transition chosen { true -> (1) false -> (0) }
+}
+machine issue(chosen: bool) -> Handle in Open {
+    let value: u64 = choose(chosen);
+    Handle { value: value }
+}

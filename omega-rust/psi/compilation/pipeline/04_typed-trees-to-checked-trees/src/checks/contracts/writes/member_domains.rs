@@ -584,7 +584,7 @@ fn member_comparison_holds_on_value(
         let Some(expected) = expression_constant_scalar(program, constant, domain.symbol) else {
             continue;
         };
-        let Some(actual) = member_scalar_at_subject(
+        let actual = member_scalar_at_subject(
             program,
             facts,
             state,
@@ -595,21 +595,60 @@ fn member_comparison_holds_on_value(
             domain,
             capture,
             frames,
-        ) else {
+        );
+        // A predicate may constrain an interval without naming one exact
+        // integer. Consume only completed storage/child snapshots: issuance
+        // authorization remains separate and no source initializer is replayed.
+        if let facts::ScalarValue::Integer(expected) = &expected {
+            let segments =
+                crate::flow::relative_place_segments_from_expression(program, member, domain);
+            let bounds = actual
+                .as_ref()
+                .and_then(|actual| match actual {
+                    facts::ScalarValue::Integer(value) => Some(facts::IntegerRange {
+                        minimum: value.clone(),
+                        maximum: value.clone(),
+                    }),
+                    _ => None,
+                })
+                .or_else(|| {
+                    let segments = segments.as_deref()?;
+                    if let Some(capture) = capture {
+                        contextual::captured_integer_bounds(
+                            program, facts, state, capture, segments,
+                        )
+                    } else {
+                        let place = member_place(program, state, statement_index, value, segments)?;
+                        crate::values::integer_bounds_at_place(
+                            program,
+                            &facts.semantic,
+                            contexts
+                                .iter()
+                                .map(|context| facts.semantic.contexts.get(*context)),
+                            &place,
+                        )
+                    }
+                });
+            if let Some(bounds) = bounds {
+                return match operator {
+                    BinaryOperator::Equal => {
+                        bounds.minimum == *expected && bounds.maximum == *expected
+                    }
+                    BinaryOperator::NotEqual => {
+                        bounds.maximum < *expected || bounds.minimum > *expected
+                    }
+                    BinaryOperator::Less => bounds.maximum < *expected,
+                    BinaryOperator::LessOrEqual => bounds.maximum <= *expected,
+                    BinaryOperator::Greater => bounds.minimum > *expected,
+                    BinaryOperator::GreaterOrEqual => bounds.minimum >= *expected,
+                    _ => false,
+                };
+            }
+        }
+        let Some(actual) = actual else {
             continue;
         };
         return match (&actual, &expected) {
-            (facts::ScalarValue::Integer(actual), facts::ScalarValue::Integer(expected)) => {
-                match operator {
-                    BinaryOperator::Equal => actual == expected,
-                    BinaryOperator::NotEqual => actual != expected,
-                    BinaryOperator::Less => actual < expected,
-                    BinaryOperator::LessOrEqual => actual <= expected,
-                    BinaryOperator::Greater => actual > expected,
-                    BinaryOperator::GreaterOrEqual => actual >= expected,
-                    _ => false,
-                }
-            }
             (facts::ScalarValue::Boolean(actual), facts::ScalarValue::Boolean(expected)) => {
                 match operator {
                     BinaryOperator::Equal => actual == expected,

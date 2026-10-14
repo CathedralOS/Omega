@@ -1,0 +1,38 @@
+// Expected exit: 0.
+// Private acquisition issues one affine owner from an encoded nonnegative
+// input. Matching observes its tag, borrowing observes its live value, and
+// release consumes it. No runtime tag is added by the routed qualification.
+data Resource { identity: u64; }
+domain Resource::Open(resource)
+requires resource.identity != 0
+established by issue;
+data Acquisition { case Error; case Ok(resource: Resource in Open); }
+
+machine issue(input: i32) -> Resource in Open requires input >= 0 {
+    Resource { identity: (input as u64) + 1 }
+}
+machine acquire(input: i32) -> Acquisition {
+    transition input >= 0 {
+        true -> opened(input)
+        false -> Acquisition::Error
+    }
+    state opened(input: i32) -> Acquisition requires input >= 0 {
+        Acquisition::Ok { resource: issue(input) }
+    }
+}
+machine inspect(resource: &Resource in Open) -> u64 { resource.identity }
+machine release(resource: Resource in Open) {}
+machine main() crashes Trap {
+    let acquired: Acquisition = acquire(0);
+    transition acquired {
+        Acquisition::Ok { resource } -> owned(resource)
+        _ -> wrong()
+    }
+    state owned(resource: Resource in Open) {
+        let observed: u64 = inspect(&resource);
+        release(resource);
+        transition observed == 1 { true -> done() false -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

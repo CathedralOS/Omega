@@ -1,0 +1,11 @@
+data Owner { value: u64; }
+domain Owner::Open(owner) requires owner.value != 0 established by issue;
+machine issue() -> Owner in Open { Owner { value: 1 } }
+machine observe(owner: &Owner in Open) -> u64 { owner.value }
+machine release(owner: Owner in Open) {}
+machine main() {
+    let owner: Owner in Open = issue();
+    let view: &Owner in Open = &owner;
+    release(owner);
+    let observed: u64 = observe(view);
+}

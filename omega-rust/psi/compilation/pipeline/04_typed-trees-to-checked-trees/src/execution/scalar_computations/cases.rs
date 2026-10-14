@@ -113,17 +113,16 @@ impl Builder<'_, '_> {
                 .filter(|(ordinal, _)| *ordinal < statement_index)?;
             let inspected =
                 validation::unwrapped_type_reference(self.program, local.type_reference)?;
-            if !(validation::has_contents(
+            // A discriminant read borrows the established owner in place. Its
+            // payload need not be copyable or predicate-free; source custody
+            // checks the tag observation and the later selected extraction.
+            // Owned-value classifiers incorrectly rejected routed payloads.
+            if !validation::has_contents(
                 self.program,
                 inspected,
                 &[],
-                validation::ContentsRequirement::NumericOwned,
-            ) || validation::has_contents(
-                self.program,
-                inspected,
-                &[],
-                validation::ContentsRequirement::OwnedOrSharedView,
-            )) {
+                validation::ContentsRequirement::BorrowedStorage,
+            ) {
                 return None;
             }
             local.symbol

@@ -787,6 +787,7 @@ run/calls/static_binding_authority built 5912ms exit:0 interpreter-exit:0 interp
 run/contracts/captured_bound_unused_mutation built 5614ms exit:0 interpreter-exit:0 interpreter:agrees @7e164e32caf5+wt
 run/domains/checked_provider_issued_field built 5882ms exit:0 interpreter-exit:0 interpreter:agrees @e5140c7a7be2+wt
 run/domains/checked_provider_issued_root built 5665ms exit:0 interpreter-exit:0 interpreter:agrees @e5140c7a7be2+wt
+run/domains/issued_case_owner_observation built 5905ms exit:0 interpreter-exit:0 interpreter:agrees @de35918cc70a+wt
 run/domains/issued_owned_case_parameter built 5393ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 run/domains/issued_owned_case_residual built 5388ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 run/domains/issued_owned_case_return built 5318ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
@@ -794,6 +795,7 @@ run/domains/issued_owned_case_temporary built 5328ms exit:0 interpreter-exit:0 i
 run/domains/issued_owned_reinitialized_home built 5583ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 run/domains/issued_owned_state_arrivals built 5572ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 run/domains/issued_owned_temporary_observation built 5540ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
+run/domains/issued_record_integer_bounds built 5995ms exit:0 interpreter-exit:0 interpreter:agrees @de35918cc70a+wt
 run/nested_mut_alias_assignment_return built 2526ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @cba4ef8c9ab1
 pass/ownership/runtime_replacement_call_child_snapshot_exit built 3512ms exit:0 interpreter-exit:0 interpreter:agrees @3c27bc9c6110
 pass/borrow/runtime_write_only_call_result_observation_exit built 3502ms exit:0 interpreter-exit:0 interpreter:agrees @820be24a59a0+wt

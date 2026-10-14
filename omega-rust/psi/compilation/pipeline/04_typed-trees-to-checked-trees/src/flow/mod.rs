@@ -48,8 +48,8 @@ mod expression;
 mod operand_contexts;
 mod operand_values;
 pub(crate) use operand_values::{
-    CapturedValue, captured_operand_at_path, captured_operand_values, captured_value_places,
-    project_captured_view_place,
+    CapturedValue, captured_observation_places, captured_operand_at_path, captured_operand_values,
+    captured_value_places, project_captured_view_place,
 };
 mod operator_calls;
 pub(crate) use operand_contexts::{

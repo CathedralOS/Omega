@@ -48,21 +48,53 @@ pub(crate) fn captured_value_places(
     flow: &FlowFacts,
     value: &CapturedValue<'_>,
 ) -> Option<Vec<CapturedValuePlace>> {
+    captured_places(
+        program,
+        flow,
+        value.operand,
+        value.type_reference,
+        &value.projection,
+    )
+}
+
+/// A reaching store can expose an earlier producer, but the later observation
+/// still owns its storage snapshots. Both projections obey the same view law.
+pub(crate) fn captured_observation_places(
+    program: &dyn ::validation::CheckingInput,
+    flow: &FlowFacts,
+    value: &CapturedValue<'_>,
+) -> Option<Vec<CapturedValuePlace>> {
+    captured_places(
+        program,
+        flow,
+        value.observation,
+        value.observation_type,
+        &value.observation_projection,
+    )
+}
+
+fn captured_places(
+    program: &dyn ::validation::CheckingInput,
+    flow: &FlowFacts,
+    operand: &FlowOperandFact,
+    type_reference: TypeReferenceHandle,
+    projection: &super::LiteralValueProjection,
+) -> Option<Vec<CapturedValuePlace>> {
     let referents = flow
         .control
         .operand_referents
-        .span_or_empty(value.operand.referents);
-    if !super::operand_contexts::operand_binds_live_view(program, value.type_reference)
+        .span_or_empty(operand.referents);
+    if !super::operand_contexts::operand_binds_live_view(program, type_reference)
         || referents.is_empty()
     {
         let mut place = validation::canonical_place_from_expression_in_state(
             program,
-            value.operand.state_symbol,
-            value.operand.statement_index,
-            value.projection.expression,
+            operand.state_symbol,
+            operand.statement_index,
+            projection.expression,
         )?;
         let storage = place.clone();
-        place.extend_segments(&value.projection.remaining);
+        place.extend_segments(&projection.remaining);
         return Some(vec![CapturedValuePlace {
             storage,
             projected: place,
@@ -80,7 +112,7 @@ pub(crate) fn captured_value_places(
                     .to_vec(),
             };
             let storage = place.clone();
-            place = project_captured_view_place(place, &value.projection.remaining)?;
+            place = project_captured_view_place(place, &projection.remaining)?;
             Some(CapturedValuePlace {
                 storage,
                 projected: place,

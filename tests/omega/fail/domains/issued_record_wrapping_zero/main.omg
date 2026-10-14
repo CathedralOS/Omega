@@ -1,0 +1,6 @@
+data Handle { value: u64; }
+domain Handle::Open(handle) requires handle.value != 0 established by issue;
+machine issue(value: u64) -> Handle in Open {
+    let wrapped: u64 in Wrapping = (value as u64 in Wrapping) + 1;
+    Handle { value: wrapped as u64 }
+}

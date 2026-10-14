@@ -1,0 +1,54 @@
+// Expected exit: 0. A routed root owes predicates on the evaluated fields,
+// not one constant value or an assumption from its own result annotation.
+data Handle { value: u64; ignored: u64; }
+domain Handle::Open(handle)
+requires handle.value != 0 && handle.value <= 2147483648
+established by local_handle, inline_handle, returned_handle, stored_handle, snapshot_handle;
+data Storage { value: u64; }
+
+machine local_handle(descriptor: i32) -> Handle in Open requires descriptor >= 0 {
+    let value: u64 = (descriptor as u64) + 1;
+    Handle { value: value }
+}
+machine inline_handle(descriptor: i32) -> Handle in Open requires descriptor >= 0 {
+    Handle { value: (descriptor as u64) + 1 }
+}
+machine encode(descriptor: i32) -> u64 requires descriptor >= 0
+ensures result >= 1 && result <= 2147483648 {
+    (descriptor as u64) + 1
+}
+machine returned_handle(descriptor: i32) -> Handle in Open requires descriptor >= 0 {
+    Handle { value: encode(descriptor) }
+}
+machine stored_handle(descriptor: i32) -> Handle in Open requires descriptor >= 0 {
+    let stored: Storage = Storage { value: encode(descriptor) };
+    transition { _ -> issue(stored) }
+    state issue(stored: Storage) -> Handle in Open
+    requires stored.value > 0 && stored.value <= 2147483648 {
+        Handle { value: stored.value }
+    }
+}
+machine observe(handle: &Handle in Open) -> u64 { handle.value }
+machine clear(value: &mut u32) -> u64 { value = 0; 0 }
+machine snapshot_handle(input: u32) -> Handle in Open requires input <= 2147483647 {
+    let mut value: u32 = input;
+    Handle { value: (value as u64) + 1, ignored: clear(&mut value) }
+}
+machine main() crashes Trap {
+    let zero: Handle in Open = local_handle(0);
+    let maximum: Handle in Open = inline_handle(2147483647);
+    let returned: Handle in Open = returned_handle(16);
+    let stored: Handle in Open = stored_handle(22);
+    let snapshot: Handle in Open = snapshot_handle(30);
+    let first: u64 = observe(&zero);
+    let last: u64 = observe(&maximum);
+    let third: u64 = observe(&returned);
+    let fourth: u64 = observe(&stored);
+    let fifth: u64 = observe(&snapshot);
+    transition first == 1 && last == 2147483648 && third == 17 && fourth == 23 && fifth == 31 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

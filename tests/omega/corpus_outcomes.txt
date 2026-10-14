@@ -2116,6 +2116,16 @@ fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejec
 	cannot prove requires contract for call accept from Main::main: main.items[0] in Item::Valid (invalidated by prior mutation of main.items[__hoist_14].value; main.items[0].value is part of Item::Valid)
 fail/domains/interval_membership_wrapping_false rejected 1589ms expected @d1fa4738e67a+wt
 	cannot prove requires contract for call keep from main: 11 in u8::Small in state `entry`
+fail/domains/issued_owner_double_release rejected 270ms expected @de35918cc70a+wt
+	cannot use `owner` in machine `main` state `entry` (statement 2) after `owner` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `owner` first
+fail/domains/issued_owner_release_live_view rejected 627ms expected @de35918cc70a+wt
+	state `release` receives an owned value while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/domains/issued_record_bounds_sibling_mutation rejected 619ms expected @de35918cc70a+wt
+	cannot prove default-domain field requirement for return from issue at statement 2: Handle requires Handle::Open
+fail/domains/issued_record_unknown_branch rejected 880ms expected @de35918cc70a+wt
+	cannot prove default-domain field requirement for return from issue at statement 1: Handle requires Handle::Open
+fail/domains/issued_record_wrapping_zero rejected 612ms expected @de35918cc70a+wt
+	cannot prove default-domain field requirement for return from issue at statement 1: Handle requires Handle::Open
 fail/domains/issued_state_arrival_double_move rejected 599ms expected @0e81fb3e4cce+wt
 	affine value `resource` was already transferred or consumed; it cannot be moved here
 fail/domains/issued_state_arrival_mutated rejected 599ms expected @0e81fb3e4cce+wt

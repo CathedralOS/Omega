@@ -1,0 +1,1 @@
+after `owner` was transferred or consumed

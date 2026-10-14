@@ -7,6 +7,108 @@
 
 use super::{CheckFacts, ExpressionHandle, ExpressionNode, FlowStateFact};
 
+/// Bounds belong to the observed child, even when its reaching origin was a
+/// computation. The stored snapshot has already selected arithmetic and casts;
+/// replaying the initializer would read the wrong epoch after a sibling write.
+pub(super) fn captured_integer_bounds(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    capture: &checked_trees::FlowOperandFact,
+    path: &[facts::PlaceSegment],
+) -> Option<facts::IntegerRange> {
+    let values = crate::flow::captured_operand_values(
+        program,
+        &facts.flow,
+        &facts.semantic,
+        state,
+        capture,
+        capture.type_reference,
+        path,
+    )?;
+    let mut bounds: Option<facts::IntegerRange> = None;
+    for value in values {
+        let contexts = crate::flow::operand_contexts(
+            program,
+            &facts.flow,
+            &facts.semantic,
+            value.observation,
+            value.observation_type,
+            capture.constraints,
+        );
+        // The pure selected algebra retains operator identity and exact cast
+        // admission. It cannot contain effectful calls or replay local
+        // initializers, so its reads share this observation's completion epoch.
+        // Calls instead supply the completed-result snapshot below, never a
+        // declaration-only reading of their raw ensures clauses.
+        let selected = value
+            .observation_projection
+            .remaining
+            .is_empty()
+            .then(|| {
+                let (_, body) = validation::machine_state_by_symbols(
+                    program,
+                    state.machine_symbol,
+                    value.observation.state_symbol,
+                )?;
+                let primitive = program.primitive_type_reference(value.observation_type)?;
+                let expression = crate::values::lower_unit_scalar_argument(
+                    program,
+                    &facts.operators,
+                    body,
+                    value.observation.statement_index,
+                    value.observation_projection.expression,
+                    primitive,
+                )?;
+                let symbols = crate::values::unit_scalar_binding_symbols(
+                    program,
+                    body,
+                    value.observation.statement_index,
+                )?;
+                validation::selected_scalar_interval(
+                    &expression,
+                    &mut crate::values::LivePlaceIntervals {
+                        program,
+                        semantic: &facts.semantic,
+                        contexts: &contexts,
+                        parameters: program.state_parameters(body),
+                        symbols: &symbols,
+                        state: body.symbol,
+                    },
+                )
+            })
+            .flatten();
+        for place in crate::flow::captured_observation_places(program, &facts.flow, &value)? {
+            let snapshot = crate::values::integer_bounds_at_place(
+                program,
+                &facts.semantic,
+                contexts
+                    .iter()
+                    .map(|context| facts.semantic.contexts.get(*context)),
+                &place.projected,
+            );
+            let observed = match (snapshot, selected.clone()) {
+                (Some(snapshot), Some(selected)) => facts::IntegerRange {
+                    minimum: snapshot.minimum.max(selected.minimum),
+                    maximum: snapshot.maximum.min(selected.maximum),
+                },
+                (snapshot, selected) => snapshot.or(selected)?,
+            };
+            if observed.minimum > observed.maximum {
+                return None;
+            }
+            bounds = Some(match bounds {
+                Some(previous) => facts::IntegerRange {
+                    minimum: previous.minimum.min(observed.minimum),
+                    maximum: previous.maximum.max(observed.maximum),
+                },
+                None => observed,
+            });
+        }
+    }
+    bounds
+}
+
 /// A constructed child observes a completed call at its own capture frontier,
 /// not at the containing return's final storage. All possible captured values
 /// must establish the same scalar; their premise sets are never unioned.
