@@ -1,5 +1,6 @@
 use psi::checking::checker;
 use psi::checking::contracts;
+use psi::checking::domains;
 use psi::checking::evaluation;
 use psi::checking::fact_values;
 use psi::checking::flow;
@@ -683,7 +684,8 @@ crashes Trap
         Checker::capture_source(checker, syntax, resolution, item);
         let rank: Rank = Checker::rank(checker, syntax, resolution, typing, item, termination, view);
         let bounds: Rank = Checker::rank_bounds(checker, syntax, resolution, typing, item, clause);
-        let within: bool = Checker::rank_within(checker, syntax, rank, bounds, clause);
+        Checker::install_domains(checker, syntax, resolution, typing);
+        let within: bool = Checker::rank_within(checker, syntax, rank, bounds, clause, view);
         transition within {
             true -> done()
             _ -> unproven(checker, syntax, clause)
@@ -710,18 +712,42 @@ crashes Trap
     Rank { first: lower, second: upper }
 }
 
-// Whether a rank's leading value lies within `bounds`: at least the lower
-// endpoint, and at most an inclusive upper endpoint or below an exclusive
-// one.
-machine Checker::rank_within(checker: &Checker, syntax: &SyntaxTrees, rank: Rank, bounds: Rank, clause: Clause) -> bool
+// Whether the rank a view produces lies within `bounds`: at least the
+// lower endpoint, and at most an inclusive upper endpoint or below an
+// exclusive one. A distance view (`Nat::BoundedDistance`,
+// `Nat::IncreasingTo`) produces the saturating distance from its leading
+// subject to its limit (wiki/spec/language/termination.md#ranking): never
+// below 0, and never above the limit itself.
+machine Checker::rank_within(checker: &Checker, syntax: &SyntaxTrees, rank: Rank, bounds: Rank, clause: Clause, view: RankingView) -> bool
 crashes Trap
 {
     let range: Expression = SyntaxTrees::expression(syntax, clause.range);
-    let floor: bool = Checker::proves_at_most(checker, bounds.first, rank.first);
-    let below: bool = Checker::proves_less(checker, rank.first, bounds.second);
-    let at_most: bool = Checker::proves_at_most(checker, rank.first, bounds.second);
-    let ceiling: bool = (range.flag && at_most) || (!range.flag && below);
-    floor && ceiling
+    transition view {
+        RankingView::BoundedDistance -> distance(checker, rank, bounds, range)
+        RankingView::IncreasingTo -> distance(checker, rank, bounds, range)
+        _ -> produced(checker, rank.first, bounds, range)
+    }
+
+    state distance(checker: &Checker, rank: Rank, bounds: Rank, range: Expression) -> bool {
+        let produced_rank: Value = Value::difference(rank.second, rank.first);
+        let zero: Value = Value::constant(ExactInteger { negative: false, magnitude: 0 });
+        let floor: bool = Checker::proves_at_most(checker, bounds.first, zero)
+            || Checker::proves_at_most(checker, bounds.first, produced_rank);
+        let at_most: bool = Checker::proves_at_most(checker, produced_rank, bounds.second)
+            || Checker::proves_at_most(checker, rank.second, bounds.second);
+        let below: bool = Checker::proves_less(checker, produced_rank, bounds.second)
+            || Checker::proves_less(checker, rank.second, bounds.second);
+        let ceiling: bool = (range.flag && at_most) || (!range.flag && below);
+        floor && ceiling
+    }
+
+    state produced(checker: &Checker, produced_rank: Value, bounds: Rank, range: Expression) -> bool {
+        let floor: bool = Checker::proves_at_most(checker, bounds.first, produced_rank);
+        let below: bool = Checker::proves_less(checker, produced_rank, bounds.second);
+        let at_most: bool = Checker::proves_at_most(checker, produced_rank, bounds.second);
+        let ceiling: bool = (range.flag && at_most) || (!range.flag && below);
+        floor && ceiling
+    }
 }
 
 // Whether a cyclic arrival keeps the witness's rank range: the endpoints
@@ -747,11 +773,12 @@ crashes Trap
     Checker::capture_target(checker, syntax, resolution, call, item, target_first, target_count);
     let arrived: Rank = Checker::rank(checker, syntax, resolution, typing, item, termination, view);
     let after: Rank = Checker::rank_bounds(checker, syntax, resolution, typing, item, clause);
+    Checker::install_domains(checker, syntax, resolution, typing);
     let lower_kept: bool = Checker::proves_at_most(checker, before.first, after.first)
         && Checker::proves_at_most(checker, after.first, before.first);
     let upper_kept: bool = Checker::proves_at_most(checker, before.second, after.second)
         && Checker::proves_at_most(checker, after.second, before.second);
-    let within: bool = Checker::rank_within(checker, syntax, arrived, after, clause);
+    let within: bool = Checker::rank_within(checker, syntax, arrived, after, clause, view);
     lower_kept && upper_kept && within
 }
 
@@ -1122,7 +1149,24 @@ crashes Trap
         RankingView::BoundedDistance -> paired(checker, syntax, resolution, typing, item, written, first)
         RankingView::IncreasingTo -> limited(checker, syntax, resolution, typing, item, written, first)
         RankingView::Measure -> measured(checker, syntax, resolution, typing, termination, first)
+        RankingView::SliceLength -> lengthed(checker, typing, first)
         _ -> single(first)
+    }
+
+    // `Slice::Length` ranks a slice by its live length, the length place
+    // below the slice's.
+    state lengthed(checker: &mut Checker, typing: &Typing, first: Value) -> Rank {
+        transition first.place > 0 {
+            true -> measured_length(checker, typing, first.place)
+            _ -> single(first)
+        }
+    }
+
+    state measured_length(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Rank {
+        let length_place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Length, 0, place, 0);
+        let length: Value = Checker::reference_value(checker, typing, length_place);
+        let second: Value = Value::unknown();
+        Rank { first: length, second: second }
     }
 
     // A declared measure ranks the subject by its body with the subject

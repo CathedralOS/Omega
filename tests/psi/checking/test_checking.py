@@ -1468,6 +1468,49 @@ def main() -> None:
         "RankRangeUnproven",
         b"step(n - 1, limit)",
     )
+    # A rank range is proved under the subject's data `where` facts, a
+    # distance view's rank lies within its limit by construction, and a
+    # `Slice::Length` view ranks by the live length
+    # (wiki/spec/language/termination.md#ranking).
+    accepted(
+        program,
+        "a-measured-rank-range-holds-by-the-data's-where-facts",
+        b"data Countdown where 0 <= remaining, remaining <= 5 { remaining: u64; }\n"
+        b"measure Countdown::Remaining(countdown: Countdown) -> u64\n{ countdown.remaining }\n"
+        b"machine walk(countdown: Countdown)\nterminates by countdown -> Countdown::Remaining in 0..=5;\n-> u64 {\n"
+        b"    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n"
+        b"        false -> countdown.remaining\n    }\n}",
+    )
+    accepted(
+        program,
+        "a-field-rank-range-holds-by-the-data's-where-facts",
+        b"data Countdown where remaining <= 5 { remaining: u64; }\n"
+        b"machine walk(countdown: Countdown)\nterminates by countdown.remaining in 0..=5;\n-> u64 {\n"
+        b"    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n"
+        b"        false -> countdown.remaining\n    }\n}",
+    )
+    rejected(
+        program,
+        "a-field-rank-range-beyond-the-data's-where-facts",
+        b"data Countdown where remaining <= 9 { remaining: u64; }\n"
+        b"machine walk(countdown: Countdown)\nterminates by countdown.remaining in 0..=5;\n-> u64 {\n"
+        b"    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n"
+        b"        false -> countdown.remaining\n    }\n}",
+        "RankRangeUnproven",
+        b"0..=5",
+    )
+    accepted(
+        program,
+        "an-increasing-view's-rank-lies-within-its-limit",
+        b"machine walk(limit: u64, index: u64)\nterminates by index -> Nat::IncreasingTo(limit) in 0..=limit;\n-> u64\n{\n"
+        b"    transition index < limit {\n        true -> walk(limit, index + 1)\n        false -> index\n    }\n}",
+    )
+    accepted(
+        program,
+        "a-bounded-distance-rank-lies-within-its-limit",
+        b"machine walk(items: &[u8], i: u64) -> u64\nterminates by (i, items.len) -> Nat::BoundedDistance in 0..=items.len;\n{\n"
+        b"    transition i < items.len {\n        true -> walk(items, i + 1)\n        _ -> (i)\n    }\n}",
+    )
     # A declared measure ranks its subject by its body, or lexicographically
     # by the subject's named fields (wiki/spec/language/termination.md#ranking).
     measured = (
