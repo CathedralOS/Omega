@@ -12,8 +12,8 @@ pub boundary trait Latch { machine hold() -> i32; }
 LatchProvider satisfies Latch { Latch::hold = hold; }
 machine hold() -> i32 { 1 }
 
-data Main { latch: Binding<Latch>; held: i32; }
+data Main { latch: Binding<Latch>; held: i32; console: Binding<Console>; }
 machine Main::main(main: &mut Main) reaches Latch + Console {
     main.held = main.latch.hold();
-    Console::exit_process(70);
+    Console::exit_process(&main.console, 70);
 }

@@ -1,19 +1,21 @@
 use omega_language_std::console;
+use omega::language::core::binding;
 data Item { value: i32; }
 data Holder { item: Item; }
-machine main() reaches Console {
-    transition { _ -> step(0) }
-    state step(position: u8) {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    transition { _ -> step(&main.console, 0) }
+    state step(console: &Binding<Console>, position: u8) {
         let item: Item = Item { value: 70 };
         let holder: Holder = Holder { item: item };
         transition position < 2 {
-            true -> step(position + 1)
-            false -> finish(holder)
+            true -> step(console, position + 1)
+            false -> finish(console, holder)
         }
     }
-    state finish(holder: Holder) {
-        transition holder.item.value == 70 { true -> good() false -> bad() }
+    state finish(console: &Binding<Console>, holder: Holder) {
+        transition holder.item.value == 70 { true -> good(console) false -> bad(console) }
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(71); }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>) { Console::exit_process(console, 71); }
 }

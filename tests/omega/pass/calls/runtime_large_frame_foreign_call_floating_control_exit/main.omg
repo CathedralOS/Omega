@@ -5,6 +5,7 @@
 // Exits with `abs(-70)`, 70, once the saved FPCR is restored.
 use omega::language::core::external_binding;
 use omega_language_std::console;
+use omega::language::core::binding;
 
 pub boundary trait Magnitude {
     machine absolute(value: i32) -> i32;
@@ -32,11 +33,12 @@ machine Big::fill(big: &mut Big, value: u8 in Trapping) {
     big.length = 65536;
 }
 
-machine main() reaches Console + Magnitude
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console + Magnitude
 crashes Trap
 {
     let mut big: Big;
     Big::fill(&mut big, 70);
     let magnitude: i32 = external_absolute(0 - (big.bytes[65535] as i32));
-    Console::exit_process(magnitude);
+    Console::exit_process(&main.console, magnitude);
 }

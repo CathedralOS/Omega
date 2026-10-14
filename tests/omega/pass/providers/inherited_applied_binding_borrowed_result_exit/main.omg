@@ -29,10 +29,10 @@ machine observed_mut<'source>(parent: &Binding<Parent<i32>>, value: &'source mut
     parent.borrow_mut(value)
 }
 
-data Main { parent: Binding<Parent<i32>>; value: i32; }
+data Main { parent: Binding<Parent<i32>>; value: i32; child: Binding<Child>; }
 machine Main::main(main: &mut Main) reaches Parent + Child crashes Trap {
     main.value = 37;
-    let chosen: i32 = Child::choose();
+    let chosen: i32 = Child::choose(&main.child);
     let borrowed: &i32 = observed(&main.parent, &main.value);
     let result: i32 = borrowed as i32;
     let mutable: &mut i32 = observed_mut(&main.parent, &mut main.value);

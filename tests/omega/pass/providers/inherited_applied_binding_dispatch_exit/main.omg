@@ -18,9 +18,9 @@ macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProv
     TargetProviders::select_provider<Child, ChildMap>(defaults);
 }
 
-data Main { parent: Binding<Parent<u64>>; }
+data Main { parent: Binding<Parent<u64>>; child: Binding<Child>; }
 machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
-    let chosen: i32 = Child::choose();
+    let chosen: i32 = Child::choose(&main.child);
     let observed: i32 = main.parent.read();
     transition chosen == 19 && observed == 37 {
         true -> done() _ -> bad()

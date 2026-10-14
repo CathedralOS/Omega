@@ -10,6 +10,7 @@
 // Exits 70 only when `take` returns 1 and the scope's depth is 1.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Picker {
     limit: [i32; 4];
@@ -36,14 +37,15 @@ requires
     picker.picks
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut picker: Picker;
     let scope: Scope = Scope::open(&mut picker);
     let taken: u64 = Picker::take(&mut picker);
     transition taken == 1 && scope.depth == 1 {
-        true -> done()
-        _ -> failed()
+        true -> done(&main.console)
+        _ -> failed(&main.console)
     }
-    state done() { Console::exit_process(70); }
-    state failed() { Console::exit_process(71); }
+    state done(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state failed(console: &Binding<Console>) { Console::exit_process(console, 71); }
 }

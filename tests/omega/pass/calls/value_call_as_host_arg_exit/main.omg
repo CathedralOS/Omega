@@ -8,6 +8,7 @@ machine dbl(x: i32 in Wrapping) -> i32 {
     transition { _ -> (r as i32) }
 }
 
-machine main() reaches Console {
-    Console::exit_process(dbl(35));
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    Console::exit_process(&main.console, dbl(35));
 }

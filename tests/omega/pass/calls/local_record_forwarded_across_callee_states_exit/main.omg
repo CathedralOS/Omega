@@ -12,6 +12,7 @@
 // Exit 73: the whole-record loan read the wrong field. Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Tally { hits: i32 in Wrapping; misses: i32 in Wrapping; }
 data Report { total: i32 in Wrapping; }
@@ -64,32 +65,33 @@ machine Ledger::height(ledger: &mut Ledger, pick: i32) -> i32 in Wrapping {
     }
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut ledger: Ledger;
     Tally::record(&mut ledger.tally, 30, 10);
     let both: i32 in Wrapping = Tally::total(&mut ledger.tally, 2);
     let report: Report = Tally::report(&mut ledger.tally, 1);
     let height: i32 in Wrapping = Ledger::height(&mut ledger, 1);
     transition both == 40 {
-        true -> check_report(report.total, height)
-        _ -> done(71)
+        true -> check_report(&main.console, report.total, height)
+        _ -> done(&main.console, 71)
     }
 
-    state check_report(total: i32 in Wrapping, height: i32 in Wrapping) {
+    state check_report(console: &Binding<Console>, total: i32 in Wrapping, height: i32 in Wrapping) {
         transition total == 10 {
-            true -> check_height(height)
-            _ -> done(72)
+            true -> check_height(console, height)
+            _ -> done(console, 72)
         }
     }
 
-    state check_height(height: i32 in Wrapping) {
+    state check_height(console: &Binding<Console>, height: i32 in Wrapping) {
         transition height == 0 {
-            true -> done(70)
-            _ -> done(73)
+            true -> done(console, 70)
+            _ -> done(console, 73)
         }
     }
 
-    state done(code: i32) {
-        Console::exit_process(code);
+    state done(console: &Binding<Console>, code: i32) {
+        Console::exit_process(console, code);
     }
 }

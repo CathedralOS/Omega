@@ -22,6 +22,7 @@ data Session { parent: Binding<Parent<u64>>; }
 data Main<'record> {
     parent: Binding<Parent<u64>>;
     session: Session;
+    child: Binding<Child>;
 }
 
 machine observed<'borrow>(parent: &'borrow Binding<Parent<u64>>) -> i32 reaches Parent {
@@ -31,7 +32,7 @@ machine Main::main<'activation>(main: &'activation mut Main<'activation>)
 reaches Child + Parent crashes Trap {
     let direct: i32 = observed(&main.parent);
     let nested: i32 = observed(&main.session.parent);
-    let chosen: i32 = Child::choose();
+    let chosen: i32 = Child::choose(&main.child);
     transition direct == 37 && nested == 37 && chosen == 19 {
         true -> done() _ -> bad()
     }

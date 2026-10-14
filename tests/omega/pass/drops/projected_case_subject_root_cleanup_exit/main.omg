@@ -77,50 +77,50 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
 
 
 data Kind [copy] { case Keep; case Pass; }
-data Item { ready: bool; kind: Kind; byte: i32; }
+data Item<'binding> { console: &'binding Binding<Console>; ready: bool; kind: Kind; byte: i32; }
 
-machine Item::drop(item: &mut Item)
+machine Item::drop(item: &mut Item<'binding>)
 requires item.ready
 reaches Console
 {
-    Console::write_byte(item.byte);
+    Console::write_byte(item.console, item.byte);
     item.ready = false;
 }
 
-machine route(kind: Kind, byte: i32) reaches Console {
-    let item: Item = Item { ready: true, kind: kind, byte: byte };
+machine route(console: &Binding<Console>, kind: Kind, byte: i32) reaches Console {
+    let item: Item = Item { console: console, ready: true, kind: kind, byte: byte };
     transition item.kind {
-        Kind::Pass -> take(item)
-        _ -> skip()
+        Kind::Pass -> take(console, item)
+        _ -> skip(console)
     }
-    state take(item: Item)
+    state take(console: &Binding<Console>, item: Item)
     requires item.ready
     {
-        Console::write_byte(80);
+        Console::write_byte(console, 80);
     }
-    state skip() { Console::write_byte(83); }
+    state skip(console: &Binding<Console>) { Console::write_byte(console, 83); }
 }
 
-machine pick(kind: Kind, byte: i32) -> i32 reaches Console {
-    let item: Item = Item { ready: true, kind: kind, byte: byte };
+machine pick(console: &Binding<Console>, kind: Kind, byte: i32) -> i32 reaches Console {
+    let item: Item = Item { console: console, ready: true, kind: kind, byte: byte };
     transition item.kind {
-        Kind::Pass -> take(item)
+        Kind::Pass -> take(console, item)
         Kind::Keep -> (71)
     }
-    state take(item: Item) -> i32
+    state take(console: &Binding<Console>, item: Item) -> i32
     requires item.ready
     {
-        Console::write_byte(80);
+        Console::write_byte(console, 80);
         70
     }
 }
 
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) reaches Console {
-    route(Kind::Pass, 65);
-    route(Kind::Keep, 66);
-    let kept: i32 = pick(Kind::Keep, 67);
-    let passed: i32 = pick(Kind::Pass, 68);
+    route(&main.console, Kind::Pass, 65);
+    route(&main.console, Kind::Keep, 66);
+    let kept: i32 = pick(&main.console, Kind::Keep, 67);
+    let passed: i32 = pick(&main.console, Kind::Pass, 68);
     main.console.write_byte(kept);
     main.console.write_byte(passed);
     main.console.write_byte(10);

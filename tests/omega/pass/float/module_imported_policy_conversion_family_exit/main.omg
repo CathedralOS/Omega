@@ -2,7 +2,9 @@
 // turn the core provider's visible conversion family into a missing target.
 use omega_language_std::console;
 use conversion;
-machine main() reaches Console {
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let result: i32 in Saturating = conversion::convert(2.0);
-    Console::exit_process(result as i32);
+    Console::exit_process(&main.console, result as i32);
 }

@@ -1,18 +1,20 @@
 use omega_language_std::console;
+use omega::language::core::binding;
 
-machine emit(character: i32 [0..=255], enabled: bool) reaches Console {
+machine emit(console: &Binding<Console>, character: i32 [0..=255], enabled: bool) reaches Console {
     transition enabled {
-        true -> output(character)
+        true -> output(console, character)
         false -> skipped()
     }
-    state output(character: i32 [0..=255]) {
-        Console::write_byte(character);
+    state output(console: &Binding<Console>, character: i32 [0..=255]) {
+        Console::write_byte(console, character);
     }
     state skipped() { }
 }
 
-machine main() reaches Console {
-    emit(88, false);
-    emit(65, true);
-    emit(10, true);
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    emit(&main.console, 88, false);
+    emit(&main.console, 65, true);
+    emit(&main.console, 10, true);
 }

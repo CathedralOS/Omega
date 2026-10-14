@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Payload { value: i32; }
 
@@ -12,23 +13,24 @@ machine forward(payload: Payload, selected: bool) -> i32 {
     state take(payload: Payload) -> i32 { payload.value }
 }
 
-machine mark_value(value: i32) -> i32 reaches Console {
-    Console::write_byte(value);
+machine mark_value(console: &Binding<Console>, value: i32) -> i32 reaches Console {
+    Console::write_byte(console, value);
     value
 }
 
-machine mark_selection(marker: i32, selected: bool) -> bool reaches Console {
-    Console::write_byte(marker);
+machine mark_selection(console: &Binding<Console>, marker: i32, selected: bool) -> bool reaches Console {
+    Console::write_byte(console, marker);
     selected
 }
 
-machine main() reaches Console {
-    let selected: i32 = forward(Payload { value: mark_value(70) }, mark_selection(84, true));
-    let unselected: i32 = forward(Payload { value: mark_value(72) }, mark_selection(78, false));
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let selected: i32 = forward(Payload { value: mark_value(&main.console, 70) }, mark_selection(&main.console, 84, true));
+    let unselected: i32 = forward(Payload { value: mark_value(&main.console, 72) }, mark_selection(&main.console, 78, false));
     transition selected == 70 && unselected == 71 {
-        true -> good()
-        false -> bad()
+        true -> good(&main.console)
+        false -> bad(&main.console)
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(72); }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>) { Console::exit_process(console, 72); }
 }

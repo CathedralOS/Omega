@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Counter { count: u64; }
 
@@ -15,19 +16,20 @@ machine Counter::update(counter: &mut Counter, bytes: &[u8]) {
     }
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let bytes: [u8; 3];
     let mut counter: Counter;
     counter.count = 67;
     Counter::update(&mut counter, &bytes[..]);
     transition counter.count == 70 {
-        true -> matched()
-        false -> mismatched()
+        true -> matched(&main.console)
+        false -> mismatched(&main.console)
     }
-    state matched() {
-        Console::exit_process(70);
+    state matched(console: &Binding<Console>) {
+        Console::exit_process(console, 70);
     }
-    state mismatched() {
-        Console::exit_process(71);
+    state mismatched(console: &Binding<Console>) {
+        Console::exit_process(console, 71);
     }
 }

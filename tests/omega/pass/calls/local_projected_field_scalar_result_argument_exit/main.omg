@@ -5,6 +5,7 @@
 // and the caller's own field agree.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Banner { width: i32 in Wrapping; }
 data Screen { height: i32 in Wrapping; banner: Banner; }
@@ -14,16 +15,17 @@ machine Banner::widen(banner: &mut Banner, by: i32 in Wrapping) -> i32 {
     transition { _ -> (banner.width as i32) }
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut screen: Screen;
     let first: i32 = Banner::widen(&mut screen.banner, 30);
     let second: i32 = Banner::widen(&mut screen.banner, 40);
     transition first == 30 && second == 70 && screen.banner.width == 70 {
-        true -> done(70)
-        _ -> done(71)
+        true -> done(&main.console, 70)
+        _ -> done(&main.console, 71)
     }
 
-    state done(code: i32) {
-        Console::exit_process(code);
+    state done(console: &Binding<Console>, code: i32) {
+        Console::exit_process(console, code);
     }
 }

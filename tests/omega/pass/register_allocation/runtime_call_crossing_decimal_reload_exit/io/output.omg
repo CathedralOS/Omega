@@ -1,37 +1,38 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::binding;
 // Every emitted quantity is below 10^12 in magnitude by the input envelope.
-pub machine integer(value: i64 in Wrapping) reaches Console
+pub machine integer(console: &Binding<Console>, value: i64 in Wrapping) reaches Console
 invokes Console;
 crashes Trap
 {
-    transition value < 0 { true -> negative(value) _ -> digits(value, 1000000000000, false) }
-    state negative(value: i64 in Wrapping) {
-        Console::write("-");
-        transition { _ -> digits(0 - value, 1000000000000, false) }
+    transition value < 0 { true -> negative(console, value) _ -> digits(console, value, 1000000000000, false) }
+    state negative(console: &Binding<Console>, value: i64 in Wrapping) {
+        Console::write(console, "-");
+        transition { _ -> digits(console, 0 - value, 1000000000000, false) }
     }
-    state digits(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
+    state digits(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
     requires divisor > 0
     {
         let digit: i64 in Wrapping = value / divisor;
         transition digit != 0 || started || divisor == 1 {
-            true -> emit(value, divisor, digit)
-            _ -> advance(value, divisor, false)
+            true -> emit(console, value, divisor, digit)
+            _ -> advance(console, value, divisor, false)
         }
     }
-    state emit(value: i64 in Wrapping, divisor: i64 in Wrapping, digit: i64 in Wrapping)
+    state emit(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, digit: i64 in Wrapping)
     requires divisor > 0
     {
-        Console::write_byte(narrow_i64_to_i32_trapping((digit + 48) as i64));
-        transition { _ -> advance(value % divisor, divisor, true) }
+        Console::write_byte(console, narrow_i64_to_i32_trapping((digit + 48) as i64));
+        transition { _ -> advance(console, value % divisor, divisor, true) }
     }
-    state advance(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
-        transition divisor >= 10 { true -> next(value, divisor, started) _ -> done() }
+    state advance(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
+        transition divisor >= 10 { true -> next(console, value, divisor, started) _ -> done() }
     }
-    state next(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
+    state next(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
     requires divisor >= 10
     {
-        transition { _ -> digits(value, divisor / 10, started) }
+        transition { _ -> digits(console, value, divisor / 10, started) }
     }
     state done() { }
 }

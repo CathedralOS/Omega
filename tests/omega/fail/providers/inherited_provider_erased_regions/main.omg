@@ -1,8 +1,9 @@
+use omega::language::core::binding;
 // The borrowed phantom argument carries an elided region even though neither
 // boundary trait declares a lifetime. Erased carrier equality cannot settle
 // Parent's competing choices through Child's whole map.
-boundary trait Parent<Value> { machine read() -> i32; }
-boundary trait Child: Parent<&u64> { machine choose() -> i32; }
+pub boundary trait Parent<Value> { machine read() -> i32; }
+pub boundary trait Child: Parent<&u64> { machine choose() -> i32; }
 ChildMap satisfies Child {
     Parent::read = shared;
     Child::choose = shared;
@@ -14,7 +15,7 @@ data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Child, ChildMap>(defaults);
 }
-data Main {}
-machine Main::main() reaches Child + Parent {
-    let chosen: i32 = Child::choose();
+data Main { child: Binding<Child>; }
+machine Main::main(main: &mut Main) reaches Child + Parent {
+    let chosen: i32 = Child::choose(&main.child);
 }

@@ -1,12 +1,14 @@
 use omega_language_std::console;
-machine main() reaches Console {
-    transition { _ -> take([30, 40]) }
-    state take(values: [i32; 2]) {
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    transition { _ -> take(&main.console, [30, 40]) }
+    state take(console: &Binding<Console>, values: [i32; 2]) {
         transition values[0] == 30 && values[1] == 40 {
-            true -> good()
-            false -> bad()
+            true -> good(console)
+            false -> bad(console)
         }
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(71); }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>) { Console::exit_process(console, 71); }
 }

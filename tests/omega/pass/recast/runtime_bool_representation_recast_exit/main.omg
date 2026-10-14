@@ -28,19 +28,19 @@ machine Main::main(main: &mut Main) reaches Console {
     let flag_bits: &u8 = &main.flag as &u8;
     let byte_flag: &bool = &main.byte as &bool;
     transition flag_bits == 1 && byte_flag {
-        true -> mutate(main)
-        _ -> bad(main)
+        true -> mutate(&main.console, main)
+        _ -> bad(&main.console, main)
     }
 
-    state mutate(main: &mut Main) {
+    state mutate(console: &Binding<Console>, main: &mut Main) {
         let byte_flag: &mut bool = &mut main.byte as &mut bool;
         byte_flag = false;
         transition main.flag && main.byte == 0 {
-            true -> good(main)
-            _ -> bad(main)
+            true -> good(console, main)
+            _ -> bad(console, main)
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    state good(console: &Binding<Console>, main: &mut Main) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>, main: &mut Main) { Console::exit_process(console, 71); }
 }

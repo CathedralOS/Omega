@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Payload { value: i32; }
 
@@ -12,15 +13,16 @@ machine forward(payload: Payload, selected: bool) -> i32 {
     state take(payload: Payload) -> i32 { payload.value }
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let first: Payload = Payload { value: 70 };
     let second: Payload = Payload { value: 12 };
     let selected: i32 = forward(first, true);
     let unselected: i32 = forward(second, false);
     transition selected == 70 && unselected == 71 {
-        true -> good()
-        false -> bad()
+        true -> good(&main.console)
+        false -> bad(&main.console)
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(72); }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>) { Console::exit_process(console, 72); }
 }

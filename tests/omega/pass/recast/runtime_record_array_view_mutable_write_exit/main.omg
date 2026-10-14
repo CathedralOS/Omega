@@ -42,9 +42,9 @@ machine Main::main(main: &mut Main) reaches Console {
         && main.bytes[4] == 1 && main.bytes[5] == 2
         && main.bytes[6] == 3 && main.bytes[7] == 4
         && main.bytes[12] == 5 && main.bytes[13] == 6 {
-        true -> good(main)
-        _ -> bad(main)
+        true -> good(&main.console, main)
+        _ -> bad(&main.console, main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    state good(console: &Binding<Console>, main: &mut Main) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>, main: &mut Main) { Console::exit_process(console, 71); }
 }

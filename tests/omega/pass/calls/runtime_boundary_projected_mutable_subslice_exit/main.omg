@@ -10,7 +10,7 @@ machine fill(bytes: &mut [u8], value: u8) {
     state write(bytes: &mut [u8], value: u8) { bytes[0] = value; }
     state done() { }
 }
-data Main { provider: Binding<Fill>; bytes: [u8; 8]; start: u64 [0..=7]; }
+data Main { provider: Binding<Fill>; bytes: [u8; 8]; start: u64 [0..=7]; console: Binding<Console>; }
 machine Main::main(main: &mut Main) reaches Fill + Console {
     main.bytes[0] = 11;
     main.bytes[7] = 13;
@@ -20,9 +20,9 @@ machine Main::main(main: &mut Main) reaches Fill + Console {
     fill(&mut main.bytes[main.start..7], 41);
     transition main.bytes[0] == 11 && main.bytes[2] == 29
         && main.bytes[4] == 41 && main.bytes[7] == 13 {
-        true -> good()
-        _ -> bad()
+        true -> good(&main.console)
+        _ -> bad(&main.console)
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(71); }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>) { Console::exit_process(console, 71); }
 }

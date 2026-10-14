@@ -1,5 +1,6 @@
+use omega::language::core::binding;
 // Each operand appears in the roster, but this complete tuple does not.
-boundary trait Service {
+pub boundary trait Service {
     machine echo<const Count: u64, const Stride: u64>(value: i32) -> i32
     where (Count == 4 && Stride == 1) || (Count == 8 && Stride == 2);
 }
@@ -9,7 +10,7 @@ data Providers {}
 macos_arm64 machine Providers::provider_defaults(defaults: &mut Providers) {
     Providers::select_provider<Service, Provider>(defaults);
 }
-data Main {}
-macos_arm64 machine Main::main() reaches Service {
-    let result: i32 = Service::echo<4, 2>((17 as i32));
+data Main { service: Binding<Service>; }
+macos_arm64 machine Main::main(main: &mut Main) reaches Service {
+    let result: i32 = Service::echo<4, 2>(&main.service, (17 as i32));
 }

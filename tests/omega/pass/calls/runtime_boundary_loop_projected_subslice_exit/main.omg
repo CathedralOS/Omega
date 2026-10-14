@@ -10,27 +10,27 @@ machine fill(bytes: &mut [u8], value: u8) {
     state write(bytes: &mut [u8], value: u8) { bytes[0] = value; }
     state done() { }
 }
-data Main { provider: Binding<Fill>; bytes: [u8; 8]; start: u64 [0..=7]; }
+data Main { provider: Binding<Fill>; bytes: [u8; 8]; start: u64 [0..=7]; console: Binding<Console>; }
 machine Main::main(main: &mut Main) reaches Fill + Console {
     main.bytes[0] = 11;
     main.bytes[7] = 13;
     main.start = 2;
-    transition { _ -> again(main) }
-    state again(main: &mut Main) {
-        transition main.start < 5 { true -> write(main) _ -> verify(main) }
+    transition { _ -> again(&main.console, main) }
+    state again(console: &Binding<Console>, main: &mut Main) {
+        transition main.start < 5 { true -> write(console, main) _ -> verify(console, main) }
     }
-    state write(main: &mut Main) {
+    state write(console: &Binding<Console>, main: &mut Main) {
         main.provider.fill(&mut main.bytes[main.start..7], 29);
         main.start = main.start + 1;
-        transition { _ -> again(main) }
+        transition { _ -> again(console, main) }
     }
-    state verify(main: &mut Main) {
+    state verify(console: &Binding<Console>, main: &mut Main) {
         transition main.bytes[0] == 11 && main.bytes[2] == 29
             && main.bytes[3] == 29 && main.bytes[4] == 29 && main.bytes[7] == 13 {
-            true -> good()
-            _ -> bad()
+            true -> good(console)
+            _ -> bad(console)
         }
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(71); }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>) { Console::exit_process(console, 71); }
 }

@@ -1,1 +1,1 @@
-cannot prove requires contract for call recurse from main: 0 > 0
+cannot prove requires contract for call recurse from Main::main: 0 > 0

@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::binding;
 pub data Value {}
 pub boundary requirement Value::read(value: i32) -> i32;
 data ValueProvider {}
@@ -9,13 +10,14 @@ machine forward(value: i32) -> i32 {
         _ -> Value::read(71)
     }
 }
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let selected: i32 = forward(70);
     let fallback: i32 = forward(0);
     transition selected == 70 && fallback == 71 {
-        true -> good()
-        _ -> bad()
+        true -> good(&main.console)
+        _ -> bad(&main.console)
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(74); }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>) { Console::exit_process(console, 74); }
 }

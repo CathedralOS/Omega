@@ -5,6 +5,7 @@
 // final read sees 30 + 40. Exits 70 only when both loans updated the local.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Score { points: i32 in Wrapping; }
 
@@ -12,9 +13,10 @@ machine Score::bump(score: &mut Score, by: i32 in Wrapping) {
     score.points = score.points + by;
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut score: Score;
     Score::bump(&mut score, 30);
     Score::bump(&mut score, 40);
-    Console::exit_process(score.points as i32);
+    Console::exit_process(&main.console, score.points as i32);
 }

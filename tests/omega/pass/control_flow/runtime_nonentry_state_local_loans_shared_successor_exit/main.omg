@@ -10,38 +10,40 @@
 // first lender ran instead; 72 = the successor read the wrong total.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Score { value: u64 in Wrapping; bonus: u64 in Wrapping; }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let start: u64 = 3;
     transition start > 5 {
-        true -> first(start)
-        _ -> second(start)
+        true -> first(&main.console, start)
+        _ -> second(&main.console, start)
     }
 
-    state first(start: u64) {
+    state first(console: &Binding<Console>, start: u64) {
         let mut opening: Score;
         opening.value = start as u64 in Wrapping;
-        transition { _ -> settle(&mut opening, 71) }
+        transition { _ -> settle(console, &mut opening, 71) }
     }
 
-    state second(start: u64) {
+    state second(console: &Binding<Console>, start: u64) {
         let mut closing: Score;
         closing.value = start as u64 in Wrapping;
         closing.value = closing.value + 1;
-        transition { _ -> settle(&mut closing, 70) }
+        transition { _ -> settle(console, &mut closing, 70) }
     }
 
-    state settle(score: &mut Score, code: i32) {
+    state settle(console: &Binding<Console>, score: &mut Score, code: i32) {
         score.bonus = score.value + 66;
         transition score.bonus == 70 {
-            true -> refused(code)
-            _ -> refused(72)
+            true -> refused(console, code)
+            _ -> refused(console, 72)
         }
     }
 
-    state refused(code: i32) {
-        Console::exit_process(code);
+    state refused(console: &Binding<Console>, code: i32) {
+        Console::exit_process(console, code);
     }
 }

@@ -41,12 +41,13 @@ machine reassigned_source() -> i32 in Wrapping {
     forwarded + obliged
 }
 
-machine main()
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main)
 reaches Console {
     let n: i32 = 3;
     let direct: i32 in Wrapping = prefix_count<n>(7);
     let reassigned: i32 in Wrapping = reassigned_source();
     let closed: i32 in Wrapping = prefix_count<4>(9);
     let total: i32 in Wrapping = direct + reassigned + closed;
-    Console::exit_process(total as i32);
+    Console::exit_process(&main.console, total as i32);
 }

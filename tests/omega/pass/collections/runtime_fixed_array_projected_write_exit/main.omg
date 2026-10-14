@@ -17,26 +17,28 @@
 // Expected exit: 45
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::binding;
 data Grid where 0 <= max_y, max_y <= 2, 0 <= max_x, max_x <= 3 {
     cells: [u8; 12];
     max_y: u32;
     max_x: u32;
 }
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut grid: Grid;
     grid.max_y = 2;
     grid.max_x = 3;
     grid.cells[11] = 40;
-    transition { _ -> row(&mut grid, 0, 0) }
+    transition { _ -> row(&main.console, &mut grid, 0, 0) }
 
     // Walk rows; each row walks its cells. Every hop's proof is the arm's
     // own guard relating the next coordinate to the bound field.
-    state row(grid: &mut Grid, y: u32, hottest: u32)
+    state row(console: &Binding<Console>, grid: &mut Grid, y: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y
     {
-        transition { _ -> cell(grid, y, 0, hottest) }
+        transition { _ -> cell(console, grid, y, 0, hottest) }
     }
-    state cell(grid: &mut Grid, y: u32, x: u32, hottest: u32)
+    state cell(console: &Binding<Console>, grid: &mut Grid, y: u32, x: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y && 0 <= x && x <= grid.max_x
     {
         let bump: u8 =
@@ -47,28 +49,28 @@ machine main() reaches Console {
         grid.cells[y * 4 + x] = next;
         let heat: u32 = widen_u8_to_u32(next);
         transition heat > hottest {
-            true -> step(grid, y, x, heat)
-            _ -> step(grid, y, x, hottest)
+            true -> step(console, grid, y, x, heat)
+            _ -> step(console, grid, y, x, hottest)
         }
     }
-    state step(grid: &mut Grid, y: u32, x: u32, hottest: u32)
+    state step(console: &Binding<Console>, grid: &mut Grid, y: u32, x: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y && 0 <= x && x <= grid.max_x
     {
         transition x + 1 <= grid.max_x {
-            true -> cell(grid, y, x + 1, hottest)
-            _ -> next_row(grid, y, hottest)
+            true -> cell(console, grid, y, x + 1, hottest)
+            _ -> next_row(console, grid, y, hottest)
         }
     }
-    state next_row(grid: &mut Grid, y: u32, hottest: u32)
+    state next_row(console: &Binding<Console>, grid: &mut Grid, y: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y
     {
         transition y + 1 <= grid.max_y {
-            true -> row(grid, y + 1, hottest)
-            _ -> done(hottest)
+            true -> row(console, grid, y + 1, hottest)
+            _ -> done(console, hottest)
         }
     }
-    state done(hottest: u32) {
+    state done(console: &Binding<Console>, hottest: u32) {
         let code: i32 = narrow_u32_to_i32_trapping(hottest);
-        Console::exit_process(code);
+        Console::exit_process(console, code);
     }
 }

@@ -2,5 +2,5 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_mutable_local_external_scalar_call_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
 }

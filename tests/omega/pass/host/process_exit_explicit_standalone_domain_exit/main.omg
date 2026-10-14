@@ -2,7 +2,9 @@
 // No Console reach, import binding or erased Binding roster grants authority.
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
+use omega::language::core::binding;
 
-machine main() reaches ProcessExit {
-    ProcessExit::exit_process(70);
+data Main { process_exit: Binding<ProcessExit>; }
+machine Main::main(main: &mut Main) reaches ProcessExit {
+    ProcessExit::exit_process(&main.process_exit, 70);
 }

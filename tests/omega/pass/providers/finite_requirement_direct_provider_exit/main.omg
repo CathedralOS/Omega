@@ -1,7 +1,8 @@
+use omega::language::core::binding;
 // Direct machine satisfaction and named maps share executable family
 // coordinates; neither may choose a sibling tuple because its ABI matches.
 // Count=12 is supported but uncalled: selection must retain the whole roster.
-boundary trait Service {
+pub boundary trait Service {
     machine echo<const Count: u64>(value: i32) -> i32
     where Count == 4 || Count == 8 || Count == 12;
 }
@@ -14,10 +15,10 @@ data Providers {}
 macos_arm64 machine Providers::provider_defaults(defaults: &mut Providers) {
     Providers::select_provider<Service, Provider>(defaults);
 }
-data Main {}
-macos_arm64 machine Main::main() reaches Service crashes Trap {
-    let first: i32 = Service::echo<4>((17 as i32));
-    let second: i32 = Service::echo<8>((25 as i32));
+data Main { service: Binding<Service>; }
+macos_arm64 machine Main::main(main: &mut Main) reaches Service crashes Trap {
+    let first: i32 = Service::echo<4>(&main.service, (17 as i32));
+    let second: i32 = Service::echo<8>(&main.service, (25 as i32));
     transition first == 18 && second == 27 { true -> done() _ -> bad() }
     state done() {}
     state bad() { crash Trap; }

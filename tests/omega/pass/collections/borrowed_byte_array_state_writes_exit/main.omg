@@ -5,36 +5,38 @@
 // private block a short-circuit guard opens. "HELLO" shifted by one is
 // "IFMMP"; the literal store replaces its first byte: exit 70.
 use omega_language_std::console;
+use omega::language::core::binding;
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let text: [u8; 5] = "HELLO";
     let mut output: [u8; 5] = ".....";
-    transition { _ -> step(&text, &mut output, 0) }
+    transition { _ -> step(&main.console, &text, &mut output, 0) }
 
-    state step(text: &[u8; 5], output: &mut [u8; 5], position: u64)
+    state step(console: &Binding<Console>, text: &[u8; 5], output: &mut [u8; 5], position: u64)
         requires position <= 5
     {
         transition position < 5 {
-            true -> copy(text, output, position)
-            _ -> mark(output, 4)
+            true -> copy(console, text, output, position)
+            _ -> mark(console, output, 4)
         }
     }
 
-    state copy(text: &[u8; 5], output: &mut [u8; 5], position: u64)
+    state copy(console: &Binding<Console>, text: &[u8; 5], output: &mut [u8; 5], position: u64)
         requires position < 5
     {
         let byte: u8 in Wrapping = text[position] as u8 in Wrapping + 1;
         output[position] = byte as u8;
-        transition { _ -> step(text, output, position + 1) }
+        transition { _ -> step(console, text, output, position + 1) }
     }
 
-    state mark(output: &mut [u8; 5], last: u64) {
+    state mark(console: &Binding<Console>, output: &mut [u8; 5], last: u64) {
         output[0] = 74;
         transition last < 5 && output[last] == 80 && output[0] == 74 && output[1] == 70 {
-            true -> finish(70)
-            _ -> finish(71)
+            true -> finish(console, 70)
+            _ -> finish(console, 71)
         }
     }
 
-    state finish(code: i32) { Console::exit_process(code); }
+    state finish(console: &Binding<Console>, code: i32) { Console::exit_process(console, code); }
 }

@@ -1369,8 +1369,8 @@ fail/calls/recursive_terminal_parenthesized_missing_acknowledgement rejected 884
 	call to `scan` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/calls/recursive_terminal_postcondition_not_established rejected 1158ms expected @5acf32321f42+wt
 	cannot prove ensures contract for exit from scan at statement 2: context.value == 0
-fail/calls/recursive_unit_zero_requires_rejected rejected 5111ms expected @5acf32321f42+wt
-	cannot prove requires contract for call recurse from main: 0 > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/recursive_unit_zero_requires_rejected rejected 3492ms expected @8df1d091a810
+	cannot prove requires contract for call recurse from Main::main: 0 > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/calls/result_overload_terminal_arm_unmatched_result rejected 1396ms expected @098b7c4bf0f0+wt
 	machine `bare` state `entry` terminal call to `walk` completes with its `Unit` result, but the state returns `i32`; a terminal machine call's normal result is its caller's result, so the two must match
 fail/calls/resultless_return_contract rejected 1349ms expected @a9ae30e1c334+wt
@@ -1507,8 +1507,8 @@ fail/collections/range_call_later_endpoint_cannot_prove_nonempty rejected 1528ms
 	cannot prove requires contract for call first from main: values[0..endpoint.end].len > 0 (needs fact `values.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/collections/runtime_three_indexed_float_read_missing_bound rejected 1706ms expected @9462eda24d9e+wt
 	cannot prove index `row` is within length 2 in read::entry
-fail/collections/vec_duplicate_cleanup rejected 4131ms expected @a9ae30e1c334+wt
-	cannot use `vec` in machine `Main::main` state `main` (statement 2) after `vec` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `vec` first
+fail/collections/vec_duplicate_cleanup rejected 3136ms expected @8df1d091a810
+	cannot use `vec` in machine `Main::main` state `main` (statement 4) after `vec` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `vec` first
 fail/collections/vec_invalidated_loan_after_growth rejected 5189ms expected @a9ae30e1c334+wt
 	state `grow8to16` receives `main.b8` while local borrow `slots` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
 	statement 2 mutates `main.b8.e[0]` while local borrow `slots` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
@@ -3365,8 +3365,8 @@ fail/ownership/borrowed_window_mutable_selector_observes_hole rejected 1146ms ex
 fail/ownership/borrowed_window_selector_alias_write rejected 1202ms expected @a9ae30e1c334+wt
 	cannot store `tokens[index]` while `tokens[index]` is absent: the value moved out of borrowed storage at statement 2 must be restored as a whole
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `misplaced`, state `entry` (statement 2): `tokens[index]` must hold a value again before this state's exits consume the borrow
-fail/ownership/boundary_cycle_reuses_consumed_owner rejected 1197ms expected @a9ae30e1c334+wt
-	cannot use `token` in machine `main` state `cycle` (statement 1) after `token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
+fail/ownership/boundary_cycle_reuses_consumed_owner rejected 600ms expected @8df1d091a810
+	cannot use `token` in machine `main` state `cycle` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/ownership/computed_window_selector_keeps_snapshot rejected 1147ms expected @a9ae30e1c334+wt
 	cannot store `tokens[index]` while `tokens[index]` is absent: the value moved out of borrowed storage at statement 3 must be restored as a whole
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `misplaced`, state `entry` (statement 3): `tokens[index]` must hold a value again before this state's exits consume the borrow
@@ -3897,8 +3897,8 @@ fail/providers/computed_binding_receiver_fabricated_carrier rejected 3603ms expe
 	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
 fail/providers/consuming_requirement_without_provider rejected 23449ms expected @a9ae30e1c334+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Receipt::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-fail/providers/consuming_trait_requirement_without_provider rejected 5002ms expected @b8976916d516+wt
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Acknowledgement::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+fail/providers/consuming_trait_requirement_without_provider rejected 15803ms expected @8df1d091a810
+	selected ProgramEntry Binding field `Main::acknowledgement` requires a selected Fused provider for boundary `Acknowledgement`
 fail/providers/external_boundary_requires_preserved rejected 3059ms expected @5aabaabbdd54+wt
 	machine `Main::main` state `main` value call to `absolute` violates required fact `value > -2147483648`: the instantiated fact is structurally false (`-2147483648 > -2147483648`)
 fail/providers/finite_requirement_boolean_outside_roster rejected 3413ms expected @a9ae30e1c334+wt
@@ -4598,8 +4598,8 @@ fail/text/qualified_byte_array_element_replacement rejected 470ms expected @c0d8
 fail/text/qualified_byte_array_mutable_domain_loss rejected 449ms expected @c0d817d0e753+wt
 	cannot prove requires contract for call replace from bad: entries[1] in [u8; N]::Utf8
 	cannot prove default-domain field requirement for return from bad at statement 1: entries[1] requires [u8; N]::Ascii
-fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 1659ms expected @dca1c7cd7e6f+wt
-	cannot prove requires contract for call step from main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[__hoist_32]; output is part of [u8; N]::Utf8)
+fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 3491ms expected @8df1d091a810
+	cannot prove requires contract for call step from Main::main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[__hoist_32]; output is part of [u8; N]::Utf8) in state `shift`
 fail/text/qualified_byte_state_domain_widening rejected 4955ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call narrowed from relay: value in [u8; N]::Ascii
 fail/time/duration_constant_unnormalized rejected 33ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
@@ -5501,6 +5501,7 @@ pass/calls/runtime_mutable_call_empty_input_exit checked 11065ms check-target:ma
 pass/calls/runtime_mutable_call_short_input_exit checked 11576ms check-target:macos_arm64 @da842c101400+wt
 pass/calls/runtime_mutable_local_external_scalar_call_exit checked 6405ms check-target:macos_arm64 @9dd545defbc0
 pass/calls/runtime_mutable_local_parameter_write_exit checked 10932ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_mutual_unit_borrowed_continuation_exit checked 11449ms check-target:macos_arm64 @8df1d091a810
 pass/calls/runtime_nested_case_argument_exit checked 11245ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_nested_case_subject_operand_order_exit checked 10451ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_nested_completed_operands_then_shared_borrow_exit checked 5872ms check-target:macos_arm64 @589aedee8ebc+wt
@@ -6515,7 +6516,7 @@ pass/float/public_integer_input_contract_state_import_exit checked 25240ms check
 pass/float/public_integer_result_contract_import_exit checked 25164ms check-target:macos_arm64 @9c4d1c444502
 pass/float/qualified_integer_source_exact_float_coercion_exit checked 25623ms check-target:macos_arm64 @9c4d1c444502
 pass/float/requirement_nested_record_arithmetic_exit checked 25829ms check-target:macos_arm64 @9c4d1c444502
-pass/float/returned_record_computed_fields_exit checked 14608ms check-target:linux_x86_64 @1b12798e27f4
+pass/float/returned_record_computed_fields_exit checked 18580ms check-target:macos_arm64 @8df1d091a810
 pass/float/runtime_absolute_return_sum_exit checked 14962ms check-target:macos_arm64 @1f63ee648905+wt
 pass/float/runtime_absolute_shared_call_operands_exit checked 13965ms check-target:macos_arm64 @1f63ee648905+wt
 pass/float/runtime_authored_max_selection_exit checked 13963ms check-target:macos_arm64 @1f63ee648905+wt

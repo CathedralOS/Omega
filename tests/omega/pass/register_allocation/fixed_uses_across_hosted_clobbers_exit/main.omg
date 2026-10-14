@@ -6,10 +6,10 @@ use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 
-machine number(value: i32 in Saturating) reaches Console {
-    Console::write_byte(((value / 100) % 10 + 48) as i32);
-    Console::write_byte(((value / 10) % 10 + 48) as i32);
-    Console::write_byte((value % 10 + 48) as i32);
+machine number(console: &Binding<Console>, value: i32 in Saturating) reaches Console {
+    Console::write_byte(console, ((value / 100) % 10 + 48) as i32);
+    Console::write_byte(console, ((value / 10) % 10 + 48) as i32);
+    Console::write_byte(console, (value % 10 + 48) as i32);
 }
 
 machine next(value: i32 in Saturating) -> i32 in Saturating { value + 1 }
@@ -17,15 +17,15 @@ machine next(value: i32 in Saturating) -> i32 in Saturating { value + 1 }
 machine Main::main(main: &mut Main) reaches Console {
     let observed: ByteRead = block main.console.read_byte();
     transition observed {
-        ByteRead::Byte { value } -> output(main, value as i32 in Saturating)
+        ByteRead::Byte { value } -> output(&main.console, main, value as i32 in Saturating)
         _ -> bad(main)
     }
-    state output(main: &mut Main, value: i32 in Saturating) {
-        number(value);
+    state output(console: &Binding<Console>, main: &mut Main, value: i32 in Saturating) {
+        number(console, value);
         main.console.write(" ");
-        number(next(value));
+        number(console, next(value));
         main.console.write(" ");
-        number(next(next(value)));
+        number(console, next(next(value)));
         main.console.write_line("");
         main.console.exit_process(0);
     }

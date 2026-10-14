@@ -3,16 +3,17 @@
 // linear obligation to be supplied twice and must be rejected.
 
 use alloc::vec;
+use omega::language::core::binding;
 
 data Main {}
 
-machine Main::main() -> i32 reaches VecDisposal {
+machine Main::main(vec_disposal: &Binding<VecDisposal>) -> i32 reaches VecDisposal {
     let vec: Vec = Vec {
         live: 0,
         rung: 0,
         len: 0,
     };
-    VecDisposal::close(vec);
-    VecDisposal::close(vec);
+    VecDisposal::close(vec_disposal, vec);
+    VecDisposal::close(vec_disposal, vec);
     0
 }

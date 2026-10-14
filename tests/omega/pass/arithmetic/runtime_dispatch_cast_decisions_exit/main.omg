@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::binding;
 
 machine narrow(value: u32) -> u8 {
     match value <= 255u32 {
@@ -7,13 +8,14 @@ machine narrow(value: u32) -> u8 {
     }
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let first: u8 = narrow(42u32);
     let second: u8 = narrow(300u32);
     transition first == 42u8 && second == 0u8 {
-        true -> good()
-        _ -> bad()
+        true -> good(&main.console)
+        _ -> bad(&main.console)
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(71); }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>) { Console::exit_process(console, 71); }
 }

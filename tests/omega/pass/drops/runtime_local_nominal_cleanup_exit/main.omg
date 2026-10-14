@@ -69,31 +69,31 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
     via exit_process_binding();
 
-data Token { ready: bool; byte: i32; }
+data Token<'binding> { console: &'binding Binding<Console>; ready: bool; byte: i32; }
 
-machine Token::drop(token: &mut Token)
+machine Token::drop(token: &mut Token<'binding>)
 requires token.ready
 reaches Console
 {
-    Console::write_byte(token.byte);
+    Console::write_byte(token.console, token.byte);
     token.ready = false;
 }
 
-machine scope_return() reaches Console {
-    let first: Token = Token { ready: true, byte: 65 };
-    let second: Token = Token { ready: true, byte: 66 };
+machine scope_return(console: &Binding<Console>) reaches Console {
+    let first: Token = Token { console: console, ready: true, byte: 65 };
+    let second: Token = Token { console: console, ready: true, byte: 66 };
 }
 
-machine scope_transition() reaches Console {
-    let first: Token = Token { ready: true, byte: 67 };
-    let second: Token = Token { ready: true, byte: 68 };
-    transition { _ -> done() }
-    state done() { Console::write_byte(69); }
+machine scope_transition(console: &Binding<Console>) reaches Console {
+    let first: Token = Token { console: console, ready: true, byte: 67 };
+    let second: Token = Token { console: console, ready: true, byte: 68 };
+    transition { _ -> done(console) }
+    state done(console: &Binding<Console>) { Console::write_byte(console, 69); }
 }
 
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) reaches Console {
-    scope_return();
-    scope_transition();
+    scope_return(&main.console);
+    scope_transition(&main.console);
     main.console.write_byte(10);
 }

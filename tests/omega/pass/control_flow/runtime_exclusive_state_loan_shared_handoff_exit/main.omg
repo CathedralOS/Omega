@@ -11,40 +11,42 @@
 // field; 72 = `confirm` read a stale element.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Tally { first: u64; grid: [[u64; 2]; 3]; }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut tally: Tally;
-    transition { _ -> fill(&mut tally, 0) }
+    transition { _ -> fill(&main.console, &mut tally, 0) }
 
-    state fill(tally: &mut Tally, round: u64) requires round <= 2 {
+    state fill(console: &Binding<Console>, tally: &mut Tally, round: u64) requires round <= 2 {
         tally.first = round + 5;
         tally.grid[round][1] = round + 1;
         let next: u64 = round + 1;
         transition next <= 2 {
-            true -> fill(tally, next)
-            _ -> check(tally)
+            true -> fill(console, tally, next)
+            _ -> check(console, tally)
         }
     }
 
-    state check(tally: &Tally) {
+    state check(console: &Binding<Console>, tally: &Tally) {
         transition tally.first == 7 {
-            true -> confirm(tally)
-            _ -> refused(71)
+            true -> confirm(console, tally)
+            _ -> refused(console, 71)
         }
     }
 
-    state confirm(tally: &Tally) {
+    state confirm(console: &Binding<Console>, tally: &Tally) {
         let last: u64 = tally.grid[2][1];
         let earliest: u64 = tally.grid[0][1];
         transition last == 3 && earliest == 1 {
-            true -> refused(70)
-            _ -> refused(72)
+            true -> refused(console, 70)
+            _ -> refused(console, 72)
         }
     }
 
-    state refused(code: i32) {
-        Console::exit_process(code);
+    state refused(console: &Binding<Console>, code: i32) {
+        Console::exit_process(console, code);
     }
 }

@@ -5,40 +5,42 @@
 // scalar helper's parameter. Runtime indexes read the same carrier under a
 // short-circuit guard and under a state requirement. "HELLO": exit 70.
 use omega_language_std::console;
+use omega::language::core::binding;
 
 machine head(bytes: &[u8; 5]) -> u8 {
     transition { _ -> (bytes[0]) }
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let text: [u8; 5] = "HELLO";
-    transition { _ -> literal(&text, 1) }
+    transition { _ -> literal(&main.console, &text, 1) }
 
-    state literal(text: &[u8; 5], second: u64) {
+    state literal(console: &Binding<Console>, text: &[u8; 5], second: u64) {
         let last: u8 = text[4];
         transition text[0] == 72 && last == 79 {
-            true -> guarded(text, second)
-            _ -> finish(71)
+            true -> guarded(console, text, second)
+            _ -> finish(console, 71)
         }
     }
 
-    state guarded(text: &[u8; 5], second: u64) {
+    state guarded(console: &Binding<Console>, text: &[u8; 5], second: u64) {
         transition second < 5 && text[second] == 69 {
-            true -> required(text, 2)
-            _ -> finish(72)
+            true -> required(console, text, 2)
+            _ -> finish(console, 72)
         }
     }
 
-    state required(text: &[u8; 5], third: u64)
+    state required(console: &Binding<Console>, text: &[u8; 5], third: u64)
         requires third < 5
     {
         let byte: u8 = text[third];
         let first: u8 = head(text);
         transition byte == 76 && first == 72 {
-            true -> finish(70)
-            _ -> finish(73)
+            true -> finish(console, 70)
+            _ -> finish(console, 73)
         }
     }
 
-    state finish(code: i32) { Console::exit_process(code); }
+    state finish(console: &Binding<Console>, code: i32) { Console::exit_process(console, code); }
 }

@@ -28,8 +28,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let bits64: u64 = read_bits64(1.0);
     transition integer == -17 && bits32 == 1065353216
         && bits64 == 4607182418800017408 {
-        true -> finish(main, 70)
-        _ -> finish(main, 71)
+        true -> finish(&main.console, main, 70)
+        _ -> finish(&main.console, main, 71)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    state finish(console: &Binding<Console>, main: &mut Main, code: i32) { Console::exit_process(console, code); }
 }

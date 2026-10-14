@@ -8,15 +8,15 @@ machine Main::measure(main: &Main, bytes: &[u8]) -> u64 reaches Console {
     bytes.len
 }
 
-machine report(length: u64) -> u64 reaches Console {
-    Console::write_byte(33);
+machine report(console: &Binding<Console>, length: u64) -> u64 reaches Console {
+    Console::write_byte(console, 33);
     length
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     let first: u64 = Main::measure(main, "abc");
     let second: u64 = Main::measure(main, "");
-    let reported: u64 = report(first);
+    let reported: u64 = report(&main.console, first);
     transition reported == 3 {
         true -> check_empty(main, second)
         false -> failed(main)

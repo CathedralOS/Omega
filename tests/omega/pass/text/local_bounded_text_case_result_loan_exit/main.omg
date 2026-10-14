@@ -12,6 +12,7 @@ domain [u8; 16]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Leading {
     case Empty;
@@ -38,22 +39,23 @@ machine leading(text: &[u8; 16] in Utf8) -> Leading {
     }
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let text: [u8; 16] in Utf8 = "OK";
     let lead: Leading = leading(&text);
     transition lead {
-        Leading::Byte { value } -> check(value)
-        Leading::Empty -> finish(71)
+        Leading::Byte { value } -> check(&main.console, value)
+        Leading::Empty -> finish(&main.console, 71)
     }
 
-    state check(value: u64) {
+    state check(console: &Binding<Console>, value: u64) {
         transition value == 79 {
-            true -> finish(70)
-            _ -> finish(72)
+            true -> finish(console, 70)
+            _ -> finish(console, 72)
         }
     }
 
-    state finish(code: i32) {
-        Console::exit_process(code);
+    state finish(console: &Binding<Console>, code: i32) {
+        Console::exit_process(console, code);
     }
 }

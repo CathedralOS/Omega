@@ -4,7 +4,8 @@ use omega::language::core::numeric_conversion;
 use omega_language_std::console;
 use omega::language::core::binding;
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let converted: u8 = narrow_u16_to_u8_trapping(300);
-    Console::exit_process(7);
+    Console::exit_process(&main.console, 7);
 }

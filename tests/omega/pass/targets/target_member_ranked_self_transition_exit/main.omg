@@ -4,6 +4,7 @@
 // the member's rank cycle runs through the bodyless family interface and
 // the member has no executable body.
 use omega_language_std::console;
+use omega::language::core::binding;
 
 windows_x86_64 machine drain(value: u64, fuel: u64) -> u64
 terminates by fuel;
@@ -26,12 +27,13 @@ terminates by fuel;
 linux_arm64 machine drain(value: u64, fuel: u64) -> u64 { 2 }
 macos_arm64 machine drain(value: u64, fuel: u64) -> u64 { 2 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let left: u64 = drain(5, 3);
     transition left == 2 {
-        true -> good()
-        false -> bad()
+        true -> good(&main.console)
+        false -> bad(&main.console)
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(72); }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>) { Console::exit_process(console, 72); }
 }

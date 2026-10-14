@@ -1,5 +1,6 @@
 // An owned state arrival lends its nested array and observes the same backing.
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Samples { items: [i32; 4]; }
 data Packet { samples: Samples; marker: i32; }
@@ -11,19 +12,20 @@ machine read(values: &[i32]) -> i32 {
     }
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let packet: Packet = Packet { samples: Samples { items: [70, 2, 3, 5] }, marker: 9 };
-    transition { _ -> check(packet) }
+    transition { _ -> check(&main.console, packet) }
 
-    state check(packet: Packet) {
+    state check(console: &Binding<Console>, packet: Packet) {
         let view: &[i32] = &packet.samples.items[..];
         let observed: i32 = read(view);
         transition observed == 70 && packet.samples.items[0] == 70
             && packet.samples.items[3] == 5 && packet.samples.items[1] == 2 && packet.marker == 9 {
-            true -> done()
-            _ -> failed()
+            true -> done(console)
+            _ -> failed(console)
         }
     }
-    state done() { Console::exit_process(70); }
-    state failed() { Console::exit_process(71); }
+    state done(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state failed(console: &Binding<Console>) { Console::exit_process(console, 71); }
 }

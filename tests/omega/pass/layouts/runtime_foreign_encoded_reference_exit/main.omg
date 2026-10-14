@@ -1,5 +1,6 @@
 // A checked adapter exposes the encoded record's exact byte-shaped foreign ABI.
 use omega::language::core::external_binding;
+use omega::language::core::binding;
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField
 where size <= 4096, 1 <= align, align <= 16,
@@ -18,7 +19,7 @@ data Plan {
     size_is_dynamic: bool;
     align: u64;
 }
-data SignedByte { }
+pub data SignedByte { }
 machine SignedByte::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
@@ -37,11 +38,11 @@ machine SignedByte::plan(schema: Schema) -> Plan {
         align: 1,
     }
 }
-data PortableByte [copy] { value: i64; }
-data RawView { value: SignedByte<PortableByte>; }
-data ForeignByte { value: i8; }
+pub data PortableByte [copy] { value: i64; }
+pub data RawView { value: SignedByte<PortableByte>; }
+pub data ForeignByte { value: i8; }
 
-boundary trait ClearByte {
+pub boundary trait ClearByte {
     machine clear(value: &mut ForeignByte, count: u64);
 }
 macos_arm64 machine clear_binding() -> ForeignBinding<26, 6, 0> {
@@ -53,12 +54,12 @@ macos_arm64 machine clear_binding() -> ForeignBinding<26, 6, 0> {
 }
 macos_arm64 machine clear_bytes(value: &mut ForeignByte, count: u64)
     satisfies ClearByte::clear via clear_binding();
-machine clear(value: &mut RawView) reaches ClearByte {
+machine clear(clear_byte: &Binding<ClearByte>, value: &mut RawView) reaches ClearByte {
     let physical: &mut ForeignByte = value as &mut ForeignByte;
-    ClearByte::clear(physical, 1);
+    ClearByte::clear(clear_byte, physical, 1);
 }
 
-boundary trait CompareByte {
+pub boundary trait CompareByte {
     machine compare(left: &RawView, right: &RawView, count: u64) -> i32;
 }
 macos_arm64 machine compare_binding() -> ForeignBinding<26, 7, 0> {
@@ -70,19 +71,19 @@ macos_arm64 machine compare_binding() -> ForeignBinding<26, 7, 0> {
 }
 macos_arm64 machine compare_bytes(left: &RawView, right: &RawView, count: u64) -> i32
     satisfies CompareByte::compare via compare_binding();
-machine compare(left: &RawView, right: &RawView) -> i32 reaches CompareByte {
-    CompareByte::compare(left, right, 1)
+machine compare(compare_byte: &Binding<CompareByte>, left: &RawView, right: &RawView) -> i32 reaches CompareByte {
+    CompareByte::compare(compare_byte, left, right, 1)
 }
-data Main { bytes: [u8; 2]; expected: [u8; 1]; }
+data Main { bytes: [u8; 2]; expected: [u8; 1]; compare_byte: Binding<CompareByte>; clear_byte: Binding<ClearByte>; }
 machine Main::main(main: &mut Main) reaches CompareByte + ClearByte crashes Trap {
     main.bytes[0] = 128;
     main.bytes[1] = 85;
     main.expected[0] = 128;
     let view: &mut RawView = &mut main.bytes[0] as &mut RawView;
     let expected: &RawView = &main.expected[0] as &RawView;
-    let result: i32 = compare(view, expected);
+    let result: i32 = compare(&main.compare_byte, view, expected);
     let initial: i64 = view.value.value;
-    clear(view);
+    clear(&main.clear_byte, view);
     transition result == 0 && initial == -128 && view.value.value == 0 && main.bytes[1] == 85 {
         true -> done()
         _ -> bad()

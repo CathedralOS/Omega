@@ -2,17 +2,19 @@
 // consumed by the fields of a returned aggregate.
 use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega::language::core::binding;
 
 pub data Pair [copy] { first: f64; second: f64; }
 machine make_pair(x: f64, y: f64) -> Pair {
     Pair { first: x + y, second: x * (y - 1.0) }
 }
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let pair: Pair = make_pair(2.0, 4.0);
     transition pair.first == 6.0 && pair.second == 6.0 {
-        true -> good()
-        false -> bad()
+        true -> good(&main.console)
+        false -> bad(&main.console)
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(71); }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>) { Console::exit_process(console, 71); }
 }

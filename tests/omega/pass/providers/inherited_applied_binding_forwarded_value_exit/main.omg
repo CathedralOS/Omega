@@ -14,9 +14,9 @@ macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProv
 machine observed(parent: &Binding<Parent<i32>>, value: i32) -> i32 reaches Parent {
     parent.echo(value)
 }
-data Main { parent: Binding<Parent<i32>>; }
+data Main { parent: Binding<Parent<i32>>; child: Binding<Child>; }
 machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
-    let chosen: i32 = Child::choose();
+    let chosen: i32 = Child::choose(&main.child);
     let observed: i32 = observed(&main.parent, 37);
     transition chosen == 19 && observed == 37 {
         true -> done() _ -> bad()

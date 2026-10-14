@@ -17,8 +17,9 @@ data Snapshot {
     alignment: RegionAlignment;
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let snapshot: Snapshot = Snapshot {};
     let partial: Snapshot = Snapshot { region_count: 4 };
-    Console::exit_process(70);
+    Console::exit_process(&main.console, 70);
 }

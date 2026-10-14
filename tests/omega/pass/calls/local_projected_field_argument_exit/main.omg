@@ -5,6 +5,7 @@
 // Exits 70 only when the projected loan updated the caller's field.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Banner { width: i32 in Wrapping; }
 data Screen { banner: Banner; height: i32 in Wrapping; }
@@ -13,8 +14,9 @@ machine Banner::widen(banner: &mut Banner, by: i32 in Wrapping) {
     banner.width = banner.width + by;
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut screen: Screen;
     Banner::widen(&mut screen.banner, 70);
-    Console::exit_process(screen.banner.width as i32);
+    Console::exit_process(&main.console, screen.banner.width as i32);
 }

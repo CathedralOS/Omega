@@ -67,43 +67,43 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
     via exit_process_binding();
 
-data Token { ready: bool; byte: i32; }
+data Token<'binding> { console: &'binding Binding<Console>; ready: bool; byte: i32; }
 
-machine Token::drop(token: &mut Token)
+machine Token::drop(token: &mut Token<'binding>)
 requires token.ready
 reaches Console
 {
-    Console::write_byte(token.byte);
+    Console::write_byte(token.console, token.byte);
     token.ready = false;
 }
 
 // The outgoing call writes X before either local hook. Only the selected
 // successor runs; both destinations observe the captured scalar unchanged.
-machine outgoing() -> i32 reaches Console {
-    Console::write_byte(88);
+machine outgoing(console: &Binding<Console>) -> i32 reaches Console {
+    Console::write_byte(console, 88);
     71
 }
 
-machine choose(first_path: bool) reaches Console {
-    let first: Token = Token { ready: true, byte: 65 };
-    let second: Token = Token { ready: true, byte: 66 };
+machine choose(console: &Binding<Console>, first_path: bool) reaches Console {
+    let first: Token = Token { console: console, ready: true, byte: 65 };
+    let second: Token = Token { console: console, ready: true, byte: 66 };
     transition first_path {
-        true -> first_done(outgoing())
-        _ -> second_done(outgoing())
+        true -> first_done(console, outgoing(console))
+        _ -> second_done(console, outgoing(console))
     }
-    state first_done(captured: i32) {
-        Console::write_byte(captured);
-        Console::write_byte(69);
+    state first_done(console: &Binding<Console>, captured: i32) {
+        Console::write_byte(console, captured);
+        Console::write_byte(console, 69);
     }
-    state second_done(captured: i32) {
-        Console::write_byte(captured);
-        Console::write_byte(70);
+    state second_done(console: &Binding<Console>, captured: i32) {
+        Console::write_byte(console, captured);
+        Console::write_byte(console, 70);
     }
 }
 
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) reaches Console {
-    choose(true);
-    choose(false);
+    choose(&main.console, true);
+    choose(&main.console, false);
     main.console.write_byte(10);
 }

@@ -6,6 +6,7 @@
 // helper, and lent whole into a state cycle that writes through the plain
 // loan and reads through both. "GATE" lowered matches "gate": exit 70.
 use omega_language_std::console;
+use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -22,40 +23,41 @@ machine spells_gate(bytes: &[u8]) -> bool {
     transition { _ -> (bytes.len == 4 && bytes == "gate") }
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut plain: [u8; 4] = "GATE";
     let text: [u8; 4] in Utf8 = "gate";
     let last: u8 = plain[3];
     let first: u8 = head(&plain);
     let spelled: bool = spells_gate(text);
     transition spelled && first == 71 && text[3] == 101 {
-        true -> fold(&mut plain, &text, 0, last)
-        _ -> finish(72)
+        true -> fold(&main.console, &mut plain, &text, 0, last)
+        _ -> finish(&main.console, 72)
     }
 
-    state fold(plain: &mut [u8; 4], text: &[u8; 4] in Utf8, position: i32, last: u8)
+    state fold(console: &Binding<Console>, plain: &mut [u8; 4], text: &[u8; 4] in Utf8, position: i32, last: u8)
         requires 0 <= position && position <= 4
     {
         transition position < 4 {
-            true -> lower(plain, text, position, last)
-            _ -> compare(plain, text, last)
+            true -> lower(console, plain, text, position, last)
+            _ -> compare(console, plain, text, last)
         }
     }
 
-    state lower(plain: &mut [u8; 4], text: &[u8; 4] in Utf8, position: i32, last: u8)
+    state lower(console: &Binding<Console>, plain: &mut [u8; 4], text: &[u8; 4] in Utf8, position: i32, last: u8)
         requires 0 <= position && position < 4
     {
         let lowered: u8 in Wrapping = plain[position] as u8 in Wrapping + 32;
         plain[position] = lowered as u8;
-        transition { _ -> fold(plain, text, position + 1, last) }
+        transition { _ -> fold(console, plain, text, position + 1, last) }
     }
 
-    state compare(plain: &mut [u8; 4], text: &[u8; 4] in Utf8, last: u8) {
+    state compare(console: &Binding<Console>, plain: &mut [u8; 4], text: &[u8; 4] in Utf8, last: u8) {
         transition plain[0] == text[0] && plain[3] == text[3] && last == 69 {
-            true -> finish(70)
-            _ -> finish(71)
+            true -> finish(console, 70)
+            _ -> finish(console, 71)
         }
     }
 
-    state finish(code: i32) { Console::exit_process(code); }
+    state finish(console: &Binding<Console>, code: i32) { Console::exit_process(console, code); }
 }

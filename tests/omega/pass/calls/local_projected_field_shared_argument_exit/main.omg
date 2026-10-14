@@ -5,26 +5,28 @@
 // both callees read the caller's field through the loan.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Engine { rpm: i32 in Wrapping; }
 data Dash { engine: Engine; speed: i32 in Wrapping; }
 
-machine Engine::check(engine: &Engine) reaches Console {
+machine Engine::check(console: &Binding<Console>, engine: &Engine) reaches Console {
     transition engine.rpm == 70 {
         true -> fine()
-        false -> fail()
+        false -> fail(console)
     }
     state fine() { }
-    state fail() { Console::exit_process(71); }
+    state fail(console: &Binding<Console>) { Console::exit_process(console, 71); }
 }
 
 machine Engine::rpm(engine: &Engine) -> i32 {
     engine.rpm as i32
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let dash: Dash = Dash { engine: Engine { rpm: 70 }, speed: 3 };
-    Engine::check(&dash.engine);
+    Engine::check(&main.console, &dash.engine);
     let rpm: i32 = Engine::rpm(&dash.engine);
-    Console::exit_process(rpm);
+    Console::exit_process(&main.console, rpm);
 }

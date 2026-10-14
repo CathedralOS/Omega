@@ -1,11 +1,13 @@
 use numbers;
 use omega_language_std::console;
-machine main() reaches Console {
-    write_scaled(90000.0);
-    Console::write_line("");
-    write_scaled(-90000.0);
-    Console::write_line("");
-    write_scaled(0.0);
-    Console::write_line("");
-    Console::exit_process(0);
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    write_scaled(&main.console, 90000.0);
+    Console::write_line(&main.console, "");
+    write_scaled(&main.console, -90000.0);
+    Console::write_line(&main.console, "");
+    write_scaled(&main.console, 0.0);
+    Console::write_line(&main.console, "");
+    Console::exit_process(&main.console, 0);
 }

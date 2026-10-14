@@ -2,23 +2,25 @@
 // must affect only this owned home, not the sibling's identical literal.
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 use omega_language_std::console;
+use omega::language::core::binding;
 
-machine main() reaches Console {
-    transition { _ -> render() }
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    transition { _ -> render(&main.console) }
 
-    state render() {
+    state render(console: &Binding<Console>) {
         let original: [u8; 8] in Utf8 = "ab";
         let mut line: [u8; 8] in Utf8 = "ab";
         line[0] = 0;
         line[1] = 65;
         transition line.len == 2 && line[0] == 0 && line[1] == 65
             && original[0] == 97 && original[1] == 98 {
-            true -> finish(70)
-            _ -> finish(71)
+            true -> finish(console, 70)
+            _ -> finish(console, 71)
         }
     }
 
-    state finish(code: i32) {
-        Console::exit_process(code);
+    state finish(console: &Binding<Console>, code: i32) {
+        Console::exit_process(console, code);
     }
 }

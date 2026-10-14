@@ -1,4 +1,5 @@
-boundary trait Service {
+use omega::language::core::binding;
+pub boundary trait Service {
     machine echo<const Count: u64>(value: i32) -> i32
     where Count == 4 || Count == 8;
 }
@@ -10,7 +11,7 @@ macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProv
     TargetProviders::select_provider<Service, Provider>(defaults);
 }
 
-data Main {}
-macos_arm64 machine Main::main() reaches Service {
-    let value: i32 = Service::echo<16>((17 as i32));
+data Main { service: Binding<Service>; }
+macos_arm64 machine Main::main(main: &mut Main) reaches Service {
+    let value: i32 = Service::echo<16>(&main.service, (17 as i32));
 }

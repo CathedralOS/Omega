@@ -11,43 +11,45 @@
 // failed; 72 = bump read the wrong value; 73 = settle read the wrong value.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Score { value: u64 in Wrapping; bonus: u64 in Wrapping; }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let start: u64 = 3;
     transition start > 2 {
-        true -> prepare(start)
-        _ -> refused(71)
+        true -> prepare(&main.console, start)
+        _ -> refused(&main.console, 71)
     }
 
-    state prepare(start: u64) {
+    state prepare(console: &Binding<Console>, start: u64) {
         let mut score: Score;
         score.value = start as u64 in Wrapping;
-        transition { _ -> bump(&mut score) }
+        transition { _ -> bump(console, &mut score) }
     }
 
-    state bump(score: &mut Score) {
+    state bump(console: &Binding<Console>, score: &mut Score) {
         score.bonus = score.value + 60;
         transition score.bonus == 63 {
-            true -> settle(score)
-            _ -> refused(72)
+            true -> settle(console, score)
+            _ -> refused(console, 72)
         }
     }
 
-    state settle(tally: &mut Score) {
+    state settle(console: &Binding<Console>, tally: &mut Score) {
         tally.value = tally.bonus + 7;
         transition tally.value == 70 {
-            true -> done()
-            _ -> refused(73)
+            true -> done(console)
+            _ -> refused(console, 73)
         }
     }
 
-    state done() {
-        Console::exit_process(70);
+    state done(console: &Binding<Console>) {
+        Console::exit_process(console, 70);
     }
 
-    state refused(code: i32) {
-        Console::exit_process(code);
+    state refused(console: &Binding<Console>, code: i32) {
+        Console::exit_process(console, code);
     }
 }

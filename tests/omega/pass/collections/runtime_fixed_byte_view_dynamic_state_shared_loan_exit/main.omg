@@ -3,6 +3,7 @@
 // Its shared copy descriptor crosses another state before both reads.
 // Expected exit: 70.
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Row { bytes: [u8; 3]; }
 data Cursor { index: u64; }
@@ -12,35 +13,36 @@ machine reset(cursor: &mut Cursor) -> bool {
     true
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut rows: [Row; 2];
     let mut cursor: Cursor = Cursor { index: 1 };
     let selected: u64 = cursor.index;
     rows[0].bytes[0] = 11;
     rows[1].bytes[0] = 22;
     transition selected < 2 {
-        true -> select(&mut rows, &mut cursor, selected)
-        _ -> finish(71)
+        true -> select(&main.console, &mut rows, &mut cursor, selected)
+        _ -> finish(&main.console, 71)
     }
-    state select(rows: &mut [Row; 2], cursor: &mut Cursor, selected: u64)
+    state select(console: &Binding<Console>, rows: &mut [Row; 2], cursor: &mut Cursor, selected: u64)
         requires selected < 2
     {
-        transition { _ -> forward(&rows[selected].bytes, reset(cursor)) }
+        transition { _ -> forward(console, &rows[selected].bytes, reset(cursor)) }
     }
-    state forward(bytes: &[u8; 3], ready: bool) {
-        transition { _ -> write(bytes, ready) }
+    state forward(console: &Binding<Console>, bytes: &[u8; 3], ready: bool) {
+        transition { _ -> write(console, bytes, ready) }
     }
-    state write(bytes: &[u8; 3], ready: bool) {
+    state write(console: &Binding<Console>, bytes: &[u8; 3], ready: bool) {
         transition ready && bytes[0] == 22 {
-            true -> replace(bytes)
-            _ -> finish(72)
+            true -> replace(console, bytes)
+            _ -> finish(console, 72)
         }
     }
-    state replace(bytes: &[u8; 3]) {
+    state replace(console: &Binding<Console>, bytes: &[u8; 3]) {
         transition bytes[0] == 22 {
-            true -> finish(70)
-            _ -> finish(73)
+            true -> finish(console, 70)
+            _ -> finish(console, 73)
         }
     }
-    state finish(code: i32) { Console::exit_process(code); }
+    state finish(console: &Binding<Console>, code: i32) { Console::exit_process(console, code); }
 }

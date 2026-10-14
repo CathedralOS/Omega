@@ -9,6 +9,7 @@
 // Exits 24 only when both pairs of pops see their pushed values.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Stack {
     items: [i32; 4];
@@ -23,35 +24,35 @@ requires stack.count >= 1 && stack.count <= 4 {
 
 data Main {
     a: Stack;
-    b: Stack;
+    b: Stack; console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.a = Stack { items: [7, 0, 0, 0], count: 1 };
     main.b = Stack { items: [5, 0, 0, 0], count: 1 };
     transition main.a.count >= 1 && main.a.count <= 4 && main.b.count >= 1 && main.b.count <= 4 {
-        true -> both(main)
-        _ -> failed()
+        true -> both(&main.console, main)
+        _ -> failed(&main.console)
     }
-    state both(main: &mut Main) {
+    state both(console: &Binding<Console>, main: &mut Main) {
         let first: i32 = Stack::pop(&mut main.a);
         let second: i32 = Stack::pop(&mut main.b);
         main.a.count = 1;
         main.b.count = 1;
         transition first == 7 && second == 5
             && main.a.count >= 1 && main.a.count <= 4 && main.b.count >= 1 && main.b.count <= 4 {
-            true -> apart(&mut main.a, &mut main.b)
-            _ -> failed()
+            true -> apart(console, &mut main.a, &mut main.b)
+            _ -> failed(console)
         }
     }
-    state apart(left: &mut Stack, right: &mut Stack) {
+    state apart(console: &Binding<Console>, left: &mut Stack, right: &mut Stack) {
         let first: i32 = Stack::pop(left);
         let second: i32 = Stack::pop(right);
         transition first == 7 && second == 5 {
-            true -> passed()
-            _ -> failed()
+            true -> passed(console)
+            _ -> failed(console)
         }
     }
-    state passed() { Console::exit_process(24); }
-    state failed() { Console::exit_process(1); }
+    state passed(console: &Binding<Console>) { Console::exit_process(console, 24); }
+    state failed(console: &Binding<Console>) { Console::exit_process(console, 1); }
 }

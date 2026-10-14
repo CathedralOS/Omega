@@ -28,11 +28,11 @@ windows_x86_64 machine close_gate(ticket: i32) -> i32 {
     state refused() -> i32 { 71 }
 }
 
-data Main { gate: Binding<Gate>; ticket: i32; code: i32; }
+data Main { gate: Binding<Gate>; ticket: i32; code: i32; console: Binding<Console>; }
 machine Main::main(main: &mut Main) reaches Gate + Console {
     main.ticket = main.gate.open();
     main.code = main.gate.close(main.ticket);
-    transition main.code == 70 { true -> good() _ -> bad() }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(72); }
+    transition main.code == 70 { true -> good(&main.console) _ -> bad(&main.console) }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>) { Console::exit_process(console, 72); }
 }

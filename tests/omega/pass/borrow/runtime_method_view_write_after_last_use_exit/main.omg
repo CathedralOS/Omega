@@ -7,6 +7,7 @@
 // cells[2], then 63 directly into `other` (sum 70).
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Cell {
     value: i32;
@@ -24,20 +25,21 @@ machine Bag::pick(bag: &mut Bag) -> &mut Cell {
     }
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut bag: Bag;
     let cell: &mut Cell = Bag::pick(&mut bag);
     cell.value = 7;
     // `cell` is dead from here on: the whole-record loan has ended.
     bag.other = 63;
     transition (bag.cells[2].value as i64) + (bag.other as i64) == 70 {
-        true -> good()
-        false -> bad()
+        true -> good(&main.console)
+        false -> bad(&main.console)
     }
-    state good() {
-        Console::exit_process(70);
+    state good(console: &Binding<Console>) {
+        Console::exit_process(console, 70);
     }
-    state bad() {
-        Console::exit_process(71);
+    state bad(console: &Binding<Console>) {
+        Console::exit_process(console, 71);
     }
 }

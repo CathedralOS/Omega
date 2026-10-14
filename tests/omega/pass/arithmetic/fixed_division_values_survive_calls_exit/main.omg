@@ -1,6 +1,7 @@
 // Inputs and earlier fixed-register results survive later divide/remainder
 // operations. An aliased dividend/divisor still denotes two observations.
 use omega_language_std::console;
+use omega::language::core::binding;
 machine calculate(numerator: i64 in Wrapping, divisor: i64 in Wrapping) -> i64 in Wrapping
 requires numerator > 0 && divisor > 0
 {
@@ -9,12 +10,13 @@ requires numerator > 0 && divisor > 0
     let identity: i64 in Wrapping = numerator / numerator;
     quotient * 1000 + remainder * 100 + numerator + divisor + identity * 10
 }
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let result: i64 in Wrapping = calculate(45, 7);
     transition result == 6362 {
-        true -> good()
-        false -> bad()
+        true -> good(&main.console)
+        false -> bad(&main.console)
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(71); }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>) { Console::exit_process(console, 71); }
 }

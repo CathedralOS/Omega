@@ -70,14 +70,14 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
     via exit_process_binding();
 
-data Token { ready: bool; value: u64; byte: i32; }
+data Token<'binding> { console: &'binding Binding<Console>; ready: bool; value: u64; byte: i32; }
 
-machine Token::drop(token: &mut Token)
+machine Token::drop(token: &mut Token<'binding>)
 requires token.ready && token.value == 7
 requires 7 <= token.value && token.value <= 9
 reaches Console
 {
-    Console::write_byte(token.byte);
+    Console::write_byte(token.console, token.byte);
     token.ready = false;
     token.value = 0;
 }
@@ -90,8 +90,8 @@ machine forward<T>(value: T) { retire(value); }
 
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) reaches Console {
-    let first: Token = Token { ready: true, value: 7, byte: 65 };
-    let second: Token = Token { ready: true, value: 7, byte: 66 };
+    let first: Token = Token { console: &main.console, ready: true, value: 7, byte: 65 };
+    let second: Token = Token { console: &main.console, ready: true, value: 7, byte: 66 };
     drop(second);
     forward(first);
     main.console.write_byte(10);

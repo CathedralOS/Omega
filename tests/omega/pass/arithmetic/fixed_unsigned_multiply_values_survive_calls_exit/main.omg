@@ -1,6 +1,7 @@
 // Saturating u64 multiplication owns an encoding scratch and fixed inputs.
 // Both source values and an earlier product survive a second aliased multiply.
 use omega_language_std::console;
+use omega::language::core::binding;
 machine calculate(left: u64 in Saturating, right: u64 in Saturating) -> u64 in Saturating {
     let product: u64 in Saturating = left * right;
     let square: u64 in Saturating = left * left;
@@ -9,13 +10,14 @@ machine calculate(left: u64 in Saturating, right: u64 in Saturating) -> u64 in S
 machine multiply(left: u64 in Saturating, right: u64 in Saturating) -> u64 in Saturating {
     left * right
 }
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let ordinary: u64 in Saturating = calculate(45, 7);
     let overflow: u64 in Saturating = multiply(18446744073709551615, 2);
     transition ordinary == 2392 && overflow == 18446744073709551615 {
-        true -> good()
-        false -> bad()
+        true -> good(&main.console)
+        false -> bad(&main.console)
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(71); }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>) { Console::exit_process(console, 71); }
 }

@@ -1,34 +1,36 @@
 // Exact address offsets and distances retain their carriers; address order is unsigned.
 // This uses static calls and receiver-free states. Exit 70 is the authored oracle.
 use omega_language_std::console;
+use omega::language::core::binding;
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let address: addr = 4096;
     let offset: addr = address - 16;
     transition offset == 4080 {
-        true -> distance()
-        false -> bad_offset()
+        true -> distance(&main.console)
+        false -> bad_offset(&main.console)
     }
-    state distance() {
+    state distance(console: &Binding<Console>) {
         let left: addr = 4096;
         let right: addr = 4000;
         let count: u64 = left - right;
         transition count == 96 {
-            true -> order()
-            false -> bad_distance()
+            true -> order(console)
+            false -> bad_distance(console)
         }
     }
-    state order() {
+    state order(console: &Binding<Console>) {
         let left: addr = 4000;
         let right: addr = 4096;
         let ordered: bool = left < right;
         transition ordered == true {
-            true -> good()
-            false -> bad_order()
+            true -> good(console)
+            false -> bad_order(console)
         }
     }
-    state good() { Console::exit_process(70); }
-    state bad_offset() { Console::exit_process(71); }
-    state bad_distance() { Console::exit_process(72); }
-    state bad_order() { Console::exit_process(73); }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad_offset(console: &Binding<Console>) { Console::exit_process(console, 71); }
+    state bad_distance(console: &Binding<Console>) { Console::exit_process(console, 72); }
+    state bad_order(console: &Binding<Console>) { Console::exit_process(console, 73); }
 }

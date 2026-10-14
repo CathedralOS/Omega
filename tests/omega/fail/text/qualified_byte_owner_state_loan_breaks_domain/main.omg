@@ -2,6 +2,7 @@
 // its domain: "HELLO" shifted by 100 stores non-ASCII bytes, so the
 // successor cannot re-establish the loan's membership.
 use omega_language_std::console;
+use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -10,35 +11,36 @@ domain [u8; 5]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let text: [u8; 5] in Utf8 = "HELLO";
     let mut output: [u8; 5] in Utf8 = ".....";
-    transition { _ -> step(&text, &mut output, 0) }
+    transition { _ -> step(&main.console, &text, &mut output, 0) }
 
-    state step(text: &[u8; 5] in Utf8, output: &mut [u8; 5] in Utf8, position: i32)
+    state step(console: &Binding<Console>, text: &[u8; 5] in Utf8, output: &mut [u8; 5] in Utf8, position: i32)
         requires 0 <= position && position <= 5
     {
         transition position < 5 {
-            true -> shift(text, output, position)
-            _ -> show(output)
+            true -> shift(console, text, output, position)
+            _ -> show(console, output)
         }
     }
 
-    state shift(text: &[u8; 5] in Utf8, output: &mut [u8; 5] in Utf8, position: i32)
+    state shift(console: &Binding<Console>, text: &[u8; 5] in Utf8, output: &mut [u8; 5] in Utf8, position: i32)
         requires 0 <= position && position < 5
     {
         let shifted: u8 in Wrapping = text[position] as u8 in Wrapping + 100;
         output[position] = shifted as u8;
-        transition { _ -> step(text, output, position + 1) }
+        transition { _ -> step(console, text, output, position + 1) }
     }
 
-    state show(output: &mut [u8; 5] in Utf8) {
-        Console::write_line(output);
+    state show(console: &Binding<Console>, output: &mut [u8; 5] in Utf8) {
+        Console::write_line(console, output);
         transition output[0] == 75 && output[4] == 82 {
-            true -> finish(70)
-            _ -> finish(71)
+            true -> finish(console, 70)
+            _ -> finish(console, 71)
         }
     }
 
-    state finish(code: i32) { Console::exit_process(code); }
+    state finish(console: &Binding<Console>, code: i32) { Console::exit_process(console, code); }
 }

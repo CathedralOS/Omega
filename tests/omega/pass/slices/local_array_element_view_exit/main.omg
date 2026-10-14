@@ -8,6 +8,7 @@ use omega_language_std::math;
 // one local backing with its exact extent and contents.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 machine largest(values: &[i32], current: i32) -> i32 {
     transition values.len > 0 {
@@ -24,7 +25,8 @@ machine measure(slots: &mut [i32]) -> u64 {
     transition { _ -> (slots.len) }
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let values: [i32; 4] = [3, 11, 2, 7];
     let view: &[i32] = &values[..];
     let from_view: i32 = largest(view, 0);
@@ -34,15 +36,15 @@ machine main() reaches Console {
     let slot_count: u64 = measure(&mut slots);
     let seeded: i32 = largest(&slots, 5);
     transition from_view == 11 && direct == 11 && extent == 4 && slot_count == 3 && seeded == 5 {
-        true -> done()
-        _ -> refused()
+        true -> done(&main.console)
+        _ -> refused(&main.console)
     }
 
-    state done() {
-        Console::exit_process(70);
+    state done(console: &Binding<Console>) {
+        Console::exit_process(console, 70);
     }
 
-    state refused() {
-        Console::exit_process(71);
+    state refused(console: &Binding<Console>) {
+        Console::exit_process(console, 71);
     }
 }

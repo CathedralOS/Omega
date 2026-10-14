@@ -1,6 +1,7 @@
 // Expected exit: 0. Selected adapters preserve linear result custody through
 // helper/state forwarding, fresh result construction and projected arguments.
 use omega::language::core::drop;
+use omega::language::core::binding;
 
 pub data Receipt [linear] { code: i32; }
 pub data Pair { left: Receipt; right: Receipt; }
@@ -46,13 +47,14 @@ machine pair(left: Receipt, right: Receipt) -> Pair {
     Pair { left: left, right: right }
 }
 
-machine main() reaches Relay crashes Trap {
-    let first: Receipt = Relay::forward(Receipt { code: 7 });
+data Main { relay: Binding<Relay>; }
+machine Main::main(main: &mut Main) reaches Relay crashes Trap {
+    let first: Receipt = Relay::forward(&main.relay, Receipt { code: 7 });
     let first_code: i32 = consume(first);
-    let second: Receipt = Relay::replace(Receipt { code: 9 });
+    let second: Receipt = Relay::replace(&main.relay, Receipt { code: 9 });
     let second_code: i32 = consume(second);
-    let neighbors: Pair = Relay::pair(Receipt { code: 11 }, Receipt { code: 13 });
-    let projected: Receipt = Relay::forward(neighbors.left);
+    let neighbors: Pair = Relay::pair(&main.relay, Receipt { code: 11 }, Receipt { code: 13 });
+    let projected: Receipt = Relay::forward(&main.relay, neighbors.left);
     let left_code: i32 = consume(projected);
     let right_code: i32 = consume(neighbors.right);
     transition first_code == 7 && second_code == 10

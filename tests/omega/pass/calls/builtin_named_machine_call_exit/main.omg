@@ -1,6 +1,7 @@
 module builtin_named_machine_call_exit;
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 // Authored machines spelled like the compiler's `clamp` and `max` builtins
 // shadow them. Each bare call selects the declaration in this module with its
@@ -27,20 +28,21 @@ machine forward(value: u32) -> u32
     max(value)
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let limited: u32 = clamp(3);
     let widened: u64 = (max(2) as u64) + 1;
     let forwarded: u32 = forward(3);
     transition limited == 4 && widened == 43 && forwarded == 43 {
-        true -> compared()
-        false -> failed()
+        true -> compared(&main.console)
+        false -> failed(&main.console)
     }
-    state compared() {
+    state compared(console: &Binding<Console>) {
         transition max(2) == 42 {
-            true -> passed()
-            false -> failed()
+            true -> passed(console)
+            false -> failed(console)
         }
     }
-    state passed() { Console::exit_process(7); }
-    state failed() { Console::exit_process(90); }
+    state passed(console: &Binding<Console>) { Console::exit_process(console, 7); }
+    state failed(console: &Binding<Console>) { Console::exit_process(console, 90); }
 }

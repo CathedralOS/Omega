@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Item [copy] { case Empty; case Ready; }
 data Seed { marker: u32; }
@@ -18,7 +19,8 @@ machine Factory::fill(factory: &mut Factory, depth: u32, seed: &mut Seed, reward
     }
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut factory: Factory;
     let mut seed: Seed;
     let mut reward: Reward;
@@ -34,8 +36,8 @@ machine main() reaches Console {
         && other.sibling == 17
         && factory.marker == 7
         && seed.marker == 7 {
-        true -> finish(70)
-        false -> finish(1)
+        true -> finish(&main.console, 70)
+        false -> finish(&main.console, 1)
     }
-    state finish(code: i32) { Console::exit_process(code); }
+    state finish(console: &Binding<Console>, code: i32) { Console::exit_process(console, code); }
 }

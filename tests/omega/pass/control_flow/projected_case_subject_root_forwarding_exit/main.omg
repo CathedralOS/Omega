@@ -9,6 +9,7 @@
 // Data adds 7, Trait adds its location source 3, Definition stops the walk
 // and adds its span end 60 -> total 70; walking past it adds 50.
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Span [copy] { start: u64 in Trapping; end: u64 in Trapping; }
 data Location [copy] { source: u64 in Trapping; span: Span; }
@@ -86,7 +87,8 @@ machine weight_or(kind: ItemKind, weight: u64 in Trapping, fallback: u64 in Trap
     state weighed(item: Item) -> u64 in Trapping { item.weight }
 }
 
-machine main() reaches Console crashes Trap {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
     let here: Location = Location { source: 3, span: Span { start: 2, end: 60 } };
     let table: Table = Table {
         items: [
@@ -103,9 +105,9 @@ machine main() reaches Console crashes Trap {
     let data_weight: u64 in Trapping = weight_or(ItemKind::Data, 9, 1);
     let use_weight: u64 in Trapping = weight_or(ItemKind::Use, 9, 1);
     transition tally.accepted == false && tally.total == 70 && data_weight == 9 && use_weight == 1 {
-        true -> good()
-        _ -> bad()
+        true -> good(&main.console)
+        _ -> bad(&main.console)
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(72); }
+    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state bad(console: &Binding<Console>) { Console::exit_process(console, 72); }
 }

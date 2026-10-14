@@ -14,8 +14,8 @@ data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Child, ChildMap>(defaults);
 }
-data Main { parent: Binding<Parent<bool>>; }
+data Main { parent: Binding<Parent<bool>>; child: Binding<Child>; }
 machine Main::main(main: &mut Main) reaches Child + Parent {
-    let chosen: i32 = Child::choose();
+    let chosen: i32 = Child::choose(&main.child);
     let read: i32 = main.parent.read();
 }

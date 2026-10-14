@@ -66,54 +66,54 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
 
 // A consumed owner drops during the selected call. A skipped owner remains
 // behind younger B and C until normal completion, including nested selection.
-data Token { value: u64; byte: i32; }
+data Token<'binding> { console: &'binding Binding<Console>; value: u64; byte: i32; }
 data Wrapped { token: Token; }
 
-machine Token::drop(token: &mut Token) reaches Console {
-    Console::write_byte(token.byte);
+machine Token::drop(token: &mut Token<'binding>) reaches Console {
+    Console::write_byte(token.console, token.byte);
 }
 machine consume(value: Wrapped) -> u64 reaches Console { value.token.value }
 
-machine and_transfer(enabled: bool) -> bool reaches Console {
-    let token: Token = Token { value: 9, byte: 65 };
-    let survivor: Token = Token { value: 10, byte: 66 };
+machine and_transfer(console: &Binding<Console>, enabled: bool) -> bool reaches Console {
+    let token: Token = Token { console: console, value: 9, byte: 65 };
+    let survivor: Token = Token { console: console, value: 10, byte: 66 };
     let observed: bool = enabled && consume(Wrapped { token: token }) == 9;
-    let youngest: Token = Token { value: 11, byte: 67 };
+    let youngest: Token = Token { console: console, value: 11, byte: 67 };
     (observed == enabled) && survivor.value == 10 && youngest.value == 11
 }
 
-machine or_transfer(enabled: bool) -> bool reaches Console {
-    let token: Token = Token { value: 9, byte: 65 };
-    let survivor: Token = Token { value: 10, byte: 66 };
+machine or_transfer(console: &Binding<Console>, enabled: bool) -> bool reaches Console {
+    let token: Token = Token { console: console, value: 9, byte: 65 };
+    let survivor: Token = Token { console: console, value: 10, byte: 66 };
     let observed: bool = enabled || consume(Wrapped { token: token }) == 9;
-    let youngest: Token = Token { value: 11, byte: 67 };
+    let youngest: Token = Token { console: console, value: 11, byte: 67 };
     observed && survivor.value == 10 && youngest.value == 11
 }
 
-machine nested_transfer(outer: bool, inner: bool) -> bool reaches Console {
-    let token: Token = Token { value: 9, byte: 65 };
-    let survivor: Token = Token { value: 10, byte: 66 };
+machine nested_transfer(console: &Binding<Console>, outer: bool, inner: bool) -> bool reaches Console {
+    let token: Token = Token { console: console, value: 9, byte: 65 };
+    let survivor: Token = Token { console: console, value: 10, byte: 66 };
     let observed: bool = outer && (inner || consume(Wrapped { token: token }) == 9);
-    let youngest: Token = Token { value: 11, byte: 67 };
+    let youngest: Token = Token { console: console, value: 11, byte: 67 };
     (observed == outer) && survivor.value == 10 && youngest.value == 11
 }
 
-machine branch_birth(enabled: bool) -> bool reaches Console {
-    let survivor: Token = Token { value: 10, byte: 66 };
+machine branch_birth(console: &Binding<Console>, enabled: bool) -> bool reaches Console {
+    let survivor: Token = Token { console: console, value: 10, byte: 66 };
     let observed: bool = enabled && consume(Wrapped {
-        token: Token { value: 9, byte: 65 }
+        token: Token { console: console, value: 9, byte: 65 }
     }) == 9;
-    let youngest: Token = Token { value: 11, byte: 67 };
+    let youngest: Token = Token { console: console, value: 11, byte: 67 };
     (observed == enabled) && survivor.value == 10 && youngest.value == 11
 }
 
-machine overwritten_condition(enabled: bool) -> bool reaches Console {
+machine overwritten_condition(console: &Binding<Console>, enabled: bool) -> bool reaches Console {
     let mut selected: bool = enabled;
-    let token: Token = Token { value: 9, byte: 65 };
-    let survivor: Token = Token { value: 10, byte: 66 };
+    let token: Token = Token { console: console, value: 9, byte: 65 };
+    let survivor: Token = Token { console: console, value: 10, byte: 66 };
     let observed: bool = selected && consume(Wrapped { token: token }) == 9;
     selected = !selected;
-    let youngest: Token = Token { value: 11, byte: 67 };
+    let youngest: Token = Token { console: console, value: 11, byte: 67 };
     (observed == enabled) && selected != enabled
         && survivor.value == 10 && youngest.value == 11
 }
@@ -142,9 +142,9 @@ machine combine(observed: bool, expected: bool, count: u64) -> bool {
 
 // The suffix starts inside the argument schedule. Its mutation runs once;
 // a later call establishes a new linear receipt and construction forwards it.
-machine mid_argument(enabled: bool) -> bool reaches Console {
-    let token: Token = Token { value: 9, byte: 65 };
-    let survivor: Token = Token { value: 10, byte: 66 };
+machine mid_argument(console: &Binding<Console>, enabled: bool) -> bool reaches Console {
+    let token: Token = Token { console: console, value: 9, byte: 65 };
+    let survivor: Token = Token { console: console, value: 10, byte: 66 };
     let mut count: u64 = 0;
     let observed: bool = combine(
         enabled && consume(Wrapped { token: token }) == 9,
@@ -159,14 +159,14 @@ machine mid_argument(enabled: bool) -> bool reaches Console {
     };
     let forwarded: ReceiptEnvelope = forward_receipt(nested);
     let extracted_nested: Receipt = extract_receipt(forwarded);
-    let youngest: Token = Token { value: 13, byte: 67 };
+    let youngest: Token = Token { console: console, value: 13, byte: 67 };
     observed && count == 1 && survivor.value == 10
         && extracted.value == 11 && extracted_nested.value == 12 && youngest.value == 13
         && linear_selection(enabled)
 }
 
-machine verify(accepted: bool) reaches Console crashes Trap {
-    Console::write_byte(10);
+machine verify(console: &Binding<Console>, accepted: bool) reaches Console crashes Trap {
+    Console::write_byte(console, 10);
     transition accepted { true -> done() false -> bad() }
     state done() {}
     state bad() { crash Trap; }
@@ -174,17 +174,17 @@ machine verify(accepted: bool) reaches Console crashes Trap {
 
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) reaches Console crashes Trap {
-    verify(and_transfer(false));
-    verify(and_transfer(true));
-    verify(or_transfer(true));
-    verify(or_transfer(false));
-    verify(nested_transfer(false, false));
-    verify(nested_transfer(true, true));
-    verify(nested_transfer(true, false));
-    verify(branch_birth(false));
-    verify(branch_birth(true));
-    verify(overwritten_condition(false));
-    verify(overwritten_condition(true));
-    verify(mid_argument(false));
-    verify(mid_argument(true));
+    verify(&main.console, and_transfer(&main.console, false));
+    verify(&main.console, and_transfer(&main.console, true));
+    verify(&main.console, or_transfer(&main.console, true));
+    verify(&main.console, or_transfer(&main.console, false));
+    verify(&main.console, nested_transfer(&main.console, false, false));
+    verify(&main.console, nested_transfer(&main.console, true, true));
+    verify(&main.console, nested_transfer(&main.console, true, false));
+    verify(&main.console, branch_birth(&main.console, false));
+    verify(&main.console, branch_birth(&main.console, true));
+    verify(&main.console, overwritten_condition(&main.console, false));
+    verify(&main.console, overwritten_condition(&main.console, true));
+    verify(&main.console, mid_argument(&main.console, false));
+    verify(&main.console, mid_argument(&main.console, true));
 }

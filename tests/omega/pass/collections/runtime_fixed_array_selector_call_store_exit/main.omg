@@ -2,6 +2,7 @@
 // value changes its source. The store uses the captured selector, not two.
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
+use omega::language::core::binding;
 
 data Grid { cells: [u8; 2]; }
 data Cursor {
@@ -28,15 +29,16 @@ machine store(grid: &mut Grid, cursor: &mut Cursor) {
     grid.cells[select(cursor)] = value(cursor);
 }
 
-machine main() reaches ProcessExit {
+data Main { process_exit: Binding<ProcessExit>; }
+machine Main::main(main: &mut Main) reaches ProcessExit {
     let mut grid: Grid;
     let mut cursor: Cursor;
     store(&mut grid, &mut cursor);
     transition grid.cells[1] == 70 && cursor.index == 2
         && cursor.selector_calls == 1 && cursor.value_calls == 1 {
-        true -> passed()
-        false -> failed()
+        true -> passed(&main.process_exit)
+        false -> failed(&main.process_exit)
     }
-    state passed() { ProcessExit::exit_process(70); }
-    state failed() { ProcessExit::exit_process(77); }
+    state passed(process_exit: &Binding<ProcessExit>) { ProcessExit::exit_process(process_exit, 70); }
+    state failed(process_exit: &Binding<ProcessExit>) { ProcessExit::exit_process(process_exit, 77); }
 }
