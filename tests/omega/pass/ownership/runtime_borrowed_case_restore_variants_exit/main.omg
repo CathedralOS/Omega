@@ -1,0 +1,100 @@
+// Repeated calls that detach and restore a borrowed linear payload keep the
+// caller's frozen reference slot tracked. The callee's complete slot relation
+// is the identity on that slot, which proves preservation; it is not an
+// unknown replacement. Each later call and read still sees the original
+// backing (73). Variants: an explicitly discarded call result, an assignment of the call
+// result, a call through a forwarding parameter, a call in another state, and
+// a machine that returns the received sum directly so its case alternatives
+// cross a return as one occurrence.
+use omega::language::core::drop;
+
+data Token<'storage> [linear] { value: u64; reference: &'storage i32; }
+machine Token::drop(token: &mut Token<'storage>) {}
+data Holder<'storage> { guard: u64; token: Token<'storage>; }
+data Attempt<'storage> {
+    case Success(token: Token<'storage>);
+    case Failure(token: Token<'storage>);
+}
+
+machine try_transform<'storage>(token: Token<'storage>, succeed: bool) -> Attempt<'storage> {
+    transition succeed {
+        true -> success(token)
+        false -> Attempt::Failure { token: token }
+    }
+    state success(token: Token<'storage>) -> Attempt<'storage> {
+        let value: u64 = token.value;
+        let reference: &'storage i32 = token.reference;
+        drop(token);
+        Attempt::Success { token: Token {
+            value: ((value as u64 in Wrapping) + 1) as u64,
+            reference: reference
+        } }
+    }
+}
+
+machine relay<'storage>(token: Token<'storage>, succeed: bool) -> Attempt<'storage> {
+    try_transform(token, succeed)
+}
+
+machine restore<'storage>(attempt: Attempt<'storage>) -> Token<'storage> {
+    transition attempt {
+        Attempt::Success { token } -> (token)
+        Attempt::Failure { token } -> (token)
+    }
+}
+
+machine apply<'storage>(holder: &mut Holder<'storage>, succeed: bool) -> u64 {
+    let detached: Token<'storage> = holder.token;
+    let attempt: Attempt<'storage> = relay(detached, succeed);
+    holder.token = restore(attempt);
+    holder.token.value
+}
+
+machine forward<'storage>(holder: &mut Holder<'storage>) -> u64 {
+    _ = apply(holder, false);
+    let first: i32 = holder.token.reference;
+    let second: u64 = apply(holder, true);
+    transition first == 73 {
+        true -> (second)
+        false -> (0)
+    }
+}
+
+machine main() crashes Trap {
+    let backing: i32 = 73;
+    let mut holder: Holder = Holder {
+        guard: 19,
+        token: Token { value: 41, reference: &backing }
+    };
+    _ = apply(&mut holder, false);
+    let bare: i32 = holder.token.reference;
+    let mut assigned: u64 = 0;
+    assigned = apply(&mut holder, true);
+    let after_assignment: i32 = holder.token.reference;
+    let forwarded: u64 = forward(&mut holder);
+    transition bare == 73 && assigned == 42 && after_assignment == 73 && forwarded == 43 {
+        true -> later(holder)
+        _ -> bad(holder)
+    }
+    state later(mut holder: Holder) {
+        let failed: u64 = apply(&mut holder, false);
+        let after_failure: i32 = holder.token.reference;
+        let succeeded: u64 = apply(&mut holder, true);
+        let after_success: i32 = holder.token.reference;
+        let guard: u64 = holder.guard;
+        let remaining: Token = holder.token;
+        drop(remaining);
+        transition failed == 43 && succeeded == 44 && guard == 19
+            && after_failure == 73 && after_success == 73 {
+            true -> done()
+            _ -> bad_empty()
+        }
+    }
+    state done() {}
+    state bad(holder: Holder) {
+        let remaining: Token = holder.token;
+        drop(remaining);
+        crash Trap;
+    }
+    state bad_empty() { crash Trap; }
+}
