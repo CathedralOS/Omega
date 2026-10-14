@@ -43,7 +43,6 @@ macos_arm64 machine MeasureProvider::provider_defaults(defaults: &mut MeasurePro
 }
 
 macos_arm64 machine MeasureProvider::measure(text: &u8, words: &Words) -> i32 satisfies Measure::measure
-reaches CText
 {
     let forwarded: u64 = c_strlen(text);
     let element: u64 = c_strlen(&words.bytes[2]);

@@ -2128,8 +2128,12 @@ fail/effects/boundary_explicit_capability_required rejected 334ms expected @c5a7
 fail/effects/finite_requirement_block_required rejected 338ms expected @c5a7c1ce1957+wt
 	call to `echo` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `echo` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/effects/invoked_family_block_marker_redundant rejected 1090ms expected @7e6c0ae564d2+wt
+	call to `emit` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
 fail/effects/nominal_callback_console_const_reach rejected 105ms expected @a9ae30e1c334+wt
 	fixed-array length `[u8; length()]`: const evaluation of `length` failed: machine `length` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/effects/provider_authored_reach_beyond_invocation rejected 920ms expected @7e6c0ae564d2+wt
+	machine `Provider::measure` state `measure` does not satisfy trait `Measure` machine `measure`: service `Length` is not allowed by the trait requirement
 fail/effects/synchronous_callback_block_required rejected 337ms expected @c5a7c1ce1957+wt
 	call to `execute` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/effects/synchronous_callback_reach_required rejected 338ms expected @c5a7c1ce1957+wt
@@ -6340,7 +6344,7 @@ pass/modules/runtime_named_extent_generic_copy_exit checked 20629ms check-target
 pass/modules/runtime_nominal_constant_lexical_ownership_exit checked 16334ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/modules/runtime_public_generic_dependency_exit checked 3592ms check-target:macos_arm64 @92558d90488a+wt
 pass/modules/runtime_qualified_static_mutation_exit checked 11682ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/modules/same_name_requirement_field_calls_exit checked 6766ms check-target:macos_arm64 @a27dad2ed102+wt
+pass/modules/same_name_requirement_field_calls_exit checked 28454ms check-target:macos_arm64 @7e6c0ae564d2+wt
 pass/modules/same_name_service_callback_exit checked 5515ms check-target:macos_arm64 @a27dad2ed102+wt
 pass/modules/selected_constant_array_alias_computed_extent checked 1803ms @a9ae30e1c334+wt
 pass/modules/selected_constant_array_alias_computed_extent_exit checked 4674ms check-target:macos_arm64 @589aedee8ebc+wt
@@ -6758,8 +6762,8 @@ pass/providers/runtime_boundary_linear_borrowed_argument_exit checked 4495ms che
 pass/providers/runtime_boundary_linear_result_exit checked 5080ms check-target:macos_arm64 @20ad71d6e3a6+wt
 pass/providers/runtime_boundary_owned_array_cycle_exit checked 11933ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit checked 11479ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 11194ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/runtime_foreign_leaf_slice_element_argument_exit checked 11523ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 16157ms check-target:macos_arm64 @7e6c0ae564d2+wt
+pass/providers/runtime_foreign_leaf_slice_element_argument_exit checked 16098ms check-target:macos_arm64 @7e6c0ae564d2+wt
 pass/providers/runtime_linear_provider_results_exit checked 11050ms check-target:macos_arm64 @83314997c2b2
 pass/providers/runtime_named_provider_explicit_state_exit checked 11429ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_result_domain_requirement_overload_exit checked 11708ms check-target:macos_arm64 @a9ae30e1c334+wt

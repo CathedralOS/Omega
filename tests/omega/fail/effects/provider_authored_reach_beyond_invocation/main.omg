@@ -1,0 +1,10 @@
+// Permission to invoke a binding is not reach of its identity. `Length::count`
+// has an empty row, so the requirement that invokes it publishes empty reach;
+// a provider authoring `reaches Length` widens that ceiling even though its
+// only call needs no service declaration.
+pub boundary trait Length { machine count(byte: u8) -> u64; }
+pub boundary trait Measure { machine measure(byte: u8) -> u64 invokes Length; }
+data Provider {}
+machine Provider::measure(byte: u8) -> u64 satisfies Measure::measure
+reaches Length
+{ Length::count(byte) }

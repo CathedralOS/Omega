@@ -21,12 +21,11 @@ pub data Runner { sink: Binding<Sink>; console: Binding<Console>; }
 pub machine Runner::run(runner: &mut Runner) reaches Sink, Console
 invokes Sink;
 invokes Console;
-blocks;
 {
-    block runner.sink.emit(82);
+    runner.sink.emit(82);
     transition { _ -> deliver(runner, 70) }
     state deliver(runner: &mut Runner, code: i32) {
-        block runner.sink.emit(10);
+        runner.sink.emit(10);
         runner.console.exit_process(code);
     }
 }

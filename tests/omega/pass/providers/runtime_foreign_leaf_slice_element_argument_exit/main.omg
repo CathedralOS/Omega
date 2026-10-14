@@ -39,7 +39,6 @@ macos_arm64 machine MeasureProvider::provider_defaults(defaults: &mut MeasurePro
 }
 
 macos_arm64 machine MeasureProvider::measure(text: &[u8]) -> i32 satisfies Measure::measure
-reaches CText
 {
     transition text.len > 2 {
         true -> lend(text)
