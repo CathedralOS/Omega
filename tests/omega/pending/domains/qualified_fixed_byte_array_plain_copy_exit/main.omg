@@ -1,0 +1,50 @@
+// A `[u8; 8] in Utf8` field copied into a plain `[u8; 8]` local checks and
+// refuses native realization. Reduced from `samples/cli/probes/
+// write_only_domain_store` (its `ascii_indexed_write` sibling shares the
+// shape); owned by OWNER_QUESTIONS.md Q1 `qualified-fixed-byte-array-carrier`.
+//
+// Checking admits the copy as a predicate-only weakening (domains.md, "Exact
+// coercion and erasure"). Terminal declares the qualified field as
+// `ByteSequence(BoundedOwned { capacity: 8 })`, a variable-fill carrier with
+// a live length, and the plain local as `FixedArray { u8, 8 }`, so the leaf
+// copy lands on a different storage shape and both legs refuse it:
+//
+//   native:      Lowering(InvalidStructuralLeafCopy(OperationId(8)))
+//   interpreter: the same identity check in `structural_operations.rs`
+//
+// Representation-level admission (treating equal shapes as one storage) does
+// not apply: the shapes differ, and a live length shorter than 8 has no
+// defined image in an exact-length array until Q1 decides what `[u8; N] in D`
+// denotes. Variants that bound the refusal, all checking and all refused the
+// same way at the first copy: the field read through `&Tagged` in another
+// machine, a `[u8; 8] in Utf8` parameter copied into a plain local, and a
+// field of a record returned by a call.
+//
+// Expected once Q1 is answered: exit 60 on both legs for the program below.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 8]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+
+data Tagged {
+    label: [u8; 8] in Utf8;
+}
+
+machine retag(tagged: &write Tagged, label: [u8; 8] in Utf8) {
+    tagged.label = label;
+}
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let mut tagged: Tagged;
+    retag(&write tagged, "omega600");
+    let copy: [u8; 8] = tagged.label;
+    let first: i32 = copy[0] as i32;
+    transition first == 111 {
+        true -> finish(main, 60)
+        false -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}
