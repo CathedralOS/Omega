@@ -1297,19 +1297,22 @@ def main() -> int:
     # result the program does not reach, and does not make the run clean:
     # the verdict stays `regressed` either way.
     contradicted = [failure for failure in failures if not failure["recordable"]]
-    if failures and (not options.record or contradicted):
-        if contradicted and options.record:
-            print("corpus_gate: --record refused: "
-                  + ", ".join(sorted({failure["fixture"]
-                                      for failure in contradicted}))
-                  + " produced a result contradicting an authored oracle; "
-                    "recording would pin it as the expected one",
-                  file=sys.stderr)
+    if failures and options.record and contradicted:
+        print("corpus_gate: --record refused: "
+              + ", ".join(sorted({failure["fixture"]
+                                  for failure in contradicted}))
+              + " produced a result contradicting an authored oracle; "
+                "recording would pin it as the expected one",
+              file=sys.stderr)
         code = 1 if options.bisect else 3
         write_verdict(options, verdict_document(
             options, leg, target, "regressed", code, records, [],
             oracle_failures, None))
         return code
+    # An unmet oracle without --record still stops the gate, but only once
+    # the diff below is computed and written: one fixture's unmet target
+    # promise, possibly inherited from main, must not hide what this run
+    # moved everywhere else, or `--write-moves` has nothing to attribute.
     # --record stamps each row measured this run with its provenance; rows
     # merged forward in a subset record keep the stamp they were born with.
     stamp = measurement_stamp(options.golden) if options.record else None
@@ -1531,6 +1534,20 @@ def main() -> int:
         print(f"corpus_gate: wrote {len(structured_diffs)} moved fixture(s) "
               f"to {options.write_moves}")
 
+    if failures and not options.record:
+        for line in structural_moves[:60]:
+            print(line)
+        if len(structural_moves) > 60:
+            print(f"… {len(structural_moves) - 60} more moves")
+        print(f"corpus_gate: {len(oracle_failures)} unmet oracle(s), "
+              f"{len(structural_moves)} structural move(s) — {summary}")
+        print(provenance)
+        write_moves()
+        code = 1 if options.bisect else 3
+        write_verdict(options, verdict_document(
+            options, leg, target, "regressed", code, records, classified,
+            oracle_failures, None, golden_provenance, perf_context))
+        return code
     if gaps and not structural_moves and not perf_moves:
         print(f"corpus_gate: coverage incomplete — {len(gaps)} unimplemented canaries")
         write_moves()
