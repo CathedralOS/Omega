@@ -22,7 +22,7 @@ use crate::optimization_unit::identity::structural_encoding::{
     encode_structural_domain, encode_structural_type,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v42\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v43\0";
 pub fn recompute_psi_optimization_unit_identity(
     unit: &PsiOptimizationUnit,
 ) -> OptimizationUnitIdentity {
@@ -46,6 +46,10 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
         bytes.id(referent.id);
         bytes.u32(referent.identity.0);
     });
+    bytes.slice(
+        unit.structural_types.quotient_identity_bytes(),
+        |bytes, value| bytes.u8(*value),
+    );
     bytes.slice(unit.structural_domains.as_ref(), encode_structural_domain);
     bytes.slice(unit.services.as_ref(), encode_service_declaration);
     encode_root_service_reach(bytes, &unit.root_service_reach);

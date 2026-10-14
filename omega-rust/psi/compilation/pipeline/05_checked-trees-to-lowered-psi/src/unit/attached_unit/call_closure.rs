@@ -70,6 +70,23 @@ pub(crate) fn checked_unit_call_closure_including(
                 closure.push(target);
             }
         }
+        for request in checked
+            .facts
+            .quotient_operations
+            .iter()
+            .filter(|row| row.public_machine == machine_symbol)
+        {
+            let (representative, _) = validation::find_machine_by_entry_state(
+                &checked.typed,
+                request.representative_state,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "quotient operation has no representative body",
+            ))?;
+            if !closure.contains(&representative.symbol) {
+                closure.push(representative.symbol);
+            }
+        }
         for cleanup in crate::unit::unit_cleanup::continuation_cleanups(machine.operations()) {
             if !closure.contains(&cleanup.cleanup_machine) {
                 closure.push(cleanup.cleanup_machine);

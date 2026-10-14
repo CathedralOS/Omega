@@ -988,6 +988,9 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
         }
         visited.push(value);
         match &plans.nodes.get(value).kind {
+            checked_trees::CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
+                pending.extend(arguments.iter().rev().copied());
+            }
             checked_trees::CheckedStructuralValueKind::Place(argument) => {
                 if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol,
@@ -1021,7 +1024,8 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
             checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
                 pending.extend(plans.dispatch_arms.span(*arms)?.iter().map(|arm| arm.value));
             }
-            checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
+            checked_trees::CheckedStructuralValueKind::Projection { source, .. }
+            | checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
                 // The selected edge moves a projected child: its root owner
                 // remains live for the residual complement that edge commits.
                 if let checked_trees::CheckedStructuralValueKind::Place(argument) =

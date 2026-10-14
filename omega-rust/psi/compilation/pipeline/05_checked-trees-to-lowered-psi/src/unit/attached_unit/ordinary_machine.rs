@@ -144,6 +144,9 @@ pub(super) struct EmittedMachine {
     pub(super) qualification_coercions: Vec<terminal_psi::ScalarQualificationCoercion>,
     pub(super) machine: TerminalMachine,
     pub(super) source_calls: Vec<LoweredSourceCallOccurrence>,
+    pub(super) quotient_adaptations:
+        Vec<crate::emission::operation_emission::buffer::SourceQuotientAdaptation>,
+    pub(super) quotient_calls: Vec<crate::emission::operation_emission::buffer::SourceQuotientCall>,
     pub(super) selected_ieee_float_comparisons: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub(super) selected_integer_comparisons: Vec<LoweredSelectedIntegerComparisonOccurrence>,
     pub(super) source_checked_obligations: Vec<semantic_vocabulary::ObligationId>,
@@ -983,6 +986,8 @@ pub(super) fn emit(
         selected_cleanup_groups,
         mut scalar_block_invariants,
         mut source_calls,
+        quotient_adaptations,
+        quotient_calls,
         loan_completions,
         mut selected_ieee_float_comparisons,
         mut selected_integer_comparisons,
@@ -1023,6 +1028,10 @@ pub(super) fn emit(
     // or edge already owns a declaration. Reuse only that exact declaration;
     // a reused identity with different provenance remains an error.
     crate::scalar_lowering::computations::subslices::merge_declarations(
+        evaluation.blocks.iter(),
+        &mut structural_places,
+    )?;
+    crate::emission::operation_emission::place_declarations::retain_block_parameters(
         evaluation.blocks.iter(),
         &mut structural_places,
     )?;
@@ -1148,6 +1157,8 @@ pub(super) fn emit(
         qualification_coercions: evaluation.qualification_coercions,
         machine,
         source_calls,
+        quotient_adaptations,
+        quotient_calls,
         selected_ieee_float_comparisons,
         selected_integer_comparisons,
         source_checked_obligations,

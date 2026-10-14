@@ -317,7 +317,10 @@ run/calls/fixed_dividend_across_console_calls built 8495ms exit:0 stdout:match i
 run/calls/runtime_float_distinct_operand_calls_exit built 16488ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @77cde1c51efd+wt
 run/calls/runtime_float_normalized_operand_single_evaluation_exit built 111135ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @16ed47526a08
 run/calls/table_report_call_survival built 8660ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @b4606c96d11a
+run/domains/structural_qualification_cast_values built 16904ms exit:0 interpreter-exit:0 interpreter:agrees @73e466d6222f+wt
+run/domains/structural_qualification_nested_values built 23807ms exit:0 interpreter-exit:0 interpreter:agrees @73e466d6222f+wt
 run/float/folded_anonymous_operator_custody_exit built 27827ms exit:0 interpreter-exit:0 interpreter:agrees @d041496df109+wt
+run/proofs/quotient_copy_paths built 36875ms exit:70 interpreter-exit:70 interpreter:agrees @73e466d6222f+wt
 run/providers/module_named_float_conversion_family_exit built 16000ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @77cde1c51efd+wt
 run/stores/runtime_float_indexed_call_result_exit built 15768ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @77cde1c51efd+wt
 run/stores/runtime_float_store_selector_snapshot_exit built 16044ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @77cde1c51efd+wt

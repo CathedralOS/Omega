@@ -93,6 +93,7 @@ pub(super) fn lower_machine(
                 operation,
                 block,
                 machine,
+                module,
                 structural_types,
                 &value_types,
                 &byte_sequence_literals,

@@ -18,7 +18,7 @@
 //! representative operation.
 
 use super::{
-    ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeStaticBinding,
+    ExactQuotientRelation, PositionalRelation, RelationPlanError, RepresentativeStaticBinding,
     RepresentativeTelescope,
 };
 use numerics::literals::{FloatFormat, IntegerLanding, IntegerLiteral, LandedIntegerType};
@@ -156,8 +156,8 @@ pub(super) fn derive_define_runtime_correspondence(
     machine: &Machine,
     state: &State,
     call: &TableCallExpression,
-    input_relations: &[InputRelation],
-    result_relation: ExactQuotientRelation,
+    input_relations: &[PositionalRelation],
+    result_relation: PositionalRelation,
     representative: &RepresentativeTelescope,
 ) -> Result<DefineRuntimeCorrespondence, RelationPlanError> {
     derive_define_position_runtime_correspondence(
@@ -177,8 +177,8 @@ pub(super) fn derive_direct_lift_runtime_correspondence(
     machine: &Machine,
     state: &State,
     call: &TableCallExpression,
-    input_relations: &[InputRelation],
-    result_relation: ExactQuotientRelation,
+    input_relations: &[PositionalRelation],
+    result_relation: PositionalRelation,
     representative: &RepresentativeTelescope,
 ) -> Result<DirectLiftRuntimeCorrespondence, RelationPlanError> {
     if !program.machine_type_parameters(machine).is_empty() {
@@ -209,54 +209,55 @@ pub(super) fn derive_direct_lift_runtime_correspondence(
         .zip(&representative.parameters)
         .enumerate()
     {
-        let source = if let Some(argument_symbol) =
-            direct_public_parameter_symbol(program, *argument)
-        {
-            let public = public_parameters
-                .iter()
-                .copied()
-                .find(|parameter| parameter.symbol == argument_symbol)
-                .ok_or(RelationPlanError::DirectLiftArgumentIsNotPublicParameter(
-                    position,
-                ))?;
-            if public.is_mutable != representative_parameter.is_mutable {
-                return Err(RelationPlanError::DirectLiftParameterModeMismatch(position));
-            }
-            if !input_relation_matches_public_type(program, *relation, public.type_reference)
-                || !input_relation_matches_representative_type(
+        let source =
+            if let Some(argument_symbol) = direct_public_parameter_symbol(program, *argument) {
+                let public = public_parameters
+                    .iter()
+                    .copied()
+                    .find(|parameter| parameter.symbol == argument_symbol)
+                    .ok_or(RelationPlanError::DirectLiftArgumentIsNotPublicParameter(
+                        position,
+                    ))?;
+                if public.is_mutable != representative_parameter.is_mutable {
+                    return Err(RelationPlanError::DirectLiftParameterModeMismatch(position));
+                }
+                if !input_relation_matches_public_type(program, *relation, public.type_reference)
+                    || !input_relation_matches_representative_type(
+                        program,
+                        *relation,
+                        representative_parameter.type_reference,
+                        &representative.static_application.bindings,
+                    )
+                {
+                    return Err(RelationPlanError::DirectLiftParameterTypeMismatch(position));
+                }
+                DirectLiftArgumentSource::PublicParameter(public.symbol)
+            } else {
+                if representative_parameter.is_mutable {
+                    return Err(RelationPlanError::DirectLiftParameterModeMismatch(position));
+                }
+                let literal = closed_lift_literal_for_representative(
                     program,
-                    *relation,
+                    *argument,
                     representative_parameter.type_reference,
-                    &representative.static_application.bindings,
-                )
-            {
-                return Err(RelationPlanError::DirectLiftParameterTypeMismatch(position));
-            }
-            DirectLiftArgumentSource::PublicParameter(public.symbol)
-        } else {
-            if representative_parameter.is_mutable {
-                return Err(RelationPlanError::DirectLiftParameterModeMismatch(position));
-            }
-            let literal = closed_lift_literal_for_representative(
-                program,
-                *argument,
-                representative_parameter.type_reference,
-                position,
-            )?
-            .ok_or(RelationPlanError::DirectLiftArgumentIsNotPublicParameter(
-                position,
-            ))?;
-            if *relation != InputRelation::ExactEquality(representative_parameter.type_reference) {
-                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
-            }
-            DirectLiftArgumentSource::Literal(literal)
-        };
+                    position,
+                )?
+                .ok_or(
+                    RelationPlanError::DirectLiftArgumentIsNotPublicParameter(position),
+                )?;
+                if *relation
+                    != PositionalRelation::ExactEquality(representative_parameter.type_reference)
+                {
+                    return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+                }
+                DirectLiftArgumentSource::Literal(literal)
+            };
         positions.push(DirectLiftRuntimePosition {
             source,
             representative_parameter: representative_parameter.symbol,
         });
     }
-    if !quotient_carrier_matches_type(
+    if !input_relation_matches_representative_type(
         program,
         result_relation,
         representative.return_type,
@@ -299,8 +300,8 @@ fn derive_define_position_runtime_correspondence(
     machine: &Machine,
     state: &State,
     call: &TableCallExpression,
-    input_relations: &[InputRelation],
-    result_relation: ExactQuotientRelation,
+    input_relations: &[PositionalRelation],
+    result_relation: PositionalRelation,
     representative: &RepresentativeTelescope,
 ) -> Result<Vec<DefineRuntimePosition>, RelationPlanError> {
     if !program.machine_type_parameters(machine).is_empty() {
@@ -357,7 +358,7 @@ fn derive_define_position_runtime_correspondence(
             representative_parameter: representative_parameter.symbol,
         });
     }
-    if !quotient_carrier_matches_type(
+    if !input_relation_matches_representative_type(
         program,
         result_relation,
         representative.return_type,
@@ -960,15 +961,15 @@ pub(super) fn direct_public_parameter_symbol(
 
 fn input_relation_matches_representative_type(
     program: &dyn crate::CheckingInput,
-    relation: InputRelation,
+    relation: PositionalRelation,
     representative_type: TypeReferenceHandle,
     substitutions: &[RepresentativeStaticBinding],
 ) -> bool {
     match relation {
-        InputRelation::ExactEquality(public_type) => {
+        PositionalRelation::ExactEquality(public_type) => {
             substituted_type_matches(program, representative_type, public_type, substitutions)
         }
-        InputRelation::Quotient(relation) => {
+        PositionalRelation::Quotient(relation) => {
             quotient_carrier_matches_type(program, relation, representative_type, substitutions)
         }
     }
@@ -976,12 +977,12 @@ fn input_relation_matches_representative_type(
 
 fn input_relation_matches_public_type(
     program: &dyn crate::CheckingInput,
-    relation: InputRelation,
+    relation: PositionalRelation,
     public_type: TypeReferenceHandle,
 ) -> bool {
     let relation_type = match relation {
-        InputRelation::Quotient(relation) => relation.quotient_type,
-        InputRelation::ExactEquality(type_reference) => type_reference,
+        PositionalRelation::Quotient(relation) => relation.quotient_type,
+        PositionalRelation::ExactEquality(type_reference) => type_reference,
     };
     program.normalized_type_identity(relation_type) == program.normalized_type_identity(public_type)
 }

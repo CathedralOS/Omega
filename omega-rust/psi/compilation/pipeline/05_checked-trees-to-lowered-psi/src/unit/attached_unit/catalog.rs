@@ -513,6 +513,7 @@ pub(super) fn lower_unit_structural_types_including(
             let id = structural_type_id(dense_identity(identity_ids.len())?);
             identity_ids.push((identity_id, id));
             declarations.push(StructuralTypeDeclaration {
+                quotient_carrier: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -899,6 +900,7 @@ pub(crate) fn lower_unit_structural_type_roots(
             },
         };
         declarations.push(StructuralTypeDeclaration {
+            quotient_carrier: None,
             no_code_affine_cleanup: plan.no_code_affine_cleanup,
             descriptor_cleanup: plan.descriptor_cleanup,
             scalar_restriction: plan

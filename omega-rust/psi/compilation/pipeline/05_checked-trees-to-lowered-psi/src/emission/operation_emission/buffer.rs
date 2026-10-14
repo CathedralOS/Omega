@@ -23,6 +23,12 @@ pub(crate) struct SourceCallCoordinate {
     pub(crate) call_ordinal: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SourceQuotientCall {
+    pub(crate) value: checked_trees::CheckedStructuralValueHandle,
+    pub(crate) call: OperationId,
+}
+
 /// Evaluated operands of a domain-ending call, before its owner allocates the
 /// terminating edge. Keeping this separate from operations prevents a Unit
 /// result, normal completion receipts or implicit cleanup from being invented.
@@ -195,6 +201,17 @@ impl CollectionLengthObservations {
 /// Module-wide operation identities for one machine namespace. Machine zero
 /// uses the historical one-based range; additional machines receive disjoint
 /// ranges when source call-closure production composes them.
+/// Source occurrence paired with the ordinary copy actually emitted for it.
+#[derive(Debug, Clone)]
+pub(crate) struct SourceQuotientAdaptation {
+    pub(crate) value: checked_trees::CheckedStructuralValueHandle,
+    pub(crate) copy: OperationId,
+    pub(crate) source: PlaceId,
+    pub(crate) result: PlaceId,
+    pub(crate) source_type: semantic_vocabulary::StructuralTypeId,
+    pub(crate) result_type: semantic_vocabulary::StructuralTypeId,
+}
+
 pub(crate) struct OperationBuffer {
     pub(crate) claim_introductions: Vec<crate::emission::claim_bindings::ClaimIntroduction>,
     pub(crate) selected_cleanup_groups:
@@ -222,6 +239,8 @@ pub(crate) struct OperationBuffer {
     pub(crate) operations: Vec<Operation>,
     pub(crate) length_observations: CollectionLengthObservations,
     pub(crate) source_calls: Vec<LoweredSourceCallOccurrence>,
+    pub(crate) quotient_adaptations: Vec<SourceQuotientAdaptation>,
+    pub(crate) quotient_calls: Vec<SourceQuotientCall>,
     /// Source-only associations created by the actual reference emitter.
     /// The source operand belongs to its formation epoch, not current storage.
     pub(crate) loan_captures: Vec<lowered_psi::LoweredSourceLoanCapture>,
@@ -337,6 +356,8 @@ impl OperationBuffer {
             operations: Vec::new(),
             length_observations: CollectionLengthObservations::default(),
             source_calls: Vec::new(),
+            quotient_adaptations: Vec::new(),
+            quotient_calls: Vec::new(),
             loan_captures: Vec::new(),
             loan_completions: Vec::new(),
             selected_ieee_float_comparisons: Vec::new(),

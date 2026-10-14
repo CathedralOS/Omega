@@ -19,6 +19,10 @@ fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
         id: machine,
         attachment: None,
         declaration: Some(terminal_psi::CheckedMachineDeclaration {
+            semantic_declaration: Default::default(),
+            parameter_types: Vec::new(),
+            callable: Default::default(),
+            result_type: Default::default(),
             machine: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
             state: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(2)),
             contract: [7; 32],

@@ -833,6 +833,18 @@ impl<'program> ShapeCollector<'program> {
         if !self.in_progress.insert(identity) {
             return None;
         }
+        // A quotient retains its chosen representative's storage under its
+        // own nominal identity. This describes geometry only: minting and
+        // checked operation edges must retain their separate authority.
+        if let Some(quotient) = data.quotient.as_ref() {
+            let carrier = self.add_type(quotient.carrier, binders, &substitutions);
+            let plan = carrier.and_then(|carrier| self.types.get(&carrier).cloned());
+            self.in_progress.remove(&identity);
+            let mut plan = plan?;
+            plan.identity = identity;
+            self.types.insert(identity, plan);
+            return Some(identity);
+        }
         // A boundary-opaque datum authors no storage of its own. The
         // authoritative build's exact `OpaqueRepresentation` application picks
         // the concrete carrier, and that carrier alone supplies the physical

@@ -18,6 +18,17 @@ pub(super) fn index_structural_types(
     BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     OptimizationUnitValidationError,
 > {
+    terminal_semantics::quotients::validate_quotient_representations(
+        &unit.structural_types,
+        unit.structural_types.quotients(),
+    )
+    .map_err(OptimizationUnitValidationError::InvalidQuotientCatalog)?;
+    terminal_semantics::quotients::validate_quotient_representation_identities(
+        &unit.structural_types,
+        unit.structural_types.quotients(),
+        &unit.identities,
+    )
+    .map_err(OptimizationUnitValidationError::InvalidQuotientCatalog)?;
     let mut types = BTreeMap::new();
     let mut type_names = BTreeSet::new();
     for declaration in &unit.structural_types {

@@ -260,6 +260,7 @@ pub(in crate::legalization) fn membership_layout(
 /// to leaf copies.
 pub(in crate::legalization) fn leaf_copy_layout(
     function: &PsiOptimizationFunction,
+    operation: OperationId,
     source: PlaceId,
     path: &abstract_operations::StructuralCopyPath,
     result: &StructuralOperationResult,
@@ -343,7 +344,17 @@ pub(in crate::legalization) fn leaf_copy_layout(
     } else {
         endpoint
     };
-    if endpoint != result.structural_type && !byte_carrier {
+    let quotient = matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty())
+        && abstract_operations::quotients::licensed_copy(
+            &plan.structural_types,
+            function.machine,
+            operation,
+            source,
+            identity,
+            result,
+            function.block_nodes().map(|node| &node.operation),
+        );
+    if endpoint != result.structural_type && !byte_carrier && !quotient {
         return Err(LegalizationError::custody());
     }
     // Geometry copies descriptor bytes; the independent custody replay joins
@@ -365,6 +376,16 @@ pub(in crate::legalization) fn leaf_copy_layout(
         &plan.structural_types,
     )
     .ok_or(LegalizationError::custody())?;
+    // Nominal adaptation is licensed by its exact retained occurrence, while
+    // the physical copy independently preserves both endpoints' geometry.
+    if quotient
+        && crate::structural_inputs::structural_reference_input::shape(
+            result.structural_type,
+            &plan.structural_types,
+        ) != Some(shape.clone())
+    {
+        return Err(LegalizationError::custody());
+    }
     Ok((byte_offset, shape, indices))
 }
 

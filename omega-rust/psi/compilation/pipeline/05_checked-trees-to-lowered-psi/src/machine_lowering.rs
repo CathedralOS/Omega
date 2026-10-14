@@ -5,7 +5,7 @@
 //! [`crate::machine_lowering::machine_dispatch`] to the plan family that owns
 //! its shape, then closes provider installation entries and sequences the work
 //! every selected module still needs: retained custody, float-meaning projections, evidence and proof
-//! recursion, proof-only quotient correspondence rows, operand proof
+//! recursion, checked quotient correspondence bindings, operand proof
 //! completion or module validation, and the debug companion.
 //! Callback selections join the same program's retained roots. Each body retains its portable
 //! checked declaration, so consumers need no source-to-Terminal receipt.
@@ -356,9 +356,9 @@ fn lower_terminal_selection(
     )?;
     retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;
     lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)?;
-    // Proof-only quotient correspondence rows join module identity before
-    // validation; a nonempty table is then refused by the execution gate below
-    // until executable quotient lowering exists.
+    // Copies emitted while composing values can allocate after frame reservation.
+    // Retain their ordinary place declarations before publishing the module;
+    // quotient adaptations keep their separate exact occurrence licenses.
     crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
         &mut lowered.semantic_module,
     );

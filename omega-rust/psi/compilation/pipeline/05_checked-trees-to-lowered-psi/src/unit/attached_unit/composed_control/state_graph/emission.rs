@@ -759,6 +759,10 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         blocks.iter(),
         &mut structural_places,
     )?;
+    crate::emission::operation_emission::place_declarations::retain_block_parameters(
+        blocks.iter(),
+        &mut structural_places,
+    )?;
     structural_places.sort_by_key(|place| place.id);
     let attachment = plan
         .attachment_type_identity

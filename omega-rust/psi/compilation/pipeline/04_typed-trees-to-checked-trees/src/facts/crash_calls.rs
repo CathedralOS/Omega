@@ -26,7 +26,9 @@ use crate::facts::crash_calls::summary_predicates::{
     SummaryCrashBucket, normalize_summary_buckets,
 };
 use checked_trees::CrashPredicateExpression;
-pub(crate) use private_summaries::{PreparedCrashSummaryGraph, prepare_crash_summary_graph};
+pub(crate) use private_summaries::{
+    PreparedCrashSummaryGraph, prepare_crash_summary_graph, selected_invocation_target,
+};
 use symbols::SymbolHandle;
 
 pub(super) fn crash_predicate_from_expression(
@@ -213,8 +215,21 @@ pub(super) fn attach_checked_crash_calls(
         Vec::<(SymbolHandle, Vec<checked_trees::CheckedCrashCallSite>)>::new();
     for (_, state_flow) in flow.control.states.iter() {
         for call_flow in flow.control.calls.span_or_empty(state_flow.calls) {
+            let Some(call_site) = validation::find_call_site(
+                program,
+                state_flow.machine_symbol,
+                state_flow.state_symbol,
+                call_flow.statement_index,
+                call_flow.call_ordinal,
+            ) else {
+                continue;
+            };
             let Some((target_machine_symbol, target_state_symbol)) =
-                crate::proof::contract_target_from_state_symbol(program, call_flow.target_symbol)
+                private_summaries::selected_invocation_target(
+                    program,
+                    call_site,
+                    call_flow.target_symbol,
+                )
             else {
                 continue;
             };
@@ -322,15 +337,6 @@ pub(super) fn attach_checked_crash_calls(
                     capsule.target_contract_report_fingerprint(),
                     capsule.target_contract_commitment(),
                 )
-            };
-            let Some(call_site) = validation::find_call_site(
-                program,
-                state_flow.machine_symbol,
-                state_flow.state_symbol,
-                call_flow.statement_index,
-                call_flow.call_ordinal,
-            ) else {
-                continue;
             };
             if matches!(call_site, validation::CallSite::TransitionNamed { .. }) {
                 // A named transition moves dispatch state inside the fused

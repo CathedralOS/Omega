@@ -1,8 +1,9 @@
-//! Source-handle-free vocabulary for non-executable quotient correspondence.
+//! Source-handle-free vocabulary for checked quotient correspondence.
 //!
-//! These rows carry proof-only semantic identity. They do not admit a source
-//! operation, create a checked runtime operation, or authorize Terminal-Psi
-//! machine emission.
+//! These rows name mathematical and callable identities; constructing a row
+//! grants no execution authority. Source checking admits the selected theorem
+//! and representative. Executable lowering separately binds that judgment to
+//! ordinary calls and exact nominal adaptations in the Terminal catalog.
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct QuotientCallableIdentity {
@@ -125,10 +126,18 @@ pub struct QuotientRepresentativeApplication {
     pub arguments: Vec<u32>,
 }
 
+/// The result law is either the selected nominal relation or exact equality.
+/// Equality has its exact result type; it is never encoded as a forged symbol.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum QuotientResultRelation {
+    Quotient(String),
+    ExactEquality(String),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct QuotientTheoremConclusion {
     pub actual: QuotientContractFactCoordinate,
-    pub relation: String,
+    pub relation: QuotientResultRelation,
     pub left: QuotientRepresentativeApplication,
     pub right: QuotientRepresentativeApplication,
 }
@@ -238,10 +247,10 @@ pub enum QuotientResultFlow {
     },
 }
 
-/// Complete source-free input to the first standalone Terminal replay seam.
+/// Complete source-free correspondence for a selected quotient operation.
 ///
-/// Construction is non-authoritative: normal validation continues to reject
-/// every executable quotient request.
+/// Construction is non-authoritative. Terminal publication binds source-checked
+/// admission to actual calls and adaptations; this is not a PCC theorem proof.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CanonicalQuotientCorrespondence {
     pub operation_kind: QuotientCorrespondenceOperationKind,
@@ -251,7 +260,7 @@ pub struct CanonicalQuotientCorrespondence {
     /// representative position for `lift` and by the shared faithful position
     /// for `define`.
     pub input_relations: Vec<QuotientPositionalRelation>,
-    pub result_relation: QuotientRelationIdentity,
+    pub result_relation: QuotientPositionalRelation,
     /// The runtime-argument map in representative order; see
     /// [`QuotientDefineRuntimePosition`] for `define` versus adapted `lift`
     /// semantics.

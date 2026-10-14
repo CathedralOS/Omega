@@ -48,9 +48,10 @@ pub use proof_terms::{
 };
 mod structural_values;
 pub use structural_values::{
-    CheckedElementViewRegion, CheckedStructuralDispatchArm, CheckedStructuralRecordField,
-    CheckedStructuralRecordFieldValue, CheckedStructuralValue, CheckedStructuralValueHandle,
-    CheckedStructuralValueKind, CheckedStructuralValuePlans, CheckedStructuralValueRoot,
+    CheckedElementViewRegion, CheckedQuotientAdaptationLicense, CheckedStructuralDispatchArm,
+    CheckedStructuralRecordField, CheckedStructuralRecordFieldValue, CheckedStructuralValue,
+    CheckedStructuralValueHandle, CheckedStructuralValueKind, CheckedStructuralValuePlans,
+    CheckedStructuralValueRoot,
 };
 mod array_construction_source;
 pub use array_construction_source::CheckedArrayConstructionSource;

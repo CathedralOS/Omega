@@ -1,0 +1,80 @@
+// Invalid control for executable custody-free quotient realization.
+use omega::language::core::relation;
+
+data Representative [copy] { value: i32; }
+
+proposition equivalent(a: Representative, b: Representative) = a == b;
+
+machine equivalent_reflexive(a: Representative)
+ensures a == a
+{
+}
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires
+    a == b
+ensures b == a
+{
+}
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+requires
+    a == b
+    b == c
+ensures a == c
+{
+}
+
+RepresentativeEquivalence satisfies Equivalence<Representative, equivalent> {
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}
+
+data EquivalenceClass [copy] = Representative % equivalent
+where equivalent satisfies
+    Equivalence<Representative, equivalent>
+    as RepresentativeEquivalence;
+
+machine representative(value: Representative) -> Representative {
+    value
+}
+
+machine representative_respects(left: Representative, right: Representative)
+requires equivalent(left, right)
+ensures equivalent(representative(left), representative(right))
+{
+}
+
+machine admitted(value: EquivalenceClass) -> EquivalenceClass {
+    Quotient::define<representative, representative_respects>(value)
+}
+
+machine hidden(value: Representative) -> i32 { crash Trap; }
+machine representative_value(value: Representative) -> i32 { hidden(value) }
+
+machine value_respects(left: Representative, right: Representative)
+requires equivalent(left, right)
+ensures representative_value(left) == representative_value(right)
+{
+}
+
+machine observe(value: EquivalenceClass) -> i32 {
+    Quotient::define<representative_value, value_respects>(value)
+}
+
+machine representative_transports(left: Representative, right: Representative) {
+}
+
+machine lifted(value: EquivalenceClass) -> EquivalenceClass {
+    Quotient::lift<representative, representative_respects, representative_transports>(value)
+}
+
+machine main() {
+    let value: EquivalenceClass = Representative { value: 4 } as EquivalenceClass;
+    let observed: i32 = observe(value);
+}

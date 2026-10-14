@@ -52,6 +52,10 @@ pub(super) fn encode_type(
     bytes: &mut Vec<u8>,
     declaration: &StructuralTypeDeclaration,
 ) -> Result<(), terminal_codec::CodecError> {
+    bytes.push(u8::from(declaration.quotient_carrier.is_some()));
+    if let Some(carrier) = declaration.quotient_carrier {
+        crate::codec_bytes::push_encoded(bytes, carrier.get().to_le_bytes());
+    }
     crate::codec_bytes::push_encoded(bytes, declaration.id.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, declaration.identity.0.to_le_bytes());
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
@@ -123,6 +127,11 @@ pub(super) fn encode_type(
 pub(super) fn decode_type(
     cursor: &mut Cursor<'_>,
 ) -> Result<StructuralTypeDeclaration, FixedViewCopyDecodeError> {
+    let quotient_carrier = if decode_bool(cursor)? {
+        Some(decode_id(cursor, StructuralTypeId::new)?)
+    } else {
+        None
+    };
     let id = decode_id(cursor, StructuralTypeId::new)?;
     let identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let no_code_affine_cleanup = decode_bool(cursor)?;
@@ -187,6 +196,7 @@ pub(super) fn decode_type(
         tag => return Err(FixedViewCopyDecodeError::UnknownStructuralTypeShape(tag)),
     };
     Ok(StructuralTypeDeclaration {
+        quotient_carrier,
         no_code_affine_cleanup,
         descriptor_cleanup,
         scalar_restriction,

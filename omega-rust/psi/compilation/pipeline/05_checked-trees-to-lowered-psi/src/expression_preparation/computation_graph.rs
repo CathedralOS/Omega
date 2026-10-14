@@ -370,6 +370,7 @@ pub(crate) fn structural_dependencies(
     let mut scalars = Vec::new();
     for value in &values {
         match &plans.nodes.get(*value).kind {
+            Value::QuotientCall { .. } => {}
             Value::Record { fields, .. } | Value::StructuralCase { fields, .. } => {
                 for field in plans
                     .record_fields
@@ -416,6 +417,7 @@ pub(crate) fn structural_dependencies(
             }
             Value::Reference { .. }
             | Value::Projection { .. }
+            | Value::QuotientAdaptation { .. }
             | Value::FixedArray { .. }
             | Value::Call { .. }
             | Value::Place(_)

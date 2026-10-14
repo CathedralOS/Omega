@@ -577,7 +577,20 @@ fn walk_primitive_projection<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     scalar_field: impl Fn(&StructuralFieldType) -> Option<ScalarType>,
+    step: impl FnMut(Option<CanonicalStructuralPathSegment>),
+) -> Option<ProjectionTip<'a>> {
+    walk_primitive_projection_with_policy(declarations, root, path, scalar_field, step, |_, _| true)
+}
+
+/// The shared projection grammar, with a nominal-boundary policy before each
+/// step. Policy cannot authorize malformed geometry or manufacture a leaf.
+fn walk_primitive_projection_with_policy<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    scalar_field: impl Fn(&StructuralFieldType) -> Option<ScalarType>,
     mut step: impl FnMut(Option<CanonicalStructuralPathSegment>),
+    mut may_step: impl FnMut(Option<StructuralTypeId>, &StructuralPathSegment) -> bool,
 ) -> Option<ProjectionTip<'a>> {
     let unique = |id: StructuralTypeId| {
         let mut matching = declarations
@@ -589,6 +602,14 @@ fn walk_primitive_projection<'a>(
     let mut position = Position::Declared(root);
     let mut payload_fields = None;
     for segment in path {
+        let declared = match position {
+            Position::Declared(root) => Some(root),
+            _ => None,
+        };
+        if !may_step(declared, segment) {
+            return None;
+        }
+
         if let StructuralPathSegment::RepresentationView {
             structural_type,
             stored_scalar,
@@ -716,5 +737,26 @@ fn walk_primitive_projection<'a>(
         Position::Declared(root) => unique(root).map(ProjectionTip::Declared),
         Position::ScalarField((field, scalar)) => Some(ProjectionTip::ScalarField(field, scalar)),
         Position::ByteElement => Some(ProjectionTip::ByteElement),
+    }
+}
+
+/// Resolve a projection while retaining nominal opacity at every boundary.
+/// An inline scalar/byte leaf has no structural declaration of its own.
+pub(crate) fn projection_tip_with_policy<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    may_step: impl FnMut(Option<StructuralTypeId>, &StructuralPathSegment) -> bool,
+) -> Option<Option<StructuralTypeId>> {
+    match walk_primitive_projection_with_policy(
+        declarations,
+        root,
+        path,
+        plain_scalar_field,
+        |_| {},
+        may_step,
+    )? {
+        ProjectionTip::Declared(tip) => Some(Some(tip.id)),
+        ProjectionTip::ScalarField(_, _) | ProjectionTip::ByteElement => Some(None),
     }
 }

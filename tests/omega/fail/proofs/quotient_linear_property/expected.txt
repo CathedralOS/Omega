@@ -1,0 +1,1 @@
+quotient data declaration cannot declare linear or carry properties

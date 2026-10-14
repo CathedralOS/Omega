@@ -13,7 +13,7 @@ use super::proof_fact_identity::{
 use super::runtime_correspondence::DirectLiftArgumentSource;
 use super::{
     DefineRuntimeCorrespondence, DefineRuntimePosition, DirectLiftRuntimeCorrespondence,
-    InputRelation, RelationPlanError, RepresentativeStaticBinding, RepresentativeTelescope,
+    PositionalRelation, RelationPlanError, RepresentativeStaticBinding, RepresentativeTelescope,
 };
 use arena::HandleSpan;
 use symbols::SymbolHandle;
@@ -55,7 +55,7 @@ pub(super) fn derive_public_precondition_partition(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    input_relations: &[InputRelation],
+    input_relations: &[PositionalRelation],
     runtime_positions: &[DefineRuntimePosition],
 ) -> Result<RepresentativePreconditionPartition, RelationPlanError> {
     derive_public_precondition_partition_from_positions(
@@ -75,7 +75,7 @@ pub(super) fn derive_direct_lift_public_precondition_partition(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    input_relations: &[InputRelation],
+    input_relations: &[PositionalRelation],
     runtime: &DirectLiftRuntimeCorrespondence,
 ) -> Result<RepresentativePreconditionPartition, RelationPlanError> {
     derive_public_precondition_partition_from_positions(
@@ -99,7 +99,7 @@ fn derive_public_precondition_partition_from_positions(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    input_relations: &[InputRelation],
+    input_relations: &[PositionalRelation],
     public_positions: &[Option<SymbolHandle>],
     arity_error: RelationPlanError,
 ) -> Result<RepresentativePreconditionPartition, RelationPlanError> {
@@ -111,7 +111,7 @@ fn derive_public_precondition_partition_from_positions(
         .iter()
         .zip(public_positions)
         .filter_map(|(relation, position)| {
-            matches!(relation, InputRelation::Quotient(_))
+            matches!(relation, PositionalRelation::Quotient(_))
                 .then_some(*position)
                 .flatten()
         })
@@ -137,14 +137,14 @@ fn derive_public_precondition_partition_from_positions(
 
 pub(super) fn derive_representative_precondition_partition(
     program: &dyn crate::CheckingInput,
-    input_relations: &[InputRelation],
+    input_relations: &[PositionalRelation],
     representative: &RepresentativeTelescope,
 ) -> Result<RepresentativePreconditionPartition, RelationPlanError> {
     let varying_parameters = input_relations
         .iter()
         .zip(&representative.parameters)
         .filter_map(|(relation, parameter)| {
-            matches!(relation, InputRelation::Quotient(_)).then_some(parameter.symbol)
+            matches!(relation, PositionalRelation::Quotient(_)).then_some(parameter.symbol)
         })
         .collect::<Vec<_>>();
     derive_precondition_partition(

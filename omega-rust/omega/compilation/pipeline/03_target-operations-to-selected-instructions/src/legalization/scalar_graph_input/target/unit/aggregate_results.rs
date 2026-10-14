@@ -176,6 +176,7 @@ pub(super) fn validate(
             let (expected_offset, expected_shape, expected_indices) =
                 scalar_graph_input::structural_case::leaf_copy_layout(
                     optimized,
+                    *expected_operation,
                     *expected_source,
                     expected_path,
                     result,

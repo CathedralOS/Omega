@@ -78,6 +78,8 @@ impl DirectCall {
 /// the caller's lowered frontier rows, or against the scalar values live in
 /// its operand frame before the call.
 pub(crate) enum CallRecord<'a> {
+    /// A separately checked sealed source request, never an ordinary call fact.
+    Quotient(checked_trees::CheckedStructuralValueHandle),
     Frontier(&'a LoweredSourceFrontierBindings),
     Values(&'a [ValueDeclaration]),
 }
@@ -98,6 +100,12 @@ pub(crate) fn emit_direct_call(
 ) -> Result<semantic_vocabulary::OperationId, LoweringError> {
     let operation = operations.allocate();
     match record {
+        CallRecord::Quotient(value) => operations.quotient_calls.push(
+            crate::emission::operation_emission::buffer::SourceQuotientCall {
+                value,
+                call: operation,
+            },
+        ),
         CallRecord::Frontier(frontier_before_call) => operations.record_source_call(
             coordinate,
             source_site,

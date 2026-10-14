@@ -7,7 +7,7 @@ use language_semantics::quotient_correspondence::{
     QuotientForwardPreconditionTransportCorrespondence, QuotientForwardPreconditionTransportFact,
     QuotientMachineApplication, QuotientPositionalRelation, QuotientPurityCertificate,
     QuotientRelationIdentity, QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
-    QuotientResultFlow, QuotientStateForwarding, QuotientStaticApplication,
+    QuotientResultFlow, QuotientResultRelation, QuotientStateForwarding, QuotientStaticApplication,
     QuotientTerminationCertificate, QuotientTheoremConclusion, QuotientTheoremCorrespondence,
     QuotientTheoremEligibility, QuotientTheoremEvidence, QuotientTheoremParameter,
     QuotientTheoremParameterRole, QuotientTheoremRelationPremise, QuotientTheoremRole,
@@ -26,7 +26,7 @@ use super::result_flow::{CompleteResultFlow, CompleteStateForwardingResultFlow};
 use super::runtime_correspondence::{DirectLiftArgumentSource, direct_public_parameter_symbol};
 use super::theorem_schema::TheoremParameterRole;
 use super::transport_schema::VerifiedForwardPreconditionTransportSchema;
-use super::{DirectTerminalRelationPlan, ExactQuotientRelation, InputRelation};
+use super::{DirectTerminalRelationPlan, ExactQuotientRelation, PositionalRelation};
 
 /// Compose the one canonical Terminal correspondence row this plan's own
 /// certificate licenses.
@@ -296,10 +296,10 @@ fn canonical_correspondence(
         .iter()
         .enumerate()
         .map(|(position, relation)| match relation {
-            InputRelation::Quotient(relation) => Ok(QuotientPositionalRelation::Quotient(
+            PositionalRelation::Quotient(relation) => Ok(QuotientPositionalRelation::Quotient(
                 relation_identity(program, *relation)?,
             )),
-            InputRelation::ExactEquality(public_type) => {
+            PositionalRelation::ExactEquality(public_type) => {
                 let public_type = canonical_type(program, *public_type)?;
                 let representative_type = canonical_type(
                     program,
@@ -315,7 +315,17 @@ fn canonical_correspondence(
             }
         })
         .collect::<Result<Vec<_>, String>>()?;
-    let result_relation = relation_identity(program, plan.result_relation)?;
+    let result_relation = match plan.result_relation {
+        PositionalRelation::Quotient(relation) => {
+            QuotientPositionalRelation::Quotient(relation_identity(program, relation)?)
+        }
+        PositionalRelation::ExactEquality(public_type) => {
+            QuotientPositionalRelation::ExactEquality {
+                public_type: canonical_type(program, public_type)?,
+                representative_type: canonical_type(program, plan.representative.return_type)?,
+            }
+        }
+    };
     let theorem = theorem_correspondence(program, plan, certificate, transport_lift)?;
 
     Ok(CanonicalQuotientCorrespondence {
@@ -570,7 +580,14 @@ fn theorem_correspondence(
         },
         conclusion: QuotientTheoremConclusion {
             actual: contract_coordinate(verified.conclusion)?,
-            relation: canonical_symbol(program, expected.result_relation.relation_symbol)?,
+            relation: match expected.result_relation {
+                PositionalRelation::Quotient(relation) => QuotientResultRelation::Quotient(
+                    canonical_symbol(program, relation.relation_symbol)?,
+                ),
+                PositionalRelation::ExactEquality(reference) => {
+                    QuotientResultRelation::ExactEquality(canonical_type(program, reference)?)
+                }
+            },
             left: QuotientRepresentativeApplication {
                 arguments: expected
                     .left_application
@@ -700,7 +717,7 @@ fn theorem_contract_coordinate(
     contract_coordinate(location)
 }
 
-fn relation_identity(
+pub(in crate::proof_contracts::quotients) fn relation_identity(
     program: &dyn crate::CheckingInput,
     relation: ExactQuotientRelation,
 ) -> Result<QuotientRelationIdentity, String> {

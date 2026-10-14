@@ -13,7 +13,7 @@
 //! Termination eligibility of a representative or selected theorem is read
 //! through [`CheckedTerminationOracle`]: ordinary validation supplies the
 //! typed machine summaries it has (no guarantee before the checked stage
-//! proves one), and the Terminal producer supplies the checked termination
+//! proves one), and checked-tree admission supplies the checked termination
 //! facts, so a real-route batch can admit once the checked stage has proved
 //! its machines terminate.
 //!
@@ -22,7 +22,8 @@
 //! operation requests, `equivalence_selection.rs` validates equivalence
 //! selections and exact relation applications, and `carrier_fence.rs`,
 //! `relation_plan.rs` and `terminal_bridge.rs` carry the fence, plan and
-//! bridge; `tests.rs` holds the quotient tests.
+//! bridge. Source fixtures under `tests/omega/*/proofs/quotient_*` exercise
+//! admission, executable realization and invalid controls.
 
 mod carrier_fence;
 mod equivalence_selection;
@@ -118,11 +119,19 @@ where
 /// The selected equivalence conformance licenses formation but is deliberately
 /// absent: changing one valid proof implementation does not change quotient
 /// identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ValidatedQuotientFormation {
-    pub data_symbol: SymbolHandle,
-    pub carrier: TypeReferenceHandle,
-    pub relation_symbol: SymbolHandle,
+pub type ValidatedQuotientFormation = checked_trees::CheckedQuotientFormation;
+
+/// An admitted source occurrence and its normalized executable correspondence.
+/// The request is still sealed in typed trees: execution consumes this checked
+/// join, never the mere presence of a source-selected representative.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedQuotientOperation {
+    pub request: typed_trees::expression::ExpressionHandle,
+    pub public_machine: SymbolHandle,
+    pub public_state: SymbolHandle,
+    pub representative_state: SymbolHandle,
+    pub correspondence:
+        language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence,
 }
 
 /// Rerun the complete quotient-formation judgment without considering any
@@ -161,7 +170,7 @@ pub(crate) fn validate_quotients(
     proof_only: &ProofOnlyClassification,
     admission: QuotientRequestAdmission,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> Vec<ValidatedQuotientFormation> {
     match admission {
         QuotientRequestAdmission::AtValidation => {
             reject_quotient_operation_requests(program, program.typed_program(), diagnostics);
@@ -169,7 +178,7 @@ pub(crate) fn validate_quotients(
         QuotientRequestAdmission::AfterCheckedFacts => {}
     }
 
-    collect_validated_quotient_formations(program, proof_only, diagnostics);
+    collect_validated_quotient_formations(program, proof_only, diagnostics)
 }
 
 /// Judge the program's sealed quotient requests against checked termination.
@@ -180,12 +189,12 @@ pub(crate) fn validate_quotients(
 /// program whose whole request batch the proof-only bridge can express admits;
 /// the batch is all-or-nothing, so any other request keeps every request's
 /// rejection diagnostic, rendered against the same checked termination.
-/// Admission is proof-only: the bridged correspondences are a judgment and
-/// are not retained in Terminal Psi.
+/// Admission publishes the exact checked correspondence. Runtime demand must
+/// still elaborate its representative call and retain the executable joins.
 pub fn admit_checked_quotient_requests(
     program: &dyn crate::CheckingInput,
     termination: &dyn CheckedTerminationOracle,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<ValidatedQuotientOperation>, Vec<Diagnostic>> {
     if !program
         .expression_table
         .iter_expressions()
@@ -197,10 +206,12 @@ pub fn admit_checked_quotient_requests(
             )
         })
     {
-        return Ok(());
+        return Ok(Vec::new());
     }
-    if matches!(terminal_bridge::extract(program, termination), Ok(rows) if !rows.is_empty()) {
-        return Ok(());
+    if let Ok(rows) = terminal_bridge::extract(program, termination)
+        && !rows.is_empty()
+    {
+        return Ok(rows);
     }
     let mut diagnostics = Vec::new();
     reject_quotient_operation_requests(program, termination, &mut diagnostics);
@@ -212,4 +223,26 @@ pub fn admit_checked_quotient_requests(
         ));
     }
     Err(diagnostics)
+}
+
+/// Render the exact nominal application from a retained formation judgment.
+pub fn checked_quotient_relation_identity(
+    program: &dyn crate::CheckingInput,
+    quotient_type: TypeReferenceHandle,
+    formations: &[ValidatedQuotientFormation],
+) -> Result<language_semantics::quotient_correspondence::QuotientRelationIdentity, String> {
+    let symbol = equivalence_selection::base_data_symbol(program, quotient_type)
+        .ok_or_else(|| "quotient application has no nominal declaration".to_owned())?;
+    let formation = formations
+        .iter()
+        .find(|row| row.data_symbol == symbol)
+        .ok_or_else(|| "quotient application has no checked formation".to_owned())?;
+    relation_plan::relation_identity(
+        program,
+        relation_plan::ExactQuotientRelation {
+            quotient_symbol: symbol,
+            quotient_type,
+            relation_symbol: formation.relation_symbol,
+        },
+    )
 }

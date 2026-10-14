@@ -39,6 +39,8 @@ mod termination;
 // specializations, dynamic conformance selections, and the closed
 // requirement each provider refines.
 mod calls;
+mod quotient_operations;
+pub use quotient_operations::{CheckedQuotientFormation, CheckedQuotientOperation};
 mod dynamic_conformances;
 mod nominal_machine_uses;
 mod provider_closed_requirements;

@@ -92,6 +92,7 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
         structural: Some(legalized_operations::LegalizedStructuralContract {
             result: None,
             structural_types: vec![terminal_psi::StructuralTypeDeclaration {
+                quotient_carrier: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -319,6 +320,7 @@ fn primitive_reference_publication_preserves_original_home_and_total_view() {
     .into_iter()
     .enumerate()
     .map(|(index, scalar)| StructuralTypeDeclaration {
+        quotient_carrier: None,
         no_code_affine_cleanup: false,
         descriptor_cleanup: false,
         scalar_restriction: None,

@@ -208,3 +208,5 @@ pub use structural_effect::{ElementViewLeaf, element_view_leaf, element_view_wri
 
 mod scalar_observations;
 pub use scalar_observations::structural_read_scalar_type;
+
+pub mod quotients;

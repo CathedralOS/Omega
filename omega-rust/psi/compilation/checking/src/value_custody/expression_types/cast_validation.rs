@@ -68,9 +68,37 @@ pub(crate) fn validate_cast_types(
         }
         return;
     }
-    // N6 quotient mint: `carrier as Quotient` is not a scalar conversion.
-    // It introduces an equivalence class while retaining no representative,
-    // and is legal only from the quotient's exact carrier family.
+    // Same-carrier casts preserve an existing value, including an opaque
+    // quotient. They use the ordinary qualification checks above and must not
+    // be reinterpreted as minting from the representative carrier. Compare the
+    // complete stored application, not its family head: static arguments and
+    // lifetimes remain part of identity when qualifications are stripped.
+    if target_name.is_some_and(|target| PrimitiveType::from_name(target.as_str()).is_none())
+        && (match state {
+            Some(state) => {
+                super::expression_result_type_reference(program, machine, state, cast.value)
+            }
+            None => super::declaration_expression_result_type_reference(
+                program,
+                machine.symbol,
+                &|expression| {
+                    crate::value_custody::places::declared_place_type(
+                        program, machine, state, expression,
+                    )
+                },
+                cast.value,
+            ),
+        })
+        .is_some_and(|actual| {
+            crate::stored_structural_type_identity(program, actual, &[], &[])
+                == crate::stored_structural_type_identity(program, cast.target_type, &[], &[])
+        })
+    {
+        return;
+    }
+    // `carrier as Quotient` introduces an equivalence class using the exact
+    // carrier family. Runtime storage may retain the chosen representative;
+    // construction supplies no permission to observe it.
     if let Some(target_name) = target_name
         && let Some(quotient_data) = program.data_definitions().iter().find(|definition| {
             definition.name.as_str() == target_name.as_str() && definition.quotient.is_some()
@@ -88,11 +116,6 @@ pub(crate) fn validate_cast_types(
     if let Some(target) = target_name
         && PrimitiveType::from_name(target.as_str()).is_none()
     {
-        if base_data_symbol(program, cast.target_type).is_some_and(|target| {
-            expression_data_symbol(program, machine, state, cast.value) == Some(target)
-        }) {
-            return;
-        }
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}` casts with `as {target}`, but `{target}` is not a scalar \
              type; non-scalar `as` only erases qualifications from the same data carrier",

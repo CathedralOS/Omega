@@ -10,7 +10,7 @@ use arena::{Handle, HandleSpan};
 use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{
-    DataDefinition, DataField, DataMember, DataProperties, DataVariant, QuotientDefinition,
+    DataDefinition, DataField, DataMember, DataVariant, QuotientDefinition,
     QuotientEquivalenceSelection,
 };
 use tokens::PunctuationKind;
@@ -49,9 +49,11 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     // normal type reference (including a bare generic family); `%` is the
     // quotient former here rather than the expression-level modulo operator.
     if input.at_punctuation(PunctuationKind::Equal) {
-        if properties != DataProperties::default() {
+        if properties.multiplicity == language_core::Multiplicity::Linear
+            || properties.carry.is_some()
+        {
             return Err(input.error_here(
-                "a quotient data declaration cannot declare runtime data properties; its values are proof-only equivalence classes",
+                "a quotient data declaration cannot declare linear or carry properties; the initial quotient surface excludes custody",
             ));
         }
         input = input.take_punctuation(PunctuationKind::Equal, "=")?;

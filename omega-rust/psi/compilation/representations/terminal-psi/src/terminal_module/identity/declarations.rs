@@ -44,6 +44,11 @@ impl NominalDeclarationIdentity {
 pub struct CheckedMachineDeclaration {
     pub machine: NominalDeclarationIdentity,
     pub state: NominalDeclarationIdentity,
+    /// Source signature identities retained independently of executable storage.
+    pub semantic_declaration: TerminalIdentityIndex,
+    pub parameter_types: Vec<TerminalIdentityIndex>,
+    pub callable: TerminalIdentityIndex,
+    pub result_type: TerminalIdentityIndex,
     pub contract: [u8; 32],
     pub specialization: Option<CheckedMachineSpecialization>,
 }
@@ -64,6 +69,16 @@ impl CheckedMachineDeclaration {
             || !self
                 .state
                 .same_identity_as(identities, &other.state, other_identities)
+            || identities.text(self.semantic_declaration)
+                != other_identities.text(other.semantic_declaration)
+            || self.parameter_types.len() != other.parameter_types.len()
+            || self
+                .parameter_types
+                .iter()
+                .zip(&other.parameter_types)
+                .any(|(left, right)| identities.text(*left) != other_identities.text(*right))
+            || identities.text(self.callable) != other_identities.text(other.callable)
+            || identities.text(self.result_type) != other_identities.text(other.result_type)
             || self.contract != other.contract
         {
             return false;

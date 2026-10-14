@@ -125,7 +125,17 @@ pub(super) fn copy_extent(
     } else {
         shape
     };
-    if endpoint != result.structural_type && !byte_carrier {
+    let quotient = matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty())
+        && abstract_operations::quotients::licensed_copy(
+            types.catalog(),
+            function.machine,
+            psi_operation,
+            source,
+            root_type,
+            result,
+            function.operations.iter(),
+        );
+    if endpoint != result.structural_type && !byte_carrier && !quotient {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     // A selector resolves to its exact dominating scalar source — an

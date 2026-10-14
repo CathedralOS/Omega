@@ -819,6 +819,10 @@ pub(crate) fn validate_structural_root_operations(
                                     let expected = result.structural_type;
                                     let selected = crate::unit_validation::structural_catalog::resolve_leaf_copy_path(structural_types, signature.structural_type, path);
                                     selected == Some(expected)
+                                        || (path.is_empty() && abstract_operations::quotients::licensed_copy(
+                                            &unit.structural_types, function.machine, *psi_operation, *source,
+                                            signature.structural_type, result,
+                                            function.block_nodes().map(|node| &node.operation)))
                                         || crate::unit_validation::structural_catalog::byte_carrier_leaf_window(structural_types, signature.structural_type, path, expected)
                                 },
                                 abstract_operations::StructuralCopyPath::Case(path) => {

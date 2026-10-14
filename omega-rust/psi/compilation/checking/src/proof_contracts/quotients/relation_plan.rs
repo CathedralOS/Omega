@@ -24,6 +24,7 @@ mod result_flow;
 mod runtime_correspondence;
 mod static_application;
 mod terminal_bridge;
+pub(super) use terminal_bridge::relation_identity;
 mod theorem;
 mod theorem_schema;
 mod theorem_schema_verification;
@@ -87,7 +88,7 @@ pub(super) struct ExactQuotientRelation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum InputRelation {
+pub(super) enum PositionalRelation {
     Quotient(ExactQuotientRelation),
     /// Non-quotient operands remain part of the pointwise relation through
     /// exact equality. They must never disappear into an implicit `true`.
@@ -98,8 +99,8 @@ pub(super) enum InputRelation {
 pub(super) struct DirectTerminalRelationPlan {
     /// One entry per authored runtime argument. Quotient positions use their
     /// exact selected relation; ordinary positions use exact typed equality.
-    pub(super) input_relations: Vec<InputRelation>,
-    pub(super) result_relation: ExactQuotientRelation,
+    pub(super) input_relations: Vec<PositionalRelation>,
+    pub(super) result_relation: PositionalRelation,
     pub(super) representative: RepresentativeTelescope,
     pub(super) representative_termination: Option<MachineStateCoordinate>,
     /// Exact role-ordered explicitly selected theorem applications and common
@@ -166,8 +167,7 @@ pub(super) struct RepresentativeStaticApplication {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum RelationPlanError {
     UnresolvedArgumentType(usize),
-    UnresolvedInputRelationApplication(usize),
-    ResultIsNotQuotient,
+    UnresolvedPositionalRelationApplication(usize),
     UnresolvedResultRelationApplication,
     RepresentativeEntryDoesNotResolveExactly,
     RepresentativeResultTypeIsUnresolved,
@@ -231,12 +231,10 @@ impl fmt::Display for RelationPlanError {
                 formatter,
                 "argument {position} has no exact declared type; adapted lift arguments require later expression typing"
             ),
-            Self::UnresolvedInputRelationApplication(position) => write!(
+            Self::UnresolvedPositionalRelationApplication(position) => write!(
                 formatter,
                 "argument {position}'s quotient relation has an open binder application that requires the representative-operation telescope"
             ),
-            Self::ResultIsNotQuotient => formatter
-                .write_str("the enclosing state's exact result type is not a formed quotient"),
             Self::UnresolvedResultRelationApplication => formatter.write_str(
                 "the result quotient relation has an open binder application that requires the representative-operation result telescope",
             ),
@@ -767,8 +765,8 @@ fn derive_relation_and_representative(
     request: &QuotientOperationRequest,
 ) -> Result<
     (
-        Vec<InputRelation>,
-        ExactQuotientRelation,
+        Vec<PositionalRelation>,
+        PositionalRelation,
         RepresentativeTelescope,
     ),
     RelationPlanError,
@@ -811,25 +809,26 @@ fn derive_relation_and_representative(
                     )?
                     .is_some()
                 {
-                    input_relations.push(InputRelation::ExactEquality(parameter.type_reference));
+                    input_relations
+                        .push(PositionalRelation::ExactEquality(parameter.type_reference));
                     continue;
                 }
             }
             return Err(RelationPlanError::UnresolvedArgumentType(position));
         };
         input_relations.push(match exact_quotient_relation(program, argument_type) {
-            ExactRelationLookup::NotQuotient => InputRelation::ExactEquality(argument_type),
-            ExactRelationLookup::Exact(relation) => InputRelation::Quotient(relation),
+            ExactRelationLookup::NotQuotient => PositionalRelation::ExactEquality(argument_type),
+            ExactRelationLookup::Exact(relation) => PositionalRelation::Quotient(relation),
             ExactRelationLookup::OpenApplication => {
-                return Err(RelationPlanError::UnresolvedInputRelationApplication(
+                return Err(RelationPlanError::UnresolvedPositionalRelationApplication(
                     position,
                 ));
             }
         });
     }
     let result_relation = match exact_quotient_relation(program, state.return_type) {
-        ExactRelationLookup::NotQuotient => return Err(RelationPlanError::ResultIsNotQuotient),
-        ExactRelationLookup::Exact(relation) => relation,
+        ExactRelationLookup::NotQuotient => PositionalRelation::ExactEquality(state.return_type),
+        ExactRelationLookup::Exact(relation) => PositionalRelation::Quotient(relation),
         ExactRelationLookup::OpenApplication => {
             return Err(RelationPlanError::UnresolvedResultRelationApplication);
         }
@@ -1038,10 +1037,10 @@ impl DirectTerminalRelationPlan {
             .enumerate()
             .map(|(position, relation)| {
                 let relation = match relation {
-                    InputRelation::Quotient(relation) => {
+                    PositionalRelation::Quotient(relation) => {
                         relation_name(program, relation.relation_symbol)
                     }
-                    InputRelation::ExactEquality(type_reference) => format!(
+                    PositionalRelation::ExactEquality(type_reference) => format!(
                         "==<{}>",
                         program.display_type_reference_with_constraints(*type_reference)
                     ),
@@ -1055,7 +1054,14 @@ impl DirectTerminalRelationPlan {
     pub(super) fn render_rr(&self, program: &dyn crate::CheckingInput) -> String {
         format!(
             "RR={}",
-            relation_name(program, self.result_relation.relation_symbol)
+            match self.result_relation {
+                PositionalRelation::Quotient(relation) =>
+                    relation_name(program, relation.relation_symbol),
+                PositionalRelation::ExactEquality(reference) => format!(
+                    "==<{}>",
+                    program.display_type_reference_with_constraints(reference)
+                ),
+            }
         )
     }
 

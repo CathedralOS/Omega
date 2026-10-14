@@ -80,6 +80,7 @@ pub fn expression_interval(
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramValidationFacts {
+    pub quotient_formations: Vec<quotients::ValidatedQuotientFormation>,
     pub integer_range_obligations: Vec<checked_trees::IntegerRangeObligation>,
     pub static_machine_selections: machine_parameters::ValidatedStaticMachineSelections,
     formed_static_machine_selections: machine_parameters::FormedStaticMachineSelections,
@@ -243,7 +244,8 @@ fn validate(
     } else {
         Vec::new()
     };
-    quotients::validate_quotients(program, &proof_only, quotient_admission, &mut diagnostics);
+    let quotient_formations =
+        quotients::validate_quotients(program, &proof_only, quotient_admission, &mut diagnostics);
     let fact_call_projections = if effect_admission == EffectAdmission::Complete {
         fact_call_projections::validate_fact_call_projections(program, &mut diagnostics)
     } else {
@@ -757,6 +759,7 @@ fn validate(
         operational: conformance_operational,
         service_reaches: conformance_service_reaches,
         facts: ProgramValidationFacts {
+            quotient_formations,
             integer_range_obligations,
             static_machine_selections,
             formed_static_machine_selections,

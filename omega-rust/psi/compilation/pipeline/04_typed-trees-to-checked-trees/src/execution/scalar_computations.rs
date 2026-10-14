@@ -40,6 +40,7 @@ mod enum_equality;
 mod indexed_reads;
 mod integers;
 mod normal_return;
+mod quotient_calls;
 mod rank_observations;
 mod slice_view;
 mod structural_fields;

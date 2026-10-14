@@ -27,6 +27,7 @@ use super::borrowed_windows::{block_parameter, source_signature};
 pub(super) fn lower(
     operation: &Operation,
     machine: &TerminalMachine,
+    module: &terminal_psi::TerminalModule,
     structural_types: &[StructuralTypeDeclaration],
     source: PlaceId,
     path: StructuralCopyPath,
@@ -89,6 +90,8 @@ pub(super) fn lower(
     // Reference formation is the separate EstablishReference operation.
     let expected_type = result.structural_type;
     if selected_type != expected_type
+        && terminal_semantics::quotients::quotient_copy_adaptation(module, machine, operation)
+            .is_none()
         && !byte_carrier_leaf_copy(
             structural_types,
             signature.structural_type,

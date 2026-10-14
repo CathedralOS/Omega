@@ -1060,7 +1060,19 @@ pub(crate) fn leaf_copy_source<'a>(
                 result,
                 source,
                 path,
-            } if *psi_operation == producer && result.place == place => Some((*source, path)),
+            } if *psi_operation == producer && result.place == place => {
+                // A nominal whole-value adaptation is not an alias of its
+                // source. Rebasing a later field observation would cross the
+                // opaque quotient boundary and discard its call license.
+                if matches!(path, StructuralCopyPath::Ordinary(path) if path.is_empty()) {
+                    let source_type =
+                        declared_structural_type(function, function.structural_place(*source)?);
+                    if source_type != Some(result.structural_type) {
+                        return None;
+                    }
+                }
+                Some((*source, path))
+            }
             _ => None,
         })
 }

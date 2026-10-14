@@ -353,6 +353,7 @@ mod tests {
             structural: Some(legalized_operations::LegalizedStructuralContract {
                 result: None,
                 structural_types: vec![terminal_psi::StructuralTypeDeclaration {
+                    quotient_carrier: None,
                     no_code_affine_cleanup: false,
                     descriptor_cleanup: false,
                     scalar_restriction: None,

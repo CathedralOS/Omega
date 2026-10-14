@@ -638,6 +638,9 @@ impl Builder<'_, '_> {
         }
         match self.program.expression_table.expression(expression).clone() {
             ExpressionNode::Call(call) => {
+                if call.quotient_operation.is_some() {
+                    return self.quotient_scalar_call(expression, expected_type);
+                }
                 if self
                     .program
                     .dynamic_slot_by_symbol(call.target_symbol)

@@ -1,0 +1,2 @@
+lacks checked normal-result eligibility
+selected theorem retains checked crash behavior

@@ -277,13 +277,24 @@ fn check_program(
     facts.integer_range_obligations = integer_range_obligations;
     // Sealed quotient requests were deferred by validation until termination
     // was proved: judge them now against the checked termination facts. The
-    // batch is all-or-nothing and grants no executable operation.
-    validation::admit_checked_quotient_requests(&program, &|machine| {
+    // batch publishes exact admission facts consumed by runtime planning.
+    let quotient_operations = validation::admit_checked_quotient_requests(&program, &|machine| {
         facts
             .termination
             .for_machine(machine)
             .map(|plan| plan.checked_summary.clone())
     })?;
+    facts
+        .quotient_operations
+        .extend(quotient_operations.into_iter().map(|operation| {
+            checked_trees::CheckedQuotientOperation {
+                request: operation.request,
+                public_machine: operation.public_machine,
+                public_state: operation.public_state,
+                representative_state: operation.representative_state,
+                correspondence: operation.correspondence,
+            }
+        }));
     checks::initialize_checked_direct_borrow_resources(&program, &mut facts, &mutation_summaries)?;
     // Compute at the original failure boundary, preserving diagnostic order.
     // Nothing below consumes the specialization commitments. Publish them
@@ -303,6 +314,7 @@ fn check_program(
         &proven_machine_contracts,
         &expression_intervals,
     )?;
+    crate::quotient_eligibility::check(&program, &facts)?;
     checks::validate_selected_cleanup_guarantees(&program, &facts)?;
     facts
         .constant_recipe_obligations

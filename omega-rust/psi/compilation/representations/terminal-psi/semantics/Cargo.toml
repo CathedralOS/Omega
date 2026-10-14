@@ -14,3 +14,5 @@ semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
 numerics = { path = "../../../../foundation/numerics" }
 terminal-psi = { path = ".." }
 proof-admission = { path = "../../../proof/admission" }
+
+language-semantics = { path = "../../../../foundation/language-semantics" }

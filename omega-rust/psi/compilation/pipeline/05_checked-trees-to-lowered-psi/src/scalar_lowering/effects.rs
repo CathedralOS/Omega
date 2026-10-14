@@ -23,6 +23,39 @@ pub(crate) fn emit(
 ) -> Result<(), LoweringError> {
     for effect in effects {
         match effect {
+            LoweredScalarEffect::QuotientCall {
+                value,
+                arguments,
+                place,
+                structural_type,
+            } => {
+                crate::emission::quotient_values::emit_call(
+                    checked,
+                    *value,
+                    arguments,
+                    *place,
+                    *structural_type,
+                    next_value,
+                    operations,
+                    calls,
+                )?;
+            }
+            LoweredScalarEffect::QuotientAdaptation {
+                value,
+                source,
+                source_type,
+                place,
+                structural_type,
+            } => {
+                crate::emission::quotient_values::emit_adaptation(
+                    *value,
+                    *source,
+                    *source_type,
+                    *place,
+                    *structural_type,
+                    operations,
+                );
+            }
             LoweredScalarEffect::EstablishReference {
                 storage,
                 state,

@@ -46,12 +46,6 @@ pub(crate) fn collect_validated_quotient_formations(
             )));
             continue;
         };
-        if !proof_only.is_proof_only(carrier.symbol) {
-            diagnostics.push(Diagnostic::error(format!(
-                "quotient data `{}` carrier `{}` has a runtime layout; quotient carriers must be proof-only",
-                definition.name, carrier.name,
-            )));
-        }
         if let Some(forbidden) = first_forbidden_carrier_content(
             program,
             proof_only,
@@ -376,7 +370,8 @@ pub(crate) fn reject_quotient_operation_requests(
                         remaining.push("canonical Terminal correspondence".to_owned());
                     }
                     let fence = if remaining.is_empty() {
-                        "but executable quotient operations are not admitted until executable quotient lowering exists".to_owned()
+                        "but the complete checked quotient request batch was not admitted"
+                            .to_owned()
                     } else {
                         format!(
                             "but executable quotient operations are not admitted until {} are independently checked",

@@ -52,3 +52,7 @@ pub use sections::semantic_module::{
     encode_crash_route_buckets, encode_module, encode_structural_type_declaration,
     module_decode_count, semantic_fingerprint, terminal_psi_identity,
 };
+
+pub use sections::semantic_module::module_wire::quotient_wire::{
+    decode_quotient_catalog, encode_quotient_catalog,
+};

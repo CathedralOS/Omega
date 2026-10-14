@@ -343,6 +343,7 @@ mod cleanup_tests {
         let edge = EdgeId::new(1).unwrap();
         let structural_type = StructuralTypeId::new(1).unwrap();
         let structural_types = vec![StructuralTypeDeclaration {
+            quotient_carrier: None,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,

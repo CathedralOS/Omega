@@ -6,7 +6,9 @@
 //! alone grants executable quotient authority.
 
 use super::theorem::SelectedTheoremTelescope;
-use super::{ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeTelescope};
+use super::{
+    ExactQuotientRelation, PositionalRelation, RelationPlanError, RepresentativeTelescope,
+};
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::signature::SignatureContractKind;
@@ -127,13 +129,13 @@ pub(super) struct ExpectedTheoremSchema {
     /// The structural `ensures` conclusion is this exact nominal relation
     /// applied to the results of `left_application` and `right_application`.
     /// No normalized display label participates in its identity.
-    pub(super) result_relation: ExactQuotientRelation,
+    pub(super) result_relation: PositionalRelation,
 }
 
 pub(super) fn derive_expected_theorem_schema(
     program: &dyn crate::CheckingInput,
-    input_relations: &[InputRelation],
-    result_relation: ExactQuotientRelation,
+    input_relations: &[PositionalRelation],
+    result_relation: PositionalRelation,
     representative: &RepresentativeTelescope,
 ) -> Result<ExpectedTheoremSchema, RelationPlanError> {
     if input_relations.len() != representative.parameters.len() {
@@ -143,7 +145,7 @@ pub(super) fn derive_expected_theorem_schema(
     let mut parameters = Vec::with_capacity(
         input_relations
             .iter()
-            .map(|relation| usize::from(matches!(relation, InputRelation::Quotient(_))) + 1)
+            .map(|relation| usize::from(matches!(relation, PositionalRelation::Quotient(_))) + 1)
             .sum(),
     );
     let mut relation_premises = Vec::new();
@@ -155,7 +157,7 @@ pub(super) fn derive_expected_theorem_schema(
         .enumerate()
     {
         match relation {
-            InputRelation::Quotient(relation) => {
+            PositionalRelation::Quotient(relation) => {
                 let left_parameter = parameters.len();
                 parameters.push(TheoremSchemaParameter {
                     representative_position,
@@ -179,7 +181,7 @@ pub(super) fn derive_expected_theorem_schema(
                     right_parameter,
                 });
             }
-            InputRelation::ExactEquality(_) => {
+            PositionalRelation::ExactEquality(_) => {
                 let shared = parameters.len();
                 parameters.push(TheoremSchemaParameter {
                     representative_position,

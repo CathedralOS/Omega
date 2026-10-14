@@ -36,7 +36,9 @@ pub(crate) fn lower_decoded_module(
         structural_types: abstract_operations::StructuralTypeCatalog::new(
             module.structural_types.clone(),
             module.structural_referents.clone(),
-        ),
+        )
+        .with_quotients(module.quotients.clone())
+        .map_err(LoweringError::SemanticIdentity)?,
         boundary_machines: module.boundary_machines.clone(),
         provider_candidates: module.provider_candidates.clone(),
         dynamic_dispatch: module.dynamic_dispatch.clone(),

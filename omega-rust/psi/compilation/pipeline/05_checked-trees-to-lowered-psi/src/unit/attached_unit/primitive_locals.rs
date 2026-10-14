@@ -134,6 +134,26 @@ pub(super) fn push_established_local(
     declarations: &[StructuralTypeDeclaration],
     range_obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<(semantic_vocabulary::PlaceId, StructuralPlaceDeclaration), LoweringError> {
+    let place = place_id(allocate_dense(next_place)?);
+    let declaration = establish_at(
+        place,
+        operations,
+        value,
+        structural_type,
+        declarations,
+        range_obligation,
+    )?;
+    Ok((place, declaration))
+}
+
+pub(crate) fn establish_at(
+    place: semantic_vocabulary::PlaceId,
+    operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
+    value: semantic_vocabulary::ValueId,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+    range_obligation: Option<semantic_vocabulary::ObligationId>,
+) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let mut matching = declarations.iter().filter(|row| row.id == structural_type);
     let declaration = matching.next().ok_or(LoweringError::Unsupported(
         "primitive home has no declared receiving type",
@@ -145,7 +165,6 @@ pub(super) fn push_established_local(
         return unsupported("primitive home lost its receiving restriction obligation");
     }
     let producer = operations.allocate();
-    let place = place_id(allocate_dense(next_place)?);
     operations.push(Operation {
         static_reach_binding: None,
         suspension_crossing: None,
@@ -160,16 +179,13 @@ pub(super) fn push_established_local(
             range_obligation,
         },
     });
-    Ok((
-        place,
-        StructuralPlaceDeclaration {
-            id: place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer,
-                structural_type,
-            },
+    Ok(StructuralPlaceDeclaration {
+        id: place,
+        kind: StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
         },
-    ))
+    })
 }
 
 /// Establish each mutable scalar formal from its exact incoming value before

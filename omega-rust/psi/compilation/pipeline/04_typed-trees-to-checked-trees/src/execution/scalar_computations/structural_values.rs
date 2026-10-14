@@ -33,9 +33,9 @@ pub(super) use value_predicates::{
 };
 
 impl Builder<'_, '_> {
-    /// A projection names a subtree of the retained value's real owner. Keep
-    /// that owner as the expression source and the selection as an argument
-    /// path, so every evaluation schedule establishes and disposes it once.
+    /// A nonempty projection names a subtree of the retained value's owner.
+    /// Keep that owner and selection path together. Whole-value occurrences
+    /// retain their own checking judgments and evaluation identity.
     pub(super) fn retained_argument_owner(
         &mut self,
         value: CheckedStructuralValueHandle,
@@ -47,7 +47,12 @@ impl Builder<'_, '_> {
     )> {
         let node = self.structural_values.nodes.get(value);
         let (owner, path) = match &node.kind {
-            CheckedStructuralValueKind::Projection { source, path, .. } => (*source, path.clone()),
+            // A selected subtree retains its containing owner. A whole-value
+            // cast is itself the occurrence that owns checked memberships;
+            // scheduling only its operand would discard those judgments.
+            CheckedStructuralValueKind::Projection { source, path, .. } if !path.is_empty() => {
+                (*source, path.clone())
+            }
             _ => (value, Vec::new()),
         };
         let expression = self.structural_values.nodes.get(owner).expression;
@@ -347,10 +352,46 @@ impl Builder<'_, '_> {
                     == self.program.normalized_type_identity(expected))
             .then_some(root.root);
         }
+        if let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
+            && call.quotient_operation.is_some()
+        {
+            return self.quotient_call_value(expression, expected);
+        }
         let kind = if let Some(value) = self.shared_carrier_reborrow(expression, expected) {
             value
         } else if let Some(value) = self.same_carrier_structural_cast(expression, expected) {
             value
+        } else if let ExpressionNode::Cast(cast) =
+            self.program.expression_table.expression(expression)
+            && let Some(definition) = self.program.closed_data_definition(cast.target_type)
+            && let Some(quotient) = definition.quotient.as_ref()
+        {
+            if self.program.normalized_type_identity(expected)
+                != self.program.normalized_type_identity(cast.target_type)
+                || self.program.type_multiplicity(expected)
+                    != language_semantics::Multiplicity::Unrestricted
+                || self.program.type_multiplicity(quotient.carrier)
+                    != language_semantics::Multiplicity::Unrestricted
+            {
+                return None;
+            }
+            let actual = validation::expression_type_reference_in_state(
+                self.program,
+                self.state,
+                self.statement_index,
+                cast.value,
+            )?;
+            if self.program.normalized_type_identity(actual)
+                != self.program.normalized_type_identity(quotient.carrier)
+            {
+                return None;
+            }
+            let source = self.structural_value(cast.value, quotient.carrier)?;
+            CheckedStructuralValueKind::QuotientAdaptation {
+                source,
+                quotient: cast.target_type,
+                license: checked_trees::CheckedQuotientAdaptationLicense::Mint,
+            }
         } else if matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::String(_)

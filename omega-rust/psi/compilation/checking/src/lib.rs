@@ -285,7 +285,8 @@ pub use proof_contracts::properties::{
 pub use proof_contracts::proposition_entailment::select_named_evidence_implementation;
 pub use proof_contracts::quotients::{
     CheckedTerminationOracle, QuotientRequestAdmission, ValidatedQuotientFormation,
-    admit_checked_quotient_requests, validate_quotient_formations,
+    ValidatedQuotientOperation, admit_checked_quotient_requests,
+    checked_quotient_relation_identity, validate_quotient_formations,
 };
 pub use value_custody::expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
 pub use value_custody::expression_types::bounded_byte_buffer_capacity;

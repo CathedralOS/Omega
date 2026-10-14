@@ -270,6 +270,19 @@ pub(crate) fn scalar_state_emission_order(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredScalarEffect {
+    QuotientCall {
+        value: checked_trees::CheckedStructuralValueHandle,
+        arguments: Vec<(terminal_psi::StructuralArgument, StructuralTypeId)>,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    },
+    QuotientAdaptation {
+        value: checked_trees::CheckedStructuralValueHandle,
+        source: PlaceId,
+        source_type: StructuralTypeId,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    },
     EstablishReference {
         storage: checked_trees::CheckedReferenceStorage,
         state: symbols::SymbolHandle,

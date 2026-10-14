@@ -19,9 +19,42 @@ use terminal_psi::{StructuralReferentIdentity, StructuralTypeDeclaration};
 pub struct StructuralTypeCatalog(
     Arc<Vec<StructuralTypeDeclaration>>,
     Arc<Vec<StructuralReferentIdentity>>,
+    Option<Arc<RetainedQuotients>>,
 );
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RetainedQuotients {
+    catalog: terminal_psi::TerminalQuotientCatalog,
+    canonical: Vec<u8>,
+}
+static EMPTY_QUOTIENTS: terminal_psi::TerminalQuotientCatalog =
+    terminal_psi::TerminalQuotientCatalog {
+        representations: Vec::new(),
+        operations: Vec::new(),
+        adaptations: Vec::new(),
+    };
 impl StructuralTypeCatalog {
+    /// Retain exact immutable metadata and its canonical encoding together.
+    /// This checks serialization, not theorem admission.
+    pub fn with_quotients(
+        mut self,
+        catalog: terminal_psi::TerminalQuotientCatalog,
+    ) -> Result<Self, terminal_codec::CodecError> {
+        self.2 = if catalog == EMPTY_QUOTIENTS {
+            None
+        } else {
+            let canonical = terminal_codec::encode_quotient_catalog(&catalog)?;
+            Some(Arc::new(RetainedQuotients { catalog, canonical }))
+        };
+        Ok(self)
+    }
+    pub fn quotients(&self) -> &terminal_psi::TerminalQuotientCatalog {
+        self.2.as_ref().map_or(&EMPTY_QUOTIENTS, |row| &row.catalog)
+    }
+    pub fn quotient_identity_bytes(&self) -> &[u8] {
+        self.2.as_ref().map_or(&[], |row| row.canonical.as_slice())
+    }
+
     /// Retain storage definitions and identity-only referents in one shared
     /// namespace. Neither copying a pointer nor naming its target creates a
     /// storage definition; projections still require the concrete declaration.
@@ -29,7 +62,7 @@ impl StructuralTypeCatalog {
         declarations: Vec<StructuralTypeDeclaration>,
         referents: Vec<StructuralReferentIdentity>,
     ) -> Self {
-        Self(Arc::new(declarations), Arc::new(referents))
+        Self(Arc::new(declarations), Arc::new(referents), None)
     }
 
     pub fn referents(&self) -> &[StructuralReferentIdentity] {
@@ -77,13 +110,13 @@ impl<'a> IntoIterator for &'a StructuralTypeCatalog {
 
 impl PartialEq<Vec<StructuralTypeDeclaration>> for StructuralTypeCatalog {
     fn eq(&self, other: &Vec<StructuralTypeDeclaration>) -> bool {
-        self.referents().is_empty() && self.as_slice() == other.as_slice()
+        self.2.is_none() && self.referents().is_empty() && self.as_slice() == other.as_slice()
     }
 }
 
 impl PartialEq<StructuralTypeCatalog> for Vec<StructuralTypeDeclaration> {
     fn eq(&self, other: &StructuralTypeCatalog) -> bool {
-        other.referents().is_empty() && self.as_slice() == other.as_slice()
+        other.2.is_none() && other.referents().is_empty() && self.as_slice() == other.as_slice()
     }
 }
 

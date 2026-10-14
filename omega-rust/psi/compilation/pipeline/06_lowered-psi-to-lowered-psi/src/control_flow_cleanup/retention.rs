@@ -51,6 +51,18 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
     machines: impl IntoIterator<Item = &'machine terminal_psi::TerminalMachine>,
 ) -> BlockLocalEvidence {
     let mut evidence = BlockLocalEvidence::default();
+    // These rows stay immutable through cleanup; dropping a named call or
+    // copy would detach its checked adaptation from the executable body.
+    evidence
+        .operations
+        .extend(module.quotients.operations.iter().map(|row| row.call));
+    evidence
+        .operations
+        .extend(module.quotients.adaptations.iter().map(|row| row.copy));
+    evidence
+        .values
+        .extend(crate::retained_identities::quotient_call_results(module));
+
     evidence.operations.extend(
         module
             .boundary_application_demands
@@ -274,6 +286,12 @@ pub(super) fn retained_machines_with_roots(
 /// their named machine regardless of call reachability.
 fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     let mut roots = BTreeSet::new();
+    for operation in &module.quotients.operations {
+        roots.insert(operation.public_machine);
+        roots.insert(operation.representative_machine);
+    }
+    roots.extend(module.quotients.adaptations.iter().map(|row| row.machine));
+
     if let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry {
         roots.insert(entry);
     }

@@ -28,7 +28,7 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 64 retains checked no-code affine cleanup authority on structural types.
 // Version 66 commits each provider's receiving application and region tuple.
 // Version 67 admits checked exclusive descriptor cleanup without referee disposal.
-const VERSION: u32 = 68;
+const VERSION: u32 = 69;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.

@@ -20,6 +20,10 @@ pub(crate) fn encode_structural_type(
     writer: &mut Writer,
     declaration: &StructuralTypeDeclaration,
 ) -> Result<(), CodecError> {
+    writer.boolean(declaration.quotient_carrier.is_some());
+    if let Some(carrier) = declaration.quotient_carrier {
+        writer.id(carrier);
+    }
     writer.id(declaration.id);
     writer.u32(declaration.identity.0);
     writer.boolean(declaration.no_code_affine_cleanup);
@@ -113,6 +117,11 @@ pub(crate) fn encode_structural_type(
 pub(crate) fn decode_structural_type(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralTypeDeclaration, CodecError> {
+    let quotient_carrier = if reader.boolean()? {
+        Some(reader.id("StructuralTypeId")?)
+    } else {
+        None
+    };
     let id = reader.id("StructuralTypeId")?;
     let identity = TerminalIdentityIndex(reader.u32()?);
     let no_code_affine_cleanup = reader.boolean()?;
@@ -188,6 +197,7 @@ pub(crate) fn decode_structural_type(
         tag => return Err(CodecError::InvalidTag("StructuralTypeShape", tag)),
     };
     Ok(StructuralTypeDeclaration {
+        quotient_carrier,
         no_code_affine_cleanup,
         descriptor_cleanup,
         scalar_restriction,
@@ -301,6 +311,7 @@ mod tests {
         let stored =
             ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("signed byte"));
         let declaration = StructuralTypeDeclaration {
+            quotient_carrier: None,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
             scalar_restriction: None,

@@ -386,6 +386,10 @@ pub(super) fn encode_structural_type(
     bytes: &mut CanonicalBytes,
     declaration: &StructuralTypeDeclaration,
 ) {
+    bytes.u8(u8::from(declaration.quotient_carrier.is_some()));
+    if let Some(carrier) = declaration.quotient_carrier {
+        bytes.id(carrier);
+    }
     bytes.id(declaration.id);
     bytes.u32(declaration.identity.0);
     bytes.u8(u8::from(declaration.no_code_affine_cleanup));

@@ -94,6 +94,10 @@ mod tests {
                 selection_package: semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]),
                 target: Some("windows_x86_64".into()),
                 body: terminal_psi::CheckedMachineDeclaration {
+                    semantic_declaration: Default::default(),
+                    parameter_types: Vec::new(),
+                    callable: Default::default(),
+                    result_type: Default::default(),
                     machine: nominal("owner::body"),
                     state: nominal("owner::entry"),
                     contract: [3; 32],

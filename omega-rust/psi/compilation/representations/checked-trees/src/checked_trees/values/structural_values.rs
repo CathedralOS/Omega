@@ -61,8 +61,40 @@ pub enum CheckedElementViewRegion {
     },
 }
 
+/// The exact semantic edge authorizing a whole-value quotient adaptation.
+/// These are checked occurrence coordinates, never layout-based permissions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedQuotientAdaptationLicense {
+    Mint,
+    Input {
+        request: ExpressionHandle,
+        position: u32,
+    },
+    Result {
+        request: ExpressionHandle,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedStructuralValueKind {
+    /// Exact sealed source request, distinct from an ordinary FlowCallFact.
+    /// Publication must join the checked correspondence for this request.
+    /// The ordinary selected body computes the result; its primitive result
+    /// may be held temporarily in structural storage for expression composition.
+    QuotientCall {
+        request: ExpressionHandle,
+        representative_state: SymbolHandle,
+        arguments: Vec<CheckedStructuralValueHandle>,
+    },
+    /// Preserve the chosen representative's bytes at a checked nominal edge.
+    /// The child is evaluated once before the copy; source and receiving type
+    /// identities stay distinct through Terminal publication.
+    QuotientAdaptation {
+        source: CheckedStructuralValueHandle,
+        quotient: TypeReferenceHandle,
+        license: CheckedQuotientAdaptationLicense,
+    },
+
     /// Capture borrowed storage into an owned permission carrier.
     /// A record field consumes this carrier, never a scalar referent snapshot.
     Reference {
@@ -240,6 +272,9 @@ impl CheckedStructuralValuePlans {
             }
             values.push(value);
             match &self.nodes.get(value).kind {
+                CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
+                    pending.extend(arguments)
+                }
                 CheckedStructuralValueKind::Record { fields, .. }
                 | CheckedStructuralValueKind::StructuralCase { fields, .. } => {
                     for field in self.record_fields.span(*fields)? {
@@ -251,7 +286,10 @@ impl CheckedStructuralValuePlans {
                 CheckedStructuralValueKind::Dispatch { arms, .. } => {
                     pending.extend(self.dispatch_arms.span(*arms)?.iter().map(|arm| arm.value));
                 }
-                CheckedStructuralValueKind::Projection { source, .. } => pending.push(*source),
+                CheckedStructuralValueKind::Projection { source, .. }
+                | CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
+                    pending.push(*source)
+                }
                 CheckedStructuralValueKind::FixedArray { elements } => pending.extend(elements),
                 CheckedStructuralValueKind::Reference { source_value, .. } => {
                     if source_value.is_valid() {

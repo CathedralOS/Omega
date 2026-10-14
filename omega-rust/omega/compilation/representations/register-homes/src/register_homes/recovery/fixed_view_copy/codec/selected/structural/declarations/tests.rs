@@ -19,6 +19,7 @@ fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subje
         ScalarTerm::boolean(true),
     );
     let declaration = StructuralTypeDeclaration {
+        quotient_carrier: None,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
         scalar_restriction: None,
@@ -60,6 +61,7 @@ fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subje
 #[test]
 fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
     let declaration = StructuralTypeDeclaration {
+        quotient_carrier: None,
         no_code_affine_cleanup: false,
         descriptor_cleanup: false,
         scalar_restriction: None,
@@ -122,6 +124,7 @@ fn reference_type_and_referent_path_round_trip_without_erasing_custody() {
         (StructuralAccess::WriteOnlyBorrow, true),
     ] {
         let declaration = StructuralTypeDeclaration {
+            quotient_carrier: None,
             no_code_affine_cleanup: false,
             descriptor_cleanup,
             scalar_restriction: None,
@@ -207,6 +210,7 @@ fn byte_view_type_round_trip_retains_its_access() {
         Some(StructuralAccess::WriteOnlyBorrow),
     ] {
         let declaration = StructuralTypeDeclaration {
+            quotient_carrier: None,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,

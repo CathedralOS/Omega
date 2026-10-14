@@ -46,7 +46,7 @@ impl<'program> LayoutBuilder<'program> {
             });
         }
 
-        // A quotient is realized as its carrier's canonical representative:
+        // A quotient retains the chosen representative without normalization:
         // the runtime layout IS the carrier's, retagged to the quotient's
         // symbol so downstream lookups keep the authored identity. Carriers
         // that are themselves proof-only never reach this arm -- the

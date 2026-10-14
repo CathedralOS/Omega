@@ -82,12 +82,13 @@ pub(crate) use operation_frame::BoundaryParameters;
 mod normal_guarantees;
 mod ordinary_machine;
 mod provider_attachments;
+mod quotients;
 
 // The operations a body lowers, each with its exact source custody.
 pub(crate) mod byte_locals;
 mod byte_subslices;
 pub(crate) mod ordinary_calls;
-mod parameters;
+pub(crate) mod parameters;
 pub(crate) mod primitive_locals;
 pub(crate) mod reference_results;
 pub(crate) mod scalar_arrays;
@@ -462,6 +463,10 @@ pub(crate) fn lower_unit_closure(
                     },
                 )
                 .map_err(attributed)?;
+            occurrences
+                .quotient_adaptations
+                .extend(composed.quotient_adaptations);
+            occurrences.quotient_calls.extend(composed.quotient_calls);
             machines.push(machine);
             occurrences.retain(
                 composed.source_calls,
@@ -497,6 +502,10 @@ pub(crate) fn lower_unit_closure(
         .map_err(attributed)?;
         scalar_block_invariants.extend(emitted.scalar_block_invariants);
         scalar_qualification_coercions.extend(emitted.qualification_coercions);
+        occurrences
+            .quotient_adaptations
+            .extend(emitted.quotient_adaptations);
+        occurrences.quotient_calls.extend(emitted.quotient_calls);
         machines.push(emitted.machine);
         occurrences.retain(
             emitted.source_calls,
@@ -580,6 +589,23 @@ pub(crate) fn lower_unit_closure(
             retained_roots.push(machine);
         }
     }
+    let quotient_catalog = quotients::retain(
+        checked,
+        identities,
+        exact_toolchain_sources,
+        &structural_types,
+        &occurrences.quotient_adaptations,
+        &occurrences.quotient_calls,
+        &machine_ids,
+        &type_ids,
+    )?;
+    for representation in &quotient_catalog.representations {
+        let declaration = structural_types
+            .iter_mut()
+            .find(|row| row.id == representation.quotient)
+            .ok_or(LoweringError::Unsupported("quotient declaration is absent"))?;
+        declaration.quotient_carrier = Some(representation.carrier);
+    }
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
             callback_applications: Vec::new(),
@@ -603,6 +629,7 @@ pub(crate) fn lower_unit_closure(
             boundary_machines,
             provider_candidates,
             dynamic_dispatch: Default::default(),
+            quotients: quotient_catalog,
             float_meaning_projections: Vec::new(),
             float_meaning_equalities: Vec::new(),
             proposition_declarations: Vec::new(),
@@ -636,6 +663,9 @@ pub(crate) fn lower_unit_closure(
 /// them.
 #[derive(Default)]
 struct ClosureOccurrences {
+    quotient_adaptations:
+        Vec<crate::emission::operation_emission::buffer::SourceQuotientAdaptation>,
+    quotient_calls: Vec<crate::emission::operation_emission::buffer::SourceQuotientCall>,
     source_calls: Vec<lowered_psi::LoweredSourceCallOccurrence>,
     ieee_float_comparisons: Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     integer_comparisons: Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,

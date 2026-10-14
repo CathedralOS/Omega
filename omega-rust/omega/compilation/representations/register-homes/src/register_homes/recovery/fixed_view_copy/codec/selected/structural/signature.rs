@@ -26,6 +26,9 @@ pub(super) fn encode_signature(
         crate::codec_bytes::push_encoded(bytes, referent.id.get().to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, referent.identity.0.to_le_bytes());
     }
+    let quotients = terminal_codec::encode_quotient_catalog(value.structural_types.quotients())?;
+    length(bytes, quotients.len());
+    bytes.extend_from_slice(&quotients);
     length(bytes, value.parameters.len());
     for row in &value.parameters {
         encode_parameter(bytes, row, true);
@@ -93,6 +96,11 @@ pub(super) fn decode_signature(
         });
     }
     let count = cursor.length()?;
+    let quotients = terminal_codec::decode_quotient_catalog(cursor.take(count)?)
+        .map_err(|_| FixedViewCopyDecodeError::InvalidQuotientCatalog)?;
+    terminal_semantics::quotients::validate_quotient_representations(&structural_types, &quotients)
+        .map_err(|_| FixedViewCopyDecodeError::InvalidQuotientCatalog)?;
+    let count = cursor.length()?;
     let mut parameters = Vec::new();
     for _ in 0..count {
         parameters.push(decode_parameter(cursor, true)?);
@@ -153,7 +161,9 @@ pub(super) fn decode_signature(
         structural_types: abstract_operations::StructuralTypeCatalog::new(
             structural_types,
             referents,
-        ),
+        )
+        .with_quotients(quotients)
+        .map_err(|_| FixedViewCopyDecodeError::InvalidQuotientCatalog)?,
         parameters,
         result,
         structural_places,
@@ -190,6 +200,7 @@ mod tests {
             }),
             structural_types: abstract_operations::StructuralTypeCatalog::new(
                 vec![terminal_psi::StructuralTypeDeclaration {
+                    quotient_carrier: None,
                     no_code_affine_cleanup: false,
                     descriptor_cleanup: false,
                     scalar_restriction: None,

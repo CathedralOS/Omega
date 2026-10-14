@@ -102,6 +102,7 @@ pub struct FixedViewCopyDestination {
 /// plan and does not replace independent fixed-view-copy validation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FixedViewCopyDecodeError {
+    InvalidQuotientCatalog,
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),

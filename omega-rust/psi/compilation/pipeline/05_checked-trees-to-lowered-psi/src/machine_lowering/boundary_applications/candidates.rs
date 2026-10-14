@@ -54,6 +54,44 @@ pub(super) fn retain(
             selection_package: checked.symbols.symbol_package_identity(candidate.selection),
             target: candidate.target.clone(),
             body: CheckedMachineDeclaration {
+                semantic_declaration: identities.intern(
+                    &checked
+                        .normalized_hermetic_symbol_identity(candidate.machine)
+                        .map_err(|_| "boundary candidate has no hermetic declaration identity")?,
+                ),
+                parameter_types: checked
+                    .state_parameters(
+                        checked
+                            .typed
+                            .state_by_symbol(candidate.entry)
+                            .ok_or("boundary candidate state is absent")?,
+                    )
+                    .iter()
+                    .map(|parameter| {
+                        identities.intern(
+                            &checked.package_qualified_type_identity_text(parameter.type_reference),
+                        )
+                    })
+                    .collect(),
+                callable: identities.intern(
+                    &checked
+                        .typed
+                        .machine_callable_identity_text(
+                            checked
+                                .machine(candidate.machine)
+                                .ok_or("boundary candidate machine is absent")?,
+                        )
+                        .ok_or("boundary candidate callable identity is absent")?,
+                ),
+                result_type: identities.intern(
+                    &checked.typed.package_qualified_type_identity_text(
+                        checked
+                            .typed
+                            .state_by_symbol(candidate.entry)
+                            .ok_or("boundary candidate state is absent")?
+                            .return_type,
+                    ),
+                ),
                 machine,
                 state,
                 contract: candidate.contract,

@@ -135,3 +135,10 @@ pub use target_layouts::{
     TargetLayoutFieldStorage, TargetLayoutRealization, TargetLayoutSchemaArgument,
     TargetLayoutSchemaField, TargetLayoutSchemaFieldKind,
 };
+
+pub use terminal_module::quotients::{
+    TerminalQuotientAdaptation, TerminalQuotientAdaptationLicense, TerminalQuotientCatalog,
+    TerminalQuotientOperation, TerminalQuotientRepresentation,
+};
+
+pub use terminal_module::quotients::{TerminalQuotientTheorem, TerminalQuotientTheoremAdmission};

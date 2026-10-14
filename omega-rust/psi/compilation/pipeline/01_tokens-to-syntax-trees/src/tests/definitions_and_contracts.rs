@@ -1021,20 +1021,6 @@ fn parses_proof_quotient_data_declaration() {
 }
 
 #[test]
-fn quotient_rejects_runtime_data_properties() {
-    let source = "data Quotient [copy] = Carrier % equivalent;";
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "quotient properties must reject",
-    );
-    super::expect_error(
-        &error,
-        "quotient data declaration cannot declare runtime data properties",
-    );
-}
-
-#[test]
 fn parses_static_machine_symbol_call_argument() {
     let source = r#"
         data Card {}

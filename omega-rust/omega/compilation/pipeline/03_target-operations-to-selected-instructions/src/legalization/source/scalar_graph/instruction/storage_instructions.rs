@@ -69,7 +69,12 @@ pub(super) fn project_structural_leaf_copy(
     };
     let kind = {
         let (byte_offset, shape, elements) = scalar_graph_input::structural_case::leaf_copy_layout(
-            optimized, *source, path, result, plan,
+            optimized,
+            *psi_operation,
+            *source,
+            path,
+            result,
+            plan,
         )?;
         let indices = crate::legalization::runtime_indices::operands(
             optimized,

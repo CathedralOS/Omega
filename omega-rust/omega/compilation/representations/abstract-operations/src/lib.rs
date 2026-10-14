@@ -24,3 +24,5 @@ pub use abstract_operations::{
 pub use abstract_operations::{
     StructuralCopyPath, StructuralScalarStoreDestination, StructuralWindowRoot,
 };
+
+pub use abstract_operations::quotients;

@@ -147,6 +147,7 @@ pub(crate) struct Construction {
     /// ingress memberships accompany the deferred emission; fresh children
     /// publish their own result memberships when their schedules complete.
     source_parameters: Vec<StructuralParameterDeclaration>,
+    memberships: Vec<language_semantics::SemanticDomainId>,
     contents: AggregateContents,
 }
 
@@ -336,6 +337,9 @@ impl Preparation<'_> {
             if self.checked.type_multiplicity(reference) == Multiplicity::Unrestricted {
                 let structural_type =
                     carrier_declaration(identities, self.checked, self.types, reference)?.id;
+                if source.place == self.reserved.place(value)? && source.path.is_empty() {
+                    return Ok(source);
+                }
                 let place = self.bind_place(
                     value,
                     source,
@@ -402,6 +406,20 @@ impl Preparation<'_> {
                 let mut argument =
                     self.source(identities, *source, source_reference, claim_path)?;
                 argument.path.extend(selected_path);
+                if !node.qualification_decisions.is_empty() {
+                    if self.checked.type_multiplicity(reference) != Multiplicity::Unrestricted {
+                        return unsupported(
+                            "affine operand must retain its checked membership roster",
+                        );
+                    }
+                    let place = self.bind_place(
+                        value,
+                        argument,
+                        selected.id,
+                        StructuralMultiplicity::Unrestricted,
+                    )?;
+                    return Ok(whole_argument(place));
+                }
                 Ok(argument)
             }
             _ => self
@@ -534,6 +552,56 @@ impl Preparation<'_> {
                     place,
                     structural_type: declaration.id,
                     source: argument,
+                },
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
+        }
+        if let CheckedStructuralValueKind::QuotientAdaptation { source, .. } = &node.kind {
+            let child = plans.nodes.get(*source);
+            let source_type =
+                carrier_declaration(identities, self.checked, self.types, child.type_reference)?.id;
+            let source = self.operand(identities, *source, child.type_reference, claim_path)?;
+            if !source.path.is_empty()
+                || self.checked.type_multiplicity(reference) != Multiplicity::Unrestricted
+            {
+                return unsupported("quotient adaptation requires a whole custody-free copy");
+            }
+            let place = self.reserved.place(value)?;
+            self.steps.push(Step::Establish {
+                effect: LoweredScalarEffect::QuotientAdaptation {
+                    value,
+                    source: source.place,
+                    source_type,
+                    place,
+                    structural_type: declaration.id,
+                },
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
+        }
+        if let CheckedStructuralValueKind::QuotientCall { arguments, .. } = &node.kind {
+            let mut actuals = Vec::new();
+            for argument in arguments {
+                let child = plans.nodes.get(*argument);
+                let ty = carrier_declaration(
+                    identities,
+                    self.checked,
+                    self.types,
+                    child.type_reference,
+                )?
+                .id;
+                let actual =
+                    self.operand(identities, *argument, child.type_reference, claim_path)?;
+                actuals.push((actual, ty));
+            }
+            let place = self.reserved.place(value)?;
+            self.steps.push(Step::Establish {
+                effect: LoweredScalarEffect::QuotientCall {
+                    value,
+                    arguments: actuals,
+                    place,
+                    structural_type: declaration.id,
                 },
                 prefix: self.prefix.clone(),
             });
@@ -832,6 +900,7 @@ impl Preparation<'_> {
                     claims: claims_below_path(&self.claims, claim_path),
                     source_parameters: self
                         .member_parameters(completed.iter().map(|argument| argument.place)),
+                    memberships: self.checked_memberships(value)?,
                     contents: AggregateContents::Elements(completed),
                 },
                 prefix: self.prefix.clone(),
@@ -1075,6 +1144,7 @@ impl Preparation<'_> {
                         _ => None,
                     },
                 )),
+                memberships: self.checked_memberships(value)?,
                 contents: AggregateContents::Fields {
                     kind,
                     fields: initialized.into_iter().map(|(_, field)| field).collect(),
@@ -1092,6 +1162,25 @@ impl Preparation<'_> {
             prefix: self.prefix.clone(),
         });
         Ok(place)
+    }
+
+    fn checked_memberships(
+        &self,
+        value: checked_trees::CheckedStructuralValueHandle,
+    ) -> Result<Vec<language_semantics::SemanticDomainId>, LoweringError> {
+        let node = self.checked.facts.values.structural_values.nodes.get(value);
+        Ok(self
+            .checked
+            .facts
+            .qualifications
+            .value_formations
+            .span(node.qualification_decisions)
+            .ok_or(LoweringError::Unsupported(
+                "operand membership decisions are stale",
+            ))?
+            .iter()
+            .map(|decision| decision.semantic_domain)
+            .collect())
     }
 
     fn member_parameters(
@@ -1137,6 +1226,30 @@ impl Preparation<'_> {
                 )
             })
             .unwrap_or_default();
+        if multiplicity == StructuralMultiplicity::Unrestricted {
+            // A fresh producer's actual memberships are available at emission,
+            // after its deferred schedule completes. An ordinary snapshot keeps
+            // those facts and this occurrence's checked introductions together.
+            let contract = self.bindings.structural_parameter_by_place(source.place);
+            self.steps.push(Step::Establish {
+                effect: LoweredScalarEffect::CopyStructuralValue {
+                    source: crate::expression_preparation::bindings::PreparedStructuralCopy {
+                        place: source.place,
+                        path: source.path.into_iter().map(
+                            crate::expression_preparation::bindings::PreparedCopyPathSegment::Static,
+                        ).collect(),
+                        length_observation: None,
+                        qualifications: contract.map_or_else(Vec::new, |parameter| parameter.qualifications.clone()),
+                        projected_qualifications: contract.map_or_else(Vec::new, |parameter| parameter.projected_qualifications.clone()),
+                        formation_qualifications: self.checked_memberships(value)?,
+                    },
+                    place,
+                    structural_type,
+                },
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
+        }
         self.steps.push(Step::Bind {
             source,
             destination: StructuralParameterDeclaration {
@@ -1335,6 +1448,7 @@ pub(crate) fn emit(
                 construction.source_parameters.iter(),
                 operations,
             )?;
+            publish_construction_memberships(construction, operations, calls)?;
             operations.set_structural_result_claims(construction.place, claims)?;
             crate::emission::claim_bindings::record_prepared_introductions(
                 operations,
@@ -1420,6 +1534,7 @@ pub(crate) fn emit(
             )?
         }
     };
+    publish_construction_memberships(construction, operations, calls)?;
     operations.set_structural_result_claims(construction.place, claims)?;
     crate::emission::claim_bindings::record_prepared_introductions(
         operations,
@@ -1428,5 +1543,42 @@ pub(crate) fn emit(
         &calls.claims,
         crate::emission::claim_bindings::ClaimEstablishmentKind::Construction,
     )?;
+    Ok(())
+}
+
+/// A fresh producer publishes occurrence evidence before any consumer arrives.
+fn publish_construction_memberships(
+    construction: &Construction,
+    operations: &mut OperationBuffer,
+    calls: &CallEmissionContext<'_>,
+) -> Result<(), LoweringError> {
+    let domains = construction
+        .memberships
+        .iter()
+        .map(|domain| {
+            crate::terminal_identities::lookup_domain_id_for_carrier(
+                calls.domain_ids,
+                *domain,
+                construction.structural_type,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let result = operations
+        .operations
+        .iter_mut()
+        .find_map(|operation| match &mut operation.result {
+            terminal_psi::OperationResult::Structural(result)
+                if result.place == construction.place =>
+            {
+                Some(result)
+            }
+            _ => None,
+        })
+        .ok_or(LoweringError::Unsupported(
+            "fresh construction has no producer",
+        ))?;
+    result.qualifications.extend(domains);
+    result.qualifications.sort();
+    result.qualifications.dedup();
     Ok(())
 }

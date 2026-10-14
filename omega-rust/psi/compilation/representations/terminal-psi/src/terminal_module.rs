@@ -12,6 +12,7 @@ pub mod identity;
 pub mod observation;
 pub mod ownership;
 pub mod proof;
+pub mod quotients;
 mod task_activation;
 pub mod types;
 pub mod values;
@@ -133,6 +134,8 @@ use semantic_vocabulary::{MachineId, ServiceId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalModule {
+    /// Exact whole-value quotient adaptations; ordinary shape carries no observation authority.
+    pub quotients: quotients::TerminalQuotientCatalog,
     pub vocabulary_marker: VocabularyMarker,
     /// Every rendered identity the module's rows name, deduplicated once.
     /// `*identity` fields hold `TerminalIdentityIndex` handles into this
@@ -313,6 +316,7 @@ impl TerminalModule {
             boundary_application_candidates: Vec::new(),
             callback_applications: Vec::new(),
             dynamic_dispatch: TerminalDynamicDispatchCatalog::default(),
+            quotients: Default::default(),
             float_meaning_projections: Vec::new(),
             float_meaning_equalities: Vec::new(),
             proposition_declarations: Vec::new(),

@@ -39,6 +39,10 @@ mod tests {
             requirement: "Hooks::call(u64)".to_owned(),
             published_contract: [3; 32],
             body: terminal_psi::CheckedMachineDeclaration {
+                semantic_declaration: Default::default(),
+                parameter_types: Vec::new(),
+                callable: Default::default(),
+                result_type: Default::default(),
                 machine: terminal_psi::NominalDeclarationIdentity::new(
                     terminal_psi::TerminalIdentityIndex(11),
                 ),

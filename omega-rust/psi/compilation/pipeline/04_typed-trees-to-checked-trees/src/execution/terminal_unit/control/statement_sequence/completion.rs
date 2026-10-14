@@ -98,12 +98,20 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             *expression,
         ))
     });
-    let returned_value = tail.and_then(|(ordinal, expression)| {
-        facts
-            .values
-            .structural_values
-            .root_for_expression(state.symbol, ordinal, expression)
-    });
+    // Primitive homes can be retained as receivers of scalar reads. Their
+    // presence does not change a scalar machine result into a structural ABI.
+    let returned_value = tail
+        .filter(|_| {
+            program
+                .primitive_type_reference(state.return_type)
+                .is_none()
+        })
+        .and_then(|(ordinal, expression)| {
+            facts
+                .values
+                .structural_values
+                .root_for_expression(state.symbol, ordinal, expression)
+        });
     let exit = tail
         .map(|(statement_index, expression)| {
             checked_trees::CheckedStructuralReturnCompletion::Value {

@@ -16,6 +16,7 @@ mod borrow_wire;
 mod boundary_application_wire;
 mod callback_application_wire;
 mod carry_and_suspension_wire;
+pub(crate) mod quotient_wire;
 mod recursive_component_wire;
 
 mod closed_conformance_wire;
@@ -71,6 +72,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         writer.string("identity", identity)?;
     }
     super::scalar_qualification_wire::encode(&mut writer, &module.scalar_qualifications)?;
+    quotient_wire::encode(&mut writer, &module.quotients)?;
     writer.len("structural types", module.structural_types.len())?;
     for declaration in &module.structural_types {
         encode_structural_type(&mut writer, declaration)?;
@@ -267,6 +269,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     }
     let identities = TerminalIdentityTable::from(identity_entries);
     let scalar_qualifications = super::scalar_qualification_wire::decode(reader)?;
+    let quotients = quotient_wire::decode(reader)?;
     let structural_types = decode_counted(reader, decode_structural_type)?;
     let structural_referents = decode_counted(reader, |reader| {
         Ok(terminal_psi::StructuralReferentIdentity {
@@ -336,6 +339,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         decode_counted(reader, boundary_application_wire::decode_candidate)?;
     let task_activation_demands = decode_demands(reader)?;
     Ok(TerminalModule {
+        quotients,
         scalar_qualifications,
         scalar_block_invariants,
         operation_crash_contracts,

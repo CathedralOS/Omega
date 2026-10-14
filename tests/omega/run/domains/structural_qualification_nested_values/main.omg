@@ -1,0 +1,22 @@
+// Expected exit: 0.
+data Counter [copy] { code: i32; }
+domain Counter::Ready;
+data Holder [copy] { counter: Counter in Counter::Ready; }
+machine ready_code(counter: Counter in Counter::Ready) -> i32 { counter.code }
+machine make_ready(code: i32) -> Counter in Counter::Ready {
+    Counter { code: code } as Counter in Ready
+}
+machine make_holder(code: i32) -> Holder {
+    Holder { counter: make_ready(code) }
+}
+machine holder_code(holder: Holder) -> i32 { ready_code(holder.counter) }
+machine main() crashes Trap {
+    let direct: i32 = holder_code(Holder { counter: make_ready(11) });
+    let returned: i32 = holder_code(make_holder(13));
+    transition direct == 11 && returned == 13 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

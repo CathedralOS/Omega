@@ -18,6 +18,7 @@ pub(super) fn lower(
     operation: &terminal_psi::Operation,
     block: &terminal_psi::Block,
     machine: &TerminalMachine,
+    module: &terminal_psi::TerminalModule,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
     byte_sequence_literals: &[StructuralLiteral<'_>],
@@ -469,6 +470,7 @@ pub(super) fn lower(
         OperationKind::StructuralLeafCopy { source, path } => structural_leaf_copy::lower(
             operation,
             machine,
+            module,
             structural_types,
             *source,
             abstract_operations::StructuralCopyPath::Ordinary(path.clone()),
@@ -476,6 +478,7 @@ pub(super) fn lower(
         OperationKind::StructuralCaseLeafCopy { source, path } => structural_leaf_copy::lower(
             operation,
             machine,
+            module,
             structural_types,
             *source,
             abstract_operations::StructuralCopyPath::Case(path.clone()),

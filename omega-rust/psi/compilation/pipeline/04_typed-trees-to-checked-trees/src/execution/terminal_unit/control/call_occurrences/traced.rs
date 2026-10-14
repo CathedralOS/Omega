@@ -132,6 +132,36 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 visited.push(value);
                 let node = plans.nodes.get(value);
                 match node.kind {
+                    checked_trees::CheckedStructuralValueKind::QuotientCall {
+                        request,
+                        ref arguments,
+                        ..
+                    } => {
+                        // The sealed request owns this exact captured source
+                        // occurrence. Its selected ordinary call is emitted by
+                        // the retained value graph, not scheduled a second time.
+                        let mut occurrences =
+                            facts.flow.control.calls.iter().filter(|(_, call)| {
+                                call.authored_expression == request
+                                    && calls.iter().any(|candidate| std::ptr::eq(candidate, *call))
+                            });
+                        let (handle, call) = occurrences.next()?;
+                        if occurrences.next().is_some()
+                            || call.statement_index != statement_index
+                            || facts.flow.control.is_retired(state.symbol, call)
+                            || program
+                                .expression_table
+                                .call_node(request)?
+                                .quotient_operation
+                                .is_none()
+                        {
+                            return None;
+                        }
+                        if !consumed.contains(&handle) {
+                            consumed.push(handle);
+                        }
+                        pending.extend(arguments.iter().rev().copied());
+                    }
                     checked_trees::CheckedStructuralValueKind::Call { source_call } => {
                         if !facts.flow.control.calls.is_valid(source_call) {
                             return None;
@@ -168,7 +198,11 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                     checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
                         pending.extend(plans.dispatch_arms.span(arms)?.iter().map(|arm| arm.value));
                     }
-                    checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
+                    checked_trees::CheckedStructuralValueKind::Projection { source, .. }
+                    | checked_trees::CheckedStructuralValueKind::QuotientAdaptation {
+                        source,
+                        ..
+                    } => {
                         pending.push(source);
                     }
                     checked_trees::CheckedStructuralValueKind::FixedArray { ref elements } => {

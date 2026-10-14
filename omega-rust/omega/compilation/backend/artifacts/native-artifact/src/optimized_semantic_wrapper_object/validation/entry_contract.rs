@@ -262,6 +262,7 @@ mod service_tests {
     fn retained_service_leaf_requires_an_establishment_before_zero_valid_recursion() {
         let service = StructuralTypeId::new(1).unwrap();
         let declaration = StructuralTypeDeclaration {
+            quotient_carrier: None,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,

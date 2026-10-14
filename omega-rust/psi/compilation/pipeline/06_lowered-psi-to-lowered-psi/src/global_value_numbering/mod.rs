@@ -37,6 +37,9 @@ pub(super) fn number(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationSt
     // value: proof projections and retained suspension frontiers survive
     // publication unchanged.
     let mut retained_values = BTreeSet::new();
+    retained_values.extend(crate::retained_identities::quotient_call_results(
+        &before.semantic_module,
+    ));
     retained_values.extend(crate::retained_identities::boundary_application_results(
         &before.semantic_module,
     ));

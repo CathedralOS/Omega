@@ -345,6 +345,10 @@ impl<'facts> CallTransfers<'facts> {
     ) -> usize {
         let plans = &self.values.structural_values;
         match &plans.nodes.get(root).kind {
+            CheckedStructuralValueKind::QuotientCall { arguments, .. } => arguments
+                .iter()
+                .map(|argument| self.structural(*argument, calls))
+                .sum(),
             CheckedStructuralValueKind::Place(source) => self.argument(source),
             crate::record_or_structural_case_pattern!(fields, ..) => plans
                 .record_fields
@@ -522,6 +526,10 @@ impl<'facts> CallTransfers<'facts> {
     ) -> usize {
         let plans = &self.values.structural_values;
         match &plans.nodes.get(root).kind {
+            CheckedStructuralValueKind::QuotientCall { arguments, .. } => arguments
+                .iter()
+                .map(|argument| self.structural(*argument, calls))
+                .sum(),
             CheckedStructuralValueKind::Call { .. } => calls
                 .iter()
                 .find(|call| call.value == root)
@@ -555,7 +563,8 @@ impl<'facts> CallTransfers<'facts> {
             CheckedStructuralValueKind::ZeroedScalarArray { element, .. } => {
                 self.computation(*element)
             }
-            CheckedStructuralValueKind::Projection { source, .. } => {
+            CheckedStructuralValueKind::Projection { source, .. }
+            | CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
                 self.structural(*source, calls)
             }
             CheckedStructuralValueKind::Dispatch { subject, arms } => {

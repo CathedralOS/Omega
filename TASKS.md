@@ -1137,8 +1137,8 @@ defines the complete product bar.
     `pass/terminal_psi/content_custody_exit` invokes `Root::enter` but has no
     `build.omg` or oracle; `pass/core/content_{conservation_contract,retained_custody_round_trip}`
     need an invoking customer (routed establishment: **BOUNDARY-ISSUANCE**);
-    `pass/proofs/quotient_{define,lift}_managed_compile` stay proof-only, with
-    the runtime witness owed by **QUOTIENT-RUNTIME-REALIZATION**.
+    `pass/proofs/quotient_{define,lift}_managed_compile` stay proof-only; the
+    separate executable customer is `samples/cli/proofs/quotient_runtime_carrier`.
 
   Diagnostic acceptance:
   - **IMPLICIT-STORE-CONVERSION** owns duplicate conversion/weakening reports in
@@ -5977,29 +5977,6 @@ wait for Cathedral's instruction coverage. The interpreter is
   custody and early close/reclaim reject. Isolated hung-worker recovery has its
   own witness.
 
-- **QUOTIENT-RUNTIME-REALIZATION.** Execute quotient value and call operations
-  under the [representative realization contract](wiki/spec/proofs/quotients.md#representative-layer-and-executable-realization)
-  and [ordinary checked-body elaboration](wiki/spec/proofs/quotients.md#execution-through-ordinary-checked-bodies).
-  Start with the existing bounded correspondence forms; **QUOTIENT-THEOREM-LIFT**
-  is not a prerequisite.
-  - Carriers: `omega-rust/psi/compilation/checking/src/proof_contracts/quotients/formation_collection.rs`
-    requires a proof-only carrier; replacing the managed fixtures'
-    `Representative` with `data Representative [copy] { value: i32; }` rejects
-    with "quotient carriers must be proof-only". Admit representable,
-    custody-free carriers; keep `carrier_fence.rs`'s rejection of affine/linear
-    content and routed custody.
-  - Execution: carry the representative ABI through construction, arguments,
-    results, calls, Terminal operations and native realization. Preserve public
-    operation identity; generated wrappers use a stable derived identity and
-    ordinary machines; correctness must not depend on inlining. Do not turn the
-    sealed `quotient_operation` proof requests into runtime calls by deleting
-    guards. No backend-specific quotient engine. Axiomatic operations supply no
-    algorithm.
-  Acceptance: new run fixtures execute direct `define` and transport-backed `lift`
-  operations natively with observable exits, without structural observers or
-  representative extraction; demanding an unrealizable operation and
-  mismatched arguments/results/relations reject.
-
 - **QUOTIENT-THEOREM-LIFT.** Extend quotient correspondence beyond public
   parameter positions under [lifting operations](wiki/spec/proofs/quotients.md#lifting-operations)
   and the [correspondence judgment](wiki/spec/proofs/quotients.md#quotient-correspondence-judgment).
@@ -6026,7 +6003,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   `omega --check`; the existing `fail/proofs/quotient_*` rejections (missing,
   surplus or reversed roles, missing respect/symmetry, admitted/boundary
   theorem closures) still reject, plus new fail fixtures for implicit lifts and
-  unproved termination. **QUOTIENT-RUNTIME-REALIZATION** owns execution.
+  unproved termination. Preserve executable copy-carrier coverage in
+  `samples/cli/proofs/quotient_runtime_carrier` as these forms broaden.
 
 - **PRIVILEGED-PORT-EFFECT-SETTLEMENTS.** Produce checked adapter port I/O
   through ordinary native lowering and

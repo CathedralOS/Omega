@@ -23,6 +23,7 @@ mod flow;
 mod immutable_checking_input;
 mod operators;
 mod proof;
+mod quotient_eligibility;
 mod semantic;
 mod values;
 

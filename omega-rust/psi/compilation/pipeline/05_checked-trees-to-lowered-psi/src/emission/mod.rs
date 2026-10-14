@@ -112,3 +112,5 @@ pub(crate) fn emit_u64_coordinate(
     operations.push_leaf(scalar_result_declaration(coordinate, coordinate_type), kind);
     Ok(coordinate)
 }
+
+pub(crate) mod quotient_values;

@@ -1380,7 +1380,13 @@ impl TerminalExecution<'_> {
             }
             _ => return Err(malformed()),
         };
-        if leaf.structural_type != result.structural_type {
+        let quotient_adaptation = terminal_semantics::quotients::quotient_copy_adaptation(
+            &self.program.catalogs,
+            self.program.verified_machine(self.current_machine)?,
+            operation,
+        )
+        .is_some();
+        if leaf.structural_type != result.structural_type && !quotient_adaptation {
             // A record leaf copy out of a byte carrier mints fresh storage:
             // the resolved `u8` element is where the region starts and the
             // record's scalar leaves decode little-endian out of the

@@ -29,7 +29,9 @@ impl<'a> StructuralTypeLookup<'a> {
         {
             source.clone()
         } else {
-            declarations.values().map(|row| (*row).clone()).collect()
+            let mut ordered = source.clone();
+            *ordered.make_mut() = declarations.values().map(|row| (*row).clone()).collect();
+            ordered
         };
         Self {
             declarations,

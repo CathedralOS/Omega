@@ -10,6 +10,7 @@ use semantic_vocabulary::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitValidationError {
+    InvalidQuotientCatalog(&'static str),
     ContentIdentityMismatch {
         stored: OptimizationUnitIdentity,
         recomputed: OptimizationUnitIdentity,

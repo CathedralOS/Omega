@@ -44,7 +44,9 @@ pub(crate) mod review_sources;
 pub(crate) mod state_locals;
 
 pub(crate) use ::validation::field_domains::domain_is_vacuous;
-pub(crate) use crash_calls::{infer_checked_crash_causes, infer_checked_machine_crash_causes};
+pub(crate) use crash_calls::{
+    infer_checked_crash_causes, infer_checked_machine_crash_causes, selected_invocation_target,
+};
 pub(crate) use crash_plan_facts::{
     canonical_crash_binary_path_predicate, canonical_crash_operand_identity,
     canonical_crash_path_predicate, derive_authored_machine_crash_buckets,
@@ -464,6 +466,7 @@ pub(crate) fn build_check_facts(
     stored_integer_writes.insert_many(validation_facts.stored_integer_writes);
     Ok((
         CheckFacts {
+            quotient_formations: validation_facts.quotient_formations,
             stored_integer_writes,
             operational,
             contextual_cleanup,

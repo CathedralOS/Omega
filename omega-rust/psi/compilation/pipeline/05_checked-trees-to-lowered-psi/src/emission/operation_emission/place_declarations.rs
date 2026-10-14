@@ -101,3 +101,36 @@ pub(crate) fn retain_operation_results<'a>(
     }
     Ok(())
 }
+
+/// Scalar expansion may introduce structural arrivals after a machine frame
+/// reserved its places. Derive their declarations from the completed blocks,
+/// preserving exact provenance when the frame already supplied a row.
+pub(crate) fn retain_block_parameters<'a>(
+    blocks: impl Iterator<Item = &'a terminal_psi::Block>,
+    declarations: &mut Vec<StructuralPlaceDeclaration>,
+) -> Result<(), crate::lowering_error::LoweringError> {
+    for block in blocks {
+        for parameter in &block.structural_parameters {
+            let declaration = StructuralPlaceDeclaration {
+                id: parameter.place,
+                kind: StructuralPlaceKind::BlockParameter {
+                    block: block.id,
+                    position: parameter.position,
+                },
+            };
+            if let Some(existing) = declarations
+                .iter()
+                .find(|existing| existing.id == declaration.id)
+            {
+                if *existing != declaration {
+                    return crate::lowering_error::unsupported(
+                        "block parameter conflicts with an existing place declaration",
+                    );
+                }
+            } else {
+                declarations.push(declaration);
+            }
+        }
+    }
+    Ok(())
+}

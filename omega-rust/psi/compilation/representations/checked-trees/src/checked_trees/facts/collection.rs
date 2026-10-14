@@ -10,6 +10,8 @@ use crate::{CheckedFactCallProjection, CheckedIntrinsicCallFact, CheckedPlacedVi
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
+    pub quotient_formations: Vec<super::CheckedQuotientFormation>,
+    pub quotient_operations: Vec<super::CheckedQuotientOperation>,
     /// Portable specialization identities derived from checked machine contracts.
     pub specialization_identities: crate::CheckedSpecializationIdentities,
     /// One identity row per admission-claim template machine, including

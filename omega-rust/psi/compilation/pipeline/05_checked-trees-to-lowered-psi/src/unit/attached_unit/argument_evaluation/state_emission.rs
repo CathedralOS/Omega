@@ -53,6 +53,7 @@ pub(super) fn emit_state(
     operations.length_observations.clear();
     let mut values = parameters.to_vec();
     let mut block_parameters = parameters.to_vec();
+    let mut block_structural_parameters = state.structural_parameters.clone();
     let mut operation_start = operations.len();
     for binding in &state.bindings {
         if let LoweredScalarBinding::Expression(LoweredDirectExpression::Boolean { expression }) =
@@ -96,6 +97,8 @@ pub(super) fn emit_state(
                 ))?;
                 if index == 0 {
                     decision.id = block;
+                    decision.structural_parameters =
+                        std::mem::take(&mut block_structural_parameters);
                     decision.operations.splice(0..0, prefix.iter().cloned());
                 }
                 blocks.push(decision);
@@ -135,7 +138,7 @@ pub(super) fn emit_state(
             let mut span = super::BlockEmissionSpan {
                 id: block,
                 parameters: std::mem::take(&mut block_parameters),
-                structural_parameters: Vec::new(),
+                structural_parameters: std::mem::take(&mut block_structural_parameters),
                 operation_start,
             };
             let mut first_leaf: Option<semantic_vocabulary::OperationId> = None;
@@ -205,6 +208,7 @@ pub(super) fn emit_state(
             )?;
             block = span.id;
             block_parameters = span.parameters.clone();
+            block_structural_parameters = span.structural_parameters;
             values = span.parameters;
             operation_start = span.operation_start;
             continue;
@@ -366,7 +370,7 @@ pub(super) fn emit_state(
                     checked,
                     current: &mut block,
                     parameters: &mut block_parameters,
-                    structural_parameters: &mut Vec::new(),
+                    structural_parameters: &mut block_structural_parameters,
                     block_erased_scalar_formals: &mut block_erased_formals,
                     erased_proof_formals: source_erased_proof_formals,
                     operation_start: &mut operation_start,
@@ -494,6 +498,7 @@ pub(super) fn emit_state(
                     operations,
                 );
                 let mut root = root;
+                root.structural_parameters = std::mem::take(&mut block_structural_parameters);
                 root.erased_scalar_formals = erased_formals;
                 root.erased_proof_formals = erased_proof_formal_declarations(
                     identities,
@@ -838,7 +843,7 @@ pub(super) fn emit_state(
         }
     };
     blocks.push(Block {
-        structural_parameters: Vec::new(),
+        structural_parameters: block_structural_parameters,
         id: block,
         parameters: block_parameters,
         erased_scalar_formals: block_erased_formals,

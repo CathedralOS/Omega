@@ -46,6 +46,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
         ];
         let mut types = vec![
             StructuralTypeDeclaration {
+                quotient_carrier: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -57,6 +58,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
                 },
             },
             StructuralTypeDeclaration {
+                quotient_carrier: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -72,6 +74,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
                 },
             },
             StructuralTypeDeclaration {
+                quotient_carrier: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,

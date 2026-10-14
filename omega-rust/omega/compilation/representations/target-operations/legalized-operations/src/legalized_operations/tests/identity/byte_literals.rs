@@ -21,6 +21,7 @@ fn literal_identity_binds_payload_declaration_and_producer_reference() {
         },
     };
     let structural_type = StructuralTypeDeclaration {
+        quotient_carrier: None,
         no_code_affine_cleanup: false,
         descriptor_cleanup: false,
         scalar_restriction: None,

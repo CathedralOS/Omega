@@ -14,7 +14,7 @@ use super::theorem_schema::{
     ContractFactLocation, ContractOwner, ExpectedTheoremSchema, TheoremApplicationSide,
     TheoremLegalityPremise, TheoremRepresentativeApplication, collect_contract_facts,
 };
-use super::{RelationPlanError, RepresentativeTelescope};
+use super::{PositionalRelation, RelationPlanError, RepresentativeTelescope};
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -216,18 +216,38 @@ fn conclusion_matches(
     theorem_parameters: &[StateParameter],
     expected: &ExpectedTheoremSchema,
 ) -> bool {
-    let Some(application) = actual.as_proposition() else {
-        return false;
+    let arguments = match expected.result_relation {
+        PositionalRelation::Quotient(relation) => {
+            let Some(application) = actual.as_proposition() else {
+                return false;
+            };
+            if application.proposition != relation.relation_symbol
+                || !application.binder_arguments.is_empty()
+            {
+                return false;
+            }
+            let [left, right] = program
+                .expression_table
+                .expression_handles(application.arguments)
+            else {
+                return false;
+            };
+            [*left, *right]
+        }
+        PositionalRelation::ExactEquality(_) => {
+            let Some(expression) = actual.as_expression() else {
+                return false;
+            };
+            let Some(binary) = program.expression_table.binary_node(*expression) else {
+                return false;
+            };
+            if binary.operator != typed_trees::expression::BinaryOperator::Equal {
+                return false;
+            }
+            [binary.left, binary.right]
+        }
     };
-    if application.proposition != expected.result_relation.relation_symbol
-        || !application.binder_arguments.is_empty()
-    {
-        return false;
-    }
-    let arguments = program
-        .expression_table
-        .expression_handles(application.arguments);
-    matches!(arguments, [left, right]
+    matches!(&arguments, [left, right]
     if representative_application_matches(
         program,
         *left,

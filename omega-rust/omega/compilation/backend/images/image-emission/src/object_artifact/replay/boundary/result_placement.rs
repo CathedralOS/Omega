@@ -99,6 +99,7 @@ pub(crate) fn test_byte_read_declaration(
     id: semantic_vocabulary::StructuralTypeId,
 ) -> terminal_psi::StructuralTypeDeclaration {
     terminal_psi::StructuralTypeDeclaration {
+        quotient_carrier: None,
         no_code_affine_cleanup: false,
         descriptor_cleanup: false,
         scalar_restriction: None,

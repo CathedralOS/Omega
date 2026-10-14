@@ -32,6 +32,7 @@ mod copied_place;
 mod dispatch;
 mod element_views;
 mod parameters;
+mod quotient_calls;
 mod reference;
 mod residual_complement;
 
@@ -1357,6 +1358,48 @@ impl Emission<'_, '_, '_> {
     ) -> Result<StructuralArgument, LoweringError> {
         let node = self.structural_value_node(value);
         let place = match node.kind {
+            CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
+                let place = self.quotient_call(identities, value, &arguments)?;
+                self.completed(identities, place, continuation)
+            }
+            CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
+                let child = self.structural_value_node(source);
+                let source_type = lookup_type_id(
+                    self.type_ids,
+                    &validation::stored_structural_type_identity(
+                        &self.checked.typed,
+                        child.type_reference,
+                        &[],
+                        &[],
+                    ),
+                )?;
+                let completed = self.child_constructor_operand(
+                    identities,
+                    source_type,
+                    source,
+                    child.type_reference,
+                    &[],
+                )?;
+                if !completed.claims.is_empty()
+                    || !completed.argument.path.is_empty()
+                    || self.multiplicity != StructuralMultiplicity::Unrestricted
+                {
+                    return unsupported(
+                        "quotient adaptation requires a whole custody-free copy value",
+                    );
+                }
+                let place = place_id(allocate_dense(self.next_place)?);
+                let declaration = crate::emission::quotient_values::emit_adaptation(
+                    value,
+                    completed.argument.place,
+                    source_type,
+                    place,
+                    self.structural_type,
+                    self.operations,
+                );
+                self.temporary_places.push(declaration);
+                self.completed(identities, place, continuation)
+            }
             // A borrowed `&[T]` view lowers to `EstablishElementView` and a
             // `&mut [T]` view to `EstablishMutableElementView`: the collection
             // argument resolves against the current locals and signature

@@ -45,6 +45,9 @@ pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
         // value: proof projections, retained suspension frontiers, and
         // recorded source-call operand joins keep their exact identities.
         let mut retained_values = BTreeSet::new();
+        retained_values.extend(crate::retained_identities::quotient_call_results(
+            &after.semantic_module,
+        ));
         for projection in &after.semantic_module.float_meaning_projections {
             if let terminal_psi::FloatMeaningSource::DirectBlockParameter(parameter) =
                 &projection.source

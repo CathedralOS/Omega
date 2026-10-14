@@ -107,3 +107,22 @@ pub(crate) fn prune_debug_map(
         .map_err(crate::PsiOptimizationStageError::InvalidSemantic)?;
     Ok(())
 }
+
+/// The catalog joins a selected representative call to its public operation.
+/// Its scalar result remains an exact correspondence endpoint even when no
+/// ordinary executable use survives; preserve it until catalog-aware rewriting
+/// can transport that judgment along with the computation.
+pub(crate) fn quotient_call_results(
+    module: &terminal_psi::TerminalModule,
+) -> impl Iterator<Item = semantic_vocabulary::ValueId> + '_ {
+    module
+        .operations()
+        .filter(|operation| {
+            module
+                .quotients
+                .operations
+                .iter()
+                .any(|row| row.call == operation.id)
+        })
+        .filter_map(|operation| operation.result.scalar().map(|result| result.id))
+}

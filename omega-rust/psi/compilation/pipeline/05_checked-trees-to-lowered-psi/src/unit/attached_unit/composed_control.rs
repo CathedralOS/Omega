@@ -30,6 +30,10 @@ pub(in crate::unit::attached_unit) struct ComposedOccurrences {
         Vec<crate::emission::claim_bindings::ClaimIntroduction>,
     pub(in crate::unit::attached_unit) selected_cleanup_groups:
         Vec<crate::emission::selected_continuations::SelectedCleanupGroup>,
+    pub(in crate::unit::attached_unit) quotient_adaptations:
+        Vec<crate::emission::operation_emission::buffer::SourceQuotientAdaptation>,
+    pub(in crate::unit::attached_unit) quotient_calls:
+        Vec<crate::emission::operation_emission::buffer::SourceQuotientCall>,
     pub(in crate::unit::attached_unit) source_calls: Vec<lowered_psi::LoweredSourceCallOccurrence>,
     pub(in crate::unit::attached_unit) selected_ieee_float_comparisons:
         Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
@@ -49,6 +53,9 @@ impl ComposedOccurrences {
         self.claim_introductions
             .extend(operations.claim_introductions);
         self.source_calls.extend(operations.source_calls);
+        self.quotient_adaptations
+            .extend(operations.quotient_adaptations);
+        self.quotient_calls.extend(operations.quotient_calls);
         self.selected_ieee_float_comparisons
             .extend(operations.selected_ieee_float_comparisons);
         self.selected_integer_comparisons

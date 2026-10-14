@@ -39,6 +39,7 @@ fn field(
 
 fn declaration(raw: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
     StructuralTypeDeclaration {
+        quotient_carrier: None,
         no_code_affine_cleanup: false,
         descriptor_cleanup: false,
         scalar_restriction: None,

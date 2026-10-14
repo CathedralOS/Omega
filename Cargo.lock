@@ -9,6 +9,7 @@ dependencies = [
  "language-core",
  "optimization-core",
  "semantic-vocabulary",
+ "terminal-codec",
  "terminal-psi",
 ]
 
@@ -1678,6 +1679,7 @@ dependencies = [
  "task-plans",
  "terminal-codec",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -2284,6 +2286,7 @@ dependencies = [
 name = "terminal-semantics"
 version = "0.1.0"
 dependencies = [
+ "language-semantics",
  "numerics",
  "optimization",
  "proof-admission",

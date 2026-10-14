@@ -23,26 +23,24 @@ pub(super) fn first_forbidden_carrier_content(
     program: &dyn crate::CheckingInput,
     proof_only: &ProofOnlyClassification,
     type_reference: TypeReferenceHandle,
-    visited_proof_data: &mut HashSet<u32>,
+    visited_data: &mut HashSet<u32>,
 ) -> Option<CarrierFenceViolation> {
-    if program
-        .type_reference_table
-        .primitive_type(type_reference)
-        .is_some()
-    {
-        return None;
-    }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Named { symbol, name } => {
+            // Primitive classification peels qualifications and maps dynamic
+            // selectors, so it is safe only after matching the actual Named
+            // node. Routed shells and dynamic custody must reach their fences.
+            if program
+                .type_reference_table
+                .primitive_type(type_reference)
+                .is_some()
+            {
+                return None;
+            }
             if let Some(definition) =
                 crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
             {
-                return first_forbidden_data_content(
-                    program,
-                    proof_only,
-                    definition,
-                    visited_proof_data,
-                );
+                return first_forbidden_data_content(program, proof_only, definition, visited_data);
             }
             let parameter = program
                 .data_definitions()
@@ -74,13 +72,13 @@ pub(super) fn first_forbidden_carrier_content(
                         program,
                         proof_only,
                         *argument,
-                        visited_proof_data,
+                        visited_data,
                     )
                 {
                     return Some(forbidden);
                 }
             }
-            first_forbidden_data_content(program, proof_only, definition, visited_proof_data)
+            first_forbidden_data_content(program, proof_only, definition, visited_data)
         }
         TypeReferenceNode::Constrained {
             base_type,
@@ -94,10 +92,10 @@ pub(super) fn first_forbidden_carrier_content(
                     return Some(CarrierFenceViolation::RoutedQualification(name));
                 }
             }
-            first_forbidden_carrier_content(program, proof_only, *base_type, visited_proof_data)
+            first_forbidden_carrier_content(program, proof_only, *base_type, visited_data)
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            first_forbidden_carrier_content(program, proof_only, *element_type, visited_proof_data)
+            first_forbidden_carrier_content(program, proof_only, *element_type, visited_data)
         }
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
@@ -163,14 +161,16 @@ fn first_forbidden_data_content(
     program: &dyn crate::CheckingInput,
     proof_only: &ProofOnlyClassification,
     definition: &typed_trees::data::DataDefinition,
-    visited_proof_data: &mut HashSet<u32>,
+    visited_data: &mut HashSet<u32>,
 ) -> Option<CarrierFenceViolation> {
-    if proof_only.is_proof_only(definition.symbol) {
-        if !visited_proof_data.insert(definition.symbol.arena_index()) {
-            return None;
-        }
-    } else if definition.properties.multiplicity != language_semantics::Multiplicity::Unrestricted
-        || definition.properties.carry.is_some()
+    // Guard every carrier graph, including runtime copy data. Formation does
+    // not decide finite layout; representation demand owns that judgment.
+    if !visited_data.insert(definition.symbol.arena_index()) {
+        return None;
+    }
+    if !proof_only.is_proof_only(definition.symbol)
+        && (definition.properties.multiplicity != language_semantics::Multiplicity::Unrestricted
+            || definition.properties.carry.is_some())
     {
         return Some(CarrierFenceViolation::NonCopyType(
             definition.name.as_str().to_owned(),
@@ -178,12 +178,9 @@ fn first_forbidden_data_content(
     }
 
     for field in program.data_member_fields(program.data_members(definition)) {
-        if let Some(forbidden) = first_forbidden_carrier_content(
-            program,
-            proof_only,
-            field.type_reference,
-            visited_proof_data,
-        ) {
+        if let Some(forbidden) =
+            first_forbidden_carrier_content(program, proof_only, field.type_reference, visited_data)
+        {
             return Some(forbidden);
         }
     }

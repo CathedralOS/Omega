@@ -1,0 +1,110 @@
+// Expected exit: 70
+// Checked quotient operations over custody-free copy representatives.
+
+use omega::language::core::relation;
+use omega::language::core::binding;
+use omega_language_std::console;
+
+data Representative [copy] { value: i32; }
+
+proposition equivalent(a: Representative, b: Representative) = a == b;
+
+machine equivalent_reflexive(a: Representative)
+ensures a == a
+{
+}
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires
+    a == b
+ensures b == a
+{
+}
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+requires
+    a == b
+    b == c
+ensures a == c
+{
+}
+
+RepresentativeEquivalence satisfies Equivalence<Representative, equivalent> {
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}
+
+data EquivalenceClass [copy] = Representative % equivalent
+where equivalent satisfies
+    Equivalence<Representative, equivalent>
+    as RepresentativeEquivalence;
+
+machine representative(value: Representative) -> Representative {
+    value
+}
+
+machine representative_respects(left: Representative, right: Representative)
+requires equivalent(left, right)
+ensures equivalent(representative(left), representative(right))
+{
+}
+
+machine admitted(value: EquivalenceClass) -> EquivalenceClass {
+    Quotient::define<representative, representative_respects>(value)
+}
+
+machine representative_value(value: Representative) -> i32 { value.value }
+
+machine value_respects(left: Representative, right: Representative)
+requires equivalent(left, right)
+ensures representative_value(left) == representative_value(right)
+{
+}
+
+machine observe(value: EquivalenceClass) -> i32 {
+    Quotient::define<representative_value, value_respects>(value)
+}
+
+machine representative_transports(left: Representative, right: Representative) {
+}
+
+machine lifted(value: EquivalenceClass) -> EquivalenceClass {
+    Quotient::lift<representative, representative_respects, representative_transports>(value)
+}
+
+data Holder [copy] { item: EquivalenceClass; }
+
+machine forwarded(value: EquivalenceClass) -> i32 { observe(admitted(value)) }
+machine constructed(value: i32) -> EquivalenceClass { Representative { value: value } as EquivalenceClass }
+
+machine computed_result() -> i32 in Trapping crashes Trap {
+    let local: EquivalenceClass = Representative { value: 11 } as EquivalenceClass;
+    let field: Holder = Holder { item: Representative { value: 13 } as EquivalenceClass };
+    (observe(admitted(local as EquivalenceClass)) as i32 in Trapping) + (observe(lifted(field.item)) as i32 in Trapping) + (forwarded(constructed(17)) as i32 in Trapping) + (observe(constructed(29)) as i32 in Trapping)
+}
+
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    let local: EquivalenceClass = Representative { value: 11 } as EquivalenceClass;
+    let field: Holder = Holder { item: Representative { value: 13 } as EquivalenceClass };
+    let unused_observation: i32 = observe(local as EquivalenceClass);
+    let repeated_observation: i32 = observe(local as EquivalenceClass);
+    let local_result: i32 = observe(admitted(local as EquivalenceClass));
+    let field_result: i32 = observe(lifted(field.item));
+    let parameter_result: i32 = forwarded(constructed(17));
+    let call_result: i32 = observe(constructed(29));
+    let result: i32 in Trapping = computed_result();
+    transition local_result == 11 && field_result == 13 && parameter_result == 17 && call_result == 29 && result == 70 {
+        true -> matched(main)
+        false -> mismatched(main)
+    }
+    state matched(main: &mut Main) { main.console.exit_process(70); }
+    state mismatched(main: &mut Main) { main.console.exit_process(71); }
+}

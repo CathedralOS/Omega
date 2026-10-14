@@ -13,3 +13,5 @@ language-core = { path = "../../../../psi/foundation/language-core" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }

@@ -54,6 +54,7 @@ fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
     target.graph.blocks[0].block = block;
     target.graph.blocks[0].structural_parameters = vec![parameter];
     target.graph.structural_types = vec![StructuralTypeDeclaration {
+        quotient_carrier: None,
         no_code_affine_cleanup: false,
         descriptor_cleanup: false,
         scalar_restriction: None,
@@ -486,6 +487,7 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
         let mut stored_function = function.clone();
         let mut stored_target = target.clone();
         stored_target.graph.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
+            quotient_carrier: None,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
@@ -634,6 +636,7 @@ fn whole_byte_replacement_rejoins_qualified_entry_and_arrival_storage() {
         parameter.qualifications = vec![StructuralDomainId::new(1).unwrap()];
         target.graph.parameters[0].access = parameter.access;
         target.graph.structural_types = vec![StructuralTypeDeclaration {
+            quotient_carrier: None,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
@@ -913,6 +916,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
     target.graph.parameters[0].structural_type = root_type;
     target.graph.structural_types = vec![
         StructuralTypeDeclaration {
+            quotient_carrier: None,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
@@ -930,6 +934,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             },
         },
         StructuralTypeDeclaration {
+            quotient_carrier: None,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
@@ -941,6 +946,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             },
         },
         StructuralTypeDeclaration {
+            quotient_carrier: None,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
@@ -1372,6 +1378,7 @@ fn returned_and_parameter_bounded_owners_use_inline_payload_offset() {
         },
     ];
     let structural_types = vec![StructuralTypeDeclaration {
+        quotient_carrier: None,
         no_code_affine_cleanup: false,
         descriptor_cleanup: false,
         scalar_restriction: None,
@@ -1623,6 +1630,7 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
             _ => unreachable!(),
         }
         target.graph.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
+            quotient_carrier: None,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
@@ -1645,6 +1653,7 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
             .structural_types
             .make_mut()
             .push(terminal_psi::StructuralTypeDeclaration {
+                quotient_carrier: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -1700,6 +1709,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
         };
         target.graph.structural_types = vec![
             terminal_psi::StructuralTypeDeclaration {
+                quotient_carrier: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -1717,6 +1727,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
                 },
             },
             terminal_psi::StructuralTypeDeclaration {
+                quotient_carrier: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -1725,6 +1736,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
                 shape: terminal_psi::StructuralTypeShape::FixedArray { element, length: 2 },
             },
             terminal_psi::StructuralTypeDeclaration {
+                quotient_carrier: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,

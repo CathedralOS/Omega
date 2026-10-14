@@ -550,13 +550,12 @@ fn machine_non_transition_invocation_sites(
                 continue;
             }
             let (target_machine, target_state) =
-                crate::proof::contract_target_from_state_symbol(program, call.target_symbol)
-                    .ok_or_else(|| {
-                        format!(
-                            "calls `{}`, which selects no declaration",
-                            spelled_callee(program, site)
-                        )
-                    })?;
+                selected_invocation_target(program, site, call.target_symbol).ok_or_else(|| {
+                    format!(
+                        "calls `{}`, which selects no declaration",
+                        spelled_callee(program, site)
+                    )
+                })?;
             sites.push(SummaryInvocationSite {
                 caller_state: state.state_symbol,
                 statement_index: call.statement_index,
@@ -857,4 +856,22 @@ pub(crate) fn crash_route_expressions_by_identity(
         }
     }
     expressions
+}
+
+/// A sealed quotient request computes by its explicitly selected ordinary
+/// representative. Keep that dependency in crash inference before runtime
+/// admission: an unknown or crashing representative must never disappear.
+pub(crate) fn selected_invocation_target(
+    program: &dyn ::validation::CheckingInput,
+    site: validation::CallSite<'_>,
+    ordinary_target: SymbolHandle,
+) -> Option<(SymbolHandle, SymbolHandle)> {
+    let selected = match site {
+        validation::CallSite::Expression { call, .. } => call
+            .quotient_operation
+            .as_ref()
+            .map(|request| request.representative_operation.symbol),
+        _ => None,
+    };
+    crate::proof::contract_target_from_state_symbol(program, selected.unwrap_or(ordinary_target))
 }

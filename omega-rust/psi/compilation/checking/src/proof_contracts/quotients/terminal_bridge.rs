@@ -1,4 +1,4 @@
-//! All-or-nothing extraction for the first non-executable Terminal replay seam.
+//! All-or-nothing admission of exact selected quotient operation correspondences.
 
 use language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -6,7 +6,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 pub(super) fn extract(
     program: &dyn crate::CheckingInput,
     termination: &dyn super::CheckedTerminationOracle,
-) -> Result<Vec<CanonicalQuotientCorrespondence>, Vec<String>> {
+) -> Result<Vec<super::ValidatedQuotientOperation>, Vec<String>> {
     let requests = program
         .expression_table
         .iter_expressions()
@@ -50,14 +50,14 @@ pub(super) fn extract(
     };
     rows.sort_by(|left, right| {
         (
-            &left.public_operation.declaration,
-            &left.public_operation.overload,
-            statement_position(left),
+            &left.correspondence.public_operation.declaration,
+            &left.correspondence.public_operation.overload,
+            statement_position(&left.correspondence),
         )
             .cmp(&(
-                &right.public_operation.declaration,
-                &right.public_operation.overload,
-                statement_position(right),
+                &right.correspondence.public_operation.declaration,
+                &right.correspondence.public_operation.overload,
+                statement_position(&right.correspondence),
             ))
     });
     if rows.windows(2).any(|rows| rows[0] == rows[1]) {
@@ -74,7 +74,7 @@ fn extract_one(
     request_expression: ExpressionHandle,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
-) -> Result<CanonicalQuotientCorrespondence, String> {
+) -> Result<super::ValidatedQuotientOperation, String> {
     let owners = program
         .machines()
         .iter()
@@ -125,7 +125,7 @@ fn extract_one(
     // The composed certificate, not the authored request kind, decides which
     // canonical row the request earns. `derive_direct_terminal_plan` already
     // refused a missing, duplicated, surplus, or reordered role collection.
-    super::relation_plan::canonical_direct_correspondence(
+    let correspondence = super::relation_plan::canonical_direct_correspondence(
         program,
         machine,
         state,
@@ -133,5 +133,12 @@ fn extract_one(
         &plan,
         representative_purity,
         result_flow,
-    )
+    )?;
+    Ok(super::ValidatedQuotientOperation {
+        request: request_expression,
+        public_machine: machine.symbol,
+        public_state: state.symbol,
+        representative_state: request.representative_operation.symbol,
+        correspondence,
+    })
 }

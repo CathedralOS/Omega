@@ -265,6 +265,9 @@ pub(in crate::execution::terminal_unit) fn value_calls(
         }
         visited.push(value);
         match &plans.nodes.get(value).kind {
+            checked_trees::CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
+                pending.extend(arguments.iter().rev().copied());
+            }
             checked_trees::CheckedStructuralValueKind::Call { source_call } => {
                 if !facts.flow.control.calls.is_valid(*source_call) {
                     return None;
@@ -377,7 +380,8 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                         .map(|arm| arm.value),
                 );
             }
-            checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
+            checked_trees::CheckedStructuralValueKind::Projection { source, .. }
+            | checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
                 pending.push(*source);
             }
             checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {

@@ -21,7 +21,7 @@ pub(crate) fn nominal(
     Ok(NominalDeclarationIdentity::new(identities.intern(&text)))
 }
 
-pub(super) fn identity(
+pub(crate) fn identity(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     sources: &[(source::SourceId, [u8; 32])],
@@ -40,6 +40,30 @@ pub(super) fn identity(
     for parameter in checked.state_parameters(entry) {
         identities.intern(&checked.normalized_type_identity_text(parameter.type_reference));
     }
+    let semantic_declaration = identities.intern(
+        &checked
+            .normalized_hermetic_symbol_identity(machine)
+            .map_err(|_| "checked machine has no hermetic declaration identity")?,
+    );
+    let parameter_types = checked
+        .state_parameters(entry)
+        .iter()
+        .map(|parameter| {
+            identities
+                .intern(&checked.package_qualified_type_identity_text(parameter.type_reference))
+        })
+        .collect();
+    let callable = identities.intern(
+        &checked
+            .typed
+            .machine_callable_identity_text(declaration)
+            .ok_or("checked machine has no callable signature identity")?,
+    );
+    let result_type = identities.intern(
+        &checked
+            .typed
+            .package_qualified_type_identity_text(entry.return_type),
+    );
     let mut nominal = |symbol| nominal(identities, checked, sources, symbol);
     let contract = checked
         .facts
@@ -68,6 +92,10 @@ pub(super) fn identity(
     Ok(CheckedMachineDeclaration {
         machine: nominal(machine)?,
         state: nominal(entry.symbol)?,
+        semantic_declaration,
+        parameter_types,
+        callable,
+        result_type,
         contract,
         specialization,
     })

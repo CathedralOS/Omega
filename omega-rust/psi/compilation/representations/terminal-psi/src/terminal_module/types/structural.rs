@@ -6,6 +6,9 @@ use semantic_vocabulary::{
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralTypeDeclaration {
+    /// Nominal opacity marker independent of the retained physical shape.
+    /// Every marked declaration requires its exact formation catalog row.
+    pub quotient_carrier: Option<StructuralTypeId>,
     pub id: StructuralTypeId,
     pub identity: TerminalIdentityIndex,
     /// Checked authority that disposing represented owned contents requires no
@@ -838,6 +841,7 @@ mod tests {
         let array = StructuralTypeId::new(4).unwrap();
         let types = vec![
             StructuralTypeDeclaration {
+                quotient_carrier: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -849,6 +853,7 @@ mod tests {
                 },
             },
             StructuralTypeDeclaration {
+                quotient_carrier: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -857,6 +862,7 @@ mod tests {
                 shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
             },
             StructuralTypeDeclaration {
+                quotient_carrier: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -874,6 +880,7 @@ mod tests {
                 },
             },
             StructuralTypeDeclaration {
+                quotient_carrier: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
