@@ -1,0 +1,6 @@
+machine lend_write(destination: &write i32) -> &write i32 { &write destination }
+machine conflict(destination: &write i32) {
+ let moved: &write i32 = lend_write(destination);
+ destination = 17;
+ moved = 42;
+}

@@ -39,20 +39,13 @@ pub(in crate::execution::terminal_unit) fn signature(
             .then_some(CheckedControlResultPlan::Scalar { primitive_type });
     }
     let multiplicity = crate::checks::type_multiplicity(program, reference);
-    // A `&mut T` result is the reference family's mutable custody kind: it
-    // loans one exact place of callee storage rather than owning fresh
-    // contents, whatever the referee spells, so the owned-contents and
-    // nominal-drop gates do not apply.
-    let mutable_reference =
-        validation::reference_result_custody::mutable_borrowed_parts(program, reference).is_some();
-    // Borrowed slice views are the reference family's other custody kind: a
-    // `&[T]` result borrows its carrier's storage rather than owning fresh
-    // contents, so the owned-contents and nominal-drop gates do not apply.
-    // `&'a V` named results are the same custody kind over a record carrier.
-    let view_result = mutable_reference
-        || crate::execution::terminal_unit::types::borrowed_slice_result(program, reference)
-        || crate::execution::terminal_unit::types::borrowed_named_view(program, reference)
-        || crate::execution::terminal_unit::types::mutable_borrowed_view(program, reference);
+    // A returned pointer transports its exact loan descriptor, independently
+    // of shared, mutable or write-only access. Slice descriptors keep their
+    // separate geometry; neither family owns the original backing.
+    let pointer_result =
+        validation::reference_result_custody::has_borrowed_parts(program, reference);
+    let view_result = pointer_result
+        || crate::execution::terminal_unit::types::borrowed_slice_result(program, reference);
     // A reference carrier transports a loan, not owned referent claims —
     // except a byte view, whose lowered type peels the borrow so `&[u8] in
     // Utf8` registers `Utf8` on the result's own slice carrier. Those
@@ -123,12 +116,9 @@ pub(in crate::execution::terminal_unit) fn signature(
     {
         return None;
     }
-    // A borrowed named view spells its `&'a V` type reference in the plan —
-    // the reference custody is exactly what the result type carries — and its
-    // result is an affine view loan rather than an unrestricted owned value.
-    // A `&mut T` result spells its own reference shell the same way; its
-    // `Reference` shape is admitted by `view_result` above like the shared
-    // views' are.
+    // A returned pointer keeps its reference shell and exact access. Its
+    // materialized carrier has affine custody even when shared source use is
+    // reusable; it owns no backing. Shape and loan admission remain separate.
     let (type_identity, multiplicity) =
         if crate::execution::terminal_unit::types::borrowed_slice_result(program, reference) {
             // A returned slice transports its descriptor, never a pointer to a
@@ -138,26 +128,7 @@ pub(in crate::execution::terminal_unit) fn signature(
                 shapes.add_type(reference, &[], &[])?,
                 validation::reference_result_custody::binding_multiplicity(program, reference),
             )
-        } else if crate::execution::terminal_unit::types::borrowed_named_view(program, reference) {
-            (
-                shapes.add_view_type(
-                    reference,
-                    &[],
-                    language_semantics::ReferenceAccess::Shared,
-                )?,
-                Multiplicity::Affine,
-            )
-        } else if crate::execution::terminal_unit::types::mutable_borrowed_view(program, reference)
-        {
-            (
-                shapes.add_view_type(
-                    reference,
-                    &[],
-                    language_semantics::ReferenceAccess::Mutable,
-                )?,
-                Multiplicity::Affine,
-            )
-        } else if mutable_reference {
+        } else if pointer_result {
             (
                 shapes.add_reference_type(reference, &[])?,
                 Multiplicity::Affine,

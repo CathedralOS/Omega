@@ -378,6 +378,18 @@ fail/borrow/persistent_borrow_storage_requires_outlives rejected 1580ms expected
 	assignment stores a borrow-carrying value in persistent field `stored` of machine `Cell::set$specialized$dcbb8209abdb6016$0`; persistent loans must be propagated through graph-state transitions before this write can be admitted
 fail/borrow/recursive_terminal_exclusive_alias rejected 937ms expected @5acf32321f42+wt
 	state `scan` receives `first` as mutable more than once
+fail/borrow/returned_write_destination_argument_read rejected 488ms expected @c5d73037f08c+wt
+	machine `hidden` state `entry` reads write-only parameter `value`; `&write` permits replacement or exact `&write` forwarding, never observation
+	argument `stamp` for state `entry` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access
+fail/borrow/returned_write_destination_backing_conflict rejected 4253ms expected @c5d73037f08c+wt
+	statement 2 mutates `value` while local borrow `destination` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrow/returned_write_destination_carrier_conflict rejected 1683ms expected @c5d73037f08c+wt
+	statement 1 mutates `destination` while local borrow `moved` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/borrow/returned_write_destination_read rejected 448ms expected @c5d73037f08c+wt
+	machine `read` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/borrow/returned_write_destination_readable_access rejected 454ms expected @c5d73037f08c+wt
+	machine `widen` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `widen` state `entry` local `__hoist_14` may read, but the source supplies only write-only authority
 fail/borrow/scalar_field_declared_range_requires_handback rejected 162ms expected @5b32c4eb36ff+wt
 	machine `test` cannot lend restricted field `position` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/borrow/scalar_field_local_loan_requires_handback rejected 162ms expected @5b32c4eb36ff+wt
@@ -7638,6 +7650,7 @@ pass/wire/wire_data_reserved_field checked 10466ms check-target:macos_arm64 @a9a
 pass/wire/wire_field_numbers checked 6530ms @5041ef1af684+wt
 pass/wire/wire_preserving_decode_relay_exit checked 4293ms check-target:macos_arm64 @992d27dd3135+wt
 pass/wire/wire_retired_field checked 5808ms @5041ef1af684+wt
+pass/write_only/returned_destination_transport_exit checked 13696ms check-target:macos_arm64 @c5d73037f08c+wt
 pass/write_only/state_forwarded_scalar_store_exit checked 11575ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/arithmetic/fixed_input_reused_across_calls checked 11597ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/arithmetic/fixed_integer_operand_after_call checked 6744ms check-target:macos_arm64 @589aedee8ebc+wt

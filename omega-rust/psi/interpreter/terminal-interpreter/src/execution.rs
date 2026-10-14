@@ -606,6 +606,33 @@ impl<'artifact> TerminalExecution<'artifact> {
         meter: &mut TerminalFuelMeter,
         handler: &mut impl TerminalEffectHandler,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
+        self.resume_operations(meter, handler).map_err(|error| {
+            if error != TerminalInterpretError::VerifiedOperationMalformed {
+                return error;
+            }
+            // Report the execution cursor that declined the operation, including
+            // failures reached in a callee. A missing operation means the block
+            // terminator failed; source-free execution retains canonical IDs.
+            let operation = self
+                .program
+                .machines()
+                .get(&self.current_machine)
+                .and_then(|machine| machine.block(&self.current))
+                .and_then(|block| block.operations.get(self.next_operation))
+                .map(|operation| operation.id);
+            TerminalInterpretError::VerifiedExecutionMalformed {
+                machine: self.current_machine,
+                block: self.current,
+                operation,
+            }
+        })
+    }
+
+    fn resume_operations(
+        &mut self,
+        meter: &mut TerminalFuelMeter,
+        handler: &mut impl TerminalEffectHandler,
+    ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
         if let Some(completion) = &self.external_completion {
             return Ok(TerminalExecutionStatus::ExternalCompletion(
                 completion.clone(),

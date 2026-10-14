@@ -21,6 +21,32 @@ pub(crate) struct ReferenceCapture {
     pub(crate) backing_type: TypeReferenceHandle,
 }
 
+/// A computed pointer value carries its source-selected reference type.
+/// Named homes retain their existing projected-loan route; registering them
+/// as new values would duplicate their descriptors and custody. This query
+/// grants no receiving access and does not evaluate the producer.
+pub(crate) fn transported_value_type(
+    program: &dyn validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    if validation::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        expression,
+    )
+    .is_some_and(|place| place.root.as_symbol().is_some())
+    {
+        return None;
+    }
+    let actual = validation::expression_result_type_reference(program, machine, state, expression)?;
+    validation::reference_result_custody::stored_loan_parts(program, actual)?;
+    Some(actual)
+}
+
 /// A source-selected storage view forms its authored reference value before
 /// a consumer attenuates access. The receiving formal cannot choose this
 /// carrier's type or replace its storage interpretation.

@@ -161,11 +161,22 @@ impl TypeReferenceOwner<'_> {
         )
     }
 
-    fn allows_checked_write_only_parameter(&self) -> bool {
+    // A direct callable view is transported through the same checked loan
+    // boundary whether it is an input or a result. Stored and nested carriers
+    // retain their separate implementation fence.
+    fn allows_checked_write_only_view(&self) -> bool {
         matches!(
             self,
             Self::StateParameter {
-                owner: StateSignatureOwner::Machine(_),
+                generic_depth: 0,
+                ..
+            } | Self::StateReturn {
+                generic_depth: 0,
+                ..
+            } | Self::OperatorParameter {
+                generic_depth: 0,
+                ..
+            } | Self::OperatorReturn {
                 generic_depth: 0,
                 ..
             } | Self::StateLocalData {
@@ -680,10 +691,10 @@ fn validate_type_reference_node(
             lifetime,
         } => {
             if *access == language_semantics::ReferenceAccess::WriteOnly
-                && !owner.allows_checked_write_only_parameter()
+                && !owner.allows_checked_write_only_view()
             {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{owner} uses `&write` outside the checked whole-scalar parameter slice; only an explicit direct-reborrow local is additionally admitted, while write-only fields, returns, operators, traits, and nested generic arguments are not implemented yet"
+                    "{owner} uses `&write` outside the checked direct callable and local view surface; write-only stored fields and nested generic arguments are not implemented yet"
                 )));
             }
             if let Some(lifetime) = lifetime

@@ -1,0 +1,7 @@
+machine lend_write(destination: &write i32) -> &write i32 { &write destination }
+machine main() crashes Trap {
+ let mut value: i32 = 7;
+ let destination: &write i32 = lend_write(&write value);
+ value = 17;
+ destination = 42;
+}

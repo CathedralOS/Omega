@@ -484,6 +484,7 @@ impl CheckedComposedUnitControlStatePlan {
                 crate::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
                     operands,
                     establishment,
+                    ..
                 } => Some((operands, establishment.as_ref())),
                 _ => None,
             })

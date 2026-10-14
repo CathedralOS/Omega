@@ -55,21 +55,14 @@ pub(super) fn build(
             program, state, call, result,
         )
         .unwrap_or_default();
-    let reference_result =
-        crate::execution::terminal_unit::reference_results::mutable_borrowed_parts(
-            program,
-            target_state.return_type,
-        )
-        .is_some()
-            || crate::execution::terminal_unit::reference_results::shared_borrowed_parts(
-                program,
-                target_state.return_type,
-            )
-            .is_some();
+    let reference_result = crate::execution::terminal_unit::reference_results::has_borrowed_parts(
+        program,
+        target_state.return_type,
+    );
     let reference_loans = if !forwarded_reference_sources.is_empty() {
         arena::HandleSpan::empty()
     } else if reference_result {
-        // Both accesses retain the exact call's loan, activation and release.
+        // Every access retains the exact call's loan, activation and release.
         // Origin reconstruction belongs to the shared reference-result owner;
         // a private view walker must not miss ordinary forwarded completions.
         crate::execution::terminal_unit::reference_results::result_loans(

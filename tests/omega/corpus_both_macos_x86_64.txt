@@ -9,3 +9,4 @@
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 16, "jobs": null, "load1_end": 4.82, "load1_start": 4.38, "machine": "x86_64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/borrows/returned_slice_record_reference_custody_exit built 14599ms exit:0 interpreter-exit:0 interpreter:agrees @761f5fae99a7+wt
+pass/write_only/returned_destination_transport_exit built 16665ms exit:0 interpreter-exit:0 interpreter:agrees @c5d73037f08c+wt

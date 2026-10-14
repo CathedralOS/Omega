@@ -2390,7 +2390,9 @@ fn reference_custody(
 }
 
 /// Stored reference classification precedes referent-oriented normalization.
-/// The first executable carrier retains a mutable, unqualified primitive loan.
+/// An exclusive primitive carrier retains its exact mutable or write-only
+/// access. The pointer is transported without reading its referee; operations
+/// through it still owe that access and the captured loan's own authority.
 pub fn parts(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
@@ -2401,7 +2403,7 @@ pub fn parts(
     else {
         return None;
     };
-    if *access != language_semantics::ReferenceAccess::Mutable
+    if !access.is_exclusive()
         || !matches!(
             program.type_reference_table.type_reference(*referee),
             TypeReferenceNode::Named { .. }
@@ -2410,7 +2412,7 @@ pub fn parts(
     {
         return None;
     }
-    Some((*referee, CheckedStructuralAccess::MutableBorrow))
+    Some((*referee, (*access).into()))
 }
 
 /// One stored carrier leaf's referent and exact access. Shared, mutable and
@@ -2455,15 +2457,16 @@ pub fn shared_borrowed_parts(
         .filter(|(_, access)| *access == CheckedStructuralAccess::SharedBorrow)
 }
 
-/// Whether `reference` is any caller-frame borrow carrier — `&mut T` or
-/// `&'a V` alike. Result-custody consumers that only need the classification
-/// ask this one question rather than restating the pair probe.
+/// Whether `reference` is a caller-frame borrow carrier. Stored pointers retain
+/// shared, mutable or write-only access; mutable slice descriptors retain their
+/// distinct carrier. Result-custody consumers ask this common question instead
+/// of reconstructing an access whitelist. This grants no executable shape.
 pub fn has_borrowed_parts(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
-    mutable_borrowed_parts(program, reference).is_some()
-        || shared_borrowed_parts(program, reference).is_some()
+    stored_loan_parts(program, reference).is_some()
+        || mutable_borrowed_parts(program, reference).is_some()
 }
 
 /// The referee beneath any `& T` place-loan carrier, with constraint shells
@@ -2658,15 +2661,8 @@ pub fn result_loans(
             .statement_at(state, call.statement_index)
             .and_then(typed_trees::statement::StatementNode::as_local_data)
             .is_some_and(|local| local.initial_value == call.authored_expression)
-        && crate::call_target_return_type(program, call.target_symbol).is_some_and(|return_type| {
-            crate::reference_shell(program, return_type).is_some_and(|shell| {
-                matches!(
-                    shell.access,
-                    language_semantics::ReferenceAccess::Shared
-                        | language_semantics::ReferenceAccess::Mutable
-                )
-            })
-        })
+        && crate::call_target_return_type(program, call.target_symbol)
+            .is_some_and(|return_type| crate::reference_shell(program, return_type).is_some())
     {
         return Some(arena::HandleSpan::empty());
     }

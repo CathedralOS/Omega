@@ -1,0 +1,55 @@
+// Expected exit: 0.
+data Cell [copy] { value: i32; neighbor: i32; }
+machine lend_write<'storage>(destination: &'storage write i32) -> &'storage write i32 { &write destination }
+machine forward<'storage>(destination: &'storage write i32) -> &'storage write i32 {
+ transition { _ -> later(&write destination) }
+ state later(destination: &'storage write i32) -> &'storage write i32 { lend_write(&write destination) }
+}
+machine attenuate(destination: &mut i32) -> &write i32 { &write destination }
+machine store(destination: &write i32, value: i32) { destination = value; }
+machine delayed(destination: &write i32, value: i32) {
+ transition { _ -> later(lend_write(&write destination), value) }
+ state later(destination: &write i32, value: i32) { destination = value; }
+}
+machine lend_mut(destination: &mut i32) -> &mut i32 { &mut destination }
+machine delayed_mut(destination: &mut i32, value: i32) {
+ transition { _ -> later(lend_mut(&mut destination), value) }
+ state later(destination: &mut i32, value: i32) { destination = value; }
+}
+machine lend_shared(value: &i32) -> &i32 { &value }
+machine delayed_shared(value: &i32) -> i32 {
+ transition { _ -> later(lend_shared(&value)) }
+ state later(value: &i32) -> i32 { value }
+}
+trait WriteDestination { machine lend(destination: &write i32) -> &write i32; }
+Identity satisfies WriteDestination { machine lend(destination: &write i32) -> &write i32 { &write destination } }
+machine select_and_write(cell: &mut Cell, choice: bool) -> bool {
+ let destination: &write i32 = match choice {
+  true -> lend_write(&write cell.value),
+  false -> forward(&write cell.value)
+ };
+ destination = 42;
+ cell.value == 42 && cell.neighbor == 19
+}
+machine main() crashes Trap {
+ let mut cell: Cell = Cell { value: 7, neighbor: 19 };
+ let first: bool = select_and_write(&mut cell, true);
+ cell.value = 11;
+ let second: bool = select_and_write(&mut cell, false);
+ store(lend_write(&write cell.value), 23);
+ let third: bool = cell.value == 23 && cell.neighbor == 19;
+ delayed(&write cell.value, 31);
+ let fourth: bool = cell.value == 31 && cell.neighbor == 19;
+ store(attenuate(&mut cell.value), 37);
+ let fifth: bool = cell.value == 37 && cell.neighbor == 19;
+ delayed_mut(&mut cell.value, 41);
+ let sixth: bool = delayed_shared(&cell.value) == 41 && cell.neighbor == 19;
+ let strategy: dyn WriteDestination = Identity as dyn WriteDestination;
+ let destination: &write i32 = WriteDestination::lend(strategy, &write cell.value);
+ let moved: &write i32 = destination;
+ moved = 47;
+ transition first && second && third && fourth && fifth && sixth && cell.value == 47 && cell.neighbor == 19 {
+  true -> done() false -> wrong()
+ }
+ state done() {} state wrong() { crash Trap; }
+}

@@ -118,6 +118,7 @@ impl CheckedStructuralControlSuccessorPlan {
                 CheckedStructuralControlTransferSourcePlan::EstablishedValue {
                     operands,
                     establishment,
+                    ..
                 } => Some((operands, establishment.as_ref())),
                 _ => None,
             })
@@ -258,12 +259,14 @@ pub enum CheckedStructuralControlTransferSourcePlan {
     /// supplied directly to the successor. The edge runs `operands` and
     /// then `establishment` after selection, at the transition's statement
     /// coordinate. A whole call retains its ordinary call operation; an
-    /// aggregate retains its structural value evaluator. Both publish the
-    /// target parameter's type. Binding ordinals are edge-local, numbered
-    /// after the source state's own results.
+    /// aggregate retains its structural value evaluator. `presentation` names
+    /// the receiving endpoint independently of that producer's home: a stored
+    /// reference lends through its Referent crossing, not its descriptor bytes.
+    /// Binding ordinals are edge-local, numbered after the source state's results.
     EstablishedValue {
         operands: CheckedOperandSequence,
         establishment: Box<crate::CheckedUnitEffectOperationPlan>,
+        presentation: CheckedUnitStructuralArgumentPlan,
     },
     /// A borrowed-place argument loans the named subtree
     /// into the borrowed target parameter: the successor argument keeps the

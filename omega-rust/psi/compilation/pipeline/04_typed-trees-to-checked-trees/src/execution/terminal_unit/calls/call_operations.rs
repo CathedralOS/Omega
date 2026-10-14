@@ -83,42 +83,16 @@ pub(crate) fn call_value_result_matches(
                 && (peeled == expected.type_identity || shelled == expected.type_identity)
         }
         ExpectedCallValueResult::Structural(expected)
-            if crate::execution::terminal_unit::reference_results::mutable_borrowed_parts(
+            if crate::execution::terminal_unit::reference_results::has_borrowed_parts(
                 program,
                 return_type,
-            )
-            .is_some() =>
+            ) =>
         {
             expected.multiplicity == Multiplicity::Affine
                 && program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
                     substitutions,
                     ..typed_trees::type_identity::TypeIdentityRequest::ordinary(return_type)
                 }) == expected.type_identity
-        }
-        ExpectedCallValueResult::Structural(expected)
-            if let Some(referee) =
-                crate::execution::terminal_unit::types::borrowed_view_referent(
-                    program,
-                    return_type,
-                    language_semantics::ReferenceAccess::Mutable,
-                ) =>
-        {
-            // A named `&mut R` result is the exclusive loan the
-            // shared-view arm above names for shared borrows: affine
-            // custody against the callee's storage. Like the named
-            // views, the bound side keeps its `ref-mut` shell — the
-            // `Reference` shape is the custody it loans; the peeled
-            // referent spelling stays accepted for anonymous results.
-            let peeled = program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
-                substitutions,
-                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(referee)
-            });
-            let shelled = program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
-                substitutions,
-                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(return_type)
-            });
-            expected.multiplicity == Multiplicity::Affine
-                && (peeled == expected.type_identity || shelled == expected.type_identity)
         }
         ExpectedCallValueResult::Structural(expected) => {
             program.primitive_type_reference(return_type).is_none()

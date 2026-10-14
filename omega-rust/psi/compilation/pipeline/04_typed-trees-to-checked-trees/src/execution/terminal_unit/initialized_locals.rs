@@ -6,6 +6,9 @@
 //! The custody classifies the type the binding holds. A declared view
 //! (`let v: &[u8] = coll[a..b]`) holds its declaration; an element-declared
 //! view (`let v: u8 = coll[a..b]`) holds the initializer's own view result.
+//! Exclusive descriptors retain their declared mutable or write-only access.
+//! Treating a returned write-only descriptor as owned would lose its lending
+//! contract; treating it as mutable would manufacture observation authority.
 
 use checked_trees::{CheckedInitializedLocal, CheckedStructuralAccess};
 use typed_trees::data::DataMember;
@@ -20,9 +23,10 @@ pub(in crate::execution::terminal_unit) fn initialized_local(
     let bound = bound_type(program, machine, state, local);
     let access = if is_shared_borrow(program, bound) {
         CheckedStructuralAccess::SharedBorrow
-    } else if validation::reference_result_custody::mutable_borrowed_parts(program, bound).is_some()
+    } else if let Some(shell) = validation::reference_shell(program, bound)
+        && shell.access.is_exclusive()
     {
-        CheckedStructuralAccess::MutableBorrow
+        shell.access.into()
     } else {
         CheckedStructuralAccess::Owned
     };

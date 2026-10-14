@@ -97,6 +97,25 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
         {
             (argument, parameter.type_reference)
         }
+        // Registration and receiving planning retain the same source-selected
+        // descriptor. The parameter's annotation does not create that value.
+        typed_trees::types::TypeReferenceNode::Reference { .. }
+            if let Some(actual) = crate::values::reference_sources::transported_value_type(
+                program,
+                program.machine_by_symbol(machine)?,
+                program.state_by_symbol(state)?,
+                statement_index,
+                argument,
+            ) =>
+        {
+            validation::checked_argument_matches_type_reference(
+                program,
+                argument,
+                parameter.type_reference,
+            )
+            .then_some(())?;
+            (argument, actual)
+        }
         typed_trees::types::TypeReferenceNode::Reference {
             access: language_semantics::ReferenceAccess::Shared,
             ..

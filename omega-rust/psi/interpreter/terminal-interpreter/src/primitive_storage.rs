@@ -482,7 +482,10 @@ impl TerminalExecution<'_> {
             .rposition(|segment| *segment == StructuralPathSegment::Referent)
         {
             let access = if writing {
-                StructuralAccess::MutableBorrow
+                // A pure store needs no observation authority. Request the
+                // least access that performs it, so a write-only descriptor
+                // remains usable without being widened to mutable access.
+                StructuralAccess::WriteOnlyBorrow
             } else {
                 StructuralAccess::SharedBorrow
             };
@@ -528,7 +531,11 @@ impl TerminalExecution<'_> {
                     && let Some(loan) = &captured.primitive_loan
                 {
                     if captured.view != loan.referent
-                        || (writing && loan.access != StructuralAccess::MutableBorrow)
+                        || (writing
+                            && !matches!(
+                                loan.access,
+                                terminal_psi::exclusive_borrow_pair_pattern!()
+                            ))
                     {
                         return Err(malformed());
                     }

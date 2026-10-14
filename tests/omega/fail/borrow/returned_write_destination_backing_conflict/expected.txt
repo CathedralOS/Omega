@@ -1,0 +1,1 @@
+mutates `value` while local borrow `destination` is still active

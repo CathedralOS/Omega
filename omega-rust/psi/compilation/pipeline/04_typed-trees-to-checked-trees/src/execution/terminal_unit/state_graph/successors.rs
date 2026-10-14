@@ -522,7 +522,11 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         checked_trees::CheckedStructuralValueKind::Projection { .. }
                     )
             }) {
-                let multiplicity = if target.access == CheckedStructuralAccess::Owned {
+                let stored_reference = target.access != CheckedStructuralAccess::Owned
+                    && validation::reference_result_custody::stored_loan_parts(program, root.type_reference).is_some();
+                let multiplicity = if stored_reference {
+                    validation::reference_result_custody::result_multiplicity(program, root.type_reference)
+                } else if target.access == CheckedStructuralAccess::Owned {
                     if program.normalized_type_identity(root.type_reference)
                         != target.type_identity
                     {
@@ -624,9 +628,29 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 let result = checked_trees::CheckedUnitStructuralResultBindingPlan {
                     statement_index: ordinal,
                     binding_ordinal: u32::try_from(result_count).ok()?,
-                    type_identity: target.type_identity.clone(),
+                    type_identity: if stored_reference {
+                        shapes.add_reference_type(root.type_reference, &super::super::types::machine_binders(program, machine))?
+                    } else { target.type_identity.clone() },
                     multiplicity,
                     local: Default::default(),
+                };
+                let presentation = if stored_reference {
+                    let owner = facts::PlaceRoot::Expression(expression);
+                    calls::retained_reference_argument(
+                        program, machine.symbol, source, ordinal as usize,
+                        &validation::CanonicalPlace { root: owner, segments: Vec::new() },
+                        owner, root.type_reference, &result,
+                        target_parameters.get(target.position as usize)?, target.type_identity,
+                    )?
+                } else {
+                    CheckedUnitStructuralArgumentPlan {
+                        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal: result.binding_ordinal,
+                        },
+                        path: Vec::new(),
+                        type_identity: target.type_identity,
+                        access: target.access,
+                    }
                 };
                 let establishment = control::structural_operands::establish_value(
                     facts, result, root.root, calls, None, false, &mut operand_calls,
@@ -636,6 +660,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     source: checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
                         operands: checked_trees::CheckedOperandSequence::new(operand_calls),
                         establishment: Box::new(establishment),
+                        presentation,
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                 });

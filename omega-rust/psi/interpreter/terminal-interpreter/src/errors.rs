@@ -4,7 +4,7 @@
 use crate::effects::TerminalEffectRejection;
 use crate::results::TerminalCrash;
 use semantic_vocabulary::{
-    BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType, StructuralDomainId,
+    BlockId, BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType, StructuralDomainId,
     StructuralFieldId, StructuralTypeId, ValueId,
 };
 use terminal_fuel::FuelMeterError;
@@ -131,6 +131,11 @@ pub enum TerminalInterpretError {
     VerifiedBoundaryMachineMissing(BoundaryMachineId),
     VerifiedBlockMissing,
     VerifiedOperationMalformed,
+    VerifiedExecutionMalformed {
+        machine: MachineId,
+        block: BlockId,
+        operation: Option<OperationId>,
+    },
     VerifiedStructuralPlaceMissing(PlaceId),
     VerifiedValueMissing(ValueId),
     EffectRejected {

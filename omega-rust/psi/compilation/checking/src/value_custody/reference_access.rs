@@ -83,7 +83,16 @@ pub(crate) fn receiving_reference_access_refusal(
     let supplied_access = completed_borrow
         .as_ref()
         .map(|borrow| borrow.access)
-        .or_else(|| declared_call_reference_access(program, value));
+        .or_else(|| declared_call_reference_access(program, value))
+        .or_else(|| {
+            value_forwarded_exclusive_reference_access(
+                program,
+                machine,
+                state,
+                prior_statements,
+                value,
+            )
+        });
     if let Some(borrow) = &completed_borrow
         && borrow.access.is_exclusive()
         && let Some(refusal) = borrow_source_access_refusal(
@@ -97,7 +106,11 @@ pub(crate) fn receiving_reference_access_refusal(
     {
         return Some(refusal);
     }
+    // Attenuation must be explicit where a new write-only loan is formed.
+    // An ordinary call has already produced its declared loan; receiving that
+    // descriptor neither forms another borrow nor observes its referent.
     if expected_access == Some(ReferenceAccess::WriteOnly)
+        && supplied_access != Some(ReferenceAccess::WriteOnly)
         && !matches!(program.expression_table.expression(value),
             ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::WriteOnly)
     {
@@ -117,7 +130,6 @@ pub(crate) fn receiving_reference_access_refusal(
     }
     if expected_access == Some(ReferenceAccess::Mutable)
         && !matches!(supplied_access, Some(ReferenceAccess::Mutable))
-        && !value_forwards_mutable_reference(program, machine, state, prior_statements, value)
     {
         return Some(ReferenceAccessRefusal::MutableSourceRequired);
     }
@@ -241,13 +253,13 @@ fn declared_call_reference_access(
 /// An owned aggregate can carry an exclusive reference without a mutable local
 /// binding. Every enclosing reference still limits access: reading that same
 /// leaf through a shared aggregate cannot recover its exclusive permission.
-fn value_forwards_mutable_reference(
+fn value_forwarded_exclusive_reference_access(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: Option<&State>,
     prior_statements: &[typed_trees::statement::StatementNode],
     argument: ExpressionHandle,
-) -> bool {
+) -> Option<language_semantics::ReferenceAccess> {
     let Some((root, binding_type, _)) = source_place_root(
         program,
         current_machine,
@@ -255,9 +267,9 @@ fn value_forwards_mutable_reference(
         prior_statements,
         argument,
     ) else {
-        return false;
+        return None;
     };
-    crate::value_custody::expression_types::place_forwards_mutable_reference(
+    crate::value_custody::expression_types::place_forwarded_exclusive_reference_access(
         program,
         argument,
         root,

@@ -743,7 +743,16 @@ fn loan_source(
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
 ) -> LoanSource {
     match source {
-        CheckedStructuralControlTransferSourcePlan::EstablishedValue { establishment, .. } => {
+        CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+            establishment,
+            presentation,
+            ..
+        } => {
+            if !presentation.path.is_empty() {
+                // A descriptor crossing lends external backing, not this
+                // completed home's storage. Its carrier custody stays separate.
+                return LoanSource::Other;
+            }
             establishment
                 .structural_result_binding()
                 .map(|result| LoanSource::Completed(result.binding_ordinal))

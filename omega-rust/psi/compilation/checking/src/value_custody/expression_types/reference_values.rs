@@ -698,12 +698,12 @@ pub(super) fn declared_value_type(
 
 /// A known current-state root supplies identity, not a new loan. Intermediate
 /// reference permissions constrain forwarding independently of the leaf type.
-pub(crate) fn place_forwards_mutable_reference(
+pub(crate) fn place_forwarded_exclusive_reference_access(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     root: symbols::SymbolHandle,
     root_type: TypeReferenceHandle,
-) -> bool {
+) -> Option<ReferenceAccess> {
     let mut substitutions = Vec::new();
     let Some(selected) = selected_value_type(
         program,
@@ -712,21 +712,15 @@ pub(crate) fn place_forwards_mutable_reference(
         Some((root, root_type)),
         Some(ReferenceAccess::Mutable),
     ) else {
-        return false;
+        return None;
     };
     let Some(mut selected) = substituted_reference(program, selected, &substitutions) else {
-        return false;
+        return None;
     };
     selected = program
         .type_reference_table
         .unconstrained_type_reference(selected);
-    matches!(
-        program.type_reference_table.type_reference(selected),
-        TypeReferenceNode::Reference {
-            access: ReferenceAccess::Mutable,
-            ..
-        }
-    )
+    declared_reference_access(program, selected).filter(|access| access.is_exclusive())
 }
 
 pub(crate) fn declared_reference_access(

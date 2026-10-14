@@ -84,6 +84,7 @@ impl ScalarCallSite<'_> {
                     if let checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
                         operands,
                         establishment,
+                        ..
                     } = &transfer.source {
                         let dependencies = operands.iter()
                             .chain(std::iter::once(establishment.as_ref()))

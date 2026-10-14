@@ -7,6 +7,11 @@
 //! Observation checks the selected declaration and each traversed reference,
 //! not just bindings whose outermost type spells `&write`. A readable carrier
 //! can store a write-only descriptor without granting access to its referent.
+//! Receiving an already-produced write-only call result transports a descriptor.
+//! Only an exact write-only receiving type permits that non-observing use;
+//! ordinary value evaluation still diagnoses an implicit referent read. Calls,
+//! local initialization and returns share this boundary and validate the
+//! producer's receiver and operands even when its result is not observed.
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use language_semantics::{MachineSupplyMode, ReferenceAccess};
@@ -943,7 +948,7 @@ fn validate_statement<'p>(
                 .iter()
                 .enumerate()
             {
-                validate_call_argument(
+                validate_received_value(
                     program,
                     machine_definition,
                     state_definition,
@@ -954,11 +959,12 @@ fn validate_statement<'p>(
                 );
             }
         }
-        StatementNode::Expression(expression) => validate_expression(
+        StatementNode::Expression(expression) => validate_received_value(
             program,
             machine_definition,
             state_definition,
             *expression,
+            Some(state_definition.return_type),
             roots,
             diagnostics,
         ),
@@ -971,11 +977,12 @@ fn validate_statement<'p>(
                 roots,
                 diagnostics,
             ) => {}
-        StatementNode::LocalData(local) => validate_expression(
+        StatementNode::LocalData(local) => validate_received_value(
             program,
             machine_definition,
             state_definition,
             local.initial_value,
+            Some(local.type_reference),
             roots,
             diagnostics,
         ),
@@ -1217,9 +1224,15 @@ fn validate_transition_target(
                 diagnostics,
             );
         }
-        TransitionTargetNode::Value(value) => {
-            validate_expression(program, machine, state, *value, roots, diagnostics)
-        }
+        TransitionTargetNode::Value(value) => validate_received_value(
+            program,
+            machine,
+            state,
+            *value,
+            Some(state.return_type),
+            roots,
+            diagnostics,
+        ),
         TransitionTargetNode::Terminal => {}
     }
 }
@@ -1238,7 +1251,7 @@ fn validate_arguments_against_parameters(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (index, argument) in argument_handles.iter().enumerate() {
-        validate_call_argument(
+        validate_received_value(
             program,
             machine,
             state,
@@ -1261,15 +1274,47 @@ fn declared_state_parameters(
         .collect()
 }
 
-fn validate_call_argument(
+fn validate_received_value(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    declared_parameter: Option<TypeReferenceHandle>,
+    receiving_type: Option<TypeReferenceHandle>,
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // Every selected arm receives independently. The subject and patterns are
+    // observed normally; a reference-valued arm is descriptor transport only
+    // under its receiving declaration, never because another arm supplied it.
+    if receiving_type.is_some_and(|reference| {
+        crate::reference_shell(program, reference)
+            .is_some_and(|shell| shell.access == ReferenceAccess::WriteOnly)
+    }) && let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression)
+    {
+        validate_expression(
+            program,
+            machine,
+            state,
+            dispatch.subject,
+            roots,
+            diagnostics,
+        );
+        for arm in program.expression_table.match_arms(dispatch.arms) {
+            if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                validate_expression(program, machine, state, pattern, roots, diagnostics);
+            }
+            validate_received_value(
+                program,
+                machine,
+                state,
+                arm.value,
+                receiving_type,
+                roots,
+                diagnostics,
+            );
+        }
+        return;
+    }
     if let Some(borrow) = program.expression_table.borrow_expression(expression)
         && borrow.access == ReferenceAccess::WriteOnly
         && write_only_call_subloan(
@@ -1277,7 +1322,7 @@ fn validate_call_argument(
             machine,
             state,
             borrow.target,
-            declared_parameter,
+            receiving_type,
             roots,
             diagnostics,
         )
@@ -1288,7 +1333,75 @@ fn validate_call_argument(
         // may weaken, strengthen or substitute the original constraint atoms.
         return;
     }
+    if let Some(required) = receiving_type
+        && let Some(produced) = crate::value_custody::places::declared_place_type_raw(
+            program,
+            machine,
+            Some(state),
+            expression,
+        )
+        && let Some(required) = crate::reference_shell(program, required)
+        && let Some(produced) = crate::reference_shell(program, produced)
+        && required.access == ReferenceAccess::WriteOnly
+        && produced.access == ReferenceAccess::WriteOnly
+        && crate::value_custody::type_references::type_references_match(
+            program,
+            produced.referee,
+            required.referee,
+        )
+    {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Call(call) => {
+                validate_call_expression(program, machine, state, call, roots, diagnostics);
+                return;
+            }
+            ExpressionNode::Name(_) => return,
+            ExpressionNode::Member(member) => {
+                validate_expression(program, machine, state, member.receiver, roots, diagnostics);
+                return;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                validate_expression(
+                    program,
+                    machine,
+                    state,
+                    indexed.collection,
+                    roots,
+                    diagnostics,
+                );
+                validate_expression(program, machine, state, indexed.index, roots, diagnostics);
+                return;
+            }
+            _ => {}
+        }
+    }
     validate_expression(program, machine, state, expression, roots, diagnostics);
+}
+
+fn validate_call_expression(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    call: &typed_trees::expression::TableCallExpression,
+    roots: &[WriteOnlyRoot],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if call.receiver.is_valid() {
+        validate_expression(program, machine, state, call.receiver, roots, diagnostics);
+    }
+    let declared_parameters =
+        crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
+            .map(|(_, callee_state)| declared_state_parameters(program, callee_state))
+            .unwrap_or_default();
+    validate_arguments_against_parameters(
+        program,
+        machine,
+        state,
+        program.expression_table.expression_handles(call.arguments),
+        &declared_parameters,
+        roots,
+        diagnostics,
+    );
 }
 
 fn validate_expression(
@@ -1402,30 +1515,7 @@ fn validate_expression(
             validate_expression(program, machine, state, cast.value, roots, diagnostics)
         }
         ExpressionNode::Call(call) => {
-            if call.receiver.is_valid() {
-                validate_expression(program, machine, state, call.receiver, roots, diagnostics);
-            }
-            // Every expression-call argument is the same direct checked-call
-            // boundary a statement call presents; the shared borrow-fact
-            // collection makes no distinction, so the non-observing subloan
-            // gate applies uniformly. Only the receiver operand keeps its
-            // observing/non-observing split above. A receiver that names a
-            // declaration rather than a runtime place supplies `self` as the
-            // first argument — the same correspondence the value-position
-            // argument validator derives from `declared_place_type`.
-            let declared_parameters =
-                crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
-                    .map(|(_, callee_state)| declared_state_parameters(program, callee_state))
-                    .unwrap_or_default();
-            validate_arguments_against_parameters(
-                program,
-                machine,
-                state,
-                program.expression_table.expression_handles(call.arguments),
-                &declared_parameters,
-                roots,
-                diagnostics,
-            );
+            validate_call_expression(program, machine, state, call, roots, diagnostics);
         }
         ExpressionNode::Range(range) => {
             validate_expression(program, machine, state, range.start, roots, diagnostics);

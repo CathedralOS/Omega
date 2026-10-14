@@ -1,0 +1,5 @@
+machine relay(destination: &write i32, stamp: i32) -> &write i32 { &write destination }
+machine hidden(value: &write i32) {
+ let selected: &write i32 = relay(&write value, value);
+ selected = 42;
+}

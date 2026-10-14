@@ -197,7 +197,7 @@ impl StateGraphEmission<'_, '_> {
                 let mut completed_binding = None;
                 let mut captured_backing = None;
                 let place = match transfer.source {
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { ref operands, ref establishment } => {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { ref operands, ref establishment, ref presentation } => {
                             // The edge performs its ordinary establishment
                             // through the state's operation emitter, so the
                             // member calls run here, after selection, exactly
@@ -215,6 +215,14 @@ impl StateGraphEmission<'_, '_> {
                                     "Unit graph established argument has no result binding",
                                 );
                             };
+                            if presentation.type_identity != target_parameter.type_identity
+                                || presentation.access != target_parameter.access
+                                || !matches!(presentation.source,
+                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
+                                        if binding_ordinal == result.binding_ordinal)
+                            {
+                                return unsupported("Unit graph established endpoint differs from its receiving contract");
+                            }
                             let state_bindings = operations.structural_values.clone();
                             let selected_operations = operands.iter()
                                 .chain(std::iter::once(establishment.as_ref()))
@@ -238,16 +246,22 @@ impl StateGraphEmission<'_, '_> {
                             )
                             .and_then(|()| {
                                 case_emission::result(state, result.binding_ordinal, operations)
-                                    .map(|binding| {
+                                    .and_then(|binding| {
                                         let place = binding.place();
+                                        let suffix = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                                            identities, &presentation.path, binding.structural_type(),
+                                            &self.catalogs.structural_types, None,
+                                            &mut std::iter::empty(), None,
+                                        )?;
                                         // A completed move can name a subtree
                                         // of an existing owner. Its path is
                                         // part of the value, not an optional
                                         // hint: dropping it transfers the
                                         // containing record instead.
                                         argument_path = binding.path().to_vec();
+                                        argument_path.extend(suffix);
                                         completed_binding = Some(binding.into_owned());
-                                        place
+                                        Ok(place)
                                     })
                             });
                             operations.structural_values = state_bindings;
