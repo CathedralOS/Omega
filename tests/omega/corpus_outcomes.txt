@@ -1263,6 +1263,8 @@ fail/calls/recursive_terminal_postcondition_not_established rejected 1158ms expe
 	cannot prove ensures contract for exit from scan at statement 2: context.value == 0
 fail/calls/recursive_unit_zero_requires_rejected rejected 5111ms expected @5acf32321f42+wt
 	cannot prove requires contract for call recurse from main: 0 > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/result_overload_terminal_arm_unmatched_result rejected 1396ms expected @098b7c4bf0f0+wt
+	machine `bare` state `entry` terminal call to `walk` completes with its `Unit` result, but the state returns `i32`; a terminal machine call's normal result is its caller's result, so the two must match
 fail/calls/resultless_return_contract rejected 1349ms expected @a9ae30e1c334+wt
 	machine `WrongReturn::call` state `call` does not satisfy trait `Initializer` machine `call`: expected return `()`, got `u64`
 	machine `WrongReturn::call` state `call` does not satisfy trait `Initializer` machine `call`: conformance borrow contract: callable type does not preserve its region identity
@@ -4984,6 +4986,7 @@ pass/calls/qualified_record_call_result_field_exit checked 11150ms check-target:
 pass/calls/recursive_terminal_block_acknowledgement_exit checked 10144ms check-target:macos_arm64 @5acf32321f42+wt
 pass/calls/requires_carrier_ceiling_vacuous checked 11061ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/requires_operand_flip_discharge checked 11165ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/result_overload_terminal_arm_exit checked 7518ms check-target:macos_arm64 @098b7c4bf0f0+wt
 pass/calls/resultless_native_callback_compile checked 8098ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/calls/retained_receiver_argument_order_exit checked 10971ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 11203ms check-target:macos_arm64 @a9ae30e1c334+wt

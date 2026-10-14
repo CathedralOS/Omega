@@ -211,8 +211,18 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
         }
     }
 
+    let transition_updates = selected_transition_call_symbols(program, &mut diagnostics);
+
     if !diagnostics.is_empty() {
         return Err(diagnostics);
+    }
+    for (target, selected) in transition_updates {
+        let typed_trees::statement::TransitionTargetNode::Named { path, .. } =
+            program.statement_table.transition_target_mut(target)
+        else {
+            unreachable!("collected transition target changed shape");
+        };
+        path.symbol = selected;
     }
     for (handle, selected) in expression_updates {
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
@@ -314,6 +324,58 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
             });
     }
     Ok(())
+}
+
+/// A terminal arm naming a machine is a call whose normal result completes the
+/// enclosing machine (state_contracts.md, terminal calls in transition arms),
+/// so its expected result is the enclosing result. Resolution leaves a
+/// receiverless family name unbound when several overloads share it; select
+/// the member here by the same result-domain rule a value-position call uses.
+/// The selection names the owning machine, as a resolved machine target does,
+/// so a selected self-call stays the constant-stack backedge it spells.
+fn selected_transition_call_symbols(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<(typed_trees::statement::TransitionTargetHandle, SymbolHandle)> {
+    let mut updates = Vec::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let Some(transition) = statement.as_transition() else {
+                    continue;
+                };
+                for target in transition.targets() {
+                    let typed_trees::statement::TransitionTargetNode::Named {
+                        path,
+                        source_span,
+                        ..
+                    } = program.statement_table.transition_target(target)
+                    else {
+                        continue;
+                    };
+                    if path.symbol.is_valid() {
+                        continue;
+                    }
+                    let [name] = program.statement_table.name_path_members(path.members) else {
+                        continue;
+                    };
+                    let Some(entry) = named_machine_overload_family_symbol(
+                        program,
+                        name.as_str(),
+                        *source_span,
+                        state.return_type.is_valid().then_some(state.return_type),
+                        diagnostics,
+                    ) else {
+                        continue;
+                    };
+                    if let Some(owner) = program.machine_holding_state(entry) {
+                        updates.push((target, owner.symbol));
+                    }
+                }
+            }
+        }
+    }
+    updates
 }
 
 /// The boundary-operator overloads in `candidates` sharing

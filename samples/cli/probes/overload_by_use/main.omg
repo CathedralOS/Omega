@@ -4,9 +4,11 @@
 // selects the empty projection on every call site; a value call
 // selects the result-carrying sibling.
 //
-//   * `walk(3);` statement → Unit overload (which recurses
-//     receiverlessly `walk(n - 1);` — the same selection rule
-//     re-fires inside its own body).
+//   * `walk(3);` statement → Unit overload, which recurses through the
+//     terminal arm `-> walk(n - 1)`: an arm's call completes the
+//     enclosing Unit machine, so the same selection rule re-fires and
+//     picks the Unit sibling, a constant-stack backedge. (A statement
+//     `walk(n - 1);` is runtime recursion outside tail position.)
 //   * `let logged: i32 in Logged = walk(3);` — annotated value
 //     position selects the Logged overload (a bare `as` cast does
 //     NOT switch selection — it still binds the Unit sibling).
@@ -27,7 +29,9 @@ machine walk(n: i32) {
         _ -> done()
     }
     state descend(n: i32) {
-        walk(n - 1);
+        transition {
+            _ -> walk(n - 1)
+        }
     }
     state done() { }
 }

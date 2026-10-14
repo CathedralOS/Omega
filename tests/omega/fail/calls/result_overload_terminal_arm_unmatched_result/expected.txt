@@ -1,0 +1,1 @@
+terminal call to `walk` completes with its `Unit` result, but the state returns `i32`

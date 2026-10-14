@@ -442,6 +442,7 @@ pass/calls/projected_receiver_callee checked 9223ms @5041ef1af684+wt
 pass/calls/qualified_record_call_result_field_exit built 1818ms exit:70 @33d47d475b22+wt
 pass/calls/requires_carrier_ceiling_vacuous built 3069ms exit:70 @527c7c316c6f+wt
 pass/calls/requires_operand_flip_discharge built 3161ms exit:70 @527c7c316c6f+wt
+pass/calls/result_overload_terminal_arm_exit built 7867ms exit:0 @098b7c4bf0f0+wt
 pass/calls/resultless_native_callback_compile built 3475ms @9ae10c8a9412+wt
 pass/calls/retained_receiver_argument_order_exit built 915ms exit:70 @bd26d3a01ac1+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 568ms exit:70 @76bba5577e21+wt

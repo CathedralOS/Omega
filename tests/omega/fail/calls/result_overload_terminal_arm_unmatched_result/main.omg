@@ -1,0 +1,21 @@
+// A terminal arm's call completes the enclosing machine, so its overload
+// selection uses the enclosing result. A bare `i32` result has the empty
+// result-domain projection, which selects the Unit `walk`; a Unit call
+// cannot complete a machine owing an `i32`.
+domain i32::Logged;
+
+machine walk(n: i32) -> i32 in Logged {
+    n as i32 in Logged
+}
+
+machine walk(n: i32) { }
+
+machine bare(n: i32) -> i32 {
+    transition {
+        _ -> walk(n)
+    }
+}
+
+machine main() {
+    let value: i32 = bare(2);
+}

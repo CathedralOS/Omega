@@ -1,0 +1,54 @@
+// A terminal arm naming a machine is a call whose result completes the
+// enclosing machine, so a result-domain overload family selects its member
+// from the enclosing result: a Unit machine's arm selects the Unit sibling
+// (here the machine itself, a constant-stack backedge), and a machine
+// returning `i32 in Logged` selects the Logged sibling, from its entry state
+// or a later state.
+domain i32::Logged;
+
+machine walk(n: i32) -> i32 in Logged {
+    n as i32 in Logged
+}
+
+machine walk(n: i32) {
+    transition n > 0 {
+        true -> descend(n)
+        _ -> done()
+    }
+    state descend(n: i32) {
+        transition {
+            _ -> walk(n - 1)
+        }
+    }
+    state done() { }
+}
+
+machine relay(n: i32) -> i32 in Logged {
+    transition {
+        _ -> walk(n)
+    }
+}
+
+machine forward(n: i32) -> i32 in Logged {
+    transition n > 0 {
+        true -> positive(n)
+        _ -> walk(0)
+    }
+    state positive(n: i32) -> i32 in Logged {
+        transition {
+            _ -> walk(n)
+        }
+    }
+}
+
+machine main() crashes Trap {
+    walk(3);
+    let relayed: i32 in Logged = relay(4);
+    let forwarded: i32 in Logged = forward(5);
+    transition (relayed as i32) == 4 && (forwarded as i32) == 5 {
+        true -> passed()
+        _ -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}
