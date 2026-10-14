@@ -1,0 +1,1 @@
+cannot prove requires contract for call measure from main: 0 in u64::Distance

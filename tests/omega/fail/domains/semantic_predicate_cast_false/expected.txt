@@ -1,0 +1,1 @@
+cannot mint: a `Distance` domain fact is FALSE at this value

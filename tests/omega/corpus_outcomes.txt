@@ -2148,6 +2148,12 @@ fail/domains/scalar_alias_zero_requires_all_predicates rejected 5313ms expected 
 	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
 fail/domains/semantic_cast_fact_false rejected 2613ms expected @a9ae30e1c334+wt
 	`as ... in Km` cannot mint: a `Km` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
+fail/domains/semantic_predicate_cast_false rejected 286ms expected @896172b5d9d8+wt
+	`as ... in Distance` cannot mint: a `Distance` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
+fail/domains/semantic_predicate_domain_call_false rejected 1154ms expected @896172b5d9d8+wt
+	cannot prove requires contract for call measure from main: 0 in u64::Distance in state `entry`
+fail/domains/semantic_record_domain_call_false rejected 1254ms expected @896172b5d9d8+wt
+	cannot prove requires contract for call combine from main: Quantity in Quantity::Additive in state `entry`
 fail/domains/terminal_result_domain_incompatible_carrier rejected 523ms expected @8d3a0acb500a+wt
 	machine `missing` state `entry` local `__hoist_34` delivers a `f64` value to a `i32` local; a landed float retains its format, so changing format requires an explicit conversion
 	store in machine `missing` state `entry` local `__hoist_34` implicitly converts `f64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
@@ -7914,6 +7920,7 @@ run/domains/issued_owned_reinitialized_home checked 5390ms check-target:macos_ar
 run/domains/issued_owned_state_arrivals checked 5608ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/domains/issued_owned_temporary_observation checked 5609ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/domains/qualified_record_transfer checked 6006ms check-target:macos_arm64 @868a854ecd4d+wt
+run/domains/semantic_predicate_domain_admission checked 11814ms check-target:macos_arm64 @896172b5d9d8+wt
 run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:macos_arm64 @9c4d1c444502
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/ownership/temporary_case_observation checked 5301ms check-target:macos_arm64 @0e81fb3e4cce+wt

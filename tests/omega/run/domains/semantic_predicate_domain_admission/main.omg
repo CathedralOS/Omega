@@ -1,0 +1,61 @@
+// Expected exit: 0.
+// A domain that homes an operator carries a denotation role. That role
+// selects operator meaning through binding qualifications; it is not a
+// membership obligation. Proving the predicates therefore establishes the
+// membership a qualified parameter or an explicit `as` owes, exactly as for a
+// domain without an operator. The admissions below reach their callees from
+// a literal, a local, a requires-bounded parameter, a later state's
+// parameter, an explicit qualification, and a record literal and local whose
+// field satisfies the record predicate.
+pub domain u64::Distance(value) requires value > 0;
+
+pub operator + u64::Distance::add(left: u64 in u64::Distance, right: u64 in u64::Distance)
+    -> u64 in u64::Distance;
+
+pub domain u64::Km;
+
+pub operator + u64::Km::add(left: u64 in u64::Km, right: u64 in u64::Km) -> u64 in u64::Km;
+
+data Quantity [copy] { value: i32; }
+
+domain Quantity::Additive(quantity) requires quantity.value >= 0;
+
+machine + Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity
+requires right in Quantity::Additive
+{
+    Quantity { value: ((left.value as i32 in Wrapping) + (right.value as i32 in Wrapping)) as i32 }
+}
+
+machine measure(a: u64 in Distance, b: u64 in Distance) -> bool {
+    (a as u64) < (b as u64)
+}
+
+machine tag(a: u64 in Km) -> u64 { a as u64 }
+
+machine combine(a: Quantity, b: Quantity) -> bool
+requires a in Quantity::Additive, b in Quantity::Additive
+{
+    a.value < b.value
+}
+
+machine relay(x: u64) -> bool requires x > 0 { measure(x, 4) }
+
+machine main() crashes Trap {
+    let three: u64 = 3;
+    let literal: bool = measure(3, 4);
+    let local: bool = measure(three, 4);
+    let forwarded: bool = relay(3);
+    let qualified: bool = measure(3 as u64 in Distance, 4);
+    let tagged: u64 = tag(9 as u64 in Km);
+    let quantity: Quantity = Quantity { value: 3 };
+    let records: bool = combine(quantity, Quantity { value: 4 });
+    transition literal && local && forwarded && qualified && tagged == 9 && records {
+        true -> later(5)
+        false -> wrong()
+    }
+    state later(n: u64) {
+        transition measure(1, n) { true -> done() false -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

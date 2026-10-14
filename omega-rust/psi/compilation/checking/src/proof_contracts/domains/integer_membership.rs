@@ -4,7 +4,14 @@
 //! name. Each predicate uses its declaration's exact subject and closed index
 //! roster. Nested membership carries its original value term into the nested
 //! declaration's roster. Unknown propositions and recursion supply no evidence;
-//! routes and semantic roles cannot be minted by a numerical predicate proof.
+//! a route cannot be minted by a numerical predicate proof.
+//!
+//! A semantic role is not a membership obligation. Establishing membership
+//! "requires all carrier, predicate, and provenance obligations"
+//! ([domains](../../../../../../../wiki/spec/language/domains.md#refinement-and-executable-membership)),
+//! and a predicate qualification proves "the target predicates". The role an
+//! operator home contributes selects operator meaning through static binding
+//! qualifications only, which no fact this judgment supports can reach.
 
 use super::closed_integer_index_bindings;
 use crate::proof_contracts::contract_entailment::{
@@ -54,7 +61,6 @@ fn membership(
         return Unknown;
     };
     if !definition.establishment_routes.is_empty()
-        || definition.semantic_roles != Default::default()
         || !program
             .primitive_type_reference(definition.target_type)
             .is_some_and(|primitive| primitive.is_fixed_integer())

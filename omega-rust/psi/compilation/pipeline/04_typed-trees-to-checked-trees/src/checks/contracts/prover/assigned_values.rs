@@ -342,7 +342,10 @@ impl AssignedValues<'_> {
                 validation::StrictArithmeticImplicationJudgment::Unknown => {}
             }
         }
-        if !domain.establishment_routes.is_empty() || domain.semantic_roles != Default::default() {
+        // A route is an authorized origin no proof can replace. A semantic
+        // role is not a membership obligation: binding qualifications, not
+        // facts, select its operator meaning, so its predicates decide here.
+        if !domain.establishment_routes.is_empty() {
             return false;
         }
         let facts = self.program.proof_facts.span_or_empty(domain.facts);

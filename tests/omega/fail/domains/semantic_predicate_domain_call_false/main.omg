@@ -1,0 +1,13 @@
+// The operator home gives `Distance` a denotation role, but membership still
+// owes its predicate: a literal zero cannot be supplied where `value > 0` is
+// required.
+pub domain u64::Distance(value) requires value > 0;
+
+pub operator + u64::Distance::add(left: u64 in u64::Distance, right: u64 in u64::Distance)
+    -> u64 in u64::Distance;
+
+machine measure(a: u64 in Distance) -> bool { (a as u64) > 1 }
+
+machine main() -> bool {
+    transition { _ -> measure(0) }
+}
