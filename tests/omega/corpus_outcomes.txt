@@ -1452,6 +1452,8 @@ fail/capabilities/provider_widens_requirement_ceiling rejected 4446ms expected @
 	machine `sneaky` state `entry` does not satisfy trait `Meter` machine `read_value`: service `Filesystem` is not allowed by the trait requirement
 fail/capabilities/undeclared_synchronous_invocation rejected 1341ms expected @a9ae30e1c334+wt
 	machine `EventProvider::fire_checked` does not refine `EventSource::fire`: its body may synchronously invoke binding `Handler`, but the requirement omits `invokes Handler;` (requirement invokes: [])
+fail/capabilities/via_producer_without_target_body rejected 10865ms expected @9f9aac0513f8+wt
+	ordinary external `via` producer `beeper_binding` has no body for target `windows_x86_64`
 fail/collections/array_child_membership_requires_issuance rejected 1539ms expected @a9ae30e1c334+wt
 	cannot prove default-domain field requirement for call observe from literal::entry: parameter values[1].ticket requires Ticket::Issued
 	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
@@ -5636,8 +5638,7 @@ pass/capabilities/transitive_effect_inference checked 1785ms @a9ae30e1c334+wt
 pass/capabilities/uses_caller_folder checked 1656ms @a9ae30e1c334+wt
 pass/capabilities/win64_large_aggregate_result_import_compile checked 11112ms check-target:windows_x86_64 @a9ae30e1c334+wt
 pass/capabilities/win64_pointer_length_vs_descriptor_compile checked 5155ms check-target:macos_arm64 @9dd545defbc0
-pass/capabilities/windows_provides_import_exit rejected 1862ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @a9ae30e1c334+wt
-	ordinary external `via` evaluation failed: machine `beeper_binding` is not build-time admissible: machine call path `beeper_binding` has no ordinary checked `Terminates` guarantee; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+pass/capabilities/windows_provides_import_exit checked 15082ms check-target:windows_x86_64 @9f9aac0513f8+wt
 pass/cases/arm_field_placement checked 9857ms @5041ef1af684+wt
 pass/cases/arm_rename_waive checked 9506ms @5041ef1af684+wt
 pass/cases/arm_returns_mut_ref checked 9318ms @5041ef1af684+wt

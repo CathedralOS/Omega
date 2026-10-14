@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "via_producer_without_target_body");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+}

@@ -154,23 +154,41 @@ pub(crate) fn validate_external_via_expression(
         );
         return;
     };
-    let producer_leaf = producer
-        .name
-        .as_str()
-        .rsplit("::")
-        .next()
-        .unwrap_or_default();
-    let producer_entry = program
-        .machine_states(producer)
-        .iter()
-        .find(|candidate| candidate.name.as_str() == producer_leaf)
-        .or_else(|| program.machine_states(producer).first());
-    if !producer.body_is_present
-        || !producer.lifetime_parameters.is_empty()
-        || !program.machine_type_parameters(producer).is_empty()
-        || !program.state_parameters(state).is_empty()
-        || producer_entry.is_none_or(|entry| entry.symbol != state.symbol)
-    {
+    // A target-scoped producer resolves to its generated family interface,
+    // which carries no body of its own: every sibling body the family records
+    // is the producer on its target, and each must satisfy the rung, since
+    // Psi checks every target's body whichever target realization selects.
+    let bodies = if producer.target_family_interface {
+        crate::machine_calls::calls::target_family_members(program, producer)
+            .map(|members| {
+                members
+                    .iter()
+                    .filter_map(|member| program.machine(member.machine))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    } else {
+        vec![*producer]
+    };
+    let rung_holds = !bodies.is_empty()
+        && bodies.iter().all(|body| {
+            let entry = program.machine_states(body).first();
+            let entry_state = if std::ptr::eq(*body, *producer) {
+                Some(*state)
+            } else {
+                entry
+            };
+            body.body_is_present
+                && body.lifetime_parameters.is_empty()
+                && program.machine_type_parameters(body).is_empty()
+                && entry_state.is_some_and(|entry_state| {
+                    program.state_parameters(entry_state).is_empty()
+                        && producer_entry_state(program, body).is_some_and(|producer_entry| {
+                            producer_entry.symbol == entry_state.symbol
+                        })
+                })
+        });
+    if !rung_holds {
         diagnostics.push(
             Diagnostic::error(format!(
                 "external realization `{}` selects `via` producer `{}`, but the first evaluated-binding rung requires its body-bearing, non-generic, zero-parameter entry state",
@@ -179,6 +197,25 @@ pub(crate) fn validate_external_via_expression(
             .with_source_span(source_span),
         );
     }
+}
+
+/// The producer's entry state: the state named after the machine's leaf, or
+/// its first state when no state carries that name.
+fn producer_entry_state<'program>(
+    program: &'program dyn crate::CheckingInput,
+    producer: &Machine,
+) -> Option<&'program typed_trees::state::State> {
+    let leaf = producer
+        .name
+        .as_str()
+        .rsplit("::")
+        .next()
+        .unwrap_or_default();
+    program
+        .machine_states(producer)
+        .iter()
+        .find(|candidate| candidate.name.as_str() == leaf)
+        .or_else(|| program.machine_states(producer).first())
 }
 
 #[derive(Debug, Clone, Copy)]

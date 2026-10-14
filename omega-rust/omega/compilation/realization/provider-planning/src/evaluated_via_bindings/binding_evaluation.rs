@@ -75,6 +75,34 @@ pub(crate) fn evaluate_one(
             "ordinary external `via` target is not the producer entry state",
         ));
     }
+    // A target-scoped producer resolves to its family head, which has no
+    // body: the evaluated binding is the member body authored for the
+    // selected target, as every other realization of a family resolves it.
+    let producer = if producer.target_family_interface {
+        crate::target_machines::family_member_for_target(
+            typed,
+            producer.symbol,
+            target.target_name(),
+        )
+        .ok_or_else(|| {
+            at(
+                source_span,
+                format!(
+                    "ordinary external `via` producer `{}` has no body for target `{}`",
+                    producer.name,
+                    target.target_name()
+                ),
+            )
+        })?
+    } else {
+        *producer
+    };
+    let entry = typed.machine_states(producer).first().ok_or_else(|| {
+        at(
+            source_span,
+            "ordinary external `via` producer body has no entry state",
+        )
+    })?;
     let widths = binding_widths(typed, vocabulary.binding, entry.return_type)
         .map_err(|message| at(source_span, message))?;
     let custody = BuildTimeInvocationCustody::Source(source_span);

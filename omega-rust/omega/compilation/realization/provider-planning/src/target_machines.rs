@@ -193,7 +193,7 @@ fn realized_machine<'program>(
 /// The retained member body a family head stands for on one target, from
 /// Psi's explicit family catalog. `None` when the family has no body for
 /// that target: the head itself is never a realization.
-fn family_member_for_target<'program>(
+pub(crate) fn family_member_for_target<'program>(
     typed: &'program TypedTrees,
     head: symbols::SymbolHandle,
     target: &str,
