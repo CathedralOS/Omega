@@ -1,0 +1,9 @@
+// A routed domain owes exact provenance; a bare actual is not evidence, even
+// though the domain has no predicates.
+pub domain u64::Issued established by issue;
+machine issue(value: u64) -> u64 in u64::Issued { value }
+machine spend(a: u64 in Issued) -> u64 { a as u64 }
+machine relay(x: u64) -> u64 { spend(x) }
+machine main() -> u64 {
+    transition { _ -> relay(9) }
+}

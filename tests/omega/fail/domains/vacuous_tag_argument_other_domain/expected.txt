@@ -1,0 +1,1 @@
+implicit domain strengthening in argument `a` for state `entry` assumes `Km`

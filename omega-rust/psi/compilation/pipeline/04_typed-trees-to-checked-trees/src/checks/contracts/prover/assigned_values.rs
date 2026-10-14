@@ -350,7 +350,14 @@ impl AssignedValues<'_> {
         }
         let facts = self.program.proof_facts.span_or_empty(domain.facts);
         if facts.is_empty() {
-            return false;
+            // "A declaration with neither predicates nor routes adds no
+            // membership obligation" (domains.md, declaration and membership):
+            // every carrier value is a member, whatever is known about it.
+            return validation::field_domains::domain_is_vacuous(
+                self.program,
+                symbol,
+                &mut Vec::new(),
+            );
         }
         active.push(symbol);
         let proved = facts.iter().all(|fact| match fact {

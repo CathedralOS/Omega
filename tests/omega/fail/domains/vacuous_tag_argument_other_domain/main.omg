@@ -1,0 +1,9 @@
+// A bare value may arrive at a tagged formal, but a value already carrying
+// another semantic tag may not: `Miles` would be dropped and `Km` assumed.
+pub domain u64::Km;
+pub domain u64::Miles;
+machine tag(a: u64 in Km) -> u64 { a as u64 }
+machine main() -> u64 {
+    let miles: u64 in Miles = 3 as u64 in Miles;
+    transition { _ -> tag(miles) }
+}

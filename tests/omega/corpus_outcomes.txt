@@ -2189,6 +2189,8 @@ fail/domains/result_domain_overload_duplicate_predicate rejected 784ms expected 
 	machine `convert` state `entry` return value returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
 fail/domains/routed_domain_as_rejected rejected 902ms expected @a9ae30e1c334+wt
 	`as ... in Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/domains/routed_domain_bare_argument rejected 1275ms expected @2012446ad74a+wt
+	cannot prove requires contract for call spend from relay: x in u64::Issued in state `entry`
 fail/domains/scalar_alias_zero_requires_all_predicates rejected 5313ms expected @a9ae30e1c334+wt
 	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
 	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
@@ -2216,6 +2218,8 @@ fail/domains/terminal_result_predicate_unproved rejected 635ms expected @8d3a0ac
 	cannot prove initializer of `__hoist_14` in missing is in domain `i32::Positive`; an annotation cannot establish routed qualification
 fail/domains/unit_membership_postcondition_unestablished rejected 1497ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from Main::spoil at statement 1: main.raw in [u8; N]::Utf8
+fail/domains/vacuous_tag_argument_other_domain rejected 189ms expected @2012446ad74a+wt
+	implicit domain strengthening in argument `a` for state `entry` assumes `Km`; a qualification with no predicate or establishment route may be introduced only by an explicit `as` to the intended target
 fail/domains/view_field_store_literal_outside_domain rejected 1611ms expected @a9ae30e1c334+wt
 	cannot prove the value assigned to `main.name` in Main::main is in domain `[u8]::Utf8`; a place declared `in [u8]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/domains/view_local_qualified_store_unproven rejected 5197ms expected @a9ae30e1c334+wt
@@ -8086,6 +8090,7 @@ run/domains/qualified_record_transfer checked 6006ms check-target:macos_arm64 @8
 run/domains/semantic_predicate_domain_admission checked 11814ms check-target:macos_arm64 @896172b5d9d8+wt
 run/domains/structural_qualification_cast_values checked 11150ms check-target:macos_arm64 @0bb0340f378d+wt
 run/domains/structural_qualification_nested_values checked 11004ms check-target:macos_arm64 @73e466d6222f+wt
+run/domains/vacuous_tag_call_arguments checked 12451ms check-target:macos_arm64 @2012446ad74a+wt
 run/dyn_finite_family_correlated checked 49536ms check-target:linux_x86_64 @4730b1ac8a84
 run/dyn_finite_family_owned_carrier checked 34492ms check-target:linux_x86_64 @4730b1ac8a84
 run/dyn_finite_family_runtime_dispatch checked 12276ms check-target:macos_arm64 @55ccf9be57c4

@@ -506,10 +506,25 @@ impl Expansion<'_> {
         if scalar_ordinal != scalars.len() || structural_ordinal != structural.len() {
             return unsupported("computed call formal roster is incomplete");
         }
+        // A direct callee's scalar formals as its body receives them. A formal
+        // may carry a predicate-free, route-free tag the actual lacks: such a
+        // tag "adds no membership obligation" (domains.md, declaration and
+        // membership), so checking admitted the call, and the actual arrives
+        // through a qualification edge exactly as an explicit `as` would.
+        let arrival_types = match callee.static_target() {
+            Some(_) if !signature.boundary => Some(
+                self.qualifications
+                    .scalar_state_types(self.checked, target_state)?
+                    .0,
+            ),
+            _ => None,
+        };
         let mut prefixes = vec![input_types.to_vec()];
         let mut scalar_actuals = Vec::new();
+        let mut arrivals = Vec::with_capacity(operands.len());
         let mut selector_actual = None;
         for operand in &operands {
+            let mut arrival = None;
             let mut prefix = prefixes
                 .last()
                 .ok_or(LoweringError::Unsupported(
@@ -519,8 +534,19 @@ impl Expansion<'_> {
             match operand {
                 Operand::Scalar(argument) => {
                     let value_type = self.argument_type(identities, argument, site, input_types)?;
-                    scalar_actuals.push(parameter(prefix.len(), value_type));
-                    prefix.push(value_type);
+                    // Only membership may change on arrival; a carrier
+                    // disagreement stays for the call binding to refuse.
+                    let arrival_type = arrival_types
+                        .as_ref()
+                        .and_then(|types| types.get(scalar_actuals.len()))
+                        .copied()
+                        .filter(|arrival_type| arrival_type.scalar_type == value_type.scalar_type)
+                        .unwrap_or(value_type);
+                    if arrival_type != value_type {
+                        arrival = Some(value_type);
+                    }
+                    scalar_actuals.push(parameter(prefix.len(), arrival_type));
+                    prefix.push(arrival_type);
                 }
                 Operand::Snapshot(argument) => {
                     prefix.push(self.argument_type(identities, argument, site, input_types)?);
@@ -541,6 +567,7 @@ impl Expansion<'_> {
                 }
                 _ => {}
             }
+            arrivals.push(arrival);
             prefixes.push(prefix);
         }
         let call_types = prefixes.last().ok_or(LoweringError::Unsupported(
@@ -759,8 +786,16 @@ impl Expansion<'_> {
                         }),
                 );
             continuation = match operand {
-                Operand::Scalar(argument)
-                | Operand::Snapshot(argument)
+                Operand::Scalar(argument) => {
+                    let arrival = match arrivals[ordinal] {
+                        Some(value_type) => {
+                            self.qualification_edge(prefix, value_type, continuation)
+                        }
+                        None => continuation,
+                    };
+                    self.argument(identities, argument, prefix, arrival, site, active)?
+                }
+                Operand::Snapshot(argument)
                 | Operand::DispatchSelector(argument)
                 | Operand::Selector {
                     value: argument, ..

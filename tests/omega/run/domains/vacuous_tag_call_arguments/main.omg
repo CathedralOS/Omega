@@ -1,0 +1,53 @@
+// Expected exit: 0.
+// A predicate-free, route-free domain "adds no membership obligation"
+// (domains.md, declaration and membership), and a parameter `a: u64 in Km`
+// is an implicit `requires a in Km` for call admission. A bare actual
+// therefore reaches a tagged formal, and arrives as a fresh value carrying
+// the tag. Each call below supplies the actual through a different route: a
+// literal, a local, a field, a call result, a forwarded parameter, a
+// position beside an untagged formal, an operator-homing domain, a guard
+// operand, and a later state's parameter.
+pub domain u64::Km;
+
+pub domain u64::Metres;
+
+pub operator + u64::Metres::add(left: u64 in u64::Metres, right: u64 in u64::Metres)
+    -> u64 in u64::Metres;
+
+data Leg [copy] { length: u64; }
+
+machine tag(a: u64 in Km) -> u64 { a as u64 }
+
+machine metres(a: u64 in Metres) -> u64 { a as u64 }
+
+machine pair(a: u64 in Km, b: u64, c: u64 in Km) -> bool {
+    (a as u64) == 1 && b == 2 && (c as u64) == 2
+}
+
+machine identity(x: u64) -> u64 { x }
+
+machine forward(x: u64) -> u64 { tag(x) }
+
+machine main() crashes Trap {
+    let leg: Leg = Leg { length: 4 };
+    let plain: u64 = 2;
+    let declared: u64 in Km = 3;
+    let literal: u64 = tag(9);
+    let local: u64 = tag(plain);
+    let annotated: u64 = tag(declared);
+    let field: u64 = tag(leg.length);
+    let result: u64 = tag(identity(5));
+    let forwarded: u64 = forward(6);
+    let mixed: bool = pair(1, 2, plain);
+    let role: u64 = metres(7);
+    transition literal == 9 && local == 2 && annotated == 3 && field == 4 && result == 5
+        && forwarded == 6 && mixed && role == 7 && tag(3) == 3 {
+        true -> later(8)
+        false -> wrong()
+    }
+    state later(n: u64) {
+        transition tag(n) == 8 { true -> done() false -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

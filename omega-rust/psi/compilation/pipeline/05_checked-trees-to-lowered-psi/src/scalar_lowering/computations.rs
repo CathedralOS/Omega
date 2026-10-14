@@ -389,6 +389,35 @@ impl<'a> Expansion<'a> {
         )
     }
 
+    /// One no-code edge that forwards `input_types` unchanged and hands its
+    /// final value, carried at `value_type`, to `target` as a fresh value of
+    /// the type `target` declares there. Emission records the edge as an
+    /// introduction or erasure of membership and refuses anything else.
+    pub(crate) fn qualification_edge(
+        &mut self,
+        input_types: &[QualifiedScalarType],
+        value_type: QualifiedScalarType,
+        target: usize,
+    ) -> usize {
+        let mut value_types = input_types.to_vec();
+        value_types.push(value_type);
+        self.push(LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
+            parameter_types: value_types.clone(),
+            erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            bindings: Vec::new(),
+            structural_effects: Vec::new(),
+            terminator: LoweredScalarBranchTerminator::Qualify {
+                target,
+                arguments: parameters(&value_types),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+            },
+        })
+    }
+
     pub(crate) fn push(&mut self, mut state: LoweredScalarBranchState) -> usize {
         let index = self.base + self.states.len();
         state.erased_proof_formals = self.erased_proof_formals.clone();
@@ -630,25 +659,9 @@ impl<'a> Expansion<'a> {
                 if operand_type == result_type {
                     self.argument(identities, &operand, input_types, target, site, active)?
                 } else {
-                    let mut operand_types = input_types.to_vec();
-                    operand_types.push(operand_type);
                     // The target was prepared with the full result type. Only
                     // this edge establishes it, leaving the operand unchanged.
-                    let qualify = self.push(LoweredScalarBranchState {
-                        structural_parameters: Vec::new(),
-                        parameter_types: operand_types.clone(),
-                        erased_formal_types: Vec::new(),
-                        erased_proof_formals: Vec::new(),
-                        bindings: Vec::new(),
-                        structural_effects: Vec::new(),
-                        terminator: LoweredScalarBranchTerminator::Qualify {
-                            target,
-                            arguments: parameters(&operand_types),
-                            erased_arguments: Vec::new(),
-                            erased_proof_arguments: Vec::new(),
-                            structural_arguments: Vec::new(),
-                        },
-                    });
+                    let qualify = self.qualification_edge(input_types, operand_type, target);
                     self.argument(identities, &operand, input_types, qualify, site, active)?
                 }
             }
@@ -678,26 +691,10 @@ impl<'a> Expansion<'a> {
                 let conversion_target = if result_type.qualifications.is_empty() {
                     target
                 } else {
-                    let mut converted_types = input_types.to_vec();
-                    converted_types.push(result_type.scalar_type.into());
                     // Carrier conversion binds the unchanged payload first.
                     // The authored qualification has its own edge, just as
                     // a representation-identical Qualification node does.
-                    self.push(LoweredScalarBranchState {
-                        structural_parameters: Vec::new(),
-                        parameter_types: converted_types.clone(),
-                        erased_formal_types: Vec::new(),
-                        erased_proof_formals: Vec::new(),
-                        bindings: Vec::new(),
-                        structural_effects: Vec::new(),
-                        terminator: LoweredScalarBranchTerminator::Qualify {
-                            target,
-                            arguments: parameters(&converted_types),
-                            erased_arguments: Vec::new(),
-                            erased_proof_arguments: Vec::new(),
-                            structural_arguments: Vec::new(),
-                        },
-                    })
+                    self.qualification_edge(input_types, result_type.scalar_type.into(), target)
                 };
                 let bound = self.binding(
                     &operand_types,
@@ -708,23 +705,7 @@ impl<'a> Expansion<'a> {
                 let bound = if operand_type.qualifications.is_empty() {
                     bound
                 } else {
-                    let mut qualified_types = input_types.to_vec();
-                    qualified_types.push(operand_type);
-                    self.push(LoweredScalarBranchState {
-                        structural_parameters: Vec::new(),
-                        parameter_types: qualified_types.clone(),
-                        erased_formal_types: Vec::new(),
-                        erased_proof_formals: Vec::new(),
-                        bindings: Vec::new(),
-                        structural_effects: Vec::new(),
-                        terminator: LoweredScalarBranchTerminator::Qualify {
-                            target: bound,
-                            arguments: parameters(&qualified_types),
-                            erased_arguments: Vec::new(),
-                            erased_proof_arguments: Vec::new(),
-                            structural_arguments: Vec::new(),
-                        },
-                    })
+                    self.qualification_edge(input_types, operand_type, bound)
                 };
                 self.argument(identities, &operand, input_types, bound, site, active)?
             }

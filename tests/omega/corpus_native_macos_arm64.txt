@@ -2424,6 +2424,7 @@ run/contained_health_loop_command_branch checked 192ms
 run/domains/qualified_record_transfer built 6237ms exit:0 @868a854ecd4d+wt
 run/domains/semantic_predicate_domain_admission built 11653ms exit:0 @896172b5d9d8+wt
 run/domains/structural_qualification_cast_values built 11442ms exit:0 @0bb0340f378d+wt
+run/domains/vacuous_tag_call_arguments built 12513ms exit:0 @2012446ad74a+wt
 run/dyn_finite_family_runtime_dispatch built 10116ms exit:70 @55ccf9be57c4
 run/nested_mut_alias_assignment_return built 944ms exit:0 stdout:match @874bbd295e3e+wt
 run/stores/runtime_float_indexed_call_result_exit built 9716ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
