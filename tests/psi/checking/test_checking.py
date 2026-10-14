@@ -1514,6 +1514,27 @@ def main() -> None:
     # A layout query is known only by its `u64` type
     # (wiki/spec/language/counts_and_addresses.md).
     accepted(program, "a-layout-query-is-a-u64-value", b"data Pair { a: u64; b: u8; }\nmachine f() -> u64 { size_of<Pair>() }\nmachine g() -> u64 { align_of<Pair>() }")
+    # A holder replaced through an exclusive reference, or by a call lending
+    # it `&write`, retires its old loans and holds the replacement's
+    # (wiki/spec/language/ownership.md#borrows-and-aliases); a call lending
+    # it `&mut` keeps them.
+    holders = (
+        b"data Cell { value: i64; }\ndata Held { target: &Cell; stamp: i64; }\ndata Main { left: Cell; right: Cell; }\n"
+        b"machine replace(held: &write Held, incoming: Held) { held = incoming; }\n"
+        b"machine touch(held: &mut Held) {}\n"
+        b"machine f(main: &mut Main) {\n    let mut held: Held = Held { target: &main.left, stamp: 17 };\n"
+        b"    let incoming: Held = Held { target: &main.right, stamp: 23 };\n    REPLACE\n    main.left.value = 29;\n"
+        b"    let observed: i64 = held.target.value;\n}"
+    )
+    accepted(program, "a-holder-replaced-through-a-reference-retires-its-loans", holders.replace(b"REPLACE", b"let slot: &mut Held = &mut held;\n    slot = incoming;"))
+    accepted(program, "a-write-only-call-replaces-a-holder's-loans", holders.replace(b"REPLACE", b"replace(&write held, incoming);"))
+    rejected(
+        program,
+        "an-exclusive-call-keeps-a-holder's-loans",
+        holders.replace(b"REPLACE", b"touch(&mut held);"),
+        "LoanConflict",
+        b"main.left.value",
+    )
     # A declared measure ranks its subject by its body, or lexicographically
     # by the subject's named fields (wiki/spec/language/termination.md#ranking).
     measured = (

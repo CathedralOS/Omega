@@ -2,6 +2,7 @@ use psi::checking::checker;
 use psi::checking::holds;
 use psi::checking::owned_places;
 use psi::checking::ownership;
+use psi::checking::places;
 use psi::checks::checks;
 use psi::resolution::resolution;
 use psi::syntax::syntax;
@@ -434,15 +435,41 @@ crashes Trap
     let type_handle: u64 in Trapping = Typing::expression_type(typing, statement.target);
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
     let through: bool = row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared;
-    transition checker.output.machine_accepted && target.kind == ExpressionKind::Name && !through {
-        true -> binding(checker, syntax, resolution, typing, statement)
+    transition checker.output.machine_accepted && target.kind == ExpressionKind::Name {
+        true -> binding(checker, syntax, resolution, typing, statement, through)
         _ -> done()
     }
 
-    state binding(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) -> u64 in Trapping {
+    // Assigning through an exclusive reference local replaces its referent;
+    // where that referent is a local, the referent is the holder replaced.
+    state binding(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, through: bool) -> u64 in Trapping {
         let binding: ValueBinding = NameResolution::value_binding(resolution, statement.target);
         transition binding {
-            ValueBinding::Local { statement as declaration } -> capture(checker, syntax, resolution, typing, statement, declaration)
+            ValueBinding::Local { statement as declaration } -> holder(checker, syntax, resolution, typing, statement, declaration, through)
+            _ -> done()
+        }
+    }
+
+    state holder(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, declaration: u64 in Trapping, through: bool) -> u64 in Trapping {
+        transition through {
+            true -> referent(checker, syntax, resolution, typing, statement, declaration)
+            _ -> capture(checker, syntax, resolution, typing, statement, declaration)
+        }
+    }
+
+    state referent(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, declaration: u64 in Trapping) -> u64 in Trapping {
+        let place: u64 in Trapping = Checker::find_place(checker, PlaceKind::Local, declaration, 0);
+        let origin: u64 in Trapping = Checker::local_origin(checker, place);
+        transition origin > 0 {
+            true -> origin_holder(checker, syntax, resolution, typing, statement, origin)
+            _ -> done()
+        }
+    }
+
+    state origin_holder(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, origin: u64 in Trapping) -> u64 in Trapping {
+        let entry: Place = Checker::place_at(checker, origin - 1);
+        transition entry.kind == PlaceKind::Local {
+            true -> capture(checker, syntax, resolution, typing, statement, entry.handle)
             _ -> done()
         }
     }
@@ -455,6 +482,149 @@ crashes Trap
     state done() -> u64 in Trapping {
         0
     }
+}
+
+// The origin a reference local captured (references.omg), zero when none.
+machine Checker::local_origin(checker: &Checker, place: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition place > 0 && place <= 256 {
+        true -> captured(checker, place - 1)
+        _ -> none()
+    }
+
+    state captured(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
+    requires index < 256
+    {
+        checker.reference_origins[index] as u64 in Trapping
+    }
+
+    state none() -> u64 in Trapping {
+        0
+    }
+}
+
+// A call lending a local `&write` replaces that local's whole value
+// without observing it (wiki/spec/language/ownership.md#borrows-and-aliases):
+// its old loans retire, and it holds whatever the call's other arguments
+// lend, as a value a call returns may. Entered at the call after its
+// arguments were walked.
+pub machine Checker::replace_lent_holders(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping)
+crashes Trap
+{
+    let expression: Expression = SyntaxTrees::expression(syntax, handle);
+    transition expression.kind == ExpressionKind::Call && checker.output.machine_accepted {
+        true -> argument(checker, syntax, resolution, typing, expression, 0)
+        _ -> done()
+    }
+
+    state argument(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, offset: u64 in Trapping) {
+        transition offset < expression.count {
+            true -> lent(checker, syntax, resolution, typing, expression, offset)
+            _ -> done()
+        }
+    }
+
+    state lent(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, offset: u64 in Trapping) {
+        let node: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + offset);
+        let written: Expression = SyntaxTrees::expression(syntax, node);
+        let operand: Expression = SyntaxTrees::expression(syntax, written.left);
+        let write_only: bool = written.kind == ExpressionKind::Unary && written.operator == OperatorKind::BorrowWrite
+            && operand.kind == ExpressionKind::Name;
+        transition write_only {
+            true -> local(checker, syntax, resolution, typing, expression, offset, written.left)
+            _ -> argument(checker, syntax, resolution, typing, expression, offset + 1)
+        }
+    }
+
+    state local(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, offset: u64 in Trapping, name: u64 in Trapping) {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, name);
+        transition binding {
+            ValueBinding::Local { statement as declaration } -> replaced(checker, syntax, resolution, typing, expression, offset, declaration * 4 + 1)
+            _ -> argument(checker, syntax, resolution, typing, expression, offset + 1)
+        }
+    }
+
+    state replaced(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, offset: u64 in Trapping, holder: u64 in Trapping) {
+        let previous_count: u64 = checker.ownership.loan_count;
+        Checker::lend_arguments(checker, syntax, resolution, typing, expression, offset, holder, 0);
+        Ownership::replace_loan_holder(&mut checker.ownership, holder, previous_count);
+        transition { _ -> argument(checker, syntax, resolution, typing, expression, offset + 1) }
+    }
+
+    state done() {}
+}
+
+// Every argument of `expression` but the one at `skip` lends into `holder`.
+machine Checker::lend_arguments(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, skip: u64 in Trapping, holder: u64 in Trapping, offset: u64 in Trapping)
+crashes Trap
+{
+    transition offset < expression.count && checker.output.machine_accepted {
+        true -> next(checker, syntax, resolution, typing, expression, skip, holder, offset)
+        _ -> done()
+    }
+
+    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, skip: u64 in Trapping, holder: u64 in Trapping, offset: u64 in Trapping) {
+        let node: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + offset);
+        transition offset == skip {
+            true -> lend_arguments_next(checker, syntax, resolution, typing, expression, skip, holder, offset)
+            _ -> lending(checker, syntax, resolution, typing, expression, skip, holder, offset, node)
+        }
+    }
+
+    state lending(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, skip: u64 in Trapping, holder: u64 in Trapping, offset: u64 in Trapping, node: u64 in Trapping) {
+        Checker::lend_into(checker, syntax, resolution, typing, holder, node);
+        transition { _ -> lend_arguments_next(checker, syntax, resolution, typing, expression, skip, holder, offset) }
+    }
+
+    state lend_arguments_next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, skip: u64 in Trapping, holder: u64 in Trapping, offset: u64 in Trapping) {
+        transition offset + 1 < expression.count && checker.output.machine_accepted {
+            true -> next(checker, syntax, resolution, typing, expression, skip, holder, offset + 1)
+            _ -> done()
+        }
+    }
+
+    state done() {}
+}
+
+// One node lends into `holder` what it lends: its carried loans, or the
+// place it borrows or passes on.
+machine Checker::lend_into(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, holder: u64 in Trapping, handle: u64 in Trapping)
+crashes Trap
+{
+    let copied: bool = Checker::copy_carrier_loans(checker, syntax, resolution, typing, handle, holder);
+    transition copied {
+        true -> done()
+        _ -> borrowed(checker, syntax, resolution, typing, holder, handle)
+    }
+
+    state borrowed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, holder: u64 in Trapping, handle: u64 in Trapping) {
+        let hold: Hold = Checker::lent_place(checker, syntax, typing, handle);
+        transition hold {
+            Hold::Shared { place } -> lend(checker, syntax, resolution, typing, holder, handle, place, false)
+            Hold::Exclusive { place } -> lend(checker, syntax, resolution, typing, holder, handle, place, true)
+            _ -> done()
+        }
+    }
+
+    state lend(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, holder: u64 in Trapping, handle: u64 in Trapping, place: u64 in Trapping, exclusive: bool) {
+        let owner: u64 in Trapping = Checker::place_root(syntax, resolution, typing, place);
+        let owned: bool = Checker::lends_owned(syntax, handle, owner);
+        let kept: bool = Ownership::add_loan(&mut checker.ownership, holder, place, exclusive, owned);
+        let lender: u64 in Trapping = Checker::path_root(syntax, resolution, typing, place, true);
+        Ownership::extend_uses(&mut checker.ownership, lender, holder);
+        transition kept {
+            true -> done()
+            _ -> full(checker, syntax, handle)
+        }
+    }
+
+    state full(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping) {
+        let expression: Expression = SyntaxTrees::expression(syntax, handle);
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
+    }
+
+    state done() {}
 }
 
 // Retire only the old carrier's loans, keeping the replacement captured after

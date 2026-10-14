@@ -612,6 +612,7 @@ crashes Trap
     state visit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, handle: u64 in Trapping) {
         Checker::own_match_events(checker, syntax, resolution, typing, handle);
         Checker::own_node(checker, syntax, resolution, typing, handle);
+        Checker::replace_lent_holders(checker, syntax, resolution, typing, handle);
         Checker::check_holds(checker, syntax, resolution, typing, handle);
         Checker::close_owned_match(checker, syntax, resolution, typing, handle);
         transition { _ -> node(checker, syntax, resolution, typing, root, handle + 1) }
