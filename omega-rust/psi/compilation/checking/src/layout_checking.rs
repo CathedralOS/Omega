@@ -7,6 +7,8 @@
 
 use crate::{CheckingInput, CheckingMemos, PreparedEffectPlans};
 use language_semantics::declaration_selection::AuthoredDeclarationSelections;
+use std::sync::Arc;
+use typed_trees::proof_only::ProofOnlyClassification;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{PlanLaidLayout, PlanLaidRealizations, TypedTrees};
 
@@ -36,6 +38,11 @@ impl CheckingInput for LayoutCheckingContext<'_> {
     // representation judgments even though the semantic source is unchanged.
     fn checking_memos(&self) -> Option<&CheckingMemos> {
         None
+    }
+    fn proof_only_classification(&self) -> Arc<ProofOnlyClassification> {
+        // Containment and erasure are fixed by the typed program, not this
+        // geometry guard. Share only this query, never the guarded memos.
+        self.input.proof_only_classification()
     }
     fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
         self.input.prepared_effect_plans()

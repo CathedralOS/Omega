@@ -63,6 +63,17 @@ pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
     #[doc(hidden)]
     fn checking_memos(&self) -> Option<&CheckingMemos>;
 
+    /// Structural classification observes only these immutable typed trees,
+    /// unlike geometry-sensitive checking memos. Layout views can share this
+    /// query without sharing judgments for another target's representation.
+    fn proof_only_classification(&self) -> Arc<ProofOnlyClassification> {
+        let compute = || Arc::new(typed_trees::proof_only::classify(self.typed_program()));
+        match self.checking_memos() {
+            Some(memos) => memos.proof_only.get_or_init(compute).clone(),
+            None => compute(),
+        }
+    }
+
     /// Program-fixed call-frame symbol tables shared by every resolver over
     /// this input. Inputs without invocation state supply none, and each
     /// resolver builds its own.
@@ -344,6 +355,13 @@ impl Deref for CheckingProjection<'_> {
 }
 
 impl CheckingInput for CheckingProjection<'_> {
+    fn proof_only_classification(&self) -> Arc<ProofOnlyClassification> {
+        match &self.projected {
+            Some(projected) => projected.proof_only_classification(),
+            None => self.original.proof_only_classification(),
+        }
+    }
+
     fn layout_target(&self) -> Option<&str> {
         self.original.layout_target()
     }
@@ -503,9 +521,5 @@ pub(crate) fn frozen_memo<T>(
 
 /// Proof-only classification, shared by consumers of this checking context.
 pub fn proof_only_classification(program: &dyn CheckingInput) -> Arc<ProofOnlyClassification> {
-    frozen_memo(
-        program,
-        |memos| &memos.proof_only,
-        || typed_trees::proof_only::classify(program),
-    )
+    program.proof_only_classification()
 }
