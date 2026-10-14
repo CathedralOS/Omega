@@ -308,7 +308,7 @@ fn retire_replaced_carrier_loans(
                 !effect.retains_incoming
                     && loan.storage_owner
                         == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
-                    && super::loans::place_path_matches_owner_prefix(
+                    && super::loans::place_path_covers_owner(
                         program,
                         &effect.destination.local_segments,
                         &loan.owner_path,

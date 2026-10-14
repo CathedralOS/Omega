@@ -261,7 +261,7 @@ pub(in crate::machine_calls::calls::write_frames) fn project_stored_origins(
     }
     for prior in &established.references {
         if !prefix_matches(segments, &prior.local_segments)
-            || reference_is_shadowed(established, &prior.local_segments, segments)
+            || reference_is_shadowed(established, prior, segments)
         {
             continue;
         }
@@ -306,6 +306,10 @@ pub(in crate::machine_calls::calls::write_frames) fn project_stored_origins(
         }
         leaves.references.push(ReferenceLeaf {
             local_suffix,
+            may_select: prior.may_select
+                && local_segments
+                    .iter()
+                    .any(|segment| matches!(segment, PlaceSegment::Index { .. })),
             local_segments,
             origin,
         });
@@ -397,9 +401,15 @@ pub(in crate::machine_calls::calls::write_frames) fn path_covers(
 /// not permission to revive an overwritten incoming descriptor.
 pub(super) fn reference_is_shadowed(
     record: &StoredLocalOrigins,
-    path: &[PlaceSegment],
+    leaf: &super::StoredWriteOrigin,
     selected: &[PlaceSegment],
 ) -> bool {
+    // Weak writes are possible contents, not fallback contents. A fixed write
+    // cannot erase a transfer possibly held elsewhere in the same collection.
+    if leaf.may_select {
+        return false;
+    }
+    let path = &leaf.local_segments;
     let mut projected = path.to_vec();
     for (segment, selected) in projected.iter_mut().zip(selected) {
         if matches!(segment, PlaceSegment::Index { expression } if !expression.is_valid()) {
@@ -407,7 +417,8 @@ pub(super) fn reference_is_shadowed(
         }
     }
     record.references.iter().any(|candidate| {
-        candidate.local_segments.len() <= path.len()
+        !candidate.may_select
+            && candidate.local_segments.len() <= path.len()
             && candidate.local_segments != path[..candidate.local_segments.len()]
             && path_covers(
                 &path[..candidate.local_segments.len()],
@@ -424,11 +435,31 @@ pub(in crate::machine_calls::calls::write_frames) fn slot_origins(
     record: &StoredLocalOrigins,
     selected: &[PlaceSegment],
 ) -> Option<Vec<super::FramePlaceOrigin>> {
+    selected_slot_origins(record, selected, None)
+}
+
+/// Summaries publish each possible residence once, independently of exact
+/// inventory overlays. Expanding it into every concrete slot would duplicate
+/// the transferred exclusive permission.
+pub(in crate::machine_calls::calls::write_frames) fn summarized_slot_origins(
+    record: &StoredLocalOrigins,
+    selected: &[PlaceSegment],
+    may_select: bool,
+) -> Option<Vec<super::FramePlaceOrigin>> {
+    selected_slot_origins(record, selected, Some(may_select))
+}
+
+fn selected_slot_origins(
+    record: &StoredLocalOrigins,
+    selected: &[PlaceSegment],
+    may_select: Option<bool>,
+) -> Option<Vec<super::FramePlaceOrigin>> {
     let mut origins = Vec::new();
     for leaf in &record.references {
-        if leaf.local_segments.len() != selected.len()
+        if may_select.is_some_and(|selected| selected != leaf.may_select)
+            || leaf.local_segments.len() != selected.len()
             || !path_covers(&leaf.local_segments, selected)
-            || reference_is_shadowed(record, &leaf.local_segments, selected)
+            || reference_is_shadowed(record, leaf, selected)
         {
             continue;
         }

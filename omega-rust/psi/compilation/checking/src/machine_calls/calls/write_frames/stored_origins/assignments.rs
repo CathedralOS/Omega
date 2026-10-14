@@ -3,8 +3,9 @@
 //! Exact field and fixed-element subtrees replace their prior rows. Slice
 //! inventory remains a default beside concrete replaced elements; a
 //! may-overlap relation cannot erase the untouched remainder of that inventory.
-//! Dynamic indexed writes forget overlapping reference identities: an unknown selector
-//! cannot establish which element was replaced. Coarse write footprints do not
+//! Dynamic indexed writes retain old contents and add one possible residence
+//! for each replacement leaf: an unknown selector cannot identify a killed
+//! loan, but does not make the replacement backing unknown. Coarse write footprints do not
 //! erase independently established structural slot coordinates. Neither operation grants
 //! access permission, and later reference demands still need proven origins.
 
@@ -29,7 +30,7 @@ use typed_trees::statement::{StatementNode, TableAssignment};
 pub(in crate::machine_calls::calls::write_frames) struct AssignmentOrigins {
     local: StoredLocalOrigins,
     segments: Vec<PlaceSegment>,
-    forget_overlapping_moves: bool,
+    may_select: bool,
     /// An untracked indexed carrier still has declared sibling inventory.
     /// Missing runtime origins cannot turn those siblings into absent leaves.
     declared_inventory: Option<StoredLocalOrigins>,
@@ -51,14 +52,28 @@ impl AssignmentOrigins {
                 previous
                     .references
                     .iter()
-                    .filter(|leaf| !path_covers(&self.segments, &leaf.local_segments))
-                    .cloned(),
+                    .filter(|leaf| {
+                        self.may_select || !path_covers(&self.segments, &leaf.local_segments)
+                    })
+                    .map(|leaf| {
+                        let mut retained = leaf.clone();
+                        if self.may_select
+                            && self.segments.len() < leaf.local_segments.len()
+                            && prefix_matches(&self.segments, &leaf.local_segments)
+                        {
+                            // The old descendant was reached through the old
+                            // pointer. It cannot identify contents of a newly
+                            // installed pointer on the selected alternative.
+                            retained.origin = None;
+                        }
+                        retained
+                    }),
             );
             replacement.cases.extend(
                 previous
                     .cases
                     .iter()
-                    .filter(|case| !path_covers(&self.segments, case))
+                    .filter(|case| self.may_select || !path_covers(&self.segments, case))
                     .cloned(),
             );
             replacement.moves.extend(
@@ -67,7 +82,7 @@ impl AssignmentOrigins {
                     .iter()
                     .filter(|moved| {
                         !path_covers(&self.segments, &moved.local_segments)
-                            && !(self.forget_overlapping_moves
+                            && !(self.may_select
                                 && prefix_matches(&moved.local_segments, &self.segments))
                     })
                     .cloned(),
@@ -137,7 +152,7 @@ fn assigned_stored_origins(
     inference: &mut FrameInference,
     include_shared: bool,
 ) -> Option<AssignmentOrigins> {
-    let source = binding_source(program, assignment.target, aliases)?;
+    let mut source = binding_source(program, assignment.target, aliases)?;
     if !source.root.is_valid() || !source.builtin_coordinates {
         return None;
     }
@@ -170,11 +185,11 @@ fn assigned_stored_origins(
     let established = stored
         .iter()
         .find(|local| local.local_symbol == source.root);
-    if let Some(collection_depth) = source
+    let may_select = source
         .segments
         .iter()
-        .position(|segment| matches!(segment, PlaceSegment::Index { .. }))
-    {
+        .any(|segment| matches!(segment, PlaceSegment::Index { .. }));
+    let declared_inventory = if may_select && established.is_none() {
         let root_type = program
             .state_parameter_by_symbol(state, source.root)
             .map(|parameter| parameter.type_reference)
@@ -198,39 +213,21 @@ fn assigned_stored_origins(
             storage_type,
             include_shared,
         )?;
-        let declared_inventory = established.is_none().then(|| inventory.clone());
-        // Frame paths deliberately forget element identity. Forget evidence for
-        // every element the same path may name. The full type inventory is
-        // necessary: the new value may introduce a reference-bearing case
-        // absent from the overwritten value's selected-case rows.
-        let collection = &source.segments[..collection_depth];
-        let mut replaced = StoredLocalOrigins {
-            local_symbol: source.root,
-            references: Vec::new(),
-            cases: Vec::new(),
-            moves: Vec::new(),
-            symbolic: false,
-        };
-        for mut leaf in inventory
-            .references
-            .into_iter()
-            .filter(|leaf| prefix_matches(collection, &leaf.local_segments))
-        {
-            leaf.origin = None;
-            replaced.references.push(leaf);
+        Some(inventory)
+    } else {
+        None
+    };
+    for segment in &mut source.segments {
+        if let PlaceSegment::Index { expression } = segment {
+            // No runtime selector identity crosses a statement or call. The
+            // may-select row records possible residence, not an executable index.
+            *expression = Default::default();
         }
-        return Some(AssignmentOrigins {
-            local: replaced,
-            segments: collection.to_vec(),
-            forget_overlapping_moves: true,
-            declared_inventory,
-        });
     }
     // A move row owns its whole subtree. A replacement strictly inside that
-    // subtree cannot split the transport it describes. Collection writes splice
-    // the same rows through `collection` above, so this strictness is needed
-    // only on the member path, whose splices cannot separate a moved
-    // ancestor's untouched remainder.
+    // subtree cannot split the transport it describes. Neither an exact nor
+    // a possible member write can preserve a moved ancestor's whole-value
+    // identity while silently changing some of its children.
     if established.is_some_and(|established| {
         established.moves.iter().any(|moved| {
             moved.local_segments.len() < source.segments.len()
@@ -302,6 +299,7 @@ fn assigned_stored_origins(
                     FramePathPrecision::CollectionCoarse => target_path.clone(),
                 },
                 local_segments,
+                may_select: may_select || leaf.may_select,
                 origin,
             });
         }
@@ -320,7 +318,7 @@ fn assigned_stored_origins(
     Some(AssignmentOrigins {
         local: replaced,
         segments: source.segments,
-        forget_overlapping_moves: false,
-        declared_inventory: None,
+        may_select,
+        declared_inventory,
     })
 }

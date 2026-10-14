@@ -1,0 +1,20 @@
+data Cell [copy] { value: u32; }
+data Window<'input> { values: &'input mut [Cell]; }
+machine replace<'carrier, 'input>(windows: &'carrier mut [Window<'input>], position: u64, replacement: &'input mut [Cell])
+requires position < windows.len {
+    windows[position].values = replacement;
+}
+machine read(values: &[Cell]) -> u32 {
+    transition values.len > 0 { true -> first(values) false -> 0 }
+    state first(values: &[Cell]) -> u32 requires values.len > 0 { values[0].value }
+}
+machine invalid(position: u64) -> u32 requires position < 2 {
+    let mut original: [Cell; 1] = [Cell { value: 7 }];
+    let mut neighbor: [Cell; 1] = [Cell { value: 31 }];
+    let mut replacement: [Cell; 2] = [Cell { value: 42 }, Cell { value: 19 }];
+    let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
+    let child: &mut [Cell] = &mut windows[0].values[..];
+    replace(&mut windows[..], position, &mut replacement[..]);
+    original[0].value = 99;
+    read(child)
+}

@@ -593,6 +593,17 @@ fail/borrows/dynamic_reference_result_holds_input_loan rejected 446ms expected @
 	statement 3 mutates `grid.cursor` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `grid.cursor` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `grid.cursor` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/borrows/dynamic_store_local_backing_escape rejected 633ms expected @f6a40abe6bc9+wt
+	state `finish` receives a carried loan of local `local`, whose storage ends at the source state exit without a complete retained-home relation
+	machine `invalid` stores a borrowed value without a complete normal-exit backing relation
+fail/borrows/dynamic_store_missing_bound rejected 634ms expected @f6a40abe6bc9+wt
+	cannot prove index `position` is within unknown slice length of `slots` in invalid::entry
+fail/borrows/dynamic_store_retains_child_backing rejected 638ms expected @f6a40abe6bc9+wt
+	statement 6 mutates `original[0].value` while local borrow `child` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/borrows/dynamic_store_retains_old_backing rejected 629ms expected @f6a40abe6bc9+wt
+	statement 5 mutates `original.value` while local borrow `slots` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
+fail/borrows/dynamic_store_then_fixed_retains_replacement rejected 592ms expected @f6a40abe6bc9+wt
+	statement 6 mutates `replacement.value` while local borrow `slots` is still active (borrowed at statement 4; its last use is at statement 7 and it is released at state exit)
 fail/borrows/evidence_bound_record_result_keeps_loan rejected 1543ms expected @a9ae30e1c334+wt
 	statement 3 mutates `source` while local borrow `forwarded` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/expression_stored_carrier_requires_complete_relation rejected 440ms expected @dd6871ed0476
@@ -4867,10 +4878,14 @@ pass/borrows/runtime_returned_reference_array_restoration_exit checked 11147ms c
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 11094ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_scalar_call_stored_carrier_exit checked 4205ms check-target:macos_arm64 @dd6871ed0476
 pass/borrows/runtime_scalar_field_local_loan_handback_exit checked 5340ms check-target:macos_arm64 @8009e85cf177
+pass/borrows/runtime_selected_byte_descriptor_store checked 5763ms check-target:macos_arm64 @f6a40abe6bc9+wt
+pass/borrows/runtime_selected_descriptor_after_fixed_store checked 5765ms check-target:macos_arm64 @f6a40abe6bc9+wt
+pass/borrows/runtime_selected_exclusive_descriptor_store checked 5769ms check-target:macos_arm64 @f6a40abe6bc9+wt
 pass/borrows/runtime_selected_indexed_reference_exit checked 3820ms check-target:macos_arm64 @5e5835ccaddc+wt
 pass/borrows/runtime_selected_reference_child_retirement_exit checked 11137ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_selected_reference_nested_restoration_exit checked 10335ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_selected_reference_record_helper_exit checked 13143ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_selected_shared_descriptor_store checked 5765ms check-target:macos_arm64 @f6a40abe6bc9+wt
 pass/borrows/runtime_selected_shared_reference_cohort_exit checked 11326ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_selected_stored_carrier_child_exit checked 4182ms check-target:macos_arm64 @dd6871ed0476
 pass/borrows/runtime_selected_stored_carrier_exit checked 4177ms check-target:macos_arm64 @dd6871ed0476

@@ -1,0 +1,10 @@
+data Cell [copy] { value: u32; }
+data Held<'input> { target: &'input Cell; }
+
+machine invalid<'carrier, 'input>(slots: &'carrier mut [Held<'input>; 2], position: u64)
+requires position < 2 {
+    let local: Cell = Cell { value: 73 };
+    slots[position].target = &local;
+    transition { _ -> finish(slots) }
+    state finish(slots: &'carrier mut [Held<'input>; 2]) {}
+}

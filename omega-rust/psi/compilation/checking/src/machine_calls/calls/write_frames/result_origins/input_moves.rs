@@ -114,6 +114,7 @@ pub(super) fn instantiate_moves(
                     local_symbol: parameter.symbol,
                     local_path: leaf.local_suffix,
                     local_segments: leaf.local_segments,
+                    may_select: leaf.may_select,
                     origin: leaf.origin,
                 })
                 .collect(),

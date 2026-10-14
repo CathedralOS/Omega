@@ -9,8 +9,9 @@
 //! Normal-exit summaries refine those defaults across all reachable exits before
 //! joining their origins. A branch which never writes therefore retains its
 //! incoming alternative; an untouched sibling keeps its original descriptor.
-//! Type-default selectors are not executable indices, and a runtime selector
-//! cannot cross a call boundary without a captured substitution relation.
+//! Type-default selectors are not executable indices. A runtime-selected store
+//! publishes one possible destination region, retaining old contents, rather
+//! than exporting its expression identity or duplicating the transfer per slot.
 
 mod expression_effects;
 pub(super) mod retention;
@@ -53,6 +54,7 @@ pub(super) struct SlotEffect {
     segments: Vec<PlaceSegment>,
     sources: Vec<SlotSource>,
     incoming: bool,
+    may_select: bool,
     access: language_semantics::ReferenceAccess,
 }
 
@@ -481,19 +483,25 @@ fn solve_state_effects<'program>(
                         .find(|record| record.local_symbol == declaration.origin.local_symbol)?;
                     for leaf in &record.references {
                         if leaf.local_segments.len() != declaration.origin.local_segments.len()
-                            || !stored_origins::path_covers(
+                            || !(stored_origins::path_covers(
                                 &declaration.origin.local_segments,
                                 &leaf.local_segments,
-                            )
+                            ) || (leaf.may_select
+                                && stored_origins::path_covers(
+                                    &leaf.local_segments,
+                                    &declaration.origin.local_segments,
+                                )))
                             || inventory.iter().any(|existing| {
                                 existing.origin.local_symbol == leaf.local_symbol
                                     && existing.origin.local_segments == leaf.local_segments
+                                    && existing.origin.may_select == leaf.may_select
                             })
                         {
                             continue;
                         }
                         let mut refined = declaration.clone();
                         refined.origin.local_segments = leaf.local_segments.clone();
+                        refined.origin.may_select = leaf.may_select;
                         for ancestor in &mut refined.ancestors {
                             for (segment, selected) in ancestor.iter_mut().zip(&leaf.local_segments)
                             {
@@ -516,10 +524,11 @@ fn solve_state_effects<'program>(
             }
             let accumulated = known[index].as_mut()?;
             for effect in candidate {
-                if let Some(prior) = accumulated
-                    .iter_mut()
-                    .find(|prior| prior.root == effect.root && prior.segments == effect.segments)
-                {
+                if let Some(prior) = accumulated.iter_mut().find(|prior| {
+                    prior.root == effect.root
+                        && prior.segments == effect.segments
+                        && prior.may_select == effect.may_select
+                }) {
                     if prior.access != effect.access {
                         return None;
                     }
@@ -579,7 +588,22 @@ fn collect_exit(
                 return None;
             }
         }
-        let sources = stored_origins::slot_origins(record, &slot.local_segments)?;
+        let sources =
+            stored_origins::summarized_slot_origins(record, &slot.local_segments, slot.may_select);
+        // A possible store on another exit need not occur on this one. Its
+        // presence never kills an incoming alternative on either route.
+        let sources = match sources {
+            Some(sources) => sources,
+            None if slot.may_select
+                && !record
+                    .references
+                    .iter()
+                    .any(|leaf| leaf.may_select && leaf.local_segments == slot.local_segments) =>
+            {
+                continue;
+            }
+            None => return None,
+        };
         for source in sources {
             if !source.source.builtin_coordinates {
                 return None;
@@ -612,6 +636,7 @@ fn collect_exit(
             let incoming = source.source.root == slot.local_symbol
                 && source.source.segments == slot.local_segments;
             if !incoming
+                && !slot.may_select
                 && slot
                     .local_segments
                     .iter()
@@ -620,7 +645,9 @@ fn collect_exit(
                 return None;
             }
             let effect = if let Some(index) = effects.iter().position(|effect| {
-                effect.root == slot.local_symbol && effect.segments == slot.local_segments
+                effect.root == slot.local_symbol
+                    && effect.segments == slot.local_segments
+                    && effect.may_select == slot.may_select
             }) {
                 &mut effects[index]
             } else {
@@ -628,7 +655,8 @@ fn collect_exit(
                     root: slot.local_symbol,
                     segments: slot.local_segments.clone(),
                     sources: Vec::new(),
-                    incoming: false,
+                    incoming: slot.may_select,
+                    may_select: slot.may_select,
                     access: declaration.access,
                 });
                 effects.last_mut()?
@@ -824,6 +852,7 @@ fn instantiate(
             segments: destination.segments,
             sources,
             incoming: effect.incoming,
+            may_select: effect.may_select,
             access: effect.access,
         });
     }
@@ -850,7 +879,7 @@ fn destination_source(
             PlaceSegment::Field { .. }
                 | PlaceSegment::Case { .. }
                 | PlaceSegment::FixedIndex { .. }
-        )
+        ) && !matches!(segment, PlaceSegment::Index { expression } if !expression.is_valid())
     }) {
         return None;
     }
@@ -1103,11 +1132,22 @@ pub(super) fn apply(
                 stored.len() - 1
             });
         let record = &mut stored[index];
+        if effect.may_select && !effect.sources.is_empty() {
+            for leaf in &mut record.references {
+                if leaf.local_segments.len() > effect.segments.len()
+                    && stored_origins::path_covers(&effect.segments, &leaf.local_segments)
+                {
+                    // A descendant snapshot assumes its incoming pointer.
+                    // A weak replacement invalidates that correspondence too.
+                    leaf.origin = None;
+                }
+            }
+        }
         // Materialize the old concrete slot before installing an overlay on
         // a conditional write. Keeping only its wildcard default would let
         // the new exact row shadow the no-write branch's surviving origin.
-        let incoming = if effect.incoming {
-            stored_origins::slot_origins(record, &effect.segments)
+        let incoming = if effect.incoming && !effect.may_select {
+            stored_origins::summarized_slot_origins(record, &effect.segments, false)
         } else {
             Some(Vec::new())
         };
@@ -1116,10 +1156,11 @@ pub(super) fn apply(
         // pointee-slot snapshots cannot outlive that replacement, even when
         // another normal route preserves the pointer's incoming contents.
         record.references.retain(|leaf| {
-            !((!effect.incoming || !effect.sources.is_empty())
-                && leaf.local_segments.len() > effect.segments.len()
-                && leaf.local_segments.starts_with(&effect.segments))
-                && (effect.incoming || leaf.local_segments != effect.segments)
+            effect.may_select
+                || (!((!effect.incoming || !effect.sources.is_empty())
+                    && leaf.local_segments.len() > effect.segments.len()
+                    && leaf.local_segments.starts_with(&effect.segments))
+                    && (effect.incoming || leaf.local_segments != effect.segments))
         });
         let origins = incoming
             .into_iter()
@@ -1133,11 +1174,11 @@ pub(super) fn apply(
                     .map(|source| Some(source.origin.clone())),
             );
         for origin in origins {
-            if record
-                .references
-                .iter()
-                .any(|leaf| leaf.local_segments == effect.segments && leaf.origin == origin)
-            {
+            if record.references.iter().any(|leaf| {
+                leaf.local_segments == effect.segments
+                    && leaf.origin == origin
+                    && leaf.may_select == effect.may_select
+            }) {
                 continue;
             }
             record.references.push(StoredWriteOrigin {
@@ -1152,6 +1193,7 @@ pub(super) fn apply(
                     },
                 ),
                 local_segments: effect.segments.clone(),
+                may_select: effect.may_select,
                 origin,
             });
         }

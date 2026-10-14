@@ -171,10 +171,14 @@ fn check_exit(
             .iter()
             .filter(|leaf| {
                 leaf.local_segments.len() == destination.local_segments.len()
-                    && stored_origins::path_covers(
+                    && (stored_origins::path_covers(
                         &destination.local_segments,
                         &leaf.local_segments,
-                    )
+                    ) || (leaf.may_select
+                        && stored_origins::path_covers(
+                            &leaf.local_segments,
+                            &destination.local_segments,
+                        )))
             })
             .peekable();
         leaves.peek()?;

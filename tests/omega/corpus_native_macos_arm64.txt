@@ -269,7 +269,11 @@ pass/borrows/runtime_returned_reference_array_bounded_read_exit built 1712ms exi
 pass/borrows/runtime_returned_reference_array_restoration_exit built 1759ms exit:70 @b5d8c6882a8b+wt
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit built 1177ms exit:70 @104c2da31081
 pass/borrows/runtime_scalar_field_local_loan_handback_exit built 5304ms exit:0 @5b32c4eb36ff+wt
+pass/borrows/runtime_selected_byte_descriptor_store built 5796ms exit:0 interpreter-exit:0 interpreter:agrees @f6a40abe6bc9+wt
+pass/borrows/runtime_selected_descriptor_after_fixed_store built 5796ms exit:0 interpreter-exit:0 interpreter:agrees @f6a40abe6bc9+wt
+pass/borrows/runtime_selected_exclusive_descriptor_store built 5803ms exit:0 interpreter-exit:0 interpreter:agrees @f6a40abe6bc9+wt
 pass/borrows/runtime_selected_reference_record_helper_exit built 16799ms exit:0 @af6b0f221559+wt
+pass/borrows/runtime_selected_shared_descriptor_store built 5799ms exit:0 interpreter-exit:0 interpreter:agrees @f6a40abe6bc9+wt
 pass/borrows/runtime_shared_carrier_storage_observation_exit built 5346ms exit:0 @759f6dbf1dfa
 pass/borrows/runtime_shared_qualified_view_cycle_exit built 1799ms exit:70 @954364ed064e
 pass/borrows/runtime_shared_qualified_view_scalar_choice_exit built 2800ms exit:70 @fb52befd538a

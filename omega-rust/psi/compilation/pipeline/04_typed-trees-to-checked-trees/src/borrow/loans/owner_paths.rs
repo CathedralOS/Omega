@@ -157,11 +157,42 @@ pub(super) fn owner_path_matches(
         })
 }
 
-pub(in crate::borrow) fn place_path_matches_owner_prefix(
+/// A selected projection retains every carried loan it may include.
+pub(super) fn place_path_matches_owner_prefix(
     program: &dyn ::validation::CheckingInput,
     place_segments: &[facts::PlaceSegment],
     owner_path: &[BorrowOwnerSegment],
 ) -> bool {
     place_segments.len() <= owner_path.len()
         && owner_path_matches(program, &owner_path[..place_segments.len()], place_segments)
+}
+
+/// Retirement requires definite coverage, unlike access conflict detection.
+/// One unknown element overlaps many homes but overwrites only one of them;
+/// conversely, an exact element cannot retire a loan whose home may be another
+/// element. Replacing an enclosing collection still covers all its children.
+pub(crate) fn place_path_covers_owner(
+    program: &dyn ::validation::CheckingInput,
+    place_segments: &[facts::PlaceSegment],
+    owner_path: &[BorrowOwnerSegment],
+) -> bool {
+    place_segments.len() <= owner_path.len()
+        && owner_path
+            .iter()
+            .zip(place_segments)
+            .all(|(owner, place)| match (owner, place) {
+                (BorrowOwnerSegment::DynamicIndex, _) => false,
+                (_, facts::PlaceSegment::Index { expression }) => {
+                    let BorrowOwnerSegment::FixedIndex(owner_index) = owner else {
+                        return false;
+                    };
+                    program
+                        .expression_table
+                        .constant_integer_value(*expression)
+                        .and_then(|value| usize::try_from(value).ok())
+                        .is_some_and(|place_index| *owner_index == place_index)
+                }
+                (_, facts::PlaceSegment::Field { symbol }) if !symbol.is_valid() => false,
+                _ => owner_segment_matches_place_segment(program, owner, place).unwrap_or(false),
+            })
 }

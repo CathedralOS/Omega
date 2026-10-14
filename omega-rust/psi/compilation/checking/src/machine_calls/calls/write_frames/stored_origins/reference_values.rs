@@ -84,11 +84,7 @@ fn resolve_origins(
         .filter(|leaf| {
             !crossed.is_some_and(|depth| leaf.local_segments.len() <= depth)
                 && source_reaches_leaf(&origin.source.segments, &leaf.local_segments)
-                && !super::projections::reference_is_shadowed(
-                    local,
-                    &leaf.local_segments,
-                    &origin.source.segments,
-                )
+                && !super::projections::reference_is_shadowed(local, leaf, &origin.source.segments)
         })
         .map(|leaf| leaf.local_segments.len())
         .max();
@@ -96,11 +92,7 @@ fn resolve_origins(
     for leaf in &local.references {
         if Some(leaf.local_segments.len()) != selected_depth
             || !source_reaches_leaf(&origin.source.segments, &leaf.local_segments)
-            || super::projections::reference_is_shadowed(
-                local,
-                &leaf.local_segments,
-                &origin.source.segments,
-            )
+            || super::projections::reference_is_shadowed(local, leaf, &origin.source.segments)
         {
             continue;
         }

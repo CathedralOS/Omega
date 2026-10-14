@@ -48,7 +48,7 @@ use super::accesses::{self, borrow_access_place};
 use super::tracker::{BorrowOwnerSegment, StateLoanTracker};
 use aggregate::borrowed_initializers;
 use owner_paths::owner_path_matches;
-pub(in crate::borrow) use owner_paths::place_path_matches_owner_prefix;
+pub(crate) use owner_paths::place_path_covers_owner;
 pub(crate) use owner_paths::{
     owner_path_from_place_segments, owner_segment_matches_place_segment, store_destination_places,
 };

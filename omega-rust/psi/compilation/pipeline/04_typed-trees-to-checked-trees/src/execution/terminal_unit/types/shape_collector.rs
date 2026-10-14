@@ -548,7 +548,10 @@ impl<'program> ShapeCollector<'program> {
             }
             let plan = CheckedUnitStructuralTypePlan {
                 scalar_restriction: None,
-                descriptor_cleanup: false,
+                // A borrowed byte carrier owns only its descriptor. As with
+                // Reference shapes, replacement may retire that descriptor,
+                // never its backing or any still-live child permission.
+                descriptor_cleanup: carrier.is_borrowed(),
                 no_code_affine_cleanup: no_code_affine_cleanup
                     && matches!(
                         carrier,
@@ -583,7 +586,9 @@ impl<'program> ShapeCollector<'program> {
             let plan = CheckedUnitStructuralTypePlan {
                 scalar_restriction: None,
                 no_code_affine_cleanup: false,
-                descriptor_cleanup: false,
+                // The element type describes borrowed backing, not contents
+                // disposed with this address/extent descriptor.
+                descriptor_cleanup: true,
                 identity: identity,
                 shape: CheckedUnitStructuralTypeShape::BorrowedSliceView {
                     element_type_identity: element_type_identity?,

@@ -232,6 +232,7 @@ fn walk_declared_origins(
                         local_symbol: symbol,
                         local_path: path.clone(),
                         local_segments: segments.clone(),
+                        may_select: false,
                         // An incoming descriptor has symbolic identity even
                         // when its referee contains more pointers. This names
                         // the incoming value, not the current pointee contents.
@@ -300,6 +301,7 @@ fn walk_declared_origins(
                                 local_symbol: origins.local_symbol,
                                 local_path: path,
                                 local_segments: segments,
+                                may_select: false,
                                 origin: None,
                             });
                         }

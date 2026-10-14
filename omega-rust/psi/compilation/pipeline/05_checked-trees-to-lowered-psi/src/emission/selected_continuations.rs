@@ -71,32 +71,11 @@ pub(crate) fn prepare(
         validate_group(blocks, group)?;
     }
     let extractions = super::affine_cleanup::owned_extractions(parameters, places, blocks, types)?;
-    let mut projected_roots = super::affine_cleanup::transferred_roots(blocks, &extractions);
+    let projected_roots = super::affine_cleanup::partitioned_roots(blocks, &extractions);
     if !projected_roots.is_empty() {
-        // Projected completion also observes exact residual/nominal disposal.
-        // Preserve those roots through their actual discriminator branches,
-        // even when another root's transfer activated projected completion.
+        // Preserve partitioned roots through their discriminator branches.
         // Differing case payload holes meet only after restoration or the
         // already scheduled home retirement; no inactive case is fabricated.
-        for action in blocks
-            .iter()
-            .flat_map(|block| block.terminator.cleanup_rosters())
-            .flat_map(|(_, actions)| actions)
-        {
-            match action {
-                TerminalAffineCleanupAction::DiscardResidual(discard)
-                    if !discard.path.is_empty() =>
-                {
-                    projected_roots.insert(discard.place);
-                }
-                TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                    if !cleanup.retains_descendants && !cleanup.path.is_empty() =>
-                {
-                    projected_roots.insert(cleanup.place);
-                }
-                _ => {}
-            }
-        }
         for &place in &projected_roots {
             let root = StructuralArgument {
                 place,

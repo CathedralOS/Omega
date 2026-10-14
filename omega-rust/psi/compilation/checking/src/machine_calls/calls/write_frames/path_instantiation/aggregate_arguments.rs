@@ -63,6 +63,7 @@ pub(super) fn written_paths(
 pub(in crate::machine_calls::calls::write_frames) struct ReferenceLeaf {
     pub local_suffix: String,
     pub local_segments: Vec<PlaceSegment>,
+    pub may_select: bool,
     /// None retains an unresolved reference boundary, never an absent leaf.
     pub origin: Option<FramePlaceOrigin>,
 }
@@ -276,6 +277,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                     leaves.references.push(ReferenceLeaf {
                         local_suffix,
                         local_segments,
+                        may_select: false,
                         origin: None,
                     });
                     continue;
@@ -288,6 +290,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                     leaves.references.push(ReferenceLeaf {
                         local_suffix: local_suffix.clone(),
                         local_segments: local_segments.clone(),
+                        may_select: false,
                         origin: Some(FramePlaceOrigin {
                             path,
                             precision: origin.precision,

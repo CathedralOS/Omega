@@ -174,7 +174,9 @@ impl Evaluation<'_, '_> {
 }
 
 fn same_slot(left: &SlotEffect, right: &SlotEffect) -> bool {
-    left.root == right.root && left.segments == right.segments
+    left.root == right.root
+        && left.segments == right.segments
+        && left.may_select == right.may_select
 }
 
 /// Compose a completed operation. Its incoming identity names the preceding
@@ -187,7 +189,8 @@ fn install(
 ) {
     super::apply(program, &mut context.stored, &next);
     for mut effect in next {
-        let replaces_pointer = !effect.incoming || !effect.sources.is_empty();
+        let replaces_pointer =
+            !effect.may_select && (!effect.incoming || !effect.sources.is_empty());
         if let Some(previous) = accumulated
             .iter()
             .find(|previous| same_slot(previous, &effect))

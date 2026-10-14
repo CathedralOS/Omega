@@ -1,0 +1,42 @@
+// Expected exit: 0
+// Choose the descriptor to replace at runtime, preserving its neighbor.
+data Cell [copy] { value: u32; }
+data Window<'input> { values: &'input [Cell]; }
+
+machine replace<'carrier, 'input>(windows: &'carrier mut [Window<'input>], position: u64, replacement: &'input [Cell])
+requires position < windows.len {
+    windows[position].values = replacement;
+}
+
+machine first(values: &[Cell]) -> u32 {
+    transition values.len > 0 {
+        true -> read(values)
+        false -> 0
+    }
+    state read(values: &[Cell]) -> u32 requires values.len > 0 { values[0].value }
+}
+
+machine exercise(position: u64) -> bool requires position < 2 {
+    let original: [Cell; 1] = [Cell { value: 7 }];
+    let neighbor: [Cell; 1] = [Cell { value: 31 }];
+    let replacement: [Cell; 2] = [Cell { value: 42 }, Cell { value: 19 }];
+    let mut windows: [Window; 2] = [Window { values: &original[..] }, Window { values: &neighbor[..] }];
+    replace(&mut windows[..], position, &replacement[..]);
+    let left: u32 = first(windows[0].values);
+    let right: u32 = first(windows[1].values);
+    let left_count: u64 = windows[0].values.len;
+    let right_count: u64 = windows[1].values.len;
+    (position == 0 && left == 42 && left_count == 2 && right == 31 && right_count == 1)
+        || (position != 0 && left == 7 && left_count == 1 && right == 42 && right_count == 2)
+}
+
+machine main() crashes Trap {
+    let left: bool = exercise(0);
+    let right: bool = exercise(1);
+    transition left && right {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -26,7 +26,7 @@ mod custody_flow;
 mod projected_transfers;
 
 pub(crate) use projected_transfers::{
-    operands as structural_operands, owned_extractions, transferred_roots,
+    operands as structural_operands, owned_extractions, partitioned_roots,
 };
 
 /// Join source-authorized no-code type capability to this closure's existing
@@ -124,48 +124,9 @@ fn complete_carriers(
         .collect::<Vec<_>>();
     // A partial transfer retains root storage and its independently selected
     // residual disposal. The whole-home solver must not replace that schedule.
-    let mut partial_transfers = extractions
-        .iter()
-        .map(|(_, argument)| argument.place)
+    let partial_transfers = partitioned_roots(blocks, extractions)
+        .into_iter()
         .collect::<Vec<_>>();
-    for block in blocks.iter() {
-        let operands = block
-            .operations
-            .iter()
-            .flat_map(|operation| projected_transfers::operands(&operation.kind))
-            .chain(match &block.terminator {
-                Terminator::Jump {
-                    structural_arguments,
-                    ..
-                } => structural_arguments.iter().collect::<Vec<_>>(),
-                Terminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => when_true
-                    .structural_arguments
-                    .iter()
-                    .chain(&when_false.structural_arguments)
-                    .collect(),
-                _ => Vec::new(),
-            });
-        for argument in operands {
-            if argument.access != StructuralAccess::Owned {
-                continue;
-            }
-            if !argument.path.is_empty() {
-                partial_transfers.push(argument.place);
-            }
-        }
-        for operation in &block.operations {
-            if let terminal_psi::OperationKind::ReleaseReference { source, path } = &operation.kind
-            {
-                if !path.is_empty() {
-                    partial_transfers.push(*source);
-                }
-            }
-        }
-    }
     let mut births = blocks
         .iter()
         .flat_map(|block| &block.operations)

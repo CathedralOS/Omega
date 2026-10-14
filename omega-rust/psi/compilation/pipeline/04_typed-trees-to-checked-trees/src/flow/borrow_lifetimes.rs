@@ -81,10 +81,10 @@ pub(crate) fn filter_reassigned_borrow_loans(
                     !effect.retains_incoming
                         && active.storage_owner
                             == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
-                        && borrow_owner_path_overlaps_place(
+                        && crate::borrow::place_path_covers_owner(
                             program,
-                            borrow.loan_owner_path(active),
                             &effect.destination.local_segments,
+                            borrow.loan_owner_path(active),
                         )
                 });
             if replaced {
@@ -185,10 +185,10 @@ pub(crate) fn filter_reassigned_borrow_loans(
                         && destination == &target
                         && borrow.loan_owner_path(active).len() == target.segments.len())
                     || active.statement_index == statement_index
-                    || !borrow_owner_path_overlaps_place(
+                    || !crate::borrow::place_path_covers_owner(
                         program,
-                        borrow.loan_owner_path(active),
                         &destination.segments,
+                        borrow.loan_owner_path(active),
                     );
                 if !keep {
                     borrow_weakenings.append(FlowBorrowWeakeningFact {
@@ -202,50 +202,4 @@ pub(crate) fn filter_reassigned_borrow_loans(
             FlowConstraintKind::Unknown | checked_trees::borrow_context_quint_pattern!(..) => true,
         }
     })
-}
-
-fn borrow_owner_path_overlaps_place(
-    program: &dyn ::validation::CheckingInput,
-    owner_path: &[checked_trees::BorrowLoanOwnerSegment],
-    place_segments: &[facts::PlaceSegment],
-) -> bool {
-    // An assignment retires loans carried by the exact target or anything
-    // nested inside it. A loan carried by the whole owner (empty path) is not
-    // retired by assigning through that owner's pointee/field; only replacing
-    // the whole owner does that.
-    place_segments.len() <= owner_path.len()
-        && owner_path
-            .iter()
-            .zip(place_segments)
-            .all(|(owner, place)| match (owner, place) {
-                (
-                    checked_trees::BorrowLoanOwnerSegment::Field(owner_symbol),
-                    facts::PlaceSegment::Field {
-                        symbol: place_symbol,
-                    },
-                ) => !place_symbol.is_valid() || owner_symbol == place_symbol,
-                (
-                    checked_trees::BorrowLoanOwnerSegment::Case(owner_variant),
-                    facts::PlaceSegment::Case {
-                        variant: place_variant,
-                    },
-                ) => owner_variant == place_variant,
-                (
-                    checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
-                    facts::PlaceSegment::FixedIndex { index: place_index },
-                ) => owner_index == place_index,
-                (
-                    checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
-                    facts::PlaceSegment::Index { expression },
-                ) => program
-                    .expression_table
-                    .constant_integer_value(*expression)
-                    .and_then(|value| usize::try_from(value).ok())
-                    .is_none_or(|place_index| *owner_index == place_index),
-                (
-                    checked_trees::BorrowLoanOwnerSegment::DynamicIndex,
-                    facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. },
-                ) => true,
-                _ => false,
-            })
 }

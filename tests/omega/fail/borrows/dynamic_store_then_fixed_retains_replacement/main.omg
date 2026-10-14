@@ -1,0 +1,19 @@
+data Cell [copy] { value: u32; }
+data Held<'input> { target: &'input Cell; }
+
+machine replace<'carrier, 'input>(slots: &'carrier mut [Held<'input>], position: u64, replacement: &'input Cell)
+requires position < slots.len {
+    slots[position].target = replacement;
+}
+
+machine invalid(position: u64) -> u32 requires position < 2 {
+    let original: Cell = Cell { value: 11 };
+    let mut replacement: Cell = Cell { value: 85 };
+    let neighbor: Cell = Cell { value: 19 };
+    let mut slots: [Held; 2] = [Held { target: &original }, Held { target: &neighbor }];
+    replace(&mut slots[..], position, &replacement);
+    slots[0].target = &original;
+    // Replacing slot 0 cannot release a reference possibly held in slot 1.
+    replacement.value = 99;
+    slots[1].target.value
+}

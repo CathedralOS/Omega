@@ -237,6 +237,7 @@ fn same_relation(left: Option<&AggregateOrigins>, right: Option<&AggregateOrigin
             right.references.iter().any(|other| {
                 leaf.local_suffix == other.local_suffix
                     && leaf.local_segments == other.local_segments
+                    && leaf.may_select == other.may_select
                     && leaf.origin == other.origin
             })
         })
@@ -255,6 +256,7 @@ fn append_new(held: &mut AggregateOrigins, incoming: AggregateOrigins) {
         if !held.references.iter().any(|prior| {
             prior.local_suffix == leaf.local_suffix
                 && prior.local_segments == leaf.local_segments
+                && prior.may_select == leaf.may_select
                 && prior.origin == leaf.origin
         }) {
             held.references.push(leaf);
@@ -348,6 +350,7 @@ fn finite_substitutions(
                             references: vec![ReferenceLeaf {
                                 local_suffix: String::new(),
                                 local_segments: Vec::new(),
+                                may_select: false,
                                 origin: Some(FramePlaceOrigin {
                                     path: { parameter.name.as_str().to_owned() },
                                     precision: FramePathPrecision::Exact,
@@ -371,6 +374,7 @@ fn finite_substitutions(
                                 .map(|leaf| ReferenceLeaf {
                                     local_suffix: leaf.local_path,
                                     local_segments: leaf.local_segments,
+                                    may_select: leaf.may_select,
                                     origin: leaf.origin,
                                 })
                                 .collect(),

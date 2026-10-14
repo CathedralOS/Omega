@@ -119,7 +119,7 @@ pub(super) fn complete(
     types: &[StructuralTypeDeclaration],
     extractions: &[(OperationId, StructuralArgument)],
 ) -> Result<(), LoweringError> {
-    if transferred_roots(blocks, extractions).is_empty() {
+    if partitioned_roots(blocks, extractions).is_empty() {
         return Ok(());
     }
     let roots = parameters
@@ -309,10 +309,10 @@ pub(super) fn complete(
     Ok(())
 }
 
-/// The actual emitted operations that require projected custody completion.
+/// The actual emitted transfers and disposals that partition an owned home.
 /// Continuation preparation uses the same roster before physical identities
 /// are allocated, so case-selected residual deaths cannot rejoin too early.
-pub(crate) fn transferred_roots(
+pub(crate) fn partitioned_roots(
     blocks: &[Block],
     extractions: &[(OperationId, StructuralArgument)],
 ) -> BTreeSet<PlaceId> {
@@ -342,6 +342,24 @@ pub(crate) fn transferred_roots(
                 && !path.is_empty()
             {
                 roots.insert(*source);
+            }
+        }
+        // Ending a carried leaf removes that region just as a move does.
+        // Ignoring edge cleanup here skips complement completion in bodies
+        // with no projected operand, leaving a later whole discard to consume
+        // an already-disposed descriptor a second time.
+        for (_, actions) in block.terminator.cleanup_rosters() {
+            for action in actions {
+                let ends_region = match action {
+                    TerminalAffineCleanupAction::DiscardResidual(_) => true,
+                    TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                        !cleanup.retains_descendants
+                    }
+                    _ => false,
+                };
+                if ends_region && !action.path().is_empty() {
+                    roots.insert(action.place());
+                }
             }
         }
     }
@@ -455,6 +473,7 @@ fn complete_actions(
     let mut actions = Vec::new();
     let mut placeholders = BTreeSet::new();
     for action in cleanup_actions.iter() {
+        let first_new_action = actions.len();
         match action {
             TerminalAffineCleanupAction::DiscardRoot(place)
                 if frontier.iter().any(|root| root.place == *place) =>
@@ -477,29 +496,30 @@ fn complete_actions(
             }
             _ => actions.push(action.clone()),
         }
-    }
-    // A transferred subtree and a subtree whose selected cleanup completed
-    // have the same unavailable custody at the continuation. Preserve that
-    // exact hole until restoration or home retirement, so the optional hook's
-    // executed path can rejoin the path that transferred its receiver earlier.
-    // A parent hook retains its children and therefore creates no such hole.
-    for action in &actions {
-        match action {
-            TerminalAffineCleanupAction::RetireHome(place)
-            | TerminalAffineCleanupAction::DiscardRoot(place) => {
-                frontier.retain(|root| root.place != *place);
-            }
-            TerminalAffineCleanupAction::InvokeNominal(cleanup) if !cleanup.retains_descendants => {
-                if cleanup.path.is_empty() {
-                    frontier.retain(|root| root.place != cleanup.place);
-                } else {
-                    remove_path(frontier, cleanup.place, &cleanup.path)?;
+        // Compose each selected action before expanding the next one. A leaf
+        // death earlier on this very edge changes the complement just as a
+        // death on a predecessor does; a two-pass expansion would dispose it
+        // twice when a whole-home death follows in the same roster.
+        for completed in &actions[first_new_action..] {
+            match completed {
+                TerminalAffineCleanupAction::RetireHome(place)
+                | TerminalAffineCleanupAction::DiscardRoot(place) => {
+                    frontier.retain(|root| root.place != *place);
                 }
+                TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                    if !cleanup.retains_descendants =>
+                {
+                    if cleanup.path.is_empty() {
+                        frontier.retain(|root| root.place != cleanup.place);
+                    } else {
+                        remove_path(frontier, cleanup.place, &cleanup.path)?;
+                    }
+                }
+                TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                    remove_path(frontier, discard.place, &discard.path)?;
+                }
+                TerminalAffineCleanupAction::InvokeNominal(_) => {}
             }
-            TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                remove_path(frontier, discard.place, &discard.path)?;
-            }
-            TerminalAffineCleanupAction::InvokeNominal(_) => {}
         }
     }
     *cleanup_actions = actions;

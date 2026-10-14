@@ -18,7 +18,7 @@ impl CarrierReplacement {
     ) -> bool {
         owner == self.destination.root
             && !(self.preserves_root_reference && path.len() == self.destination.segments.len())
-            && super::place_path_matches_owner_prefix(program, &self.destination.segments, path)
+            && super::place_path_covers_owner(program, &self.destination.segments, path)
     }
 }
 

@@ -45,7 +45,7 @@ pub(super) use frozen_bindings::{call_exposes_frozen_binding, expression_exposes
 
 pub(super) use projections::reference_leaves_before_statement_for_query;
 pub(super) use projections::symbolic_reference_leaves;
-pub(super) use projections::{path_covers, slot_origins};
+pub(super) use projections::{path_covers, slot_origins, summarized_slot_origins};
 pub(super) use projections::{project_stored_origins, projected_storage_type, projected_type};
 pub(super) use reference_values::source_reaches_leaf;
 pub(super) use reference_values::{
@@ -151,6 +151,10 @@ pub(super) struct StoredWriteOrigin {
     pub local_symbol: SymbolHandle,
     pub local_path: String,
     pub local_segments: Vec<PlaceSegment>,
+    /// One transferred descriptor may reside at an unknown element of this
+    /// path. This is not the type inventory's universal default: it contributes
+    /// beside exact rows, cannot shadow them, and forms only one receiving loan.
+    pub may_select: bool,
     /// A reference boundary, or opaque region which may contain one, remains
     /// present even when its captured storage is unknown. Such a region must
     /// survive transport and prevent overlapping writes from being discarded
@@ -330,6 +334,7 @@ pub(super) fn declaration_origins_for_query(
                 local_symbol: local.symbol,
                 local_path: append_place_suffix(local.name.as_str(), &leaf.local_suffix),
                 local_segments: leaf.local_segments.clone(),
+                may_select: leaf.may_select,
                 origin,
             });
         }
