@@ -1,0 +1,8 @@
+module left;
+
+trait Value { machine read() -> u64; }
+data Reader {}
+machine Reader::read() -> u64 { 11u64 }
+Implementation satisfies Value { Value::read = Reader::read; }
+machine invoke<Selected satisfies Value>() -> u64 { Selected::read() }
+pub machine run() -> u64 { invoke<Implementation>() }

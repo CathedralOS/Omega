@@ -1,0 +1,5 @@
+trait Value<T> { machine read() -> T; }
+data Reader {}
+machine Reader::read() -> u64 in Wrapping { 37 }
+Wrong satisfies Value<bool> { Value::read = Reader::read; }
+machine main() {}

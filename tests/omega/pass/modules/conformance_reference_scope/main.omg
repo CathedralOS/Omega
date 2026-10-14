@@ -1,0 +1,21 @@
+use left;
+use right;
+
+trait RootValue { machine read() -> u64; }
+Qualified satisfies RootValue { RootValue::read = right::Reader::read; }
+machine invoke<Selected satisfies RootValue>() -> u64 { Selected::read() }
+
+machine main() crashes Trap {
+    let first: u64 = left::run();
+    let second: u64 = right::run();
+    let qualified: u64 = invoke<Qualified>();
+    let generic_reference: u64 = right::generic_reference();
+    let generic_inline: u64 = right::generic_inline();
+    transition first == 11u64 && second == 37u64 && qualified == 37u64 &&
+               generic_reference == 37u64 && generic_inline == 37u64 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

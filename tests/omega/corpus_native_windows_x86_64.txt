@@ -680,6 +680,7 @@ pass/modules/comparison_machine_indices checked 515ms @0484de104502
 pass/modules/compound_constant_indices checked 494ms @0484de104502
 pass/modules/computed_constant_initializers checked 613ms @0484de104502
 pass/modules/computed_nominal_constants checked 538ms @0484de104502
+pass/modules/conformance_reference_scope built 9875ms exit:0 @0acd49d4fea4+wt
 pass/modules/domain_constant_indices checked 445ms @0484de104502
 pass/modules/fixed_array_machine_indices checked 453ms @0484de104502
 pass/modules/literal_boolean_indices checked 516ms @0484de104502

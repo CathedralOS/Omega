@@ -1,0 +1,23 @@
+module right;
+
+trait Value { machine read() -> u64; }
+pub data Reader {}
+pub machine Reader::read() -> u64 { 37u64 }
+Implementation satisfies Value { Value::read = Reader::read; }
+machine invoke<Selected satisfies Value>() -> u64 { Selected::read() }
+pub machine run() -> u64 { invoke<Implementation>() }
+
+trait Family<T> { machine read() -> T; }
+data Wrapped {}
+machine Wrapped::read() -> u64 in Wrapping { 37 }
+ReferencedFamily satisfies Family<u64 in Wrapping> {
+    Family::read = Wrapped::read;
+}
+InlineFamily satisfies Family<u64 in Wrapping> {
+    machine read() -> u64 in Wrapping { 37 }
+}
+machine invoke_family<Selected satisfies Family<u64 in Wrapping>>() -> u64 {
+    Selected::read() as u64
+}
+pub machine generic_reference() -> u64 { invoke_family<ReferencedFamily>() }
+pub machine generic_inline() -> u64 { invoke_family<InlineFamily>() }

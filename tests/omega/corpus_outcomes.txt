@@ -2912,6 +2912,8 @@ fail/modules/boundary_signature_selects_private_data rejected 867ms expected @a9
 	public interface selects private data `Payload`
 fail/modules/bundled_core_name_collision_rejected rejected 1ms expected @a9ae30e1c334+wt
 	import `omega::language::core::marker` in tests/omega/fail/modules/bundled_core_name_collision_rejected/main.omg collides with a requester-local source; `omega::language` names are claimed by the bundled toolchain namespace, so the local source is unreachable -- rename or remove it
+fail/modules/conformance_reference_ambiguous rejected 42ms expected @0acd49d4fea4+wt
+	closed conformance `Ambiguous satisfies Value` member `read` does not identify one exact inherited overload; qualify the declaring trait and match the complete parameter/result-domain signature
 fail/modules/constant_argument_wrong_nominal_carrier rejected 34ms expected @a9ae30e1c334+wt
 	const argument for `Indexed::Choice` is invalid at this index site: const `SELECTED` declares type `Token`, but the parameter requires `Token`
 fail/modules/duplicate_data_keeps_guard_facts rejected 574ms expected @a9ae30e1c334+wt
@@ -4218,6 +4220,8 @@ fail/traits/conformance_item_missing_member rejected 19ms expected @a9ae30e1c334
 fail/traits/conformance_phantom_foreign_captured_operand rejected 1067ms expected @f3014db3f225+wt
 	conformance `Mapped satisfies Reader` parameter `Value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
 	requirement `Reader::read` has no prepared contract for its exact trait application
+fail/traits/conformance_reference_wrong_applied_result rejected 734ms expected @0acd49d4fea4+wt
+	machine `Reader::read` state `read` does not satisfy trait `Value` machine `read`: expected return `T`, got `u64[in Wrapping]`
 fail/traits/conformance_unused_lifetime_foreign_scope rejected 188ms expected @a9ae30e1c334+wt
 	conformance application `ReadingMap<'foreign>` supplies undeclared lifetime argument `'foreign'; declare it in the lexical owner's lifetime telescope
 fail/traits/conformance_unused_lifetime_header_undeclared rejected 175ms expected @a9ae30e1c334+wt
@@ -6391,6 +6395,7 @@ pass/modules/comparison_machine_indices checked 1702ms @a9ae30e1c334+wt
 pass/modules/compound_constant_indices checked 1844ms @a9ae30e1c334+wt
 pass/modules/computed_constant_initializers checked 1789ms @a9ae30e1c334+wt
 pass/modules/computed_nominal_constants checked 1692ms @a9ae30e1c334+wt
+pass/modules/conformance_reference_scope checked 11879ms check-target:macos_arm64 @0acd49d4fea4+wt
 pass/modules/constant_argument_projected_record_dependency checked 1709ms @a9ae30e1c334+wt
 pass/modules/direct_file_import_process_exit checked 4459ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/modules/direct_file_imports checked 1646ms @a9ae30e1c334+wt

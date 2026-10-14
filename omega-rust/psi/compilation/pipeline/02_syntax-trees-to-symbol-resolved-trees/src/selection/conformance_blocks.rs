@@ -15,7 +15,7 @@ use symbol_resolved_trees::signature::StateSignature;
 use symbol_resolved_trees::state::State;
 use symbol_resolved_trees::trait_definition::{ConformanceRow, ConformanceRowSource};
 use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKind, SymbolLookup};
 
 #[derive(Clone)]
 struct TraitCatalogEntry {
@@ -509,7 +509,7 @@ fn normalize_one(
                         .is_none_or(|ordinal| requirement.ordinal == ordinal)
             })
             .collect::<Vec<_>>();
-        let realizations = resolve_realizations(authored, machine_catalog);
+        let realizations = resolve_realizations(program, authored, machine_catalog, None);
         let mut matching = Vec::new();
         for candidate in &candidates {
             // Legal same-path overload families share one normalized
@@ -520,10 +520,10 @@ fn normalize_one(
             // declaration symbol rather than collapsing to the leaf name.
             let requirement_shape =
                 result_dispatch_shape(program, candidate.signature.return_type.as_ref());
-            for (machine, state) in &realizations {
-                if result_dispatch_shape(program, state.return_type.as_ref()) == requirement_shape {
-                    matching.push((*candidate, *machine, *state));
-                }
+            for (machine, state) in
+                resolve_realizations(program, authored, machine_catalog, Some(&requirement_shape))
+            {
+                matching.push((*candidate, machine, state));
             }
         }
         let (requirement, machine, state) = match (
@@ -544,6 +544,9 @@ fn normalize_one(
                     "closed conformance `{subject_name} satisfies {trait_name}` has no inherited requirement slot `{qualified}`"
                 )));
             }
+            // A sole declaration is checked against the fully applied trait
+            // later. Its raw result spelling may be a generic parameter whose
+            // domain is supplied by this conformance's arguments.
             ([requirement], [(machine, state)], _) => (*requirement, *machine, *state),
             (_, _, [(requirement, machine, state)]) => (*requirement, *machine, *state),
             _ => {
@@ -767,16 +770,16 @@ fn collect_declared_result_dispatch(
 }
 
 fn resolve_realizations<'catalog>(
+    program: &SymbolResolvedTrees,
     row: &ConformanceRow,
     catalog: &'catalog [MachineCatalogEntry],
+    requirement_shape: Option<&str>,
 ) -> Vec<(&'catalog MachineCatalogEntry, &'catalog State)> {
-    catalog
+    let mut candidates = catalog
         .iter()
         .filter(|machine| {
             row.provisional_realization_ordinal
-                .map_or(machine.name == row.realization_name, |ordinal| {
-                    machine.ordinal == ordinal
-                })
+                .is_none_or(|ordinal| machine.ordinal == ordinal)
         })
         .filter_map(|machine| {
             let leaf = machine
@@ -796,5 +799,41 @@ fn resolve_realizations<'catalog>(
                 })
                 .map(|state| (machine, state))
         })
-        .collect()
+        .filter(|(_, state)| {
+            requirement_shape.is_none_or(|shape| {
+                result_dispatch_shape(program, state.return_type.as_ref()) == shape
+            })
+        })
+        .collect::<Vec<_>>();
+    if row.provisional_realization_ordinal.is_some() {
+        return candidates;
+    }
+    if let Some(reference) = row.authored_realization_source_span {
+        // A referenced machine belongs to the row's declaration-site namespace,
+        // not to a global pool of diagnostic spellings. Apply ordinary source
+        // lookup after overload eligibility, retaining ambiguity rather than
+        // choosing whichever package happened to be loaded first.
+        let selected = program
+            .symbols
+            .lookup_signature_free_top_level_from_source_matching(
+                row.realization_name.as_str(),
+                &[SymbolKind::Machine],
+                reference,
+                |symbol| {
+                    candidates
+                        .iter()
+                        .any(|(machine, _)| machine.symbol == symbol)
+                },
+            );
+        candidates.retain(|(machine, _)| match selected {
+            SymbolLookup::Unique(symbol) => machine.symbol == symbol,
+            SymbolLookup::Ambiguous { first, second } => {
+                machine.symbol == first || machine.symbol == second
+            }
+            SymbolLookup::NotFound => false,
+        });
+    } else {
+        candidates.retain(|(machine, _)| machine.name == row.realization_name);
+    }
+    candidates
 }

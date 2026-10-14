@@ -1,0 +1,7 @@
+use left;
+use right;
+
+trait Value { machine read() -> u64; }
+// Two imported declarations are not resolved by file order or return shape.
+Ambiguous satisfies Value { Value::read = Reader::read; }
+machine main() {}

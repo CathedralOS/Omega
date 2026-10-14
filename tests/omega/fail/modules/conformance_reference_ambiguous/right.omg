@@ -1,0 +1,3 @@
+module right;
+pub data Reader {}
+pub machine Reader::read() -> u64 { 37u64 }
