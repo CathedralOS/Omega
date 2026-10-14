@@ -1,1 +1,1 @@
-cannot prove runtime index subject equality
+local `wrong` expects `Tagged<u64, 3, limit>`, but the value is delivered as `Tagged<u32, 3, limit>`

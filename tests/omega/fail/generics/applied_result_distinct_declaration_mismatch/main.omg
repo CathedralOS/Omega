@@ -1,0 +1,10 @@
+// An applied call result keeps its declaration: the `Holder<Foo>` that
+// `same<Holder<Foo>>` returns is not a `Foo`.
+data Foo { tag: u8; }
+data Holder<T> { value: T; }
+machine same<T>(item: T) -> T { item }
+machine wrong(holder: Holder<Foo>) -> u8 {
+    let held: Foo = same<Holder<Foo>>(holder);
+    0u8
+}
+machine main() {}

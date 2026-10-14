@@ -1,0 +1,11 @@
+// A field declared `Holder<Foo>` cannot be assigned the `Holder<Bar>` a call
+// delivered.
+data Foo { tag: u8; }
+data Bar { tag: u8; }
+data Holder<T> { value: T; }
+machine same<T>(item: T) -> T { item }
+data Shelf { slot: Holder<Foo>; }
+machine wrong(shelf: &mut Shelf, item: Holder<Bar>) {
+    shelf.slot = same<Holder<Bar>>(item);
+}
+machine main() {}

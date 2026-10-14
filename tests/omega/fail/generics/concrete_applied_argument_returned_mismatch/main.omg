@@ -1,0 +1,8 @@
+// A returned value keeps its applied data arguments: a machine declared to
+// return `Holder<Foo>` cannot return the `Holder<Bar>` a call delivered.
+data Foo { tag: u8; }
+data Bar { tag: u8; }
+data Holder<T> { value: T; }
+machine same<T>(item: T) -> T { item }
+machine wrong(item: Holder<Bar>) -> Holder<Foo> { same<Holder<Bar>>(item) }
+machine main() {}

@@ -1,0 +1,9 @@
+// A primitive applied argument is part of the type: a `Holder<u16>` is not
+// a `Holder<u8>`.
+data Holder<T> { value: T; }
+machine same<T>(item: T) -> T { item }
+machine wrong(item: Holder<u16>) -> u8 {
+    let held: Holder<u8> = same<Holder<u16>>(item);
+    0u8
+}
+machine main() {}

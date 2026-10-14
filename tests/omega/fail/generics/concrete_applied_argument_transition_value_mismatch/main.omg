@@ -1,0 +1,13 @@
+// A transition's returned value answers the declared `Holder<Foo>` result in
+// every arm; a call delivering `Holder<Bar>` does not.
+data Foo { tag: u8; }
+data Bar { tag: u8; }
+data Holder<T> { value: T; }
+machine same<T>(item: T) -> T { item }
+machine wrong(item: Holder<Bar>, flag: bool) -> Holder<Foo> {
+    transition flag {
+        true -> (same<Holder<Bar>>(item))
+        false -> (same<Holder<Bar>>(item))
+    }
+}
+machine main() {}

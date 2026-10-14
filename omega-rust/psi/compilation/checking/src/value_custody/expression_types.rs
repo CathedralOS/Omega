@@ -437,10 +437,11 @@ fn argument_matches_type_reference_using(
     }
 
     // A value delivered with a complete type keeps it. A type parameter of
-    // the machine making the call is rigid there and equal only to itself;
-    // the formal has already taken the call's simultaneous application.
+    // the machine making the call is rigid there and equal only to itself,
+    // and applied data arguments are part of the type; the formal has
+    // already taken the call's simultaneous application.
     if let Some(actual) = delivered_types::delivered_value_type(program, argument)
-        && delivered_types::rigid_carrier_conflict(
+        && delivered_types::delivered_carrier_conflict(
             program,
             scope,
             actual.reference,

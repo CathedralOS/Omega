@@ -1,0 +1,12 @@
+// Applied data arguments are part of a delivered type: the `Holder<Bar>` an
+// applied call returns is not a `Holder<Foo>`, though both apply the same
+// declaration.
+data Foo { tag: u8; }
+data Bar { tag: u8; }
+data Holder<T> { value: T; }
+machine same<T>(item: T) -> T { item }
+machine wrong(item: Holder<Bar>) -> u8 {
+    let held: Holder<Foo> = same<Holder<Bar>>(item);
+    0u8
+}
+machine main() {}

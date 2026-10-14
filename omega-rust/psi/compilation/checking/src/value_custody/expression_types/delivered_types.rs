@@ -7,7 +7,8 @@
 //! becomes the value's type merely by being written. One comparison judges
 //! every delivery: a reference keeps the carrier correspondence a call
 //! argument owes its formal, and a by-value carrier keeps the identity of
-//! every type parameter that is rigid where the store happens.
+//! every type parameter that is rigid where the store happens and of every
+//! applied data argument.
 //!
 //! A type parameter is rigid inside the body of the machine that declares it:
 //! there it names one unknown type, equal only to itself. Another
@@ -15,11 +16,17 @@
 //! a destination it is an open slot (a constructor field, a trait
 //! requirement, a callee formal without an application) judged by the
 //! application that closes it; in a delivered type it is an application its
-//! producer left incomplete. Neither is judged here. Two concrete carriers
-//! are judged elsewhere: data declarations by the nominal store guard,
-//! primitives by the class and narrowing checks. A reference formed at the
-//! store (a borrow, a recast, a window, a literal) takes its carrier from
-//! that formation and stays with the access, recast and domain-weakening
+//! producer left incomplete. Neither is judged here.
+//!
+//! Applied data arguments compare position by position, through nested
+//! applications: a `Holder<Bar>` is not a `Holder<Foo>`, whether either side
+//! is spelled as an application or as the concrete instance generated for
+//! it. Two distinct declared concrete carriers at the store itself are judged
+//! elsewhere: data declarations by the nominal store guard, primitives by the
+//! class and narrowing checks; a directly spelled application there has no
+//! declaration for that guard to name and is judged here. A reference formed
+//! at the store (a borrow, a recast, a window, a literal) takes its carrier
+//! from that formation and stays with the access, recast and domain-weakening
 //! checks.
 
 use super::{
@@ -66,6 +73,45 @@ pub(super) fn delivered_value_type(
     })
 }
 
+/// Where a compared carrier sits: the stored value itself, or an applied
+/// data argument (or an element reached through one) inside it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Position {
+    Stored,
+    Applied,
+}
+
+/// A generated concrete instance names its application: `Holder<Foo>`'s
+/// nominal symbol stands for `Holder` applied to `Foo`. Comparing through
+/// that origin lets an instance meet the same application spelled directly.
+/// The instance may carry lifetime arguments of its own; they supply no type
+/// argument.
+fn application_form(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    let symbol = match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => symbol,
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } if arguments.count() == 0 => base_symbol,
+        _ => return reference,
+    };
+    if let Some(origin) = program
+        .data_definition_by_symbol(*symbol)
+        .and_then(|definition| definition.generic_instance)
+        && origin.is_valid()
+    {
+        program
+            .type_reference_table
+            .unconstrained_type_reference(origin)
+    } else {
+        reference
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Carrier {
     Parameter(SymbolHandle),
@@ -95,7 +141,7 @@ fn carrier(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -
 /// applications a delivered field type is read under;
 /// `required_substitutions` is the call's simultaneous formal-to-caller
 /// environment, empty at a plain store.
-pub(super) fn rigid_carrier_conflict(
+pub(super) fn delivered_carrier_conflict(
     program: &dyn crate::CheckingInput,
     scope: SymbolHandle,
     actual: TypeReferenceHandle,
@@ -103,9 +149,27 @@ pub(super) fn rigid_carrier_conflict(
     required: TypeReferenceHandle,
     required_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    if !scope.is_valid() {
-        return false;
-    }
+    scope.is_valid()
+        && carrier_conflict(
+            program,
+            scope,
+            actual,
+            actual_substitutions,
+            required,
+            required_substitutions,
+            Position::Stored,
+        )
+}
+
+fn carrier_conflict(
+    program: &dyn crate::CheckingInput,
+    scope: SymbolHandle,
+    actual: TypeReferenceHandle,
+    actual_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    required: TypeReferenceHandle,
+    required_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    position: Position,
+) -> bool {
     let (required, required_substitutions) =
         reference_values::substituted_required_reference(program, required, required_substitutions);
     let unconstrained = |reference| {
@@ -142,13 +206,14 @@ pub(super) fn rigid_carrier_conflict(
                 ..
             },
         ) => {
-            return rigid_carrier_conflict(
+            return carrier_conflict(
                 program,
                 scope,
                 *actual,
                 actual_substitutions,
                 *required,
                 required_substitutions,
+                position,
             );
         }
         (TypeReferenceNode::Reference { .. }, _) | (_, TypeReferenceNode::Reference { .. }) => {
@@ -168,8 +233,34 @@ pub(super) fn rigid_carrier_conflict(
     if foreign(actual_carrier) || foreign(required_carrier) {
         return false;
     }
+    if actual_carrier != required_carrier && (rigid(actual_carrier) || rigid(required_carrier)) {
+        return true;
+    }
+    // Two declared concrete carriers at the store itself belong to the
+    // nominal guard, which names both declarations. An application spelled
+    // directly (a call's applied result, a receiver-applied field) is judged
+    // here.
+    let declared = |reference| {
+        matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { .. }
+        )
+    };
+    if position == Position::Stored && declared(actual) && declared(required) {
+        return false;
+    }
+    let actual = application_form(program, actual);
+    let required = application_form(program, required);
+    let (Some(actual_carrier), Some(required_carrier)) =
+        (carrier(program, actual), carrier(program, required))
+    else {
+        return false;
+    };
     if actual_carrier != required_carrier {
-        return rigid(actual_carrier) || rigid(required_carrier);
+        // Inside an application every argument is part of the type, and an
+        // application at the store has no declared carrier for the nominal
+        // guard to name: two distinct concrete carriers are distinct types.
+        return true;
     }
     let (
         TypeReferenceNode::Generic {
@@ -198,19 +289,21 @@ pub(super) fn rigid_carrier_conflict(
             .iter()
             .zip(required_arguments.iter())
             .any(|(actual, required)| {
-                rigid_carrier_conflict(
+                carrier_conflict(
                     program,
                     scope,
                     *actual,
                     actual_substitutions,
                     *required,
                     required_substitutions,
+                    Position::Applied,
                 )
             })
 }
 
 /// The delivered type that fails its destination, if any: a reference by
-/// carrier correspondence, a by-value carrier by rigid parameter identity.
+/// carrier correspondence, a by-value carrier by rigid parameter and applied
+/// argument identity.
 /// Selected arms each deliver their own value.
 fn delivered_type_conflict(
     program: &dyn crate::CheckingInput,
@@ -244,7 +337,7 @@ fn delivered_type_conflict(
             &[],
         )
     } else {
-        rigid_carrier_conflict(program, scope, delivered, &substitutions, destination, &[])
+        delivered_carrier_conflict(program, scope, delivered, &substitutions, destination, &[])
     };
     // Name the delivered type the store saw: a field read's declared type
     // under its receiver's application.

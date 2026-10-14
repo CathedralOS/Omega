@@ -2616,6 +2616,8 @@ fail/generics/applied_data_argument_parameter_mismatch rejected 232ms expected @
 	machine `wrong` state `entry` local `held` expects `Box<Output>`, but the value is delivered as `Box<Input>`
 fail/generics/applied_payload_field_needs_case_membership rejected 658ms expected @d1fa4738e67a+wt
 	cannot prove selected case for payload access
+fail/generics/applied_result_distinct_declaration_mismatch rejected 343ms expected @7c0518fd7afd+wt
+	machine `wrong` state `entry` local `held` expects `Foo`, but the value is delivered as `Holder<Foo>`
 fail/generics/attached_machine_unresolved_extent rejected 869ms expected @a9ae30e1c334+wt
 	machine `Buffer::scratch` state `scratch` parameter `copy` uses unresolved fixed-array length `Missing`; a symbolic array length must name an in-scope `const` parameter
 fail/generics/borrowed_applied_field_static_selection_wrong_predicate rejected 148ms expected @d1fa4738e67a+wt
@@ -2623,6 +2625,23 @@ fail/generics/borrowed_applied_field_static_selection_wrong_predicate rejected 1
 	machine argument `small` for `count` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
 fail/generics/closed_indexed_domain_mismatch rejected 1362ms expected @a9ae30e1c334+wt
 	index compatibility condition `index-equality:Quantity:mismatch::entry:statement-0:Quantity<Unit { exponent: 0 }>==Quantity<Unit { exponent: 1 }>` is not established: actual `Quantity<Unit { exponent: 0 }>` and expected `Quantity<Unit { exponent: 1 }>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/generics/concrete_applied_argument_call_argument_mismatch rejected 310ms expected @7c0518fd7afd+wt
+	argument `value` for state `entry` expects `Holder<Foo>`, got `call expression`
+fail/generics/concrete_applied_argument_field_store_mismatch rejected 286ms expected @7c0518fd7afd+wt
+	machine `wrong` state `entry` assignment expects `Holder<Foo>`, but the value is delivered as `Holder<Bar>`
+fail/generics/concrete_applied_argument_local_mismatch rejected 202ms expected @7c0518fd7afd+wt
+	machine `wrong` state `entry` local `held` expects `Holder<Foo>`, but the value is delivered as `Holder<Bar>`
+fail/generics/concrete_applied_argument_nested_mismatch rejected 262ms expected @7c0518fd7afd+wt
+	machine `wrong` state `entry` local `held` expects `Holder<Box<Foo>>`, but the value is delivered as `Holder<Box<Bar>>`
+fail/generics/concrete_applied_argument_primitive_mismatch rejected 176ms expected @7c0518fd7afd+wt
+	machine `wrong` state `entry` local `held` expects `Holder<u8>`, but the value is delivered as `Holder<u16>`
+fail/generics/concrete_applied_argument_returned_mismatch rejected 193ms expected @7c0518fd7afd+wt
+	machine `wrong` state `entry` local `__hoist_14` expects `Holder<Foo>`, but the value is delivered as `Holder<Bar>`
+fail/generics/concrete_applied_argument_state_argument_mismatch rejected 246ms expected @7c0518fd7afd+wt
+	argument `value` for state `finish` expects `Holder<Foo>`, got `call expression`
+fail/generics/concrete_applied_argument_transition_value_mismatch rejected 217ms expected @7c0518fd7afd+wt
+	machine `wrong` state `entry` return value expects `Holder<Foo>`, but the value is delivered as `Holder<Bar>`
+	machine `wrong` state `entry` return value expects `Holder<Foo>`, but the value is delivered as `Holder<Bar>`
 fail/generics/const_binder_carrier_range_names_sibling_rejected rejected 850ms expected @a9ae30e1c334+wt
 	machine `pick` parameter `N` declares a range whose bound names a value; a scope-named maximum (`[0..=<param>]`) is supported on machine state parameters, returns, and locals
 	machine `pick` parameter `N` declares a range that does not close over integers; an argument establishes its declared range from closed integer bounds
@@ -2940,8 +2959,8 @@ fail/generics/runtime_index_carrier_mismatch rejected 1648ms expected @afe3f46ce
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_mixed_const rejected 1788ms expected @afe3f46cebb2+wt
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-fail/generics/runtime_index_carrier_mixed_type rejected 1991ms expected @afe3f46cebb2+wt
-	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_mixed_type rejected 306ms expected @6be645ba4920+wt
+	machine `preserve` state `entry` local `wrong` expects `Tagged<u64, 3, limit>`, but the value is delivered as `Tagged<u32, 3, limit>`
 fail/generics/runtime_index_carrier_nested_get_stale rejected 2101ms expected @afe3f46cebb2+wt
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_nested_mismatch rejected 1843ms expected @afe3f46cebb2+wt

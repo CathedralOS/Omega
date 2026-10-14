@@ -1,0 +1,11 @@
+// A jump supplies a state parameter declared `Holder<Foo>`; the
+// `Holder<Bar>` a call delivered cannot arrive there.
+data Foo { tag: u8; }
+data Bar { tag: u8; }
+data Holder<T> { value: T; }
+machine same<T>(item: T) -> T { item }
+machine wrong(item: Holder<Bar>) -> u8 {
+    transition { _ -> finish(same<Holder<Bar>>(item)) }
+    state finish(value: Holder<Foo>) -> u8 { 0u8 }
+}
+machine main() {}

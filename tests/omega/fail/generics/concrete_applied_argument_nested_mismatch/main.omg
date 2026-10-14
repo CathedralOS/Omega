@@ -1,0 +1,12 @@
+// Applied arguments compare through nested applications: a
+// `Holder<Box<Bar>>` is not a `Holder<Box<Foo>>`.
+data Foo { tag: u8; }
+data Bar { tag: u8; }
+data Holder<T> { value: T; }
+machine same<T>(item: T) -> T { item }
+data Box<Content> { content: Content; }
+machine wrong(item: Holder<Box<Bar>>) -> u8 {
+    let held: Holder<Box<Foo>> = same<Holder<Box<Bar>>>(item);
+    0u8
+}
+machine main() {}
