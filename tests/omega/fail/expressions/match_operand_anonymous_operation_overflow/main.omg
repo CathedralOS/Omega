@@ -1,0 +1,13 @@
+// Both operands are anonymous match results, so the sum lands at the `u8`
+// destination; 200 + 100 is not provably in range there.
+// pass/expressions/match_operand_anonymous_operation_exit is the admitted shape.
+
+machine sum(flag: bool) -> u8 {
+    match flag {
+        true -> 200
+        _ -> 1
+    } + match flag {
+        true -> 100
+        _ -> 1
+    }
+}

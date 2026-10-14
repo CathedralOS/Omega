@@ -1164,6 +1164,7 @@ pass/expressions/match_float_patterns built 1570ms exit:70
 pass/expressions/match_float_results checked 222ms
 pass/expressions/match_float_subjects built 1556ms exit:0 @de036fe72b0b+wt
 pass/expressions/match_fresh_owned checked 181ms
+pass/expressions/match_operand_anonymous_operation_exit built 9726ms exit:70 @1d4151e196d5+wt
 pass/expressions/match_ordered_duplicate_patterns checked 182ms
 pass/expressions/match_owned_authored_state_subject built 16587ms exit:70 @589aedee8ebc+wt
 pass/expressions/match_owned_call_product_arms built 16482ms exit:70 @589aedee8ebc+wt

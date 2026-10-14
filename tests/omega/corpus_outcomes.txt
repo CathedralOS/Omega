@@ -2210,6 +2210,8 @@ fail/expressions/match_fractional_result rejected 866ms expected @a9ae30e1c334+w
 	anonymous operand `7/2` is not an integer in machine `choose` state `entry` terminal expression; type an operand before division if integer division was intended
 fail/expressions/match_mixed_result_domains rejected 856ms expected @a9ae30e1c334+wt
 	match arms produce incompatible values
+fail/expressions/match_operand_anonymous_operation_overflow rejected 195ms expected @1d4151e196d5+wt
+	exact arithmetic in machine `sum` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/expressions/match_result_double_move rejected 1147ms expected @a9ae30e1c334+wt
 	cannot use `category` in machine `classify` state `entry` (statement 2) after `category` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `category` first
 fail/expressions/mismatched_width_bitwise_rejected rejected 877ms expected @a9ae30e1c334+wt
@@ -5873,6 +5875,7 @@ pass/expressions/match_float_patterns checked 11254ms check-target:macos_arm64 @
 pass/expressions/match_float_results checked 1678ms @a9ae30e1c334+wt
 pass/expressions/match_float_subjects checked 11149ms check-target:macos_arm64 @9c4d1c444502
 pass/expressions/match_fresh_owned checked 1658ms @a9ae30e1c334+wt
+pass/expressions/match_operand_anonymous_operation_exit checked 9706ms check-target:macos_arm64 @1d4151e196d5+wt
 pass/expressions/match_ordered_duplicate_patterns checked 1643ms @a9ae30e1c334+wt
 pass/expressions/match_owned_authored_state_subject checked 5691ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/expressions/match_owned_call_product_arms checked 5718ms check-target:macos_arm64 @589aedee8ebc+wt

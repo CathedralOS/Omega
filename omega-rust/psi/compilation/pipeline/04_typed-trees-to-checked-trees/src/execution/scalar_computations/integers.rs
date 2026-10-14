@@ -428,7 +428,43 @@ impl Builder<'_, '_> {
         {
             right = self.contextual_match_operand(binary.right, destination);
         }
+        // Neither operand carries a carrier anywhere (`match b { .. } + 1`):
+        // the whole operation is anonymous, so the caller's destination is
+        // its carrier, exactly as it is for an anonymous literal tree.
+        if operand_type(&left).is_none()
+            && operand_type(&right).is_none()
+            && let Some(destination) = expected
+        {
+            left = self.anonymous_operand(binary.left, destination);
+            right = self.anonymous_operand(
+                binary.right,
+                crate::values::scalar::scalar_lowering::subtraction_count_context(
+                    binary.operator,
+                    destination,
+                ),
+            );
+        }
         Some((left?, right?))
+    }
+
+    /// An operand with no carrier of its own, landed at `destination`: an
+    /// anonymous scalar tree directly, a match through its selected arms.
+    fn anonymous_operand(
+        &mut self,
+        expression: ExpressionHandle,
+        destination: PrimitiveType,
+    ) -> Option<IntegerOperand> {
+        if let Some(value) =
+            land_anonymous_scalar_expression(self.program, self.operators, expression, destination)
+        {
+            return Some(IntegerOperand {
+                value,
+                value_source: expression,
+                domain: ArithmeticDomain::Exact,
+                computation: CheckedScalarComputationHandle::invalid(),
+            });
+        }
+        self.contextual_match_operand(expression, destination)
     }
 
     fn contextual_match_operand(
