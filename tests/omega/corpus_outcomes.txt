@@ -4860,6 +4860,7 @@ pass/build/described_runner_entry_right_exit checked 11077ms check-target:macos_
 pass/build/discarded_provider_selection_exit checked 6362ms check-target:macos_arm64 @ac7fc986d407+wt
 pass/build/entry_schema_same_leaf_exit checked 10244ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/explicit_lifetime_entry_context_exit checked 10214ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/build/freestanding_unselected_completion checked 9595ms @0acd49d4fea4+wt
 pass/build/generated_source_selects_authored checked 14385ms published:files/generated.omg @ca002ac106ad+wt
 pass/build/named_map_target_family_rows_exit checked 7260ms check-target:macos_arm64 @cbb413ac54c3
 pass/build/nested_generated_dependency_dual_purpose checked 8506ms check-target:macos_arm64 @5e2a4e6e927b+wt

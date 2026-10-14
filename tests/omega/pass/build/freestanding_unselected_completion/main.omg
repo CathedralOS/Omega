@@ -1,0 +1,8 @@
+// Package review for uefi_x86_64 must admit the shared calling vocabulary
+// without demanding std's unselected hosted Console exit implementations.
+// This is a library: there is no program entry or firmware authority.
+use omega_language_std::calling;
+
+pub machine marker() -> i32 {
+    42
+}

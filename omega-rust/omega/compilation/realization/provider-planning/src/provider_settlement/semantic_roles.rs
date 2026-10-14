@@ -7,7 +7,7 @@ use checked_trees::typed_trees::boundary_completions::completion_declaration;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderBinding;
 
-/// Rejoin every provisional source role to its exact selected realization.
+/// Rejoin selected provisional source roles to their exact realizations.
 /// This validates the proposal without changing any completed source judgment.
 pub(super) fn validate_proposed(
     typed: &TypedTrees,
@@ -68,6 +68,20 @@ pub(super) fn validate_proposed(
         .boundary_completion_declarations
         .iter()
         .map(|(_, declaration)| declaration)
+        // Source nomination covers every target body. A library can declare
+        // hosted exit providers while being reviewed for a freestanding target
+        // that selects none of them. Only a selected schema requires this
+        // realization join; source checking stays target-neutral, and ordinary
+        // provider-demand checking still rejects an actual unsupported call.
+        .filter(|declaration| {
+            selected.iter().any(|provider| {
+                matches!(
+                    provider.derived.provenance.schema,
+                    ProviderSchemaDeclaration::BoundaryTrait(owner)
+                        if owner == declaration.owner
+                )
+            })
+        })
         .collect::<Vec<_>>();
     if proposals.len() != declarations.len()
         || proposals.iter().any(|proposal| {
