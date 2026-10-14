@@ -1,12 +1,14 @@
 use omega::language::core::drop;
+use omega::language::core::binding;
 pub data Token [linear] { value: i32; }
 machine Token::drop(token: &mut Token) {}
 pub boundary trait Flow { machine forward(token: Token) -> Token; }
 data Provider {}
 machine Provider::forward(token: Token) -> Token satisfies Flow::forward { token }
 machine consume(token: Token) -> i32 { let value: i32 = token.value; drop(token); value }
-machine main() reaches Flow crashes Trap {
-    let token: Token = Flow::forward(Token { value: 7 });
+data Main { flow: Binding<Flow>; }
+machine Main::main(context: &mut Main) reaches Flow crashes Trap {
+    let token: Token = Flow::forward(&context.flow, Token { value: 7 });
     let value: i32 = consume(token);
     transition value == 7 { true -> done() false -> bad() }
     state done() {}

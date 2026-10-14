@@ -98,6 +98,20 @@ pub(crate) fn admit_native_providers<'request>(
         compiler_builtins::settle_compiler_builtins(input, request)?;
     settlements.extend(builtin_settlements);
     mechanisms.extend(builtin_mechanisms);
+    for settlement in &settlements {
+        let module = input.context().module();
+        if let Some(boundary) = module.boundary_machine(settlement.boundary)
+            && boundary.requires_checked_result(&module.structural_domains)
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "native provider for `{}` cannot establish result provenance owned by another issuer; a checked provider must return the qualified value",
+                module
+                    .identities
+                    .text(boundary.identity)
+                    .unwrap_or_default(),
+            ))]);
+        }
+    }
     let installation = installation::admit_checked_provider_installation(input, artifact, request)?;
     // The toolchain-settled `FilesystemHost` cohort rows emitted for demanded
     // leaves join the supplied receiving rows into the effective policy the

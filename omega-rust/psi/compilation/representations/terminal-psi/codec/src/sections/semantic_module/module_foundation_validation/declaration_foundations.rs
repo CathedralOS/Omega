@@ -165,7 +165,7 @@ pub(super) fn validate_provider_candidate(
     if boundary.role != terminal_psi::BoundaryDeclarationRole::Callable {
         return malformed("provider candidate references contract evidence rather than a callable");
     }
-    validate_provider_scalar_contract(boundary, machine)?;
+    validate_provider_scalar_contract(boundary, machine, &module.structural_domains)?;
     for parameter in &candidate.signature.parameters {
         if !has_structural_type(module, parameter.structural_type) {
             return malformed("provider signature references an unknown structural type");
@@ -247,6 +247,7 @@ fn validate_boundary_scalar_rows(boundary: &BoundaryMachineDeclaration) -> Resul
 fn validate_provider_scalar_contract(
     boundary: &BoundaryMachineDeclaration,
     machine: &TerminalMachine,
+    domains: &[terminal_psi::StructuralDomainDeclaration],
 ) -> Result<(), CodecError> {
     if boundary.scalar_parameters.len() != machine.parameters.len()
         || boundary
@@ -257,7 +258,10 @@ fn validate_provider_scalar_contract(
     {
         return malformed("provider candidate scalar signature disagrees with its boundary");
     }
-    if !boundary.result.accepts_provider_result(&machine.result) {
+    if !boundary
+        .result
+        .accepts_provider_result(&machine.result, boundary.identity, domains)
+    {
         return malformed("provider candidate result disagrees with its boundary");
     }
     if boundary.structural_parameters.len() != machine.structural_parameters.len()

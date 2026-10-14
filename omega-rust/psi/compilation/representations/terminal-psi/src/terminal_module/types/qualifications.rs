@@ -32,6 +32,16 @@ pub struct StructuralDomainDeclaration {
 }
 
 impl StructuralDomainDeclaration {
+    /// Authorization belongs to this exact boundary requirement, not another
+    /// conformer or a private issuer whose value the provider merely forwards.
+    pub fn authorizes_boundary_requirement(&self, requirement: TerminalIdentityIndex) -> bool {
+        self.establishment_routes.iter().any(|route| {
+            matches!(route, StructuralEstablishmentRoute::BoundaryRequirement {
+                requirement: authorized,
+            } if *authorized == requirement)
+        })
+    }
+
     /// The `identity` of a semantic-domain family declared on one exact
     /// carrier: the family's normalized identity qualified by the carrier's
     /// normalized type identity, such as

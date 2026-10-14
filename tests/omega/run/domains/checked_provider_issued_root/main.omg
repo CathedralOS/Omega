@@ -1,0 +1,17 @@
+// Expected exit: 0.
+use omega::language::core::binding;
+pub data Resource { identity: u64; }
+pub domain Resource::Open(resource) requires resource.identity != 0 established by acquire;
+machine acquire() -> Resource in Open { Resource { identity: 73 } }
+pub boundary trait Source { machine open() -> Resource in Open; }
+data CheckedSource {}
+machine CheckedSource::open() -> Resource in Open satisfies Source::open { acquire() }
+machine close(resource: Resource in Open) crashes Trap {
+    transition resource.identity == 73 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}
+data Main { source: Binding<Source>; }
+machine Main::main(context: &mut Main) reaches Source crashes Trap {
+    close(Source::open(&context.source));
+}

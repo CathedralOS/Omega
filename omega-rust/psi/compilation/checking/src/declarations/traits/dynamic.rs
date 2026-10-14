@@ -886,23 +886,25 @@ fn explicit_binding_authority(
         );
         return None;
     };
-    let Some((reference, carrier)) =
-        crate::declared_place_type_raw(program, machine, Some(state), argument).and_then(
-            |reference| {
-                typed_trees::service::inspect_service_parameter_contract(program, reference)
-                    .ok()
-                    .flatten()
-                    .map(|carrier| (reference, carrier))
-            },
-        )
-    else {
-        diagnostics.push(
-            Diagnostic::error(
-                "a boundary call requires an explicit shared `&Binding<R>` authority argument",
-            )
-            .with_source_span(span),
-        );
-        return None;
+    let missing_authority = || {
+        "a boundary call requires an explicit shared `&Binding<R>` authority argument".to_owned()
+    };
+    let authority = crate::declared_place_type_raw(program, machine, Some(state), argument)
+        .ok_or_else(missing_authority)
+        .and_then(|reference| {
+            let carrier =
+                typed_trees::service::inspect_service_parameter_contract(program, reference)?
+                    .ok_or_else(missing_authority)?;
+            Ok((reference, carrier))
+        });
+    let (reference, carrier) = match authority {
+        Ok(authority) => authority,
+        Err(reason) => {
+            // Preserve the carrier's own refusal (for example a private slot
+            // contract) instead of reporting an absent authority argument.
+            diagnostics.push(Diagnostic::error(reason).with_source_span(span));
+            return None;
+        }
     };
     let borrowed = match program.expression_table.expression(argument) {
         ExpressionNode::Borrow(borrow) => {

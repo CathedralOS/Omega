@@ -136,6 +136,29 @@ pub(super) fn check_call_result_qualifications(
                 return Some(());
             }
 
+            // A requirement publishes an obligation, not an issuer grant.
+            // Keep its exact declared subject until installation: the selected
+            // checked provider must return this membership, or the crossing
+            // must independently authorize its introduction. Terminal retains
+            // the domain's route catalog and the requirement's result paths,
+            // so imported supply cannot replace private issuer provenance with
+            // an annotation. Do not choose a possible satisfier here: Psi
+            // checks the same caller before any target/provider is selected.
+            // Content carries an additional conservation obligation, kept in
+            // the routes below: promising provenance cannot create capacity.
+            // Authorized issuance likewise keeps its existing freshness join.
+            if projection.is_none()
+                && boundary_requirement_signature(program, call.target_symbol, domain).is_none()
+                && program.traits().iter().any(|owner| {
+                    owner.is_boundary
+                        && program
+                            .trait_machine_signature_by_symbol(owner, call.target_symbol)
+                            .is_some()
+                })
+            {
+                return Some(());
+            }
+
             let call_parameters = validation::call_target_parameters(program, call.target_symbol);
 
             // Preserve the existing bare-result issuance route, including its

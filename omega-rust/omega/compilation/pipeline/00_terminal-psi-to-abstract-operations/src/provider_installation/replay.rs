@@ -72,6 +72,8 @@ pub(super) fn replay_installed_provider_calls(
                     &boundary_declaration.result,
                     &candidate.result,
                     terminal_candidate,
+                    boundary_declaration.identity,
+                    &module.structural_domains,
                 )
                 || structural_arguments.len() != provider.signature.parameters.len()
                 || boundary_declaration.structural_parameters.len() != structural_arguments.len()
@@ -225,8 +227,10 @@ fn replays_result(
     boundary: &terminal_psi::BoundaryMachineResult,
     candidate: &AbstractFunctionResult,
     terminal_machine: &terminal_psi::TerminalMachine,
+    requirement: terminal_psi::TerminalIdentityIndex,
+    domains: &[terminal_psi::StructuralDomainDeclaration],
 ) -> bool {
-    if !boundary.accepts_provider_result(&terminal_machine.result) {
+    if !boundary.accepts_provider_result(&terminal_machine.result, requirement, domains) {
         return false;
     }
     match (occurrence, boundary, candidate, &terminal_machine.result) {

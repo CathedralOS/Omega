@@ -1,0 +1,12 @@
+use omega::language::core::binding;
+pub data Resource { identity: u64; }
+pub domain Resource::Open(resource) requires resource.identity != 0 established by acquire;
+machine acquire() -> Resource in Open { Resource { identity: 73 } }
+pub boundary trait Source { machine open() -> Resource in Open; }
+data FabricatedSource {}
+machine FabricatedSource::open() -> Resource in Open satisfies Source::open {
+    Resource { identity: 73 }
+}
+machine close(resource: Resource in Open) {}
+data Main { source: Binding<Source>; }
+machine Main::main(context: &mut Main) reaches Source { close(Source::open(&context.source)); }

@@ -87,8 +87,18 @@ impl TerminalExecution<'_> {
 
     pub(crate) fn preflight_boundary_result(
         &self,
+        boundary: &BoundaryMachineDeclaration,
         result: &OperationResult,
     ) -> Result<(), TerminalInterpretError> {
+        // Both explicit and automatically discovered imports reach this gate
+        // before the host handler runs. Checked providers returned through the
+        // ordinary call frame above it, with actual qualification custody.
+        if boundary.requires_checked_result(&self.program.catalogs.structural_domains) {
+            return Err(TerminalInterpretError::RuntimeSupplySelectionRejected {
+                boundary: boundary.id,
+                reason: "host import cannot establish result provenance owned by another issuer",
+            });
+        }
         if let Some(result) = result.as_structural()
             && ((requires_materialized_host_custody(&self.program.structural_types(), result.structural_type)
                 && !self.supports_scalar_case_result(result))

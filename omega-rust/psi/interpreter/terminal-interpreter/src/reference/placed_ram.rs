@@ -598,7 +598,7 @@ impl TerminalExecution<'_> {
                 "qualified RAM writes require source frame correspondence",
             ));
         }
-        self.preflight_boundary_result(&operation.result)?;
+        self.preflight_boundary_result(declaration, &operation.result)?;
         let returned = if let Some(value) = write {
             if declaration.result != terminal_psi::BoundaryMachineResult::Unit
                 || operation.result != terminal_psi::OperationResult::Unit

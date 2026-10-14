@@ -1,0 +1,6 @@
+use omega::language::core::binding;
+boundary trait Hidden { machine value() -> i32; }
+data Main { hidden: Binding<Hidden>; }
+machine Main::main(context: &mut Main) reaches Hidden {
+    let value: i32 = Hidden::value(&context.hidden);
+}

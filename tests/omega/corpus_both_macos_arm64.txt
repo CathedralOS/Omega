@@ -619,6 +619,7 @@ pass/providers/finite_requirement_forwarded_const_exit built 2675ms exit:0 inter
 pass/providers/foreign_out_parameter_write_observed_exit built 8787ms exit:70 interpreter-exit:70 interpreter:agrees @5889f8b8208f+wt
 pass/providers/generic_provider_structural_result_composition_exit built 6651ms exit:0 interpreter-exit:0 interpreter:agrees @7084889a08d8+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 2754ms exit:41 interpreter-exit:41 interpreter:agrees @cba4ef8c9ab1
+pass/providers/linear_structural_provider_pure_exit built 9190ms exit:0 interpreter-exit:0 interpreter:agrees @e5140c7a7be2+wt
 pass/providers/owned_array_operand_epochs_exit built 1550ms exit:0 interpreter-exit:0 interpreter:agrees @c27519066a03+wt
 pass/providers/runtime_boundary_array_construction_exit built 4358ms exit:70 interpreter-exit:70 interpreter:agrees @b6846d69ce88+wt
 pass/providers/runtime_boundary_array_result_exit built 1834ms exit:70 interpreter-exit:70 interpreter:agrees @006fa124be2c
@@ -775,6 +776,8 @@ run/borrows/stored_subview_repeated_updates built 5957ms exit:0 interpreter-exit
 run/borrows/transition_shared_borrow built 5289ms exit:0 interpreter-exit:0 interpreter:agrees @3fa817733300+wt
 run/calls/static_binding_authority built 5912ms exit:0 interpreter-exit:0 interpreter:agrees @8073da6ab7ac
 run/contracts/captured_bound_unused_mutation built 5614ms exit:0 interpreter-exit:0 interpreter:agrees @7e164e32caf5+wt
+run/domains/checked_provider_issued_field built 5882ms exit:0 interpreter-exit:0 interpreter:agrees @e5140c7a7be2+wt
+run/domains/checked_provider_issued_root built 5665ms exit:0 interpreter-exit:0 interpreter:agrees @e5140c7a7be2+wt
 run/domains/issued_owned_case_parameter built 5393ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 run/domains/issued_owned_case_residual built 5388ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 run/domains/issued_owned_case_return built 5318ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt

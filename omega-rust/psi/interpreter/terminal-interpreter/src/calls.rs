@@ -504,7 +504,7 @@ impl TerminalExecution<'_> {
         validate_boundary_requirements(boundary_declaration, |index| {
             boundary_arguments.values.get(index)
         })?;
-        self.preflight_boundary_result(&operation.result)?;
+        self.preflight_boundary_result(boundary_declaration, &operation.result)?;
         let remaining_claims = complete_claims(
             &self.live_claims,
             structural_arguments,

@@ -41,12 +41,18 @@ pub enum BoundaryMachineResult {
 
 impl BoundaryMachineResult {
     /// Join a checked provider's own return declaration to its requirement.
-    /// Boundary-authorized root qualifications belong to the selected crossing,
-    /// not the adapter's direct-call signature. Descendant memberships still
+    /// Predicate guarantees and boundary-authorized root qualifications belong
+    /// to the selected crossing. Routed provenance owned by another issuer must
+    /// occur in the adapter's actual result. Descendant memberships still
     /// require the provider's returned carrier to supply them. This comparison
     /// grants neither qualifications nor claims; conformance and actual return
     /// custody establish those separately.
-    pub fn accepts_provider_result(&self, result: &crate::TerminalMachineResult) -> bool {
+    pub fn accepts_provider_result(
+        &self,
+        result: &crate::TerminalMachineResult,
+        requirement: TerminalIdentityIndex,
+        domains: &[crate::StructuralDomainDeclaration],
+    ) -> bool {
         match (self, result) {
             (Self::Structural(expected), crate::TerminalMachineResult::Structural(result)) => {
                 expected.structural_type == result.structural_type
@@ -55,6 +61,15 @@ impl BoundaryMachineResult {
                         .qualifications
                         .iter()
                         .all(|domain| expected.qualifications.contains(domain))
+                    && expected.qualifications.iter().all(|domain| {
+                        result.qualifications.contains(domain)
+                            || domains.iter().any(|declaration| {
+                                declaration.id == *domain
+                                    && declaration.carrier == expected.structural_type
+                                    && (declaration.establishment_routes.is_empty()
+                                        || declaration.authorizes_boundary_requirement(requirement))
+                            })
+                    })
                     && expected
                         .projected_qualifications
                         .iter()
@@ -198,6 +213,36 @@ pub struct BoundaryMachineDeclaration {
 }
 
 impl BoundaryMachineDeclaration {
+    /// Opaque supply cannot assert non-content provenance owned by another
+    /// issuer. It needs an actual checked return; equal bits and a matching
+    /// host result annotation do not carry that history. Content domains retain
+    /// their independent input conservation and issuance checks. This query
+    /// does not admit supply, prove predicates, or manufacture custody.
+    pub fn requires_checked_result(&self, domains: &[crate::StructuralDomainDeclaration]) -> bool {
+        let BoundaryMachineResult::Structural(result) = &self.result else {
+            return false;
+        };
+        result
+            .qualifications
+            .iter()
+            .chain(
+                result
+                    .projected_qualifications
+                    .iter()
+                    .map(|row| &row.domain),
+            )
+            .any(|domain| {
+                domains
+                    .iter()
+                    .find(|declaration| declaration.id == *domain)
+                    .is_none_or(|declaration| {
+                        declaration.content_projection.is_none()
+                            && !declaration.establishment_routes.is_empty()
+                            && !declaration.authorizes_boundary_requirement(self.identity)
+                    })
+            })
+    }
+
     pub fn has_valid_parameter_order(&self) -> bool {
         self.parameter_order.len()
             == self.scalar_parameters.len() + self.structural_parameters.len()

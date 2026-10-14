@@ -346,18 +346,16 @@ pub(crate) fn nested_structural_call_return_type(
                     .filter(move |signature| signature.symbol == requirement)
                     .map(move |signature| (definition, signature))
             });
-        let (definition, signature) = signatures.next()?;
-        if signatures.next().is_some()
-            || if selected.is_some() {
-                call.receiver.is_valid()
-            } else {
-                !program.expression_table.expression_is_valid(call.receiver)
-                    || !matches!(program.expression_table.expression(call.receiver),
-                        ExpressionNode::Name(name) if name.symbol == definition.symbol)
-            }
-        {
+        let (_, signature) = signatures.next()?;
+        if signatures.next().is_some() {
             return None;
         }
+        // The exact requirement owns the result type for every operand
+        // spelling. Its receiver retains the explicit Binding authority after
+        // source normalization, not a trait-name expression. Rechecking that
+        // old shape excluded nested boundary results even though the ordinary
+        // call planner already joins the selected receiver and its custody.
+        // Type discovery grants neither provider selection nor call authority.
         signature.return_type
     };
     // A completed operand uses the same carrier judgment as a named result.
