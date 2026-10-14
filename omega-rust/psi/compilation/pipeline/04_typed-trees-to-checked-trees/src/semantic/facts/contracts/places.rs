@@ -29,10 +29,10 @@ pub(crate) fn contract_fact_place(
     }
 }
 
-/// Returns every place read by a boolean contract expression. Requires facts
-/// are stored in one context with a copy rooted at each dependency, so
-/// mutating any operand invalidates the whole assumption rather than leaving
-/// a comparison alive under an opaque expression root.
+/// Returns every place read by a contract fact. Requires retain their actual
+/// subject and separate storage-dependency rows in one context, so mutating any
+/// operand invalidates the whole assumption without turning each dependency
+/// into a new membership subject.
 pub(crate) fn contract_fact_dependency_places(
     program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,

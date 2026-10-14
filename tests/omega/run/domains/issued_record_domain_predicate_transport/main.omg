@@ -1,0 +1,56 @@
+// Expected exit: 0. Domain predicates follow the exact captured subject;
+// translating its fields does not transfer its routed domain identity.
+domain u64::NonZero(value) requires value != 0;
+data Raw { value: u64; }
+domain Raw::RawOpen(raw) requires raw.value != 0 established by acquire;
+data Handle { value: u64; }
+domain Handle::Open(handle) requires handle.value != 0
+established by direct, qualified, owned, borrowed, local, returned, first;
+
+machine acquire() -> Raw in RawOpen { Raw { value: 13 } }
+machine direct(value: u64) -> Handle in Open requires value in NonZero {
+    Handle { value: value }
+}
+machine qualified(value: u64 in NonZero) -> Handle in Open {
+    Handle { value: value }
+}
+machine owned(raw: Raw in RawOpen) -> Handle in Open {
+    Handle { value: raw.value }
+}
+machine borrowed(raw: &Raw in RawOpen) -> Handle in Open {
+    Handle { value: raw.value }
+}
+machine local(raw: Raw in RawOpen) -> Handle in Open {
+    let value: u64 = raw.value;
+    Handle { value: value }
+}
+machine returned() -> Handle in Open {
+    let raw: Raw in RawOpen = acquire();
+    Handle { value: raw.value }
+}
+machine first(items: &[u64; 2]) -> Handle in Open
+requires items[0] in NonZero {
+    Handle { value: items[0] }
+}
+machine observe(handle: &Handle in Open) -> u64 { handle.value }
+machine main() crashes Trap {
+    let first: Handle in Open = direct(7);
+    let second: Handle in Open = qualified(9);
+    let third: Handle in Open = owned(acquire());
+    let raw: Raw in RawOpen = acquire();
+    let fourth: Handle in Open = borrowed(&raw);
+    let fifth: Handle in Open = local(acquire());
+    let sixth: Handle in Open = returned();
+    let mut items: [u64; 2];
+    items[0] = 17;
+    let seventh: Handle in Open = first(&items);
+    transition observe(&first) == 7 && observe(&second) == 9
+        && observe(&third) == 13 && observe(&fourth) == 13
+        && observe(&fifth) == 13 && observe(&sixth) == 13
+        && observe(&seventh) == 17 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

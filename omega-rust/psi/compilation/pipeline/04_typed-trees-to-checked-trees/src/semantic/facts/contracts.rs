@@ -46,22 +46,27 @@ pub(super) fn append_contract_semantic_facts(
             ContractProofFactKind::Requires => {
                 let dependency_places =
                     places::contract_fact_dependency_places(program, facts, contract);
-                if dependency_places.is_empty() {
-                    facts.append_fact_context(declaration_fact)
-                } else {
-                    let mut refs = HandleSpan::empty();
-                    let mut first = None;
-                    for place in dependency_places {
-                        let fact = facts.append_fact(Fact {
-                            place: FactPlace::Place(place),
-                            ..declaration_fact
-                        });
-                        first.get_or_insert(fact);
-                        facts.append_ref(&mut refs, fact);
+                let fact = facts.append_fact(declaration_fact);
+                let mut refs = HandleSpan::empty();
+                facts.append_ref(&mut refs, fact);
+                // A read dependency controls the assumption's lifetime, not
+                // its subject. In `items[position] in NonZero`, changing
+                // position retires membership but does not establish that
+                // position itself is nonzero. Keep one proposition and its
+                // storage dependencies atomic under the shared flow filter.
+                for place in dependency_places {
+                    if facts.fact_place_equals(declaration_fact.place, place) {
+                        continue;
                     }
-                    facts.append_context(point, refs);
-                    first.expect("a non-empty dependency set must append a fact")
+                    let dependency = facts.append_fact(Fact {
+                        place: FactPlace::Place(place),
+                        payload: FactPayload::StorageDependency { dependent: fact },
+                        ..declaration_fact
+                    });
+                    facts.append_ref(&mut refs, dependency);
                 }
+                facts.append_context(point, refs);
+                fact
             }
             ContractProofFactKind::Ensures => {
                 let fact = facts.append_fact(declaration_fact);

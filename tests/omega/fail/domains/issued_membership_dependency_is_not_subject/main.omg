@@ -1,0 +1,11 @@
+domain u64::NonZero(value) requires value != 0;
+data Handle { value: u64; }
+domain Handle::Open(handle)
+requires handle.value != 0
+established by translate;
+machine translate(items: &[u64], position: u64) -> Handle in Open
+requires position < items.len
+requires items[position] in NonZero {
+    // items[0] may be nonzero while position itself is zero.
+    Handle { value: position }
+}

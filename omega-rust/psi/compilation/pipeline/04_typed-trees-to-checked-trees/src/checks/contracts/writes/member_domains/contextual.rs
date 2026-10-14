@@ -7,6 +7,8 @@
 
 use super::{CheckFacts, ExpressionHandle, ExpressionNode, FlowStateFact};
 
+mod premises;
+
 /// Bounds belong to the observed child, even when its reaching origin was a
 /// computation. The stored snapshot has already selected arithmetic and casts;
 /// replaying the initializer would read the wrong epoch after a sibling write.
@@ -193,47 +195,30 @@ pub(super) fn proves(
         }
     }
     offered_contexts.iter().any(|context| {
-        let equal = |actual, required| {
-            corresponds(
-                program, facts, state, statement, contexts, *context, value, actual, required,
-                domain, capture,
-            )
-        };
         facts
             .semantic
             .context_view(facts.semantic.contexts.get(*context))
             .facts()
             .any(|fact| {
-                // A raw callee contract belongs to the callee namespace even
-                // when its instantiation handle is absent. It is not a live
-                // observation of this machine's returned value.
-                if matches!(
-                    fact.origin,
-                    facts::FactOrigin::CallRequires | facts::FactOrigin::CallEnsures
-                ) {
-                    return false;
-                }
-                let (guard, holds) = match fact.payload {
-                    facts::FactPayload::BooleanValue { expression, value } => (expression, value),
-                    facts::FactPayload::BooleanExpression(expression) => (expression, true),
-                    facts::FactPayload::ContractBooleanExpression {
-                        kind: facts::ContractFactKind::Requires,
-                        expression,
-                        instantiated,
-                        ..
-                    } if !instantiated.is_valid() => (expression, true),
-                    _ => return false,
-                };
-                // The common guard judgment decomposes Boolean structure. Require
-                // builtin meaning over the whole offered premise before doing so.
-                validation::has_builtin_bound_expression_meaning(
-                    program,
-                    machine,
-                    declaration,
-                    guard,
-                ) && super::super::super::direct::guard_value_proves_with(
-                    program, guard, holds, predicate, true, &equal,
-                )
+                premises::from_fact(program, &facts.semantic, fact)
+                    .iter()
+                    .any(|premise| {
+                        let equal = |actual, required| {
+                            corresponds(
+                                program, facts, state, statement, contexts, *context, value,
+                                actual, required, domain, capture, premise,
+                            )
+                        };
+                        premise.builtin(program, machine, declaration, premise.expression)
+                            && super::super::super::direct::guard_value_proves_with(
+                                program,
+                                premise.expression,
+                                premise.holds,
+                                predicate,
+                                true,
+                                &equal,
+                            )
+                    })
             })
     })
 }
@@ -250,6 +235,7 @@ fn corresponds(
     required: ExpressionHandle,
     domain: &typed_trees::domain::DomainDefinition,
     capture: Option<&checked_trees::FlowOperandFact>,
+    offered: &premises::Premise<'_>,
 ) -> bool {
     if let Some(segments) =
         crate::flow::relative_place_segments_from_expression(program, required, domain)
@@ -285,13 +271,20 @@ fn corresponds(
                             .is_some_and(|places| {
                                 !places.is_empty()
                                     && places.iter().all(|place| {
-                                        validation::canonical_place_from_expression_in_state(
-                                            program,
-                                            value.operand.state_symbol,
-                                            value.operand.statement_index,
-                                            actual,
-                                        )
-                                        .is_some_and(|actual| actual == place.projected)
+                                        offered
+                                            .place(
+                                                program,
+                                                value.operand.state_symbol,
+                                                value.operand.statement_index,
+                                                actual,
+                                            )
+                                            .is_some_and(|actual| {
+                                                crate::flow::canonical_places_agree(
+                                                    program,
+                                                    &actual,
+                                                    &place.projected,
+                                                )
+                                            })
                                     })
                             })
                 });
@@ -300,16 +293,18 @@ fn corresponds(
             return false;
         }
         return super::member_place(program, state, statement, value, &segments)
-            .zip(validation::canonical_place_from_expression_in_state(
-                program,
-                state.state_symbol,
-                statement,
-                actual,
-            ))
-            .is_some_and(|(required, actual)| required == actual);
+            .zip(offered.place(program, state.state_symbol, statement, actual))
+            .is_some_and(|(required, actual)| {
+                crate::flow::canonical_places_agree(program, &required, &actual)
+            });
     }
     if let Some(required) = super::expression_constant_scalar(program, required, domain.symbol) {
-        return super::expression_constant_scalar(program, actual, state.machine_symbol).as_ref()
+        return super::expression_constant_scalar(
+            program,
+            actual,
+            offered.owner(state.machine_symbol),
+        )
+        .as_ref()
             == Some(&required);
     }
     if let Some(required) = super::case_value_symbol(program, required) {
@@ -330,7 +325,7 @@ fn corresponds(
     let same = |actual, required| {
         corresponds(
             program, facts, state, statement, contexts, premise, value, actual, required, domain,
-            capture,
+            capture, offered,
         )
     };
     (actual.operator == required_binary.operator

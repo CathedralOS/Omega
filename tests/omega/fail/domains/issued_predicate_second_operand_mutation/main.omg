@@ -1,0 +1,9 @@
+data Handle { value: u64; }
+domain Handle::Open(handle)
+requires handle.value != 0
+established by translate;
+machine translate(first: u64, second: &mut u64) -> Handle in Open
+requires first != 0 && second != 0 {
+    second = 0;
+    Handle { value: second }
+}

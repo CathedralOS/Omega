@@ -1,0 +1,10 @@
+data Raw { value: u64; }
+domain Raw::RawOpen(raw) requires raw.value != 0 established by acquire;
+data Handle { value: u64; }
+domain Handle::Open(handle) requires handle.value != 0 established by authorized;
+machine acquire() -> Raw in RawOpen { Raw { value: 13 } }
+machine authorized() -> Handle in Open { Handle { value: 13 } }
+machine translate(raw: Raw in RawOpen) -> Handle in Open {
+    // RawOpen's predicates can prove nonzero, never Handle::Open's route.
+    Handle { value: raw.value }
+}

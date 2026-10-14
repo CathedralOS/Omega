@@ -8,8 +8,17 @@ requires resource.identity != 0
 established by issue;
 data Acquisition { case Error; case Ok(resource: Resource in Open); }
 
+data RawResource { identity: u64; }
+domain RawResource::RawOpen(resource)
+requires resource.identity != 0
+established by issue_raw;
+
+machine issue_raw(input: i32) -> RawResource in RawOpen requires input >= 0 {
+    RawResource { identity: (input as u64) + 1 }
+}
 machine issue(input: i32) -> Resource in Open requires input >= 0 {
-    Resource { identity: (input as u64) + 1 }
+    let raw: RawResource in RawOpen = issue_raw(input);
+    Resource { identity: raw.identity }
 }
 machine acquire(input: i32) -> Acquisition {
     transition input >= 0 {
