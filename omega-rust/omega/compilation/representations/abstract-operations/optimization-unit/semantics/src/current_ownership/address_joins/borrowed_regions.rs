@@ -376,6 +376,7 @@ impl BorrowedRegions {
                                     Some((*source, projection.clone()))
                                 }
                                 DescriptorCallOrigin::Literal { .. }
+                                | DescriptorCallOrigin::PlacedFormation { .. }
                                 | DescriptorCallOrigin::Empty => None,
                             }));
                     } else {
@@ -537,9 +538,9 @@ impl BorrowedRegions {
                                 root: Some(*source),
                                 projection: projection.then(&suffix),
                             }),
-                            DescriptorCallOrigin::Literal { .. } | DescriptorCallOrigin::Empty => {
-                                None
-                            }
+                            DescriptorCallOrigin::Literal { .. }
+                            | DescriptorCallOrigin::Empty
+                            | DescriptorCallOrigin::PlacedFormation { .. } => None,
                         })
                         .collect();
                 }

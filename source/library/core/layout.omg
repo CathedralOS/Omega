@@ -490,6 +490,14 @@ pub data ResourceProfile where region_count <= 32 {
 // custody-conformance checking remain intentionally absent.
 pub boundary data Placed<P, T>;
 
+// Borrowed View over already initialized ordinary RAM. The compiler checks the
+// exact applied P/T geometry and content relation and retains the original
+// source loan. Neither declaration supplies an extent, device capability,
+// resource profile or stronger access than the source borrow.
+pub boundary machine Placed::view<P, T>(source: &T) -> &Placed<P, T>;
+pub boundary machine Placed::view_mut<P, T>(source: &mut T) -> &mut Placed<P, T>;
+
+
 pub data PlacementOutcome<View, Returned, Reason> {
     case Ready(view: View);
     case Rejected(returned: Returned, reason: Reason);

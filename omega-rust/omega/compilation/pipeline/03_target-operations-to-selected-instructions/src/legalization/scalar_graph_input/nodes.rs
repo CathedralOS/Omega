@@ -64,6 +64,7 @@ pub(in crate::legalization) fn admit(
     if let abstract_operations::establish_or_subslice_set_pattern!(psi_operation, ..)
     | AbstractOperation::EstablishRecord { psi_operation, .. }
     | AbstractOperation::EstablishReference { psi_operation, .. }
+    | AbstractOperation::EstablishPlacedReference { psi_operation, .. }
     | AbstractOperation::ReleaseReference { psi_operation, .. }
     | AbstractOperation::EstablishCase { psi_operation, .. }
     | AbstractOperation::CallStructural {
@@ -680,6 +681,7 @@ pub(super) fn validate(
             node.operation,
             AbstractOperation::EstablishRecord { .. }
                 | AbstractOperation::EstablishReference { .. }
+                | AbstractOperation::EstablishPlacedReference { .. }
                 | AbstractOperation::ReleaseReference { .. }
                 | AbstractOperation::EstablishStructuralArray { .. }
                 | AbstractOperation::EstablishScalarArray { .. }

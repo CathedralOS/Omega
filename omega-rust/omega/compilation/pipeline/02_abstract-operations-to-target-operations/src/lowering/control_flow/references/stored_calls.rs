@@ -162,7 +162,8 @@ pub(in crate::lowering) fn catalog(
                             }
                             DescriptorStoredOrigin::Empty => {}
                             DescriptorStoredOrigin::IncomingContents { .. }
-                            | DescriptorStoredOrigin::Literal { .. } => return None,
+                            | DescriptorStoredOrigin::Literal { .. }
+                            | DescriptorStoredOrigin::PlacedFormation { .. } => return None,
                         }
                     }
                     sources.sort();
@@ -253,6 +254,7 @@ pub(in super::super) fn stage(
                         root: normalized_source(function, live, types, &source)?,
                         carrier_type,
                         referent,
+                        placed: super::placed_source(live, &source),
                     }
                 }
             };

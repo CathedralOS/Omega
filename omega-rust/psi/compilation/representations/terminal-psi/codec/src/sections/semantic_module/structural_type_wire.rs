@@ -57,13 +57,18 @@ pub(crate) fn encode_structural_type(
         StructuralTypeShape::Record { fields, storage } => {
             writer.u8(match storage {
                 StructuralRecordStorage::Packed => 1,
+                StructuralRecordStorage::PlacedView(_) => 14,
+                StructuralRecordStorage::PlacedAccessor(_) => 15,
                 StructuralRecordStorage::Authored(_) => 10,
                 StructuralRecordStorage::TargetLayout(_) => 13,
             });
             if let StructuralRecordStorage::TargetLayout(application) = storage {
                 writer.u32(application.0);
             }
-            if let StructuralRecordStorage::Authored(storage) = storage {
+            if let StructuralRecordStorage::Authored(storage)
+            | StructuralRecordStorage::PlacedView(storage)
+            | StructuralRecordStorage::PlacedAccessor(storage) = storage
+            {
                 writer.u64(storage.byte_size);
                 writer.u64(storage.byte_alignment);
             }
@@ -71,7 +76,12 @@ pub(crate) fn encode_structural_type(
             for field in fields {
                 encode_structural_field(writer, field)?;
             }
-            if matches!(storage, StructuralRecordStorage::Authored(_)) {
+            if matches!(
+                storage,
+                StructuralRecordStorage::Authored(_)
+                    | StructuralRecordStorage::PlacedView(_)
+                    | StructuralRecordStorage::PlacedAccessor(_)
+            ) {
                 for field in fields {
                     encode_authored_field_storage(writer, field.storage.as_ref())?;
                 }
@@ -140,6 +150,24 @@ pub(crate) fn decode_structural_type(
                 reader,
             )?);
             StructuralTypeShape::PrimitiveScalar(carrier)
+        }
+        tag @ (14 | 15) => {
+            let geometry = semantic_vocabulary::AuthoredRecordStorage {
+                byte_size: reader.u64()?,
+                byte_alignment: reader.u64()?,
+            };
+            let mut fields = decode_counted(reader, decode_structural_field)?;
+            for field in &mut fields {
+                field.storage = decode_authored_field_storage(reader)?;
+            }
+            StructuralTypeShape::Record {
+                fields,
+                storage: if tag == 14 {
+                    StructuralRecordStorage::PlacedView(geometry)
+                } else {
+                    StructuralRecordStorage::PlacedAccessor(geometry)
+                },
+            }
         }
         1 => StructuralTypeShape::Record {
             storage: StructuralRecordStorage::Packed,

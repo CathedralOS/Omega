@@ -36,6 +36,12 @@ impl PostAllocationMachineInstruction {
 /// Address semantics remain symbolic until a validated frame is supplied.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalAddressOperation {
+    PlacedScalarAccess {
+        base_operand: u16,
+        byte_offset: u32,
+        form: selected_instructions::PlacedScalarForm,
+        contract: [u8; 32],
+    },
     SaveFloatingControl {
         slot: selected_instructions::LocalStorageSlotId,
     },

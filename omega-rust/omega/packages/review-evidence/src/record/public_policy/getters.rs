@@ -1,9 +1,9 @@
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
     PackagePolicyOperatorShape, PackagePolicyTraitRequirement, PackagePolicyTraitShape,
-    PackagePolicyTypeParameter, PackageReviewCallableContract,
-    PackageReviewConformanceBound, PackageReviewContractFact, PackageReviewDataKind,
-    PackageReviewDataMember, PackageReviewDataProperties, PackageReviewDomainClassification,
+    PackagePolicyTypeParameter, PackageReviewCallableContract, PackageReviewConformanceBound,
+    PackageReviewContractFact, PackageReviewDataKind, PackageReviewDataMember,
+    PackageReviewDataProperties, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
     PackageReviewEvidenceInterface, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
     PackageReviewSignatureParameter, PackageReviewTraitParent, PackageReviewTypeIdentity,

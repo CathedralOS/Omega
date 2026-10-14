@@ -26,3 +26,4 @@ runtime-abi = { path = "../backend/runtime/runtime-abi" }
 target = { path = "../backend/target" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
+terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }

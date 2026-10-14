@@ -130,7 +130,8 @@ pub fn x86_64_machine_effect_catalog(
                 Ok(
                     if matches!(
                         semantic,
-                        MachineSemanticKind::Load8
+                        MachineSemanticKind::PlacedScalarAccess(_)
+                            | MachineSemanticKind::Load8
                             | MachineSemanticKind::LoadPacked3
                             | MachineSemanticKind::LoadPacked5
                             | MachineSemanticKind::LoadPacked6
@@ -254,6 +255,8 @@ fn selected_keys(
         atomic_fence: Some(crate::X86_64_ATOMIC_FENCE),
         // LOCK is architectural on every x86-64 target; no feature custody
         // gates the family the way AArch64's LSE does.
+        placed_read: Some(crate::X86_64_PLACED_READ),
+        placed_write: Some(crate::X86_64_PLACED_WRITE),
         atomic_load: Some(crate::X86_64_ATOMIC_LOAD),
         atomic_store: Some(crate::X86_64_ATOMIC_STORE),
         atomic_update: Some(crate::X86_64_ATOMIC_UPDATE),
@@ -593,6 +596,13 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             .id
     };
     let (reads, writes) = match semantic {
+        MachineSemanticKind::PlacedScalarAccess(form) => {
+            if form.write {
+                (vec![0, 1], vec![])
+            } else {
+                (vec![0], vec![1])
+            }
+        }
         MachineSemanticKind::AtomicFence => return MachineEncodedEffects::atomic_fence_v1(),
         MachineSemanticKind::FloatResultPolicy(form) => {
             return crate::selected_form_encoding::float_result_policy::effects(form);
@@ -891,6 +901,10 @@ fn saturating_form(semantic: MachineSemanticKind, carrier: SaturatingCarrier) ->
 
 fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
     match semantic {
+        MachineSemanticKind::PlacedScalarAccess(_) => MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 7,
+            maximum_bytes: Some(9),
+        },
         MachineSemanticKind::AtomicFence => MachineSizeKnowledge::ExactBytes(3),
         MachineSemanticKind::FloatResultPolicy(form) => {
             crate::selected_form_encoding::float_result_policy::size(form)

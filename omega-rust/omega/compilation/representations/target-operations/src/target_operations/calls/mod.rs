@@ -17,3 +17,8 @@ mod results;
 pub use results::{TargetCallResult, TargetStructuralResultContract};
 mod targets;
 pub use targets::{NativeCallTarget, selector_carrier_type};
+
+mod placed_bindings;
+pub use placed_bindings::{
+    TargetPlacedCallAssociation, TargetPlacedCallBinding, TargetPlacedInterpretation,
+};

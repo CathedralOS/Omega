@@ -430,6 +430,14 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             .map_err(TerminalInstanceError::Execution)
     }
 
+    pub fn observe_private_entry_ram(&self) -> Result<Vec<(u32, Vec<u8>)>, TerminalInstanceError> {
+        self.execution
+            .as_ref()
+            .ok_or(TerminalInstanceError::Closed)?
+            .observe_private_entry_ram()
+            .map_err(TerminalInstanceError::Execution)
+    }
+
     /// The recorded effect receipt stream of this instance: empty before the
     /// first committed effect and after `close` releases execution state.
     pub fn effects(&self) -> &[TerminalEffect] {

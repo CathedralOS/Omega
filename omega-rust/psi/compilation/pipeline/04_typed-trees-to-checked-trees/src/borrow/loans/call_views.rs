@@ -472,8 +472,9 @@ pub(super) fn retained_reference_lineage(
 ) -> checked_trees::BorrowLoanLineage {
     // The formation operation decides lineage, not whether the descriptor is
     // stored in a reference local, an aggregate leaf or a replacement slot.
-    let is_explicit_reborrow =
-        super::reference_borrows::direct_reborrow_target(program, formation).is_some();
+    let is_explicit_reborrow = super::reference_borrows::direct_reborrow_target(program, formation)
+        .is_some()
+        || super::reference_borrows::is_placed_formation(program, formation);
     let declared_source = match program.expression_table.expression(formation) {
         checked_trees::expression::ExpressionNode::Call(call) => {
             call_declares_direct_view_source(program, call.target_symbol)

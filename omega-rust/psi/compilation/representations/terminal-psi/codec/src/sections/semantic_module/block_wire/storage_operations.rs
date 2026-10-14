@@ -16,6 +16,28 @@ use terminal_psi::OperationKind;
 use terminal_psi::ReferenceStorageView;
 use terminal_psi::{StructuralArgument, StructuralPathSegment};
 
+pub(super) fn encode_establish_placed_reference(
+    writer: &mut Writer,
+    source: StructuralArgument,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::ESTABLISH_PLACED_REFERENCE);
+    writer.id(source.place);
+    super::super::structural_signature_wire::encode_structural_access(writer, source.access);
+    encode_structural_path(writer, "placed reference source path", &source.path)
+}
+
+pub(super) fn decode_establish_placed_reference(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::EstablishPlacedReference {
+        source: StructuralArgument {
+            place: reader.id("PlaceId")?,
+            access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+            path: decode_structural_path(reader)?,
+        },
+    })
+}
+
 pub(super) fn encode_establish_reference(
     writer: &mut Writer,
     source: StructuralArgument,

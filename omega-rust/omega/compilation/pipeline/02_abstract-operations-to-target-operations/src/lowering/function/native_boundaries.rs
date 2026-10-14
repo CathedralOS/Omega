@@ -31,6 +31,7 @@ pub(super) fn unsupported_scalar_call(
                     BoundaryRealization::HostedExitProcessI32(_)
                         | BoundaryRealization::HostedWriteByteI32(_)
                         | BoundaryRealization::NearestIeeeFloatArithmetic(_)
+                        | BoundaryRealization::PlacedScalarAccess(_)
                 )) | Some(
                     target_operations::BoundarySettlementRealization::NormalizedForeignCall(_)
                 )

@@ -673,9 +673,9 @@ pub(super) fn validate(
         bytes,
         2,
         MachineEncodedMemoryEffect::ScanByteSequenceV1 {
-                    base_pointer_operand: 0,
-                    count_operand: 1,
-                },
+            base_pointer_operand: 0,
+            count_operand: 1,
+        },
     )
 }
 

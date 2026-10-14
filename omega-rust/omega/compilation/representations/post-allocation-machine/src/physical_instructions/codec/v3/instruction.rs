@@ -64,6 +64,13 @@ pub(super) fn decode_instruction(
             base_operand: u16_field(cursor)?,
             byte_offset: u32_field(cursor)?,
         }),
+        16 => Some(crate::PhysicalAddressOperation::PlacedScalarAccess {
+            base_operand: u16_field(cursor)?,
+            byte_offset: u32_field(cursor)?,
+            form: selected_instructions::PlacedScalarForm::from_machine_payload(byte(cursor)?)
+                .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
+            contract: super::super::cursor::array(cursor)?,
+        }),
         0 => None,
         4 => Some(crate::PhysicalAddressOperation::Load8Indexed {
             base_operand: u16_field(cursor)?,

@@ -482,6 +482,14 @@ impl TerminalExecution<'_> {
             }
             return Ok(OperationFlow::Redispatch);
         }
+        if self.execute_placed_ram_boundary(
+            operation,
+            boundary_declaration,
+            &scalar_arguments,
+            structural_arguments,
+        )? {
+            return Ok(OperationFlow::Advance);
+        }
         let mut boundary_arguments = self.resolve_boundary_arguments(
             &boundary_declaration.structural_parameters,
             structural_arguments,

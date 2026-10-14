@@ -127,6 +127,39 @@ pub(super) fn validate_u64_length_result(
     Ok(())
 }
 
+pub(super) fn validate_establish_placed_reference(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::EstablishPlacedReference { source } = &operation.kind else {
+        unreachable!("dispatched validate_establish_placed_reference")
+    };
+    let Some(result) = operation.result.structural() else {
+        return malformed("placed establishment requires a structural reference result");
+    };
+    let Some(source_type) = structural_place_type(machine, source.place) else {
+        return malformed("placed establishment source is unknown");
+    };
+    let source_type = validate_structural_path(module, source_type, &source.path)?;
+    if result.multiplicity != StructuralMultiplicity::Affine
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty()
+    {
+        return malformed("placed establishment cannot introduce owned content or qualifications");
+    }
+    if let Err(reason) = terminal_semantics::placed_reference_correspondence(
+        module,
+        source_type,
+        result.structural_type,
+        source.access,
+    ) {
+        return Err(CodecError::PlacedRamCorrespondence(reason));
+    }
+    Ok(())
+}
+
 pub(super) fn validate_establish_reference(
     module: &TerminalModule,
     machine: &TerminalMachine,

@@ -1026,3 +1026,23 @@ pub(crate) fn has_deferred_const_argument(
         _ => false,
     }
 }
+
+/// Nominal header selections for pre-resolution consumers. Transient symbols
+/// stay private; each result rejoins the exact original declaration by source
+/// custody. This operation supplies no type, placement or execution authority.
+pub fn select_data_declarations(
+    syntax: &SyntaxTrees,
+    sources: Option<Arc<SourceMap>>,
+    bindings: Vec<SourceScopedTopLevelBinding>,
+    references: &[Identifier],
+) -> Result<Vec<Result<source::SourceSpan, String>>, Vec<Diagnostic>> {
+    let selection = ConstantSelection::new(syntax, sources, bindings)?;
+    Ok(references
+        .iter()
+        .map(|reference| {
+            selection
+                .data(syntax, reference)
+                .map(|data| data.name.source_span())
+        })
+        .collect())
+}

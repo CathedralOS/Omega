@@ -371,13 +371,11 @@ impl OperationFrame<'_, '_> {
                     }),
                 )?
             };
-        let storage =
-            reference_results::publish_storage(storage, self.next_value, self.operations)?.map(
-                |(view, value)| {
-                    self.values.push(value);
-                    view
-                },
-            );
+        let (storage, value) =
+            reference_results::publish_storage(storage, self.next_value, self.operations)?;
+        if let Some(value) = value {
+            self.values.push(value);
+        }
         let declaration = reference_results::emit(
             reference_results::Formation {
                 checked: self.checked,

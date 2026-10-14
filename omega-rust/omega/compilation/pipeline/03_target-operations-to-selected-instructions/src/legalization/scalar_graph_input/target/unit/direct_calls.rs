@@ -30,6 +30,7 @@ pub(super) fn validate(
         result,
         scalar_arguments,
         arguments,
+        placed_bindings,
         claim_transfers,
         requirement_obligations,
         crash_continuations,
@@ -103,6 +104,34 @@ pub(super) fn validate(
                     })
             })
     {
+        return Err(LegalizationError::custody());
+    }
+    if callee_function.is_none()
+        && (0..signature.structural_parameter_count()).any(|position| {
+            signature
+                .structural_parameter(position)
+                .is_some_and(|formal| {
+                    plan.structural_types
+                        .placed_views()
+                        .iter()
+                        .any(|plan| plan.carrier == formal.structural_type)
+                })
+        })
+    {
+        return Err(LegalizationError::custody());
+    }
+    let expected_bindings = if let Some(callee) = callee_function {
+        super::super::super::reference_custody::placed_call_custody(
+            optimized,
+            callee,
+            &plan.structural_types,
+            structural_arguments,
+            custody,
+        )?
+    } else {
+        Vec::new()
+    };
+    if placed_bindings != &expected_bindings {
         return Err(LegalizationError::custody());
     }
     results::validate(

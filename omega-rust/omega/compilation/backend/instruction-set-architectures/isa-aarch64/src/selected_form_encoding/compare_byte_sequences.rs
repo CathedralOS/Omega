@@ -355,11 +355,11 @@ pub(super) fn validate(
         bytes,
         4,
         MachineEncodedMemoryEffect::CompareByteSequencesV1 {
-                    left_base_operand: 0,
-                    left_count_operand: 1,
-                    right_base_operand: 2,
-                    right_count_operand: 3,
-                },
+            left_base_operand: 0,
+            left_count_operand: 1,
+            right_base_operand: 2,
+            right_count_operand: 3,
+        },
     )
 }
 

@@ -34,8 +34,12 @@ use syntax_trees::item::{DataField, DataMember, Item};
 use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::TypedTrees;
 
+mod applied_results;
 mod plan_installation;
 mod record_synthesis;
+mod template_applications;
+
+use template_applications::scoped_template_applications;
 
 use plan_installation::install_placed_view_plan;
 use record_synthesis::{
@@ -50,9 +54,28 @@ pub struct PlacedViewRecord {
     pub schema_data: String,
     pub normalized_placement: PlacementPlanId,
     pub invocation_sources: Vec<source::SourceSpan>,
+    template_source: source::SourceSpan,
     policy_source: source::SourceSpan,
     policy_machine_source: source::SourceSpan,
     schema_source: source::SourceSpan,
+}
+
+/// Compilation-local declaration custody. Coordinates never become a normalized
+/// placement or ABI identity; generated labels only distinguish resolver roots.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct DeclarationKey(usize, usize, usize);
+
+impl From<source::SourceSpan> for DeclarationKey {
+    fn from(source: source::SourceSpan) -> Self {
+        Self(source.source_id.0, source.span.start, source.span.end)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct ApplicationKey {
+    template: DeclarationKey,
+    policy: DeclarationKey,
+    schema: DeclarationKey,
 }
 
 #[derive(Clone)]
@@ -73,15 +96,17 @@ struct DataCandidate {
 
 #[derive(Clone)]
 struct PolicyMachineCandidate {
-    policy: String,
     machine_source: source::SourceSpan,
 }
 
 #[derive(Debug, Clone)]
 struct Application {
+    key: ApplicationKey,
+    origin: TypeReferenceHandle,
     synthetic_name: String,
     policy: String,
     schema: String,
+    template_source: source::SourceSpan,
     policy_source: source::SourceSpan,
     policy_machine_source: source::SourceSpan,
     schema_source: source::SourceSpan,
@@ -98,7 +123,7 @@ pub(crate) struct PendingRewrite {
 type Discovery = (
     Vec<Application>,
     Vec<PendingRewrite>,
-    BTreeMap<String, SchemaRecord>,
+    BTreeMap<DeclarationKey, SchemaRecord>,
 );
 
 pub fn desugar_placed_views(
@@ -110,20 +135,121 @@ pub fn desugar_placed_views(
         source_scoped_top_level_bindings,
         selection_authority,
     } = context;
-    let (applications, rewrites, schemas) =
-        discover_applications(syntax, sources.as_deref(), selection_authority.as_deref())?;
+    let owner_requests = syntax
+        .root_items()
+        .filter_map(|item| match item {
+            Item::Machine(machine) => machine
+                .attached_data
+                .as_ref()
+                .map(|owner| (machine.name.source_span(), owner.clone())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let owner_declarations =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::select_data_declarations(
+            syntax,
+            sources.clone(),
+            source_scoped_top_level_bindings.to_vec(),
+            &owner_requests
+                .iter()
+                .map(|(_, owner)| owner.clone())
+                .collect::<Vec<_>>(),
+        )?;
+    let selected_owners = owner_requests
+        .into_iter()
+        .zip(owner_declarations)
+        .map(|((machine, _), owner)| (machine, owner))
+        .collect::<Vec<_>>();
+    let mut selected_arguments = applied_results::retain_applied_results(
+        syntax,
+        sources.clone(),
+        source_scoped_top_level_bindings,
+    )?;
+    // Header selection retains nominal custody without executing a body.
+    // Generated result demands already carry their selected template identity.
+    let requests = syntax
+        .type_references
+        .generic_nodes()
+        .into_iter()
+        .filter_map(|reference| {
+            let TypeReferenceNode::Generic {
+                base_name,
+                arguments,
+                ..
+            } = syntax.type_references.type_reference(reference)
+            else {
+                return None;
+            };
+            Some((
+                reference,
+                base_name.clone(),
+                syntax
+                    .type_references
+                    .type_reference_handles(*arguments)
+                    .to_vec(),
+            ))
+        })
+        .collect::<Vec<_>>();
+    let names = requests
+        .iter()
+        .flat_map(|(reference, base, arguments)| {
+            let mut names = vec![(*reference, base.clone())];
+            for argument in arguments {
+                if let TypeReferenceNode::Named(name) =
+                    syntax.type_references.type_reference(*argument)
+                {
+                    names.push((*argument, name.clone()));
+                }
+            }
+            names
+        })
+        .filter(|(reference, _)| {
+            !selected_arguments
+                .iter()
+                .any(|selected| selected.reference == *reference)
+        })
+        .collect::<Vec<_>>();
+    let declarations =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::select_data_declarations(
+            syntax,
+            sources.clone(),
+            source_scoped_top_level_bindings.to_vec(),
+            &names
+                .iter()
+                .map(|(_, name)| name.clone())
+                .collect::<Vec<_>>(),
+        )?;
+    for ((reference, _), declaration) in names.into_iter().zip(declarations) {
+        selected_arguments.push(applied_results::SelectedArgument {
+            reference,
+            declaration,
+        });
+    }
+    let (applications, rewrites, schemas) = discover_applications(
+        syntax,
+        sources.as_deref(),
+        selection_authority.as_deref(),
+        &selected_arguments,
+        &selected_owners,
+    )?;
     if applications.is_empty() {
         // The generic boundary templates exist only as compiler input for
         // cloning exact accessor machines. Leaving them active when a program
         // has no `Placed<P, T>` application makes ordinary static trait
         // selection consider `PlacedField<T>` as a real generic `Readable`,
         // `DestructiveRead`, or `Writable` provider.
-        retire_accessor_templates(syntax);
+        retire_accessor_templates(syntax, sources.as_deref());
         return Ok(Vec::new());
     }
 
     let mut probe = syntax.clone();
-    synthesize_probe_records(&mut probe, &applications, &rewrites, &schemas);
+    synthesize_probe_records(
+        &mut probe,
+        &applications,
+        &rewrites,
+        &schemas,
+        sources.as_deref(),
+    )?;
     let mut probe = crate::syntax_probes::normalize_generic_data(
         probe,
         sources.clone(),
@@ -134,7 +260,7 @@ pub fn desugar_placed_views(
     let frontier = syntax_trees_to_symbol_resolved_trees::resolve_deferred(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
             syntax: probe,
-            sources,
+            sources: sources.clone(),
             top_level_bindings: source_scoped_top_level_bindings.to_vec(),
         },
     )?;
@@ -161,10 +287,15 @@ pub fn desugar_placed_views(
 
     let mut plans = BTreeMap::new();
     for application in &applications {
-        let policy_machine = format!("{}::plan", application.policy);
+        let (policy_machine, schema) = selected_placement_declarations(
+            &execution,
+            application.policy_machine_source,
+            application.schema_source,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         admit_policy_invocations(
             &execution,
-            &policy_machine,
+            policy_machine,
             &application.invocation_sources,
             selection_authority.clone(),
         )
@@ -174,27 +305,39 @@ pub fn desugar_placed_views(
                 application.synthetic_name
             ))]
         })?;
-        let plan = crate::compute_placement_plan(&execution, &policy_machine, &application.schema)
-            .map_err(|reason| {
-                vec![Diagnostic::error(format!(
-                    "placed view `{}`: {reason}",
-                    application.synthetic_name
-                ))]
-            })?;
-        plans.insert(application.synthetic_name.clone(), plan);
+        let plan = super::access_plans::compute_selected_placement_plan(
+            &execution,
+            policy_machine,
+            schema,
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "placed view `{}`: {reason}",
+                application.synthetic_name
+            ))]
+        })?;
+        plans.insert(application.key, plan);
     }
 
-    synthesize_exact_records(syntax, &applications, &rewrites, &schemas, &plans)?;
+    synthesize_exact_records(
+        syntax,
+        &applications,
+        &rewrites,
+        &schemas,
+        &plans,
+        sources.as_deref(),
+    )?;
     Ok(applications
         .into_iter()
         .map(|application| {
-            let plan = &plans[&application.synthetic_name];
+            let plan = &plans[&application.key];
             PlacedViewRecord {
                 synthetic_name: application.synthetic_name,
                 policy_machine: format!("{}::plan", application.policy),
                 schema_data: application.schema,
                 normalized_placement: plan.identity(),
                 invocation_sources: application.invocation_sources,
+                template_source: application.template_source,
                 policy_source: application.policy_source,
                 policy_machine_source: application.policy_machine_source,
                 schema_source: application.schema_source,
@@ -306,9 +449,15 @@ pub(crate) fn validate_placed_view_plans_in(
     }
     let execution = domain.execution_program(typed);
     for record in records {
+        let (policy_machine, schema) = selected_placement_declarations(
+            &execution,
+            record.policy_machine_source,
+            record.schema_source,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         admit_policy_invocations(
             &execution,
-            &record.policy_machine,
+            policy_machine,
             &record.invocation_sources,
             selection_authority.clone(),
         )
@@ -318,14 +467,17 @@ pub(crate) fn validate_placed_view_plans_in(
                 record.synthetic_name
             ))]
         })?;
-        let plan =
-            crate::compute_placement_plan(&execution, &record.policy_machine, &record.schema_data)
-                .map_err(|reason| {
-                    vec![Diagnostic::error(format!(
-                        "placed view `{}`: {reason}",
-                        record.synthetic_name
-                    ))]
-                })?;
+        let plan = super::access_plans::compute_selected_placement_plan(
+            &execution,
+            policy_machine,
+            schema,
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "placed view `{}`: {reason}",
+                record.synthetic_name
+            ))]
+        })?;
         if plan.identity() != record.normalized_placement {
             return Err(vec![Diagnostic::error(format!(
                 "placed view `{}` changed normalized placement identity between accessor derivation and the authoritative typed program",
@@ -337,18 +489,45 @@ pub(crate) fn validate_placed_view_plans_in(
     Ok(())
 }
 
+fn selected_placement_declarations(
+    typed: &TypedTrees,
+    policy_source: source::SourceSpan,
+    schema_source: source::SourceSpan,
+) -> Result<
+    (
+        &typed_trees::machine::Machine,
+        &typed_trees::data::DataDefinition,
+    ),
+    String,
+> {
+    let mut machines = typed
+        .machines()
+        .iter()
+        .filter(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(policy_source));
+    let (Some(machine), None) = (machines.next(), machines.next()) else {
+        return Err("placed-view evaluation lost its unique selected policy machine".to_owned());
+    };
+    let mut schemas = typed
+        .data_definitions()
+        .iter()
+        .filter(|schema| typed.symbols.symbol_source_span(schema.symbol) == Some(schema_source));
+    let (Some(schema), None) = (schemas.next(), schemas.next()) else {
+        return Err(
+            "placed-view evaluation lost its unique selected schema declaration".to_owned(),
+        );
+    };
+    Ok((machine, schema))
+}
+
 fn admit_policy_invocations(
     typed: &TypedTrees,
-    policy_machine: &str,
+    machine: &typed_trees::machine::Machine,
     invocation_sources: &[source::SourceSpan],
     selection_authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<(), String> {
     let Some(selection_authority) = selection_authority else {
         return Ok(());
     };
-    let machine = typed
-        .realized_machine_named(policy_machine)
-        .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
     let admission = crate::BuildTimeAdmissionPlan::infer(typed, Some(selection_authority));
     for source in invocation_sources {
         admission.require_common_floor_for_invocation(
@@ -364,6 +543,8 @@ fn discover_applications(
     syntax: &SyntaxTrees,
     sources: Option<&source::SourceMap>,
     selection_authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+    selected_arguments: &[applied_results::SelectedArgument],
+    selected_owners: &[(source::SourceSpan, Result<source::SourceSpan, String>)],
 ) -> Result<Discovery, Vec<Diagnostic>> {
     let mut data = Vec::new();
     let mut placement_policies = Vec::new();
@@ -396,12 +577,6 @@ fn discover_applications(
                 }) =>
             {
                 placement_policies.push(PolicyMachineCandidate {
-                    policy: machine
-                        .attached_data
-                        .as_ref()
-                        .expect("matched attached machine")
-                        .as_str()
-                        .to_owned(),
                     machine_source: machine.name.source_span(),
                 });
             }
@@ -413,7 +588,11 @@ fn discover_applications(
     let mut applications = Vec::new();
     let mut rewrites = Vec::new();
     let mut schemas = BTreeMap::new();
+    let deferred = scoped_template_applications(syntax, selected_owners);
     for type_reference in syntax.tables.type_references.generic_nodes() {
+        if deferred.contains(&type_reference) {
+            continue;
+        }
         let TypeReferenceNode::Generic {
             base_name,
             lifetime_arguments,
@@ -422,7 +601,24 @@ fn discover_applications(
         else {
             unreachable!("generic_nodes returned a non-generic node");
         };
-        if base_name.as_str() != "Placed" {
+        let template = selected_arguments
+            .iter()
+            .find(|selected| selected.reference == type_reference)
+            .and_then(|selected| selected.declaration.as_ref().ok().copied());
+        let canonical = template
+            .and_then(|declaration| sources.and_then(|sources| sources.file_at(declaration)))
+            .is_some_and(|source| {
+                source.origin == source::SourceOrigin::Toolchain
+                    && source.path.strip_prefix(&source.package_root).ok()
+                        == Some(std::path::Path::new("layout.omg"))
+            })
+            && template.is_some_and(|declaration| {
+                data.iter().any(|candidate| {
+                    candidate.source == declaration
+                        && candidate.name.rsplit("::").next() == Some("Placed")
+                })
+            });
+        if !canonical && (sources.is_some() || base_name.as_str() != "Placed") {
             continue;
         }
         if !lifetime_arguments.is_empty() {
@@ -441,21 +637,62 @@ fn discover_applications(
             ));
             continue;
         };
-        let Some((policy, policy_source)) = named_argument(syntax, *policy_handle) else {
+        let Some((mut policy, policy_source)) = named_argument(syntax, *policy_handle) else {
             diagnostics.push(Diagnostic::error(
                 "the first `Placed` argument must be a nominal placement-policy data name",
             ));
             continue;
         };
-        let Some((schema, schema_use_source)) = named_argument(syntax, *schema_handle) else {
+        let Some((mut schema, schema_use_source)) = named_argument(syntax, *schema_handle) else {
             diagnostics.push(Diagnostic::error(
                 "the second `Placed` argument must be a plain schema data name",
             ));
             continue;
         };
+        let mut selection_failed = false;
+        for (handle, reference) in [
+            (*policy_handle, policy_source),
+            (*schema_handle, schema_use_source),
+        ] {
+            match selected_arguments
+                .iter()
+                .find(|selected| selected.reference == handle)
+            {
+                Some(selected) => {
+                    if let Err(reason) = &selected.declaration {
+                        diagnostics
+                            .push(Diagnostic::error(reason.clone()).with_source_span(reference));
+                        selection_failed = true;
+                    }
+                }
+                None if sources.is_some() => {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            "closed placement operand has no retained nominal selection",
+                        )
+                        .with_source_span(reference),
+                    );
+                    selection_failed = true;
+                }
+                None => {}
+            }
+        }
+        if selection_failed {
+            continue;
+        }
         let policy_candidates = data
             .iter()
-            .filter(|candidate| candidate.name == policy)
+            .filter(|candidate| {
+                selected_arguments
+                    .iter()
+                    .find(|selected| selected.reference == *policy_handle)
+                    .map_or(sources.is_none() && candidate.name == policy, |selected| {
+                        selected
+                            .declaration
+                            .as_ref()
+                            .is_ok_and(|declaration| candidate.source == *declaration)
+                    })
+            })
             .collect::<Vec<_>>();
         let [policy_data] = policy_candidates.as_slice() else {
             diagnostics.push(
@@ -468,9 +705,19 @@ fn discover_applications(
             );
             continue;
         };
+        policy = policy_data.name.clone();
         let policy_machines = placement_policies
             .iter()
-            .filter(|candidate| candidate.policy == policy)
+            .filter(|candidate| {
+                selected_owners.iter().any(|(machine, owner)| {
+                    *machine == candidate.machine_source
+                        && owner
+                            .as_ref()
+                            .is_ok_and(|owner| *owner == policy_data.source)
+                }) && sources.is_none_or(|sources| {
+                    sources.same_checked_instance(policy_data.source, candidate.machine_source)
+                })
+            })
             .collect::<Vec<_>>();
         let [policy_machine] = policy_machines.as_slice() else {
             diagnostics.push(
@@ -492,7 +739,17 @@ fn discover_applications(
         }
         let schema_candidates = data
             .iter()
-            .filter(|candidate| candidate.name == schema)
+            .filter(|candidate| {
+                selected_arguments
+                    .iter()
+                    .find(|selected| selected.reference == *schema_handle)
+                    .map_or(sources.is_none() && candidate.name == schema, |selected| {
+                        selected
+                            .declaration
+                            .as_ref()
+                            .is_ok_and(|declaration| candidate.source == *declaration)
+                    })
+            })
             .collect::<Vec<_>>();
         let [schema_data] = schema_candidates.as_slice() else {
             diagnostics.push(
@@ -507,6 +764,7 @@ fn discover_applications(
             );
             continue;
         };
+        schema = schema_data.name.clone();
         if !declaration_is_visible(
             sources,
             policy_source,
@@ -589,28 +847,52 @@ fn discover_applications(
             continue;
         }
 
-        let synthetic_name = format!("Placed<{policy},{schema}>");
+        let key = ApplicationKey {
+            template: template.unwrap_or_default().into(),
+            policy: policy_data.source.into(),
+            schema: schema_data.source.into(),
+        };
+        // Repeated uses share only an exact declaration tuple. A same-spelled
+        // declaration in another checked instance gets a separate resolver
+        // root; the label is not its authority or normalized plan identity.
+        let synthetic_name = if let Some(application) = applications
+            .iter()
+            .find(|application: &&Application| application.key == key)
+        {
+            application.synthetic_name.clone()
+        } else {
+            let base = format!("Placed<{policy},{schema}>");
+            if applications
+                .iter()
+                .any(|application| application.synthetic_name == base)
+            {
+                format!("{base}#{}", applications.len())
+            } else {
+                base
+            }
+        };
         rewrites.push(PendingRewrite {
             type_reference,
             synthetic_name: synthetic_name.clone(),
         });
-        schemas
-            .entry(schema.clone())
-            .or_insert_with(|| SchemaRecord {
-                fields: schema_data.fields.clone(),
-            });
+        schemas.entry(key.schema).or_insert_with(|| SchemaRecord {
+            fields: schema_data.fields.clone(),
+        });
         if let Some(application) = applications
             .iter_mut()
-            .find(|application: &&mut Application| application.synthetic_name == synthetic_name)
+            .find(|application: &&mut Application| application.key == key)
         {
             if !application.invocation_sources.contains(&policy_source) {
                 application.invocation_sources.push(policy_source);
             }
         } else {
             applications.push(Application {
+                key,
+                origin: type_reference,
                 synthetic_name,
                 policy,
                 schema,
+                template_source: template.unwrap_or_default(),
                 policy_source: policy_data.source,
                 policy_machine_source: policy_machine.machine_source,
                 schema_source: schema_data.source,

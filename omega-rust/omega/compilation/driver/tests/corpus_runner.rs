@@ -1241,6 +1241,7 @@ fn check_fail_fixture(
         .parent()
         .is_some_and(|directory| directory.join("expected_published.txt").is_file());
     let native_product = (target_name.is_some() || publishes).then(|| compilation_products::NativeProductRequest {
+        private_entry_ram: Vec::new(),
         terminal_authority_policy:
             terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,

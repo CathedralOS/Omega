@@ -3,9 +3,9 @@
 //! stored byte is an immediate, so no register carries the zero.
 
 use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
-    RegisterViewId, ValidatedPhysicalRegisterModel,
-    ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect, RegisterViewId,
+    ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
+    X86_64SelectedFormEncodingError,
 };
 use crate::selected_form_encoding::copy_bytes::register_instruction;
 use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
@@ -90,9 +90,9 @@ pub(super) fn validate(
         bytes,
         2,
         MachineEncodedMemoryEffect::ZeroBytesV1 {
-                    destination_pointer_operand: 0,
-                    count_operand: 1,
-                },
+            destination_pointer_operand: 0,
+            count_operand: 1,
+        },
     )
 }
 
@@ -152,7 +152,12 @@ mod tests {
         let catalog = crate::x86_64_register_constraint_catalog(&physical);
         let constraints =
             crate::validate_x86_64_register_constraint_catalog(catalog.clone(), &physical).unwrap();
-        crate::selected_form_encoding::tests::assert_early_clobber_required(&catalog, &physical, crate::X86_64_ZERO_BYTES, &[2]);
+        crate::selected_form_encoding::tests::assert_early_clobber_required(
+            &catalog,
+            &physical,
+            crate::X86_64_ZERO_BYTES,
+            &[2],
+        );
         for target in [
             target::NativeTarget::linux_x64(),
             target::NativeTarget::windows_x64(),

@@ -31,15 +31,50 @@ pub fn compile(
             },
         )?;
         let native_settlements = prepared.program_settlements();
+        let mut admission = prepared.admission_request(
+            &native_settlements,
+            &request.terminal_authority_policy,
+            &request.terminal_authority_permission_policy,
+        );
+        let selections = terminal_installation::admit_target_machine_selections(
+            artifact.view(),
+            proposal.target_profile().target_name(),
+        );
+        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
+            .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])?;
+        let entry = proposal.program_entry().checked_entry().terminal_entry();
+        let recipes = request
+            .private_entry_ram
+            .iter()
+            .map(|initializer| {
+                let row = artifact
+                    .semantic_module()
+                    .placed_view_inputs
+                    .iter()
+                    .find(|row| row.machine == entry && row.position == initializer.position)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "private entry RAM initializer answers no declared entry position",
+                        )]
+                    })?;
+                terminal_installation::admit_private_entry_ram(
+                    artifact.view(),
+                    &layouts,
+                    entry,
+                    &terminal_installation::PrivateEntryRamRecipe {
+                        input: row.clone(),
+                        contents: initializer.contents.clone(),
+                    },
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        admission.private_entry_ram = &recipes;
         crate::realization::realize_native_artifact(
             artifact,
             crate::request::NativeRealizationRequest {
                 program_entry: proposal.program_entry().as_settlement(),
-                admission: prepared.admission_request(
-                    &native_settlements,
-                    &request.terminal_authority_policy,
-                    &request.terminal_authority_permission_policy,
-                ),
+                admission,
                 image_request: request.image_request,
                 elf_interpreter: proposal.application().elf_interpreter.as_ref(),
                 optimization_selections: request.optimization_selections,

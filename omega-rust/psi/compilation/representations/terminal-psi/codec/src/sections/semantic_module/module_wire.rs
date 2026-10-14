@@ -25,6 +25,7 @@ mod dynamic_dispatch_wire;
 mod evidence_wire;
 mod float_meaning_wire;
 mod operation_crash_contract_wire;
+mod placed_plan_wire;
 mod placed_view_wire;
 mod proof_output_wire;
 mod scalar_block_invariant_wire;
@@ -103,6 +104,10 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     )?;
     for dependency in &module.root_service_reach.installation_dependencies {
         declaration_wire::encode_installation_reach_dependency(&mut writer, dependency)?;
+    }
+    writer.len("placed-view plans", module.placed_view_plans.len())?;
+    for plan in &module.placed_view_plans {
+        placed_plan_wire::encode(&mut writer, plan)?;
     }
     writer.len("placed-view inputs", module.placed_view_inputs.len())?;
     for input in &module.placed_view_inputs {
@@ -284,6 +289,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         reader,
         declaration_wire::decode_installation_reach_dependency,
     )?;
+    let placed_view_plans = decode_counted(reader, placed_plan_wire::decode)?;
     let placed_view_inputs = decode_counted(reader, placed_view_wire::decode_placed_view_input)?;
     let reborrow_restored_call_uses = decode_counted(reader, decode_reborrow_restored_call_use)?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
@@ -355,6 +361,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             installation_dependencies: installation_reach_dependencies,
         },
         placed_view_inputs,
+        placed_view_plans,
         reborrow_restored_call_uses,
         boundary_machines,
         provider_candidates,

@@ -49,6 +49,8 @@ pub fn machine_effect_catalog_identity(
     for key in [
         catalog.selected_keys.atomic_fence,
         catalog.selected_keys.atomic_load,
+        catalog.selected_keys.placed_read,
+        catalog.selected_keys.placed_write,
         catalog.selected_keys.atomic_store,
         catalog.selected_keys.atomic_update,
         catalog.selected_keys.atomic_compare_exchange,
@@ -589,6 +591,7 @@ macro_rules! effect_tag_arms {
             $enum::TrappingInteger(form) => trapping_family_tag(form),
             $enum::AtomicFence => 238,
             $enum::AtomicAccess(form) => form.machine_tag(),
+            $enum::PlacedScalarAccess(form) => form.machine_tag(),
             $enum::NearestIeeeFloatArithmetic(form) => form.machine_tag(),
             $enum::FloatResultPolicy(form) => form.machine_tag(),
         }
@@ -601,6 +604,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
 
 pub(crate) const fn semantic_kind_payload(kind: MachineSemanticKind) -> Option<u8> {
     match kind {
+        MachineSemanticKind::PlacedScalarAccess(form) => Some(form.machine_payload()),
         MachineSemanticKind::NearestIeeeFloatArithmetic(form) => Some(form.machine_payload()),
         MachineSemanticKind::FloatResultPolicy(form) => Some(form.machine_payload()),
         _ => None,
@@ -613,6 +617,7 @@ pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
 
 pub(crate) const fn alternative_family_payload(family: MachineAlternativeFamily) -> Option<u8> {
     match family {
+        MachineAlternativeFamily::PlacedScalarAccess(form) => Some(form.machine_payload()),
         MachineAlternativeFamily::NearestIeeeFloatArithmetic(form) => Some(form.machine_payload()),
         MachineAlternativeFamily::FloatResultPolicy(form) => Some(form.machine_payload()),
         _ => None,

@@ -295,6 +295,19 @@ impl<'artifact> TerminalProgram<'artifact> {
         self.program.validate_layout_selection(installation)?;
         crate::capabilities::check(&self.program, installation)
     }
+    pub fn execution_requirements_with_private_entry_ram(
+        &self,
+        installation: Option<&crate::effects::TerminalRuntimeSupplies>,
+        recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+    ) -> Result<crate::capabilities::TerminalExecutionRequirements, TerminalInterpretError> {
+        self.program.validate_layout_selection(installation)?;
+        crate::capabilities::check_with_private_entry_ram(
+            &self.execution_program(installation),
+            installation,
+            recipes,
+        )
+    }
+
     /// Decode canonical semantic bytes and retain their module and identity.
     ///
     /// Loading consumes bytes only — no source compiler, filesystem, package
@@ -554,7 +567,10 @@ impl<'artifact> TerminalProgram<'artifact> {
         TerminalArtifactInterpretError,
     > {
         let requirements = self
-            .execution_requirements(installation)
+            .execution_requirements_with_private_entry_ram(
+                installation,
+                structural_inputs.private_entry_ram,
+            )
             .map_err(TerminalArtifactInterpretError::Execution)?;
         if let Some(boundary) = requirements.missing_providers.first() {
             return Err(TerminalArtifactInterpretError::Execution(
@@ -581,6 +597,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             scalar_fields,
             structural_inputs.primitive_values,
             structural_inputs.placed_view_establishments,
+            structural_inputs.private_entry_ram,
             structural_inputs.zero_initialized_arguments,
             structural_inputs.established_erased_fields,
             installation,
@@ -627,5 +644,72 @@ impl<'artifact> TerminalProgram<'artifact> {
             execution,
             requirements.imports,
         ))
+    }
+}
+
+#[cfg(test)]
+mod private_entry_target_tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "explicit qualification consumes OMEGA_ENTRY_RAM_CANONICAL_ARTIFACT"]
+    fn private_entry_recipe_requires_exact_installed_geometry() {
+        let path = std::env::var_os("OMEGA_ENTRY_RAM_CANONICAL_ARTIFACT")
+            .expect("qualification must supply actual public CLI canonical output");
+        let bytes = std::fs::read(path).expect("read actual canonical bytes");
+        let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+            .expect("independent canonical admission");
+        let program = TerminalProgram::borrow(artifact.view());
+        let terminal_psi::TargetMachineCallable::Machine(entry) = artifact.semantic_module().entry
+        else {
+            panic!("ordinary direct entry required")
+        };
+        let row = artifact
+            .semantic_module()
+            .placed_view_inputs
+            .iter()
+            .find(|row| row.machine == entry)
+            .expect("actual direct placed row")
+            .clone();
+        let machines =
+            terminal_installation::admit_target_machine_selections(artifact.view(), "linux_x86_64");
+        let layouts =
+            terminal_installation::admit_target_layouts(artifact.view(), &machines).unwrap();
+        let recipe = terminal_installation::admit_private_entry_ram(
+            artifact.view(),
+            &layouts,
+            entry,
+            &terminal_installation::PrivateEntryRamRecipe {
+                input: row,
+                contents: vec![41, 0, 0, 0, 3, 0, 0, 0],
+            },
+        )
+        .expect("actual checked Linux typed initializer");
+        let recipes = std::slice::from_ref(&recipe);
+        assert!(
+            program
+                .execution_requirements_with_private_entry_ram(None, recipes)
+                .is_err()
+        );
+        for name in ["macos_arm64"] {
+            let other_machines =
+                terminal_installation::admit_target_machine_selections(artifact.view(), name);
+            let other_layouts =
+                terminal_installation::admit_target_layouts(artifact.view(), &other_machines)
+                    .unwrap();
+            let installation = program
+                .admit_runtime_supplies(crate::effects::TerminalRuntimeSupplyRequest {
+                    entry: Some(artifact.semantic_module().entry),
+                    installation: None,
+                    host_imports: &[],
+                    target_machines: Some(&other_machines),
+                    target_layouts: Some(&other_layouts),
+                })
+                .expect("genuine admitted other-target installation");
+            assert!(matches!(
+                program.execution_requirements_with_private_entry_ram(Some(&installation), recipes),
+                Err(crate::errors::TerminalInterpretError::TargetLayoutSelectionIdentityMismatch)
+            ));
+        }
     }
 }

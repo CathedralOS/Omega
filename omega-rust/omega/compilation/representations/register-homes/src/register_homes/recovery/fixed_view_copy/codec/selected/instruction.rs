@@ -86,6 +86,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     let tag = match kind {
         SelectedInstructionKind::AtomicFence => 238,
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
+        SelectedInstructionKind::PlacedScalarAccess { form, .. } => form.machine_tag(),
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => form.machine_tag(),
         SelectedInstructionKind::FloatResultPolicy { form } => form.machine_tag(),
         SelectedInstructionKind::CallAggregate { .. } => 35,
@@ -194,6 +195,15 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         // Every float form shares one tag; its dense ordinal follows.
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
             bytes.push(form.machine_payload())
+        }
+        SelectedInstructionKind::PlacedScalarAccess {
+            form,
+            contract,
+            byte_offset,
+        } => {
+            bytes.push(form.machine_payload());
+            bytes.extend_from_slice(&contract);
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::FloatResultPolicy { form } => bytes.push(form.machine_payload()),
         SelectedInstructionKind::LoadPacked { byte_offset, width }
@@ -410,6 +420,14 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedInstructionKind, FixedViewCopyDecodeError> {
     Ok(match cursor.byte()? {
+        tag @ selected_instructions::PlacedScalarForm::FAMILY_TAG => {
+            SelectedInstructionKind::PlacedScalarAccess {
+                form: selected_instructions::PlacedScalarForm::from_machine_payload(cursor.byte()?)
+                    .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
+                contract: cursor.array()?,
+                byte_offset: cursor.u32()?,
+            }
+        }
         tag @ selected_instructions::FloatResultPolicyForm::FAMILY_TAG => {
             SelectedInstructionKind::FloatResultPolicy {
                 form: selected_instructions::FloatResultPolicyForm::from_machine_payload(

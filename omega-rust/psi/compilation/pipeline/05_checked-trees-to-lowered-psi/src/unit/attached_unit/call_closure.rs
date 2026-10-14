@@ -230,6 +230,27 @@ pub(crate) fn checked_unit_boundary_identity(
             return Ok(BoundaryIdentity::Requirement(identity));
         }
     }
+    // Sealed generated accessors are semantic requirement slots, not foreign
+    // import/export spellings. Psi and provider planning share the exact role.
+    if let Some(accessor) = typed_trees::typed_trees::PlacedScalarAccessorDeclaration::authenticate(
+        &checked.typed,
+        symbol,
+    )
+    .map_err(LoweringError::InvalidSealedAccessorDeclaration)?
+    {
+        let machine =
+            checked
+                .typed
+                .machine(accessor.machine())
+                .ok_or(LoweringError::Unsupported(
+                    "sealed accessor lost its exact machine",
+                ))?;
+        let identity = checked.typed.machine_callable_identity(machine);
+        if !identity.is_valid() {
+            return unsupported("sealed accessor has no normalized callable identity");
+        }
+        return Ok(BoundaryIdentity::Requirement(identity));
+    }
     // Top-level installation dependencies are keyed by the normalized machine
     // overload, not its display name. Boundary calls must use that same exact
     // requirement identity or independent root replay sees an unused bound.

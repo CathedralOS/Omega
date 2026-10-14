@@ -15,3 +15,5 @@ source = { path = "../../../foundation/source" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 language-core = { path = "../../../foundation/language-core" }
 language-semantics = { path = "../../../foundation/language-semantics" }
+
+access-plans = { path = "../../../foundation/access-plans" }

@@ -30,6 +30,7 @@ pub struct HostedReceiverBinding {
     receiver_byte_count: u64,
     receiver_alignment: u64,
     cleanup_occupancy: bool,
+    private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -51,6 +52,36 @@ impl HostedReceiverBinding {
     pub const fn receiver_alignment(&self) -> u64 {
         self.receiver_alignment
     }
+    fn linux_shim_byte_count(&self) -> Result<usize, Diagnostic> {
+        let initialization = self
+            .private_entry_ram
+            .iter()
+            .try_fold(0usize, |size, recipe| {
+                size.checked_add(
+                    recipe
+                        .contents()
+                        .len()
+                        .checked_mul(7)
+                        .ok_or_else(|| invalid(self.target()))?,
+                )
+                .ok_or_else(|| invalid(self.target()))
+            })?;
+        14usize
+            .checked_add(initialization)
+            .and_then(|size| size.checked_add((1 + self.private_entry_ram.len()) * 7))
+            .and_then(|size| {
+                size.checked_add(
+                    5 + self
+                        .private_entry_ram
+                        .iter()
+                        .map(|recipe| recipe.observation_header().len() * 7 + 92)
+                        .sum::<usize>()
+                        + 11,
+                )
+            })
+            .ok_or_else(|| invalid(self.target()))
+    }
+
     /// Whether the receiver's nominal cleanup must occupy its hosted extent
     /// through completion. The receiver partition then counts as a
     /// cleanup-occupied extent for ledger tracking; the flag is minted only
@@ -147,13 +178,24 @@ impl HostedReceiverBinding {
         let stack_end = stack.checked_add(stack_bytes).ok_or_else(invalid)?;
         let receiver = align(stack_end, self.receiver_alignment.max(16), &invalid)?;
         let receiver_bytes = self.receiver_byte_count.max(1);
+        let receiver_end = receiver.checked_add(receiver_bytes).ok_or_else(invalid)?;
+        let end = self
+            .private_entry_ram
+            .iter()
+            .try_fold(receiver_end, |end, recipe| {
+                align(end, recipe.alignment(), &invalid)?
+                    .checked_add(
+                        recipe.contents().len() as u64 + recipe.observation_header().len() as u64,
+                    )
+                    .ok_or_else(invalid)
+            })?;
         Ok(HostedReceiverPartitions {
             saved_continuation_offset: saved,
             stack_offset: stack,
             stack_byte_count: stack_bytes,
             receiver_offset: receiver,
             receiver_byte_count: receiver_bytes,
-            end_offset: receiver.checked_add(receiver_bytes).ok_or_else(invalid)?,
+            end_offset: end,
         })
     }
 }
@@ -163,6 +205,8 @@ struct ReceiverStorage {
     scratch: object_file::ObjectSymbolHandle,
     stack_top: object_file::ObjectSymbolHandle,
     receiver: object_file::ObjectSymbolHandle,
+    private_ram: Vec<object_file::ObjectSymbolHandle>,
+    observation_headers: Vec<object_file::ObjectSymbolHandle>,
 }
 
 /// Extend the (possibly absent) BSS section with the exact disjoint bridge
@@ -193,7 +237,14 @@ fn provision_receiver_storage(
     }
     let partitions = binding.partitions(existing.first().map_or(0, |(_, size, _)| *size as u64))?;
     let end = usize::try_from(partitions.end_offset).map_err(|_| invalid())?;
-    let alignment = usize::try_from(binding.receiver_alignment.max(16)).map_err(|_| invalid())?;
+    let alignment = usize::try_from(
+        binding
+            .private_entry_ram
+            .iter()
+            .map(|recipe| recipe.alignment())
+            .fold(binding.receiver_alignment.max(16), u64::max),
+    )
+    .map_err(|_| invalid())?;
     if let Some((handle, _, previous_alignment)) = existing.first() {
         let section = object.layout.sections.get_mut(*handle);
         section.size = end;
@@ -230,6 +281,24 @@ fn provision_receiver_storage(
         partitions.receiver_offset,
         partitions.receiver_byte_count,
     )?;
+    let mut private_ram = Vec::new();
+    let mut observation_headers = Vec::new();
+    let mut private_end = partitions.receiver_offset + partitions.receiver_byte_count;
+    for (index, recipe) in binding.private_entry_ram.iter().enumerate() {
+        let offset = align(private_end, recipe.alignment(), &invalid)?;
+        private_ram.push(symbol_at(
+            &format!("omega_hosted_private_entry_ram_{index}"),
+            offset,
+            recipe.contents().len() as u64,
+        )?);
+        let header_offset = offset + recipe.contents().len() as u64;
+        observation_headers.push(symbol_at(
+            &format!("omega_hosted_private_ram_observation_header_{index}"),
+            header_offset,
+            recipe.observation_header().len() as u64,
+        )?);
+        private_end = header_offset + recipe.observation_header().len() as u64;
+    }
     Ok((
         object,
         partitions,
@@ -237,6 +306,8 @@ fn provision_receiver_storage(
             scratch,
             stack_top,
             receiver,
+            private_ram,
+            observation_headers,
         },
     ))
 }
@@ -381,13 +452,13 @@ fn finish_receiver_shim(
     object: object_file::ObjectPlan,
     bytes: &[u8],
     name: &'static str,
-    fields: &[(usize, object_file::ObjectSymbolHandle)],
+    fields: &[(usize, object_file::ObjectSymbolHandle, i64)],
     shim: impl Fn(object_file::ObjectSymbolHandle, usize) -> crate::hosted_unit_entry::EntryShim,
 ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
     use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
     let (object, text, symbol, offset) = install_entry_text(object, artifact, bytes, name)?;
     let mut relocations = artifact.relocations.clone();
-    for &(field_offset, destination) in fields {
+    for &(field_offset, destination, addend) in fields {
         relocations.push_record(RelocationRecord {
             origin: RelocationOrigin::Materialization {
                 object_symbol_handle: symbol,
@@ -396,7 +467,7 @@ fn finish_receiver_shim(
             offset: offset + field_offset,
             byte_width: 4,
             symbol_handle: destination,
-            addend: 0,
+            addend,
             kind: RelocationKind::X86_64Relative32,
         });
     }
@@ -410,32 +481,102 @@ fn finish_receiver_shim(
 
 fn prepare_linux_x86_64(
     artifact: &crate::ObjectArtifact,
-    _binding: &HostedReceiverBinding,
+    binding: &HostedReceiverBinding,
     object: object_file::ObjectPlan,
     storage: ReceiverStorage,
 ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
+    let invalid = || invalid(artifact.target);
     let entry = artifact.entry_function();
-    let mut bytes = Vec::with_capacity(LINUX_X86_64_RECEIVER_SHIM_BYTES);
-    bytes.extend([0x48, 0x89, 0x25, 0, 0, 0, 0]); // mov [rip+scratch], rsp
-    bytes.extend([0x48, 0x8d, 0x25, 0, 0, 0, 0]); // lea rsp, [rip+stack_top]
-    bytes.extend([0x48, 0x8d, 0x3d, 0, 0, 0, 0]); // lea rdi, [rip+receiver]
-    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 -> semantic continuation
-    bytes.extend([0x31, 0xff]); // xor edi, edi: Unit -> status zero
-    bytes.extend([0xb8, 0xe7, 0, 0, 0]); // mov eax, 231 (exit_group)
-    bytes.extend([0x0f, 0x05]); // syscall
-    bytes.extend([0x0f, 0x0b]); // ud2 if the nonreturning call ever returned
-    debug_assert_eq!(bytes.len(), LINUX_X86_64_RECEIVER_SHIM_BYTES);
+    let mut bytes = Vec::new();
+    let mut fields = vec![(3, storage.scratch, 0), (10, storage.stack_top, 0)];
+    bytes.extend([0x48, 0x89, 0x25, 0, 0, 0, 0]);
+    bytes.extend([0x48, 0x8d, 0x25, 0, 0, 0, 0]);
+    // Construct the original private typed allocations before any view is lent.
+    // Each complete byte is explicitly initialized; no external backing is copied.
+    for (recipe, symbol) in binding.private_entry_ram.iter().zip(&storage.private_ram) {
+        for (offset, byte) in recipe.contents().iter().enumerate() {
+            fields.push((bytes.len() + 2, *symbol, offset as i64 - 1));
+            bytes.extend([0xc6, 0x05, 0, 0, 0, 0, *byte]);
+        }
+    }
+    let (function, _) = crate::function_fragments::replay::entry_source(artifact)?;
+    let terminal_psi::CheckedProgramEntryReceiverProjection::Retained { terminal_self, .. } =
+        binding
+            .checked_entry
+            .receiver_eligibility()
+            .ok_or_else(invalid)?
+            .projection()
+    else {
+        return Err(invalid());
+    };
+    for (ordinal, parameter) in function.structural_parameters.iter().enumerate() {
+        let symbol = if parameter.place == terminal_self {
+            storage.receiver
+        } else {
+            let index = binding
+                .private_entry_ram
+                .iter()
+                .position(|recipe| recipe.input().runtime_position as usize == ordinal)
+                .ok_or_else(invalid)?;
+            *storage.private_ram.get(index).ok_or_else(invalid)?
+        };
+        let (rex, modrm) = [
+            (0x48, 0x3d),
+            (0x48, 0x35),
+            (0x48, 0x15),
+            (0x48, 0x0d),
+            (0x4c, 0x05),
+            (0x4c, 0x0d),
+        ]
+        .get(ordinal)
+        .copied()
+        .ok_or_else(invalid)?;
+        fields.push((bytes.len() + 3, symbol, 0));
+        bytes.extend([rex, 0x8d, modrm, 0, 0, 0, 0]);
+    }
+    fields.push((bytes.len() + 1, entry.symbol, 0));
+    bytes.extend([0xe8, 0, 0, 0, 0]);
+    // Normal return retires the entry loans. The runtime constructs authenticated
+    // frame headers now, then observes original storage through its own private
+    // channel. Every write must complete exactly; a closed/rebound/missing lane
+    // cannot silently stand in for a completed owner observation.
+    for ((recipe, symbol), header_symbol) in binding
+        .private_entry_ram
+        .iter()
+        .zip(&storage.private_ram)
+        .zip(&storage.observation_headers)
+    {
+        let header = recipe.observation_header();
+        for (index, byte) in header.iter().enumerate() {
+            fields.push((bytes.len() + 2, *header_symbol, index as i64 - 1));
+            bytes.extend([0xc6, 0x05, 0, 0, 0, 0, *byte]);
+        }
+        for (source, length) in [
+            (*header_symbol, header.len()),
+            (*symbol, recipe.contents().len()),
+        ] {
+            bytes.extend([0xb8, 1, 0, 0, 0]);
+            bytes.extend([0xbf, 3, 0, 0, 0]);
+            fields.push((bytes.len() + 3, source, 0));
+            bytes.extend([0x48, 0x8d, 0x35, 0, 0, 0, 0]);
+            bytes.push(0xba);
+            bytes.extend((length as u32).to_le_bytes());
+            bytes.extend([0x0f, 0x05]);
+            bytes.extend([0x48, 0x3d]);
+            bytes.extend((length as u32).to_le_bytes());
+            bytes.extend([0x74, 14]);
+            bytes.extend([
+                0xbf, 200, 0, 0, 0, 0xb8, 0xe7, 0, 0, 0, 0x0f, 0x05, 0x0f, 0x0b,
+            ]);
+        }
+    }
+    bytes.extend([0x31, 0xff, 0xb8, 0xe7, 0, 0, 0, 0x0f, 0x05, 0x0f, 0x0b]);
     finish_receiver_shim(
         artifact,
         object,
         &bytes,
         "omega_linux_x86_64_hosted_receiver_entry",
-        &[
-            (3, storage.scratch),
-            (10, storage.stack_top),
-            (17, storage.receiver),
-            (22, entry.symbol),
-        ],
+        &fields,
         |symbol, offset| crate::hosted_unit_entry::EntryShim::LinuxReceiver { symbol, offset },
     )
 }
@@ -447,6 +588,13 @@ fn prepare_linux_x86_64(
 /// call the semantic continuation, and complete through exit_group (x8 = 94)
 /// with a brk fence.
 pub(crate) const LINUX_ARM64_RECEIVER_SHIM_BYTES: usize = 60;
+
+fn linux_argument_register(ordinal: usize) -> Option<calling_conventions::MachineRegister> {
+    use calling_conventions::MachineRegister::*;
+    [X86Rdi, X86Rsi, X86Rdx, X86Rcx, X86R8, X86R9]
+        .get(ordinal)
+        .copied()
+}
 
 /// The Linux kernel arrives on AArch64 with the machine stack pointer at the
 /// initial process-stack image ([argc][argv...][NULL][envp...][NULL][auxv...])
@@ -489,11 +637,11 @@ fn prepare_macos_x86_64(
         &bytes,
         "omega_macos_x86_64_hosted_receiver_entry",
         &[
-            (3, storage.scratch),
-            (10, storage.stack_top),
-            (17, storage.receiver),
-            (22, entry.symbol),
-            (29, storage.scratch),
+            (3, storage.scratch, 0),
+            (10, storage.stack_top, 0),
+            (17, storage.receiver, 0),
+            (22, entry.symbol, 0),
+            (29, storage.scratch, 0),
         ],
         |symbol, offset| crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset },
     )
@@ -614,11 +762,11 @@ fn prepare_windows_x86_64(
         &bytes,
         "omega_windows_x86_64_hosted_receiver_entry",
         &[
-            (3, storage.scratch),
-            (10, storage.stack_top),
-            (21, storage.receiver),
-            (26, entry.symbol),
-            (35, storage.scratch),
+            (3, storage.scratch, 0),
+            (10, storage.stack_top, 0),
+            (21, storage.receiver, 0),
+            (26, entry.symbol, 0),
+            (35, storage.scratch, 0),
         ],
         |symbol, offset| crate::hosted_unit_entry::EntryShim::WindowsReceiver { symbol, offset },
     )
@@ -637,6 +785,7 @@ pub fn bind_hosted_receiver(
     determined_evidence: &[terminal_psi::CheckedProgramEntryDeterminedEvidenceField],
     demand: &crate::StackDemand,
     cleanup_occupancy: bool,
+    private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
 ) -> Result<(), Diagnostic> {
     if artifact.hosted_receiver.is_some() {
         return Err(invalid(artifact.target));
@@ -647,6 +796,7 @@ pub fn bind_hosted_receiver(
         checked_entry,
         services,
         determined_evidence,
+        private_entry_ram,
     )?;
     let binding = HostedReceiverBinding {
         source: source.clone(),
@@ -658,6 +808,7 @@ pub fn bind_hosted_receiver(
         receiver_byte_count,
         receiver_alignment,
         cleanup_occupancy,
+        private_entry_ram: private_entry_ram.to_vec(),
     };
     validate_binding(artifact, &binding)?;
     artifact.hosted_receiver = Some(binding);
@@ -693,6 +844,7 @@ pub(crate) fn validate_binding(
             &binding.checked_entry,
             &binding.services,
             &binding.determined_evidence,
+            &binding.private_entry_ram,
         )? != (binding.receiver_byte_count, binding.receiver_alignment)
     {
         return Err(invalid());
@@ -836,6 +988,7 @@ fn receiver_layout(
     checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
     services: &[ProgramEntryFusedServiceEstablishment],
     determined_evidence: &[terminal_psi::CheckedProgramEntryDeterminedEvidenceField],
+    private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
 ) -> Result<(u64, u64), Diagnostic> {
     use calling_conventions::CallingPolicy;
     use terminal_psi::{StructuralAccess, StructuralMultiplicity};
@@ -928,7 +1081,11 @@ fn receiver_layout(
     {
         return Err(invalid());
     }
-    let [parameter] = function.structural_parameters.as_slice() else {
+    let Some(parameter) = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == terminal_self)
+    else {
         return Err(invalid());
     };
     let terminal_parameter = terminal
@@ -937,7 +1094,12 @@ fn receiver_layout(
     if terminal_parameter != Some(parameter) {
         return Err(invalid());
     }
-    let [native] = target.graph.parameters.as_slice() else {
+    let Some(native) = target
+        .graph
+        .parameters
+        .iter()
+        .find(|native| native.place == terminal_self)
+    else {
         return Err(invalid());
     };
     let receiver_identity = source
@@ -952,21 +1114,73 @@ fn receiver_layout(
         || !source.visible_parameters().is_empty()
         || parameter.place != terminal_self
         || parameter.structural_type != eligibility.terminal_receiver_type()
-        || parameter.position != 0
         || parameter.access != StructuralAccess::MutableBorrow
         || parameter.multiplicity == StructuralMultiplicity::Linear
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
         || function.attachment.is_some()
         || target.graph.call_plan.policy != expected_policy
-        || target.graph.call_plan.parameters.as_slice() != [native.placement.clone()]
+        || function.structural_parameters.len() != 1 + private_entry_ram.len()
+        || target.graph.parameters.len() != function.structural_parameters.len()
+        || target.graph.call_plan.parameters.len() != target.graph.parameters.len()
         || target.graph.call_plan.result.is_some()
         || native.place != parameter.place
         || native.structural_type != parameter.structural_type
         || native.access != parameter.access
-        || !receiver_pointer_matches(native.shape, &native.placement, receiver_register)
+        || !receiver_pointer_matches(
+            native.shape,
+            &native.placement,
+            if private_entry_ram.is_empty() {
+                receiver_register
+            } else {
+                linux_argument_register(
+                    function
+                        .structural_parameters
+                        .iter()
+                        .position(|parameter| parameter.place == terminal_self)
+                        .ok_or_else(invalid)?,
+                )
+                .ok_or_else(invalid)?
+            },
+        )
     {
         return Err(invalid());
+    }
+    if !private_entry_ram.is_empty() && artifact.target != target::NativeTarget::linux_x64() {
+        return Err(invalid());
+    }
+    for (ordinal, parameter) in function.structural_parameters.iter().enumerate() {
+        if parameter.place == terminal_self {
+            continue;
+        }
+        let recipe = private_entry_ram
+            .iter()
+            .find(|recipe| recipe.input().runtime_position as usize == ordinal)
+            .ok_or_else(invalid)?;
+        let actual = target
+            .graph
+            .parameters
+            .iter()
+            .find(|native| native.place == parameter.place)
+            .ok_or_else(invalid)?;
+        if recipe.terminal() != terminal_identity
+            || recipe.target() != target::TargetProfile::LinuxX64.target_name()
+            || recipe.input().machine != selected_entry
+            || terminal_semantics::placed_view_input_parameter(terminal, recipe.input()).ok()
+                != Some(parameter)
+            || actual.structural_type != parameter.structural_type
+            || actual.access != parameter.access
+            || actual.shape.byte_size as u64 != recipe.contents().len() as u64
+            || (actual.shape.alignment as u64) < recipe.alignment()
+            || !receiver_pointer_matches(
+                actual.shape,
+                &actual.placement,
+                linux_argument_register(ordinal).ok_or_else(invalid)?,
+            )
+            || target.graph.call_plan.parameters.get(ordinal) != Some(&actual.placement)
+        {
+            return Err(invalid());
+        }
     }
     let mut declarations = target
         .graph
@@ -1282,6 +1496,8 @@ pub(crate) fn validate_image(
 ) -> Result<(), Diagnostic> {
     let invalid = || invalid(artifact.target);
     let expected = prepare(artifact)?;
+    let binding = artifact.hosted_receiver_binding().ok_or_else(invalid)?;
+    let linux_shim_bytes = binding.linux_shim_byte_count()?;
     let (_symbol, offset) = match shim {
         crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset }
             if expected_shim_matches(expected.shim, shim) =>
@@ -1307,7 +1523,7 @@ pub(crate) fn validate_image(
                 object,
                 symbol,
                 offset,
-                LINUX_X86_64_RECEIVER_SHIM_BYTES,
+                linux_shim_bytes,
                 output,
             ) || !elf_entry_points_to(output, offset)
             {
@@ -1419,9 +1635,7 @@ pub(crate) fn validate_image(
             )
         }
         crate::hosted_unit_entry::EntryShim::LinuxReceiver { .. } => {
-            let end = offset
-                .checked_add(LINUX_X86_64_RECEIVER_SHIM_BYTES)
-                .ok_or_else(invalid)?;
+            let end = offset.checked_add(linux_shim_bytes).ok_or_else(invalid)?;
             instructions::validate_x86_64(
                 output
                     .final_text_bytes
@@ -1431,6 +1645,7 @@ pub(crate) fn validate_image(
                 selected_entry,
                 output.final_image_layout.bss_address,
                 partitions,
+                &binding.private_entry_ram,
             )
         }
         crate::hosted_unit_entry::EntryShim::LinuxArm64Receiver { .. } => {
@@ -1543,7 +1758,7 @@ fn validate_partitions(
         || partitions.stack_byte_count < binding.demand.ceiling_bytes()
         || stack_end > partitions.receiver_offset
         || partitions.receiver_byte_count < binding.receiver_byte_count.max(1)
-        || receiver_end != partitions.end_offset
+        || receiver_end > partitions.end_offset
         || partitions.end_offset != output.bss_bytes as u64
     {
         return Err(invalid());

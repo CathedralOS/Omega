@@ -1,8 +1,8 @@
 use crate::record::{
     PackagePolicyCrashRoute, PackagePolicyTermination, PackageReviewCallableContract,
-    PackageReviewDataProperties, PackageReviewSignatureParameter, PackageReviewNominalIdentity,
-    PackageReviewPropositionParameterSignature, PackageReviewSynchronousInvocation,
-    PackageReviewTypeIdentity,
+    PackageReviewDataProperties, PackageReviewNominalIdentity,
+    PackageReviewPropositionParameterSignature, PackageReviewSignatureParameter,
+    PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

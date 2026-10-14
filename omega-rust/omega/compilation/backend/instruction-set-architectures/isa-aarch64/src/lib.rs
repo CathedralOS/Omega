@@ -174,3 +174,5 @@ pub use hosted_sequences::{
 };
 pub use register_model::aarch64_indirect_aggregate_call_keys;
 pub use register_model::{aarch64_float_scalar_call_keys, aarch64_float_scalar_return_keys};
+
+pub use register_model::{AARCH64_PLACED_READ, AARCH64_PLACED_WRITE};

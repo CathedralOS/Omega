@@ -225,16 +225,37 @@ fn linux_shim(
 #[test]
 fn linux_bridge_instructions_reconstruct_rip_relative_storage_and_call() {
     let shim = linux_shim(0x1000_0ff0, 0x1000_0fb0, BSS_ADDRESS, PARTITIONS);
-    validate_x86_64(&shim, 0x1000_0ff0, 0x1000_0fb0, BSS_ADDRESS, PARTITIONS)
-        .expect("exact Linux bridge bytes and resolved targets");
+    validate_x86_64(
+        &shim,
+        0x1000_0ff0,
+        0x1000_0fb0,
+        BSS_ADDRESS,
+        PARTITIONS,
+        &[],
+    )
+    .expect("exact Linux bridge bytes and resolved targets");
 
     // Backward and forward rel32 displacements both reconstruct.
     let shim = linux_shim(0x1000_3000, 0x1000_2fc0, BSS_ADDRESS, PARTITIONS);
-    validate_x86_64(&shim, 0x1000_3000, 0x1000_2fc0, BSS_ADDRESS, PARTITIONS)
-        .expect("negative displacement reconstruction");
+    validate_x86_64(
+        &shim,
+        0x1000_3000,
+        0x1000_2fc0,
+        BSS_ADDRESS,
+        PARTITIONS,
+        &[],
+    )
+    .expect("negative displacement reconstruction");
     let shim = linux_shim(0x1000_3000, 0x1000_4000, BSS_ADDRESS, PARTITIONS);
-    validate_x86_64(&shim, 0x1000_3000, 0x1000_4000, BSS_ADDRESS, PARTITIONS)
-        .expect("forward call displacement");
+    validate_x86_64(
+        &shim,
+        0x1000_3000,
+        0x1000_4000,
+        BSS_ADDRESS,
+        PARTITIONS,
+        &[],
+    )
+    .expect("forward call displacement");
 }
 
 #[test]
@@ -246,18 +267,26 @@ fn linux_bridge_instructions_reject_every_mutated_byte() {
         let mut hostile = original.clone();
         hostile[bit / 8] ^= 1 << (bit % 8);
         assert!(
-            validate_x86_64(&hostile, address, entry, BSS_ADDRESS, PARTITIONS).is_err(),
+            validate_x86_64(&hostile, address, entry, BSS_ADDRESS, PARTITIONS, &[]).is_err(),
             "bit {bit}"
         );
     }
     for length in [0, 3, 7, 21, 26, 36] {
         assert!(
-            validate_x86_64(&original[..length], address, entry, BSS_ADDRESS, PARTITIONS).is_err()
+            validate_x86_64(
+                &original[..length],
+                address,
+                entry,
+                BSS_ADDRESS,
+                PARTITIONS,
+                &[]
+            )
+            .is_err()
         );
     }
     let mut longer = original.clone();
     longer.push(0x0b);
-    assert!(validate_x86_64(&longer, address, entry, BSS_ADDRESS, PARTITIONS).is_err());
+    assert!(validate_x86_64(&longer, address, entry, BSS_ADDRESS, PARTITIONS, &[]).is_err());
 }
 
 #[test]
@@ -273,20 +302,20 @@ fn linux_bridge_instructions_reject_redirected_storage_or_entry() {
             2 => partitions.stack_byte_count += 16,
             _ => partitions.receiver_offset += 16,
         }
-        assert!(validate_x86_64(&shim, address, entry, BSS_ADDRESS, partitions).is_err());
+        assert!(validate_x86_64(&shim, address, entry, BSS_ADDRESS, partitions, &[]).is_err());
     }
     // A shim aimed at a different continuation must not satisfy this entry.
-    assert!(validate_x86_64(&shim, address, entry + 0x40, BSS_ADDRESS, PARTITIONS).is_err());
+    assert!(validate_x86_64(&shim, address, entry + 0x40, BSS_ADDRESS, PARTITIONS, &[]).is_err());
     let redirected = linux_shim(address, entry + 0x40, BSS_ADDRESS, PARTITIONS);
-    assert!(validate_x86_64(&redirected, address, entry, BSS_ADDRESS, PARTITIONS).is_err());
+    assert!(validate_x86_64(&redirected, address, entry, BSS_ADDRESS, PARTITIONS, &[]).is_err());
     let moved = linux_shim(address, entry, BSS_ADDRESS + 0x1000, PARTITIONS);
-    assert!(validate_x86_64(&moved, address, entry, BSS_ADDRESS, PARTITIONS).is_err());
+    assert!(validate_x86_64(&moved, address, entry, BSS_ADDRESS, PARTITIONS, &[]).is_err());
     // A shim encoded for a different base must not replay at this address.
-    assert!(validate_x86_64(&moved, address + 0x40, entry, BSS_ADDRESS, PARTITIONS).is_err());
+    assert!(validate_x86_64(&moved, address + 0x40, entry, BSS_ADDRESS, PARTITIONS, &[]).is_err());
     // BSS arithmetic overflow fails closed.
     let mut overflowing = PARTITIONS;
     overflowing.stack_byte_count = u64::MAX;
-    assert!(validate_x86_64(&shim, address, entry, BSS_ADDRESS, overflowing).is_err());
+    assert!(validate_x86_64(&shim, address, entry, BSS_ADDRESS, overflowing, &[]).is_err());
 }
 
 // Hand-encoded Windows x86-64 bridge: `mov [rip+scratch], rsp; lea rsp,

@@ -23,6 +23,29 @@ pub(super) fn declaration(
         .expect("canonical stack pointer")
         .id;
     let (memory, trap, reads, writes, encoded_memory, size) = match semantic {
+        MachineSemanticKind::PlacedScalarAccess(form) => (
+            if form.write {
+                MachineMemoryEffect::WritePointerV1
+            } else {
+                MachineMemoryEffect::ReadPointerV1
+            },
+            MachineTrapBehavior::MayArchitecturalFaultV1,
+            if form.write { vec![0, 1] } else { vec![0] },
+            if form.write { vec![] } else { vec![1] },
+            if form.write {
+                MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
+            } else {
+                MachineEncodedMemoryEffect::ReadPointerV1 {
+                    pointer_operand: 0,
+                    byte_count: u16::from(form.bytes),
+                }
+            },
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 7,
+                maximum_bytes: Some(9),
+            },
+        ),
+
         MachineSemanticKind::CopyBytes => (
             MachineMemoryEffect::CopyBytesV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
@@ -254,7 +277,9 @@ pub(super) fn declaration(
         constraint,
         memory,
         trap,
-        barrier: if is_call {
+        barrier: if matches!(semantic, MachineSemanticKind::PlacedScalarAccess(_)) {
+            MachineBarrier::ExternalEffect
+        } else if is_call {
             MachineBarrier::Call
         } else {
             MachineBarrier::None

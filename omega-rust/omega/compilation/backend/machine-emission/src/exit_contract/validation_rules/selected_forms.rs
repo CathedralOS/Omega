@@ -627,6 +627,36 @@ pub(in crate::exit_contract) fn validate_non_return(
                 }
         }
         (
+            SelectedInstructionKind::PlacedScalarAccess {
+                form,
+                contract,
+                byte_offset,
+            },
+            memory,
+            Some(address),
+        ) => {
+            let expected_memory = if form.write {
+                MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
+            } else {
+                MachineEncodedMemoryEffect::ReadPointerV1 {
+                    pointer_operand: 0,
+                    byte_count: u16::from(form.bytes),
+                }
+            };
+            memory == expected_memory
+                && form.ordinary_semantic().is_some()
+                && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                && effects.external_operand_reads == if form.write { vec![0, 1] } else { vec![0] }
+                && effects.external_operand_writes == if form.write { vec![] } else { vec![1] }
+                && address.symbolic
+                    == physical_instructions::PhysicalAddressOperation::PlacedScalarAccess {
+                        base_operand: 0,
+                        byte_offset,
+                        form,
+                        contract,
+                    }
+        }
+        (
             SelectedInstructionKind::Load32 { byte_offset },
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand: 0,

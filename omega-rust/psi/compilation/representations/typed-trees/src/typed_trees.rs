@@ -64,9 +64,10 @@ pub use commitments::{
 };
 pub use placed_plans::{
     PlacedAccessorTarget, PlacedAtomicObservingResultContract, PlacedAtomicResidentContract,
-    PlacedFieldPlan, PlacedViewPlan, PlanLaidBitField, PlanLaidBitFragment, PlanLaidGeometry,
-    PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations, PlanLaidRepeatedField,
-    PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
+    PlacedFieldPlan, PlacedScalarAccessorDeclaration, PlacedScalarAccessorOperation,
+    PlacedViewPlan, PlanLaidBitField, PlanLaidBitFragment, PlanLaidGeometry, PlanLaidIntegerField,
+    PlanLaidLayout, PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidSchemaArgument,
+    PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
 };
 
 use crate::{
@@ -162,6 +163,9 @@ pub struct TypedTrees {
     /// selected them, so checking and lowering never reconstruct permissions
     /// from generated names.
     pub placed_view_plans: Vec<PlacedViewPlan>,
+    /// Exact sealed borrowed-view prototypes selected during typing. These
+    /// declaration rows supply no memory, resource profile or loan authority.
+    pub placed_borrow_factories: Vec<expression::PlacedBorrowOperationRequest>,
     /// Derived wire placements (mint arc rung 2a): one arena for every
     /// schema's placements, referenced by span from `wire_schema_plans` --
     /// arena-backed storage, HandleSpan ownership.
@@ -489,6 +493,7 @@ impl TypedTrees {
             plan_laid_target_layouts: Arena::new(),
             plan_laid_schema_fields: Arena::new(),
             placed_view_plans: Vec::new(),
+            placed_borrow_factories: Vec::new(),
             wire_placements: Arena::new(),
             wire_encode_obligations: Arena::new(),
             wire_schema_plans: Vec::new(),

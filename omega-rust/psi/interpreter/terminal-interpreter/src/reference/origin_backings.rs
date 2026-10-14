@@ -14,7 +14,13 @@ impl TerminalExecution<'_> {
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
         let types = self.program.structural_types();
         let mut selected = ResolvedStructuralProjection {
-            value: backing.value.clone(),
+            placed_ram: backing.placed_ram.clone(),
+            // Traverse suffixes in the captured logical interpretation.
+            // Original supplying storage remains private in the association.
+            value: backing
+                .placed_ram
+                .as_ref()
+                .map_or_else(|| backing.value.clone(), |ram| ram.presentation.clone()),
             view_tip: backing
                 .aggregate_view
                 .map(|view| AggregateViewTip::Aggregate {
@@ -49,6 +55,7 @@ impl TerminalExecution<'_> {
                     Some(backing.access),
                     terminal_psi::StructuralFieldType::canonical_leaf_type,
                     view,
+                    selected.placed_ram.clone(),
                 )?
                 else {
                     return Ok(None);
@@ -64,6 +71,10 @@ impl TerminalExecution<'_> {
                         actual,
                         backing.access,
                     );
+                }
+                if let Some(ram) = &selected.placed_ram {
+                    self.validate_placed_ram_home(ram)?;
+                    selected.value = ram.source.clone();
                 }
                 return Ok(Some(selected));
             };
@@ -120,6 +131,7 @@ impl TerminalExecution<'_> {
                 Some(backing.access),
                 terminal_psi::StructuralFieldType::canonical_leaf_type,
                 view,
+                selected.placed_ram.clone(),
             )?
             else {
                 return Ok(None);
@@ -158,6 +170,7 @@ impl TerminalExecution<'_> {
                 Some(access),
                 terminal_psi::StructuralFieldType::canonical_leaf_type,
                 None,
+                region.placed_ram.clone(),
             )?
             else {
                 return Ok(None);
@@ -219,6 +232,7 @@ impl TerminalExecution<'_> {
             Some(access),
             terminal_psi::StructuralFieldType::canonical_leaf_type,
             None,
+            region.placed_ram.clone(),
         )?
         else {
             return Ok(None);

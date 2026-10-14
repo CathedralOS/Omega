@@ -8,8 +8,8 @@ use abstract_operations::AbstractFunction;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralTypeId};
 use std::collections::BTreeMap;
 use terminal_psi::{
-    StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeShape,
+    StructuralAccess, StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralTypeShape,
 };
 
 /// A projected descriptor borrows its exact current carrier. Runtime selectors

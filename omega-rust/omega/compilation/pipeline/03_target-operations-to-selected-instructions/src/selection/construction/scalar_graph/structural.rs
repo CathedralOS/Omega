@@ -471,6 +471,7 @@ pub(super) fn operation(
     if matches!(
         row.kind,
         LegalizedScalarInstructionKind::EstablishReference { .. }
+            | LegalizedScalarInstructionKind::EstablishPlacedReference { .. }
     ) {
         reference::establish(source, row, builder)?;
         return Ok(true);

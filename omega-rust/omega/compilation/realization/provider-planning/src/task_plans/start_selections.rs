@@ -163,10 +163,7 @@ fn append_task_start_selection(
         )));
         return;
     };
-    let (target_machine, target_entry) = match unique_task_activation_target(
-        typed,
-        target.symbol,
-    ) {
+    let (target_machine, target_entry) = match unique_task_activation_target(typed, target.symbol) {
         Ok(target) => target,
         Err(TaskActivationTargetError::MissingEntry)
             if target.symbol.is_valid()

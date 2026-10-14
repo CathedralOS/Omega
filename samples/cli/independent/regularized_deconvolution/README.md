@@ -35,17 +35,8 @@ values in the impulse/deblurring case. It includes odd sample lengths,
 asymmetric five-tap kernels, both lambda extremes, zero input, runtime refusals,
 and an authored source-invalid convolution index contract.
 
-For the full input matrix, compile once and reuse the normal product:
-
-```sh
-CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p omega --bin omega --example qualify_inputs
-omega update --project samples/cli/independent/regularized_deconvolution --target linux_x86_64
-python samples/cli/independent/regularized_deconvolution/validate.py --cli target/debug/omega --batch-runner target/debug/examples/qualify_inputs --evidence build/deconvolution-validation
-```
-
-The example makes no review decisions. It checks accepted package and compiler
-identity, runs every Terminal invocation with the retained product's runtime
-provisions and the same isolated root as `run --both`, then publishes that exact
-product once and captures independent native processes. Each invocation retains
-its streams, status and elapsed time. The default validator route also checks
-public `run --both --keep` values; its repeated source compilation is slower.
+The validator uses public `run --both --input ... --outputs ...` to compile once
+for the full input matrix. It checks both engines' retained streams and exact
+case statuses, then applies the independent field and normal-equation checks.
+The optional `--batch-runner` argument retains compatibility with the earlier
+qualification example; normal validation needs only the CLI.

@@ -7,6 +7,12 @@ pub enum PackageReviewCompilerIntrinsicExecution {
     HostedExitProcessI32,
     HostedWriteByteI32,
     HostedReadByte,
+    PlacedScalarAccess {
+        contract: [u8; 32],
+        placement_commitment: [u8; 32],
+        access_slot: u32,
+        operation: effects::CompilerPlacedScalarOperation,
+    },
     BuiltinFunction(symbols::BuiltinFunction),
     PrimitiveFloatBinary {
         operation: provider_planning::CompilerPrimitiveFloatBinaryOperation,

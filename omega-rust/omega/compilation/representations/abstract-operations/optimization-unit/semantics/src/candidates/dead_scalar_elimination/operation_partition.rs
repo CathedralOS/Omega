@@ -55,6 +55,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | abstract_operations::byte_len_or_field_read_pattern!(..)
         | O::StructuralScalarFieldRead { .. }
         | O::EstablishReference { .. }
+        | O::EstablishPlacedReference { .. }
         | O::ReleaseReference { .. }
         // Restoration windows carry custody, not a scalar result a
         // dead-scalar rule may retire; the pair stays ineligible.

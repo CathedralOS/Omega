@@ -3076,6 +3076,8 @@ fail/inline_asm/asm_where_missing_clobber rejected 8ms expected @a9ae30e1c334+wt
 fail/inline_asm/port_write_selected_state_service_required rejected 1889ms expected @73488f3b9a96
 	machine `emit_selected_state` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
 	machine `emit_selected_state` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
+fail/layouts/authored_placed_accessor_requires_realization rejected 344ms expected @0855a204a2df+wt
+	bodyless boundary symbol `read` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 fail/layouts/callee_integer_at_forwarded_write_requires_fit rejected 1681ms expected @a9ae30e1c334+wt
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_intermediate_write_requires_fit rejected 1580ms expected @a9ae30e1c334+wt
@@ -3108,6 +3110,8 @@ fail/layouts/false_constant_layout_contract rejected 2683ms expected @e63c4b1e20
 	requires contract for call impossible from program: size_of() < align_of(): constant predicate is false under the selected target realization `macos_arm64`
 fail/layouts/layout_contract_selected_equality rejected 537ms expected @e63c4b1e202d+wt
 	cannot prove requires contract for call required$specialized$c027caf142dac46a$0 from program: size_of() == 16 (needs fact `size_of() == 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/layouts/placed_policy_requires_exact_attached_owner rejected 24ms expected @0855a204a2df+wt
+	`Placed<RegPlacement, first::Registers>` must select one exact `RegPlacement::plan` machine
 fail/layouts/placement_policy_unproved_callee_premise rejected 28ms expected @86441935879a64d7f3af4c34d1475129884c2970
 	placed view `Placed<CheckedPolicy,Register>`: machine `CheckedPolicy::plan` is not build-time admissible: machine `CheckedPolicy::limit` has an authored `requires` premise along `CheckedPolicy::plan -> CheckedPolicy::limit`; pre-check semantic evaluation has no checked invocation proof for that premise; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/layouts/plan_laid_dynamic_plan rejected 1752ms expected @a9ae30e1c334+wt
@@ -6730,6 +6734,7 @@ pass/layouts/mixed_alignment_layout_queries_compile checked 1655ms @a9ae30e1c334
 pass/layouts/nested_record_layout_queries_compile checked 1659ms @a9ae30e1c334+wt
 pass/layouts/nested_sum_member_layout_compile checked 1655ms @a9ae30e1c334+wt
 pass/layouts/odd_array_then_byte_layout_compile checked 1799ms @a9ae30e1c334+wt
+pass/layouts/placed_policy_owner_selection checked 6243ms @0855a204a2df+wt
 pass/layouts/placed_view_call_custody checked 52441ms terminal-inspections:match @ce05f6f0788b
 pass/layouts/placed_view_source_access_compile checked 13118ms @a9ae30e1c334+wt
 pass/layouts/portable_data_layout_queries checked 11681ms check-target:macos_arm64 @a9ae30e1c334+wt

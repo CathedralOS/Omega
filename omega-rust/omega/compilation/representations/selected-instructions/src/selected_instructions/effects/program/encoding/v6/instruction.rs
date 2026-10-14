@@ -110,6 +110,12 @@ fn decode_kind(
     allow_jump: bool,
 ) -> Result<SelectedInstructionKind, PreAllocationMachineEffectDecodeError> {
     Ok(match cursor.byte()? {
+        crate::PlacedScalarForm::FAMILY_TAG => SelectedInstructionKind::PlacedScalarAccess {
+            form: crate::PlacedScalarForm::from_machine_payload(cursor.byte()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            contract: cursor.array()?,
+            byte_offset: cursor.u32()?,
+        },
         crate::FloatResultPolicyForm::FAMILY_TAG => SelectedInstructionKind::FloatResultPolicy {
             form: crate::FloatResultPolicyForm::from_machine_payload(cursor.byte()?)
                 .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
@@ -516,6 +522,10 @@ fn decode_alternative_for_version(
     allow_jump: bool,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
     let family = match cursor.byte()? {
+        crate::PlacedScalarForm::FAMILY_TAG => MachineAlternativeFamily::PlacedScalarAccess(
+            crate::PlacedScalarForm::from_machine_payload(cursor.byte()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+        ),
         crate::FloatResultPolicyForm::FAMILY_TAG => MachineAlternativeFamily::FloatResultPolicy(
             crate::FloatResultPolicyForm::from_machine_payload(cursor.byte()?)
                 .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,

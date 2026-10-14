@@ -53,6 +53,14 @@ pub enum DescriptorResultOrigin {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DescriptorCallOrigin {
+    /// Provenance token used only by the placed-loan analysis. This names a
+    /// checked formation, never physical storage or permission to access it.
+    PlacedFormation {
+        machine: MachineId,
+        operation: semantic_vocabulary::OperationId,
+        place: PlaceId,
+        carrier: StructuralTypeId,
+    },
     Empty,
     Argument {
         source: PlaceId,
@@ -376,18 +384,19 @@ fn place_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTyp
                 .map(|parameter| parameter.structural_type)
         })
         .or_else(|| {
-            machine
-                .structural_places
-                .iter()
-                .find_map(|row| match row.kind {
-                    StructuralPlaceKind::OperationResult {
-                        structural_type, ..
-                    }
-                    | StructuralPlaceKind::ByteSequenceLiteral {
-                        structural_type, ..
-                    } if row.id == place => Some(structural_type),
-                    _ => None,
-                })
+            machine.structural_places.iter().find_map(|row| {
+                if row.id != place {
+                    return None;
+                }
+                match row.kind {
+                    StructuralPlaceKind::Result => machine
+                        .result
+                        .structural()
+                        .filter(|result| result.place == place)
+                        .map(|result| result.structural_type),
+                    _ => row.kind.produced_structural_type(),
+                }
+            })
         })
 }
 
@@ -434,6 +443,16 @@ pub fn terminal_reference_graph(module: &TerminalModule) -> Vec<DescriptorMachin
         .machines
         .iter()
         .filter_map(|machine| terminal_flow::adapt(module, machine, DescriptorSlotKind::References))
+        .collect()
+}
+
+/// Placed-loan provenance uses the same exact descriptor transport graph,
+/// retaining formation tokens separately from ordinary backing addresses.
+pub fn terminal_placed_origin_graph(module: &TerminalModule) -> Option<Vec<DescriptorMachine>> {
+    module
+        .machines
+        .iter()
+        .map(|machine| terminal_flow::adapt(module, machine, DescriptorSlotKind::PlacedOrigins))
         .collect()
 }
 

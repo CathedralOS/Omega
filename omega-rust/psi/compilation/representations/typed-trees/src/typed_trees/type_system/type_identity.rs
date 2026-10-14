@@ -19,6 +19,7 @@
 
 mod callable_identity;
 mod constraint_identity;
+mod derived_declarations;
 mod identity_context;
 mod lifetime_parameters;
 mod normalized_identities;
@@ -689,6 +690,20 @@ impl TypedTrees {
         if !symbol.is_valid() {
             return Err("a hermetic identity contains an unresolved declaration".to_owned());
         }
+        match derived_declarations::nominal_name(
+            self,
+            symbol,
+            &TypeIdentityContext {
+                qualification: TypeIdentityQualification::PackageQualified,
+                ..Default::default()
+            },
+            true,
+        )
+        .map_err(str::to_owned)?
+        {
+            Some(identity) => return Ok(identity),
+            None => {}
+        }
         let path = self.symbols.display_path(symbol, "::");
         if let Some(package) = self.symbols.symbol_package_identity(symbol) {
             let mut owner = String::with_capacity(64);
@@ -746,6 +761,14 @@ impl TypedTrees {
     ) -> Option<NormalizedTypeIdentity> {
         if !symbol.is_valid() || self.symbols.display_path(symbol, "::").is_empty() {
             return None;
+        }
+        derived_declarations::nominal_name(self, symbol, &TypeIdentityContext::default(), false)
+            .ok()?;
+        if let Some(origin) = self
+            .data_definition_by_symbol(symbol)
+            .and_then(|data| data.generic_instance)
+        {
+            return Some(self.normalized_type_identity(origin));
         }
         Some(program_intern_type_identity(
             self,

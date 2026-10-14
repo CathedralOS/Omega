@@ -334,7 +334,8 @@ pub(super) fn validate_current_ownership_cfg(
             // relocation, call transfer, and suspended-root access all settle
             // before the ordinary custody roster is consumed.
             let moved_reference_owner = match &node.operation {
-                O::EstablishReference { source, .. } => {
+                O::EstablishReference { source, .. }
+                | O::EstablishPlacedReference { source, .. } => {
                     super::references::transferred_ingress_leaf(
                         function,
                         structural_types,

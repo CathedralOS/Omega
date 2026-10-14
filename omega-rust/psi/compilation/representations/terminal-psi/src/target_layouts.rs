@@ -17,6 +17,11 @@ pub struct LayoutApplicationId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralRecordStorage {
     Packed,
+    /// A placed interpretation has no ordinary owned record storage.
+    /// Its catalog describes the backing geometry; establishment lends it.
+    PlacedView(AuthoredRecordStorage),
+    /// One projected transfer container, still incapable of ordinary ownership.
+    PlacedAccessor(AuthoredRecordStorage),
     Authored(AuthoredRecordStorage),
     TargetLayout(LayoutApplicationId),
 }

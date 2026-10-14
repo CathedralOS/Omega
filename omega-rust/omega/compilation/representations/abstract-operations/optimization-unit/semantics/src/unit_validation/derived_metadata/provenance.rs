@@ -43,6 +43,7 @@ pub(crate) fn expected_provenance(
         | O::EstablishZeroedStructural { psi_operation, .. }
         | O::EstablishStructuralLocal { psi_operation, .. }
         | O::EstablishReference { psi_operation, .. }
+        | O::EstablishPlacedReference { psi_operation, .. }
         | O::ReleaseReference { psi_operation, .. }
         | O::MoveStructuralField { psi_operation, .. }
         | O::StoreStructuralField { psi_operation, .. }

@@ -161,6 +161,7 @@ use ScalarLeafOperandShape as Operands;
 use ScalarLeafResultShape as ResultShape;
 
 operation_semantic_rows! {
+    EstablishPlacedReference => ("schema:operation:establish-placed-reference", LeafDenotation, None),
     EstablishReference => ("schema:operation:establish-reference", LeafDenotation, None),
     ReleaseReference => ("schema:operation:release-reference", LeafDenotation, None),
     EstablishPrimitiveLocal => ("schema:operation:establish-primitive-local", LeafDenotation, None),

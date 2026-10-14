@@ -1,0 +1,5 @@
+use lookalike;
+// A generated generic name has no compiler accessor execution authority.
+machine rejected(value: &lookalike::PlacedField<u32>) -> u32 {
+    lookalike::PlacedField::read<u32>(value)
+}

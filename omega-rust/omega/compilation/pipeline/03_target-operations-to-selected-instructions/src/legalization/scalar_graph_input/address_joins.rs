@@ -316,8 +316,10 @@ fn loan_access_permitted(source: StructuralAccess, destination: StructuralAccess
     use StructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow};
     matches!(
         (source, destination),
-        (MutableBorrow, SharedBorrow | MutableBorrow | WriteOnlyBorrow)
-            | (Owned | SharedBorrow, SharedBorrow)
+        (
+            MutableBorrow,
+            SharedBorrow | MutableBorrow | WriteOnlyBorrow
+        ) | (Owned | SharedBorrow, SharedBorrow)
             | (WriteOnlyBorrow, WriteOnlyBorrow)
     )
 }
@@ -339,7 +341,11 @@ fn root_type(
     };
     let permitted = |source: &StructuralParameterDeclaration| {
         abstract_operations::control_flow::address_joins::loan_access_permitted(
-            plan.structural_types.iter(), source.structural_type, path, source.access, access,
+            plan.structural_types.iter(),
+            source.structural_type,
+            path,
+            source.access,
+            access,
         )
     };
     if let Some(source) = function.structural_parameter(place) {
@@ -354,9 +360,8 @@ fn root_type(
         .then_some(source.structural_type);
     }
     if let Some((owner, joined)) = parameter(function, place, plan) {
-        return ((owner == block || dominates(function, owner, block))
-            && permitted(joined))
-        .then_some(joined.structural_type);
+        return ((owner == block || dominates(function, owner, block)) && permitted(joined))
+            .then_some(joined.structural_type);
     }
     if matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
         && !function.structural_places.iter().any(|declaration| {

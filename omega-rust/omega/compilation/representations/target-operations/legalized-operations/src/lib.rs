@@ -21,7 +21,7 @@ pub use legalized_operations::{
     NativeCallOrigin, SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
     calls, control_flow, encode_call_binding, encode_call_plan, encode_fuel,
     encode_hosted_read_byte_identity, encode_integer, encode_locator,
-    encode_machine_function_identity, encode_native_callback_argument, encode_placement,
-    encode_provider_execution, encode_register, encode_scalar_type, encode_shape, identity,
-    legality, legalized_operation_plan_identity,
+    encode_machine_function_identity, encode_native_callback_argument, encode_placed_call_bindings,
+    encode_placement, encode_provider_execution, encode_register, encode_scalar_type, encode_shape,
+    identity, legality, legalized_operation_plan_identity,
 };

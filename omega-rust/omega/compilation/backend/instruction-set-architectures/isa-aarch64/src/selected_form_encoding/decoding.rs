@@ -682,6 +682,14 @@ pub(crate) fn validate_decoded(
     decoded: &[DecodedWord],
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     let valid = match kind {
+        SelectedInstructionKind::PlacedScalarAccess {
+            form, byte_offset, ..
+        } => {
+            let ordinary = form
+                .ordinary_kind(byte_offset)
+                .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+            return validate_decoded(ordinary, registers, decoded);
+        }
         // Atomic bytes have their own opcode/width/register decoder.
         SelectedInstructionKind::AtomicAccess { .. } => false,
         // Float arithmetic bytes have their own field decoder.
@@ -1035,6 +1043,13 @@ pub(crate) fn footprint(
     // Classify operand indices once. Both physical views and encoded effects
     // must describe the same slots, including when two slots share a register.
     let (read_indices, write_indices, writes_nzcv) = match kind {
+        SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
+            if form.write {
+                (vec![0, 1], vec![], false)
+            } else {
+                (vec![0], vec![1], false)
+            }
+        }
         SelectedInstructionKind::AtomicAccess { form } => {
             return super::atomic::footprint(form, operands);
         }

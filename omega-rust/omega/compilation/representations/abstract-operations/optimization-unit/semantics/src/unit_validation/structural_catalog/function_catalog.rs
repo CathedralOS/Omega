@@ -145,6 +145,7 @@ pub(crate) fn validate_function_structural_catalog(
                                     result,
                                     ..
                                 }
+                                | O::EstablishPlacedReference { psi_operation, result, .. }
                                 // A window extraction's moved subtree is a
                                 // structural operation result like any
                                 // establishment's.
@@ -269,6 +270,11 @@ pub(crate) fn validate_function_structural_catalog(
                 result,
             }
             | O::EstablishReference {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::EstablishPlacedReference {
                 psi_operation,
                 result,
                 ..

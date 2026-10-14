@@ -283,9 +283,8 @@ impl IeeeFloatArithmeticOperation {
         all[60] = Self::Classify;
         let mut comparison = 0;
         while comparison < semantic_vocabulary::IeeeFloatComparisonOperation::ALL.len() {
-            let compare = Self::Compare(
-                semantic_vocabulary::IeeeFloatComparisonOperation::ALL[comparison],
-            );
+            let compare =
+                Self::Compare(semantic_vocabulary::IeeeFloatComparisonOperation::ALL[comparison]);
             all[compare.ordinal() as usize] = compare;
             comparison += 1;
         }
@@ -497,6 +496,13 @@ mod tests {
 /// provider execution or a compact authority coordinate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CompilerBuiltinExecution {
+    /// Closed sealed operation identity; every occurrence separately owes RAM custody.
+    PlacedScalarAccess {
+        contract: [u8; 32],
+        placement_commitment: [u8; 32],
+        access_slot: u32,
+        operation: terminal_psi::TerminalPlacedAccessorKind,
+    },
     HostedExitProcessI32,
     HostedReadByte,
     HostedWriteByteI32,

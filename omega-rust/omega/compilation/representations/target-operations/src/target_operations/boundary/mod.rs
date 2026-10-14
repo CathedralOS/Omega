@@ -17,6 +17,7 @@ pub use realizations::{
     NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
     NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, NormalizedSystemCallBinding,
+    PlacedScalarAccessRealization,
 };
 mod arguments;
 pub use arguments::{

@@ -27,3 +27,7 @@ owns full quantitative analysis; termination alone supplies no work ceiling.
 
 CLI and corrupted-evidence regressions live in
 [inspect_terminal.rs](../../tests/inspect_terminal.rs).
+
+`--artifact <file>` consumes an external canonical envelope through the same
+public decoder as Terminal installation. It reports malformed semantics before
+printing a module and grants no installation or execution authority.

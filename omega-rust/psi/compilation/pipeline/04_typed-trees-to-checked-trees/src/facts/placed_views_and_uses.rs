@@ -7,11 +7,12 @@ pub(crate) fn build_checked_placed_view_inputs(
     for machine in program.machines() {
         if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
             || !machine.body_is_present
-            || !machine.lifetime_parameters.is_empty()
             || !program.machine_type_parameters(machine).is_empty()
         {
             continue;
         }
+        // Lifetime parameters label the borrow contract and erase at runtime;
+        // they do not make an otherwise closed placement demand generic.
         for state in program.machine_states(machine) {
             for (position, parameter) in program.state_parameters(state).iter().enumerate() {
                 let typed_trees::types::TypeReferenceNode::Reference {

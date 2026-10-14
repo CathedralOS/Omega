@@ -16,6 +16,7 @@
 //! selected for another format, carrier or
 //! shape cannot stand in.
 
+mod placed_schema;
 mod proposals;
 mod retained;
 
@@ -116,6 +117,44 @@ pub(super) fn settle_compiler_builtins<'request>(
                 ))]
             })?;
         let realization = match execution {
+            CompilerBuiltinExecution::PlacedScalarAccess {
+                contract,
+                placement_commitment,
+                access_slot,
+                operation,
+            } => {
+                let module = input.context().module();
+                let demand = terminal_semantics::placed_scalar_boundary_demand(
+                    &module.structural_types,
+                    &module.identities,
+                    &module.placed_view_plans,
+                    &module.boundary_machines,
+                    boundary.id,
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                placed_schema::validate(module, boundary, proposal.provider_plan, &demand)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                require_captured_ram_origins(input, boundary.id)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                let compiler_operation = placed_operation(operation);
+                if demand.placement_commitment != placement_commitment
+                    || demand.access_slot != access_slot
+                    || demand.operation != operation
+                    || operation == terminal_psi::TerminalPlacedAccessorKind::Take
+                    || effects::compiler_placed_scalar_contract_identity(
+                        proposal.provider_plan.schema.identity_digest(),
+                        placement_commitment,
+                        access_slot,
+                        compiler_operation,
+                    ) != contract
+                {
+                    return Err(vec![Diagnostic::error(
+                        "placed scalar execution substituted its sealed operation or requested unsupported destructive take",
+                    )]);
+                }
+                target_operations::PlacedScalarAccessRealization { contract, demand }.into()
+            }
+
             CompilerBuiltinExecution::HostedExitProcessI32
                 if HostedExitProcessI32Realization::supports_target(request.target()) =>
             {
@@ -217,7 +256,8 @@ fn compiler_builtin_completion(
         }
         CompilerBuiltinExecution::HostedWriteByteI32
         | CompilerBuiltinExecution::HostedReadByte
-        | CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. } => {
+        | CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. }
+        | CompilerBuiltinExecution::PlacedScalarAccess { .. } => {
             semantic_vocabulary::BoundaryCompletion::NormalReturn
         }
     }
@@ -280,6 +320,18 @@ fn compiler_intrinsic_execution_identity(
     execution: CompilerBuiltinExecution,
 ) -> CompilerIntrinsicExecutionIdentity {
     match execution {
+        CompilerBuiltinExecution::PlacedScalarAccess {
+            contract,
+            placement_commitment,
+            access_slot,
+            operation,
+        } => CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {
+            contract,
+            placement_commitment,
+            access_slot,
+            operation: placed_operation(operation),
+        },
+
         CompilerBuiltinExecution::HostedExitProcessI32 => {
             CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
         }
@@ -524,4 +576,91 @@ fn compiler_intrinsic_execution_identity(
             }
         }
     }
+}
+
+fn placed_operation(
+    operation: terminal_psi::TerminalPlacedAccessorKind,
+) -> effects::CompilerPlacedScalarOperation {
+    match operation {
+        terminal_psi::TerminalPlacedAccessorKind::Read => {
+            effects::CompilerPlacedScalarOperation::Read
+        }
+        terminal_psi::TerminalPlacedAccessorKind::Take => {
+            effects::CompilerPlacedScalarOperation::Take
+        }
+        terminal_psi::TerminalPlacedAccessorKind::Write => {
+            effects::CompilerPlacedScalarOperation::Write
+        }
+    }
+}
+
+fn require_captured_ram_origins(
+    input: &NativeRealizationInput,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+) -> Result<(), String> {
+    use std::collections::BTreeSet;
+    let module = input.context().module();
+    let graph = terminal_semantics::descriptor_results::terminal_placed_origin_graph(module)
+        .ok_or_else(|| "placed RAM origin graph is incomplete".to_owned())?;
+    let reachable = input
+        .plan()
+        .functions
+        .iter()
+        .map(|function| function.machine)
+        .collect::<BTreeSet<_>>();
+    let mut origins = terminal_semantics::PlacedRamOriginAnalysis::new(
+        module,
+        &graph,
+        &reachable,
+        input.plan().entry,
+    )
+    .with_private_entry_roots(
+        input
+            .private_entry_ram()
+            .iter()
+            .map(|recipe| recipe.input().clone()),
+    );
+    let mut occurrences = 0;
+    for machine in module
+        .machines
+        .iter()
+        .filter(|machine| reachable.contains(&machine.id))
+    {
+        for block in &machine.blocks {
+            for (position, operation) in block.operations.iter().enumerate() {
+                let terminal_psi::OperationKind::BoundaryCall {
+                    boundary: actual,
+                    structural_arguments,
+                    ..
+                } = &operation.kind
+                else {
+                    continue;
+                };
+                if *actual != boundary {
+                    continue;
+                }
+                occurrences += 1;
+                let position = u32::try_from(position)
+                    .map_err(|_| "placed RAM occurrence exceeds representation".to_owned())?;
+                if origins
+                    .boundary_formations(
+                        machine.id,
+                        (block.id, position),
+                        boundary,
+                        structural_arguments,
+                    )
+                    .is_none()
+                {
+                    return Err(format!(
+                        "placed scalar native access requires initialized captured RAM on every entry-relative origin; a formal or host pointer is not backing authority (machine {:?}, operation {:?}, boundary {:?}, arguments {:?})",
+                        machine.id, operation.id, boundary, structural_arguments
+                    ));
+                }
+            }
+        }
+    }
+    if occurrences == 0 {
+        return Err("placed scalar native admission has no actual boundary occurrence".to_owned());
+    }
+    Ok(())
 }

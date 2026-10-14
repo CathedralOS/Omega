@@ -32,7 +32,7 @@ pub(crate) fn derive_provider_plans(
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
-) -> Vec<DerivedProviderPlan> {
+) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
     let typed = context.typed;
     let mut plans: Vec<DerivedProviderPlan> = Vec::new();
     // Typed trees retain every authored body and its conformances. This
@@ -194,6 +194,7 @@ pub(crate) fn derive_provider_plans(
                     .provenance
                     .row_target_machine_origins
                     .push(target_machine_origin.clone());
+                plans[position].provenance.row_placed_accessors.push(None);
             }
         }
     }
@@ -209,7 +210,8 @@ pub(crate) fn derive_provider_plans(
     ));
     let named = derive_named_provider_plans(context, calling_plans, selected_target, &plans);
     plans.extend(named);
-    plans
+    derive_placed_accessor_plans(context, selected_target, &mut plans)?;
+    Ok(plans)
 }
 
 fn derive_named_provider_plans(
@@ -274,6 +276,7 @@ fn derive_named_provider_plans(
                 row_requirements: Vec::new(),
                 row_realizations: Vec::new(),
                 row_target_machine_origins: Vec::new(),
+                row_placed_accessors: Vec::new(),
             };
             for row in rows {
                 // The row binds the entry of the machine resolution named; a
@@ -372,6 +375,7 @@ fn derive_named_provider_plans(
                 provenance.row_requirements.push(row.requirement);
                 provenance.row_realizations.push(machine.symbol);
                 provenance.row_target_machine_origins.push(origin);
+                provenance.row_placed_accessors.push(None);
             }
             Some(DerivedProviderPlan { plan, provenance })
         })
@@ -525,6 +529,7 @@ fn derive_top_level_requirement_plans(
                 .provenance
                 .row_target_machine_origins
                 .push(None);
+            plans[position].provenance.row_placed_accessors.push(None);
         }
     }
     plans
@@ -682,6 +687,7 @@ fn derive_boundary_operator_plans(
                 .provenance
                 .row_target_machine_origins
                 .push(None);
+            plans[position].provenance.row_placed_accessors.push(None);
         }
     }
     plans
@@ -817,8 +823,86 @@ fn derived_plan_position(
                     row_requirements: Vec::new(),
                     row_realizations: Vec::new(),
                     row_target_machine_origins: Vec::new(),
+                    row_placed_accessors: Vec::new(),
                 },
             });
             plans.len() - 1
         })
+}
+
+/// Compiler-owned semantic primitives use the same candidate plan/selection
+/// route as authored providers, with a separate exact declaration-custody role.
+fn derive_placed_accessor_plans(
+    context: ProviderPlanningContext<'_>,
+    selected_target: Option<&str>,
+    plans: &mut Vec<DerivedProviderPlan>,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let Some(target) = selected_target else {
+        return Ok(());
+    };
+    let typed = context.typed;
+    for view in &typed.placed_view_plans {
+        for field in &view.fields {
+            for operation in &field.accessor_targets {
+                if !context.contains(operation.machine_symbol) {
+                    continue;
+                }
+                let Some(accessor) =
+                    crate::SealedPlacedAccessor::authenticate(context, operation.machine_symbol)
+                        .map_err(|error| vec![error])?
+                else {
+                    continue;
+                };
+                let schema = crate::service_schema::from_sealed_placed_accessor(context, &accessor)
+                    .map_err(|error| vec![error])?;
+                let machine = typed.machine(accessor.machine()).ok_or_else(|| {
+                    vec![diagnostics::Diagnostic::error(
+                        "placed catalog lost its generated machine",
+                    )]
+                })?;
+                let requirement =
+                    typed
+                        .machine_callable_identity_text(machine)
+                        .ok_or_else(|| {
+                            vec![diagnostics::Diagnostic::error(
+                                "placed catalog lost its exact callable identity",
+                            )]
+                        })?;
+                let provider = typed
+                    .normalized_hermetic_symbol_identity(field.accessor_data_symbol)
+                    .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+                let position = derived_plan_position(
+                    plans,
+                    satisfies_plan_name(target, &requirement, &provider),
+                    provider,
+                    typed
+                        .symbols
+                        .symbol_package_identity(field.accessor_data_symbol),
+                    target.to_owned(),
+                    schema,
+                    ProviderSchemaDeclaration::SealedPlacedAccessor(accessor.machine()),
+                    Some(field.accessor_data_symbol),
+                    typed.symbols.symbol_package_identity(machine.symbol),
+                );
+                let requirement_identity =
+                    mint_plan_row_identity(&mut plans[position].plan, &requirement);
+                plans[position].plan.rows.push(ProviderPlanRow {
+                    method: operation.operation.clone(),
+                    requirement_identity,
+                    requirement_lifetime_partition: Vec::new(),
+                    binding: ProviderBinding::CompilerIntrinsic {
+                        machine: accessor
+                            .binding_identity(context)
+                            .map_err(|error| vec![error])?,
+                    },
+                });
+                let provenance = &mut plans[position].provenance;
+                provenance.row_requirements.push(machine.symbol);
+                provenance.row_realizations.push(machine.symbol);
+                provenance.row_target_machine_origins.push(None);
+                provenance.row_placed_accessors.push(Some(accessor));
+            }
+        }
+    }
+    Ok(())
 }

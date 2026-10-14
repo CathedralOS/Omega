@@ -194,6 +194,7 @@ impl Leaf {
             contract: contract.clone(),
             formations: vec![Formation { identity, contract }],
             referent,
+            placed: None,
         }
     }
 

@@ -118,7 +118,20 @@ pub fn publish_fragment_object(
         // semantic wrapper carries that custody yet, so a nonempty bound set
         // fails closed here rather than publishing an entry whose loans
         // nobody emits.
-        if !entry.placed_view_establishments().is_empty() {
+        if entry.placed_view_establishments().len() != entry.private_entry_ram().len()
+            || entry
+                .placed_view_establishments()
+                .iter()
+                .zip(entry.private_entry_ram())
+                .any(|(loan, recipe)| {
+                    loan.input != *recipe.input()
+                        || loan.referent.structural_type != recipe.schema()
+                        || !loan.referent.path.is_empty()
+                        || !loan.referent.qualifications.is_empty()
+                })
+            || !entry.private_entry_ram().is_empty()
+                && object.target() != target::NativeTarget::linux_x64()
+        {
             return Err(crate::native_artifact_error(
                 "ProgramEntry placed-view custody",
                 "bound placed-view establishments require the hosted entry boundary to lend each referent; this bridge does not carry them yet",
@@ -238,6 +251,7 @@ pub fn publish_fragment_object(
                 determined_evidence,
                 &demand,
                 cleanup_occupancy,
+                entry.private_entry_ram(),
             )
             .map_err(|diagnostic| vec![diagnostic])?;
         }

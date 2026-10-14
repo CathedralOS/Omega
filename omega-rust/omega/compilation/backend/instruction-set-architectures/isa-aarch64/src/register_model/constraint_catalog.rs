@@ -31,6 +31,7 @@ use crate::register_model::{
     aarch64_register_aggregate_return_keys, canonical_aarch64_physical_register_model_identity,
     validated_aarch64_physical_register_model,
 };
+use crate::register_model::{AARCH64_PLACED_READ, AARCH64_PLACED_WRITE};
 use crate::register_model::{float_scalar_calls, indirect_results, mixed_calls};
 use crate::{
     aarch64_aapcs64_mixed_unit_call_keys, aarch64_darwin_mixed_unit_call_keys,
@@ -1009,6 +1010,18 @@ pub fn aarch64_register_constraint_catalog(
                 units
             },
         });
+    }
+    for (key, template) in [
+        (AARCH64_PLACED_READ, AARCH64_LOAD32),
+        (AARCH64_PLACED_WRITE, AARCH64_STORE),
+    ] {
+        let mut row = constraints
+            .iter()
+            .find(|row| row.key == template)
+            .expect("canonical scalar transfer")
+            .clone();
+        row.key = key;
+        constraints.push(row);
     }
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {

@@ -28,6 +28,7 @@ pub(super) fn project_call(
         result,
         scalar_arguments,
         arguments,
+        placed_bindings,
         claim_transfers,
         requirement_obligations,
         crash_continuations,
@@ -115,6 +116,7 @@ pub(super) fn project_call(
     }
     Ok(LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
         descriptor_origins,
+        placed_bindings: placed_bindings.clone(),
         target: *target,
         arguments: lowered,
         structural_result,

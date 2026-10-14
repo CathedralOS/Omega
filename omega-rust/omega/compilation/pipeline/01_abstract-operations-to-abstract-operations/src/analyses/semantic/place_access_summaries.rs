@@ -287,7 +287,8 @@ impl<'u> FunctionContext<'u> {
                             },
                         );
                     }
-                    O::EstablishReference { result, source, .. } => {
+                    O::EstablishReference { result, source, .. }
+                    | O::EstablishPlacedReference { result, source, .. } => {
                         aliases.insert(
                             result.place,
                             AliasTarget::Reference {
@@ -841,6 +842,7 @@ fn scan_operation(
         abstract_operations::element_view_or_byte_subslice_pattern!(..)
         | O::EstablishElementView { .. }
         | O::EstablishReference { .. }
+        | O::EstablishPlacedReference { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishPrimitiveLocal { .. }
         | abstract_operations::byte_literal_establish_pair_pattern!(..)

@@ -1039,6 +1039,10 @@ pub(super) fn emit(
         )
         .chain(computed_array_places)
         .collect::<Vec<_>>();
+    crate::emission::operation_emission::place_declarations::retain_block_parameters(
+        evaluation.blocks.iter(),
+        &mut structural_places,
+    )?;
     crate::emission::operation_emission::place_declarations::retain_operation_results(
         evaluation.blocks.iter().flat_map(|block| &block.operations),
         &mut structural_places,
@@ -1049,10 +1053,6 @@ pub(super) fn emit(
     // or edge already owns a declaration. Reuse only that exact declaration;
     // a reused identity with different provenance remains an error.
     crate::scalar_lowering::computations::subslices::merge_declarations(
-        evaluation.blocks.iter(),
-        &mut structural_places,
-    )?;
-    crate::emission::operation_emission::place_declarations::retain_block_parameters(
         evaluation.blocks.iter(),
         &mut structural_places,
     )?;

@@ -405,6 +405,7 @@ fn operation_observations(
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }
         | O::EstablishReference { .. }
+        | O::EstablishPlacedReference { .. }
         | O::ReleaseReference { .. }
         | O::EstablishRecord { .. }
         // A restoration window mutates the borrowed root's field contents:

@@ -682,6 +682,12 @@ pub enum AbstractOperation {
     /// Establish one verified reference carrier. The structural result owns the
     /// loan; its referent remains the `source` argument's projected home and is
     /// located by compile-time custody, never by reading a stored pointer.
+    EstablishPlacedReference {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        source: StructuralArgument,
+        correspondence: terminal_psi::PlacedRamCorrespondence,
+    },
     EstablishReference {
         psi_operation: OperationId,
         result: StructuralOperationResult,
@@ -851,6 +857,7 @@ impl AbstractOperation {
             | Self::EstablishStructuralLocal { result, .. }
             | Self::EstablishRecord { result, .. }
             | Self::EstablishReference { result, .. }
+            | Self::EstablishPlacedReference { result, .. }
             | Self::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
@@ -945,6 +952,7 @@ impl AbstractOperation {
                 .map(|binding| binding.argument.path.as_slice())
                 .collect(),
             Self::EstablishReference { source, .. }
+            | Self::EstablishPlacedReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::ElementViewLength { source, .. }
             | Self::ByteSequenceLength { source, .. }
@@ -1005,6 +1013,7 @@ impl AbstractOperation {
             | Self::EstablishStructuralLocal { psi_operation, .. }
             | Self::EstablishRecord { psi_operation, .. }
             | Self::EstablishReference { psi_operation, .. }
+            | Self::EstablishPlacedReference { psi_operation, .. }
             | Self::ReleaseReference { psi_operation, .. }
             | Self::AtomicEvent { psi_operation, .. }
             | Self::CallStructural { psi_operation, .. }

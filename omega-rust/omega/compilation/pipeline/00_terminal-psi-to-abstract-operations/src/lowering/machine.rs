@@ -95,6 +95,7 @@ pub(super) fn lower_machine(
                 machine,
                 module,
                 structural_types,
+                &module.placed_view_plans,
                 &value_types,
                 &byte_sequence_literals,
                 &unit_affine_locals,

@@ -1,0 +1,9 @@
+{
+  "basis": "Each observation bit is an explicit typed equality: i16=-7, bool=true, f32=-1.25, f64=-2.5; both helper and original T after loan retirement must satisfy all four. Frozen before actual execution.",
+  "files": {
+    "main.omg": "967a11edae69a36339bd3ee78b011612f62553c9299ea0dd5987444c9ab3f189",
+    "expected_stdout.txt": "cd421aeea26227bb15dd0df9a56498e78c7fb0c681dd726a19267b901108486b",
+    "expected_stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+  }
+}

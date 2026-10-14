@@ -58,6 +58,7 @@ impl NativeRealizationRequest<'_> {
 /// Policies do not establish package admission: the package consumer binds
 /// accepted evidence to the production subject before constructing this input.
 pub struct NativeCompileRequest<'request> {
+    pub private_entry_ram: &'request [terminal_installation::PrivateEntryRamInitialization],
     pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
     pub terminal_authority_policy: TerminalAuthorityPolicy,
     pub accepted_package_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,

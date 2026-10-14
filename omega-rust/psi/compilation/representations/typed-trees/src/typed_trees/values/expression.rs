@@ -1477,6 +1477,15 @@ pub struct TableCallExpression {
     pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
 }
 
+/// A factory selection, not an address, resource profile or custody grant.
+/// Checking must join the applied signature and exact source borrow before
+/// this declaration can become a placed-reference establishment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlacedBorrowOperationRequest {
+    pub factory: SymbolHandle,
+    pub access: language_core::ReferenceAccess,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateLayoutOperationRequest {
     pub selected_slot: StaticMachineArgument,

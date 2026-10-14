@@ -14,6 +14,22 @@ pub enum LoweringError {
     UnsupportedIeeeFloatFmaRealization(OperationId),
     TranslationValidation(crate::AbstractToTargetTranslationValidationError),
     PlacedViewInput(PlacedViewInputTranslationError),
+    /// A call demand cannot be discharged by pointer geometry or a matching
+    /// carrier alone. The caller must retain its captured interpretation.
+    PlacedCallCustody {
+        caller: MachineId,
+        callee: MachineId,
+        operation: OperationId,
+        runtime_position: usize,
+        reason: PlacedCallCustodyError,
+    },
+    PlacedReturnRequiresWholeView {
+        machine: MachineId,
+    },
+    PlacedDynamicCallRequiresBinding {
+        caller: MachineId,
+        operation: OperationId,
+    },
     EntryFunctionMissing(MachineId),
     ProviderInstallationIdentityMismatch,
     DuplicateSelectedBoundaryCall {
@@ -214,6 +230,13 @@ pub enum LoweringError {
         expected: usize,
         actual: usize,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlacedCallCustodyError {
+    FormalDemandMismatch,
+    CapturedInterpretationMissing,
+    CapturedInterpretationMismatch,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

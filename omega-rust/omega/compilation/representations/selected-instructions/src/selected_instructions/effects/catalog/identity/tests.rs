@@ -47,6 +47,8 @@ fn crash_identity_tags_do_not_alias_other_instruction_families() {
 fn keys() -> SelectedConstraintKeys {
     SelectedConstraintKeys {
         atomic_fence: Some(instruction(800)),
+        placed_read: None,
+        placed_write: None,
         atomic_load: Some(instruction(54)),
         atomic_store: Some(instruction(55)),
         atomic_update: Some(instruction(56)),

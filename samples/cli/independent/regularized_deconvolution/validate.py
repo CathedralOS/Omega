@@ -1,12 +1,13 @@
 """Qualify frozen expected values and observed native/captured Terminal fields."""
 import argparse
+import csv
 import hashlib
 import json
 import math
 from pathlib import Path
-import re
 import subprocess
 import sys
+import time
 sys.dont_write_bytecode = True
 from reference import oracle, fixtures
 ROOT=Path(__file__).resolve().parent
@@ -46,9 +47,11 @@ def main():
         assert recalculated==c['expected'],'frozen Fourier oracle changed'
     commands=[]
     def run(name,command,data=b''):
+        started=time.monotonic()
         result=subprocess.run(list(map(str,command)),input=data,capture_output=True,timeout=180)
+        seconds=time.monotonic()-started
         (args.evidence/(name+'.stdout')).write_bytes(result.stdout);(args.evidence/(name+'.stderr')).write_bytes(result.stderr)
-        commands.append(dict(name=name,command=list(map(str,command)),exit=result.returncode))
+        commands.append(dict(name=name,command=list(map(str,command)),exit=result.returncode,seconds=seconds))
         (args.evidence/'commands.json').write_text(json.dumps(commands,indent=2)+'\n')
         return result
     cli=Path(args.cli).resolve();source=ROOT/'main.omg'
@@ -56,23 +59,28 @@ def main():
     assert refused.returncode==1, refused.stderr
     for text in json.loads((ROOT/'invalid/sample.json').read_text())['rejection_contains']:
         assert text.encode() in refused.stderr, refused.stderr
-    if not args.batch_runner:
-        compiled=run('compile',[cli,'--target','linux_x86_64',source]);assert compiled.returncode==0,compiled.stderr.decode()
-        paths=re.findall(rb'^published native output to (.+)$',compiled.stdout,re.M);assert len(paths)==1,compiled.stdout
-        native=Path(paths[0].decode()).resolve()
     valid=cases[-1]['input']
     zero=cases[-1]
     for name,text in [('byte_limit_4095',valid+' '*(4095-len(valid))),('eof_after_digit',valid.rstrip()),('digits_100',valid.rstrip()[:-1]+'0'*100)]:
         cases.append({**zero,'name':name,'input':text})
     invalid=['',valid[:-3],valid+'1',valid.replace('32 3','7 3'),valid.replace('32 3','33 3'),valid.replace('32 3','8.5 3'),valid.replace('32 3','32 2'),valid.replace('32 3','32 7'),valid.replace('100','0',1),valid.replace('100','0.00001',1),valid.replace('100','101',1),valid.replace('0 1 0','0 0.9 0',1),valid.replace('0 1 0','0 -1 0',1),valid.replace('0 1 0','0 1.1 0',1),valid.replace('100','nan',1),valid.replace('100','inf',1),valid.replace('100','1e309',1),valid.replace('0 0 0 0 0', '-1 0 0 0 0',1),valid+'?',valid+' '*4096,valid.replace('100','1..0',1),valid.replace('100','1.',1),valid.replace('100','1'+ '0'*101,1),valid+' '*(4096-len(valid)),valid.rstrip()[:-1]+'0'*101]
     cases += [dict(name=f'invalid_{i}',input=text,exit=2) for i,text in enumerate(invalid)]
+    inputs=[]
+    input_directory=args.evidence/'inputs';input_directory.mkdir(exist_ok=True)
+    for c in cases:
+        capture=input_directory/(c['name']+'.stdin');capture.write_text(c['input']);inputs.append(capture)
     if args.batch_runner:
-        inputs=[]
-        for c in cases:
-            directory=args.evidence/c['name'];directory.mkdir(exist_ok=True)
-            capture=directory/'input.txt';capture.write_text(c['input']);inputs.append(capture)
         result=run('batch',[Path(args.batch_runner).resolve(),source,args.evidence,*inputs])
-        assert result.returncode==0,result.stderr.decode()
+    else:
+        result=run('batch',[cli,'run','--both','--keep',source,*[argument for capture in inputs for argument in ('--input',capture)],'--outputs',args.evidence])
+    assert result.returncode==0,result.stderr.decode()
+    statuses={}
+    if not args.batch_runner:
+        with (args.evidence/'results.tsv').open(newline='') as table:
+            rows=list(csv.DictReader(table,delimiter='\t'))
+        assert len(rows)==len(cases),rows
+        statuses={row['case']:row for row in rows}
+        assert set(statuses)=={c['name'] for c in cases},statuses
     records=[]
     for c in cases:
         data=c['input'].encode();status=c.get('exit',0)
@@ -85,15 +93,12 @@ def main():
             assert terminal_status.startswith('ExternalCompletion(') and f'return_code: {status},' in terminal_status,terminal_status
             assert (directory/'native.stderr').read_bytes()==(directory/'terminal.stderr').read_bytes()==b''
         else:
-            a=run('native_'+c['name'],[native],data)
-            b=run('both_'+c['name'],[cli,'run','--both','--keep',source],data)
-            retained=re.findall(rb'^build dir kept: (.+)$',b.stderr,re.M);assert len(retained)==1,(c['name'],b.stderr)
-            terminal=(Path(retained[0].decode())/'terminal.stdout').read_bytes()
-            (args.evidence/('terminal_'+c['name']+'.stdout')).write_bytes(terminal)
-            assert a.returncode==b.returncode==status,(c['name'],a.returncode,b.returncode,b.stderr)
-            assert f'interp exit: {status}'.encode() in b.stderr and b'DECLINED' not in b.stderr and b'DIVERGENCE' not in b.stderr,b.stderr
-            assert a.stdout==b.stdout
-            native_stdout=a.stdout
+            row=statuses[c['name']]
+            assert row['native']==row['interpreter_exit']==str(status),row
+            assert row['interpreter']=='agrees',row
+            native_stdout=(args.evidence/(c['name']+'.stdout')).read_bytes()
+            terminal=(args.evidence/(c['name']+'.terminal.stdout')).read_bytes()
+            assert (args.evidence/(c['name']+'.stderr')).read_bytes()==(args.evidence/(c['name']+'.terminal.stderr')).read_bytes()==b''
         if status:
             assert native_stdout==terminal==b'ERROR malformed input, measurements, kernel or lambda\n',(c['name'],native_stdout,terminal)
         else:

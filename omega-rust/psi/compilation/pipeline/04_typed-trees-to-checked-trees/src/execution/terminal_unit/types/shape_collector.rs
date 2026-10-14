@@ -229,6 +229,18 @@ impl<'program> ShapeCollector<'program> {
         {
             return None;
         }
+        let (view, field) = self.program.placed_view_plans.iter().find_map(|view| {
+            view.fields
+                .iter()
+                .find(|field| field.accessor_data_symbol == data.symbol)
+                .map(|field| (view, field))
+        })?;
+        let descriptor = view.placement.access().field_descriptor(field.access_key);
+        let storage = semantic_vocabulary::AuthoredRecordStorage {
+            byte_size: descriptor
+                .map_or(0, |descriptor| descriptor.effect_footprint().length_bytes()),
+            byte_alignment: 1,
+        };
         let identity = closed_data_identity(self.program, data, binders);
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
@@ -236,7 +248,7 @@ impl<'program> ShapeCollector<'program> {
             descriptor_cleanup: false,
             identity: identity,
             shape: CheckedUnitStructuralTypeShape::Record {
-                storage: checked_trees::CheckedUnitRecordStorage::Packed,
+                storage: checked_trees::CheckedUnitRecordStorage::PlacedAccessor(storage),
                 fields: Vec::new(),
             },
         };
@@ -980,24 +992,40 @@ impl<'program> ShapeCollector<'program> {
 
         let program = self.program;
         let authored_layout = program.plan_laid_layout(data.symbol);
-        let record_storage = match authored_layout {
-            Some(layout) => match layout.invariant_geometry() {
-                Some(geometry) => checked_trees::CheckedUnitRecordStorage::Authored(
-                    semantic_vocabulary::AuthoredRecordStorage {
-                        byte_size: u64::try_from(geometry.size).ok()?,
-                        byte_alignment: u64::try_from(geometry.align).ok()?,
-                    },
-                ),
-                None => {
-                    let schema = program.data_definition_by_symbol(layout.schema_symbol)?;
-                    let schema_type_identity = self.add_attached_data(schema, binders)?;
-                    checked_trees::CheckedUnitRecordStorage::TargetLayout {
-                        application: layout.data_symbol,
-                        schema_type_identity,
+        let placed_view = program.placed_view_plans.iter().find_map(|view| {
+            let definition = program.data_definition_by_symbol(view.data_symbol)?;
+            (closed_data_identity(program, definition, binders) == identity).then_some(view)
+        });
+        let record_storage = if let Some(view) = placed_view {
+            let schema_symbol = view.schema_symbol;
+            let schema = program.data_definition_by_symbol(schema_symbol)?.clone();
+            checked_trees::CheckedUnitRecordStorage::PlacedView {
+                schema_type_identity: self.add_attached_data(&schema, binders)?,
+                storage: semantic_vocabulary::AuthoredRecordStorage {
+                    byte_size: view.placement.layout().size?,
+                    byte_alignment: view.placement.layout().align,
+                },
+            }
+        } else {
+            match authored_layout {
+                Some(layout) => match layout.invariant_geometry() {
+                    Some(geometry) => checked_trees::CheckedUnitRecordStorage::Authored(
+                        semantic_vocabulary::AuthoredRecordStorage {
+                            byte_size: u64::try_from(geometry.size).ok()?,
+                            byte_alignment: u64::try_from(geometry.align).ok()?,
+                        },
+                    ),
+                    None => {
+                        let schema = program.data_definition_by_symbol(layout.schema_symbol)?;
+                        let schema_type_identity = self.add_attached_data(schema, binders)?;
+                        checked_trees::CheckedUnitRecordStorage::TargetLayout {
+                            application: layout.data_symbol,
+                            schema_type_identity,
+                        }
                     }
-                }
-            },
-            None => checked_trees::CheckedUnitRecordStorage::Packed,
+                },
+                None => checked_trees::CheckedUnitRecordStorage::Packed,
+            }
         };
         let mut fields = Vec::new();
         for member in &members {
@@ -1019,6 +1047,23 @@ impl<'program> ShapeCollector<'program> {
                         field.symbol,
                         &field_plan.field_type,
                     )?);
+                }
+            }
+            if let Some(view) = placed_view {
+                let placed_field = view
+                    .fields
+                    .iter()
+                    .find(|candidate| candidate.view_field_symbol == field.symbol)?;
+                if let Some(descriptor) = view
+                    .placement
+                    .access()
+                    .field_descriptors()
+                    .iter()
+                    .find(|descriptor| descriptor.key() == placed_field.access_key)
+                {
+                    field_plan.storage = Some(semantic_vocabulary::AuthoredFieldStorage::Direct {
+                        byte_offset: descriptor.container_byte_offset(),
+                    });
                 }
             }
             fields.push(field_plan);
@@ -1277,6 +1322,10 @@ impl<'program> ShapeCollector<'program> {
                     | CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
                     CheckedUnitStructuralTypeShape::Record { fields, storage } => {
                         if let checked_trees::CheckedUnitRecordStorage::TargetLayout {
+                            schema_type_identity,
+                            ..
+                        }
+                        | checked_trees::CheckedUnitRecordStorage::PlacedView {
                             schema_type_identity,
                             ..
                         } = storage

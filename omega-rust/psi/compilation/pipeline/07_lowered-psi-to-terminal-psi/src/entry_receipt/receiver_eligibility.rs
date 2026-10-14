@@ -38,6 +38,10 @@ pub(super) fn derive(
             // selection must still name and replay this exact source occurrence.
             // Do not strip refinements to manufacture zero-valid context storage.
             !parameter.relevance.is_erased()
+                // Placed inputs are separate custody, never ordinary context.
+                // Share the exact sealed application classifier used by Source
+                // ProgramEntry selection rather than guessing from record shape.
+                && checked.typed.placed_view_plan_for_input_type_reference(parameter.type_reference).is_none()
                 && matches!(
                     checked.type_reference_table.type_reference(parameter.type_reference),
                     TypeReferenceNode::Reference {

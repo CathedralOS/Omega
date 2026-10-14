@@ -308,6 +308,12 @@ fn lower_terminal_selection(
             &mut lowered.semantic_module.reborrow_restored_call_uses,
         )?;
     }
+    crate::retention::placed_view_plans::retain(
+        identities,
+        checked,
+        exact_toolchain_sources,
+        &mut lowered.semantic_module,
+    )?;
     suspension_call_plan::retain_suspension_call_plans(
         identities,
         checked,

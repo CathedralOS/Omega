@@ -67,6 +67,7 @@ impl PreparedRetainedNativeProviders<'_> {
         let proposal = self.proposal;
         crate::NativeAdmissionRequest {
             receiving_provider_roots: &[],
+            private_entry_ram: &[],
             entry: terminal_psi::TargetMachineCallable::Machine(
                 proposal.program_entry().checked_entry().terminal_entry(),
             ),

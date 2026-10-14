@@ -75,6 +75,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         terminal_semantics::placed_view_input_parameter(module, row)
             .map_err(CodecError::PlacedViewInput)?;
     }
+    terminal_semantics::validate_placed_view_plans(module).map_err(CodecError::PlacedPlan)?;
     validate_target_families(module)?;
     validate_boundary_application_operations(module)?;
     validate_callback_registrars(module)?;
@@ -620,6 +621,11 @@ fn validate_structural_parameters(
         if !has_structural_type(module, parameter.structural_type) {
             return malformed("structural parameter references an unknown type");
         }
+        if parameter.access == terminal_psi::StructuralAccess::Owned
+            && terminal_semantics::contains_placed_carrier(module, parameter.structural_type)
+        {
+            return malformed("ordinary owned parameters cannot receive placed custody");
+        }
         validate_structural_qualifications(
             module,
             parameter.structural_type,
@@ -652,6 +658,9 @@ fn validate_operation_foundation(
         return malformed("returned-origin interpretation is not an executable projection");
     }
     if let Some(result) = operation.result.structural() {
+        if terminal_semantics::contains_placed_carrier(module, result.structural_type) {
+            return malformed("ordinary value production cannot establish placed custody");
+        }
         validate_structural_qualifications(
             module,
             result.structural_type,
@@ -660,6 +669,9 @@ fn validate_operation_foundation(
         )?;
     }
     match &operation.kind {
+        OperationKind::EstablishPlacedReference { .. } => {
+            storage_foundations::validate_establish_placed_reference(module, machine, operation)?
+        }
         OperationKind::EstablishReference { .. } => {
             storage_foundations::validate_establish_reference(module, machine, operation)?
         }
@@ -963,6 +975,11 @@ fn validate_structural_arguments(
     presentation: StructuralArgumentPresentation,
 ) -> Result<(), CodecError> {
     for (argument, expected) in arguments.iter().zip(expected) {
+        if expected.access == terminal_psi::StructuralAccess::Owned
+            && terminal_semantics::contains_placed_carrier(module, expected.structural_type)
+        {
+            return malformed("ordinary owned call transport cannot carry placed custody");
+        }
         let Some(actual_type) = structural_place_type(machine, argument.place) else {
             return malformed("structural argument references an unknown structural place");
         };

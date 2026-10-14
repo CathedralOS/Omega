@@ -259,6 +259,29 @@ fn compiler_builtin_execution(
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {
             return Some(CompilerBuiltinExecution::HostedWriteByteI32);
         }
+        CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {
+            contract,
+            placement_commitment,
+            access_slot,
+            operation,
+        } => {
+            return Some(CompilerBuiltinExecution::PlacedScalarAccess {
+                contract,
+                placement_commitment,
+                access_slot,
+                operation: match operation {
+                    effects::CompilerPlacedScalarOperation::Read => {
+                        terminal_psi::TerminalPlacedAccessorKind::Read
+                    }
+                    effects::CompilerPlacedScalarOperation::Take => {
+                        terminal_psi::TerminalPlacedAccessorKind::Take
+                    }
+                    effects::CompilerPlacedScalarOperation::Write => {
+                        terminal_psi::TerminalPlacedAccessorKind::Write
+                    }
+                },
+            });
+        }
         CompilerIntrinsicExecutionIdentity::HostedReadByte => {
             return Some(CompilerBuiltinExecution::HostedReadByte);
         }

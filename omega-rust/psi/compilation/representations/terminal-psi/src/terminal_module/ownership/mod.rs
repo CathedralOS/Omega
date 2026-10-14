@@ -16,7 +16,11 @@ pub use borrows::{
 };
 pub use claims::{ClaimTransfer, CompletionReceipt, EntryClaim, LoanCompletion};
 pub use cleanup::{NominalAffineCleanup, StructuralAffineDiscard, TerminalAffineCleanupAction};
-pub use placement::{TerminalPlacedViewInput, canonical_placed_view_identity};
+pub use placement::{
+    PlacedRamCorrespondence, PlacedRamFieldCorrespondence, PlacedScalarBoundaryDemand,
+    TerminalPlacedAccessor, TerminalPlacedAccessorKind, TerminalPlacedFieldPlan,
+    TerminalPlacedViewInput, TerminalPlacedViewPlan, canonical_placed_view_identity,
+};
 pub use suspension::{
     TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,
     TerminalSuspensionLiveValue, TerminalSuspensionLoan, TerminalSuspensionLoanBacking,

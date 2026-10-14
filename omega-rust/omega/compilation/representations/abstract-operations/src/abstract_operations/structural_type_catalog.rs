@@ -7,7 +7,10 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use semantic_vocabulary::StructuralTypeId;
-use terminal_psi::{StructuralReferentIdentity, StructuralTypeDeclaration};
+use terminal_psi::{
+    StructuralReferentIdentity, StructuralTypeDeclaration, TerminalPlacedViewInput,
+    TerminalPlacedViewPlan,
+};
 
 /// Immutable shared structural declarations at native compilation boundaries.
 ///
@@ -19,6 +22,8 @@ use terminal_psi::{StructuralReferentIdentity, StructuralTypeDeclaration};
 pub struct StructuralTypeCatalog(
     Arc<Vec<StructuralTypeDeclaration>>,
     Arc<Vec<StructuralReferentIdentity>>,
+    Arc<Vec<TerminalPlacedViewPlan>>,
+    Arc<Vec<TerminalPlacedViewInput>>,
     Option<Arc<RetainedQuotients>>,
 );
 
@@ -40,7 +45,7 @@ impl StructuralTypeCatalog {
         mut self,
         catalog: terminal_psi::TerminalQuotientCatalog,
     ) -> Result<Self, terminal_codec::CodecError> {
-        self.2 = if catalog == EMPTY_QUOTIENTS {
+        self.4 = if catalog == EMPTY_QUOTIENTS {
             None
         } else {
             let canonical = terminal_codec::encode_quotient_catalog(&catalog)?;
@@ -49,10 +54,10 @@ impl StructuralTypeCatalog {
         Ok(self)
     }
     pub fn quotients(&self) -> &terminal_psi::TerminalQuotientCatalog {
-        self.2.as_ref().map_or(&EMPTY_QUOTIENTS, |row| &row.catalog)
+        self.4.as_ref().map_or(&EMPTY_QUOTIENTS, |row| &row.catalog)
     }
     pub fn quotient_identity_bytes(&self) -> &[u8] {
-        self.2.as_ref().map_or(&[], |row| row.canonical.as_slice())
+        self.4.as_ref().map_or(&[], |row| row.canonical.as_slice())
     }
 
     /// Retain storage definitions and identity-only referents in one shared
@@ -62,7 +67,81 @@ impl StructuralTypeCatalog {
         declarations: Vec<StructuralTypeDeclaration>,
         referents: Vec<StructuralReferentIdentity>,
     ) -> Self {
-        Self(Arc::new(declarations), Arc::new(referents), None)
+        Self(
+            Arc::new(declarations),
+            Arc::new(referents),
+            Arc::default(),
+            Arc::default(),
+            None,
+        )
+    }
+
+    /// Retain the checked placement interpretation separately from ordinary
+    /// storage declarations. Geometry and pointer transport cannot recreate it.
+    pub fn with_placed_views(mut self, plans: Vec<TerminalPlacedViewPlan>) -> Self {
+        self.2 = Arc::new(plans);
+        self
+    }
+
+    pub fn placed_views(&self) -> &[TerminalPlacedViewPlan] {
+        self.2.as_slice()
+    }
+
+    /// Exact formal demands survive independently of carrier geometry. This
+    /// roster is data; only the caller or physical entry can supply its loan.
+    pub fn with_placed_view_inputs(mut self, inputs: Vec<TerminalPlacedViewInput>) -> Self {
+        self.3 = Arc::new(inputs);
+        self
+    }
+
+    pub fn placed_view_inputs(&self) -> &[TerminalPlacedViewInput] {
+        self.3.as_slice()
+    }
+
+    /// Rejoin one formal demand to its exact carrier and complete plan seal.
+    /// This does not establish a backing: every call or host entry still owes
+    /// an independently checked occurrence answering this demand.
+    pub fn placed_parameter_demand(
+        &self,
+        machine: semantic_vocabulary::MachineId,
+        runtime_position: usize,
+        parameter: &terminal_psi::StructuralParameterDeclaration,
+    ) -> Option<(&TerminalPlacedViewInput, &TerminalPlacedViewPlan)> {
+        let mut inputs = self.placed_view_inputs().iter().filter(|input| {
+            input.machine == machine
+                && usize::try_from(input.runtime_position).ok() == Some(runtime_position)
+        });
+        let (Some(input), None) = (inputs.next(), inputs.next()) else {
+            return None;
+        };
+        let mut carriers = self
+            .iter()
+            .filter(|carrier| carrier.id == parameter.structural_type);
+        let (Some(carrier), None) = (carriers.next(), carriers.next()) else {
+            return None;
+        };
+        if carrier.identity != input.carrier_identity
+            || parameter.access != input.access
+            || parameter.access == terminal_psi::StructuralAccess::Owned
+        {
+            return None;
+        }
+        let mut plans = self
+            .placed_views()
+            .iter()
+            .filter(|plan| plan.carrier == carrier.id);
+        let (Some(plan), None) = (plans.next(), plans.next()) else {
+            return None;
+        };
+        if plan.view_identity != input.view_identity
+            || plan.policy_identity != input.policy_identity
+            || plan.policy_plan_machine_identity != input.policy_plan_machine_identity
+            || plan.schema_identity != input.schema_identity
+            || plan.placement.content_interpretation().commitment() != input.placement_commitment
+        {
+            return None;
+        }
+        Some((input, plan))
     }
 
     pub fn referents(&self) -> &[StructuralReferentIdentity] {
@@ -110,13 +189,21 @@ impl<'a> IntoIterator for &'a StructuralTypeCatalog {
 
 impl PartialEq<Vec<StructuralTypeDeclaration>> for StructuralTypeCatalog {
     fn eq(&self, other: &Vec<StructuralTypeDeclaration>) -> bool {
-        self.2.is_none() && self.referents().is_empty() && self.as_slice() == other.as_slice()
+        self.4.is_none()
+            && self.referents().is_empty()
+            && self.placed_views().is_empty()
+            && self.placed_view_inputs().is_empty()
+            && self.as_slice() == other.as_slice()
     }
 }
 
 impl PartialEq<StructuralTypeCatalog> for Vec<StructuralTypeDeclaration> {
     fn eq(&self, other: &StructuralTypeCatalog) -> bool {
-        other.2.is_none() && other.referents().is_empty() && self.as_slice() == other.as_slice()
+        other.4.is_none()
+            && other.referents().is_empty()
+            && other.placed_views().is_empty()
+            && other.placed_view_inputs().is_empty()
+            && self.as_slice() == other.as_slice()
     }
 }
 

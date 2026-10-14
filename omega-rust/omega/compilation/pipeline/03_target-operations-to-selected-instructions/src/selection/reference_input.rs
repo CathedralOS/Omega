@@ -23,6 +23,7 @@ pub(super) struct ReferenceAddress {
     pub(super) load_codec: bool,
     pub(super) codec: Option<runtime_abi::ScalarStorageCodec>,
     pub(super) storage: Option<terminal_psi::ReferenceStorageView>,
+    pub(super) placed: Option<terminal_psi::PlacedRamCorrespondence>,
     pub(super) pointer_slots:
         Vec<crate::structural_inputs::structural_reference_input::PointerSlot>,
     pub(super) indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
@@ -54,15 +55,22 @@ pub(super) fn establishment(
     function: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
 ) -> Option<ReferenceAddress> {
-    let LegalizedScalarInstructionKind::EstablishReference {
-        result,
-        source,
-        storage,
-        indices,
-        shape,
-    } = &row.kind
-    else {
-        return None;
+    let (result, source, storage, indices, shape, placed) = match &row.kind {
+        LegalizedScalarInstructionKind::EstablishReference {
+            result,
+            source,
+            storage,
+            indices,
+            shape,
+        } => (result, source, *storage, indices, shape, None),
+        LegalizedScalarInstructionKind::EstablishPlacedReference {
+            result,
+            source,
+            correspondence,
+            indices,
+            shape,
+        } => (result, source, None, indices, shape, Some(correspondence)),
+        _ => return None,
     };
     let signature = function.structural.as_ref()?;
     let declarations = &signature.structural_types;
@@ -173,18 +181,38 @@ pub(super) fn establishment(
         }
         None => None,
     };
-    (match storage {
-        Some(storage) => terminal_semantics::reference_storage_source_compatible(
-            declarations.iter(),
-            actual,
-            result.structural_type,
-            storage.stored_scalar,
-        ),
-        None => terminal_semantics::reference_source_compatible(
-            declarations.iter(),
-            actual,
-            result.structural_type,
-        ),
+    (if let Some(correspondence) = placed {
+        let mut plans = declarations
+            .placed_views()
+            .iter()
+            .filter(|plan| plan.carrier == referent);
+        match (plans.next(), plans.next()) {
+            (Some(plan), None) => {
+                actual == correspondence.schema
+                    && terminal_semantics::placed_ram_plan_correspondence(
+                        declarations.as_slice(),
+                        declarations.placed_views(),
+                        plan,
+                        actual,
+                    )
+                    .is_ok_and(|expected| &expected == correspondence)
+            }
+            _ => false,
+        }
+    } else {
+        match storage {
+            Some(storage) => terminal_semantics::reference_storage_source_compatible(
+                declarations.iter(),
+                actual,
+                result.structural_type,
+                storage.stored_scalar,
+            ),
+            None => terminal_semantics::reference_source_compatible(
+                declarations.iter(),
+                actual,
+                result.structural_type,
+            ),
+        }
     })
     .then_some(ReferenceAddress {
         place: source.place,
@@ -192,10 +220,84 @@ pub(super) fn establishment(
         load_pointer,
         load_codec,
         codec,
-        storage: *storage,
+        storage,
+        placed: placed.cloned(),
         pointer_slots: geometry.pointer_slots,
         indices: indices.clone(),
     })
+    .and_then(|address| {
+        if address.placed.is_some() && address.load_pointer {
+            let correspondence = address.placed.clone();
+            let mut actual =
+                local_reference_frame_address(function, row, address, &mut Vec::new())?;
+            actual.placed = correspondence;
+            Some(actual)
+        } else {
+            Some(address)
+        }
+    })
+}
+
+/// Rejoin a whole ordinary descriptor to its exact immutable establishment.
+/// The validated legalized custody already proves this definition is live at
+/// the factory. Incoming pointers, stored crossings, storage re-views and
+/// projected descriptor values do not establish a native frame base.
+fn local_reference_frame_address(
+    function: &LegalizedScalarFunction,
+    consumer: &LegalizedScalarInstruction,
+    address: ReferenceAddress,
+    pending: &mut Vec<PlaceId>,
+) -> Option<ReferenceAddress> {
+    if !address.load_pointer {
+        return Some(address);
+    }
+    if address.load_codec
+        || address.storage.is_some()
+        || address.byte_offset != 0
+        || !address.pointer_slots.is_empty()
+        || !address.indices.is_empty()
+        || pending.contains(&address.place)
+    {
+        return None;
+    }
+    pending.push(address.place);
+    let (definition, result) = super::aggregate_result_input::home(function, address.place)?;
+    let mut rows = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter(|row| row.operation == definition);
+    let (Some(row), None) = (rows.next(), rows.next()) else {
+        return None;
+    };
+    let LegalizedScalarInstructionKind::EstablishReference {
+        result: retained,
+        storage: None,
+        ..
+    } = &row.kind
+    else {
+        return None;
+    };
+    if retained != result || retained.place != address.place {
+        return None;
+    }
+    // An adjacent same-block definition cannot have been reseated, loaned
+    // or modified by a call before capture. A declaration/home alone does not
+    // prove that the current descriptor still stores its original address.
+    if !function.blocks.iter().any(|block| {
+        block.instructions.windows(2).any(|pair| {
+            pair[0].operation == row.operation && pair[1].operation == consumer.operation
+        })
+    }) {
+        return None;
+    }
+    let prior = establishment(function, row)?;
+    if prior.placed.is_some() || prior.storage.is_some() {
+        return None;
+    }
+    let resolved = local_reference_frame_address(function, row, prior, pending);
+    pending.pop();
+    resolved
 }
 
 pub(super) fn root_type(

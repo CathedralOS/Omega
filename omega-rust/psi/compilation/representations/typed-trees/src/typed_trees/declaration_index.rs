@@ -279,6 +279,7 @@ impl super::TypedTrees {
             .wrapping_add(self.external_bindings.identities().len() as u64)
             .wrapping_add(self.plan_laid_layouts.len() as u64)
             .wrapping_add(self.placed_view_plans.len() as u64)
+            .wrapping_add(self.placed_borrow_factories.len() as u64)
             .wrapping_add(self.wire_placements.revision())
             .wrapping_add(self.wire_encode_obligations.revision())
             .wrapping_add(self.wire_schema_plans.len() as u64)

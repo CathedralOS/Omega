@@ -323,13 +323,9 @@ fn evaluate(
                 Relation::Equal => FloatSemantics::equal(first, &meanings[1]),
                 Relation::NotEqual => FloatSemantics::not_equal(first, &meanings[1]),
                 Relation::Less => FloatSemantics::less(first, &meanings[1]),
-                Relation::LessOrEqual => {
-                    FloatSemantics::less_or_equal(first, &meanings[1])
-                }
+                Relation::LessOrEqual => FloatSemantics::less_or_equal(first, &meanings[1]),
                 Relation::Greater => FloatSemantics::greater(first, &meanings[1]),
-                Relation::GreaterOrEqual => {
-                    FloatSemantics::greater_or_equal(first, &meanings[1])
-                }
+                Relation::GreaterOrEqual => FloatSemantics::greater_or_equal(first, &meanings[1]),
             };
             return Ok(scalar(TerminalScalarValue::Boolean(holds)));
         }

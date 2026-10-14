@@ -67,6 +67,14 @@ impl LocalWriteSource {
         let view_primitive = scalar_primitive(program, carrier, &path)?;
         let mut preserves_scalar_value = true;
         for recast in self.recasts.iter().rev() {
+            // A placed accessor is an operation capability, not an ordinary
+            // scalar coordinate. Failed precision retains the backing footprint.
+            if crate::reference_formation_source(program, recast.formation_expression)?
+                .interpretation
+                == crate::ReferenceFormationInterpretation::Placed
+            {
+                return None;
+            }
             if carrier != recast.target_type {
                 return None;
             }

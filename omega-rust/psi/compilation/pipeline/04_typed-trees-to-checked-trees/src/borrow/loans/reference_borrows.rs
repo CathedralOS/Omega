@@ -229,12 +229,13 @@ pub(super) fn reference_local_borrow_loans(
         return Vec::new();
     };
 
-    let is_call_result = matches!(
-        program
-            .expression_table
-            .expression(local_data.initial_value),
-        checked_trees::expression::ExpressionNode::Call(_)
-    );
+    let is_call_result = !is_placed_formation(program, local_data.initial_value)
+        && matches!(
+            program
+                .expression_table
+                .expression(local_data.initial_value),
+            checked_trees::expression::ExpressionNode::Call(_)
+        );
     let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
     rebased
         .iter()
@@ -381,4 +382,15 @@ pub(super) fn whole_place_recast_borrow_place(
         cast.value,
         machine_symbol,
     )
+}
+
+/// The sealed placed factory forms a borrow from its captured source; it does
+/// not return a descriptor whose parent was lost at an ordinary call boundary.
+pub(super) fn is_placed_formation(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    validation::reference_formation_source(program, expression).is_some_and(|formation| {
+        formation.interpretation == validation::ReferenceFormationInterpretation::Placed
+    })
 }

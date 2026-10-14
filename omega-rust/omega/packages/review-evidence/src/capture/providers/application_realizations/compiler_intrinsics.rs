@@ -308,7 +308,7 @@ pub(super) fn project(
             **requirement_symbol,
             **realization_symbol,
             compilation
-                .custody.execution().selected_target_profile
+                .custody.providers().planning_target_profile
                 .map(target::TargetProfile::target_name),
             **retained_execution,
         )?

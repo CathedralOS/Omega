@@ -289,6 +289,7 @@ pub(crate) fn install_selected_target(
         settle_selected_execution(
             checked,
             SelectedExecutionRequest {
+                provider_planning_target_profile: settlement.planning_target_profile,
                 calling_plans: &settlement.boundary_calling_plan_realizations,
                 selected_program_entry,
                 selected_target_profile,

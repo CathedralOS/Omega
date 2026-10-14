@@ -265,6 +265,14 @@ pub struct ReferenceStorageView {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Interpret initialized ordinary RAM through one exact retained placement.
+    /// The result's reference referee selects the catalog; neither an offset
+    /// nor a caller-supplied profile can establish this interpretation.
+    /// Actual backing range, base congruence and the captured loan remain
+    /// execution obligations, independently of catalog correspondence.
+    EstablishPlacedReference {
+        source: StructuralArgument,
+    },
     /// Establish a reference permission carrier for the exact captured source.
     /// The result owns the loan, not the referent; establishment suspends the
     /// overlapping parent access until the carrier is released or transferred.
@@ -1104,6 +1112,9 @@ impl OperationKind {
                     storage.byte_offset = map(storage.byte_offset);
                 }
             }
+            // Runtime selectors were mapped through the shared source path
+            // inventory above; placement contributes no scalar operands.
+            Self::EstablishPlacedReference { .. } => {}
             Self::EstablishByteSequenceConcatenation { left, right, .. } => {
                 left.remap_length(map);
                 right.remap_length(map);

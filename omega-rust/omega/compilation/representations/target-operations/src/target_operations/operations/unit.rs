@@ -83,6 +83,16 @@ impl TargetFloatResultPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
+    /// One observable non-atomic scalar event on the original placed backing.
+    PlacedScalarAccess {
+        psi_operation: OperationId,
+        boundary: BoundaryMachineId,
+        realization: crate::PlacedScalarAccessRealization,
+        location: StructuralArgument,
+        interpretation: crate::TargetPlacedInterpretation,
+        operand: Option<TargetUnitScalarArgumentSource>,
+        result_home: Option<TargetUnitScalarHomeRequirement>,
+    },
     /// A portable ordering event without an accessed location or result.
     AtomicFence {
         psi_operation: OperationId,
@@ -458,6 +468,12 @@ pub enum TargetUnitOperation {
     /// loans retain the backing address; scalar loans additionally retain the
     /// storage codec. Custody identities constrain authority, while `source`
     /// forms the actual address once without copying referent contents.
+    EstablishPlacedReference {
+        psi_operation: OperationId,
+        result_home: crate::TargetStructuralHomeRequirement,
+        source: StructuralArgument,
+        correspondence: terminal_psi::PlacedRamCorrespondence,
+    },
     EstablishReference {
         psi_operation: OperationId,
         result_home: crate::TargetStructuralHomeRequirement,
@@ -492,6 +508,9 @@ pub enum TargetUnitOperation {
         result: crate::TargetCallResult,
         scalar_arguments: Vec<TargetUnitScalarCallArgument>,
         arguments: Vec<TargetStructuralArgument>,
+        /// Complete exact formal-demand bindings in argument order. Pointer
+        /// transport remains owned by the referenced ordinary argument row.
+        placed_bindings: Vec<crate::TargetPlacedCallBinding>,
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
@@ -690,6 +709,11 @@ impl TargetUnitOperation {
                 ..
             }
             | Self::EstablishReference {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::EstablishPlacedReference {
                 psi_operation,
                 result_home,
                 ..

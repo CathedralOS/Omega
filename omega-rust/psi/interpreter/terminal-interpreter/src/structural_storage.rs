@@ -225,6 +225,11 @@ impl crate::execution::TerminalExecution<'_> {
         for key in self.structural_byte_sequence_fields.keys() {
             roots.insert(key.parent.opaque_identity);
         }
+        roots.extend(
+            self.private_entry_ram
+                .iter()
+                .map(|original| original.allocation.opaque_identity),
+        );
         self.structural_scalar_fields
             .retain(|key, _| roots.contains(&key.parent.opaque_identity));
     }

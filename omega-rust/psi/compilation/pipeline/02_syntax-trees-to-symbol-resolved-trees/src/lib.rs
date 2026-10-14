@@ -63,6 +63,7 @@ pub mod pre_resolution {
         ConstInitializerDependencies, ResolvedMachineBodyDemand,
     };
     pub use crate::constant::requires_const_initializer_evaluation;
+    pub use crate::preparation::declaration_selection::select_data_declarations;
     pub use crate::preparation::generic_data::{
         GenericDataRequest, canonicalize_declared_const_definition,
         closed_array_extent_expressions, closed_data_const_argument_expressions,

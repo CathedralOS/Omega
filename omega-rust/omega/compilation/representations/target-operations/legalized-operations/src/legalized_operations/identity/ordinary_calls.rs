@@ -9,6 +9,7 @@ use crate::legalized_operations::{
 };
 
 pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
+    super::placed_bindings::encode_placed_call_bindings(bytes, &call.placed_bindings);
     match &call.structural_result {
         None => bytes.push(0),
         Some(result) => {

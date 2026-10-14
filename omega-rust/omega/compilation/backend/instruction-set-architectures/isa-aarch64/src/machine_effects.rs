@@ -232,6 +232,8 @@ fn selected_keys(
         atomic_fence: Some(crate::AARCH64_ATOMIC_FENCE),
         // Apple's arm64 macOS baseline is Apple Silicon (M1 or later),
         // which includes FEAT_LSE. Generic AArch64/ELF does not promise it.
+        placed_read: Some(crate::AARCH64_PLACED_READ),
+        placed_write: Some(crate::AARCH64_PLACED_WRITE),
         atomic_load: (target == NativeTarget::macos_arm64()).then_some(crate::AARCH64_ATOMIC_LOAD),
         atomic_store: (target == NativeTarget::macos_arm64())
             .then_some(crate::AARCH64_ATOMIC_STORE),
@@ -371,7 +373,13 @@ fn declaration(
         constraint: keys
             .for_semantic(semantic)
             .expect("required AArch64 machine semantic has a constraint"),
-        memory: if semantic == MachineSemanticKind::CopyBytes {
+        memory: if let MachineSemanticKind::PlacedScalarAccess(form) = semantic {
+            if form.write {
+                MachineMemoryEffect::WritePointerV1
+            } else {
+                MachineMemoryEffect::ReadPointerV1
+            }
+        } else if semantic == MachineSemanticKind::CopyBytes {
             MachineMemoryEffect::CopyBytesV1
         } else if semantic == MachineSemanticKind::ZeroBytes {
             MachineMemoryEffect::ZeroBytesV1
@@ -405,7 +413,8 @@ fn declaration(
         },
         trap: if matches!(
             semantic,
-            MachineSemanticKind::CopyBytes
+            MachineSemanticKind::PlacedScalarAccess(_)
+                | MachineSemanticKind::CopyBytes
                 | MachineSemanticKind::ZeroBytes
                 | MachineSemanticKind::Load8
                 | MachineSemanticKind::Load16
@@ -428,7 +437,9 @@ fn declaration(
         } else {
             MachineTrapBehavior::NeverV1
         },
-        barrier: if matches!(
+        barrier: if matches!(semantic, MachineSemanticKind::PlacedScalarAccess(_)) {
+            MachineBarrier::ExternalEffect
+        } else if matches!(
             semantic,
             MachineSemanticKind::ConditionalBranchNonZero
                 | MachineSemanticKind::ConditionalBranchU64LessThan
@@ -475,6 +486,13 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             .id
     };
     let (reads, writes) = match semantic {
+        MachineSemanticKind::PlacedScalarAccess(form) => {
+            if form.write {
+                (vec![0, 1], vec![])
+            } else {
+                (vec![0], vec![1])
+            }
+        }
         MachineSemanticKind::AtomicFence => return MachineEncodedEffects::atomic_fence_v1(),
         MachineSemanticKind::LoadEncodedScalar => (vec![0, 1], vec![2, 3, 4, 5]),
         MachineSemanticKind::StoreEncodedScalar => (vec![0, 1, 2], vec![3, 4, 5]),
@@ -674,7 +692,8 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
                 target: view("x30"),
             },
         ),
-        MachineSemanticKind::Load8
+        MachineSemanticKind::PlacedScalarAccess(_)
+        | MachineSemanticKind::Load8
         | MachineSemanticKind::Load16
         | MachineSemanticKind::Load32
         | MachineSemanticKind::Load64
@@ -725,7 +744,16 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         } else {
             vec![]
         },
-        memory: if semantic == MachineSemanticKind::CopyBytes {
+        memory: if let MachineSemanticKind::PlacedScalarAccess(form) = semantic {
+            if form.write {
+                MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
+            } else {
+                MachineEncodedMemoryEffect::ReadPointerV1 {
+                    pointer_operand: 0,
+                    byte_count: u16::from(form.bytes),
+                }
+            }
+        } else if semantic == MachineSemanticKind::CopyBytes {
             MachineEncodedMemoryEffect::CopyBytesV1 {
                 source_pointer_operand: 0,
                 destination_pointer_operand: 1,

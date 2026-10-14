@@ -249,6 +249,8 @@ pub(super) fn overlaps(
             .iter()
             .any(|origin| origin.root == place && origin_overlaps(&origin.path)),
         Backing::Descriptor { geometry, .. } => match geometry {
+            // Formation tokens carry no disjoint physical storage evidence.
+            DescriptorCallOrigin::PlacedFormation { .. } => true,
             DescriptorCallOrigin::Empty => false,
             DescriptorCallOrigin::Literal {
                 machine: owner,

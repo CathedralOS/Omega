@@ -595,6 +595,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 local.structural_type,
                 match &producer.kind {
                     OperationKind::EstablishReference { source, .. }
+                    | OperationKind::EstablishPlacedReference { source }
                     | terminal_psi::element_view_establish_pair_pattern!(source, ..) => {
                         source.access
                     }

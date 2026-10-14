@@ -9,6 +9,7 @@ use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::StructuralAccess;
 
 mod access_paths;
 pub(crate) use access_paths::{
@@ -575,6 +576,7 @@ fn operation_structural_result(operation: &O) -> Option<&terminal_psi::Structura
         | abstract_operations::establish_case_or_record_result_pattern!(result)
         | O::EstablishZeroedStructural { result, .. }
         | O::EstablishReference { result, .. }
+        | O::EstablishPlacedReference { result, .. }
         // A window extraction publishes a structural result too; its type
         // joins the reference-bearing result contract like every other
         // producer's.
@@ -635,6 +637,7 @@ pub(crate) fn validate_function_references(
             && !matches!(
                 node.operation,
                 O::EstablishReference { .. }
+                    | O::EstablishPlacedReference { .. }
                     | O::CallStructural {
                         result: AbstractStructuralCallResult::Structural { .. },
                         ..
@@ -859,4 +862,20 @@ fn validate_alternative_result_dependencies(
         }
     }
     Ok(())
+}
+
+/// A placed descriptor retains a distinct interpretation of its exact source.
+/// Complete correspondence is rejoined to the retained catalog at the unit
+/// boundary; loan replay consumes the source/result relationship independently.
+pub(crate) fn placed_reference_source_compatible(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    source: StructuralTypeId,
+    result: StructuralTypeId,
+    correspondence: &terminal_psi::PlacedRamCorrespondence,
+) -> bool {
+    source == correspondence.schema
+        && matches!(types.get(&result).map(|row| &row.shape),
+            Some(terminal_psi::StructuralTypeShape::Reference { referent, access })
+                if *referent == correspondence.carrier
+                    && matches!(access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow))
 }

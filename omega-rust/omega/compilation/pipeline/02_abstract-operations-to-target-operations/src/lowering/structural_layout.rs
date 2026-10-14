@@ -437,7 +437,10 @@ pub(crate) fn structural_shape(
                 ) {
                     return Err(LoweringError::UnclosedTargetLayout(structural_type));
                 }
-                if let terminal_psi::StructuralRecordStorage::Authored(storage) = storage {
+                if let terminal_psi::StructuralRecordStorage::Authored(storage)
+                | terminal_psi::StructuralRecordStorage::PlacedView(storage)
+                | terminal_psi::StructuralRecordStorage::PlacedAccessor(storage) = storage
+                {
                     return Ok(ValueShape::integer(
                         u32::try_from(storage.byte_size)
                             .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?,
@@ -1462,5 +1465,85 @@ pub(super) fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
         Some(value)
     } else {
         value.checked_add(alignment - remainder)
+    }
+}
+
+#[cfg(test)]
+mod placed_geometry_tests {
+    use super::*;
+    use semantic_vocabulary::{AuthoredFieldStorage, AuthoredRecordStorage, StructuralFieldId};
+    use terminal_psi::{
+        StructuralFieldDeclaration, StructuralRecordStorage, TerminalIdentityIndex,
+    };
+
+    #[test]
+    fn placed_container_geometry_preserves_offset_without_scalar_authority() {
+        let root = StructuralTypeId::new(1).unwrap();
+        let accessor = StructuralTypeId::new(2).unwrap();
+        let field = StructuralFieldId::new(1).unwrap();
+        let accessor_declaration = StructuralTypeDeclaration {
+            id: accessor,
+            identity: TerminalIdentityIndex(2),
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+            shape: StructuralTypeShape::Record {
+                fields: vec![],
+                storage: StructuralRecordStorage::PlacedAccessor(AuthoredRecordStorage {
+                    byte_size: 4,
+                    byte_alignment: 1,
+                }),
+            },
+        };
+        let root_declaration = StructuralTypeDeclaration {
+            id: root,
+            identity: TerminalIdentityIndex(1),
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: field,
+                    identity: TerminalIdentityIndex(3),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(accessor),
+                    storage: Some(AuthoredFieldStorage::Direct { byte_offset: 4 }),
+                }],
+                storage: StructuralRecordStorage::PlacedView(AuthoredRecordStorage {
+                    byte_size: 8,
+                    byte_alignment: 4,
+                }),
+            },
+        };
+        let declarations =
+            BTreeMap::from([(root, &root_declaration), (accessor, &accessor_declaration)]);
+        let (selected, shape, offset, indices) = runtime_projection(
+            root,
+            &[StructuralPathSegment::Field(TerminalIdentityIndex(3))],
+            &declarations,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )
+        .unwrap();
+        assert_eq!(selected, accessor);
+        assert_eq!(shape, ValueShape::integer(4, 1));
+        assert_eq!(offset, 4);
+        assert!(indices.is_empty());
+        assert!(
+            primitive_leaf_projection(
+                root,
+                &[StructuralPathSegment::Field(TerminalIdentityIndex(3))],
+                &declarations
+            )
+            .is_none()
+        );
+        assert!(!terminal_semantics::zeroed_structural_shape(
+            declarations.values().copied(),
+            root
+        ));
+        assert!(!terminal_semantics::zeroed_structural_shape(
+            declarations.values().copied(),
+            accessor
+        ));
     }
 }

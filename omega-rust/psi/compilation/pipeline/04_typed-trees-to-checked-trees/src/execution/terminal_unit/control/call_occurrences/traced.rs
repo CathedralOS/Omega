@@ -131,6 +131,42 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 }
                 visited.push(value);
                 let node = plans.nodes.get(value);
+                if matches!(
+                    node.kind,
+                    checked_trees::CheckedStructuralValueKind::Reference {
+                        storage: checked_trees::CheckedReferenceStorage::Placed,
+                        ..
+                    }
+                ) {
+                    let formation =
+                        validation::reference_formation_source(program, node.expression)?;
+                    if formation.interpretation
+                        != validation::ReferenceFormationInterpretation::Placed
+                    {
+                        return None;
+                    }
+                    let authored = program.expression_table.call_node(node.expression)?;
+                    let mut occurrences = facts.flow.control.calls.iter().filter(|(_, call)| {
+                        call.authored_expression == node.expression
+                            && calls.iter().any(|candidate| std::ptr::eq(candidate, *call))
+                    });
+                    let (Some((handle, call)), None) = (occurrences.next(), occurrences.next())
+                    else {
+                        return None;
+                    };
+                    if call.statement_index != statement_index
+                        || call.target_symbol != authored.target_symbol
+                        || facts.flow.control.is_retired(state.symbol, call)
+                    {
+                        return None;
+                    }
+                    // The structural producer owns this authored factory
+                    // occurrence once. Execution establishes its captured loan;
+                    // it does not also invoke the bodyless declaration.
+                    if !consumed.contains(&handle) {
+                        consumed.push(handle);
+                    }
+                }
                 match node.kind {
                     checked_trees::CheckedStructuralValueKind::QuotientCall {
                         request,
@@ -209,12 +245,26 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                         pending.extend(elements.iter().copied());
                     }
                     checked_trees::CheckedStructuralValueKind::Reference {
-                        source_value, ..
-                    } if source_value.is_valid() => {
-                        pending.push(source_value);
+                        source_value,
+                        ref source,
+                        ..
+                    } => {
+                        if source_value.is_valid() {
+                            pending.push(source_value);
+                        }
+                        collect_structural_argument_calls(
+                            program,
+                            facts,
+                            state.symbol,
+                            statement_index,
+                            source,
+                            calls,
+                            0,
+                            &mut Vec::new(),
+                            &mut consumed,
+                        )?;
                     }
-                    checked_trees::CheckedStructuralValueKind::Reference { ref source, .. }
-                    | checked_trees::CheckedStructuralValueKind::BorrowedSliceView {
+                    checked_trees::CheckedStructuralValueKind::BorrowedSliceView {
                         ref source,
                         ..
                     }

@@ -8,6 +8,9 @@ mod establishment;
 mod native;
 mod retention;
 
+#[cfg(test)]
+mod qualified_cleanup_receiving_tests;
+
 pub(crate) use error::ArtifactLoweringError;
 pub use establishment::TerminalPlacedViewEstablishment;
 pub(crate) use native::AdmittedNativeArtifact;

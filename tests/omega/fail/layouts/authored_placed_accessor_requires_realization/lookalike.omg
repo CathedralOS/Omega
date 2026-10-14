@@ -1,0 +1,3 @@
+module lookalike;
+pub boundary data PlacedField<T>;
+pub boundary machine PlacedField::read<T>(value: &PlacedField<T>) -> u32;

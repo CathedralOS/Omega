@@ -125,6 +125,92 @@ pub(super) fn validate_operation(
     }
     match (target, abstracted) {
         (
+            TargetUnitOperation::PlacedScalarAccess {
+                psi_operation,
+                boundary,
+                realization,
+                location,
+                interpretation,
+                operand,
+                result_home,
+            },
+            AbstractOperation::BoundaryCall {
+                psi_operation: expected_operation,
+                boundary: expected_boundary,
+                arguments,
+                structural_arguments,
+                result,
+                completion_claim_sources,
+                completion_receipts,
+            },
+        ) => {
+            let demand = terminal_semantics::placed_scalar_boundary_demand(
+                unit.structural_types.as_slice(),
+                &plan.identities,
+                unit.structural_types.placed_views(),
+                &plan.boundary_machines,
+                *boundary,
+            )
+            .map_err(|_| LegalizationError::custody())?;
+            let [argument] = structural_arguments.as_slice() else {
+                return Err(LegalizationError::custody());
+            };
+            let mut parent = argument.clone();
+            if parent.path.pop()
+                != Some(terminal_psi::StructuralPathSegment::Field(
+                    demand.view_field,
+                ))
+                || &parent != location
+                || psi_operation != expected_operation
+                || boundary != expected_boundary
+                || realization.demand != demand
+                || argument.access != demand.access
+                || !completion_claim_sources.is_empty()
+                || !completion_receipts.is_empty()
+                || &super::super::reference_custody::placed_scalar_custody(
+                    optimized,
+                    custody,
+                    unit.structural_types.as_slice(),
+                    location,
+                )? != interpretation
+            {
+                return Err(LegalizationError::custody());
+            }
+            match (
+                demand.operation,
+                arguments.as_slice(),
+                operand,
+                result,
+                result_home,
+            ) {
+                (
+                    terminal_psi::TerminalPlacedAccessorKind::Read,
+                    [],
+                    None,
+                    abstract_operations::AbstractBoundaryResult::Scalar(result),
+                    Some(home),
+                ) if result.scalar_type == demand.scalar
+                    && home.scalar_type == demand.scalar
+                    && home.defining_operation == *psi_operation
+                    && home.source_value == result.value
+                    && Some(home.shape) == super::super::scalar_shape(demand.scalar) =>
+                {
+                    sources.push((result.value, Source::Home(*home)));
+                }
+                (
+                    terminal_psi::TerminalPlacedAccessorKind::Write,
+                    [value],
+                    Some(operand),
+                    abstract_operations::AbstractBoundaryResult::Unit,
+                    None,
+                ) if operand.scalar_type() == demand.scalar
+                    && sources
+                        .iter()
+                        .any(|(identity, source)| identity == value && source == operand) => {}
+                _ => return Err(LegalizationError::custody()),
+            }
+        }
+        (
             TargetUnitOperation::SelectImplementation { result_home, table },
             AbstractOperation::SelectImplementation {
                 psi_operation,
@@ -279,6 +365,25 @@ pub(super) fn validate_operation(
             | AbstractOperation::ScalarRepresentationView { .. },
         ) => {
             ieee_float::validate(target, abstracted, sources)?;
+        }
+        (
+            TargetUnitOperation::EstablishPlacedReference {
+                psi_operation,
+                result_home,
+                source,
+                correspondence,
+            },
+            AbstractOperation::EstablishPlacedReference {
+                psi_operation: expected_operation,
+                result,
+                source: expected_source,
+                correspondence: expected_correspondence,
+            },
+        ) if psi_operation == expected_operation
+            && source == expected_source
+            && correspondence == expected_correspondence
+            && *result_home
+                == super::super::aggregate_results::result_home(optimized, result.place, plan)? => {
         }
         (
             TargetUnitOperation::EstablishReference {

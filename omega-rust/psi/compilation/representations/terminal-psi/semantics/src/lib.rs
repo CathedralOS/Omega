@@ -29,7 +29,19 @@ pub mod control_graph;
 pub mod descriptor_results;
 pub(crate) use optimization::digest_encoder;
 mod partial_affine;
+mod placed_ram_correspondence;
+mod placed_scalar_boundaries;
+mod placed_view_plans;
+pub use placed_ram_correspondence::{
+    PlacedRamCorrespondence, PlacedRamFieldCorrespondence, placed_ram_correspondence,
+    placed_ram_plan_correspondence, placed_reference_correspondence,
+};
+pub use placed_scalar_boundaries::{PlacedScalarBoundaryDemand, placed_scalar_boundary_demand};
 mod placed_view_referent;
+pub use placed_view_plans::{
+    PlacedPlanError, contains_placed_carrier, contains_placed_carrier_in_catalog,
+    validate_placed_view_catalog, validate_placed_view_plans,
+};
 mod primitive_place;
 mod proof_bearing_scalar;
 mod record_field;
@@ -210,4 +222,6 @@ pub use structural_effect::{ElementViewLeaf, element_view_leaf, element_view_wri
 mod scalar_observations;
 pub use scalar_observations::structural_read_scalar_type;
 
+mod placed_ram_origins;
 pub mod quotients;
+pub use placed_ram_origins::{PlacedRamFormation, PlacedRamOrigin, PlacedRamOriginAnalysis};

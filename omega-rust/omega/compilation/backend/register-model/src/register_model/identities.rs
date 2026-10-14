@@ -177,6 +177,8 @@ pub fn target_register_environment_identity(
     for key in [
         selected_keys.atomic_fence,
         selected_keys.atomic_load,
+        selected_keys.placed_read,
+        selected_keys.placed_write,
         selected_keys.atomic_store,
         selected_keys.atomic_update,
         selected_keys.atomic_compare_exchange,

@@ -171,7 +171,8 @@ pub(super) fn prepare(
                                 }));
                             }
                             DescriptorStoredOrigin::IncomingContents { .. }
-                            | DescriptorStoredOrigin::Literal { .. } => return None,
+                            | DescriptorStoredOrigin::Literal { .. }
+                            | DescriptorStoredOrigin::PlacedFormation { .. } => return None,
                         }
                     }
                     sources.sort();
@@ -321,6 +322,7 @@ pub(super) fn stage(
                         }],
                         contract,
                         referent,
+                        placed: super::placed_source(custody, &source),
                     });
                     continue;
                 }

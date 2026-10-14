@@ -43,6 +43,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         // Reference establishment/release are compile-time custody markers;
         // they carry no call, boundary, or physical edge of their own.
         | AbstractOperation::EstablishReference { .. }
+        | AbstractOperation::EstablishPlacedReference { .. }
         | AbstractOperation::ReleaseReference { .. }
         // Restoration-window extraction and repair are structural custody
         // events on the borrowed root; they carry no call, boundary, or

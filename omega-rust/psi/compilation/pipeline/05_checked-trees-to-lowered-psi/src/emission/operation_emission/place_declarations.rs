@@ -102,20 +102,30 @@ pub(crate) fn retain_operation_results<'a>(
     Ok(())
 }
 
-/// Scalar expansion may introduce structural arrivals after a machine frame
-/// reserved its places. Derive their declarations from the completed blocks,
-/// preserving exact provenance when the frame already supplied a row.
+/// Computed structural continuations publish arrivals after frame reservation.
+/// Derive their declarations from the actual emitted block and ordered formal,
+/// retaining existing provenance only when it names that exact same arrival.
 pub(crate) fn retain_block_parameters<'a>(
     blocks: impl Iterator<Item = &'a terminal_psi::Block>,
     declarations: &mut Vec<StructuralPlaceDeclaration>,
 ) -> Result<(), crate::lowering_error::LoweringError> {
     for block in blocks {
-        for parameter in &block.structural_parameters {
+        for (position, parameter) in block.structural_parameters.iter().enumerate() {
+            let position = u32::try_from(position).map_err(|_| {
+                crate::lowering_error::LoweringError::Unsupported(
+                    "computed structural parameter position overflows",
+                )
+            })?;
+            if parameter.position != position {
+                return crate::lowering_error::unsupported(
+                    "computed structural parameter positions are not dense",
+                );
+            }
             let declaration = StructuralPlaceDeclaration {
                 id: parameter.place,
                 kind: StructuralPlaceKind::BlockParameter {
                     block: block.id,
-                    position: parameter.position,
+                    position,
                 },
             };
             if let Some(existing) = declarations
@@ -124,7 +134,7 @@ pub(crate) fn retain_block_parameters<'a>(
             {
                 if *existing != declaration {
                     return crate::lowering_error::unsupported(
-                        "block parameter conflicts with an existing place declaration",
+                        "computed parameter conflicts with an existing place declaration",
                     );
                 }
             } else {

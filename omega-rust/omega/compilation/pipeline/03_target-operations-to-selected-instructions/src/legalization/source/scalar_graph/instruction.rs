@@ -32,6 +32,45 @@ pub(super) fn project(
         target_operations::TargetUnitOperation::Call { .. }
     ) {
         call_instructions::project_call(optimized, unit, targeted, native, plan)?
+    } else if let target_operations::TargetUnitOperation::PlacedScalarAccess {
+        boundary,
+        realization,
+        location,
+        interpretation,
+        operand,
+        ..
+    } = targeted
+    {
+        let root = optimized
+            .arrival_parameter(location.place)
+            .map(|parameter| parameter.structural_type)
+            .or_else(|| {
+                scalar_graph_input::structural_case::source_result(optimized, location.place)
+                    .ok()
+                    .map(|(_, result)| result.structural_type)
+            })
+            .ok_or(Error::custody())?;
+        let geometry =
+            crate::structural_inputs::structural_reference_input::reference_source_geometry(
+                root,
+                &location.path,
+                unit.structural_types.as_slice(),
+            )
+            .ok_or(Error::custody())?;
+        let indices = crate::legalization::runtime_indices::operands(
+            optimized,
+            unit,
+            operation,
+            &geometry.elements,
+        )?;
+        LegalizedScalarInstructionKind::PlacedScalarAccess {
+            boundary: *boundary,
+            realization: *realization,
+            location: location.clone(),
+            interpretation: interpretation.clone(),
+            indices,
+            operand: operand.map(|source| source.source_value()),
+        }
     } else {
         match &node.operation {
             AbstractOperation::SelectImplementation { table, .. } => {
@@ -137,6 +176,23 @@ pub(super) fn project(
                 format: *format,
                 left: *left,
                 right: *right,
+            },
+            AbstractOperation::EstablishPlacedReference {
+                psi_operation,
+                result,
+                source,
+                correspondence,
+            } => LegalizedScalarInstructionKind::EstablishPlacedReference {
+                result: result.clone(),
+                source: source.clone(),
+                correspondence: correspondence.clone(),
+                indices: crate::legalization::runtime_indices::reference_source(
+                    optimized,
+                    unit,
+                    *psi_operation,
+                    source,
+                )?,
+                shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
             },
             AbstractOperation::EstablishReference {
                 psi_operation,

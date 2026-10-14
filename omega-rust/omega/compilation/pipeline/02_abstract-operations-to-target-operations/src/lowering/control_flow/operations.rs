@@ -226,6 +226,14 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
+        AbstractOperation::EstablishPlacedReference { .. } => super::references::establish_placed(
+            operation,
+            function,
+            structural_types,
+            live,
+            operations,
+            provenance,
+        ),
         AbstractOperation::EstablishReference { .. } => super::references::establish(
             operation,
             function,
@@ -526,6 +534,26 @@ pub(super) fn lower_operation(
                 &live.scalar_homes,
                 live.scalar_block_parameters.get(&value.value).copied(),
                 &super::scalar_sources::ScalarSources::from(&*live),
+                operations,
+                provenance,
+            )
+        }
+        AbstractOperation::BoundaryCall { boundary, .. }
+            if settlements.get(boundary).is_some_and(|binding| {
+                matches!(
+                    binding.realization,
+                    target_operations::BoundarySettlementRealization::Builtin(
+                        BoundaryRealization::PlacedScalarAccess(_)
+                    )
+                )
+            }) =>
+        {
+            super::placed_scalar_access::lower(
+                operation,
+                function,
+                structural_types,
+                settlements,
+                live,
                 operations,
                 provenance,
             )

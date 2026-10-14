@@ -38,8 +38,10 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
                 | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. }
                 | LegalizedScalarInstructionKind::ElementViewSubslice { source, .. }
-                | LegalizedScalarInstructionKind::EstablishReference { source, .. } => source.place == place,
-                LegalizedScalarInstructionKind::AtomicAccess { location, .. } => location.place == place,
+                | LegalizedScalarInstructionKind::EstablishReference { source, .. }
+                | LegalizedScalarInstructionKind::EstablishPlacedReference { source, .. } => source.place == place,
+                LegalizedScalarInstructionKind::AtomicAccess { location, .. }
+                | LegalizedScalarInstructionKind::PlacedScalarAccess { location, .. } => location.place == place,
                 LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { left, right, .. } => left.source() == place || right.source() == place,
                 LegalizedScalarInstructionKind::ByteSequenceStore { destination, source, .. } => *destination == place || *source == place,
                 LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {

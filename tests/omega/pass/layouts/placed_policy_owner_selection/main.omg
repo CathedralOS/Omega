@@ -1,0 +1,18 @@
+// Both same-spelled policy/schema declarations retain exact module owners.
+// No execution entry: each helper consumes a separately established view.
+use omega::language::core::layout;
+use first;
+use second;
+
+machine observe_first(view: &Placed<first::RegPlacement, first::Registers>) -> u32 {
+    view.status.read(&view.status)
+}
+machine observe_second(view: &Placed<second::RegPlacement, second::Registers>) -> u32 {
+    view.status.read(&view.status)
+}
+
+// A separately scoped authored lookalike keeps its ordinary read method.
+use lookalike;
+machine authored_read(value: &lookalike::PlacedField<u32>) -> u32 {
+    lookalike::PlacedField::read<u32>(value)
+}

@@ -231,6 +231,9 @@ pub struct CheckedProviderSelection {
 /// selected plan facts that selected execution owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSettlement {
+    /// Exact target used to derive candidate plans, including semantic-only
+    /// checking's supported host profile. This grants no deployment entry.
+    pub planning_target_profile: Option<target::TargetProfile>,
     /// Validated boundary calling-plan realizations, computed while typed
     /// declarations and selected opaque representations coexist and closed
     /// over outbound callbacks by checking. Presence publishes no package ABI.
@@ -288,7 +291,7 @@ pub fn settle_checked_providers(
         target_name,
         &evaluated_via_bindings,
         &settled_target_machines.origins,
-    ));
+    ))?;
     let selected_provider_plans = crate::select_derived_provider_plans(
         &derived_provider_plans,
         provider_selection_target,
@@ -391,6 +394,7 @@ pub fn settle_checked_providers(
                         minted.plan.rows.len()
                     ],
                     row_target_machine_origins: vec![None; minted.plan.rows.len()],
+                    row_placed_accessors: vec![None; minted.plan.rows.len()],
                 },
                 selected_by: crate::ProviderSelectionProvenance::UniqueCoveringCandidate,
                 row_compiler_intrinsic_executions: Vec::new(),
@@ -403,6 +407,7 @@ pub fn settle_checked_providers(
     }
     Ok(CheckedProviderSelection {
         settlement: ProviderSettlement {
+            planning_target_profile: planning_target,
             boundary_calling_plan_realizations,
             provider_plans,
             evaluated_via_bindings,

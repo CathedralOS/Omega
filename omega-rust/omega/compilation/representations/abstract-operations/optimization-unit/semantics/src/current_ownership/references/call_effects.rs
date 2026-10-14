@@ -112,7 +112,7 @@ impl ReferenceCallEffects {
                                         // A possible contents set cannot mint an exact
                                         // reference permission at an executable address.
                                         DescriptorStoredOrigin::IncomingContents { .. }
-                                        | DescriptorStoredOrigin::Empty | DescriptorStoredOrigin::Literal { .. } => None,
+                                        | DescriptorStoredOrigin::Empty | DescriptorStoredOrigin::Literal { .. } | DescriptorStoredOrigin::PlacedFormation { .. } => None,
                                     }
                                 })
                                 .collect::<Option<Vec<_>>>()?;

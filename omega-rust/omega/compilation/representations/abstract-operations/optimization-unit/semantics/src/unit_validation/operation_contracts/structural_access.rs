@@ -91,6 +91,25 @@ impl StructuralSourceContract<'_> {
                 .any(|qualification| qualification.path == path && qualification.domain == domain)
         }
     }
+
+    /// A delivery retains evidence from its actual source and typed path;
+    /// writing a destination roster cannot establish any membership.
+    /// A destination may forget memberships, but cannot add one.
+    pub(crate) fn supplies_qualifications(
+        &self,
+        path: &[terminal_psi::StructuralPathSegment],
+        required: &[StructuralDomainId],
+        projected: &[terminal_psi::StructuralPathQualification],
+    ) -> bool {
+        required
+            .iter()
+            .all(|domain| self.carries_qualification(path, *domain))
+            && projected.iter().all(|qualification| {
+                let mut selected = path.to_vec();
+                selected.extend(qualification.path.iter().cloned());
+                self.carries_qualification(&selected, qualification.domain)
+            })
+    }
 }
 
 pub(crate) fn structural_arguments_match<'declaration, Formal>(
@@ -437,6 +456,37 @@ where
         // Raw carrier equality cannot weaken a qualified owner's exclusive loan.
         if borrowed_owner_expected && !bounded_owner_presentation {
             return false;
+        }
+        // Without qualification epoch repair, exclusive composite loans
+        // must preserve opaque memberships in both directions. Otherwise a
+        // weaker callee could mutate storage while the caller retained stale
+        // membership annotations. Partial loans cannot discard an ancestor.
+        if matches!(
+            argument.access,
+            terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        ) && types
+            .get(&source.structural_type)
+            .is_some_and(|declaration| declaration.shape.is_composite_shape())
+        {
+            let Some((whole, projected)) =
+                terminal_psi::StructuralPathQualification::select_restorable(
+                    source.qualifications,
+                    source.projected_qualifications,
+                    &argument.path,
+                )
+            else {
+                return false;
+            };
+            // A byte-field loan has its own exact, bidirectional predicate
+            // check above. It may obtain predicates from the field declaration
+            // rather than a source occurrence's qualification roster.
+            if !bounded_owner_presentation
+                && (whole != parameter.qualifications
+                    || projected != parameter.projected_qualifications)
+            {
+                return false;
+            }
         }
         let actual_type = if argument.access == parameter.access
             && argument.access != terminal_psi::StructuralAccess::Owned
@@ -913,6 +963,7 @@ pub(crate) fn structural_operation_result_contract<'a>(
                 | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishStructuralLocal { result, .. }
                 | O::EstablishReference { result, .. }
+                | O::EstablishPlacedReference { result, .. }
                 // The moved subtree leaves the window as an owned whole value;
                 // the repair store consumes it with exactly that custody.
                 | O::MoveStructuralField { result, .. }

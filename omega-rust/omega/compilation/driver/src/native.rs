@@ -24,6 +24,7 @@ pub(crate) fn produce_native_product(
     native_production::compile(
         terminal,
         native_production::NativeCompileRequest {
+            private_entry_ram: &request.private_entry_ram,
             optimization_selections: post_terminal.selections(),
             terminal_authority_policy: request.terminal_authority_policy,
             accepted_package_terminal_authority_permission_policy,

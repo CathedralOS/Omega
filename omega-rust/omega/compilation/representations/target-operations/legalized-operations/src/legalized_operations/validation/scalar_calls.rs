@@ -7,6 +7,7 @@ pub enum LegalizedScalarCallShapeError {
     ArgumentPlacement { argument: usize },
     Result,
     CallControl,
+    PlacedBinding { binding: usize },
 }
 impl LegalizedScalarCall {
     /// Raw ABI consistency only; source, types and canonical target ABI require replay.
@@ -32,6 +33,47 @@ impl LegalizedScalarCall {
             {
                 return Err(Error::ArgumentPlacement { argument: index });
             }
+        }
+        let structural = self
+            .arguments
+            .iter()
+            .filter_map(|argument| match argument {
+                crate::LegalizedScalarArgument::Structural { target, .. } => Some(target),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let mut previous = None;
+        for (index, binding) in self.placed_bindings.iter().enumerate() {
+            let position = usize::try_from(binding.argument_index)
+                .map_err(|_| Error::PlacedBinding { binding: index })?;
+            let Some(argument) = structural.get(position) else {
+                return Err(Error::PlacedBinding { binding: index });
+            };
+            if previous.is_some_and(|previous| previous >= binding.argument_index)
+                || binding.argument_index != binding.input.runtime_position
+                || self.target
+                    != target_operations::NativeCallTarget::Machine(binding.input.machine)
+                || argument.access != binding.input.access
+                || argument.access == terminal_psi::StructuralAccess::Owned
+                || match &binding.association {
+                    target_operations::TargetPlacedCallAssociation::Captured {
+                        carrier, ..
+                    } => *carrier != argument.structural_type,
+                    target_operations::TargetPlacedCallAssociation::CallerFormal(input) => {
+                        input.carrier_identity != binding.input.carrier_identity
+                            || input.view_identity != binding.input.view_identity
+                            || input.policy_identity != binding.input.policy_identity
+                            || input.policy_plan_machine_identity
+                                != binding.input.policy_plan_machine_identity
+                            || input.schema_identity != binding.input.schema_identity
+                            || input.placement_commitment != binding.input.placement_commitment
+                            || !binding.input.access.admits(input.access)
+                    }
+                }
+            {
+                return Err(Error::PlacedBinding { binding: index });
+            }
+            previous = Some(binding.argument_index);
         }
         if self.result_placement != self.call_plan.result
             || self.result_placement.as_ref().is_some_and(|placement| {
@@ -155,6 +197,7 @@ mod tests {
                 .unwrap();
                 let mut call = LegalizedScalarCall {
                     descriptor_origins: Vec::new(),
+                    placed_bindings: Vec::new(),
                     structural_result: None,
                     source: crate::NativeCallOrigin::Authored,
                     claim_transfers: Vec::new(),

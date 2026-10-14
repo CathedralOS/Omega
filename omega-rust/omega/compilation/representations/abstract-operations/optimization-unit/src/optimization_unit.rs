@@ -56,7 +56,10 @@ pub use graph::{
     ValueDefinitionSite, ValueUse, encode_value_definition_site_identity,
 };
 
-pub use identity::{recompute_psi_optimization_unit_identity, scalar_refinement_identity_bytes};
+pub use identity::{
+    placed_view_catalog_identity_bytes, recompute_psi_optimization_unit_identity,
+    scalar_refinement_identity_bytes,
+};
 pub use ledger::{
     InvalidPsiTransformationLedger, PrunedMachineCustody, PsiTransformationLedger,
     PsiTransformationRecord,

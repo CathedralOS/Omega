@@ -34,7 +34,8 @@ pub(crate) fn validate(
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     match selected.kind {
-        kind @ (SelectedInstructionKind::Store { .. }
+        kind @ (SelectedInstructionKind::PlacedScalarAccess { .. }
+        | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::LoadPacked { .. }
@@ -279,6 +280,25 @@ fn admits_address_operation(
 ) -> bool {
     use SelectedInstructionKind as Kind;
     use physical_instructions::PhysicalAddressOperation as Operation;
+    if let (
+        Kind::PlacedScalarAccess {
+            form,
+            contract,
+            byte_offset,
+        },
+        Operation::PlacedScalarAccess {
+            base_operand: 0,
+            form: actual_form,
+            contract: actual_contract,
+            byte_offset: actual_offset,
+        },
+    ) = (kind, operation)
+    {
+        return form == actual_form
+            && contract == actual_contract
+            && byte_offset == actual_offset
+            && form.ordinary_semantic().is_some();
+    }
     matches!(
         (kind, operation),
         (Kind::Store { .. }, Operation::Store { .. })

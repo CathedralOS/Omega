@@ -24,6 +24,7 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 /// (including an explicit empty policy) adjudicates every closure leaf
 /// against exact supplied rows.
 pub struct NativeProductRequest {
+    pub private_entry_ram: Vec<terminal_installation::PrivateEntryRamInitialization>,
     pub terminal_authority_policy: TerminalAuthorityPolicy,
     pub terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     pub optimization_rollback: OptimizationRollback,

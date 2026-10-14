@@ -1483,12 +1483,20 @@ impl Emission<'_, '_, '_> {
                 // A same-carrier qualification is this projection's own
                 // checked membership, published on the produced value.
                 if path.is_empty() {
-                    let argument = self.value(identities, source, continuation)?;
-                    return self.retain_checked_memberships(
+                    // The cast occurrence must complete before its consumer:
+                    // passing the continuation into the operand would seal its
+                    // jump with the unqualified source, stranding the checked
+                    // membership copy after that edge.
+                    let argument = self.value(identities, source, None)?;
+                    let argument = self.retain_checked_memberships(
                         identities,
                         argument,
                         node.qualification_decisions,
-                    );
+                    )?;
+                    if let Some(continuation) = continuation {
+                        self.complete_value(identities, argument.clone(), None, continuation)?;
+                    }
+                    return Ok(argument);
                 }
                 // Copied provenance observes its original backing; an owned
                 // projection instead transfers one child on the selected edge

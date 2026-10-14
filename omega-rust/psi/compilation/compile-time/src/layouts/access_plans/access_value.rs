@@ -10,9 +10,11 @@ use layout_plans::{LayoutPlacementReport, LayoutPlanReport};
 use typed_trees::TypedTrees;
 
 use crate::layouts::layout_plans::validate_plan;
-use crate::layouts::schema_reflection::{SchemaFieldInfo, build_schema_value, schema_fields};
+use crate::layouts::schema_reflection::{
+    SchemaFieldInfo, build_selected_schema_value, schema_fields_for,
+};
 
-use super::evaluate_policy;
+use super::evaluate_selected_policy;
 
 const ACCESS_FIELD_CAPACITY: usize = 32;
 const BOUNDARY_REACH_CAPACITY: usize = 32;
@@ -25,9 +27,26 @@ pub fn compute_placement_plan(
     policy_machine: &str,
     schema_data: &str,
 ) -> Result<ValidatedPlacementPlan, String> {
-    let (schema_fields, schema_report_fingerprint) = schema_fields(typed, schema_data)?;
-    let schema_value = build_schema_value(typed, schema_data, &schema_fields)?;
-    let plan = evaluate_policy(typed, policy_machine, vec![schema_value], "placement")?;
+    let machine = typed
+        .realized_machine_named(policy_machine)
+        .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
+    let schema = typed
+        .data_definition_by_name_str(schema_data)
+        .ok_or_else(|| format!("no data definition named `{schema_data}` exists"))?;
+    compute_selected_placement_plan(typed, machine, schema)
+}
+
+/// Exact selected declarations are the inputs; names remain diagnostics and
+/// policy-local field labels. No global name lookup can change their custody.
+pub(crate) fn compute_selected_placement_plan(
+    typed: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    schema: &typed_trees::data::DataDefinition,
+) -> Result<ValidatedPlacementPlan, String> {
+    let policy_machine = machine.name.as_str();
+    let (schema_fields, schema_report_fingerprint) = schema_fields_for(typed, schema)?;
+    let schema_value = build_selected_schema_value(typed, schema, &schema_fields)?;
+    let plan = evaluate_selected_policy(typed, machine, vec![schema_value], "placement")?;
     let fields = struct_fields(&plan).map_err(|reason| invalid(policy_machine, reason))?;
     let layout_value =
         named_field(fields, "layout").map_err(|reason| invalid(policy_machine, reason))?;

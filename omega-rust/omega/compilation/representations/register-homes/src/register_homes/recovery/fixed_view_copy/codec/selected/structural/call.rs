@@ -34,6 +34,7 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
         }
     }
     let call = &row.call;
+    legalized_operations::encode_placed_call_bindings(bytes, &call.placed_bindings);
     encode_call_source(bytes, &call.source, true);
     bytes.extend_from_slice(&call.target.canonical_bytes());
     encode_call_plan(bytes, &call.call_plan);
@@ -125,6 +126,7 @@ pub(super) fn decode_call(
         },
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     };
+    let placed_bindings = super::placed_bindings::decode(cursor)?;
     let source = decode_call_source(cursor, true)?;
     let target = match cursor.byte()? {
         0 => target_operations::NativeCallTarget::Machine(decode_id(cursor, MachineId::new)?),
@@ -215,6 +217,7 @@ pub(super) fn decode_call(
         owner,
         call: LegalizedScalarCall {
             descriptor_origins,
+            placed_bindings,
             source,
             target,
             call_plan,

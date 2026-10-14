@@ -485,7 +485,8 @@ pub(in crate::lowering) fn lower_boundary_call(
                 BoundaryRealization::HostedExitProcessI32(_) => {
                     return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                 }
-                BoundaryRealization::NearestIeeeFloatArithmetic(_) => {
+                BoundaryRealization::NearestIeeeFloatArithmetic(_)
+                | BoundaryRealization::PlacedScalarAccess(_) => {
                     // Float arithmetic realizes inline on the control-flow
                     // route; it never forms a call-shaped settlement row.
                     return Err(LoweringError::BoundaryRealizationMismatch(*boundary));

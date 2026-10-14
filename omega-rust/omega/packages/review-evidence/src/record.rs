@@ -84,13 +84,13 @@ pub(crate) use contracts::{
     PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator,
     PackageReviewEvidenceInterface, PackageReviewEvidenceRequirement, PackageReviewFloatLiteral,
     PackageReviewMatchArm, PackageReviewOperatorCoordinate, PackageReviewOperatorRealization,
-    PackageReviewOperatorShape,
-    PackageReviewPropositionApplication, PackageReviewPropositionBinder,
-    PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderArgumentKind,
-    PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
-    PackageReviewPropositionEvidence, PackageReviewPropositionParameterApplication,
-    PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
-    PackageReviewReferenceAccess, PackageReviewResultCaseIdentity,
+    PackageReviewOperatorShape, PackageReviewPropositionApplication,
+    PackageReviewPropositionBinder, PackageReviewPropositionBinderArgument,
+    PackageReviewPropositionBinderArgumentKind, PackageReviewPropositionBinderKind,
+    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
+    PackageReviewPropositionParameterApplication, PackageReviewPropositionShape,
+    PackageReviewPublicPropositionBody, PackageReviewReferenceAccess,
+    PackageReviewResultCaseIdentity,
 };
 pub use contracts::{PackageReviewCallableContract, PackageReviewSynchronousInvocation};
 pub(crate) use data::{
@@ -154,13 +154,13 @@ pub(crate) use rows::{
 pub(crate) use signatures::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
     PackagePolicyExternalCallableSignature, PackagePolicyExternalExecutableSupply,
-    PackagePolicyExternalRequirement, PackageReviewConformanceBound, PackageReviewConformanceShape, PackageReviewEvaluatedImport,
-    PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
+    PackagePolicyExternalRequirement, PackageReviewConformanceBound, PackageReviewConformanceShape,
+    PackageReviewEvaluatedImport, PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
     PackageReviewExternalCallableParameter, PackageReviewForeignLocator,
     PackageReviewMachineParameterContract, PackageReviewMachineParameterSignature,
     PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
     PackageReviewRequirementRealization, PackageReviewSignatureParameter,
     PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTraitRequirement,
-    PackageReviewTraitShape, PackageReviewTypeIdentity,
-    PackageReviewTypeParameter, PackageReviewTypeParameterKind,
+    PackageReviewTraitShape, PackageReviewTypeIdentity, PackageReviewTypeParameter,
+    PackageReviewTypeParameterKind,
 };

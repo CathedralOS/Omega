@@ -3,6 +3,7 @@
 //! neither prints nor exits; callers decide how to present outcomes and exit status.
 
 mod compilation;
+mod private_observation;
 mod process_exit;
 mod standard_input;
 
@@ -15,6 +16,7 @@ use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 
 pub struct RunRequest {
+    pub private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
     /// An explicit target produces an image without executing it on the host.
     pub target_name: Option<String>,
@@ -40,6 +42,7 @@ pub enum ExecutionOutcome {
         /// How the child terminated, observed portably.
         exit: ProcessExitObservation,
         comparison: InterpreterComparison,
+        private_entry_ram: Vec<(u32, Vec<u8>)>,
     },
 }
 
@@ -122,6 +125,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         report,
         interpretations,
     } = compilation::compile(
+        request.private_entry_ram,
         CompileOptions {
             root_path: request.root_path,
             build_dir: Some(build_dir.clone()),
@@ -137,6 +141,30 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
     )
     .map_err(RunError::Compilation)?;
     let interpretation = interpretations.into_iter().next();
+    if request.keep_artifacts
+        && report
+            .runtime_provisions()
+            .is_some_and(|provisions| !provisions.private_entry_ram().is_empty())
+        && let Some(artifact) = report.retained_native_artifact()
+    {
+        // Keep the exact canonical product and replay model that produced this
+        // image, rather than a separate Source recompile or reconstructed frame.
+        std::fs::write(
+            build_dir.join("program.oterm"),
+            artifact.psi_artifact().to_bytes(),
+        )
+        .map_err(RunError::ReferenceOutput)?;
+        std::fs::write(
+            build_dir.join("native.object.txt"),
+            format!("{:#?}", artifact.object()),
+        )
+        .map_err(RunError::ReferenceOutput)?;
+        std::fs::write(
+            build_dir.join("native.identity.txt"),
+            format!("{:?}\n", artifact.identity()),
+        )
+        .map_err(RunError::ReferenceOutput)?;
+    }
     let (report, executable) =
         crate::compilation::publication::publish_native_artifact(report, &build_dir)
             .map_err(RunError::Publication)?;
@@ -147,13 +175,34 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
                 Some(input) => Stdio::from(input.open_input().map_err(RunError::StandardInput)?),
                 None => Stdio::inherit(),
             };
-            let output = Command::new(&executable)
-                .stdin(standard_input)
-                .output()
-                .map_err(|error| RunError::Spawn { executable, error })?;
+            let mut command = Command::new(&executable);
+            command.stdin(standard_input);
+            let (output, private_entry_ram, private_frames) =
+                private_observation::capture(command, report.runtime_provisions())
+                    .map_err(|error| RunError::Spawn { executable, error })?;
+            if request.keep_artifacts {
+                if !private_frames.is_empty() {
+                    std::fs::write(build_dir.join("native.entry-ram.frames"), &private_frames)
+                        .map_err(RunError::ReferenceOutput)?;
+                }
+                for (position, contents) in &private_entry_ram {
+                    std::fs::write(
+                        build_dir.join(format!("native.entry-ram.{position}.bin")),
+                        contents,
+                    )
+                    .map_err(RunError::ReferenceOutput)?;
+                }
+            }
             let exit = ProcessExitObservation::observe(&output.status);
             // `--both --keep` retains the exact reference streams for callers
             // that need to compare numerical bytes rather than exit alone.
+            if let Some(Ok(reference)) = interpretation.as_ref()
+                && reference.private_entry_ram != private_entry_ram
+            {
+                return Err(RunError::ReferenceOutput(std::io::Error::other(
+                    "native and Terminal original entry backing observations disagree",
+                )));
+            }
             if request.keep_artifacts
                 && let Some(Ok(reference)) = interpretation.as_ref()
             {
@@ -161,9 +210,24 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
                     .map_err(RunError::ReferenceOutput)?;
                 std::fs::write(build_dir.join("terminal.stderr"), &reference.stderr)
                     .map_err(RunError::ReferenceOutput)?;
+                let events = reference
+                    .effects
+                    .iter()
+                    .map(|effect| format!("{effect:?}\n"))
+                    .collect::<String>();
+                std::fs::write(build_dir.join("terminal.effects"), events)
+                    .map_err(RunError::ReferenceOutput)?;
+                for (position, contents) in &reference.private_entry_ram {
+                    std::fs::write(
+                        build_dir.join(format!("terminal.entry-ram.{position}.bin")),
+                        contents,
+                    )
+                    .map_err(RunError::ReferenceOutput)?;
+                }
             }
             let comparison = compare_interpretation(exit, interpretation);
             ExecutionOutcome::Host {
+                private_entry_ram,
                 output,
                 exit,
                 comparison,
@@ -180,6 +244,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
 /// Many stdin cases against one compilation: each input file is replayed
 /// through the Terminal reference (when requested) and the native program.
 pub struct CaseRunRequest {
+    pub private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
     pub compare_interpreter: bool,
     /// Input files, run in this order; each case is named by its file stem.
@@ -221,6 +286,7 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
         report,
         interpretations,
     } = compilation::compile(
+        request.private_entry_ram,
         CompileOptions {
             root_path: request.root_path,
             build_dir: Some(build_dir.clone()),
@@ -240,15 +306,17 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
             .file_stem()
             .map(|stem| stem.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let output = Command::new(&executable)
-            .stdin(Stdio::from(
-                std::fs::File::open(input).map_err(RunError::StandardInput)?,
-            ))
-            .output()
-            .map_err(|error| RunError::Spawn {
-                executable: executable.clone(),
-                error,
-            })?;
+        let mut command = Command::new(&executable);
+        command.stdin(Stdio::from(
+            std::fs::File::open(input).map_err(RunError::StandardInput)?,
+        ));
+        let (output, private_entry_ram, private_frames) =
+            private_observation::capture(command, report.runtime_provisions()).map_err(
+                |error| RunError::Spawn {
+                    executable: executable.clone(),
+                    error,
+                },
+            )?;
         let directory = &request.output_directory;
         let write = |suffix: &str, bytes: &[u8]| {
             std::fs::write(directory.join(format!("{name}.{suffix}")), bytes)
@@ -256,6 +324,12 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
         };
         write("stdout", &output.stdout)?;
         write("stderr", &output.stderr)?;
+        if !private_frames.is_empty() {
+            write("native.entry-ram.frames", &private_frames)?;
+        }
+        for (position, contents) in &private_entry_ram {
+            write(&format!("native.entry-ram.{position}.bin"), contents)?;
+        }
         let interpretation = interpretations.next();
         if let Some(Ok(reference)) = interpretation.as_ref() {
             write("terminal.stdout", &reference.stdout)?;

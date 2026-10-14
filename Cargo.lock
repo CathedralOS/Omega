@@ -464,6 +464,7 @@ dependencies = [
  "task-plans",
  "terminal-codec",
  "terminal-fuel",
+ "terminal-installation",
  "terminal-interpreter",
  "terminal-production",
  "terminal-psi",
@@ -1201,6 +1202,7 @@ dependencies = [
  "target",
  "target-operations-to-selected-instructions",
  "terminal-codec",
+ "terminal-installation",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
 ]
@@ -1257,6 +1259,7 @@ name = "omega"
 version = "0.1.0"
 dependencies = [
  "artifacts",
+ "bounded-process",
  "compilation-products",
  "compiler",
  "diagnostics",
@@ -2182,8 +2185,10 @@ dependencies = [
 name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
+ "access-plans",
  "arena",
  "language-semantics",
+ "layout-plans",
  "optimization",
  "proof-admission",
  "semantic-vocabulary",
@@ -2206,6 +2211,7 @@ dependencies = [
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -2245,6 +2251,7 @@ dependencies = [
 name = "terminal-psi"
 version = "0.1.0"
 dependencies = [
+ "access-plans",
  "arena",
  "language-core",
  "language-semantics",
@@ -2268,6 +2275,7 @@ dependencies = [
  "numerics",
  "optimization-core",
  "optimization-unit",
+ "optimization-unit-semantics",
  "program-entry-plan",
  "proof-admission",
  "semantic-vocabulary",
@@ -2277,6 +2285,7 @@ dependencies = [
  "target-operations",
  "task-plans",
  "terminal-codec",
+ "terminal-fuel",
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
@@ -2286,6 +2295,7 @@ dependencies = [
 name = "terminal-semantics"
 version = "0.1.0"
 dependencies = [
+ "access-plans",
  "language-semantics",
  "numerics",
  "optimization",

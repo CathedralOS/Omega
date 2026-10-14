@@ -31,6 +31,7 @@ use crate::register_model::{
     x86_64_system_v_aggregate_return_keys, x86_64_system_v_normalized_foreign_call_keys,
     x86_64_system_v_register_call_keys, x86_64_system_v_register_unit_call_keys,
 };
+use crate::register_model::{X86_64_PLACED_READ, X86_64_PLACED_WRITE};
 use crate::register_model::{
     float_scalar_calls, indirect_results, mixed_aggregate_calls, mixed_calls, packed_memory,
 };
@@ -1157,6 +1158,18 @@ pub fn x86_64_register_constraint_catalog(
             },
             clobbers: Vec::new(),
         });
+    }
+    for (key, template) in [
+        (X86_64_PLACED_READ, X86_64_LOAD32),
+        (X86_64_PLACED_WRITE, X86_64_STORE),
+    ] {
+        let mut row = constraints
+            .iter()
+            .find(|row| row.key == template)
+            .expect("canonical scalar transfer")
+            .clone();
+        row.key = key;
+        constraints.push(row);
     }
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {

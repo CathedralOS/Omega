@@ -182,15 +182,14 @@ impl Emission<'_, '_, '_> {
                 self.direct_borrow(argument)
             };
         }
-        let storage = super::super::super::reference_results::publish_storage(
+        let (storage, value) = super::super::super::reference_results::publish_storage(
             storage,
             self.next_value,
             self.operations,
-        )?
-        .map(|(view, value)| {
+        )?;
+        if let Some(value) = value {
             self.values.push(value);
-            view
-        });
+        }
         let carrier = super::super::super::reference_results::emit_carrier(
             formation,
             self.structural_type,

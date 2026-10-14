@@ -178,6 +178,8 @@ impl SelectedExecution {
 /// second asserted component root. This remains a checked-tree realization
 /// boundary; it does not claim the intended Terminal-only provider handoff.
 pub struct SelectedExecutionRequest<'a> {
+    /// Provider derivation target, distinct from executable deployment selection.
+    pub provider_planning_target_profile: Option<target::TargetProfile>,
     pub calling_plans:
         &'a [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     pub selected_program_entry:
@@ -197,6 +199,13 @@ pub fn settle_selected_execution(
     checked: CheckedProviderProgram,
     mut settlement: SelectedExecutionRequest<'_>,
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
+    if settlement.selected_target_profile.is_some()
+        && settlement.selected_target_profile != settlement.provider_planning_target_profile
+    {
+        return Err(vec![Diagnostic::error(
+            "selected deployment target differs from retained provider planning target",
+        )]);
+    }
     // The same selected entry supplies component progress and receives fused
     // field establishments below. Callers cannot nominate an unrelated root
     // beside it or pair a native ABI with a different deployment profile.
@@ -248,7 +257,7 @@ pub fn settle_selected_execution(
         &checked.selected_provider_plan_facts,
         &mut settlement.selected_provider_provenance,
         settlement
-            .selected_target_profile
+            .provider_planning_target_profile
             .map(target::TargetProfile::target_name),
         accepted_binding(AcceptedSemanticBindingRole::ConsoleExitProcessI32),
         accepted_binding(AcceptedSemanticBindingRole::ProcessExitExitProcessI32),

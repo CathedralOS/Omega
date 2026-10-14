@@ -5,7 +5,7 @@
 
 mod completion;
 #[cfg(unix)]
-mod descriptors;
+pub(crate) mod descriptors;
 pub(crate) mod limits;
 #[cfg(windows)]
 pub(crate) mod windows;

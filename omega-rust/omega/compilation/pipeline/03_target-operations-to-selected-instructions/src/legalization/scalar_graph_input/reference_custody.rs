@@ -68,6 +68,7 @@ pub(in crate::legalization) struct Leaf {
     formations: Vec<Formation>,
     /// This leaf's primitive referent type.
     pub(in crate::legalization) referent: StructuralTypeId,
+    placed: Option<target_operations::TargetPlacedInterpretation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -226,6 +227,9 @@ pub(in crate::legalization) struct Custody {
     borrowed_sources: std::sync::Arc<BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>>,
     descriptor_backing: std::sync::Arc<descriptor_backing::Observations>,
     stored_calls: std::sync::Arc<stored_calls::Effects>,
+    /// Exact module demand rosters, separate from live permission leaves.
+    placement_catalog: abstract_operations::StructuralTypeCatalog,
+    placed_formals: BTreeMap<PlaceId, terminal_psi::TerminalPlacedViewInput>,
 }
 
 impl Custody {
@@ -247,6 +251,8 @@ impl Custody {
             borrowed_sources: self.borrowed_sources.clone(),
             descriptor_backing: self.descriptor_backing.clone(),
             stored_calls: self.stored_calls.clone(),
+            placement_catalog: self.placement_catalog.clone(),
+            placed_formals: self.placed_formals.clone(),
         })
     }
 
@@ -828,6 +834,26 @@ fn storage_projection(
 /// replay logical disequality of runtime selectors. This audit authenticates
 /// existing parents, types and origins; receiving use and disposition still
 /// check the live roster rather than treating those origins as permission.
+/// Rejoin the actual live source descriptor; the declared placed carrier alone
+/// does not provide an established backing interpretation.
+fn placed_source(
+    custody: &Custody,
+    source: &StructuralArgument,
+) -> Option<target_operations::TargetPlacedInterpretation> {
+    if source.path.is_empty() {
+        return custody
+            .placed_formals
+            .get(&source.place)
+            .cloned()
+            .map(target_operations::TargetPlacedInterpretation::Formal);
+    }
+    let (StructuralPathSegment::Referent, path) = source.path.split_last()? else {
+        return None;
+    };
+    custody.leaf(source.place, path)?.placed.clone()
+}
+
+/// Normalize the current borrowed source through its admitted storage origins.
 fn normalized_source(
     function: &PsiOptimizationFunction,
     custody: &Custody,
@@ -1114,6 +1140,19 @@ fn call_arguments(
             }
             continue;
         }
+        // Descriptor-free storage can still be the parent of a live borrow.
+        // Normalizing its origin alone must not restore access while a child
+        // survives; shared access remains compatible with shared descendants.
+        if storage_access_conflicts(
+            function,
+            custody,
+            types,
+            argument.place,
+            &argument.path,
+            argument.access,
+        ) {
+            return Err(invalid());
+        }
         let (root, _) = normalized_source(function, custody, types, argument)?;
         normalized.push((
             argument_position,
@@ -1322,12 +1361,24 @@ fn call_results(
                     result,
                     expected,
                 );
+                leaf.placed = placed_source(custody, &source);
                 leaf.backing = backing;
                 leaf.parents.extend(backing_parents);
                 leaf.parents.sort();
                 leaf.parents.dedup();
                 leaf
             };
+            // A region-relative return proves containment, not the exact
+            // whole-view displacement required by a sealed placed association.
+            if leaf.placed.is_some()
+                && (!binding.suffix.is_empty()
+                    || binding.extent != semantic_vocabulary::ReferenceOriginExtent::Projected
+                    || leaf.referent != expected)
+            {
+                return Err(LegalizationError::ReferenceResult {
+                    reason: "placed return requires exact whole-view origin",
+                });
+            }
             candidates.push(leaf);
         }
         if candidates.is_empty() {
@@ -1360,7 +1411,7 @@ fn combine_alternatives(candidates: Vec<Leaf>) -> Result<Leaf, LegalizationError
     let mut leaf = candidates.next().ok_or(invalid())?;
     let mut origins = vec![(leaf.root.clone(), leaf.parents.clone())];
     for candidate in candidates {
-        if leaf.referent != candidate.referent {
+        if leaf.referent != candidate.referent || leaf.placed != candidate.placed {
             return Err(invalid());
         }
         origins.push((candidate.root, candidate.parents));
@@ -1784,6 +1835,76 @@ pub(in crate::legalization) fn apply(
             }
             custody.leaves.extend(copied);
         }
+        AbstractOperation::EstablishPlacedReference {
+            psi_operation,
+            result,
+            source,
+            correspondence,
+        } => {
+            let referent = referent(types, result.structural_type).ok_or_else(invalid)?;
+            let mut selected = plan
+                .structural_types
+                .placed_views()
+                .iter()
+                .filter(|plan| plan.carrier == referent);
+            let (Some(selected), None) = (selected.next(), selected.next()) else {
+                return Err(invalid());
+            };
+            let actual =
+                reference_source_type(function, custody, types, source).ok_or_else(invalid)?;
+            let expected = terminal_semantics::placed_ram_plan_correspondence(
+                types,
+                plan.structural_types.placed_views(),
+                selected,
+                actual,
+            )
+            .map_err(|_| invalid())?;
+            if &expected != correspondence
+                || !result.is_affine_plain()
+                || !matches!(
+                    source.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
+                || !find_structural_type(types, result.structural_type).is_some_and(|row| {
+                    matches!(row.shape, StructuralTypeShape::Reference { access, .. }
+                        if access.admits(source.access))
+                })
+                || custody.leaves.keys().any(|(carrier, path)| {
+                    *carrier == result.place && owned_relative_path(path, &[]).is_some()
+                })
+                || custody
+                    .leaves
+                    .values()
+                    .any(|leaf| leaf.identity.place == result.place)
+            {
+                return Err(invalid());
+            }
+            let (root, parents) = normalized_source(function, custody, types, source)?;
+            let (backing, backing_parents) = descriptor_backing::capture(
+                function,
+                custody,
+                types,
+                source,
+                *psi_operation,
+                &root,
+            )?;
+            let mut leaf = Leaf::formed(
+                (result.place, Vec::new()),
+                root,
+                parents,
+                *psi_operation,
+                result,
+                referent,
+            );
+            leaf.backing = backing;
+            leaf.parents.extend(backing_parents);
+            leaf.parents.sort();
+            leaf.parents.dedup();
+            leaf.placed = Some(target_operations::TargetPlacedInterpretation::Captured(
+                correspondence.clone(),
+            ));
+            custody.leaves.insert((result.place, Vec::new()), leaf);
+        }
         AbstractOperation::EstablishReference {
             psi_operation,
             result,
@@ -1865,6 +1986,7 @@ pub(in crate::legalization) fn apply(
                         result,
                         referent,
                     );
+                    leaf.placed = placed_source(custody, source);
                     leaf.backing = backing;
                     leaf.parents.extend(backing_parents);
                     leaf.parents.sort();
@@ -2539,6 +2661,30 @@ pub(in crate::legalization) fn block_entry_states(
     let borrowed_sources = borrowed_sources(function, types);
     let mut initial = entry(function, types)?;
     initial.borrowed_sources = borrowed_sources;
+    initial.placement_catalog = plan.structural_types.clone();
+    for input in plan
+        .structural_types
+        .placed_view_inputs()
+        .iter()
+        .filter(|input| input.machine == function.machine)
+    {
+        let parameter = function
+            .structural_parameters
+            .get(input.runtime_position as usize)
+            .ok_or_else(invalid)?;
+        let (matched, _) = plan
+            .structural_types
+            .placed_parameter_demand(function.machine, input.runtime_position as usize, parameter)
+            .ok_or_else(invalid)?;
+        if matched != input
+            || initial
+                .placed_formals
+                .insert(parameter.place, input.clone())
+                .is_some()
+        {
+            return Err(invalid());
+        }
+    }
     initial.descriptor_backing =
         std::sync::Arc::new(descriptor_backing::prepare(function, native, plan, unit)?);
     initial.stored_calls = std::sync::Arc::new(stored_calls::prepare(native, plan, unit));
@@ -2710,6 +2856,7 @@ fn entry(
                     }],
                     referent: leaf_referent(types, parameter.structural_type, &path)
                         .ok_or_else(|| invalid())?,
+                    placed: None,
                 },
             );
         }
@@ -2853,6 +3000,99 @@ pub(in crate::legalization) fn reference_results(
     )
 }
 
+/// Independently join the exact formal demand to the current live descriptor.
+/// The ordinary observation validates access, active descendants and enclosing
+/// loans first; a sealed plan never supplies an absent permission occurrence.
+pub(in crate::legalization) fn placed_call_custody(
+    caller: &PsiOptimizationFunction,
+    callee: &PsiOptimizationFunction,
+    types: &[StructuralTypeDeclaration],
+    arguments: &[StructuralArgument],
+    custody: &Custody,
+) -> Result<Vec<target_operations::TargetPlacedCallBinding>, LegalizationError> {
+    let catalog = &custody.placement_catalog;
+    let mut bindings = Vec::new();
+    for (runtime_position, parameter) in callee.structural_parameters.iter().enumerate() {
+        if !catalog.placed_view_inputs().iter().any(|input| {
+            input.machine == callee.machine
+                && usize::try_from(input.runtime_position).ok() == Some(runtime_position)
+        }) {
+            continue;
+        }
+        let (input, plan) = catalog
+            .placed_parameter_demand(callee.machine, runtime_position, parameter)
+            .ok_or_else(invalid)?;
+        let argument = arguments
+            .get(runtime_position)
+            .filter(|argument| argument.access == parameter.access)
+            .ok_or_else(invalid)?;
+        let association = match placed_source(custody, argument) {
+            Some(target_operations::TargetPlacedInterpretation::Captured(captured)) => {
+                let observed =
+                    call_paths::call_reference_custody(caller, custody, types, argument)?;
+                if observed.referent != plan.carrier {
+                    return Err(invalid());
+                }
+                let expected = terminal_semantics::placed_ram_plan_correspondence(
+                    types,
+                    catalog.placed_views(),
+                    plan,
+                    captured.schema,
+                )
+                .map_err(|_| invalid())?;
+                if captured != expected {
+                    return Err(invalid());
+                }
+                target_operations::TargetPlacedCallAssociation::Captured {
+                    schema: captured.schema,
+                    carrier: captured.carrier,
+                }
+            }
+            Some(target_operations::TargetPlacedInterpretation::Formal(formal)) => {
+                if !parameter.access.admits(formal.access)
+                    || !custody
+                        .placed_formals
+                        .values()
+                        .any(|input| input == &formal)
+                {
+                    return Err(invalid());
+                }
+                if argument.path.contains(&StructuralPathSegment::Referent) {
+                    let observed =
+                        call_paths::call_reference_custody(caller, custody, types, argument)?;
+                    if observed.referent != plan.carrier {
+                        return Err(invalid());
+                    }
+                }
+                let source_parameter = caller
+                    .structural_parameters
+                    .get(formal.runtime_position as usize)
+                    .ok_or_else(invalid)?;
+                let (_, source_plan) = catalog
+                    .placed_parameter_demand(
+                        caller.machine,
+                        formal.runtime_position as usize,
+                        source_parameter,
+                    )
+                    .ok_or_else(invalid)?;
+                if source_plan != plan {
+                    return Err(invalid());
+                }
+                // Ordinary call replay below checks this parameter's live storage,
+                // enclosing children and simultaneous operand interference.
+                target_operations::TargetPlacedCallAssociation::CallerFormal(formal)
+            }
+            None => return Err(invalid()),
+        };
+        bindings.push(target_operations::TargetPlacedCallBinding {
+            input: input.clone(),
+            argument_index: input.runtime_position,
+            association,
+        });
+    }
+    Ok(bindings)
+}
+
 /// Both state replay and retained-row comparison use one complete call
 /// transaction. Result mappings capture pre-call permissions; stored effects
 /// then replace carrier bindings, with duplicate transfers checked together.
@@ -2866,6 +3106,9 @@ fn call_transition(
     arguments: &[StructuralArgument],
     custody: &mut Custody,
 ) -> Result<Vec<target_operations::TargetReferenceResult>, LegalizationError> {
+    if let Some(callee) = callee {
+        placed_call_custody(caller, callee, types, arguments, custody)?;
+    }
     let moved = call_arguments(caller, types, custody, arguments)?;
     let stored = stored_calls::stage(caller, callee, types, custody, arguments, operation, &moved)?;
     commit_argument_moves(custody, &moved);
@@ -2884,4 +3127,16 @@ fn call_transition(
         stored,
     )?;
     Ok(results)
+}
+
+/// A scalar accessor uses the current whole placed parent, independently of its field metadata.
+pub(in crate::legalization) fn placed_scalar_custody(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    source: &StructuralArgument,
+) -> Result<target_operations::TargetPlacedInterpretation, LegalizationError> {
+    let interpretation = placed_source(custody, source).ok_or(invalid())?;
+    normalized_source(function, custody, types, source)?;
+    Ok(interpretation)
 }

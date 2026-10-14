@@ -135,7 +135,32 @@ pub(super) fn adapt(
                         },
                     ));
                 }
+                OperationKind::EstablishPlacedReference { .. }
+                    if slot_kind == DescriptorSlotKind::PlacedOrigins =>
+                {
+                    let result = result?;
+                    let StructuralTypeShape::Reference {
+                        referent: carrier, ..
+                    } = terminal_psi::find_structural_type(
+                        &module.structural_types,
+                        result.structural_type,
+                    )?
+                    .shape
+                    else {
+                        return None;
+                    };
+                    graph.originations.entry(position).or_default().push((
+                        DescriptorLocation::whole(result.place),
+                        DescriptorCallOrigin::PlacedFormation {
+                            machine: machine.id,
+                            operation: operation.id,
+                            place: result.place,
+                            carrier,
+                        },
+                    ));
+                }
                 terminal_psi::element_view_establish_pair_pattern!(source, ..)
+                | OperationKind::EstablishPlacedReference { source }
                 | OperationKind::EstablishReference { source, .. } => {
                     let destination = DescriptorLocation::whole(result?.place);
                     let (source_location, mut backing_projection) = captured_storage_source(
@@ -147,7 +172,11 @@ pub(super) fn adapt(
                     step.derivations
                         .push((source_location.clone(), destination.clone()));
                     if slot_kind == DescriptorSlotKind::References
-                        && matches!(operation.kind, OperationKind::EstablishReference { .. })
+                        && matches!(
+                            operation.kind,
+                            OperationKind::EstablishReference { .. }
+                                | OperationKind::EstablishPlacedReference { .. }
+                        )
                     {
                         graph.storage_derivations.insert((
                             position,
@@ -563,10 +592,21 @@ pub(super) fn adapt(
                     );
                 }
                 OperationKind::BoundaryCall {
+                    boundary,
                     structural_arguments,
                     ..
                 } => {
-                    if !boundary_call_preserves_descriptor_storage(module, machine, operation) {
+                    let preserves_placed_token = slot_kind == DescriptorSlotKind::PlacedOrigins
+                        && module.placed_view_plans.iter().any(|plan|
+                            module.placed_view_plans.iter().filter(|other| other.carrier == plan.carrier).count() == 1
+                            && crate::placed_ram_plan_correspondence(&module.structural_types,
+                                &module.placed_view_plans, plan, plan.schema).is_ok()
+                            && plan.fields.iter().any(|field| field.operations.iter().any(|accessor|
+                                accessor.boundary == *boundary && matches!(accessor.kind,
+                                    terminal_psi::TerminalPlacedAccessorKind::Read | terminal_psi::TerminalPlacedAccessorKind::Write))));
+                    if !preserves_placed_token
+                        && !boundary_call_preserves_descriptor_storage(module, machine, operation)
+                    {
                         step.may_escape = true;
                         if structural_arguments.iter().any(|actual| {
                             graph

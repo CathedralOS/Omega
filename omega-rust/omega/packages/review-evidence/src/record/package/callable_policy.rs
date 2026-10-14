@@ -10,10 +10,9 @@ pub(in crate::record) mod validation;
 use crate::record::{
     PackagePolicyCapabilityFlow, PackagePolicyCrash, PackagePolicyMutation,
     PackagePolicyTermination, PackagePolicyTypeParameter, PackageReviewCallableContract,
-    PackageReviewSignatureParameter, PackageReviewCallableSupply, PackageReviewCheckedServiceReach,
-    PackageReviewConformanceBound, PackageReviewInstallationReach, PackageReviewNominalIdentity,
-    PackageReviewOperatorRealization, PackageReviewSynchronousInvocation,
-    PackageReviewTypeIdentity,
+    PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewConformanceBound,
+    PackageReviewInstallationReach, PackageReviewNominalIdentity, PackageReviewOperatorRealization,
+    PackageReviewSignatureParameter, PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;

@@ -105,10 +105,10 @@ pub(super) fn validate(
         bytes,
         3,
         MachineEncodedMemoryEffect::CopyBytesV1 {
-                    source_pointer_operand: 0,
-                    destination_pointer_operand: 1,
-                    count_operand: 2,
-                },
+            source_pointer_operand: 0,
+            destination_pointer_operand: 1,
+            count_operand: 2,
+        },
     )
 }
 

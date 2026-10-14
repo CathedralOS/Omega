@@ -13,6 +13,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         run_cases(arguments, outputs);
     }
     let outcome = match run_project(RunRequest {
+        private_entry_ram: arguments.private_entry_ram,
         root_path: arguments.main_path,
         target_name: arguments.target_name,
         compare_interpreter: arguments.both,
@@ -36,6 +37,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             output,
             exit,
             comparison,
+            private_entry_ram,
         } => {
             if let Err(error) = forward_program_output(&output) {
                 // stderr may itself be the failed pipe. Reporting is best
@@ -45,6 +47,13 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
                     "cannot forward program output: {error}"
                 );
                 std::process::exit(200);
+            }
+            for (position, contents) in &private_entry_ram {
+                eprint!("entry RAM {position}: ");
+                for byte in contents {
+                    eprint!("{byte:02x}");
+                }
+                eprintln!();
             }
             let native_code = exit.code().unwrap_or(-1);
             eprintln!("native {}", exit.describe());
@@ -123,6 +132,7 @@ fn run_cases(arguments: RunArguments, outputs: std::path::PathBuf) -> ! {
         None => arguments.input_files.clone(),
     };
     let outcome = match run_project_cases(CaseRunRequest {
+        private_entry_ram: arguments.private_entry_ram,
         root_path: arguments.main_path,
         compare_interpreter: arguments.both,
         inputs: cases,

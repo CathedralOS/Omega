@@ -258,16 +258,16 @@ pub(super) fn validate(
         bytes,
         inputs,
         if load {
-                    MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
-                        pointer_operand: 0,
-                        codec_operand: 1,
-                    }
-                } else {
-                    MachineEncodedMemoryEffect::WriteEncodedScalarV1 {
-                        pointer_operand: 0,
-                        codec_operand: 1,
-                    }
-                },
+            MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
+                pointer_operand: 0,
+                codec_operand: 1,
+            }
+        } else {
+            MachineEncodedMemoryEffect::WriteEncodedScalarV1 {
+                pointer_operand: 0,
+                codec_operand: 1,
+            }
+        },
     )
 }
 

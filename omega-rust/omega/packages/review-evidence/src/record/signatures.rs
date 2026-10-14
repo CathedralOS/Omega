@@ -23,8 +23,8 @@ pub(crate) use external_supply::{
 
 pub(crate) use signature_vocabulary::{
     PackageReviewConformanceBound, PackageReviewMachineParameterContract,
-    PackageReviewMachineParameterSignature, PackageReviewSignatureParameter,
-    PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
+    PackageReviewMachineParameterSignature, PackageReviewPropositionParameterSignature,
+    PackageReviewPropositionParameterValue, PackageReviewSignatureParameter,
     PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
 

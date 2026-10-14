@@ -2,7 +2,7 @@
 
 mod boundary_invocations;
 mod calling;
-pub use boundary_invocations::encode_boundary_execution_identity;
+pub use boundary_invocations::{encode_boundary_execution_identity, encode_placed_scalar_demand};
 mod canonical;
 mod encoding;
 mod normalized_foreign;
@@ -25,3 +25,6 @@ pub use normalized_foreign::{
 pub use read_byte::encode_hosted_read_byte_identity;
 pub use scalar::{encode_integer, encode_register, encode_scalar_type};
 pub use structural::encode_provider_execution;
+
+mod placed_bindings;
+pub use placed_bindings::encode_placed_call_bindings;

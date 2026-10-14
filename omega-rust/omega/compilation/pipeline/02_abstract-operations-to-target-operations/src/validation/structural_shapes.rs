@@ -361,7 +361,7 @@ fn shape(
             if matches!(storage, terminal_psi::StructuralRecordStorage::TargetLayout(_)) {
                 return Err(InvalidStructuralShape);
             }
-            if let terminal_psi::StructuralRecordStorage::Authored(storage) = storage {
+            if let terminal_psi::StructuralRecordStorage::Authored(storage) | terminal_psi::StructuralRecordStorage::PlacedView(storage) | terminal_psi::StructuralRecordStorage::PlacedAccessor(storage) = storage {
                 active.remove(&structural_type);
                 return Ok(ValueShape::integer(u32::try_from(storage.byte_size).map_err(|_| InvalidStructuralShape)?, u16::try_from(storage.byte_alignment).map_err(|_| InvalidStructuralShape)?));
             }

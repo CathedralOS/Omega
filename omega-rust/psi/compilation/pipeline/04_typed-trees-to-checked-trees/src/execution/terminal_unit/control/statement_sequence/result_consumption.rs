@@ -148,12 +148,24 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
         _ => operation.call().and_then(|call| {
             let custody = call.structural_custody()?;
             let result = call.structural_result()?;
-            // Reference inputs retained below an owned result do not make
-            // that owner a descriptor. Its ordinary disposition still owns
-            // hooks and descendants; only a reference-shaped result has one
-            // whole descriptor release.
+            // A cleanup-free aggregate can carry the exact same captured
+            // loan group as a bare descriptor. Neither the group alone nor
+            // physical shape grants its release: retain both the actual
+            // captured custody and the recursive no-hook/no-linear judgment.
+            // Nominal owners keep their ordinary selected disposition.
             validation::call_target_return_type(program, call.target.state)
-                .is_some_and(|returned| validation::reference_shell(program, returned).is_some())
+                .is_some_and(|returned| {
+                    validation::has_contents(
+                        program,
+                        returned,
+                        &[],
+                        validation::ContentsRequirement::DescriptorCleanup,
+                    ) && (!custody.reference_loans.is_empty()
+                        || validation::reference_result_custody::stored_loan_parts(
+                            program, returned,
+                        )
+                        .is_some())
+                })
                 .then_some((result, custody.reference_loans))
         }),
     }

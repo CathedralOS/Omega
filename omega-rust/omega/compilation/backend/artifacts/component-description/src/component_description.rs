@@ -703,7 +703,8 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::CallStructuralScalar { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
                     | OperationKind::CallDynamic { .. } => {}
-                    OperationKind::EstablishReference { .. }
+                    OperationKind::EstablishPlacedReference { .. }
+        | OperationKind::EstablishReference { .. }
                     | OperationKind::ReleaseReference { .. }
                     | OperationKind::EstablishScalarArray { .. }
                     | OperationKind::EstablishStructuralArray { .. }

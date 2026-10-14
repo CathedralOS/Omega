@@ -87,6 +87,7 @@ fn lower_callback_thunk(
 ) -> Result<PrivateFunctionObject, Vec<Diagnostic>> {
     let artifact = settlement.artifact;
     let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
+        private_entry_ram: &[],
         entry: terminal_psi::TargetMachineCallable::Machine(settlement.entry),
         receiving_provider_roots: &[],
         ..request.admission

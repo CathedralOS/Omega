@@ -916,6 +916,32 @@ pub(crate) fn validate_decoded(
     decoded: &[DecodedInstruction],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
     let valid = match kind {
+        SelectedInstructionKind::PlacedScalarAccess {
+            form, byte_offset, ..
+        } => {
+            let ordinary = form
+                .ordinary_kind(byte_offset)
+                .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
+            return validate_decoded(
+                ordinary,
+                selected_instructions::MachineAlternativeKey {
+                    family: (if form.write {
+                        selected_instructions::MachineSemanticKind::Store
+                    } else {
+                        match form.bytes {
+                            1 => selected_instructions::MachineSemanticKind::Load8,
+                            2 => selected_instructions::MachineSemanticKind::Load16,
+                            4 => selected_instructions::MachineSemanticKind::Load32,
+                            _ => selected_instructions::MachineSemanticKind::Load64,
+                        }
+                    })
+                    .into(),
+                    variant: alternative.variant,
+                },
+                registers,
+                decoded,
+            );
+        }
         SelectedInstructionKind::AtomicAccess { form } => {
             let base = registers[0];
             let bits = match form.width {
@@ -2013,6 +2039,13 @@ pub(crate) fn footprint(
         return super::atomic::footprint(form, operands);
     }
     let (reads, writes, writes_rflags) = match kind {
+        SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
+            if form.write {
+                (vec![operands[0], operands[1]], vec![], false)
+            } else {
+                (vec![operands[0]], vec![operands[1]], false)
+            }
+        }
         SelectedInstructionKind::FloatResultPolicy { form } => {
             return super::float_result_policy::footprint(form, operands);
         }

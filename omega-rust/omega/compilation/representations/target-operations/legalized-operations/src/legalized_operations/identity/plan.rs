@@ -25,6 +25,11 @@ pub(super) fn encode_structural_contract(
         bytes.extend_from_slice(&referent.id.get().to_le_bytes());
         bytes.extend_from_slice(&referent.identity.0.to_le_bytes());
     }
+    // Bind the actual retained interpretation catalog, including callable/slot
+    // mappings. A stale copied catalog cannot borrow the unit's identity.
+    bytes.extend_from_slice(&optimization_unit::placed_view_catalog_identity_bytes(
+        &function.structural_types,
+    ));
     encode_len(bytes, function.parameters.len());
     for parameter in &function.parameters {
         encode_structural_parameter(bytes, &parameter.semantic);

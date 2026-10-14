@@ -10,6 +10,7 @@ use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use semantic_vocabulary::MachineId;
 mod aggregate_results;
 mod control_flow;
+mod placed_reference;
 mod primitive_accesses;
 mod stack_calls;
 mod structural_case;
@@ -319,6 +320,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | abstract_operations::move_or_store_structural_field_pattern!()
                 | AbstractOperation::EstablishTrivialAffineLocal { .. }
                 | AbstractOperation::EstablishReference { .. }
+                | AbstractOperation::EstablishPlacedReference { .. }
                 | AbstractOperation::ReleaseReference { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::EstablishStructuralArray { .. }
@@ -456,6 +458,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 } => selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && call_target_matches(*callee,row.call.target) && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
                 AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.invocation_site() == (*psi_operation).into())
                     || ieee_float_arithmetic_retained(operation, targeted, selected)
+                    || placed_scalar_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. }))
                     || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::BoundaryInvocationSite::Operation(*psi_operation)),
                 AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
@@ -968,4 +971,115 @@ pub(super) fn call_target_matches(
         ) => selector == actual_selector && interface == actual_interface && slot == actual_slot,
         _ => false,
     }
+}
+
+/// Rejoin one observable event, rather than accepting an ordinary memory row.
+fn placed_scalar_retained(
+    operation: &AbstractOperation,
+    targeted: &target_operations::TargetFunction,
+    selected: &selected_instructions::SelectedFunction,
+) -> bool {
+    let AbstractOperation::BoundaryCall {
+        psi_operation,
+        boundary,
+        arguments,
+        structural_arguments,
+        result,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let mut targets = targeted.graph.operations().filter_map(|row| match row {
+        target_operations::TargetUnitOperation::PlacedScalarAccess {
+            psi_operation: actual,
+            boundary,
+            realization,
+            location,
+            operand,
+            result_home,
+            ..
+        } if actual == psi_operation => {
+            Some((boundary, realization, location, operand, result_home))
+        }
+        _ => None,
+    });
+    let (Some((actual_boundary, realization, location, operand, result_home)), None) =
+        (targets.next(), targets.next())
+    else {
+        return false;
+    };
+    let demand = realization.demand;
+    let [argument] = structural_arguments.as_slice() else {
+        return false;
+    };
+    let mut parent = argument.clone();
+    if parent.path.pop()
+        != Some(terminal_psi::StructuralPathSegment::Field(
+            demand.view_field,
+        ))
+        || parent != *location
+        || actual_boundary != boundary
+        || demand.boundary != *boundary
+    {
+        return false;
+    }
+    if arguments
+        .iter()
+        .copied()
+        .ne(operand.iter().map(|value| value.source_value()))
+    {
+        return false;
+    }
+    match (result, result_home) {
+        (abstract_operations::AbstractBoundaryResult::Unit, None) => {}
+        (abstract_operations::AbstractBoundaryResult::Scalar(result), Some(home))
+            if result.value == home.source_value && result.scalar_type == home.scalar_type => {}
+        _ => return false,
+    }
+    let Ok(bytes) = u8::try_from(demand.transfer_width_bits / 8) else {
+        return false;
+    };
+    let form = selected_instructions::PlacedScalarForm {
+        write: demand.operation == terminal_psi::TerminalPlacedAccessorKind::Write,
+        bytes,
+    };
+    let Ok(offset) = u32::try_from(demand.byte_offset) else {
+        return false;
+    };
+    let expected = selected_instructions::SelectedInstructionKind::PlacedScalarAccess {
+        form,
+        contract: realization.contract,
+        byte_offset: offset,
+    };
+    let mut events = selected.instructions().filter(|row| {
+        row.provenance.operations == [*psi_operation]
+            && matches!(
+                row.kind,
+                selected_instructions::SelectedInstructionKind::PlacedScalarAccess { .. }
+            )
+    });
+    let (Some(event), None) = (events.next(), events.next()) else {
+        return false;
+    };
+    if event.kind != expected {
+        return false;
+    }
+    let mut footprints = selected.memory_accesses.iter().filter(|row| {
+        row.instruction == event.id
+            && row.origin
+                == selected_instructions::SelectedMemoryAccessOrigin::Operation(*psi_operation)
+    });
+    let (Some(footprint), None) = (footprints.next(), footprints.next()) else {
+        return false;
+    };
+    footprint.place == location.place
+        && footprint.byte_offset == offset
+        && footprint.byte_count == u32::from(bytes)
+        && footprint.role
+            == if form.write {
+                selected_instructions::SelectedMemoryAccessRole::WritePlace
+            } else {
+                selected_instructions::SelectedMemoryAccessRole::ReadPlace
+            }
 }

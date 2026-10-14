@@ -10,9 +10,9 @@
 //! zero counts produce 1 likewise.
 
 use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
-    RegisterViewId, ValidatedPhysicalRegisterModel,
-    ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect, RegisterViewId,
+    ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
+    X86_64SelectedFormEncodingError,
 };
 use crate::selected_form_encoding::instruction_bytes::{assemble_labeled_stream, modrm, rex};
 use crate::selected_form_encoding::request_validation::resolve_registers;
@@ -385,11 +385,11 @@ pub(super) fn validate(
         bytes,
         4,
         MachineEncodedMemoryEffect::CompareByteSequencesV1 {
-                    left_base_operand: 0,
-                    left_count_operand: 1,
-                    right_base_operand: 2,
-                    right_count_operand: 3,
-                },
+            left_base_operand: 0,
+            left_count_operand: 1,
+            right_base_operand: 2,
+            right_count_operand: 3,
+        },
     )
 }
 
@@ -421,7 +421,12 @@ mod tests {
         let catalog = crate::x86_64_register_constraint_catalog(&physical);
         let constraints =
             crate::validate_x86_64_register_constraint_catalog(catalog.clone(), &physical).unwrap();
-        crate::selected_form_encoding::tests::assert_early_clobber_required(&catalog, &physical, crate::X86_64_COMPARE_BYTE_SEQUENCES, &[4, 5, 6, 7]);
+        crate::selected_form_encoding::tests::assert_early_clobber_required(
+            &catalog,
+            &physical,
+            crate::X86_64_COMPARE_BYTE_SEQUENCES,
+            &[4, 5, 6, 7],
+        );
         for target in [
             target::NativeTarget::linux_x64(),
             target::NativeTarget::windows_x64(),

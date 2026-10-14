@@ -12,10 +12,10 @@ use super::conformances::project_callable_conformances;
 use crate::capture::PackageReviewInput;
 use crate::record::{
     PackagePolicyCallableConformance, PackagePolicyExternalRequirement, PackagePolicyTypeParameter,
-    PackageReviewCallableContract, PackageReviewSignatureParameter, PackageReviewCallableRole,
-    PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewConformanceBound,
+    PackageReviewCallableContract, PackageReviewCallableRole, PackageReviewCallableSupply,
+    PackageReviewCheckedServiceReach, PackageReviewConformanceBound,
     PackageReviewInstallationReach, PackageReviewNominalIdentity, PackageReviewOperatorRealization,
-    PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
+    PackageReviewSignatureParameter, PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
 };
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;

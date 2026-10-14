@@ -1,0 +1,84 @@
+module first;
+use omega::language::core::layout;
+
+pub data Registers {
+    status: u32;
+    transmit: u8;
+}
+
+pub data RegPlacement {}
+
+pub machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    let access: AccessPlan = AccessPlan::inaccessible(&schema);
+    transition { _ -> place_status(schema, access, entries) }
+
+    state place_status(
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        transition { _ -> place_transmit(
+            schema,
+            AccessPlan::with(
+                access,
+                schema.fields[0].key,
+                FieldAccess::External {
+                    read: ExternalRead::Read,
+                    write: false,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    state place_transmit(
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        transition { _ -> finish(
+            AccessPlan::with(
+                access,
+                schema.fields[1].key,
+                FieldAccess::External {
+                    read: ExternalRead::None,
+                    write: true,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    state finish(
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        let mut services: [u64; 32];
+        services[0] = 7;
+        PlacementPlan {
+            layout: Plan {
+                entries: entries,
+                entry_count: 2,
+                size_fixed: 8,
+                size_is_dynamic: false,
+                align: 4,
+            },
+            access: access,
+            reach: BoundaryReach {
+                services: services,
+                service_count: 0,
+            },
+        }
+    }
+}

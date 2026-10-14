@@ -14,8 +14,8 @@ use register_model::ValidatedRegisterConstraintCatalog;
 use validation::validate_declaration;
 
 use crate::{
-    AtomicForm, FloatResultPolicyForm, IeeeFloatArithmeticForm, SaturatingCarrier,
-    SelectedConstraintKeys, TrappingForm,
+    AtomicForm, FloatResultPolicyForm, IeeeFloatArithmeticForm, PlacedScalarForm,
+    SaturatingCarrier, SelectedConstraintKeys, TrappingForm,
 };
 pub use identity::{
     MachineIdentityBytes, alternative_family_tag, encode_machine_alternative_identity,
@@ -239,6 +239,7 @@ machine_semantic_kinds! {
     { dynamic AtomicAccess(AtomicForm) },
     { dynamic NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm) },
     { dynamic FloatResultPolicy(FloatResultPolicyForm) },
+    { dynamic PlacedScalarAccess(PlacedScalarForm) },
 }
 
 impl MachineSemanticKind {
@@ -249,13 +250,15 @@ impl MachineSemanticKind {
             + TrappingForm::COUNT
             + AtomicForm::COUNT
             + IeeeFloatArithmeticForm::COUNT
-            + FloatResultPolicyForm::COUNT] = {
+            + FloatResultPolicyForm::COUNT
+            + PlacedScalarForm::COUNT] = {
         let mut all = [Self::Crash;
             Self::FIXED.len()
                 + TrappingForm::COUNT
                 + AtomicForm::COUNT
                 + IeeeFloatArithmeticForm::COUNT
-                + FloatResultPolicyForm::COUNT];
+                + FloatResultPolicyForm::COUNT
+                + PlacedScalarForm::COUNT];
         let mut index = 0;
         while index < Self::FIXED.len() {
             all[index] = Self::FIXED[index];
@@ -287,6 +290,16 @@ impl MachineSemanticKind {
                 + policy] = Self::FloatResultPolicy(FloatResultPolicyForm::ALL[policy]);
             policy += 1;
         }
+        let mut placed = 0;
+        while placed < PlacedScalarForm::COUNT {
+            all[Self::FIXED.len()
+                + TrappingForm::COUNT
+                + AtomicForm::COUNT
+                + IeeeFloatArithmeticForm::COUNT
+                + FloatResultPolicyForm::COUNT
+                + placed] = Self::PlacedScalarAccess(PlacedScalarForm::ALL[placed]);
+            placed += 1;
+        }
         all
     };
 }
@@ -295,6 +308,7 @@ impl MachineSemanticKind {
 pub enum MachineAlternativeFamily {
     AtomicFence,
     AtomicAccess(AtomicForm),
+    PlacedScalarAccess(PlacedScalarForm),
     Crash,
     CopyBytes,
     BitwiseAndI64,
@@ -491,6 +505,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::TrappingInteger(form) => Self::TrappingInteger(form),
             MachineSemanticKind::AtomicFence => Self::AtomicFence,
             MachineSemanticKind::AtomicAccess(form) => Self::AtomicAccess(form),
+            MachineSemanticKind::PlacedScalarAccess(form) => Self::PlacedScalarAccess(form),
             MachineSemanticKind::FloatResultPolicy(form) => Self::FloatResultPolicy(form),
             MachineSemanticKind::NearestIeeeFloatArithmetic(form) => {
                 Self::NearestIeeeFloatArithmetic(form)

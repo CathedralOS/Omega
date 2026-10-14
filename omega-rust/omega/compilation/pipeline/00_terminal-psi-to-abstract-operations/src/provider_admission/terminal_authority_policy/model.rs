@@ -34,7 +34,8 @@ impl TerminalAuthorityPolicyRow {
     }
 }
 
-/// Current receiving-realization policy over the closed compiler inventory and
+/// Current receiving-realization policy over the closed compiler inventory,
+/// explicitly committed parameterized caller-RAM families and
 /// explicit normalized-foreign, syscall, or checked-physical rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAuthorityPolicy {
@@ -62,7 +63,8 @@ impl TerminalAuthorityPolicy {
     }
 
     /// Classify one exact role-tagged mechanism. Compiler intrinsics use the
-    /// exhaustive closed inventory; all other roles require one exact row.
+    /// exhaustive closed inventory or committed caller-RAM family; all other
+    /// roles require one exact row. Neither classification establishes backing.
     pub fn classify(
         &self,
         mechanism: impl Into<TerminalMechanismIdentity>,
@@ -70,7 +72,11 @@ impl TerminalAuthorityPolicy {
         let mechanism = mechanism.into();
         match mechanism {
             TerminalMechanismIdentity::CompilerIntrinsic(intrinsic) => {
-                classify_from_inventory(committed_policy_mechanisms(), intrinsic)
+                if let Some(disposition) = super::parameterized_intrinsics::classify(intrinsic) {
+                    Ok(disposition)
+                } else {
+                    classify_from_inventory(committed_policy_mechanisms(), intrinsic)
+                }
             }
             TerminalMechanismIdentity::NormalizedForeign(_) => self
                 .explicit_rows

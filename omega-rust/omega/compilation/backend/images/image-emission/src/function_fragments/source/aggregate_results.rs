@@ -178,6 +178,10 @@ pub(super) fn operation(
         // not the referent value. Aggregate references retain a thin address.
         // The exact result and source retain custody identity; mandatory
         // source/selection replay validates the address and loan independently.
+        AbstractOperation::EstablishPlacedReference { psi_operation, result, source, correspondence } => {
+            super::placed_reference::retained(*psi_operation, result, source, correspondence,
+                target, selected).is_some()
+        }
         AbstractOperation::EstablishReference { psi_operation, result, source, storage } => {
             graph.operations().filter(|row| matches!(row,
                 TargetUnitOperation::EstablishReference { psi_operation: retained, result_home, source: retained_source, storage: retained_storage }

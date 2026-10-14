@@ -364,7 +364,8 @@ pub(super) fn resolve(
             displacement
         }
         Address::Load8Indexed { .. } => 0,
-        Address::LoadPacked { byte_offset, .. }
+        Address::PlacedScalarAccess { byte_offset, .. }
+        | Address::LoadPacked { byte_offset, .. }
         | Address::StorePacked { byte_offset, .. }
         | Address::Load64 { byte_offset, .. }
         | Address::Load8 { byte_offset, .. }
@@ -517,6 +518,16 @@ pub(super) fn validate_address(
             {
                 return Err(Error::ArtifactMismatch);
             }
+            Ok(())
+        }
+        Address::PlacedScalarAccess {
+            base_operand: 0,
+            byte_offset,
+            form,
+            ..
+        } if form.ordinary_semantic().is_some()
+            && candidate.displacement == i64::from(byte_offset) =>
+        {
             Ok(())
         }
         Address::Store {

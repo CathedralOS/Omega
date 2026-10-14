@@ -23,6 +23,15 @@ pub(super) fn report_argument_bounds(
     retains_float_result_policy: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    report_placed_scalar_write_predicate(
+        program,
+        current_machine,
+        current_state,
+        value_environment,
+        argument,
+        parameter,
+        diagnostics,
+    );
     report_referent_handback(
         program,
         current_machine,
@@ -237,6 +246,105 @@ fn report_referent_handback(
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` cannot lend restricted field `{}` to `{target_name}`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",
             machine.name, field.name,
+        )));
+    }
+}
+
+/// A sealed accessor's payload is received by its exact schema field. The
+/// default data predicate constrains this delivery too; the opaque accessor
+/// carrier does not turn the owning field into an unrestricted scalar.
+fn report_placed_scalar_write_predicate(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    environment: &ValueEnvironment,
+    argument: ExpressionHandle,
+    parameter: &StateParameter,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(primitive) = program.primitive_type_reference(parameter.type_reference) else {
+        return;
+    };
+    let parent = program.symbols.get(parameter.symbol).parent;
+    let mut fields = program.placed_view_plans.iter().flat_map(|plan| {
+        plan.fields
+            .iter()
+            .filter(move |field| {
+                field
+                    .accessor_targets
+                    .iter()
+                    .any(|target| target.state_symbol == parent && target.operation == "write")
+            })
+            .map(move |field| (plan, field))
+    });
+    let Some((plan, field)) = fields.next() else {
+        return;
+    };
+    if fields.next().is_some() {
+        diagnostics.push(Diagnostic::error(
+            "placed scalar write has competing schema field origins",
+        ));
+        return;
+    }
+    let Some(definition) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == plan.schema_symbol)
+    else {
+        return;
+    };
+    let Some(bounds) = crate::data_where_field_intervals(program, definition) else {
+        let dependent = program
+            .data_members(definition)
+            .iter()
+            .filter_map(|member| member.as_field())
+            .find(|source| source.symbol == field.field_symbol)
+            .is_none_or(|source| {
+                !crate::declarations::data_queries::data_field_is_where_independent(
+                    program, definition, source,
+                )
+            });
+        if dependent {
+            diagnostics.push(Diagnostic::error(format!(
+                "placed write to schema field `{}` requires a complete source declaration predicate guard",
+                field.field_name,
+            )));
+        }
+        return;
+    };
+    let Some(required) = bounds
+        .into_iter()
+        .filter(|(symbol, _, _)| *symbol == field.field_symbol)
+        .map(|(_, low, high)| arithmetic_domains::Interval { low, high })
+        .reduce(arithmetic_domains::Interval::intersect)
+    else {
+        return;
+    };
+    if required.low.is_none() && required.high.is_none() {
+        return;
+    }
+    let mut formation_diagnostics = Vec::new();
+    let (actual, _, _) = arithmetic_domains::validate_value_range(
+        program,
+        machine,
+        state,
+        argument,
+        environment,
+        Some(primitive),
+        ArithmeticDomain::Exact,
+        "placed schema field payload",
+        &mut formation_diagnostics,
+    );
+    let preserved = required
+        .low
+        .is_none_or(|minimum| actual.low.is_some_and(|value| value >= minimum))
+        && required
+            .high
+            .is_none_or(|maximum| actual.high.is_some_and(|value| value <= maximum));
+    if !formation_diagnostics.is_empty() || !preserved {
+        diagnostics.push(Diagnostic::error(format!(
+            "placed write to schema field `{}` does not preserve its source declaration predicate",
+            field.field_name,
         )));
     }
 }

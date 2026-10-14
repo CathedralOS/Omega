@@ -6,6 +6,7 @@ mod calling;
 mod declarations;
 mod function;
 mod normalized_foreign;
+mod placed_bindings;
 mod projected_qualifications;
 mod provider;
 mod read_result;

@@ -96,14 +96,11 @@ fn build_component_progress_manifest(
             .build_bound_for_machine(machine_symbol)
         {
             demands.push(effects::CheckedComponentProgressDemand {
-                provider_service_identity: demand_identities.intern(
-                    &typed
-                        .callable_identity_text(demand.provider_service_identity),
-                ),
+                provider_service_identity: demand_identities
+                    .intern(&typed.callable_identity_text(demand.provider_service_identity)),
                 provider_service_package_identity: demand.provider_service_package_identity,
-                requirement_identity: demand_identities.intern(
-                    &typed.callable_identity_text(demand.requirement_identity),
-                ),
+                requirement_identity: demand_identities
+                    .intern(&typed.callable_identity_text(demand.requirement_identity)),
                 requirement_owner_package_identity: demand.requirement_owner_package_identity,
                 profile_identity: demand_identities.intern(
                     typed
@@ -113,13 +110,11 @@ fn build_component_progress_manifest(
                 ),
                 subject_projections: demand.subject_projections.clone(),
                 origin_callable_identity: demand_identities.intern(
-                    &machine_callable_identity(typed, demand.origin.machine).ok_or_else(
-                        || {
-                            vec![Diagnostic::error(
-                                "checked build-bound progress demand lost its origin machine identity",
-                            )]
-                        },
-                    )?,
+                    &machine_callable_identity(typed, demand.origin.machine).ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "checked build-bound progress demand lost its origin machine identity",
+                        )]
+                    })?,
                 ),
                 origin_state_identity: demand_identities
                     .intern(&typed.symbols.display_path(demand.origin.state, "::")),

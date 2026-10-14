@@ -339,7 +339,28 @@ impl RemainingCustody {
             // A containing death is published before its exact child claim
             // receipts. Those receipts retire claims, but must not schedule
             // the same recursive hooks a second time below the dead region.
-            if event.kind == PermissionEventKind::AffineDrop
+            let whole_call_disposition = event.kind == PermissionEventKind::AffineDrop
+                && matches!(event.source, PermissionEventSource::Call { .. })
+                && self.is_present(event.root, path)
+                && output
+                    .dispositions
+                    .iter()
+                    .filter(|(_, row)| {
+                        row.machine == event.machine_symbol
+                            && row.state == event.state_symbol
+                            && row.source == event.source
+                            && row.exit == exit
+                            && row.root == event.root
+                            && row.disposed_type.is_valid()
+                            && row.path.is_empty()
+                            && row.exclusions.is_empty()
+                            && !row.zero_image
+                            && !row.establishment_ordered
+                    })
+                    .take(2)
+                    .count()
+                    == 1;
+            if (event.kind == PermissionEventKind::AffineDrop && !whole_call_disposition)
                 || (event.kind == PermissionEventKind::Consume
                     && (event.source == PermissionEventSource::StateExit
                         || (selected

@@ -1,0 +1,103 @@
+// Expected exit: 0. Expected output contains: 41
+// Run: omega run --both --keep --entry-ram 1=2900000003000000 main.omg
+// The explicit runtime recipe constructs original Registers{status:41,transmit:3}
+// before lending this direct entry parameter. Read32@0 yields41; write8@4 stores9.
+// Native and captured Terminal streams must contain41 followed by LF. After
+// normal return the runtime owner observes original bytes2900000009000000.
+// Default entry supply is absent. No host address, MMIO, external lifetime,
+// qualifications, compound storage, or unproved callback is admitted here.
+use omega::language::core::layout;
+
+pub data Registers {
+    status: u32;
+    transmit: u8;
+}
+
+pub data RegPlacement {}
+
+machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    let access: AccessPlan = AccessPlan::inaccessible(&schema);
+    transition { _ -> place_status(schema, access, entries) }
+
+    state place_status(
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        transition { _ -> place_transmit(
+            schema,
+            AccessPlan::with(
+                access,
+                schema.fields[0].key,
+                FieldAccess::External {
+                    read: ExternalRead::Read,
+                    write: false,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    state place_transmit(
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        transition { _ -> finish(
+            AccessPlan::with(
+                access,
+                schema.fields[1].key,
+                FieldAccess::External {
+                    read: ExternalRead::None,
+                    write: true,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    state finish(
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        let mut services: [u64; 32];
+        services[0] = 7;
+        PlacementPlan {
+            layout: Plan {
+                entries: entries,
+                entry_count: 2,
+                size_fixed: 8,
+                size_is_dynamic: false,
+                align: 4,
+            },
+            access: access,
+            reach: BoundaryReach {
+                services: services,
+                service_count: 0,
+            },
+        }
+    }
+}
+
+
+use omega_language_std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main, view: &mut Placed<RegPlacement, Registers>) reaches Console {
+    let observed: u32 = view.status.read(&view.status);
+    main.console.write_byte(((observed / 10) % 10) as i32 + 48);
+    main.console.write_byte((observed % 10) as i32 + 48);
+    main.console.write_byte(10);
+    view.transmit.write(&mut view.transmit, 9);
+}

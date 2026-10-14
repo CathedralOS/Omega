@@ -82,6 +82,7 @@ pub(crate) fn realize_native_artifact(
         })
         .transpose()
         .map_err(|message| vec![Diagnostic::error(message)])?;
+    let private_entry_ram = input.private_entry_ram().to_vec();
     let emitted = emit_realization_object(
         input,
         providers.installation.take(),
@@ -94,6 +95,7 @@ pub(crate) fn realize_native_artifact(
     )?;
     let runtime_provisions = runtime_provisions.map(|provisions| {
         provisions
+            .with_private_entry_ram(private_entry_ram)
             .with_borrowed_storage_layouts(emitted.borrowed_storage_layouts)
             .with_target_provider_proposals(request.target_provider_proposals.to_vec())
     });

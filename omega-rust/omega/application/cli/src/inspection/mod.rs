@@ -31,6 +31,7 @@ pub struct TerminalInspection {
 #[derive(Debug)]
 pub enum InspectTerminalError {
     Diagnostics(Vec<Diagnostic>),
+    Artifact(terminal_codec::CanonicalTerminalArtifactError),
     Preparation(packages::PrepareLocalProjectError),
     Review(package_manager::review::CompileResolvedPackageReviewsError),
 }
@@ -39,6 +40,7 @@ impl std::fmt::Display for InspectTerminalError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Diagnostics(diagnostics) => crate::write_diagnostics(formatter, diagnostics),
+            Self::Artifact(error) => write!(formatter, "cannot inspect Terminal artifact: {error}"),
             Self::Preparation(error) => write!(formatter, "{error}"),
             Self::Review(error) => write!(formatter, "cannot check inspection project: {error}"),
         }
@@ -51,6 +53,15 @@ pub fn inspect_terminal(
     request: &InspectTerminalRequest,
 ) -> Result<TerminalInspection, InspectTerminalError> {
     let artifact = compile_inspection(request)?;
+    Ok(TerminalInspection { artifact })
+}
+
+/// Inspect externally supplied envelope bytes through canonical admission.
+/// This is a data inspection, independent of package preparation or runtime
+/// installation. It provides no establishment, provider, or execution grant.
+pub fn inspect_terminal_artifact(bytes: &[u8]) -> Result<TerminalInspection, InspectTerminalError> {
+    let artifact =
+        CanonicalTerminalArtifact::from_bytes(bytes).map_err(InspectTerminalError::Artifact)?;
     Ok(TerminalInspection { artifact })
 }
 

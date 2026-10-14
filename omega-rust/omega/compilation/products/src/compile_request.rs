@@ -19,6 +19,7 @@ mod native;
 pub use checked::{CheckedCompileRequest, CheckedExecutionRequest, SettledCheckReuse};
 pub mod options;
 pub use native::NativeProductRequest;
+pub use terminal_installation::PrivateEntryRamInitialization;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestedCompileProduct {
@@ -106,6 +107,7 @@ struct RequestedDestination {
 /// Per-target Build/provider settlement still belongs to the producing stages.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CompilePolicy {
+    private_entry_ram: Vec<PrivateEntryRamInitialization>,
     pub(super) build_snapshot: Option<BuildSnapshotRequest>,
     terminal_authority_policy: TerminalAuthorityPolicy,
     /// The receiver-admission axis, supplied only by an explicit
@@ -121,6 +123,7 @@ struct CompilePolicy {
 impl Default for CompilePolicy {
     fn default() -> Self {
         Self {
+            private_entry_ram: Vec::new(),
             build_snapshot: None,
             terminal_authority_policy: current_terminal_authority_policy(),
             // Ordinary production supplies no receiving permission policy: the
@@ -187,6 +190,12 @@ impl CompileRequest {
             .collect();
         request
     }
+    /// Explicitly sponsor fresh private typed entry RAM; default supply is absent.
+    pub fn with_private_entry_ram(mut self, inputs: Vec<PrivateEntryRamInitialization>) -> Self {
+        self.policy.private_entry_ram = inputs;
+        self
+    }
+
     pub fn with_requested_product(mut self, product: RequestedCompileProduct) -> Self {
         self.shared.requested_product = product;
         self
@@ -374,6 +383,7 @@ impl ValidatedTargetCompilation {
     /// keeps only what native production needs.
     pub fn into_native_product_request(self) -> NativeProductRequest {
         NativeProductRequest {
+            private_entry_ram: self.policy.private_entry_ram.clone(),
             terminal_authority_policy: self.policy.terminal_authority_policy.clone(),
             terminal_authority_permission_policy: self
                 .policy

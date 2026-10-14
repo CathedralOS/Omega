@@ -152,6 +152,16 @@ fn cleanup_subjects(
     if let Some(moved) = moved {
         for path in moved {
             for depth in 0..path.len() {
+                // A Case step selects a payload namespace, not a structural
+                // value. Its containing sum was checked at the preceding
+                // prefix; the full moved path and active case are checked
+                // independently before reconstructing the residual partition.
+                if let Some(StructuralPathSegment::Case(case)) = path[..depth].last() {
+                    if !membership(place, &path[..depth - 1], *case, true) {
+                        return None;
+                    }
+                    continue;
+                }
                 let ancestor = crate::unit_validation::structural_catalog::resolve_structural_path(
                     types,
                     root,

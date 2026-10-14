@@ -59,6 +59,7 @@ fn structural_function() -> SelectedFunction {
         owner: target_operations::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
         call: LegalizedScalarCall {
             descriptor_origins: Vec::new(),
+            placed_bindings: Vec::new(),
             structural_result: None,
             source: NativeCallOrigin::Authored,
             target: target_operations::NativeCallTarget::Machine(MachineId::new(42).unwrap()),

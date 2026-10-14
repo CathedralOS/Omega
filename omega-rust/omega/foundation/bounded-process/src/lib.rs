@@ -19,3 +19,8 @@ pub use bounded_process::{
 };
 pub use preparation::{BoundedProcessLimits, BoundedProcessPrepared};
 pub use process_child::{BoundedProcessChild, BoundedProcessCompletion, BoundedProcessExitStatus};
+
+#[cfg(target_os = "linux")]
+mod private_observation;
+#[cfg(target_os = "linux")]
+pub use private_observation::capture_private_observation;

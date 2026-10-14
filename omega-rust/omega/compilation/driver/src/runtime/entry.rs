@@ -13,6 +13,8 @@ pub(super) struct EstablishedEntry {
     arguments: Vec<TerminalStructuralValue>,
     zero_initialized: Vec<u32>,
     erased_fields: Vec<TerminalEstablishedErasedField>,
+    private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
+    establishments: Vec<terminal_installation::TerminalPlacedViewEstablishment>,
 }
 
 impl EstablishedEntry {
@@ -21,6 +23,8 @@ impl EstablishedEntry {
             arguments: &self.arguments,
             zero_initialized_arguments: &self.zero_initialized,
             established_erased_fields: &self.erased_fields,
+            private_entry_ram: &self.private_entry_ram,
+            placed_view_establishments: &self.establishments,
             ..TerminalStructuralInputs::default()
         }
     }
@@ -34,7 +38,10 @@ pub(super) fn establish(
     let entry = program
         .entry_installed(installation)
         .map_err(TerminalRuntimeError::Requirements)?;
-    if !entry.scalar_parameters.is_empty() || entry.placed_view_inputs().next().is_some() {
+    let recipes = provisions
+        .map(TerminalRuntimeProvisions::private_entry_ram)
+        .unwrap_or_default();
+    if !entry.scalar_parameters.is_empty() || entry.placed_view_inputs().count() != recipes.len() {
         return Err(TerminalRuntimeError::missing(
             "program-entry-arrival-values",
             "isolated hosted entry does not supply scalar arguments or borrowed placed-view inputs",
@@ -52,8 +59,19 @@ pub(super) fn establish(
         arguments: Vec::new(),
         zero_initialized: Vec::new(),
         erased_fields: Vec::new(),
+        private_entry_ram: recipes.to_vec(),
+        establishments: Vec::new(),
     };
     let receiver = provisions.and_then(TerminalRuntimeProvisions::receiver);
+    let context_position = receiver
+        .and_then(|receiver| match receiver.projection() {
+            CheckedProgramEntryReceiverProjection::Retained { terminal_self, .. } => entry
+                .structural_parameters
+                .iter()
+                .position(|parameter| parameter.place == terminal_self),
+            _ => None,
+        })
+        .unwrap_or(0) as u32;
     if let Some(receiver) = receiver {
         let identities = &program.module().identities;
         let Some(provisions) = provisions else {
@@ -94,7 +112,7 @@ pub(super) fn establish(
                 CheckedProgramEntryReceiverProjection::Retained { .. }
             ) {
                 arrival.erased_fields.push(TerminalEstablishedErasedField {
-                    argument_index: 0,
+                    argument_index: context_position,
                     field_path: field
                         .field_path()
                         .iter()
@@ -118,7 +136,7 @@ pub(super) fn establish(
         ) {
             for field in receiver.determined_evidence_fields() {
                 arrival.erased_fields.push(TerminalEstablishedErasedField {
-                    argument_index: 0,
+                    argument_index: context_position,
                     field_path: field
                         .field_path()
                         .iter()
@@ -142,7 +160,11 @@ pub(super) fn establish(
             }
         }
         Some(CheckedProgramEntryReceiverProjection::Retained { terminal_self, .. }) => {
-            let [parameter] = entry.structural_parameters else {
+            let Some(parameter) = entry
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == terminal_self)
+            else {
                 return Err(TerminalRuntimeError::InvalidProvision(
                     "hosted receiver projection does not name the whole entry arrival",
                 ));
@@ -176,8 +198,57 @@ pub(super) fn establish(
                 projected_qualifications: Vec::new(),
                 path: Vec::new(),
             });
-            arrival.zero_initialized.push(0);
+            arrival.zero_initialized.push(context_position);
         }
+    }
+    let context = arrival.arguments.pop();
+    for (ordinal, parameter) in entry.structural_parameters.iter().enumerate() {
+        if ordinal == context_position as usize {
+            if let Some(context) = context.as_ref() {
+                arrival.arguments.push(context.clone());
+                continue;
+            }
+        }
+        let index = recipes
+            .iter()
+            .position(|recipe| recipe.input().runtime_position as usize == ordinal)
+            .ok_or(TerminalRuntimeError::InvalidProvision(
+                "entry parameter has no checked private RAM construction",
+            ))?;
+        let recipe = &recipes[index];
+        if recipe.terminal() != program.terminal_psi()
+            || recipe.input().machine
+                != program
+                    .entry_installed(installation)
+                    .map_err(TerminalRuntimeError::Requirements)?
+                    .machine
+            || recipe.correspondence().carrier != parameter.structural_type
+        {
+            return Err(TerminalRuntimeError::InvalidProvision(
+                "private entry RAM recipe differs from its actual invocation",
+            ));
+        }
+        let (original_identity, descriptor_identity) =
+            terminal_installation::private_entry_ram_identity_pair(program.module(), index).ok_or(
+                TerminalRuntimeError::InvalidProvision(
+                    "private entry RAM identity namespace is exhausted",
+                ),
+            )?;
+        arrival.arguments.push(TerminalStructuralValue::minted(
+            descriptor_identity,
+            parameter.structural_type,
+            Vec::new(),
+        ));
+        arrival
+            .establishments
+            .push(terminal_installation::TerminalPlacedViewEstablishment {
+                input: recipe.input().clone(),
+                referent: TerminalStructuralValue::minted(
+                    original_identity,
+                    recipe.schema(),
+                    Vec::new(),
+                ),
+            });
     }
     Ok(arrival)
 }

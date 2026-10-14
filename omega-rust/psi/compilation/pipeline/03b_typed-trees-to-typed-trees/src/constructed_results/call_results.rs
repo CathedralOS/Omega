@@ -67,7 +67,90 @@ pub(super) fn retain(
             .apply_callable_type(returned, &substitutions, &[], target)
             .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?
     };
-    apply_result_type(program, target, &arguments, returned, &lifetimes).map(Some)
+    let returned = apply_result_type(program, target, &arguments, returned, &lifetimes)?;
+    Ok(Some(retain_placed_result_type(program, returned)))
+}
+
+/// A closed source family application rejoins its installed nominal view.
+/// The exact template/P/T symbols supply this vocabulary; no receiving type,
+/// byte geometry, custody, or permission is inferred from this association.
+fn retain_placed_result_type(
+    program: &mut TypedTrees,
+    returned: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    use typed_trees::types::TypeReferenceNode;
+    match program
+        .type_reference_table
+        .type_reference(returned)
+        .clone()
+    {
+        TypeReferenceNode::Reference {
+            referee,
+            access,
+            lifetime,
+        } => {
+            let applied = retain_placed_result_type(program, referee);
+            if applied == referee {
+                return returned;
+            }
+            let node = TypeReferenceNode::Reference {
+                referee: applied,
+                access,
+                lifetime,
+            };
+            let existing = program
+                .type_reference_table
+                .type_reference_rows()
+                .find_map(|(reference, candidate)| (candidate == &node).then_some(reference));
+            existing.unwrap_or_else(|| program.type_reference_table.insert(node))
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            lifetime_arguments,
+            ..
+        } if lifetime_arguments.is_empty() => {
+            let arguments = program
+                .type_reference_table
+                .type_reference_handles(arguments);
+            let [policy, schema] = arguments else {
+                return returned;
+            };
+            let (
+                TypeReferenceNode::Named { symbol: policy, .. },
+                TypeReferenceNode::Named { symbol: schema, .. },
+            ) = (
+                program.type_reference_table.type_reference(*policy),
+                program.type_reference_table.type_reference(*schema),
+            )
+            else {
+                return returned;
+            };
+            let Some(view) = program.placed_view_plans.iter().find(|view| {
+                view.template_symbol.is_valid()
+                    && view.template_symbol == base_symbol
+                    && view.policy_symbol == *policy
+                    && view.schema_symbol == *schema
+            }) else {
+                return returned;
+            };
+            let symbol = view.data_symbol;
+            if let Some(reference) = program
+                .type_reference_table
+                .find_named_type_reference(symbol)
+            {
+                return reference;
+            }
+            let name = view.data_name.clone();
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol,
+                    name: typed_trees::name::Identifier::generated(name),
+                })
+        }
+        _ => returned,
+    }
 }
 
 /// Result storage belongs to the caller's occurrence, never the callee's

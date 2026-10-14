@@ -13,10 +13,15 @@
 //! Each consumer establishes its own invocation from these facts.
 
 mod entry_values;
+mod private_entry_ram;
 mod provider_installation;
 mod target_families;
 
 pub use entry_values::{TerminalPlacedViewEstablishment, TerminalStructuralValue};
+pub use private_entry_ram::{
+    CheckedPrivateEntryRamRecipe, PrivateEntryRamInitialization, PrivateEntryRamRecipe,
+    PrivateEntryRamScalarInitialization, admit_private_entry_ram, private_entry_ram_identity_pair,
+};
 pub use provider_installation::{
     AdmittedAssumedBinding, AdmittedProviderSelections, AssumedBindingRejection,
     AssumedBindingSelection, ProviderInstallationError, ProviderInstallationSelection,

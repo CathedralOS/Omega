@@ -31,6 +31,7 @@ pub(super) struct ProbeCompilation {
 /// reference input before publication transfers the payload, so many inputs
 /// share one compilation.
 pub(super) fn compile(
+    private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     mut options: CompileOptions,
     reference_inputs: Vec<std::fs::File>,
 ) -> Result<ProbeCompilation, Vec<Diagnostic>> {
@@ -46,7 +47,8 @@ pub(super) fn compile(
     )
     .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
     let report = if let Some(prepared) = prepared {
-        let request = PreparedLocalProjectNativeRequest::new(prepared, build_dir, target);
+        let request = PreparedLocalProjectNativeRequest::new(prepared, build_dir, target)
+            .with_private_entry_ram(private_entry_ram);
         compile_prepared_local_project_for_native(request).map_err(|error| match error {
             // Realization diagnostics keep their exceeded provisions, so a
             // compile that stopped at a private provision reads as
@@ -57,6 +59,7 @@ pub(super) fn compile(
     } else {
         compiler::compile(
             CompileRequest::new(options)
+                .with_private_entry_ram(private_entry_ram)
                 .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
         )
         .and_then(compiler::CompileOutcomes::into_single_report)?

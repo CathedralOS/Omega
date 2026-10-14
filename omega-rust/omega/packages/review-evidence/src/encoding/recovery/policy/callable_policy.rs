@@ -2,8 +2,8 @@
 
 use crate::record::{
     PackagePolicyCallable, PackagePolicyCallableConformance, PackagePolicyCallableRole,
-    PackagePolicyCallables, PackagePolicyServiceReachDependency,
-    PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewInstallationReach,
+    PackagePolicyCallables, PackagePolicyServiceReachDependency, PackageReviewCallableSupply,
+    PackageReviewCheckedServiceReach, PackageReviewInstallationReach,
     PackageReviewOperatorRealization,
 };
 pub(in crate::encoding::recovery) mod behavior;

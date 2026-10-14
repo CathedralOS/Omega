@@ -243,8 +243,7 @@ fn expected_effects(
         .view_named("rsp")
         .expect("canonical x86-64 model contains rsp")
         .id;
-    let mut effects =
-        crate::machine_effects::user_direct_call_effects(row, stack_pointer);
+    let mut effects = crate::machine_effects::user_direct_call_effects(row, stack_pointer);
     effects.external_operand_reads = (0..arity as u16).collect();
     effects.external_operand_writes = vec![arity as u16];
     effects

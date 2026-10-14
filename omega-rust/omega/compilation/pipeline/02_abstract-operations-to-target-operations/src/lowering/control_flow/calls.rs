@@ -158,6 +158,36 @@ pub(super) fn lower_call(
             (AbstractCallSignature::Requirement(requirement), None)
         }
     };
+    if callee_function.is_none()
+        && (0..declaration.structural_parameter_count()).any(|position| {
+            declaration
+                .structural_parameter(position)
+                .is_some_and(|formal| {
+                    types
+                        .catalog()
+                        .placed_views()
+                        .iter()
+                        .any(|plan| plan.carrier == formal.structural_type)
+                })
+        })
+    {
+        return Err(LoweringError::PlacedDynamicCallRequiresBinding {
+            caller: function.machine,
+            operation: call.psi_operation,
+        });
+    }
+    let placed_bindings = if let Some(callee) = callee_function {
+        super::references::placed_call_custody(
+            function,
+            callee,
+            call.psi_operation,
+            call.structural_arguments,
+            types,
+            live,
+        )?
+    } else {
+        Vec::new()
+    };
     let (signature, structural_home) = match contract {
         CallContract::PublishedScalar => (
             published_scalar_contract(
@@ -253,6 +283,7 @@ pub(super) fn lower_call(
         result,
         scalar_arguments,
         arguments,
+        placed_bindings,
         claim_transfers: call.claim_transfers.to_vec(),
         requirement_obligations: call.requirement_obligations.to_vec(),
         crash_continuations: call.crash_continuations.to_vec(),

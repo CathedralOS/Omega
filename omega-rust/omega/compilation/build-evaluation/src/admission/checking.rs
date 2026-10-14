@@ -75,7 +75,7 @@ pub(crate) fn prepare_checked_build(
             &bindings,
             &declarations.origins,
         ),
-    );
+    )?;
     let (selected_provider_plan_facts, provenance) =
         if candidates.is_empty() && declarations.provider_defaults.is_empty() {
             (effects::SelectedProviderPlanFacts::default(), Vec::new())

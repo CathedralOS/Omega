@@ -102,6 +102,8 @@ dependency, so its first check or run needs the accepted program-entry binding
 that `omega update` reviews (accept the pending decisions, then rerun with
 `--resume`). Without it the entry slot rejects and names that review.
 
+`--entry-ram` explicitly constructs fresh private initialized scalar-record RAM for an exact borrowed placed entry position. It grants no host address or external allocation. The initial physical lender supports Linux x86-64 and refuses unsupported predicates, qualifications, compound storage and cleanup. With `--both --keep`, original backing observations and actual Terminal effect receipts are retained separately from guest streams; see [placed entry RAM sample](../../../../samples/cli/systems/placed_entry_ram/README.md).
+
 CLI startup and dispatch live in `src/main.rs`; typed invocations
 are parsed in `src/cli/arguments/`. Full surface:
 
@@ -110,7 +112,7 @@ omega [--check] [--offline] [--timings]
       [--report-file <path>]
       [--build-input <path>]... [--optional-build-input <path>]...
       [--build-dir <dir>] [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>
-omega run [--both] [--keep] [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
+omega run [--both] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
 omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>
 omega audit source --kind <local|git> <locator> [--rev <rev>]
 omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...
@@ -165,3 +167,13 @@ the packager), and Rust host target. Release bundles carry their matching librar
 beside the executable; ordinary Cargo development builds retain a checkout
 fallback. See [release packaging](../../../../tools/release/README.md#build-a-relocatable-bundle)
 for installation layout, explicit library selection, and relocation tests.
+
+`omega inspect-terminal --artifact <file>` reads an existing portable Terminal
+artifact envelope (up to 64 MiB), applies canonical decoding and semantic
+validation, and prints its module and placed-input roster. It accepts no source,
+machine or target flags and performs no package preparation or execution. Invalid
+or noncanonical artifacts return status 1; inspection supplies no runtime authority.
+
+The source form also accepts `--output <file>` to preserve its canonical
+artifact envelope for later inspection. The destination is a caller-supplied
+host path; artifact inspection cannot request an output file.

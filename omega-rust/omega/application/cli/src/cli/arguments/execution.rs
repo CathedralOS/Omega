@@ -1,5 +1,6 @@
 pub(crate) struct RunArguments {
     pub(crate) both: bool,
+    pub(crate) private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub(crate) keep: bool,
     pub(crate) target_name: Option<String>,
     /// A directory of `*.stdin` cases run against one compilation.
@@ -15,6 +16,7 @@ pub(super) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
 ) -> Result<RunArguments, String> {
     let mut both = false;
+    let mut private_entry_ram = Vec::new();
     let mut keep = false;
     let mut target_name = None;
     let mut inputs = None;
@@ -26,6 +28,49 @@ pub(super) fn parse_arguments(
             Some("--offline") => return Err("omega run does not support --offline".into()),
             Some("--both") => super::set_flag(&mut both, "--both")?,
             Some("--keep") => super::set_flag(&mut keep, "--keep")?,
+            Some("--entry-ram") => {
+                let value = arguments
+                    .next()
+                    .ok_or("--entry-ram requires POSITION=HEX_BYTES")?
+                    .into_string()
+                    .map_err(|_| "--entry-ram requires UTF-8 POSITION=HEX_BYTES")?;
+                let (position, encoded) = value
+                    .split_once('=')
+                    .ok_or("--entry-ram requires POSITION=HEX_BYTES")?;
+                let position_text = position;
+                let position = position.parse::<u32>().map_err(
+                    |_| "--entry-ram position must be an unsigned source parameter position",
+                )?;
+                if position.to_string() != position_text {
+                    return Err("--entry-ram position must be canonical unsigned decimal".into());
+                }
+                if encoded.is_empty() || encoded.len() % 2 != 0 || encoded.len() > 131072 {
+                    return Err(
+                        "--entry-ram requires nonempty complete bytes, bounded to 64 KiB".into(),
+                    );
+                }
+                let contents = encoded
+                    .as_bytes()
+                    .chunks_exact(2)
+                    .map(|pair| {
+                        let digit = |byte: u8| match byte {
+                            b'0'..=b'9' => Some(byte - b'0'),
+                            b'a'..=b'f' => Some(byte - b'a' + 10),
+                            _ => None,
+                        };
+                        Ok(
+                            digit(pair[0]).ok_or("--entry-ram hex must be canonical lowercase")?
+                                * 16
+                                + digit(pair[1])
+                                    .ok_or("--entry-ram hex must be canonical lowercase")?,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, String>>()?;
+                private_entry_ram.push(compilation_products::PrivateEntryRamInitialization {
+                    position,
+                    contents,
+                });
+            }
             Some("--input") => {
                 let file = arguments.next().ok_or("--input requires a file")?;
                 input_files.push(std::path::PathBuf::from(file));
@@ -89,6 +134,7 @@ pub(super) fn parse_arguments(
         return Err("case runs execute on the host; they cannot take --target".into());
     }
     Ok(RunArguments {
+        private_entry_ram,
         both,
         keep,
         target_name,

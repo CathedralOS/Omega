@@ -127,6 +127,9 @@ fn family_and_operand_count(
     kind: SelectedInstructionKind,
 ) -> Result<(MachineAlternativeFamily, usize), Aarch64SelectedFormEncodingError> {
     Ok(match kind {
+        SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
+            (MachineAlternativeFamily::PlacedScalarAccess(form), 2)
+        }
         SelectedInstructionKind::AtomicAccess { form } => (
             MachineAlternativeFamily::AtomicAccess(form),
             usize::from(form.operand_count()),
@@ -408,6 +411,9 @@ fn encode_unchecked(
 ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
     let mut words = Vec::new();
     match kind {
+        SelectedInstructionKind::PlacedScalarAccess { .. } => {
+            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+        }
         SelectedInstructionKind::AtomicAccess { form } => {
             return super::atomic::encode(form, registers);
         }

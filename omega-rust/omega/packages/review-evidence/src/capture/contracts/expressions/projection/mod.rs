@@ -78,9 +78,7 @@ pub(crate) fn project_contract_expression_with_substitutions(
             let mut arms = Vec::new();
             for arm in compilation.expression_table.match_arms(dispatch.arms) {
                 let pattern = match arm.pattern {
-                    typed_trees::expression::MatchPattern::Value(pattern) => {
-                        Some(child(pattern)?)
-                    }
+                    typed_trees::expression::MatchPattern::Value(pattern) => Some(child(pattern)?),
                     typed_trees::expression::MatchPattern::Wildcard => None,
                 };
                 arms.push(PackageReviewMatchArm {

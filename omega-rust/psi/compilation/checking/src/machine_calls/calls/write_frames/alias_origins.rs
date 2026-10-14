@@ -239,6 +239,28 @@ pub(crate) fn stable_alias_initializer_origins(
     allow_isolated_local: bool,
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<FramePlaceOrigin>> {
+    if let Some(formation) = crate::reference_formation_source(program, expression)
+        && formation.interpretation == crate::ReferenceFormationInterpretation::Placed
+    {
+        let mut origins = stable_alias_initializer_origins(
+            program,
+            current_machine,
+            machine_symbols,
+            inference,
+            formation.source,
+            parameters,
+            isolated_local_roots,
+            aliases,
+            divergent_aliases,
+            symbols,
+            allow_isolated_local,
+            stored,
+        )?;
+        for origin in &mut origins {
+            origin.source.recast(formation.view_type, expression);
+        }
+        return Some(origins);
+    }
     let origins = match program.expression_table.expression(expression) {
         ExpressionNode::String(_) => vec![FramePlaceOrigin {
             path: String::new(),

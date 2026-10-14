@@ -135,8 +135,7 @@ pub(crate) fn record_establishment_matches(
     };
     if !exact_result_place
         || !complete_root_custody
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
+        || !constructor_qualifications_match(function, result, fields, types, domains, None)
         || !constructible_record(types, result.structural_type)
     {
         return false;
@@ -161,6 +160,86 @@ pub(crate) fn record_establishment_matches(
         types,
         domains,
     )
+}
+
+/// Aggregate construction can carry a completed child's memberships below
+/// that child's exact declaration identity. The receiving declaration and
+/// constructor cannot mint memberships. A selected case contributes only its
+/// own payload namespace; common fields retain their independent namespace.
+pub(super) fn constructor_qualifications_match(
+    function: &PsiOptimizationFunction,
+    result: &terminal_psi::StructuralOperationResult,
+    fields: &[terminal_psi::RecordFieldInitializer],
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<
+        semantic_vocabulary::StructuralDomainId,
+        &terminal_psi::StructuralDomainDeclaration,
+    >,
+    selected_case: Option<semantic_vocabulary::StructuralCaseId>,
+) -> bool {
+    if !result.qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || !crate::unit_validation::structural_catalog::structural_projected_qualifications_match(
+            result.structural_type,
+            &result.projected_qualifications,
+            types,
+            domains,
+        )
+    {
+        return false;
+    }
+    let Some(declaration) = types.get(&result.structural_type) else {
+        return false;
+    };
+    result.projected_qualifications.iter().all(|qualification| {
+        use terminal_psi::StructuralPathSegment::{Case, Field};
+        let (declarations, offset, identity, suffix) =
+            match (&declaration.shape, qualification.path.as_slice()) {
+                (
+                    StructuralTypeShape::Record { fields, .. }
+                    | StructuralTypeShape::Mixed { fields, .. },
+                    [Field(identity), suffix @ ..],
+                ) => (fields.as_slice(), 0, *identity, suffix),
+                (
+                    StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
+                    [Case(case), Field(identity), suffix @ ..],
+                ) if selected_case == Some(*case) => {
+                    let Some(case) = terminal_psi::find_structural_case(cases, *case) else {
+                        return false;
+                    };
+                    let offset = match &declaration.shape {
+                        StructuralTypeShape::Mixed { fields, .. } => fields
+                            .iter()
+                            .filter(|field| !field.relevance.is_erased())
+                            .count(),
+                        _ => 0,
+                    };
+                    (case.fields.as_slice(), offset, *identity, suffix)
+                }
+                _ => return false,
+            };
+        // Field IDs are local to their namespace. Bind the exact live
+        // declaration position, including common fields before case payloads.
+        let Some(position) = declarations
+            .iter()
+            .filter(|field| !field.relevance.is_erased())
+            .position(|field| field.identity == identity)
+        else {
+            return false;
+        };
+        let Some(initializer) = fields.get(offset + position) else {
+            return false;
+        };
+        let RecordFieldValue::Structural(argument) = &initializer.value else {
+            return false;
+        };
+        let Some(source) = structural_source_contract(function, argument.place) else {
+            return false;
+        };
+        let mut selected = argument.path.clone();
+        selected.extend_from_slice(suffix);
+        source.carries_qualification(&selected, qualification.domain)
+    })
 }
 
 /// Select the same owned subtree that current partial-custody replay consumes.
@@ -343,6 +422,7 @@ fn source_has_claims(function: &PsiOptimizationFunction, place: PlaceId) -> bool
                 | abstract_operations::establish_case_or_record_result_pattern!(result)
                 | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishReference { result, .. }
+                | O::EstablishPlacedReference { result, .. }
                 | O::MoveStructuralField { result, .. }
                 | O::CallStructural {
                     result: AbstractStructuralCallResult::Structural { result, .. },
@@ -569,7 +649,10 @@ pub(super) fn structural_initializer_matches(
             || (source.access == StructuralAccess::SharedBorrow
                 && shared_view_member(types, expected)))
         && source.structural_type == expected
-        && source.is_unqualified()
+        && (source.is_unqualified()
+            || types
+                .get(&source.structural_type)
+                .is_some_and(|declaration| declaration.shape.is_composite_shape()))
         && !source_has_claims(function, argument.place)
         && argument.place != result.place
         && matches!(

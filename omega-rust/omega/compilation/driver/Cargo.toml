@@ -10,6 +10,7 @@ autotests = false
 
 
 [dependencies]
+terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
 checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 effects = { path = "../backend/plans/provider-evidence" }
 package-evidence = { path = "../../packages/review-evidence" }

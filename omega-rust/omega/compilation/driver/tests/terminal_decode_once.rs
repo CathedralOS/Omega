@@ -108,6 +108,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     let product = native_production::compile(
         retained,
         native_production::NativeCompileRequest {
+            private_entry_ram: &[],
             optimization_selections:
                 &optimization_core::PostTerminalOptimizationSelections::default(),
             terminal_authority_policy: provider_admission::terminal_authority_policy_with_rows(

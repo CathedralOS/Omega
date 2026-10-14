@@ -84,6 +84,46 @@ pub(crate) fn row_execution_identity(
     if !matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
         return Ok(None);
     }
+    if let ProviderSchemaDeclaration::SealedPlacedAccessor(symbol) = schema {
+        let context = provider_planning::ProviderPlanningContext::new(
+            checked,
+            source::DependencyScope::Product,
+        );
+        let accessor = provider_planning::SealedPlacedAccessor::rejoin_plan(context, plan)?
+            .ok_or_else(|| Diagnostic::error("sealed placed row has no exact catalog plan"))?;
+        if symbol != requirement_symbol
+            || symbol != realization_symbol
+            || symbol != accessor.machine()
+            || selected_target != Some(plan.target.as_str())
+            || plan.rows.as_slice() != std::slice::from_ref(row)
+        {
+            return Err(Diagnostic::error(format!(
+                "sealed placed execution substituted its target or declaration role: schema {symbol:?}, requirement {requirement_symbol:?}, realization {realization_symbol:?}, catalog {:?}, selected target {selected_target:?}, plan target {:?}, exact single row {}",
+                accessor.machine(),
+                plan.target,
+                plan.rows.as_slice() == std::slice::from_ref(row),
+            )));
+        }
+        let operation = match accessor.operation() {
+            provider_planning::SealedPlacedScalarOperation::Read => {
+                effects::CompilerPlacedScalarOperation::Read
+            }
+            provider_planning::SealedPlacedScalarOperation::Take => {
+                effects::CompilerPlacedScalarOperation::Take
+            }
+            provider_planning::SealedPlacedScalarOperation::Write => {
+                effects::CompilerPlacedScalarOperation::Write
+            }
+        };
+        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+            CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {
+                contract: accessor.execution_contract(context)?,
+                placement_commitment: accessor.placement_commitment(),
+                access_slot: accessor.access_slot(),
+                operation,
+            },
+        )));
+    }
     // The float intrinsic catalog is keyed on the requirement view: a named
     // boundary operator or a top-level `boundary requirement` machine.
     if matches!(schema, ProviderSchemaDeclaration::BoundaryOperator(_))

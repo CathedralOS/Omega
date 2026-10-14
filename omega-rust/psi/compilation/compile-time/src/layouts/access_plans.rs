@@ -19,6 +19,7 @@ mod access_value;
 mod layout_value;
 
 pub use access_value::compute_placement_plan;
+pub(crate) use access_value::compute_selected_placement_plan;
 use access_value::validate_access_value;
 use layout_value::build_layout_plan_value;
 
@@ -77,6 +78,16 @@ fn evaluate_policy(
     let machine = typed
         .realized_machine_named(policy_machine)
         .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
+    evaluate_selected_policy(typed, machine, arguments, policy_kind)
+}
+
+fn evaluate_selected_policy(
+    typed: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    arguments: Vec<BuildTimeValue>,
+    policy_kind: &str,
+) -> Result<BuildTimeValue, String> {
+    let policy_machine = machine.name.as_str();
     BuildTimeAdmissionPlan::infer(typed, None).require_common_floor(typed, machine)?;
     checked_interpreter::evaluate_build_time_machine(
         typed,

@@ -398,3 +398,27 @@ fn access_keys_and_placement_identity_bind_exact_layout_geometry() {
         "placed projection must reject a compact-equal foreign layout key"
     );
 }
+
+#[test]
+fn placement_snapshot_reissues_exact_keys_and_preserves_full_interpretation() {
+    let plan = uart_placement_plan();
+    let restored = plan.snapshot().validate().expect("normalized snapshot");
+    assert_eq!(restored, plan);
+    assert_eq!(
+        restored.content_interpretation(),
+        plan.content_interpretation()
+    );
+    let mut truncated = plan.snapshot();
+    truncated.access.pop();
+    assert!(truncated.validate().is_err());
+    let mut extended = plan.snapshot();
+    extended.access.push(FieldAccess::Inaccessible);
+    assert!(extended.validate().is_err());
+    let mut changed = plan.snapshot();
+    changed.reach = BoundaryReach::from_services([]);
+    let changed = changed.validate().expect("different normalized reach");
+    assert_ne!(
+        changed.content_interpretation(),
+        plan.content_interpretation()
+    );
+}

@@ -36,7 +36,8 @@ pub mod calls;
 pub use calls::{
     MixedStructuralScalarFunctionAbi, NativeCallTarget, ScalarAbiValue, ScalarFunctionAbi,
     TargetBoundaryResult, TargetCallResult, TargetNativeCallbackArgument,
-    TargetOperationPlanWithPlacedViewInputs, TargetPlacedViewInput, TargetStructuralResultContract,
+    TargetOperationPlanWithPlacedViewInputs, TargetPlacedCallAssociation, TargetPlacedCallBinding,
+    TargetPlacedInterpretation, TargetPlacedViewInput, TargetStructuralResultContract,
     TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, selector_carrier_type,
 };
 pub mod control_flow;
@@ -58,8 +59,9 @@ pub use boundary::{
     IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain, LinuxWriteLineRealization,
     MetadataOnlyPortRealization, NearestIeeeFloatArithmeticRealization,
     NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
-    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, ProviderExecutionBinding,
-    ProviderPlanReportIdentity, TargetIeeeFloatFmaOperand, conventional_float_class_layout,
+    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding,
+    PlacedScalarAccessRealization, ProviderExecutionBinding, ProviderPlanReportIdentity,
+    TargetIeeeFloatFmaOperand, conventional_float_class_layout,
 };
 pub mod operations;
 pub use operations::{

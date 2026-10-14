@@ -298,6 +298,9 @@ pub(super) fn validate_establish_trivial_affine_local(
     else {
         return malformed("trivial affine local establishment has no local declaration");
     };
+    if terminal_semantics::contains_placed_carrier(module, *structural_type) {
+        return malformed("ordinary local construction cannot establish placed custody");
+    }
     let Some(declaration) = module.structural_type(*structural_type) else {
         return malformed("trivial affine local has an unknown structural type");
     };

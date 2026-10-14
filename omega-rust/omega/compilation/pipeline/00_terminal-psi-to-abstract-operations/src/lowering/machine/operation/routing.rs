@@ -20,12 +20,45 @@ pub(super) fn lower(
     machine: &TerminalMachine,
     module: &terminal_psi::TerminalModule,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    placed_view_plans: &[terminal_psi::TerminalPlacedViewPlan],
     value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
     byte_sequence_literals: &[StructuralLiteral<'_>],
     unit_affine_locals: &[StructuralLiteral<'_>],
     lowered_unit_affine_locals: &mut Vec<LoweredAffineLocal>,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
+        OperationKind::EstablishPlacedReference { source } => {
+            let Some(result) = operation.result.structural().cloned() else {
+                return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
+            };
+            let Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) =
+                structural_types
+                    .iter()
+                    .find(|row| row.id == result.structural_type)
+                    .map(|row| &row.shape)
+            else {
+                return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
+            };
+            let mut selected = placed_view_plans
+                .iter()
+                .filter(|plan| plan.carrier == *referent);
+            let (Some(plan), None) = (selected.next(), selected.next()) else {
+                return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
+            };
+            let correspondence = terminal_semantics::placed_ram_plan_correspondence(
+                structural_types,
+                placed_view_plans,
+                plan,
+                plan.schema,
+            )
+            .map_err(|_| LoweringError::UnsupportedReferenceCustody(operation.id))?;
+            Ok(AbstractOperation::EstablishPlacedReference {
+                psi_operation: operation.id,
+                result,
+                source: source.clone(),
+                correspondence,
+            })
+        }
         OperationKind::SelectImplementation { .. } | OperationKind::CallDynamic { .. } => {
             calls::lower(operation, machine)
         }

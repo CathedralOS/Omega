@@ -44,9 +44,10 @@ pub use language_semantics::declaration_selection::{
 };
 pub use snapshot::TypedTreesSnapshot;
 pub use typed_trees::{
-    BoundaryCompletionDeclaration, FrozenTypedTrees, PlanLaidBitField, PlanLaidBitFragment,
-    PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations,
-    PlanLaidRepeatedField, PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind,
-    PlanLaidTargetLayout, ProgramIdentity, TypedTreeRoots, TypedTreeTables, TypedTrees,
+    BoundaryCompletionDeclaration, FrozenTypedTrees, PlacedScalarAccessorDeclaration,
+    PlacedScalarAccessorOperation, PlanLaidBitField, PlanLaidBitFragment, PlanLaidGeometry,
+    PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations, PlanLaidRepeatedField,
+    PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
+    ProgramIdentity, TypedTreeRoots, TypedTreeTables, TypedTrees,
     closed_conformance_applications_of, machine_specialization_matches_template_identity,
 };

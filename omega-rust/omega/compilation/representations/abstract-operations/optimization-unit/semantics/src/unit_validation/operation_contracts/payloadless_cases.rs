@@ -103,8 +103,9 @@ pub(crate) fn case_establishment_matches(
         result.multiplicity,
         terminal_psi::StructuralMultiplicity::Unrestricted
             | terminal_psi::StructuralMultiplicity::Affine
-    ) && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
+    ) && super::records::constructor_qualifications_match(
+            function, result, fields, types, domains, Some(*result_case),
+        )
         && result.claims.is_empty()
         && result.qualification_establishments.is_empty()
         // Construction binds only the selected payload. Shared descriptor

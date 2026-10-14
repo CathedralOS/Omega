@@ -1,9 +1,47 @@
 //! Placed view, field and accessor plans and the plan-laid layouts.
 
+mod sealed_accessors;
+pub use sealed_accessors::{PlacedScalarAccessorDeclaration, PlacedScalarAccessorOperation};
+
 use crate::typed_trees::ClosedConformanceApplication;
+
+impl crate::TypedTrees {
+    /// Operation classification follows exact declaration/specialization
+    /// identities, independently of call syntax or destination type.
+    pub fn placed_borrow_factory(
+        &self,
+        mut selected: symbols::SymbolHandle,
+    ) -> Option<&crate::expression::PlacedBorrowOperationRequest> {
+        let mut visited = Vec::new();
+        loop {
+            if !selected.is_valid() || visited.contains(&selected) {
+                return None;
+            }
+            visited.push(selected);
+            let mut factories = self
+                .placed_borrow_factories
+                .iter()
+                .filter(|row| row.factory == selected);
+            if let Some(factory) = factories.next() {
+                return factories.next().is_none().then_some(factory);
+            }
+            let mut applications = self
+                .machine_specializations
+                .iter()
+                .filter(|application| application.instance == selected);
+            let (Some(application), None) = (applications.next(), applications.next()) else {
+                return None;
+            };
+            selected = application.template;
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlacedViewPlan {
+    /// Exact sealed source family whose closed P/T application this realizes.
+    /// Invalid only for source-free derivation with no canonical interface.
+    pub template_symbol: symbols::SymbolHandle,
     pub data_name: String,
     /// Exact synthesized placed-view data identity. `data_name` is diagnostic
     /// presentation and must not be used as the semantic join key.
@@ -22,6 +60,10 @@ pub struct PlacedViewPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlacedFieldPlan {
+    /// Exact normalizer-issued field key; later retention never selects by spelling.
+    pub access_key: access_plans::AccessFieldKey,
+    /// Exact generated view member, independently of the schema member.
+    pub view_field_symbol: symbols::SymbolHandle,
     pub field_name: String,
     /// Stable numbered identity when the source schema numbers this field.
     /// The spelling remains diagnostic presentation only in that case.

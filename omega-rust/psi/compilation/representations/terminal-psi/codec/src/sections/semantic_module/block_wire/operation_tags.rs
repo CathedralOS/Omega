@@ -240,3 +240,6 @@ pub(super) const REPLACE_DISCARDABLE_STRUCTURAL_FIELD: u8 = 118;
 
 /// Place-free atomic ordering event.
 pub(super) const ATOMIC_FENCE: u8 = 119;
+
+/// Explicit initialized-RAM placed interpretation; distinct from recasts.
+pub(super) const ESTABLISH_PLACED_REFERENCE: u8 = 120;

@@ -13,8 +13,52 @@ pub(super) fn establish(
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let address = crate::selection::reference_input::establishment(source, row).ok_or(invalid())?;
-    let LegalizedScalarInstructionKind::EstablishReference { result, .. } = &row.kind else {
-        return Err(invalid());
+    let result = match &row.kind {
+        LegalizedScalarInstructionKind::EstablishReference { result, .. }
+        | LegalizedScalarInstructionKind::EstablishPlacedReference { result, .. } => result,
+        _ => return Err(invalid()),
+    };
+    let placed_allocation = if let Some(correspondence) = &address.placed {
+        // A total factory cannot hide a failing alignment test or a trap.
+        // Only an actual allocated home supplies this proof; pointer transport
+        // and the logical source declaration do not authenticate its base.
+        let mut allocations = builder
+            .transport
+            .local_slots
+            .iter()
+            .filter(|slot| slot.id.structural_place() == Some(address.place));
+        let (Some(allocation), None) = (allocations.next(), allocations.next()) else {
+            return Err(invalid());
+        };
+        let modulus = correspondence.required_base.modulus();
+        if address.load_pointer
+            || !address.pointer_slots.is_empty()
+            || u64::from(allocation.alignment) % modulus != 0
+            || u64::from(address.byte_offset) % modulus != correspondence.required_base.residue()
+            || address
+                .indices
+                .iter()
+                .any(|index| u64::from(index.stride) % modulus != 0)
+        {
+            return Err(invalid());
+        }
+        let maximum_offset = address
+            .indices
+            .iter()
+            .try_fold(u64::from(address.byte_offset), |offset, index| {
+                let last = index.extent?.checked_sub(1)?;
+                offset.checked_add(last.checked_mul(u64::from(index.stride))?)
+            })
+            .ok_or_else(invalid)?;
+        if maximum_offset
+            .checked_add(correspondence.source_byte_length)
+            .is_none_or(|end| end > u64::from(allocation.byte_size))
+        {
+            return Err(invalid());
+        }
+        Some(allocation.id)
+    } else {
+        None
     };
     if builder
         .transport
@@ -31,7 +75,28 @@ pub(super) fn establish(
     }
     // Borrowing a descriptor retains its home. Only a declared pointer crossing
     // enters its backing; root carrier shape alone cannot choose that address.
-    let (input, slots) = if address.pointer_slots.is_empty() {
+    let (input, slots) = if let Some(allocation) = placed_allocation {
+        // Emit the proved allocation's address directly. A cached pointer for
+        // this place cannot select a different origin from the geometry proof.
+        (
+            super::local_storage::address(
+                builder,
+                row,
+                allocation,
+                0,
+                u32::try_from(
+                    address
+                        .placed
+                        .as_ref()
+                        .ok_or_else(invalid)?
+                        .source_byte_length,
+                )
+                .map_err(|_| invalid())?,
+                false,
+            )?,
+            address.pointer_slots.as_slice(),
+        )
+    } else if address.pointer_slots.is_empty() {
         (
             place_pointer(builder, row, address.place, 0)?,
             address.pointer_slots.as_slice(),

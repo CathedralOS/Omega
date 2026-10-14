@@ -410,6 +410,7 @@ impl Lowerer<'_> {
             plan_laid_target_layouts: _,
             plan_laid_schema_fields: _,
             placed_view_plans: _,
+            placed_borrow_factories,
             wire_placements: _,
             wire_encode_obligations: _,
             wire_schema_plans: _,
@@ -441,6 +442,7 @@ impl Lowerer<'_> {
 
         let mut trees = TypedTrees::with_roots(roots, tables, symbols);
         trees.type_identities = type_identities;
+        trees.placed_borrow_factories = placed_borrow_factories;
         trees.excluded_authored_selection_occurrences = excluded_authored_selection_occurrences;
         // The copied semantic interners survive the rebuild.
         trees.service_reaches = service_reaches;

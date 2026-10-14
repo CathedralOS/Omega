@@ -106,6 +106,12 @@ impl SelectedImageAddressReference {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
+    /// One sealed external event with exact-width transfer and retained contract.
+    PlacedScalarAccess {
+        form: super::PlacedScalarForm,
+        contract: [u8; 32],
+        byte_offset: u32,
+    },
     /// Full coherent-memory barrier, with no address or value operands.
     AtomicFence,
     /// An indivisible sequentially consistent access. Address is operand 0;
@@ -551,7 +557,8 @@ macro_rules! layout_dependent_selected_transfers {
 #[macro_export]
 macro_rules! dedicated_selected_forms {
     () => {
-        $crate::SelectedInstructionKind::Float32ToBits
+        $crate::SelectedInstructionKind::PlacedScalarAccess { .. }
+            | $crate::SelectedInstructionKind::Float32ToBits
             | $crate::SelectedInstructionKind::Float64ToBits
             | $crate::SelectedInstructionKind::BitsToFloat32
             | $crate::SelectedInstructionKind::BitsToFloat64

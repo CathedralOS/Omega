@@ -4,7 +4,7 @@ use typed_trees::TypedTrees;
 use typed_trees::types::PrimitiveType;
 
 mod schema_value;
-pub(crate) use schema_value::build_schema_value;
+pub(crate) use schema_value::{build_schema_value, build_selected_schema_value};
 
 const SCHEMA_FIELD_CAPACITY: usize = 32;
 
@@ -52,6 +52,14 @@ pub(crate) fn schema_fields(
     let data = typed
         .data_definition_by_name_str(schema_data)
         .ok_or_else(|| format!("no data definition named `{schema_data}` exists"))?;
+    schema_fields_for(typed, data)
+}
+
+pub(crate) fn schema_fields_for(
+    typed: &TypedTrees,
+    data: &typed_trees::data::DataDefinition,
+) -> Result<(Vec<SchemaFieldInfo>, u64), String> {
+    let schema_data = data.name.as_str();
     require_invariant_schema(typed, data.symbol, &[])?;
     if data.quotient.is_some() {
         return Err(format!(

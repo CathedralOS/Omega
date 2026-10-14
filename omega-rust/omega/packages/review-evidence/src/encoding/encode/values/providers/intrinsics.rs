@@ -15,6 +15,34 @@ pub(crate) fn encode_compiler_intrinsic_execution(
         PackageReviewCompilerIntrinsicExecution::HostedReadByte => {
             encoder.tag("hosted_read_byte", 6);
         }
+        PackageReviewCompilerIntrinsicExecution::PlacedScalarAccess {
+            contract,
+            placement_commitment,
+            access_slot,
+            operation,
+        } => {
+            encoder.tag("placed_scalar_access", 8);
+            encoder.field("contract", |encoder| {
+                encoder.fixed_bytes(contract);
+                Ok(())
+            })?;
+            encoder.field("placement_commitment", |encoder| {
+                encoder.fixed_bytes(placement_commitment);
+                Ok(())
+            })?;
+            encoder.field("access_slot", |encoder| {
+                encoder.u32(*access_slot);
+                Ok(())
+            })?;
+            encoder.field("operation", |encoder| {
+                match operation {
+                    effects::CompilerPlacedScalarOperation::Read => encoder.tag("read", 0),
+                    effects::CompilerPlacedScalarOperation::Take => encoder.tag("take", 1),
+                    effects::CompilerPlacedScalarOperation::Write => encoder.tag("write", 2),
+                }
+                Ok(())
+            })?;
+        }
         PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function) => {
             encoder.tag("builtin_function", 0);
             encoder.field("ordinal", |encoder| {

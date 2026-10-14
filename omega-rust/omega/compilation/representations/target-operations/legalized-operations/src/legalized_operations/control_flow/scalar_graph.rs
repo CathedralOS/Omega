@@ -264,6 +264,9 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
             | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
             | LegalizedScalarInstructionKind::BoundarySettlement(_) => {}
+            LegalizedScalarInstructionKind::EstablishPlacedReference { indices, .. } => {
+                indices.iter().for_each(|index| visit(index.operand.value));
+            }
             LegalizedScalarInstructionKind::EstablishReference {
                 indices, storage, ..
             } => {
@@ -282,6 +285,14 @@ impl LegalizedScalarInstruction {
                     visit(*start);
                     visit(*end);
                 }
+            }
+            LegalizedScalarInstructionKind::PlacedScalarAccess {
+                operand, indices, ..
+            } => {
+                if let Some(value) = operand {
+                    visit(*value);
+                }
+                indices.iter().for_each(|index| visit(index.operand.value));
             }
             LegalizedScalarInstructionKind::AtomicFence { .. } => {}
             LegalizedScalarInstructionKind::AtomicAccess { event, .. } => {
@@ -365,6 +376,14 @@ impl LegalizedScalarInstruction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    PlacedScalarAccess {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        realization: target_operations::PlacedScalarAccessRealization,
+        location: terminal_psi::StructuralArgument,
+        interpretation: target_operations::TargetPlacedInterpretation,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
+        operand: Option<ValueId>,
+    },
     /// Preserve the requested language ordering through target refinement.
     AtomicFence {
         ordering: terminal_psi::FenceOrdering,
@@ -453,6 +472,13 @@ pub enum LegalizedScalarInstructionKind {
     /// One verified reference carrier. `shape` describes the eight-byte
     /// address word captured from `source`, not a copy of its referent.
     /// Source identity and live permission remain independently checked.
+    EstablishPlacedReference {
+        result: terminal_psi::StructuralOperationResult,
+        source: terminal_psi::StructuralArgument,
+        correspondence: terminal_psi::PlacedRamCorrespondence,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
+        shape: calling_conventions::ValueShape,
+    },
     EstablishReference {
         result: terminal_psi::StructuralOperationResult,
         source: terminal_psi::StructuralArgument,
@@ -946,6 +972,7 @@ impl LegalizedScalarInstructionKind {
             | Self::EstablishStructuralLocal { result, .. }
             | Self::EstablishCase { result, .. }
             | Self::EstablishReference { result, .. }
+            | Self::EstablishPlacedReference { result, .. }
             | Self::EstablishPrimitiveLocal { result, .. }
             | Self::StructuralLeafCopy { result, .. }
             | Self::HostedReadByte { result, .. }
@@ -965,6 +992,7 @@ impl LegalizedScalarInstructionKind {
             | Self::FloatResultPolicy { .. }
             | Self::AtomicFence { .. }
             | Self::AtomicAccess { .. }
+            | Self::PlacedScalarAccess { .. }
             | Self::IeeeFloatCompare { .. }
             | Self::NearestIeeeFloatArithmetic { .. }
             | Self::ReleaseReference { .. }
@@ -1084,6 +1112,7 @@ mod structural_result_tests {
         let expected = result();
         let mut call = LegalizedScalarCall {
             descriptor_origins: Vec::new(),
+            placed_bindings: Vec::new(),
             source: target_operations::NativeCallOrigin::Authored,
             target: target_operations::NativeCallTarget::Machine(MachineId::new(1).unwrap()),
             call_plan: evaluate_call_plan(
@@ -1327,6 +1356,7 @@ pub struct LegalizedScalarCall {
     /// reference leaves in an owned aggregate. This does not choose a runtime
     /// address or grant access; both remain owned by the result's contract.
     pub descriptor_origins: Vec<LegalizedDescriptorOrigin>,
+    pub placed_bindings: Vec<target_operations::TargetPlacedCallBinding>,
     pub source: crate::NativeCallOrigin,
     pub target: target_operations::NativeCallTarget,
     pub call_plan: CallPlan,

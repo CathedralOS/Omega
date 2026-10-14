@@ -232,6 +232,7 @@ pub struct ValidatedNativeProgramEntrySettlement {
     /// boundary is the custody the binder must satisfy. Empty when the entry
     /// declared no placed-view inputs.
     pub(crate) placed_view_establishments: Vec<TerminalPlacedViewEstablishment>,
+    pub(crate) private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
 }
 
 impl ValidatedNativeProgramEntrySettlement {
@@ -311,6 +312,18 @@ impl ValidatedNativeProgramEntrySettlement {
     /// The provider establishments bound to this entry's placed-view roster
     /// rows, in roster order. Empty when the entry declared no placed-view
     /// inputs.
+    pub fn private_entry_ram(&self) -> &[terminal_installation::CheckedPrivateEntryRamRecipe] {
+        &self.private_entry_ram
+    }
+
+    pub fn with_private_entry_ram(
+        mut self,
+        recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+    ) -> Self {
+        self.private_entry_ram = recipes.to_vec();
+        self
+    }
+
     pub fn placed_view_establishments(&self) -> &[TerminalPlacedViewEstablishment] {
         &self.placed_view_establishments
     }

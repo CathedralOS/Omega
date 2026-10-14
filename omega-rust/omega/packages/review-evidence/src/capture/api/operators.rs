@@ -9,8 +9,8 @@ use crate::capture::semantics::signatures::parameters::project_type_parameters;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
-    PackageReviewSignatureParameter, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
-    PackageReviewOperatorCoordinate, PackageReviewOperatorShape,
+    PackageReviewCrashRoute, PackageReviewCrashRouteGuard, PackageReviewOperatorCoordinate,
+    PackageReviewOperatorShape, PackageReviewSignatureParameter,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;

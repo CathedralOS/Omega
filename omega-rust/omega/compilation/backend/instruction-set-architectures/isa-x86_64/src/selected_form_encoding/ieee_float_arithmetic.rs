@@ -1159,7 +1159,7 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Result<Vec<Instru
                     count: if double { 63 } else { 31 },
                 },
             ]
-        },
+        }
         IeeeFloatArithmeticOperation::MultiplyThenAdd => vec![
             move_in(registers[0], LEFT_SCRATCH, double),
             move_in(registers[1], RIGHT_SCRATCH, double),

@@ -114,7 +114,7 @@ impl TargetProviderPublicationRequest<'_> {
             Some(target),
             &self.settlement.evaluated_via_bindings,
             &declarations.origins,
-        ));
+        ))?;
         // Select within the retained demand domain, never by intersecting a
         // plan's rows. An unrelated unique provider is not an installation
         // obligation. Explicit declarations retain their complete schema even

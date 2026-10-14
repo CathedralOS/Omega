@@ -521,6 +521,60 @@ pub(crate) fn validate_structural_root_operations(
                         );
                     }
                 }
+                O::EstablishPlacedReference {
+                    psi_operation,
+                    result,
+                    source,
+                    correspondence,
+                } => {
+                    let actual = crate::unit_validation::references::reference_source_type(
+                        function,
+                        structural_types,
+                        source,
+                    );
+                    let mut plans = unit
+                        .structural_types
+                        .placed_views()
+                        .iter()
+                        .filter(|plan| plan.carrier == correspondence.carrier);
+                    let (Some(plan), None) = (plans.next(), plans.next()) else {
+                        return Err(catalog_mismatch(function));
+                    };
+                    let exact = terminal_semantics::placed_ram_plan_correspondence(
+                        unit.structural_types.as_slice(),
+                        unit.structural_types.placed_views(),
+                        plan,
+                        correspondence.schema,
+                    )
+                    .is_ok_and(|expected| expected == *correspondence);
+                    if !exact
+                        || !result.is_affine_plain()
+                        || !matches!(place_kinds.get(&result.place),
+                            Some(StructuralPlaceKind::OperationResult { producer, structural_type })
+                                if *producer == *psi_operation && *structural_type == result.structural_type)
+                        || !matches!(
+                            source.access,
+                            terminal_psi::StructuralAccess::SharedBorrow
+                                | terminal_psi::StructuralAccess::MutableBorrow
+                        )
+                        || !actual.is_some_and(|actual| {
+                            crate::unit_validation::references::placed_reference_source_compatible(
+                                structural_types,
+                                actual,
+                                result.structural_type,
+                                correspondence,
+                            )
+                        })
+                        || !crate::unit_validation::references::leaf_access_within(
+                            structural_types,
+                            result.structural_type,
+                            &[],
+                            source.access,
+                        )
+                    {
+                        return Err(catalog_mismatch(function));
+                    }
+                }
                 O::EstablishReference {
                     psi_operation,
                     result,
@@ -1081,7 +1135,13 @@ fn readable_field_type(
     let signature =
         crate::unit_validation::operation_contracts::structural_source_contract(function, place)?;
     if signature.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-        || !signature.is_unqualified()
+        // A nominal aggregate's memberships strengthen its value contract;
+        // they neither forbid reading a field nor grant readable access.
+        // Byte, view and reference carriers keep their specialized evidence
+        // rules. Current ownership separately proves the occurrence is live.
+        || (!signature.is_unqualified()
+            && !structural_types.get(&signature.structural_type)
+                .is_some_and(|declaration| declaration.shape.is_composite_shape()))
         || function
             .content_entry_claims
             .iter()

@@ -221,6 +221,17 @@ impl TypeIdentityContext<'_> {
         symbol: SymbolHandle,
         path: String,
     ) -> String {
+        match super::derived_declarations::nominal_name(program, symbol, self, false) {
+            Ok(Some(identity)) => return identity,
+            Err(reason) => {
+                if let Some(missing) = self.missing_exact_nominal_owner {
+                    missing.set(true);
+                }
+                // An invalid producer cannot fall back to its generated label.
+                return atom("invalid-derived-origin", reason);
+            }
+            Ok(None) => {}
+        }
         // Toolchain declarations and authored declarations can have the same
         // visible path: lookup admits an authored `Source` beside Build's
         // toolchain `Source`. Erasing that namespace merges unrelated carriers
@@ -229,8 +240,9 @@ impl TypeIdentityContext<'_> {
         // identity used across independently compiled package graphs.
         if self.qualification == TypeIdentityQualification::Ordinary
             && (program.symbols.builtin_type_atom(symbol).is_some()
-                || program.symbols.symbol_source_origin(symbol)
-                    != Some(source::SourceOrigin::Toolchain))
+                || (program.symbols.symbol_package_identity(symbol).is_none()
+                    && program.symbols.symbol_source_origin(symbol)
+                        != Some(source::SourceOrigin::Toolchain)))
         {
             return path;
         }

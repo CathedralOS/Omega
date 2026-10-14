@@ -100,6 +100,8 @@ pub(crate) fn capture(
         return None;
     }
     let is_view = formation.view_type.is_valid();
+    let is_placed =
+        formation.interpretation == validation::ReferenceFormationInterpretation::Placed;
     if is_view
         && program.normalized_type_identity(formation.view_type)
             != program.normalized_type_identity(referent)
@@ -167,6 +169,28 @@ pub(crate) fn capture(
             != validation::structural_type_identity(program, referent, &[], &[])
     {
         return None;
+    }
+    if is_placed {
+        let named_symbol = |reference| {
+            let reference = program
+                .type_reference_table
+                .peeled_type_reference(reference);
+            match program.type_reference_table.type_reference(reference) {
+                typed_trees::types::TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+                _ => None,
+            }
+        };
+        let view = named_symbol(referent)?;
+        let mut plans = program
+            .placed_view_plans
+            .iter()
+            .filter(|plan| plan.data_symbol == view);
+        let (Some(plan), None) = (plans.next(), plans.next()) else {
+            return None;
+        };
+        if named_symbol(endpoint)? != plan.schema_symbol {
+            return None;
+        }
     }
 
     let source = match place.root {
@@ -268,7 +292,9 @@ pub(crate) fn capture(
         }
         _ => return None,
     };
-    let storage = if is_view {
+    let storage = if is_placed {
+        CheckedReferenceStorage::Placed
+    } else if is_view {
         validation::reference_view_storage(program, referent)?
     } else {
         CheckedReferenceStorage::Declared

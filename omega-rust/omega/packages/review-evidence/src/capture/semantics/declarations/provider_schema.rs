@@ -13,6 +13,22 @@ pub(crate) fn provider_requirement_schema(
     schema: ProviderSchemaDeclaration,
     requirement: SymbolHandle,
 ) -> Result<ProviderSchemaDeclaration, Vec<Diagnostic>> {
+    if let ProviderSchemaDeclaration::SealedPlacedAccessor(symbol) = schema {
+        let context = provider_planning::ProviderPlanningContext::new(
+            compilation.checking_input,
+            source::DependencyScope::Product,
+        );
+        if symbol != requirement
+            || provider_planning::SealedPlacedAccessor::authenticate(context, symbol)
+                .map_err(|error| vec![error])?
+                .is_none()
+        {
+            return Err(rejected(
+                "sealed placed catalog changed its exact requirement",
+            ));
+        }
+        return Ok(schema);
+    }
     let ProviderSchemaDeclaration::BoundaryTrait(root) = schema else {
         return Ok(schema);
     };

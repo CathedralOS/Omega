@@ -1479,8 +1479,7 @@ pub(super) fn derive_runtime_spill<'source>(
     require_dominated_uses(function, block_index, &use_blocks)?;
     let first_instruction =
         next_instruction_id(function).ok_or(RuntimeSpillError::IdentityOverflow)?;
-    let first_register =
-        next_register_id(function).ok_or(RuntimeSpillError::IdentityOverflow)?;
+    let first_register = next_register_id(function).ok_or(RuntimeSpillError::IdentityOverflow)?;
     // A unit implicitly used anywhere in the function can be live through a
     // shared span without appearing in the span's own effects: backward unit
     // liveness keeps it resident at every interior point, so a view

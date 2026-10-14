@@ -1,9 +1,9 @@
 //! Exact live-byte copy with explicit scratch registers and local control flow.
 
 use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
-    RegisterViewId, ValidatedPhysicalRegisterModel,
-    ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect, RegisterViewId,
+    ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
+    X86_64SelectedFormEncodingError,
 };
 use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
 use crate::selected_form_encoding::request_validation::resolve_registers;
@@ -91,10 +91,10 @@ pub(super) fn validate(
         bytes,
         3,
         MachineEncodedMemoryEffect::CopyBytesV1 {
-                    source_pointer_operand: 0,
-                    destination_pointer_operand: 1,
-                    count_operand: 2,
-                },
+            source_pointer_operand: 0,
+            destination_pointer_operand: 1,
+            count_operand: 2,
+        },
     )
 }
 
@@ -179,7 +179,12 @@ mod tests {
         let catalog = crate::x86_64_register_constraint_catalog(&physical);
         let constraints =
             crate::validate_x86_64_register_constraint_catalog(catalog.clone(), &physical).unwrap();
-        crate::selected_form_encoding::tests::assert_early_clobber_required(&catalog, &physical, crate::X86_64_COPY_BYTES, &[3, 4]);
+        crate::selected_form_encoding::tests::assert_early_clobber_required(
+            &catalog,
+            &physical,
+            crate::X86_64_COPY_BYTES,
+            &[3, 4],
+        );
         for target in [
             target::NativeTarget::linux_x64(),
             target::NativeTarget::windows_x64(),

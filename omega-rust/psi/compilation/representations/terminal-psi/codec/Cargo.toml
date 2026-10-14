@@ -17,3 +17,6 @@ optimization = { path = "../../../../foundation/optimization-selections" }
 proof-admission = { path = "../../../proof/admission" }
 terminal-psi = { path = ".." }
 terminal-semantics = { path = "../semantics" }
+
+access-plans = { path = "../../../../foundation/access-plans" }
+layout-plans = { path = "../../../../foundation/layout-plans" }

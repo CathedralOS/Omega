@@ -9,7 +9,7 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{DataDefinition, DataField, DataMember, DataProperties, Item, Machine};
 use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-use super::{Application, PendingRewrite, SchemaRecord};
+use super::{Application, ApplicationKey, DeclarationKey, PendingRewrite, SchemaRecord};
 
 /// A synthesized declaration's symbol provenance: the authored `Placed<P, T>`
 /// use-site that derived it. Compiler-owned shells are source-free text, but
@@ -33,10 +33,33 @@ pub(super) fn synthesize_probe_records(
     syntax: &mut SyntaxTrees,
     applications: &[Application],
     rewrites: &[PendingRewrite],
-    schemas: &BTreeMap<String, SchemaRecord>,
-) {
+    schemas: &BTreeMap<DeclarationKey, SchemaRecord>,
+    sources: Option<&source::SourceMap>,
+) -> Result<(), Vec<Diagnostic>> {
+    let templates = syntax
+        .root_items()
+        .filter_map(|item| item.as_data())
+        .filter(|data| {
+            data.name.as_str().rsplit("::").next() == Some("PlacedField")
+                && sources.is_none_or(|sources| {
+                    sources
+                        .file_at(data.name.source_span())
+                        .is_some_and(|source| {
+                            source.origin == source::SourceOrigin::Toolchain
+                                && source.path.strip_prefix(&source.package_root).ok()
+                                    == Some(std::path::Path::new("layout.omg"))
+                        })
+                })
+        })
+        .map(|data| data.name.clone())
+        .collect::<Vec<_>>();
+    let [template] = templates.as_slice() else {
+        return Err(vec![Diagnostic::error(
+            "placed probe requires one exact sealed accessor template",
+        )]);
+    };
     for application in applications {
-        let members = schemas[&application.schema]
+        let members = schemas[&application.key.schema]
             .fields
             .iter()
             .map(|field| {
@@ -47,7 +70,7 @@ pub(super) fn synthesize_probe_records(
                 let accessor = syntax
                     .tables
                     .type_references
-                    .insert_generic(Identifier::generated("PlacedField"), arguments);
+                    .insert_generic(template.clone(), arguments);
                 DataMember::Field(DataField {
                     identity: field.identity,
                     name: field.name.clone(),
@@ -56,8 +79,14 @@ pub(super) fn synthesize_probe_records(
                 })
             })
             .collect::<Vec<_>>();
+        let origin_node = syntax
+            .type_references
+            .type_reference(application.origin)
+            .clone();
+        let origin = syntax.type_references.insert(origin_node);
         push_record(
             syntax,
+            origin,
             &application.synthetic_name,
             members,
             application.generated_is_public,
@@ -65,32 +94,29 @@ pub(super) fn synthesize_probe_records(
         );
     }
     rewrite_applications(syntax, rewrites);
+    Ok(())
 }
 
 pub(super) fn synthesize_exact_records(
     syntax: &mut SyntaxTrees,
     applications: &[Application],
     rewrites: &[PendingRewrite],
-    schemas: &BTreeMap<String, SchemaRecord>,
-    plans: &BTreeMap<String, ValidatedPlacementPlan>,
+    schemas: &BTreeMap<DeclarationKey, SchemaRecord>,
+    plans: &BTreeMap<ApplicationKey, ValidatedPlacementPlan>,
+    sources: Option<&source::SourceMap>,
 ) -> Result<(), Vec<Diagnostic>> {
     let template = syntax.clone();
     let template_machines = template
         .root_items()
         .filter_map(|item| {
             let machine = item.as_machine()?;
-            (machine
-                .attached_data
-                .as_ref()
-                .map(|identifier| identifier.as_str())
-                == Some("PlacedField"))
-            .then_some(machine.clone())
+            sealed_accessor_template(machine, sources).then_some(machine.clone())
         })
         .collect::<Vec<_>>();
 
     for application in applications {
-        let plan = &plans[&application.synthetic_name];
-        let schema = &schemas[&application.schema];
+        let plan = &plans[&application.key];
+        let schema = &schemas[&application.key.schema];
         let mut members = Vec::new();
         for field in &schema.fields {
             let entry = plan
@@ -169,8 +195,14 @@ pub(super) fn synthesize_exact_records(
                 type_reference: field_type,
             }));
         }
+        let origin_node = syntax
+            .type_references
+            .type_reference(application.origin)
+            .clone();
+        let origin = syntax.type_references.insert(origin_node);
         push_record(
             syntax,
+            origin,
             &application.synthetic_name,
             members,
             application.generated_is_public,
@@ -178,7 +210,7 @@ pub(super) fn synthesize_exact_records(
         );
     }
     rewrite_applications(syntax, rewrites);
-    retire_accessor_templates(syntax);
+    retire_accessor_templates(syntax, sources);
     Ok(())
 }
 
@@ -218,14 +250,32 @@ fn accessor_name(
         "PlacedField"
     };
     Ok(format!(
-        "{base}<{},{},{}>",
-        application.policy,
-        application.schema,
+        "{base}<{},{}>",
+        application.synthetic_name,
         field.name.as_str()
     ))
 }
 
-pub(super) fn retire_accessor_templates(syntax: &mut SyntaxTrees) {
+fn sealed_accessor_template(machine: &Machine, sources: Option<&source::SourceMap>) -> bool {
+    machine
+        .attached_data
+        .as_ref()
+        .is_some_and(|attached| attached.as_str() == "PlacedField")
+        && sources.is_none_or(|sources| {
+            sources
+                .file_at(machine.name.source_span())
+                .is_some_and(|source| {
+                    source.origin == source::SourceOrigin::Toolchain
+                        && source.path.strip_prefix(&source.package_root).ok()
+                            == Some(std::path::Path::new("layout.omg"))
+                })
+        })
+}
+
+pub(super) fn retire_accessor_templates(
+    syntax: &mut SyntaxTrees,
+    sources: Option<&source::SourceMap>,
+) {
     // These generic declarations are elaboration inputs, not unrealized target
     // bodies. Retire their declaration roots after cloning exact accessors;
     // a synthetic target tag would keep them in all-target source checking and
@@ -234,8 +284,7 @@ pub(super) fn retire_accessor_templates(syntax: &mut SyntaxTrees) {
     let mut retained_roots = Vec::with_capacity(syntax.root_item_count());
     for handle in syntax.root_item_handles() {
         let is_template = matches!(syntax.root_item(*handle), Item::Machine(machine)
-            if machine.attached_data.as_ref()
-                .is_some_and(|attached| attached.as_str() == "PlacedField"));
+            if sealed_accessor_template(machine, sources));
         if !is_template {
             retained_roots.push(*handle);
         }
@@ -321,6 +370,7 @@ fn access_is_exported(access: &FieldAccess) -> bool {
 
 fn push_record(
     syntax: &mut SyntaxTrees,
+    origin: TypeReferenceHandle,
     name: &str,
     members: Vec<DataMember>,
     is_public: bool,
@@ -347,7 +397,7 @@ fn push_record(
         supply_mode: DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
-        generic_instance: None,
+        generic_instance: Some(origin),
         properties: DataProperties {
             multiplicity: Multiplicity::Linear,
             carry: None,

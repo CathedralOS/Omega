@@ -157,9 +157,11 @@ pub fn admit_executable_entry_receiver(
     // boundary is what must lend each referent — and the final image replay
     // must still prove the disjoint backing, exact entry pointer, stack
     // switch, and normal-return continuation before publication.
-    Ok(Some(settled.with_placed_view_establishments(
-        placed_view_establishments,
-    )))
+    Ok(Some(
+        settled
+            .with_placed_view_establishments(placed_view_establishments)
+            .with_private_entry_ram(input.private_entry_ram()),
+    ))
 }
 
 /// An admission that retains no hosted receiver boundary emits no shim that

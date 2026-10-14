@@ -163,7 +163,9 @@ impl RangeRelations {
                     // Forming an alias does not write its backing. A later
                     // call or actual write invalidates potentially aliased
                     // storage through the common mutation inventory below.
-                    O::EstablishReference { .. } | O::EstablishElementView { .. } => Effect::None,
+                    O::EstablishReference { .. }
+                    | O::EstablishPlacedReference { .. }
+                    | O::EstablishElementView { .. } => Effect::None,
                     abstract_operations::call_or_call_structural_pattern!(..)
                     | O::BoundaryCall { .. }
                     | O::ExternalCompletion { .. } => Effect::ForgetStorage,

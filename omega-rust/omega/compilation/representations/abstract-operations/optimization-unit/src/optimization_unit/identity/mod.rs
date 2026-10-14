@@ -68,4 +68,6 @@ pub(super) fn scalar_receiving_identity_bytes(
     bytes.finish()
 }
 
-pub use unit_encoding::recompute_psi_optimization_unit_identity;
+pub use unit_encoding::{
+    placed_view_catalog_identity_bytes, recompute_psi_optimization_unit_identity,
+};

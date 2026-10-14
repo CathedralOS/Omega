@@ -236,7 +236,8 @@ impl OperationKind {
         map: &mut impl FnMut(PlaceId, StructuralAccess) -> PlaceId,
     ) {
         match self {
-            Self::EstablishReference { source, .. }
+            Self::EstablishPlacedReference { source }
+            | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. } => {
                 source.place = map(source.place, source.access);
@@ -368,7 +369,8 @@ impl OperationKind {
             Self::ByteSequencePredicate { operand, .. } => {
                 projections.push(argument_projection(operand.argument()));
             }
-            Self::EstablishReference { source, .. }
+            Self::EstablishPlacedReference { source }
+            | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. }
             | Self::ElementViewLength { source }
@@ -476,7 +478,8 @@ impl OperationKind {
             Self::ByteSequencePredicate { operand, .. } => {
                 paths.push(&mut operand.argument_mut().path);
             }
-            Self::EstablishReference { source, .. }
+            Self::EstablishPlacedReference { source }
+            | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. }
             | Self::ElementViewLength { source }

@@ -16,6 +16,7 @@ use terminal_installation::TerminalPlacedViewEstablishment;
 pub struct VerifiedNativeArtifactInput {
     optimization_input: VerifiedPsiOptimizationInput,
     placed_view_establishments: Vec<TerminalPlacedViewEstablishment>,
+    private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
 }
 
 impl VerifiedNativeArtifactInput {
@@ -39,6 +40,72 @@ impl VerifiedNativeArtifactInput {
             .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
         lower_decoded_native_module(module, entry, Some(selections))?
             .try_into_native_input(establishments)
+    }
+
+    /// Original guest-owned initialized storage the invocation boundary must construct.
+    /// Opaque establishments alone never answer this physical lending demand.
+    pub fn private_entry_ram(&self) -> &[terminal_installation::CheckedPrivateEntryRamRecipe] {
+        &self.private_entry_ram
+    }
+
+    pub fn prepare_with_private_entry_ram(
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        profile: target::TargetProfile,
+        root: terminal_psi::TargetMachineCallable,
+        recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+    ) -> Result<Self, ArtifactLoweringError> {
+        if recipes
+            .iter()
+            .any(|recipe| recipe.terminal() != artifact.view().identity())
+        {
+            return Err(ArtifactLoweringError::TargetFamily(
+                "private entry RAM recipe belongs to another Terminal artifact".into(),
+            ));
+        }
+        if !recipes.is_empty() {
+            let selections = terminal_installation::admit_target_machine_selections(
+                artifact.view(),
+                profile.target_name(),
+            );
+            let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
+                .map_err(|reason| {
+                    ArtifactLoweringError::TargetFamily(format!(
+                        "private entry RAM selected geometry is unavailable: {reason:?}"
+                    ))
+                })?;
+            if recipes.iter().any(|recipe| recipe.layouts() != &layouts) {
+                return Err(ArtifactLoweringError::TargetFamily(
+                    "private entry RAM recipe belongs to another target or selected geometry"
+                        .into(),
+                ));
+            }
+        }
+        let establishments = recipes
+            .iter()
+            .enumerate()
+            .map(|(index, recipe)| {
+                let (identity, _) = terminal_installation::private_entry_ram_identity_pair(
+                    artifact.view().module(),
+                    index,
+                )
+                .ok_or_else(|| {
+                    ArtifactLoweringError::TargetFamily(
+                        "private entry RAM identity namespace is exhausted".into(),
+                    )
+                })?;
+                Ok(TerminalPlacedViewEstablishment {
+                    input: recipe.input().clone(),
+                    referent: terminal_installation::TerminalStructuralValue::minted(
+                        identity,
+                        recipe.schema(),
+                        Vec::new(),
+                    ),
+                })
+            })
+            .collect::<Result<Vec<_>, ArtifactLoweringError>>()?;
+        let mut input = Self::prepare(artifact, profile, root, &establishments)?;
+        input.private_entry_ram = recipes.to_vec();
+        Ok(input)
     }
 
     pub fn plan(&self) -> &AbstractOperationPlan {
@@ -263,9 +330,8 @@ impl AdmittedNativeArtifact {
     /// carries noncanonical qualifications, or overlaps another exclusive
     /// referent rejects here rather than at access, and a row left
     /// unanswered still fails custody — a roster or a pointer is not the
-    /// authority that lends the referent. Native execution of the derived
-    /// placed-entry ABI with a lent host referent is exercised by the
-    /// compiler control `direct_placed_view_input_survives_codec_and_native_replay`.
+    /// authority that lends the referent. This semantic establishment does not realize a native host
+    /// entry lender; publication retains that physical-entry refusal.
     pub(crate) fn try_into_native_input(
         self,
         establishments: &[TerminalPlacedViewEstablishment],
@@ -278,6 +344,7 @@ impl AdmittedNativeArtifact {
         Ok(VerifiedNativeArtifactInput {
             optimization_input: self.optimization_input,
             placed_view_establishments,
+            private_entry_ram: Vec::new(),
         })
     }
 }
@@ -301,4 +368,107 @@ pub(super) fn lower_decoded_native_module(
             ),
         },
     })
+}
+
+#[cfg(test)]
+mod private_entry_target_tests {
+    use super::*;
+
+    // A data-only consumer of the actual public CLI's canonical output. This
+    // deliberately runs no Source compiler inside the Rust test process.
+    #[test]
+    #[ignore = "explicit qualification consumes OMEGA_ENTRY_RAM_CANONICAL_ARTIFACT"]
+    fn checked_private_entry_recipe_cannot_rebind_target() {
+        let path = std::env::var_os("OMEGA_ENTRY_RAM_CANONICAL_ARTIFACT")
+            .expect("qualification must supply the actual canonical artifact");
+        let bytes = std::fs::read(path).expect("read actual retained canonical bytes");
+        let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+            .expect("independent canonical admission");
+        let terminal_psi::TargetMachineCallable::Machine(entry) = artifact.semantic_module().entry
+        else {
+            panic!("fixture must select an ordinary machine")
+        };
+        let row = artifact
+            .semantic_module()
+            .placed_view_inputs
+            .iter()
+            .find(|row| row.machine == entry)
+            .expect("actual direct placed row")
+            .clone();
+        let selections =
+            terminal_installation::admit_target_machine_selections(artifact.view(), "linux_x86_64");
+        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
+            .expect("actual Linux selected geometry");
+        // Public receiving data controls use the actual canonical entry row.
+        // A fresh private allocation cannot answer a stale or changed demand.
+        let mut wrong_schema = row.clone();
+        assert_ne!(wrong_schema.schema_identity, wrong_schema.policy_identity);
+        wrong_schema.schema_identity = wrong_schema.policy_identity;
+        let mut wrong_seal = row.clone();
+        wrong_seal.placement_commitment[0] ^= 1;
+        let mut wrong_source_position = row.clone();
+        wrong_source_position.position += 1;
+        let mut wrong_runtime_position = row.clone();
+        wrong_runtime_position.runtime_position += 1;
+        let mut wrong_access = row.clone();
+        wrong_access.access = terminal_psi::StructuralAccess::Owned;
+        let mut wrong_binding = row.clone();
+        wrong_binding.binding_is_mutable = !wrong_binding.binding_is_mutable;
+        let mut stale_machine = row.clone();
+        stale_machine.machine = semantic_vocabulary::MachineId::new(u64::MAX).unwrap();
+        for input in [
+            wrong_schema,
+            wrong_seal,
+            wrong_source_position,
+            wrong_runtime_position,
+            wrong_access,
+            wrong_binding,
+            stale_machine,
+        ] {
+            let failure = terminal_installation::admit_private_entry_ram(
+                artifact.view(),
+                &layouts,
+                entry,
+                &terminal_installation::PrivateEntryRamRecipe {
+                    input,
+                    contents: vec![41, 0, 0, 0, 3, 0, 0, 0],
+                },
+            )
+            .expect_err("changed row must not lend private RAM");
+            assert!(failure.contains("exact borrowed entry row"), "{failure}");
+        }
+        let recipe = terminal_installation::admit_private_entry_ram(
+            artifact.view(),
+            &layouts,
+            entry,
+            &terminal_installation::PrivateEntryRamRecipe {
+                input: row,
+                contents: vec![41, 0, 0, 0, 3, 0, 0, 0],
+            },
+        )
+        .expect("complete real checked typed initializer");
+        assert_eq!(recipe.layouts(), &layouts);
+        assert_eq!(recipe.target(), "linux_x86_64");
+        for profile in [target::TargetProfile::MacosArm64] {
+            let other_selections = terminal_installation::admit_target_machine_selections(
+                artifact.view(),
+                profile.target_name(),
+            );
+            let other =
+                terminal_installation::admit_target_layouts(artifact.view(), &other_selections)
+                    .expect("other target has independently admitted geometry");
+            assert_ne!(recipe.layouts(), &other);
+            let failure = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
+                &artifact,
+                profile,
+                artifact.semantic_module().entry,
+                std::slice::from_ref(&recipe),
+            )
+            .expect_err("same checked receipt cannot be rebound to another target");
+            assert!(
+                format!("{failure:?}").contains("another target or selected geometry"),
+                "{failure:?}"
+            );
+        }
+    }
 }

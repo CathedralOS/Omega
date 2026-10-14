@@ -12,6 +12,7 @@ test = true
 
 [dependencies]
 mimalloc = { version = "0.1", default-features = false }
+bounded-process = { path = "../../foundation/bounded-process" }
 compiler = { path = "../../compilation/driver" }
 compilation-products = { path = "../../compilation/products" }
 artifacts = { path = "../../foundation/artifacts" }

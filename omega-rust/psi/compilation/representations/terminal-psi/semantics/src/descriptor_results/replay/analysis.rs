@@ -22,6 +22,16 @@ impl<'a> DescriptorAnalysis<'a> {
             replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::References),
         }
     }
+    /// Formation provenance follows value/borrow transport, independently of
+    /// ordinary reference storage address replay.
+    pub fn with_placed_origins(
+        types: &'a [StructuralTypeDeclaration],
+        machines: &'a [DescriptorMachine],
+    ) -> Self {
+        Self {
+            replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::PlacedOrigins),
+        }
+    }
     pub(in crate::descriptor_results) fn compatibility_machines(&self) -> &[DescriptorMachine] {
         self.replay.machines
     }
@@ -159,6 +169,17 @@ impl<'a> DescriptorAnalysis<'a> {
         let call = machine.calls.get(&position)?;
         let callee = self.replay.machine(call.callee)?;
         let exported = match origin {
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::PlacedFormation {
+                machine,
+                operation,
+                place,
+                carrier,
+            }) => DescriptorStoredOrigin::PlacedFormation {
+                machine: *machine,
+                operation: *operation,
+                place: *place,
+                carrier: *carrier,
+            },
             DescriptorSourceOrigin::IncomingSlot(location) => {
                 let (position, _, ty) = self.replay.parameter(callee, location.root)?;
                 if !self
@@ -479,7 +500,9 @@ impl<'a> DescriptorAnalysis<'a> {
                 }
                 for origin in origins {
                     let source = match origin {
-                        DescriptorStoredOrigin::Literal { .. } | DescriptorStoredOrigin::Empty => {
+                        DescriptorStoredOrigin::Literal { .. }
+                        | DescriptorStoredOrigin::Empty
+                        | DescriptorStoredOrigin::PlacedFormation { .. } => {
                             continue;
                         }
                         DescriptorStoredOrigin::IncomingSlot { position, path } => {

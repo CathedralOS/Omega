@@ -1,0 +1,85 @@
+// Frozen typed transfer observations: 1111 from the helper and original RAM.
+use omega::language::core::layout;
+use omega::language::core::float_operations;
+pub data ScalarRegisters { signed: i16; flag: bool; narrow: f32; wide: f64; }
+pub data ScalarPlacement {}
+machine ScalarPlacement::plan(schema: Schema) -> PlacementPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 2 } };
+    entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 4 } };
+    entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 8 } };
+    let access: AccessPlan = AccessPlan::inaccessible(&schema);
+    transition { _ -> field0(schema, access, entries) }
+    state field0(schema: Schema, access: AccessPlan, entries: [FieldEntry; 64]) -> PlacementPlan {
+        transition { _ -> field1(schema, AccessPlan::with(access, schema.fields[0].key, FieldAccess::External { read: ExternalRead::Read, write: true, exposure: Exposure::Exported }), entries) }
+    }
+    state field1(schema: Schema, access: AccessPlan, entries: [FieldEntry; 64]) -> PlacementPlan {
+        transition { _ -> field2(schema, AccessPlan::with(access, schema.fields[1].key, FieldAccess::External { read: ExternalRead::Read, write: true, exposure: Exposure::Exported }), entries) }
+    }
+    state field2(schema: Schema, access: AccessPlan, entries: [FieldEntry; 64]) -> PlacementPlan {
+        transition { _ -> field3(schema, AccessPlan::with(access, schema.fields[2].key, FieldAccess::External { read: ExternalRead::Read, write: true, exposure: Exposure::Exported }), entries) }
+    }
+    state field3(schema: Schema, access: AccessPlan, entries: [FieldEntry; 64]) -> PlacementPlan {
+        transition { _ -> finish(AccessPlan::with(access, schema.fields[3].key, FieldAccess::External { read: ExternalRead::Read, write: true, exposure: Exposure::Exported }), entries) }
+    }
+    state finish(access: AccessPlan, entries: [FieldEntry; 64]) -> PlacementPlan {
+        let mut services: [u64; 32];
+        services[0] = 7;
+        PlacementPlan { layout: Plan { entries: entries, entry_count: 4, size_fixed: 16, size_is_dynamic: false, align: 8 }, access: access, reach: BoundaryReach { services: services, service_count: 0 } }
+    }
+}
+machine observations(signed: i16, flag: bool, narrow: f32, wide: f64) -> u32 {
+    transition signed == -7 {
+        true -> flag_part(flag, narrow, wide, 1000)
+        false -> flag_part(flag, narrow, wide, 0)
+    }
+    state flag_part(flag: bool, narrow: f32, wide: f64, value: u32) {
+        transition flag {
+            true -> narrow_part(narrow, wide, value + 100)
+            false -> narrow_part(narrow, wide, value)
+        }
+    }
+    state narrow_part(narrow: f32, wide: f64, value: u32) {
+        transition narrow == -1.25 {
+            true -> wide_part(wide, value + 10)
+            false -> wide_part(wide, value)
+        }
+    }
+    state wide_part(wide: f64, value: u32) {
+        transition wide == -2.5 {
+            true -> finish(value + 1)
+            false -> finish(value)
+        }
+    }
+    state finish(value: u32) { value }
+}
+machine mutate(view: &mut Placed<ScalarPlacement, ScalarRegisters>) -> u32 {
+    view.signed.write(&mut view.signed, -7);
+    view.flag.write(&mut view.flag, true);
+    view.narrow.write(&mut view.narrow, -1.25);
+    view.wide.write(&mut view.wide, -2.5);
+    let signed: i16 = view.signed.read(&view.signed);
+    let flag: bool = view.flag.read(&view.flag);
+    let narrow: f32 = view.narrow.read(&view.narrow);
+    let wide: f64 = view.wide.read(&view.wide);
+    observations(signed, flag, narrow, wide)
+}
+machine run(main: &mut Main) reaches Console {
+    let mut registers: ScalarRegisters = ScalarRegisters { signed: 3, flag: false, narrow: 1.5, wide: 2.5 };
+    let view: &mut Placed<ScalarPlacement, ScalarRegisters> = Placed::view_mut<ScalarPlacement, ScalarRegisters>(&mut registers);
+    let observed: u32 = mutate(view);
+    Main::number(main, observed as u64 in Wrapping);
+    Main::number(main, observations(registers.signed, registers.flag, registers.narrow, registers.wide) as u64 in Wrapping);
+}
+use omega_language_std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console { run(main); main.console.exit_process(0); }
+machine Main::number(main: &mut Main, value: u64 in Wrapping) reaches Console {
+    main.console.write_byte(((value / 1000) % 10) as i32 + 48);
+    main.console.write_byte(((value / 100) % 10) as i32 + 48);
+    main.console.write_byte(((value / 10) % 10) as i32 + 48);
+    main.console.write_byte((value % 10) as i32 + 48);
+    main.console.write_byte(10);
+}

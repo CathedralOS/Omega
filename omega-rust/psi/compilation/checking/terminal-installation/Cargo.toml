@@ -8,3 +8,4 @@ version.workspace = true
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
+terminal-semantics = { path = "../../representations/terminal-psi/semantics" }

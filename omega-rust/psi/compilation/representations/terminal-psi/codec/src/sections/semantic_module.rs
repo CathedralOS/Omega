@@ -45,6 +45,9 @@ use canonical_order::{
 use contract_wire::{decode_crash_routes, encode_crash_routes};
 use module_foundation_validation::validate_structural_foundation;
 use module_wire::{decode_module_body, encode_raw};
+
+#[cfg(test)]
+mod qualified_cleanup_receiving_tests;
 use proposition_wire::{decode_proposition, encode_proposition};
 use scalar_term_wire::{decode_scalar_term, encode_scalar_term};
 use terminal_psi::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity};
@@ -78,7 +81,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Returned storage origins retain admitted declaration-relative interpretations.
 // Placed input rows retain their dense formal coordinate and carrier identity.
 // Returned origins distinguish precise projections from public input regions.
-pub(crate) const FORMAT_MARKER: u16 = 155;
+// Placed views, quotients and captured closed conformances share this schema.
+pub(crate) const FORMAT_MARKER: u16 = 157;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

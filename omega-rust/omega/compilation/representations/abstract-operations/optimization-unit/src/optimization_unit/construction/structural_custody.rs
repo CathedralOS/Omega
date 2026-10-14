@@ -99,7 +99,8 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(*source);
             places.insert(result.place);
         }
-        O::EstablishReference { result, source, .. } => {
+        O::EstablishReference { result, source, .. }
+        | O::EstablishPlacedReference { result, source, .. } => {
             places.insert(result.place);
             places.insert(source.place);
         }
@@ -166,6 +167,7 @@ pub(super) fn collect_operation_structural_places(
             result,
             ..
         }
+        | AbstractOperation::EstablishPlacedReference { psi_operation, result, .. }
         // The extraction's moved subtree is a fresh structural operation
         // result; its place joins the catalog exactly like an
         // establishment's.

@@ -87,15 +87,23 @@ fn report_bodyless_boundary_symbol_call(
     target_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let compiler_placed_accessor = callee_machine
-        .attached_data
-        .as_ref()
-        .is_some_and(|attached| attached.as_str().starts_with("PlacedField<"));
+    // Only installed accessor targets have a compiler-owned realization.
+    // An authored generic data's generated spelling is never such evidence.
+    let compiler_placed_accessor = program
+        .placed_view_plans
+        .iter()
+        .flat_map(|view| &view.fields)
+        .flat_map(|field| &field.accessor_targets)
+        .any(|target| target.machine_symbol == callee_machine.symbol);
+    let compiler_placed_factory = program
+        .placed_borrow_factory(callee_machine.symbol)
+        .is_some();
     if matches!(
         callee_machine.supply_mode,
         language_semantics::MachineSupplyMode::Boundary
             | language_semantics::MachineSupplyMode::TopLevelRequirement
     ) && !compiler_placed_accessor
+        && !compiler_placed_factory
         && !callee_machine.body_is_present
         && !is_directly_callable_top_level_requirement(program, callee_machine, current_machine)
     {

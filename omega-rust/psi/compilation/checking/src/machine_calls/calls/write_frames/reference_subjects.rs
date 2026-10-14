@@ -690,11 +690,43 @@ pub(super) fn validate_source_projection(
             _ => return None,
         }
         let formation = crate::reference_formation_source(program, recast.formation_expression)?;
-        if !formation.view_type.is_valid()
+        if !matches!(
+            formation.interpretation,
+            crate::ReferenceFormationInterpretation::RepresentationView
+                | crate::ReferenceFormationInterpretation::Placed
+        ) || !formation.view_type.is_valid()
             || program.normalized_type_identity(formation.view_type)
                 != program.normalized_type_identity(recast.target_type)
         {
             return None;
+        }
+        if formation.interpretation == crate::ReferenceFormationInterpretation::Placed {
+            // Placement keeps a logical accessor namespace beside the exact
+            // original schema. It does not obtain ordinary recast permission.
+            let view = crate::value_custody::places::data_definition_for_type(
+                program,
+                formation.view_type,
+            )?;
+            let mut plans = program
+                .placed_view_plans
+                .iter()
+                .filter(|plan| plan.data_symbol == view.symbol);
+            let (Some(plan), None) = (plans.next(), plans.next()) else {
+                return None;
+            };
+            let root = source_root_type(program, state, index, recast.root)?;
+            let source_type = crate::project_type_reference_from_segments(
+                program,
+                carrier_storage_type(program, root)?,
+                &recast.segments,
+            )?;
+            let schema = crate::value_custody::places::data_definition_for_type(
+                program,
+                carrier_storage_type(program, source_type)?,
+            )?;
+            if schema.symbol != plan.schema_symbol {
+                return None;
+            }
         }
         presentation = Some(recast.target_type);
     }

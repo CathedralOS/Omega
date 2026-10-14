@@ -103,9 +103,9 @@ pub(super) fn validate(
         bytes,
         2,
         MachineEncodedMemoryEffect::ZeroBytesV1 {
-                    destination_pointer_operand: 0,
-                    count_operand: 1,
-                },
+            destination_pointer_operand: 0,
+            count_operand: 1,
+        },
     )
 }
 

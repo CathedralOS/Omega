@@ -388,7 +388,8 @@ fn collect_calls(
                     // cannot map an element back to one exact original index.
                     collect_calls(function, parent, visited, calls)?;
                 }
-                I::EstablishReference { source: parent, .. } => {
+                I::EstablishReference { source: parent, .. }
+                | I::EstablishPlacedReference { source: parent, .. } => {
                     let suffix = match coordinate.path.split_first() {
                         Some((terminal_psi::StructuralPathSegment::Referent, suffix)) => suffix,
                         None => &[],

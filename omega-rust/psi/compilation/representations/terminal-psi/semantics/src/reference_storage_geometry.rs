@@ -208,6 +208,8 @@ fn storage_path<'types>(
                 // A pending record's absent field recipe is not its logical
                 // scalar width or a declaration-order byte offset.
                 let offset = match storage {
+                    terminal_psi::StructuralRecordStorage::PlacedView(_)
+                    | terminal_psi::StructuralRecordStorage::PlacedAccessor(_) => return None,
                     StructuralRecordStorage::TargetLayout(_) => return None,
                     StructuralRecordStorage::Authored(_) => {
                         field.storage.as_ref()?.byte_offset()?

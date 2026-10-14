@@ -94,6 +94,29 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                         terminal_psi::FenceOrdering::ReceivePublish => 3,
                     });
                 }
+                LegalizedScalarInstructionKind::PlacedScalarAccess {
+                    boundary,
+                    realization,
+                    location,
+                    interpretation,
+                    operand,
+                    indices,
+                } => {
+                    bytes.push(245);
+                    encode_runtime_indices(bytes, indices);
+                    bytes.extend_from_slice(&boundary.get().to_le_bytes());
+                    bytes.extend_from_slice(&realization.contract);
+                    super::boundary_invocations::encode_placed_scalar_demand(
+                        bytes,
+                        realization.demand,
+                    );
+                    super::structural_types::encode_structural_argument(bytes, location);
+                    super::placed_bindings::encode_interpretation(bytes, interpretation);
+                    bytes.push(u8::from(operand.is_some()));
+                    if let Some(value) = operand {
+                        bytes.extend_from_slice(&value.get().to_le_bytes());
+                    }
+                }
                 LegalizedScalarInstructionKind::AtomicAccess {
                     location,
                     field,
@@ -227,6 +250,54 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     crate::codec_bytes::push_encoded(bytes, result_case.get().to_le_bytes());
                     super::structural_types::encode_record_initializers(bytes, fields);
                     super::read_byte::encode_layout(bytes, layout);
+                }
+                LegalizedScalarInstructionKind::EstablishPlacedReference {
+                    result,
+                    source,
+                    correspondence,
+                    indices,
+                    shape,
+                } => {
+                    bytes.push(94);
+                    super::structural_result::encode_operation_result(bytes, result);
+                    super::structural_types::encode_structural_argument(bytes, source);
+                    crate::codec_bytes::push_encoded(
+                        bytes,
+                        correspondence.schema.get().to_le_bytes(),
+                    );
+                    crate::codec_bytes::push_encoded(
+                        bytes,
+                        correspondence.carrier.get().to_le_bytes(),
+                    );
+                    crate::codec_bytes::push_encoded(
+                        bytes,
+                        correspondence.source_byte_length.to_le_bytes(),
+                    );
+                    crate::codec_bytes::push_encoded(
+                        bytes,
+                        correspondence.required_base.modulus().to_le_bytes(),
+                    );
+                    crate::codec_bytes::push_encoded(
+                        bytes,
+                        correspondence.required_base.residue().to_le_bytes(),
+                    );
+                    encode_len(bytes, correspondence.fields.len());
+                    for field in &correspondence.fields {
+                        crate::codec_bytes::push_encoded(bytes, field.access_slot.to_le_bytes());
+                        crate::codec_bytes::push_encoded(
+                            bytes,
+                            field.source_field.get().to_le_bytes(),
+                        );
+                        crate::codec_bytes::push_encoded(bytes, field.byte_offset.to_le_bytes());
+                        crate::codec_bytes::push_encoded(
+                            bytes,
+                            field.transfer_width_bits.to_le_bytes(),
+                        );
+                        encode_scalar_type(bytes, field.logical_scalar);
+                        encode_scalar_type(bytes, field.stored_scalar);
+                    }
+                    super::calling::encode_shape(bytes, *shape);
+                    encode_runtime_indices(bytes, indices);
                 }
                 LegalizedScalarInstructionKind::EstablishReference {
                     result,

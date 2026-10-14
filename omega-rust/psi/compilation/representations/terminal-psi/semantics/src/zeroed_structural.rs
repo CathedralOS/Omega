@@ -192,6 +192,12 @@ fn zeroed_declaration_graph(
                 }
                 continue;
             }
+            StructuralTypeShape::Record {
+                storage:
+                    terminal_psi::StructuralRecordStorage::PlacedView(_)
+                    | terminal_psi::StructuralRecordStorage::PlacedAccessor(_),
+                ..
+            } => return false,
             StructuralTypeShape::Record { fields, .. } => (fields.as_slice(), None),
             StructuralTypeShape::Sum { cases } => (&[][..], Some(cases)),
             StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), Some(cases)),

@@ -1445,7 +1445,10 @@ fn shape_inner(
             ) {
                 return None;
             }
-            if let terminal_psi::StructuralRecordStorage::Authored(storage) = storage {
+            if let terminal_psi::StructuralRecordStorage::Authored(storage)
+            | terminal_psi::StructuralRecordStorage::PlacedView(storage)
+            | terminal_psi::StructuralRecordStorage::PlacedAccessor(storage) = storage
+            {
                 active.pop();
                 return Some(ValueShape::integer(
                     u32::try_from(storage.byte_size).ok()?,

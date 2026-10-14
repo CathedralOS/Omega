@@ -98,6 +98,12 @@ fn disposable_storage<'types>(
         StructuralTypeShape::ByteSequence(carrier) => {
             descriptor_cleanup || matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
         }
+        StructuralTypeShape::Record {
+            storage:
+                terminal_psi::StructuralRecordStorage::PlacedView(_)
+                | terminal_psi::StructuralRecordStorage::PlacedAccessor(_),
+            ..
+        } => false,
         StructuralTypeShape::Record { fields, .. } => {
             fields_are_disposable(types.clone(), fields, descriptor_cleanup, visiting)
         }

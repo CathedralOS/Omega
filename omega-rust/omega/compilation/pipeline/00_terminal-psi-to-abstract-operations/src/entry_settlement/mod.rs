@@ -96,6 +96,7 @@ pub fn validate_native_program_entry_settlement(
         fused_service_establishments: program_entry.fused_service_establishments.to_vec(),
         // Executable input supplies these loans, not declaration settlement.
         placed_view_establishments: Vec::new(),
+        private_entry_ram: Vec::new(),
     })
 }
 

@@ -56,9 +56,9 @@ impl AbstractOperation {
                 structural_arguments,
                 ..
             } => exclusive(structural_arguments),
-            Self::EstablishReference { source, .. } | Self::EstablishElementView { source, .. } => {
-                exclusive(std::slice::from_ref(source))
-            }
+            Self::EstablishReference { source, .. }
+            | Self::EstablishPlacedReference { source, .. }
+            | Self::EstablishElementView { source, .. } => exclusive(std::slice::from_ref(source)),
             Self::PrimitiveLocalStore { destination, .. }
             | Self::ByteSequenceWrite { destination, .. }
             | Self::ElementViewWrite { destination, .. }

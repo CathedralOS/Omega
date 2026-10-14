@@ -37,6 +37,7 @@ mod ieee_float_arithmetic;
 mod integer_arithmetic;
 pub(in crate::selection) mod integer_conversion;
 mod normalized_foreign;
+mod placed_scalar_access;
 mod process_exit;
 mod scalar_call;
 mod scalar_stack;
@@ -308,6 +309,9 @@ fn select_function(
                 )?;
                 continue;
             }
+            if placed_scalar_access::emit(source, operation, &mut builder)? {
+                continue;
+            }
             if atomic_access::emit(function, source, operation, &mut builder)? {
                 continue;
             }
@@ -362,7 +366,8 @@ fn select_function(
                         output
                     }
                     LegalizedScalarInstructionKind::AtomicFence { .. }
-                    | LegalizedScalarInstructionKind::AtomicAccess { .. } => {
+                    | LegalizedScalarInstructionKind::AtomicAccess { .. }
+                    | LegalizedScalarInstructionKind::PlacedScalarAccess { .. } => {
                         return Err(invalid());
                     }
                     LegalizedScalarInstructionKind::IeeeFloatCompare { .. } => {
@@ -456,6 +461,7 @@ fn select_function(
                     | LegalizedScalarInstructionKind::StoreStructuralField { .. }
                     | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
+                    | LegalizedScalarInstructionKind::EstablishPlacedReference { .. }
                     | LegalizedScalarInstructionKind::ReleaseReference { .. }
                     | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                     | LegalizedScalarInstructionKind::HostedReadByte { .. }

@@ -300,6 +300,16 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
         }
         StructuralTypeShape::Record { fields, storage } => {
             match storage {
+                terminal_psi::StructuralRecordStorage::PlacedView(storage) => {
+                    bytes.push(14);
+                    crate::codec_bytes::push_encoded(bytes, storage.byte_size.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, storage.byte_alignment.to_le_bytes());
+                }
+                terminal_psi::StructuralRecordStorage::PlacedAccessor(storage) => {
+                    bytes.push(15);
+                    crate::codec_bytes::push_encoded(bytes, storage.byte_size.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, storage.byte_alignment.to_le_bytes());
+                }
                 terminal_psi::StructuralRecordStorage::Packed => bytes.push(2),
                 terminal_psi::StructuralRecordStorage::Authored(storage) => {
                     bytes.push(10);
@@ -312,7 +322,12 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
                 }
             }
             encode_structural_fields(bytes, fields);
-            if matches!(storage, terminal_psi::StructuralRecordStorage::Authored(_)) {
+            if matches!(
+                storage,
+                terminal_psi::StructuralRecordStorage::Authored(_)
+                    | terminal_psi::StructuralRecordStorage::PlacedView(_)
+                    | terminal_psi::StructuralRecordStorage::PlacedAccessor(_)
+            ) {
                 for field in fields {
                     encode_authored_field_storage(bytes, field.storage.as_ref());
                 }

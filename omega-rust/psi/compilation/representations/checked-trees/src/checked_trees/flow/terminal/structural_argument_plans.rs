@@ -18,6 +18,9 @@ use typed_trees::types::PrimitiveType;
 pub enum CheckedReferenceStorage {
     #[default]
     Declared,
+    /// Exact factory formation over its captured initialized ordinary schema.
+    /// The result carrier selects the retained placement at publication.
+    Placed,
     View {
         stored_scalar: Option<semantic_vocabulary::ScalarType>,
     },

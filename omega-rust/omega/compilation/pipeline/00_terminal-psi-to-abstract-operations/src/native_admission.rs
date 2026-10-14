@@ -21,6 +21,7 @@ use terminal_codec::CanonicalTerminalArtifact;
 pub struct NativeAdmissionRequest<'request, 'execution> {
     /// Exact retained callable selected by the application's checked custody.
     pub entry: terminal_psi::TargetMachineCallable,
+    pub private_entry_ram: &'request [terminal_installation::CheckedPrivateEntryRamRecipe],
     /// Canonical boundary obligations required by this deployment's receiver.
     /// They retain selected bodies but grant no installation or runtime custody.
     pub receiving_provider_roots: &'request [semantic_vocabulary::BoundaryMachineId],
@@ -52,11 +53,11 @@ pub fn admit_native_realization<'execution>(
     artifact: &CanonicalTerminalArtifact,
     request: &NativeAdmissionRequest<'_, 'execution>,
 ) -> Result<AdmittedNativeRealization<'execution>, Vec<Diagnostic>> {
-    let input = VerifiedNativeArtifactInput::prepare(
+    let input = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
         artifact,
         request.providers.profile,
         request.entry,
-        &[],
+        request.private_entry_ram,
     )
     .map_err(artifact_lowering_error)?;
     let input = input

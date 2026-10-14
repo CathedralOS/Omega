@@ -24,6 +24,8 @@ mod load32_tests;
 #[cfg(test)]
 mod narrow_load_tests;
 mod packed;
+#[cfg(test)]
+mod placed_scalar_tests;
 mod pointer;
 #[cfg(test)]
 mod pointer_tests;
@@ -35,6 +37,33 @@ pub fn encode_aarch64_selected_memory_form(
     operands: &[RegisterViewId],
     displacement: i64,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if let SelectedInstructionKind::PlacedScalarAccess {
+        form, byte_offset, ..
+    } = kind
+    {
+        if alternative.family != MachineAlternativeFamily::PlacedScalarAccess(form)
+            || alternative.variant != 0
+        {
+            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+        }
+        let ordinary = form
+            .ordinary_kind(byte_offset)
+            .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+        let semantic = form
+            .ordinary_semantic()
+            .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+        let alternative = MachineAlternativeKey {
+            family: semantic.into(),
+            variant: 0,
+        };
+        return encode_aarch64_selected_memory_form(
+            physical,
+            ordinary,
+            alternative,
+            operands,
+            displacement,
+        );
+    }
     if matches!(
         kind,
         SelectedInstructionKind::SaveFloatingControl { .. }
@@ -102,6 +131,34 @@ pub fn validate_aarch64_selected_memory_form(
     displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if let SelectedInstructionKind::PlacedScalarAccess {
+        form, byte_offset, ..
+    } = kind
+    {
+        if alternative.family != MachineAlternativeFamily::PlacedScalarAccess(form)
+            || alternative.variant != 0
+        {
+            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+        }
+        let ordinary = form
+            .ordinary_kind(byte_offset)
+            .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+        let semantic = form
+            .ordinary_semantic()
+            .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+        let alternative = MachineAlternativeKey {
+            family: semantic.into(),
+            variant: 0,
+        };
+        return validate_aarch64_selected_memory_form(
+            physical,
+            ordinary,
+            alternative,
+            operands,
+            displacement,
+            bytes,
+        );
+    }
     if matches!(
         kind,
         SelectedInstructionKind::SaveFloatingControl { .. }

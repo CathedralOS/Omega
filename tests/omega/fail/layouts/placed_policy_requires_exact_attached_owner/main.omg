@@ -1,0 +1,4 @@
+use omega::language::core::layout;
+use first;
+use second;
+machine rejected(view: &Placed<first::RegPlacement, first::Registers>) -> u32 { 0 }

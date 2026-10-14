@@ -6,6 +6,8 @@ use target_operations::MachineRegister;
 /// Numeric variants are deliberately not inferred by target-neutral stages.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedConstraintKeys {
+    pub placed_read: Option<RegisterConstraintKey>,
+    pub placed_write: Option<RegisterConstraintKey>,
     pub atomic_fence: Option<RegisterConstraintKey>,
     pub atomic_load: Option<RegisterConstraintKey>,
     pub atomic_store: Option<RegisterConstraintKey>,

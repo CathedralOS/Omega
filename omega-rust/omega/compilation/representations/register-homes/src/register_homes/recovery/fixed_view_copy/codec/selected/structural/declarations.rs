@@ -88,6 +88,16 @@ pub(super) fn encode_type(
         }
         StructuralTypeShape::Record { fields, storage } => {
             match storage {
+                terminal_psi::StructuralRecordStorage::PlacedView(storage) => {
+                    bytes.push(14);
+                    crate::codec_bytes::push_encoded(bytes, storage.byte_size.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, storage.byte_alignment.to_le_bytes());
+                }
+                terminal_psi::StructuralRecordStorage::PlacedAccessor(storage) => {
+                    bytes.push(15);
+                    crate::codec_bytes::push_encoded(bytes, storage.byte_size.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, storage.byte_alignment.to_le_bytes());
+                }
                 terminal_psi::StructuralRecordStorage::Packed => bytes.push(2),
                 terminal_psi::StructuralRecordStorage::Authored(storage) => {
                     bytes.push(10);
@@ -100,7 +110,12 @@ pub(super) fn encode_type(
                 }
             }
             encode_fields(bytes, fields)?;
-            if matches!(storage, terminal_psi::StructuralRecordStorage::Authored(_)) {
+            if matches!(
+                storage,
+                terminal_psi::StructuralRecordStorage::Authored(_)
+                    | terminal_psi::StructuralRecordStorage::PlacedView(_)
+                    | terminal_psi::StructuralRecordStorage::PlacedAccessor(_)
+            ) {
                 for field in fields {
                     encode_authored_field_storage(bytes, field.storage.as_ref());
                 }
@@ -148,6 +163,24 @@ pub(super) fn decode_type(
             storage: terminal_psi::StructuralRecordStorage::Packed,
             fields: decode_fields(cursor)?,
         },
+        tag @ (14 | 15) => {
+            let geometry = semantic_vocabulary::AuthoredRecordStorage {
+                byte_size: cursor.u64()?,
+                byte_alignment: cursor.u64()?,
+            };
+            let mut fields = decode_fields(cursor)?;
+            for field in &mut fields {
+                field.storage = decode_authored_field_storage(cursor)?;
+            }
+            StructuralTypeShape::Record {
+                fields,
+                storage: if tag == 14 {
+                    terminal_psi::StructuralRecordStorage::PlacedView(geometry)
+                } else {
+                    terminal_psi::StructuralRecordStorage::PlacedAccessor(geometry)
+                },
+            }
+        }
         13 => StructuralTypeShape::Record {
             storage: terminal_psi::StructuralRecordStorage::TargetLayout(
                 terminal_psi::LayoutApplicationId(cursor.u32()?),

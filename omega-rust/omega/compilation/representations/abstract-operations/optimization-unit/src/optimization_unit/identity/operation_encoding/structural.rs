@@ -291,6 +291,30 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_structural_operation_result(bytes, result);
             bytes.slice(fields, encode_record_initializer);
         }
+        O::EstablishPlacedReference {
+            psi_operation,
+            result,
+            source,
+            correspondence,
+        } => {
+            bytes.u8(113);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            encode_structural_argument(bytes, source);
+            bytes.id(correspondence.schema);
+            bytes.id(correspondence.carrier);
+            bytes.u64(correspondence.source_byte_length);
+            bytes.u64(correspondence.required_base.modulus());
+            bytes.u64(correspondence.required_base.residue());
+            bytes.slice(&correspondence.fields, |bytes, field| {
+                bytes.u32(field.access_slot);
+                bytes.id(field.source_field);
+                bytes.u64(field.byte_offset);
+                bytes.u16(field.transfer_width_bits);
+                super::super::carrier_encoding::encode_scalar_type(bytes, field.logical_scalar);
+                super::super::carrier_encoding::encode_scalar_type(bytes, field.stored_scalar);
+            });
+        }
         O::EstablishReference {
             psi_operation,
             result,

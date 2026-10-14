@@ -126,7 +126,8 @@ impl DescriptorLoans {
                         births.extend(origins.iter().filter_map(|origin| match origin {
                             terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, projection } => Some((position, DescriptorLocation::whole(result.place), *source, projection.clone(), StructuralAccess::SharedBorrow)),
                             terminal_semantics::descriptor_results::DescriptorCallOrigin::Empty
-                            | terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal { .. } => None,
+                            | terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal { .. }
+                            | terminal_semantics::descriptor_results::DescriptorCallOrigin::PlacedFormation { .. } => None,
                         }));
                     } else if matches!(node.operation, O::StructuralLeafCopy { .. })
                         && terminal_semantics::descriptor_results::is_shared_descriptor(
@@ -698,7 +699,9 @@ fn operation_observations(
                 retain(argument.place, projection);
             }
         }
-        O::EstablishReference { source, .. } | O::EstablishElementView { source, .. } => {
+        O::EstablishReference { source, .. }
+        | O::EstablishPlacedReference { source, .. }
+        | O::EstablishElementView { source, .. } => {
             retain(source.place, projected(source.place, &source.path, None));
         }
         _ => {

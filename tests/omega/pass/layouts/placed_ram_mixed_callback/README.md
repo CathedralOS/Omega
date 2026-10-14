@@ -1,0 +1,1 @@
+This Source control names the same sealed accessor body as an ordinary captured-RAM callee and a separately published native callback. Source signature compatibility grants no lender for the callback arrival. Native admission must refuse the external formal, even though all ordinary calls use initialized captured RAM. Do not execute this fixture or accept an exit oracle for it.

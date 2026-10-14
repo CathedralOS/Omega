@@ -16,6 +16,8 @@
 //! instructions and register tables. Wire identities still describe contents.
 
 mod atomic;
+mod placed_scalar;
+pub use placed_scalar::PlacedScalarForm;
 pub mod calls;
 mod float_result_policy;
 mod ieee_float_arithmetic;

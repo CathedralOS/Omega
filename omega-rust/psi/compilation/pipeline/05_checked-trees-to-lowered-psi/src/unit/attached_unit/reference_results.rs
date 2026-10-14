@@ -20,6 +20,13 @@ pub(crate) struct Formation<'checked> {
     pub(crate) expression: checked_trees::expression::ExpressionHandle,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum PublishedReferenceStorage {
+    Declared,
+    RepresentationView(terminal_psi::ReferenceStorageView),
+    Placed,
+}
+
 /// Publish the source-selected storage interpretation once at formation.
 /// A projected backing already captures its byte endpoint, so a view's
 /// relative offset is zero. Callers that retain a scalar binding namespace
@@ -29,14 +36,20 @@ pub(crate) fn publish_storage(
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<
-    Option<(
-        terminal_psi::ReferenceStorageView,
-        terminal_psi::ValueDeclaration,
-    )>,
+    (
+        PublishedReferenceStorage,
+        Option<terminal_psi::ValueDeclaration>,
+    ),
     LoweringError,
 > {
     let checked_trees::CheckedReferenceStorage::View { stored_scalar } = storage else {
-        return Ok(None);
+        return Ok((
+            match storage {
+                checked_trees::CheckedReferenceStorage::Placed => PublishedReferenceStorage::Placed,
+                _ => PublishedReferenceStorage::Declared,
+            },
+            None,
+        ));
     };
     let byte_offset = crate::terminal_identities::value_id(allocate_dense(next_value)?);
     let value = terminal_psi::ValueDeclaration {
@@ -54,20 +67,20 @@ pub(crate) fn publish_storage(
             value: semantic_vocabulary::IntegerValue::Unsigned(0),
         },
     });
-    Ok(Some((
-        terminal_psi::ReferenceStorageView {
+    Ok((
+        PublishedReferenceStorage::RepresentationView(terminal_psi::ReferenceStorageView {
             byte_offset,
             stored_scalar,
-        },
-        value,
-    )))
+        }),
+        Some(value),
+    ))
 }
 
 pub(super) fn emit(
     formation: Formation<'_>,
     result: &CheckedUnitStructuralResultBindingPlan,
     source: StructuralArgument,
-    storage: Option<terminal_psi::ReferenceStorageView>,
+    storage: PublishedReferenceStorage,
     types: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     next_place: &mut u64,
@@ -89,7 +102,7 @@ pub(crate) fn emit_carrier(
     formation: Formation<'_>,
     structural_type: StructuralTypeId,
     source: StructuralArgument,
-    storage: Option<terminal_psi::ReferenceStorageView>,
+    storage: PublishedReferenceStorage,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     place: semantic_vocabulary::PlaceId,
     operations: &mut OperationBuffer,
@@ -103,9 +116,20 @@ pub(crate) fn emit_carrier(
         .ok_or(LoweringError::Unsupported("loan carrier type is missing"))?;
     let (kind, multiplicity) = match declaration.shape {
         terminal_psi::StructuralTypeShape::Reference { .. } => (
-            OperationKind::EstablishReference {
-                source: source.clone(),
-                storage,
+            match storage {
+                PublishedReferenceStorage::Placed => OperationKind::EstablishPlacedReference {
+                    source: source.clone(),
+                },
+                PublishedReferenceStorage::Declared => OperationKind::EstablishReference {
+                    source: source.clone(),
+                    storage: None,
+                },
+                PublishedReferenceStorage::RepresentationView(view) => {
+                    OperationKind::EstablishReference {
+                        source: source.clone(),
+                        storage: Some(view),
+                    }
+                }
             },
             StructuralMultiplicity::Affine,
         ),
@@ -113,7 +137,7 @@ pub(crate) fn emit_carrier(
             terminal_psi::byte_sequence_view_carrier_pattern!(),
         )
         | terminal_psi::StructuralTypeShape::ElementView { .. }
-            if storage.is_none() =>
+            if matches!(storage, PublishedReferenceStorage::Declared) =>
         {
             let element = match declaration.shape {
                 terminal_psi::StructuralTypeShape::ElementView { element } => element,

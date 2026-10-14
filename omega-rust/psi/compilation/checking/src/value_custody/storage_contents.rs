@@ -615,13 +615,17 @@ fn resolve(
                     // These operations retain the complete structural type and
                     // its independent membership/custody judgments. A routed
                     // atom changes those judgments, not the recursively owned
-                    // carrier. Copy, erasure and stable-observation permission
-                    // remain separate; scalar predicates keep their codecs below.
+                    // carrier. Descriptor cleanup still requires the recursive
+                    // no-hook/no-linear classification; it supplies no membership,
+                    // captured loan or selected disposal authority. Copy, erasure
+                    // and stable-observation permission remain separate; scalar
+                    // predicates keep their codecs below.
                     if matches!(requirement,
                         ContentsRequirement::StructuralConstruction
                             | ContentsRequirement::RepresentedOwned
                             | ContentsRequirement::BorrowedStorage
-                            | ContentsRequirement::BorrowFree)
+                            | ContentsRequirement::BorrowFree
+                            | ContentsRequirement::DescriptorCleanup)
                         && matches!(contents, ContentType::Data { .. })
                         && domain.subject == typed_trees::types::DomainConstraintSubject::Declared
                         && domain.semantic_id.is_valid()

@@ -86,3 +86,54 @@ pub fn validate_placement_plan(
     validated.content_interpretation = authoritative_placement_interpretation(&validated);
     Ok(validated)
 }
+
+/// Complete source-free normalized placement input for transport. This is
+/// description, never a storage, permission, provider or lifetime grant.
+/// Reading it at foreign ingress must normalize it before consuming geometry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacementPlanSnapshot {
+    pub layout: LayoutPlanReport,
+    /// Canonical access-slot order, including inaccessible fields.
+    pub access: Vec<crate::FieldAccess>,
+    pub reach: BoundaryReach,
+}
+
+impl ValidatedPlacementPlan {
+    pub fn snapshot(&self) -> PlacementPlanSnapshot {
+        PlacementPlanSnapshot {
+            layout: self.layout.clone(),
+            access: self
+                .access
+                .plan()
+                .entries()
+                .iter()
+                .map(|entry| entry.access().clone())
+                .collect(),
+            reach: self.reach.clone(),
+        }
+    }
+}
+
+impl PlacementPlanSnapshot {
+    /// Reissue keys from the exact layout, then normalize every access and
+    /// footprint. A serialized slot cannot import a key from another plan.
+    pub fn validate(self) -> Result<ValidatedPlacementPlan, AccessPlanDiagnostic> {
+        let mut access = AccessPlan::inaccessible(&self.layout)?;
+        if access.entries().len() != self.access.len() {
+            return Err(AccessPlanDiagnostic(
+                "placement snapshot access cardinality differs from its exact layout".into(),
+            ));
+        }
+        for (slot, field_access) in self.access.into_iter().enumerate() {
+            let key = access.key_at(slot).ok_or_else(|| {
+                AccessPlanDiagnostic("placement snapshot lost its canonical access slot".into())
+            })?;
+            access.set(key, field_access)?;
+        }
+        validate_placement_plan(PlacementPlan {
+            layout: self.layout,
+            access,
+            reach: self.reach,
+        })
+    }
+}

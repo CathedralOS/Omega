@@ -26,6 +26,8 @@ pub use terminal_installation::TerminalPlacedViewEstablishment;
 /// occurrence and return it to the suspended caller without reminting custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PlacedViewOccurrence {
+    /// A checked local RAM borrow stays distinct from a host establishment.
+    pub(crate) ram: Option<crate::reference::PlacedRamReference>,
     /// Original view carrier presented by the current frame.
     pub(crate) view: StructuralRuntimePlace,
     /// Runtime place of the lent referent backing.
@@ -179,6 +181,7 @@ pub(crate) fn establish_placed_view_inputs(
             .insert(
                 row.clone(),
                 PlacedViewOccurrence {
+                    ram: None,
                     view: StructuralRuntimePlace::from(view),
                     referent,
                     structural_type: establishment.referent.structural_type,
@@ -215,39 +218,87 @@ impl crate::execution::TerminalExecution<'_> {
             let argument = arguments
                 .get(row.runtime_position as usize)
                 .ok_or_else(malformed)?;
-            let (resolved, _) =
-                self.present_structural_argument(argument, parameter.structural_type)?;
+            let (resolved, ram) = self.resolve_live_placed_projection(argument)?;
             let presented = values.get(&parameter.place).ok_or_else(malformed)?;
-            let source = self
-                .placed_view_occurrences
-                .iter()
-                .find(|(source, occurrence)| {
-                    occurrence.view == StructuralRuntimePlace::from(&resolved)
-                        && source.view_identity == row.view_identity
-                        && source.policy_identity == row.policy_identity
-                        && source.policy_plan_machine_identity == row.policy_plan_machine_identity
-                        && source.schema_identity == row.schema_identity
-                        && source.placement_commitment == row.placement_commitment
-                        && source.placement_report_fingerprint == row.placement_report_fingerprint
-                        && match (source.access, row.access) {
-                            (
-                                StructuralAccess::MutableBorrow,
-                                StructuralAccess::SharedBorrow
-                                | StructuralAccess::MutableBorrow
-                                | StructuralAccess::WriteOnlyBorrow,
-                            ) => true,
-                            (left, right) => left == right,
-                        }
-                })
-                .ok_or(TerminalInterpretError::PlacedViewInputsRequireCustody)?;
             if argument.access != row.access
                 || presented.structural_type != parameter.structural_type
             {
                 return Err(malformed());
             }
-            let occurrence = PlacedViewOccurrence {
-                view: StructuralRuntimePlace::from(presented),
-                ..source.1.clone()
+            let occurrence = if let Some(mut ram) = ram {
+                self.validate_placed_ram_home(&ram)?;
+                let plan = module
+                    .placed_view_plans
+                    .iter()
+                    .find(|plan| plan.carrier == ram.correspondence.carrier)
+                    .ok_or_else(malformed)?;
+                if ram.selected_field.is_some()
+                    || ram.presentation != resolved
+                    || ram.correspondence.carrier != parameter.structural_type
+                    || !crate::reference::access_covers(ram.access, row.access)
+                    || (
+                        row.view_identity,
+                        row.policy_identity,
+                        row.policy_plan_machine_identity,
+                        row.schema_identity,
+                        row.placement_commitment,
+                        row.placement_report_fingerprint,
+                    ) != (
+                        plan.view_identity,
+                        plan.policy_identity,
+                        plan.policy_plan_machine_identity,
+                        plan.schema_identity,
+                        plan.placement.content_interpretation().commitment(),
+                        plan.placement.identity().compatibility_fingerprint(),
+                    )
+                {
+                    return Err(malformed());
+                }
+                ram.access = row.access;
+                ram.presentation = presented.clone();
+                PlacedViewOccurrence {
+                    view: StructuralRuntimePlace::from(presented),
+                    referent: StructuralRuntimePlace::from(&ram.source),
+                    structural_type: ram.source.structural_type,
+                    qualifications: ram.source.qualifications.clone(),
+                    ram: Some(ram),
+                }
+            } else {
+                let source = self
+                    .placed_view_occurrences
+                    .iter()
+                    .find(|(source, occurrence)| {
+                        occurrence.view == StructuralRuntimePlace::from(&resolved)
+                            && source.view_identity == row.view_identity
+                            && source.policy_identity == row.policy_identity
+                            && source.policy_plan_machine_identity
+                                == row.policy_plan_machine_identity
+                            && source.schema_identity == row.schema_identity
+                            && source.placement_commitment == row.placement_commitment
+                            && source.placement_report_fingerprint
+                                == row.placement_report_fingerprint
+                            && match (source.access, row.access) {
+                                (
+                                    StructuralAccess::MutableBorrow,
+                                    StructuralAccess::SharedBorrow
+                                    | StructuralAccess::MutableBorrow
+                                    | StructuralAccess::WriteOnlyBorrow,
+                                ) => true,
+                                (left, right) => left == right,
+                            }
+                    })
+                    .ok_or(TerminalInterpretError::PlacedViewInputsRequireCustody)?;
+                let mut occurrence = source.1.clone();
+                occurrence.view = StructuralRuntimePlace::from(presented);
+                if let Some(ram) = &mut occurrence.ram {
+                    self.validate_placed_ram_home(ram)?;
+                    if !crate::reference::access_covers(ram.access, row.access) {
+                        return Err(malformed());
+                    }
+                    ram.access = row.access;
+                    ram.presentation = presented.clone();
+                }
+                occurrence
             };
             for (other_row, other) in &bound {
                 if (exclusive(row.access) || exclusive(other_row.access))

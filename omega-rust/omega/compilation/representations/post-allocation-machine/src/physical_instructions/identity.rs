@@ -113,6 +113,18 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
         }
     }
     match instruction.address {
+        Some(crate::PhysicalAddressOperation::PlacedScalarAccess {
+            base_operand,
+            byte_offset,
+            form,
+            contract,
+        }) => {
+            bytes.push(16);
+            bytes.extend_from_slice(&base_operand.to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            bytes.push(form.machine_payload());
+            bytes.extend_from_slice(&contract);
+        }
         Some(crate::PhysicalAddressOperation::SaveFloatingControl { slot }) => {
             bytes.push(14);
             slot.encode_identity(bytes);

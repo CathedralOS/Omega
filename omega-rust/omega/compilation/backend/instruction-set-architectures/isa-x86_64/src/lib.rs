@@ -190,3 +190,5 @@ pub use semantic_unit_wrapper_encoding::{
     resolve_x86_64_semantic_unit_wrapper_private_continuation,
     validate_x86_64_semantic_unit_wrapper_template,
 };
+
+pub use register_model::{X86_64_PLACED_READ, X86_64_PLACED_WRITE};

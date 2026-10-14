@@ -626,6 +626,10 @@ pub(crate) fn lower_unit_structural_type_roots(
                 if let checked_trees::CheckedUnitRecordStorage::TargetLayout {
                     schema_type_identity,
                     ..
+                }
+                | checked_trees::CheckedUnitRecordStorage::PlacedView {
+                    schema_type_identity,
+                    ..
                 } = storage
                 {
                     collect(checked, plans, *schema_type_identity, active, selected)?;
@@ -804,6 +808,12 @@ pub(crate) fn lower_unit_structural_type_roots(
                 StructuralTypeShape::Record {
                     fields,
                     storage: match storage {
+                        checked_trees::CheckedUnitRecordStorage::PlacedView { storage, .. } => {
+                            terminal_psi::StructuralRecordStorage::PlacedView(*storage)
+                        }
+                        checked_trees::CheckedUnitRecordStorage::PlacedAccessor(storage) => {
+                            terminal_psi::StructuralRecordStorage::PlacedAccessor(*storage)
+                        }
                         checked_trees::CheckedUnitRecordStorage::Packed => {
                             terminal_psi::StructuralRecordStorage::Packed
                         }

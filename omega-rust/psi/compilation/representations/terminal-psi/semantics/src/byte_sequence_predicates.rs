@@ -445,6 +445,7 @@ pub fn byte_copied_field_predicates_at_transfer(
                 && (may_change_owned_source(candidate, source)
                     || matches!(&candidate.kind,
                 OperationKind::EstablishReference { source: argument, .. }
+                | OperationKind::EstablishPlacedReference { source: argument }
                 | terminal_psi::element_view_establish_pair_pattern!(source: argument, ..)
                 if argument.place == source)
                     || matches!(&candidate.kind, OperationKind::ByteSequenceSubslice { source: viewed, .. }

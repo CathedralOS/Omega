@@ -33,3 +33,7 @@ backend-plan = { path = "../../backend/plans/backend-plan" }
 effects = { path = "../../backend/plans/provider-evidence" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 target = { path = "../../backend/target" }
+
+[dev-dependencies]
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
+terminal-fuel = { path = "../../../../psi/compilation/representations/terminal-psi/fuel" }

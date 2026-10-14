@@ -40,6 +40,7 @@ pub(super) fn validate(
             if parameter.position as usize != position
                 || !places.insert(parameter.place)
                 || (!plain(parameter)
+                    && !qualified_owned_arrival(parameter, types, domains)
                     && !(parameter.qualifications.is_empty()
                         && terminal_semantics::view_descriptor_parameter(
                             parameter,
@@ -97,7 +98,35 @@ pub(super) fn validate(
                 .zip(&destination.structural_parameters)
             {
                 let source = source_contract(function, binding.argument.place, types);
-                let exact_source = if qualified_shared_view(parameter, types) {
+                let exact_source = if qualified_owned_arrival(parameter, types, domains) {
+                    // An owned arrival delivers the exact whole value or
+                    // selected subtree, including its source-carried domain
+                    // roster. Geometry is not issuance: operation validation
+                    // checks the producer and ownership replay transfers the
+                    // live occurrence before selected-edge cleanup.
+                    super::super::operation_contracts::structural_source_contract(
+                        function, binding.argument.place,
+                    ).is_some_and(|source| {
+                        source.access == StructuralAccess::Owned
+                            && binding.argument.access == StructuralAccess::Owned
+                            && if binding.argument.path.is_empty() {
+                                source.structural_type == parameter.structural_type
+                                    && source.multiplicity == parameter.multiplicity
+                            } else {
+                                source.multiplicity == StructuralMultiplicity::Affine
+                                    && matches!(parameter.multiplicity,
+                                        StructuralMultiplicity::Affine | StructuralMultiplicity::Linear)
+                                    && crate::unit_validation::structural_catalog::resolve_structural_path(
+                                        types, source.structural_type, &binding.argument.path,
+                                    ) == Some(parameter.structural_type)
+                            }
+                            && source.supplies_qualifications(
+                                &binding.argument.path,
+                                &parameter.qualifications,
+                                &parameter.projected_qualifications,
+                            )
+                    })
+                } else if qualified_shared_view(parameter, types) {
                     qualified_shared_view_source(function, &binding.argument, parameter)
                 } else if owner_loan(parameter, types) || qualified_owned_bytes(parameter, types) {
                     // A bounded owner or its loan is forwarded whole
@@ -305,6 +334,43 @@ pub(super) fn validate(
         }
     }
     Ok(())
+}
+
+/// Nominal aggregate arrivals keep source-carried qualifications. Byte,
+/// element-view, reference and binding carriers retain their distinct
+/// content, backing and permission contracts. Catalog validity and required
+/// membership correspondence grant no new membership or issuer authority;
+/// live custody remains the separate current-ownership transaction.
+fn qualified_owned_arrival(
+    parameter: &StructuralParameterDeclaration,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+) -> bool {
+    parameter.access == StructuralAccess::Owned
+        && !qualified_owned_bytes(parameter, types)
+        && types
+            .get(&parameter.structural_type)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::Record { .. }
+                        | StructuralTypeShape::Sum { .. }
+                        | StructuralTypeShape::Mixed { .. }
+                        | StructuralTypeShape::FixedArray { .. }
+                )
+            })
+        && (!parameter.qualifications.is_empty() || !parameter.projected_qualifications.is_empty())
+        && crate::unit_validation::structural_catalog::structural_qualifications_match(
+            parameter.structural_type,
+            &parameter.qualifications,
+            domains,
+        )
+        && crate::unit_validation::structural_catalog::structural_projected_qualifications_match(
+            parameter.structural_type,
+            &parameter.projected_qualifications,
+            types,
+            domains,
+        )
 }
 
 /// The declared byte evidence a projected path ends at: its last segment

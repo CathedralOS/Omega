@@ -233,18 +233,18 @@ impl Evaluation {
         operations: &OperationBuffer,
     ) -> Result<(), LoweringError> {
         self.cleanup_emission(checked, &mut Vec::new())
-        .capture_arguments(
-            identities,
-            arguments,
-            declarations,
-            values,
-            next_place,
-            places,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-        )
+            .capture_arguments(
+                identities,
+                arguments,
+                declarations,
+                values,
+                next_place,
+                places,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+            )
     }
 
     /// Flat schedules remain on the completion edge; selected schedules use
@@ -298,8 +298,7 @@ impl Evaluation {
                 condition.place = self.current_structural_place(condition.place);
             }
         }
-        self.cleanup_emission(checked, &mut Vec::new())
-        .emit(
+        self.cleanup_emission(checked, &mut Vec::new()).emit(
             identities, &regions, values, next_value, next_block, next_edge, operations,
         )
     }

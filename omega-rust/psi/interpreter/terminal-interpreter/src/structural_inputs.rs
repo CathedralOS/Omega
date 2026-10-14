@@ -57,4 +57,6 @@ pub struct TerminalStructuralInputs<'input> {
     /// invocation's duration. An entry declaring no placed-view inputs leaves
     /// this empty.
     pub placed_view_establishments: &'input [TerminalPlacedViewEstablishment],
+    /// Explicit checked demand to construct original private typed entry storage.
+    pub private_entry_ram: &'input [terminal_installation::CheckedPrivateEntryRamRecipe],
 }

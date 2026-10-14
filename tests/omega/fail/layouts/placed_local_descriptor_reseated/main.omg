@@ -1,0 +1,250 @@
+// Native receiving refusal only; do not execute.
+// Expected exit: 0. Expected streams are frozen from original-storage oracles.
+// Captured native and Terminal values must agree with expected_stdout.txt.
+use omega::language::core::layout;
+
+pub data Registers {
+    status: u32;
+    transmit: u8;
+}
+
+pub data RegPlacement {}
+
+machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    let access: AccessPlan = AccessPlan::inaccessible(&schema);
+    transition { _ -> place_status(schema, access, entries) }
+
+    state place_status(
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        transition { _ -> place_transmit(
+            schema,
+            AccessPlan::with(
+                access,
+                schema.fields[0].key,
+                FieldAccess::External {
+                    read: ExternalRead::Read,
+                    write: false,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    state place_transmit(
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        transition { _ -> finish(
+            AccessPlan::with(
+                access,
+                schema.fields[1].key,
+                FieldAccess::External {
+                    read: ExternalRead::None,
+                    write: true,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    state finish(
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        let mut services: [u64; 32];
+        services[0] = 7;
+        PlacementPlan {
+            layout: Plan {
+                entries: entries,
+                entry_count: 2,
+                size_fixed: 8,
+                size_is_dynamic: false,
+                align: 4,
+            },
+            access: access,
+            reach: BoundaryReach {
+                services: services,
+                service_count: 0,
+            },
+        }
+    }
+}
+
+// The host establishes the backing and binds these exact generated accessors.
+// Delegation retains the original backing; neither wrapper stages contents.
+machine observe(view: &Placed<RegPlacement, Registers>) -> u32 {
+    view.status.read(&view.status)
+}
+
+machine delegate(view: &Placed<RegPlacement, Registers>) -> u32 { observe(view) }
+
+machine mutate(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+    view.transmit.write(&mut view.transmit, 9);
+    view.status.read(&view.status)
+}
+
+machine delegate_mutable(view: &mut Placed<RegPlacement, Registers>) -> u32 { mutate(view) }
+
+machine forward(view: &mut Placed<RegPlacement, Registers>) -> u32 { delegate_mutable(view) }
+
+machine ordered(first: &Placed<RegPlacement, Registers>, second: &Placed<RegPlacement, Registers>) -> u64 {
+    let first_status: u32 = observe(first);
+    let second_status: u32 = observe(second);
+    (first_status as u64) * 1000 + (second_status as u64)
+}
+
+machine reordered(left: &Placed<RegPlacement, Registers>, right: &Placed<RegPlacement, Registers>) -> u64 {
+    ordered(right, left)
+}
+
+machine alias_entry(shared: &Placed<RegPlacement, Registers>, exclusive: &mut Placed<RegPlacement, Registers>) -> u64 {
+    let first: u32 = observe(shared);
+    let second: u32 = mutate(exclusive);
+    (first as u64) + (second as u64)
+}
+
+pub data Plain { value: u32; }
+
+machine mixed(seed: u32, plain: &Plain, view: &mut Placed<RegPlacement, Registers>) -> u64 {
+    let status: u32 = delegate_mutable(view);
+    (seed as u64) + (plain.value as u64) + (status as u64)
+}
+
+machine ordinary_alias(view: &Placed<RegPlacement, Registers>, storage: &mut Plain) -> u32 {
+    observe(view)
+}
+
+machine later(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+    transition { _ -> next(view) }
+    state next(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+        delegate_mutable(view)
+    }
+}
+
+// Unit-returning helpers use the same structural telescope and occurrence.
+machine write_only(view: &mut Placed<RegPlacement, Registers>) {
+    view.transmit.write(&mut view.transmit, 9);
+}
+machine unit_delegate(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+    write_only(view);
+    observe(view)
+}
+
+// Initialized ordinary RAM lends its source through the explicit factory.
+// Runtime acceptance is 41 with transmit changed to 9 in the same backing.
+machine ram_borrow() -> u32 {
+    let mut registers: Registers = Registers { status: 41, transmit: 3 };
+    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut registers);
+    let observed: u32 = mutate(view);
+    observed
+}
+
+machine ram_descriptor() -> u32 {
+    let mut registers: Registers = Registers { status: 41, transmit: 3 };
+    let mut source: &mut Registers = &mut registers;
+    let mut second: Registers = Registers { status: 73, transmit: 5 };
+    source = &mut second;
+    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(source);
+    mutate(view)
+}
+
+pub data SelectionCounter { count: u32; }
+machine choose_register(counter: &mut SelectionCounter) -> u64
+requires counter.count < 2
+ensures counter.count <= 2
+ensures result == 0
+{
+    counter.count = counter.count + 1;
+    0
+}
+
+// The selector must execute once; the independent eventual runtime oracle is 4101.
+machine ram_indexed() -> u64 {
+    let mut registers: [Registers; 2] = [
+        Registers { status: 41, transmit: 3 },
+        Registers { status: 73, transmit: 5 }
+    ];
+    let mut counter: SelectionCounter = SelectionCounter { count: 0 };
+    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut registers[choose_register(&mut counter)]);
+    let observed: u32 = mutate(view);
+    (observed as u64) * 100 + (counter.count as u64)
+}
+
+// Capture and retire initialized RAM without granting a scalar field operation.
+// Frozen interpreter result: 41 from the original storage after retirement.
+machine ram_capture_only() -> u32 {
+    let mut registers: Registers = Registers { status: 41, transmit: 3 };
+    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut registers);
+    registers.status
+}
+
+machine retain_ram(view: &mut Placed<RegPlacement, Registers>, counter: &mut SelectionCounter)
+requires counter.count < 1
+ensures counter.count <= 1
+{
+    counter.count = counter.count + 1;
+}
+
+machine return_ram<'a>(view: &'a mut Placed<RegPlacement, Registers>, counter: &mut SelectionCounter) -> &'a mut Placed<RegPlacement, Registers>
+requires counter.count < 1
+ensures counter.count <= 1
+{
+    counter.count = counter.count + 1;
+    view
+}
+
+// Frozen results: 4101; the ordinary helper runs once and the RAM loan retires.
+machine ram_capture_helper() -> u64 {
+    let mut registers: Registers = Registers { status: 41, transmit: 3 };
+    let mut counter: SelectionCounter = SelectionCounter { count: 0 };
+    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut registers);
+    retain_ram(view, &mut counter);
+    (registers.status as u64) * 100 + (counter.count as u64)
+}
+
+machine ram_capture_return() -> u64 {
+    let mut registers: Registers = Registers { status: 41, transmit: 3 };
+    let mut counter: SelectionCounter = SelectionCounter { count: 0 };
+    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut registers);
+    let returned: &mut Placed<RegPlacement, Registers> = return_ram(view, &mut counter);
+    (registers.status as u64) * 100 + (counter.count as u64)
+}
+
+// Frozen result4109 observes the original RAM after the write/read pair.
+machine ram_original_backing() -> u64 {
+    let mut registers: Registers = Registers { status: 41, transmit: 3 };
+    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut registers);
+    let observed: u32 = mutate(view);
+    (observed as u64) * 100 + (registers.transmit as u64)
+}
+
+
+use omega_language_std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    Main::number(main, ram_descriptor() as u64 in Wrapping);
+    main.console.exit_process(0);
+}
+machine Main::number(main: &mut Main, value: u64 in Wrapping) reaches Console {
+    main.console.write_byte(((value / 1000) % 10) as i32 + 48);
+    main.console.write_byte(((value / 100) % 10) as i32 + 48);
+    main.console.write_byte(((value / 10) % 10) as i32 + 48);
+    main.console.write_byte((value % 10) as i32 + 48);
+    main.console.write_byte(10);
+}

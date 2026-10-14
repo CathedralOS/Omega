@@ -95,12 +95,74 @@ pub struct ReferenceFormationSource {
     pub source: ExpressionHandle,
     pub access: language_core::ReferenceAccess,
     pub view_type: TypeReferenceHandle,
+    pub interpretation: ReferenceFormationInterpretation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReferenceFormationInterpretation {
+    Declared,
+    RepresentationView,
+    Placed,
 }
 
 pub fn reference_formation_source(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<ReferenceFormationSource> {
+    if let Some(call) = program.expression_table.call_node(expression) {
+        let selected = program.machine_by_symbol(call.target_symbol).or_else(|| {
+            crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
+                .map(|(machine, _)| machine)
+        })?;
+        let request = program.placed_borrow_factory(selected.symbol)?;
+        let result = crate::machine_calls::calls::call_result_type(program, expression)?;
+        let shell = crate::reference_shell(program, result)?;
+        if shell.access != request.access {
+            return None;
+        }
+        let referee = program
+            .type_reference_table
+            .peeled_type_reference(shell.referee);
+        let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(referee)
+        else {
+            return None;
+        };
+        let mut plans = program
+            .placed_view_plans
+            .iter()
+            .filter(|plan| plan.data_symbol == *symbol);
+        let (Some(_), None) = (plans.next(), plans.next()) else {
+            return None;
+        };
+        let [argument] = program.expression_table.expression_handles(call.arguments) else {
+            return None;
+        };
+        // The ordinary source capture evaluates selectors once and retains
+        // any stored reference crossings. This query adds no loan or access.
+        let source = match program.expression_table.expression(*argument) {
+            ExpressionNode::Borrow(borrow) => {
+                if !matches!(
+                    (borrow.access, request.access),
+                    (language_core::ReferenceAccess::Mutable, _)
+                        | (
+                            language_core::ReferenceAccess::Shared,
+                            language_core::ReferenceAccess::Shared
+                        )
+                ) {
+                    return None;
+                }
+                borrow.target
+            }
+            _ => *argument,
+        };
+        return Some(ReferenceFormationSource {
+            source,
+            access: request.access,
+            view_type: shell.referee,
+            interpretation: ReferenceFormationInterpretation::Placed,
+        });
+    }
     let (operand, borrowed_access) = match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow) => (borrow.target, Some(borrow.access)),
         _ => (expression, None),
@@ -122,12 +184,14 @@ pub fn reference_formation_source(
             source: strip_mutable(program, cast.value),
             access,
             view_type: cast.target_type,
+            interpretation: ReferenceFormationInterpretation::RepresentationView,
         });
     }
     Some(ReferenceFormationSource {
         source: operand,
         access: borrowed_access?,
         view_type: TypeReferenceHandle::default(),
+        interpretation: ReferenceFormationInterpretation::Declared,
     })
 }
 

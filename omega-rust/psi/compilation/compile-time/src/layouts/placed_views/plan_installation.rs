@@ -74,6 +74,14 @@ pub(super) fn install_placed_view_plan(
                 record.synthetic_name, record.schema_data
             ))]
         })?;
+    if policy_plan_machine.attached_data_symbol != policy.symbol {
+        return Err(vec![
+            Diagnostic::error(
+                "placed policy machine changed its exact attached owner after typing",
+            )
+            .with_source_span(record.policy_machine_source),
+        ]);
+    }
     let schema_fields = typed
         .data_members(schema)
         .iter()
@@ -101,6 +109,59 @@ pub(super) fn install_placed_view_plan(
             typed_trees::data::DataMember::Variant(_) => None,
         })
         .collect::<BTreeMap<_, _>>();
+    let templates = typed
+        .data_definitions()
+        .iter()
+        .filter(|definition| {
+            definition.name.as_str().rsplit("::").next() == Some("Placed")
+                && typed.symbols.symbol_source_span(definition.symbol)
+                    == Some(record.template_source)
+        })
+        .collect::<Vec<_>>();
+    let template_symbol = match templates.as_slice() {
+        [template] => template.symbol,
+        _ if typed.symbols.source_file(record.template_source).is_none() => {
+            symbols::SymbolHandle::default()
+        }
+        _ => {
+            return Err(vec![
+                Diagnostic::error("placed view lost its unique canonical template declaration")
+                    .with_source_span(record.template_source),
+            ]);
+        }
+    };
+    if template_symbol.is_valid() {
+        use typed_trees::types::TypeReferenceNode;
+        let origin = view.generic_instance.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "placed view lost its retained applied origin",
+            )]
+        })?;
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            lifetime_arguments,
+            ..
+        } = typed.type_reference_table.type_reference(origin)
+        else {
+            return Err(vec![Diagnostic::error(
+                "placed view retained origin is not an exact application",
+            )]);
+        };
+        let operands = typed
+            .type_reference_table
+            .type_reference_handles(*arguments);
+        if *base_symbol != template_symbol
+            || !lifetime_arguments.is_empty()
+            || !matches!(operands, [policy_operand, schema_operand]
+                if matches!(typed.type_reference_table.type_reference(*policy_operand), TypeReferenceNode::Named { symbol, .. } if *symbol == policy.symbol)
+                && matches!(typed.type_reference_table.type_reference(*schema_operand), TypeReferenceNode::Named { symbol, .. } if *symbol == schema.symbol))
+        {
+            return Err(vec![Diagnostic::error(
+                "placed view origin changed its exact template/policy/schema producers",
+            )]);
+        }
+    }
     let schema_symbol = schema.symbol;
     let data_symbol = view.symbol;
     let policy_symbol = policy.symbol;
@@ -236,6 +297,8 @@ pub(super) fn install_placed_view_plan(
             _ => None,
         };
         fields.push(typed_trees::typed_trees::PlacedFieldPlan {
+            access_key: entry.key(),
+            view_field_symbol: view_field.symbol,
             field_name: entry.field().to_owned(),
             member_identity: schema_field.identity,
             field_symbol: schema_field.symbol,
@@ -251,6 +314,7 @@ pub(super) fn install_placed_view_plan(
     typed
         .placed_view_plans
         .push(typed_trees::typed_trees::PlacedViewPlan {
+            template_symbol,
             data_name: record.synthetic_name.clone(),
             data_symbol,
             policy_name: policy_name.to_owned(),

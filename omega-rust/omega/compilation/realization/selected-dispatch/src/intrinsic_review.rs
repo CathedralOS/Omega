@@ -134,6 +134,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
         if retained.plan != *plan
             || retained.provider.row_requirements.len() != plan.rows.len()
             || retained.provider.row_realizations.len() != plan.rows.len()
+            || retained.provider.row_placed_accessors.len() != plan.rows.len()
             || !retained.row_compiler_intrinsic_executions.is_empty()
         {
             diagnostics.push(Diagnostic::error(format!(
@@ -144,6 +145,43 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             continue;
         }
 
+        let catalog_context = provider_planning::ProviderPlanningContext::new(
+            checked,
+            source::DependencyScope::Product,
+        );
+        let expected_placed =
+            match provider_planning::SealedPlacedAccessor::rejoin_plan(catalog_context, plan) {
+                Ok(witness) => witness,
+                Err(error) => {
+                    diagnostics.push(error);
+                    retained_rows.push(Vec::new());
+                    continue;
+                }
+            };
+        let catalog_role_matches = match retained.provider.schema {
+            provider_planning::ProviderSchemaDeclaration::SealedPlacedAccessor(symbol) => {
+                expected_placed
+                    .as_ref()
+                    .is_some_and(|witness| witness.machine() == symbol)
+                    && retained.provider.row_placed_accessors.as_slice()
+                        == std::slice::from_ref(&expected_placed)
+            }
+            _ => {
+                expected_placed.is_none()
+                    && retained
+                        .provider
+                        .row_placed_accessors
+                        .iter()
+                        .all(Option::is_none)
+            }
+        };
+        if !catalog_role_matches {
+            diagnostics.push(Diagnostic::error(
+                "selected intrinsic review substituted its placed catalog custody",
+            ));
+            retained_rows.push(Vec::new());
+            continue;
+        }
         let mut rows = Vec::with_capacity(plan.rows.len());
         for ((row, requirement_symbol), realization_symbol) in plan
             .rows

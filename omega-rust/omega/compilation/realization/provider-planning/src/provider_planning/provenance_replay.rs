@@ -32,6 +32,7 @@ pub enum ProviderSchemaDeclaration {
     BoundaryTrait(symbols::SymbolHandle),
     BoundaryRequirement(symbols::SymbolHandle),
     BoundaryOperator(symbols::SymbolHandle),
+    SealedPlacedAccessor(symbols::SymbolHandle),
 }
 
 impl ProviderSchemaDeclaration {
@@ -39,7 +40,8 @@ impl ProviderSchemaDeclaration {
         match self {
             Self::BoundaryTrait(symbol)
             | Self::BoundaryRequirement(symbol)
-            | Self::BoundaryOperator(symbol) => symbol,
+            | Self::BoundaryOperator(symbol)
+            | Self::SealedPlacedAccessor(symbol) => symbol,
         }
     }
 }
@@ -54,6 +56,8 @@ pub struct ProviderPlanProvenance {
     /// inferred rows. `None` is mandatory for ordinary checked, legacy
     /// external, and evaluated-payload rows.
     pub row_target_machine_origins: Vec<Option<SelectedTargetMachineOrigin>>,
+    /// Compiler-catalog custody is distinct from authored target-machine origins.
+    pub row_placed_accessors: Vec<Option<crate::SealedPlacedAccessor>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,7 +125,9 @@ impl<'a> ProviderPlanDerivation<'a> {
 
 /// Derive every provider plan the typed program's retained conformance
 /// satisfies, each with its provenance. This is the one derivation entry.
-pub fn derive_satisfies_plans(derivation: ProviderPlanDerivation<'_>) -> Vec<DerivedProviderPlan> {
+pub fn derive_satisfies_plans(
+    derivation: ProviderPlanDerivation<'_>,
+) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
     derive_provider_plans(
         derivation.context,
         derivation.calling_plans,

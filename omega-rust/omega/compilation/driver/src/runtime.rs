@@ -81,6 +81,8 @@ pub struct TerminalRuntimeObservation {
     pub status: TerminalExecutionStatus,
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
+    pub private_entry_ram: Vec<(u32, Vec<u8>)>,
+    pub effects: Vec<terminal_interpreter::TerminalEffect>,
 }
 
 #[derive(Debug)]
@@ -196,6 +198,18 @@ pub fn execute(
     let mut host_imports = Vec::new();
     if let Some(provisions) = request.provisions {
         for provision in provisions.host() {
+            // A placed RAM event is an internal semantic handler, not a host
+            // crossing. Leave its demand unresolved here: the entry-relative
+            // origin analysis below must prove captured or checked private RAM
+            // before removing it, and execution still validates the live loan.
+            if matches!(
+                provision.realization,
+                target_operations::BoundarySettlementRealization::Builtin(
+                    target_operations::BoundaryRealization::PlacedScalarAccess(_)
+                )
+            ) {
+                continue;
+            }
             if program
                 .external_completion_requirement(provision.boundary)
                 .is_none()
@@ -227,7 +241,13 @@ pub fn execute(
         ));
     }
     let requirements = program
-        .execution_requirements(Some(&installation))
+        .execution_requirements_with_private_entry_ram(
+            Some(&installation),
+            request
+                .provisions
+                .map(TerminalRuntimeProvisions::private_entry_ram)
+                .unwrap_or_default(),
+        )
         .map_err(TerminalRuntimeError::Requirements)?;
     if !requirements.missing_providers.is_empty() {
         return Err(TerminalRuntimeError::missing(
@@ -283,7 +303,13 @@ pub fn execute(
         .map_err(TerminalRuntimeError::Execution)?;
     let stdout = output.stdout.snapshot()?;
     let stderr = output.stderr.snapshot()?;
+    let private_entry_ram = instance
+        .observe_private_entry_ram()
+        .map_err(TerminalRuntimeError::Execution)?;
+    let effects = instance.effects().to_vec();
     Ok(TerminalRuntimeObservation {
+        effects,
+        private_entry_ram,
         status,
         stdout,
         stderr,

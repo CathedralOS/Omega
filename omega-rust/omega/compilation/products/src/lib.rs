@@ -81,3 +81,5 @@ pub use terminal_psi_to_abstract_operations::{
 /// publication. The compatibility name remains while callers migrate from the
 /// former legacy `EmissionPlan + EmittedProgram` payload.
 pub use native_artifact::NativeArtifact as RetainedNativeArtifact;
+
+pub use terminal_installation::PrivateEntryRamInitialization;

@@ -43,7 +43,8 @@ pub(super) fn project(
                 &signature.termination_guarantee,
             )
         }
-        ProviderSchemaDeclaration::BoundaryRequirement(symbol) => {
+        ProviderSchemaDeclaration::BoundaryRequirement(symbol)
+        | ProviderSchemaDeclaration::SealedPlacedAccessor(symbol) => {
             let machines = compilation
                 .machines()
                 .iter()

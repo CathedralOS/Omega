@@ -86,6 +86,7 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    pub(crate) private_entry_ram: Vec<crate::reference::placed_ram::PrivateEntryRamAllocation>,
     pub(crate) aggregate_argument_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
     /// A reference carrier owns this descriptor, never the referent's backing.
     /// Carrier identities survive structural call/return moves across frames.
@@ -329,6 +330,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         structural_scalar_field_arguments: &[TerminalStructuralScalarFieldValue],
         structural_primitive_value_arguments: &[TerminalStructuralPrimitiveValue],
         placed_view_establishments: &[TerminalPlacedViewEstablishment],
+        private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
         zero_initialized_arguments: &[u32],
         established_erased_fields: &[crate::structural_inputs::TerminalEstablishedErasedField],
         installation: Option<&TerminalRuntimeSupplies>,
@@ -408,6 +410,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             local_structural_identities,
             next_scalar_collection_identity: 1024,
             structural_scalar_fields: BTreeMap::new(),
+            private_entry_ram: Vec::new(),
             structural_byte_sequence_fields: BTreeMap::new(),
             structural_byte_storage: BTreeMap::new(),
             structural_cases: BTreeMap::new(),
@@ -492,6 +495,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             scalar_fields,
             zero_initialized_arguments,
         )?;
+        execution.establish_private_entry_ram(private_entry_ram, placed_view_establishments)?;
         Ok(execution)
     }
 
@@ -693,6 +697,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                 self.validate_case_projections(operation)?;
                 let flow = dispatch_operations!(self, operation, operation.kind;
                                     literal {
+                                    OperationKind::EstablishPlacedReference { ref source } => {
+                                        self.establish_placed_reference(operation, source)?;
+                                        OperationFlow::Advance
+                                    }
                                     OperationKind::EstablishReference {
                                         ref source,
                                         storage,

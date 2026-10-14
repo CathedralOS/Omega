@@ -26,6 +26,8 @@ pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;
 mod fnv1a;
 mod intrinsic_requirements;
+mod sealed_placed_accessors;
+pub use sealed_placed_accessors::{SealedPlacedAccessor, SealedPlacedScalarOperation};
 pub mod program_entry;
 mod provider_identity;
 pub use provider_identity::{

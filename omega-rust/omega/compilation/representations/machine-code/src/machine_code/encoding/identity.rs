@@ -68,6 +68,18 @@ fn encode_encoding_row(
         Some(address) => {
             use physical_instructions::PhysicalAddressOperation as Address;
             match address.symbolic {
+                Address::PlacedScalarAccess {
+                    base_operand,
+                    byte_offset,
+                    form,
+                    contract,
+                } => {
+                    hasher.byte(16);
+                    hasher.raw(&base_operand.to_le_bytes());
+                    hasher.raw(&byte_offset.to_le_bytes());
+                    hasher.byte(form.machine_payload());
+                    hasher.raw(&contract);
+                }
                 Address::HostedReadByte { slot } => {
                     hasher.byte(9);
                     let mut identity = Vec::new();

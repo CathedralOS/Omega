@@ -1,9 +1,15 @@
 use std::path::PathBuf;
 
-pub(crate) struct InspectTerminalArguments {
-    pub(crate) machine: String,
-    pub(crate) root_path: PathBuf,
-    pub(crate) target_name: Option<String>,
+pub(crate) enum InspectTerminalArguments {
+    Source {
+        machine: String,
+        root_path: PathBuf,
+        target_name: Option<String>,
+        output: Option<PathBuf>,
+    },
+    Artifact {
+        path: PathBuf,
+    },
 }
 
 pub(super) fn parse_inspect_terminal_arguments(
@@ -12,7 +18,25 @@ pub(super) fn parse_inspect_terminal_arguments(
     let mut machine = None;
     let mut root_path = None;
     let mut target_name = None;
+    let mut artifact_path = None;
+    let mut output = None;
     while let Some(argument) = arguments.next() {
+        if argument == "--output" {
+            if output.is_some() {
+                return None;
+            }
+            output = super::option_value(&mut arguments).map(PathBuf::from);
+            output.as_ref()?;
+            continue;
+        }
+        if argument == "--artifact" {
+            if artifact_path.is_some() {
+                return None;
+            }
+            artifact_path = super::option_value(&mut arguments).map(PathBuf::from);
+            artifact_path.as_ref()?;
+            continue;
+        }
         if argument == "--machine" {
             if machine.is_some() {
                 return None;
@@ -36,9 +60,21 @@ pub(super) fn parse_inspect_terminal_arguments(
         }
         root_path = Some(PathBuf::from(argument));
     }
-    Some(InspectTerminalArguments {
-        machine: machine?,
-        root_path: root_path?,
-        target_name,
-    })
+    match artifact_path {
+        Some(path)
+            if root_path.is_none()
+                && machine.is_none()
+                && target_name.is_none()
+                && output.is_none() =>
+        {
+            Some(InspectTerminalArguments::Artifact { path })
+        }
+        Some(_) => None,
+        None => Some(InspectTerminalArguments::Source {
+            machine: machine?,
+            root_path: root_path?,
+            target_name,
+            output,
+        }),
+    }
 }

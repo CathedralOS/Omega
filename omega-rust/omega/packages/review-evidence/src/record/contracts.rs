@@ -20,7 +20,8 @@ pub(crate) use expressions::{
     PackageReviewContractExpression, PackageReviewContractKind,
     PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
     PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewMatchArm,
-    PackageReviewOperatorCoordinate, PackageReviewOperatorRealization, PackageReviewReferenceAccess,
+    PackageReviewOperatorCoordinate, PackageReviewOperatorRealization,
+    PackageReviewReferenceAccess,
 };
 
 pub(crate) use propositions::{

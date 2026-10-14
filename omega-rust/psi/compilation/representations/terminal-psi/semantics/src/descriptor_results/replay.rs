@@ -28,6 +28,12 @@ use terminal_psi::find_structural_type;
 
 #[derive(Clone)]
 pub enum DescriptorStoredOrigin {
+    PlacedFormation {
+        machine: MachineId,
+        operation: semantic_vocabulary::OperationId,
+        place: PlaceId,
+        carrier: StructuralTypeId,
+    },
     Empty,
     Parameter {
         position: usize,
@@ -81,6 +87,7 @@ fn result_origin(
     origin: DescriptorStoredOrigin,
 ) -> Option<DescriptorResultOrigin> {
     match origin {
+        DescriptorStoredOrigin::PlacedFormation { .. } => None,
         DescriptorStoredOrigin::Empty => Some(DescriptorResultOrigin::Empty),
         DescriptorStoredOrigin::Parameter {
             position,
@@ -248,11 +255,23 @@ fn may_contain_descriptor(
 pub enum DescriptorSlotKind {
     SharedViews,
     References,
+    PlacedOrigins,
 }
 impl DescriptorSlotKind {
     pub fn is_slot(self, types: &[StructuralTypeDeclaration], ty: StructuralTypeId) -> bool {
         match self {
             Self::SharedViews => is_shared_descriptor(types.iter(), ty),
+            Self::PlacedOrigins => find_structural_type(types, ty).is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::Reference { .. }
+                        | StructuralTypeShape::Record {
+                            storage: terminal_psi::StructuralRecordStorage::PlacedView(_)
+                                | terminal_psi::StructuralRecordStorage::PlacedAccessor(_),
+                            ..
+                        }
+                )
+            }),
             Self::References => find_structural_type(types, ty).is_some_and(|declaration| {
                 matches!(declaration.shape, StructuralTypeShape::Reference { .. })
             }),
@@ -535,7 +554,7 @@ fn slot_inventory(
         }
         if kind.is_slot(types, ty) {
             result.slots.push(location.clone());
-            if kind == DescriptorSlotKind::SharedViews {
+            if kind != DescriptorSlotKind::References {
                 active.remove(&ty);
                 return Some(());
             }

@@ -502,11 +502,9 @@ impl TerminalExecution<'_> {
         }
         // A stored reference lends the descriptor at its live referent. The
         // pure inline projection cannot cross that retained pointer identity.
-        let Ok(value) = self.resolve_live_projection(
-            argument.place,
-            &argument.path,
-            argument.access,
-        ) else {
+        let Ok(value) =
+            self.resolve_live_projection(argument.place, &argument.path, argument.access)
+        else {
             return Ok(None);
         };
         if !self

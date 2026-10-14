@@ -313,6 +313,7 @@ builtin_settlement_conversion!(NearestIeeeFloatArithmeticRealization);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundaryRealization {
+    PlacedScalarAccess(PlacedScalarAccessRealization),
     MetadataOnlyPort(MetadataOnlyPortRealization),
     DirectPortReadU8(DirectPortReadU8Realization),
     LinuxWriteLine(LinuxWriteLineRealization),
@@ -370,3 +371,16 @@ impl From<ClaimCompletionOnlyRealization> for BoundaryRealization {
         Self::ClaimCompletionOnly(realization)
     }
 }
+
+/// A selected scalar operation on a sealed placed declaration, with no backing grant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlacedScalarAccessRealization {
+    pub contract: [u8; 32],
+    pub demand: terminal_psi::PlacedScalarBoundaryDemand,
+}
+impl From<PlacedScalarAccessRealization> for BoundaryRealization {
+    fn from(realization: PlacedScalarAccessRealization) -> Self {
+        Self::PlacedScalarAccess(realization)
+    }
+}
+builtin_settlement_conversion!(PlacedScalarAccessRealization);

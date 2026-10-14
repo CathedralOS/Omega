@@ -131,6 +131,7 @@ pub enum StructuralEffectCustody {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectAction {
+    EstablishPlacedReference,
     EstablishReference,
     ReleaseReference,
     EstablishPrimitiveLocal,
@@ -342,6 +343,7 @@ macro_rules! structural_effect_rows {
 }
 
 structural_effect_rows! {
+    EstablishPlacedReference => (Structural, ExactReferenceSource, EstablishPlacedReference, None, CapturesLoanAndAddsReferenceCarrier),
     EstablishReference => (Structural, ExactReferenceSource, EstablishReference, None, CapturesLoanAndAddsReferenceCarrier),
     ReleaseReference => (Unit, ExactReferenceCarrier, ReleaseReference, None, ReleasesReferenceCarrier),
     EstablishScalarArray => (Structural, ExactScalarArray, EstablishScalarArray, None, AddsUnrestrictedPlace),
@@ -417,6 +419,7 @@ pub fn validate_structural_effect_semantic_rows(
         }
     }
     for tag in [
+        OperationSemanticTag::EstablishPlacedReference,
         OperationSemanticTag::EstablishReference,
         OperationSemanticTag::ReleaseReference,
         OperationSemanticTag::EstablishPrimitiveLocal,
@@ -465,6 +468,9 @@ fn validate_structural_effect_schema(
     schema: StructuralEffectLeafSchema,
 ) -> Result<(), OperationSemanticError> {
     let action_tag = match schema.action {
+        StructuralEffectAction::EstablishPlacedReference => {
+            OperationSemanticTag::EstablishPlacedReference
+        }
         StructuralEffectAction::EstablishReference => OperationSemanticTag::EstablishReference,
         StructuralEffectAction::ReleaseReference => OperationSemanticTag::ReleaseReference,
         StructuralEffectAction::EstablishPrimitiveLocal => {
@@ -563,7 +569,8 @@ fn validate_structural_effect_schema(
         action_tag == tag
             && schema.goal == expected_goal
             && match schema.action {
-                StructuralEffectAction::EstablishReference => {
+                StructuralEffectAction::EstablishPlacedReference
+                | StructuralEffectAction::EstablishReference => {
                     schema.result == StructuralEffectResultShape::Structural
                         && schema.custody == StructuralEffectCustody::ExactReferenceSource
                         && schema.external_effect == StructuralEffectExternalEffect::None

@@ -14,6 +14,17 @@ pub(crate) fn lower_machine(
     lowerer: &mut Lowerer,
     machine: &resolved::machine::Machine,
 ) -> Result<typed::machine::Machine, Diagnostic> {
+    if let Some(factory) =
+        crate::placed_borrow_factory::placed_borrow_factory(lowerer.source_trees, machine.symbol)?
+    {
+        if !lowerer
+            .typed_trees
+            .placed_borrow_factories
+            .contains(&factory)
+        {
+            lowerer.typed_trees.placed_borrow_factories.push(factory);
+        }
+    }
     let derived = generic_data::is_derived(lowerer.source_trees, machine)?;
     let exposure = if derived {
         None

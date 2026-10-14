@@ -53,6 +53,7 @@ pub(crate) fn operation_scalar_types_match(
         return false;
     }
     match operation {
+        O::EstablishPlacedReference { .. } => true,
         O::EstablishReference { storage, .. } => storage.as_ref().is_none_or(|view| {
             matches!(scalar(view.byte_offset), Some(ScalarType::Integer(integer))
                 if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned

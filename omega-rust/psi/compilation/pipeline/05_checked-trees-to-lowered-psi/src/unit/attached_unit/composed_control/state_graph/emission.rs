@@ -748,6 +748,10 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     );
     structural_places.append(&mut catalogs.temporary_places);
     structural_places.extend(catalogs.result_places.drain(result_places_start..));
+    crate::emission::operation_emission::place_declarations::retain_block_parameters(
+        blocks.iter(),
+        &mut structural_places,
+    )?;
     crate::emission::operation_emission::place_declarations::retain_operation_results(
         blocks.iter().flat_map(|block| &block.operations),
         &mut structural_places,

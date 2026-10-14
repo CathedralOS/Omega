@@ -260,7 +260,6 @@ pub fn from_typed_boundary_requirement(
     context: ProviderPlanningContext<'_>,
     requirement: &checked_trees::typed_trees::machine::Machine,
 ) -> Option<ServiceSchema> {
-    let program = context.typed;
     if !context.contains(requirement.symbol)
         || !requirement.symbol.is_valid()
         || requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
@@ -268,6 +267,37 @@ pub fn from_typed_boundary_requirement(
     {
         return None;
     }
+    project_boundary_machine_schema(context, requirement)
+}
+
+/// A generated scalar accessor has its own compiler-catalog declaration role.
+/// It does not make ordinary bodyless boundary machines intrinsic candidates.
+pub fn from_sealed_placed_accessor(
+    context: ProviderPlanningContext<'_>,
+    accessor: &crate::SealedPlacedAccessor,
+) -> Result<ServiceSchema, diagnostics::Diagnostic> {
+    if crate::SealedPlacedAccessor::authenticate(context, accessor.machine())?.as_ref()
+        != Some(accessor)
+    {
+        return Err(diagnostics::Diagnostic::error(
+            "sealed placed accessor schema substituted its authenticated declaration",
+        ));
+    }
+    let machine = context.typed.machine(accessor.machine()).ok_or_else(|| {
+        diagnostics::Diagnostic::error("sealed placed accessor schema lost its machine")
+    })?;
+    project_boundary_machine_schema(context, machine).ok_or_else(|| {
+        diagnostics::Diagnostic::error(
+            "sealed placed accessor has no complete published callable schema",
+        )
+    })
+}
+
+fn project_boundary_machine_schema(
+    context: ProviderPlanningContext<'_>,
+    requirement: &checked_trees::typed_trees::machine::Machine,
+) -> Option<ServiceSchema> {
+    let program = context.typed;
     let [entry] = program.machine_states(requirement) else {
         return None;
     };

@@ -36,6 +36,7 @@ mod leaf_copy;
 mod observations;
 mod operations;
 mod owned_arguments;
+mod placed_scalar_access;
 mod primitive_storage;
 mod records;
 pub(super) mod references;
@@ -61,6 +62,8 @@ struct ReferenceEdgeStorage {
 struct LiveDefinitions {
     borrowed_reference_sources: references::BorrowedSources,
     stored_reference_effects: references::StoredEffectCatalog,
+    /// Invocation obligations, never captured backing or permission leaves.
+    placed_formals: BTreeMap<PlaceId, terminal_psi::TerminalPlacedViewInput>,
     // Dominating definitions only. Abstract-unit validation owns edge liveness.
     structural_homes: BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
     integers: BTreeMap<ValueId, KnownUnitInteger>,
@@ -329,6 +332,7 @@ pub(super) fn lower(
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::EstablishCase { result, .. }
             | AbstractOperation::EstablishReference { result, .. }
+            | AbstractOperation::EstablishPlacedReference { result, .. }
             | AbstractOperation::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
@@ -470,6 +474,7 @@ pub(super) fn lower(
     let initial = LiveDefinitions {
         borrowed_reference_sources,
         stored_reference_effects,
+        placed_formals: references::placed_formals(function, structural_types)?,
         structural_homes: BTreeMap::new(),
         integers: super::function_signature::integer_parameters(
             function.machine,

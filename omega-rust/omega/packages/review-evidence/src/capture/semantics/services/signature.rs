@@ -137,15 +137,17 @@ pub(super) fn project(
                 operator.return_type,
             )
         }
-        ProviderSchemaDeclaration::BoundaryRequirement(symbol) => {
+        ProviderSchemaDeclaration::BoundaryRequirement(symbol)
+        | ProviderSchemaDeclaration::SealedPlacedAccessor(symbol) => {
             let matches = compilation
                 .machines()
                 .iter()
                 .filter(|machine| {
                     machine.symbol == symbol
                         && symbol == requirement
-                        && machine.supply_mode
+                        && (machine.supply_mode
                             == language_semantics::MachineSupplyMode::TopLevelRequirement
+                            || matches!(schema, ProviderSchemaDeclaration::SealedPlacedAccessor(_)))
                 })
                 .collect::<Vec<_>>();
             let [machine] = matches.as_slice() else {

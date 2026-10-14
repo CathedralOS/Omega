@@ -114,6 +114,7 @@ pub(super) fn settle_boundary<'request>(
                 | target_operations::BoundaryRealization::HostedReadByte(_)
                 | target_operations::BoundaryRealization::HostedWriteByteI32(_)
                 | target_operations::BoundaryRealization::ClaimCompletionOnly(_)
+                | target_operations::BoundaryRealization::PlacedScalarAccess(_)
                 | target_operations::BoundaryRealization::NearestIeeeFloatArithmetic(_) => {
                     semantic_vocabulary::BoundaryCompletion::NormalReturn
                 }

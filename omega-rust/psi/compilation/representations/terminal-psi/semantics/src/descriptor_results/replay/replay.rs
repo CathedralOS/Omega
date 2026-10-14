@@ -184,6 +184,28 @@ impl<'a> Replay<'a> {
         if let Some(value) = state.slots.get(&location) {
             return value.clone();
         }
+        if self.slot_kind == DescriptorSlotKind::PlacedOrigins {
+            // The most specific current descriptor/placed borrow supplies its
+            // interpretation token. It does not supply a physical address.
+            let prefix = state
+                .slots
+                .keys()
+                .filter(|prefix| {
+                    prefix.root == location.root && location.path.starts_with(&prefix.path)
+                })
+                .max_by_key(|prefix| prefix.path.len())?;
+            let origins = state.slots.get(prefix)?.as_ref()?;
+            if origins.iter().all(|origin| {
+                matches!(
+                    origin,
+                    Origin::Incoming(_)
+                        | Origin::Backing(DescriptorCallOrigin::PlacedFormation { .. })
+                )
+            }) {
+                return Some(origins.clone());
+            }
+            return None;
+        }
         // An opaque referent is unavailable, not an owned subtree whose
         // address can be reconstructed from the enclosing storage root.
         if state.slots.iter().any(|(prefix, value)| {
@@ -248,7 +270,7 @@ impl<'a> Replay<'a> {
                 {
                     continue;
                 }
-                let origin = if self.slot_kind == DescriptorSlotKind::References
+                let origin = if self.slot_kind != DescriptorSlotKind::SharedViews
                     && self.slot_kind.is_slot(self.types, structural_type)
                 {
                     Origin::Incoming(DescriptorLocation::whole(row.place))
@@ -305,7 +327,9 @@ impl<'a> Replay<'a> {
                     projection: prefix.then(projection),
                 })),
                 literal @ Origin::Backing(
-                    DescriptorCallOrigin::Literal { .. } | DescriptorCallOrigin::Empty,
+                    DescriptorCallOrigin::Literal { .. }
+                    | DescriptorCallOrigin::Empty
+                    | DescriptorCallOrigin::PlacedFormation { .. },
                 ) => Some(literal),
                 // Incoming descriptor extents may be narrowed, but its storage
                 // identity remains the same until substituted in the caller.
@@ -556,6 +580,19 @@ impl<'a> Replay<'a> {
         origin: &DescriptorStoredOrigin,
     ) -> Value {
         match origin {
+            DescriptorStoredOrigin::PlacedFormation {
+                machine,
+                operation,
+                place,
+                carrier,
+            } => Some(BTreeSet::from([Origin::Backing(
+                DescriptorCallOrigin::PlacedFormation {
+                    machine: *machine,
+                    operation: *operation,
+                    place: *place,
+                    carrier: *carrier,
+                },
+            )])),
             DescriptorStoredOrigin::Empty => Some(BTreeSet::from([Origin::Backing(
                 DescriptorCallOrigin::Empty,
             )])),
@@ -592,6 +629,17 @@ impl<'a> Replay<'a> {
         origin: &Origin,
     ) -> Option<DescriptorStoredOrigin> {
         match origin {
+            Origin::Backing(DescriptorCallOrigin::PlacedFormation {
+                machine,
+                operation,
+                place,
+                carrier,
+            }) => Some(DescriptorStoredOrigin::PlacedFormation {
+                machine: *machine,
+                operation: *operation,
+                place: *place,
+                carrier: *carrier,
+            }),
             Origin::Backing(DescriptorCallOrigin::Empty) => Some(DescriptorStoredOrigin::Empty),
             Origin::Storage(location) => self.exported(
                 machine,

@@ -76,6 +76,7 @@ pub(super) fn validate_declaration(
                 | MachineSemanticKind::HostedExitProcessI32
                 | MachineSemanticKind::AtomicFence
                 | MachineSemanticKind::AtomicAccess(_)
+                | MachineSemanticKind::PlacedScalarAccess(_)
         ) {
         MachineBarrier::ExternalEffect
     } else if matches!(
@@ -137,6 +138,13 @@ pub(super) fn validate_declaration(
         _ if temporary_stack => crate::MachineMemoryEffect::TemporaryStackStorageV1,
         MachineSemanticKind::AtomicFence => crate::MachineMemoryEffect::AtomicFenceV1,
         MachineSemanticKind::AtomicAccess(_) => crate::MachineMemoryEffect::AtomicPointerV1,
+        MachineSemanticKind::PlacedScalarAccess(form) => {
+            if form.write {
+                crate::MachineMemoryEffect::WritePointerV1
+            } else {
+                crate::MachineMemoryEffect::ReadPointerV1
+            }
+        }
         MachineSemanticKind::CopyBytes => crate::MachineMemoryEffect::CopyBytesV1,
         MachineSemanticKind::ZeroBytes => crate::MachineMemoryEffect::ZeroBytesV1,
         MachineSemanticKind::ScanByteSequence => crate::MachineMemoryEffect::ScanByteSequenceV1,
@@ -174,7 +182,9 @@ pub(super) fn validate_declaration(
     }
     let expected_trap = match semantic {
         _ if temporary_stack => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
-        MachineSemanticKind::AtomicAccess(_) => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        MachineSemanticKind::AtomicAccess(_) | MachineSemanticKind::PlacedScalarAccess(_) => {
+            crate::MachineTrapBehavior::MayArchitecturalFaultV1
+        }
         MachineSemanticKind::Crash => crate::MachineTrapBehavior::ExplicitCrashV1,
         semantic if has_policy_trap(semantic) => crate::MachineTrapBehavior::TrappingIntegerV1,
         MachineSemanticKind::HostedExitProcessI32 => {
@@ -734,6 +744,7 @@ fn validate_encoded_effects(
                     | MachineSemanticKind::RestoreFloatingControl
                     | MachineSemanticKind::AtomicFence
                     | MachineSemanticKind::AtomicAccess(_)
+                    | MachineSemanticKind::PlacedScalarAccess(_)
             ) =>
         {
             MachineBarrier::ExternalEffect
@@ -1081,6 +1092,27 @@ fn validate_encoded_effects(
         ) && memory_pointer == stack_pointer
             && memory_bytes == return_address_byte_count
             && return_address_byte_count != 0 => {}
+        (
+            MachineEncodedMemoryEffect::ReadPointerV1 {
+                pointer_operand: 0,
+                byte_count,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if matches!(declaration.semantic, MachineSemanticKind::PlacedScalarAccess(form) if !form.write && form.ordinary_semantic().is_some() && u16::from(form.bytes) == byte_count)
+            && declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
+            && encoded.external_operand_reads == [0]
+            && encoded.external_operand_writes == [1]
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1 => {}
+        (
+            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if matches!(declaration.semantic, MachineSemanticKind::PlacedScalarAccess(form) if form.write && form.ordinary_semantic().is_some())
+            && declaration.memory == crate::MachineMemoryEffect::WritePointerV1
+            && encoded.external_operand_reads == [0, 1]
+            && encoded.external_operand_writes.is_empty()
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1 => {}
         (
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand,

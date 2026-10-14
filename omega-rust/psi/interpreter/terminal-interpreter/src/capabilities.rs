@@ -59,9 +59,36 @@ pub(crate) fn check(
     program: &AdmittedTerminalProgram,
     installation: Option<&TerminalRuntimeSupplies>,
 ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
+    check_with_private_entry_ram(program, installation, &[])
+}
+
+pub(crate) fn check_with_private_entry_ram(
+    program: &AdmittedTerminalProgram,
+    installation: Option<&TerminalRuntimeSupplies>,
+    private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
     let entry = program.resolve_entry(installation)?;
+    if private_entry_ram.iter().any(|recipe| {
+        installation
+            .and_then(|supplies| supplies.target_layouts.as_deref())
+            .is_none_or(|layouts| layouts != recipe.layouts())
+            || program
+                .target_layouts
+                .as_deref()
+                .is_none_or(|layouts| layouts != recipe.layouts())
+    }) {
+        return Err(TerminalInterpretError::TargetLayoutSelectionIdentityMismatch);
+    }
+    if private_entry_ram.iter().any(|recipe| {
+        recipe.terminal() != program.identity
+            || recipe.input().machine != entry
+            || !program.catalogs.placed_view_inputs.contains(recipe.input())
+    }) {
+        return Err(crate::errors::malformed());
+    }
     let mut imports = BTreeSet::new();
     let mut missing_providers = BTreeSet::new();
+    let mut placed_candidates = Vec::new();
     let mut external_completion = None;
     let mut external_demands = BTreeSet::new();
     let mut pending = vec![entry];
@@ -80,7 +107,7 @@ pub(crate) fn check(
             let block = machine
                 .block(&block_id)
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
-            for operation in &block.operations {
+            for (operation_index, operation) in block.operations.iter().enumerate() {
                 let callee = match &operation.kind {
                     OperationKind::CallDynamic {
                         interface, slot, ..
@@ -138,6 +165,26 @@ pub(crate) fn check(
                         // An admitted assumed binding may also resolve a
                         // required boundary to a checked provider. Follow the
                         // exact installation map, not only direct candidates.
+                        if installation
+                            .and_then(|installation| installation.supplies.get(boundary))
+                            .is_none()
+                            && let OperationKind::BoundaryCall {
+                                structural_arguments,
+                                ..
+                            } = &operation.kind
+                        {
+                            placed_candidates.push((
+                                machine_id,
+                                (
+                                    block.id,
+                                    u32::try_from(operation_index).map_err(|_| {
+                                        TerminalInterpretError::VerifiedOperationMalformed
+                                    })?,
+                                ),
+                                *boundary,
+                                structural_arguments.clone(),
+                            ));
+                        }
                         match installation
                             .and_then(|installation| installation.supplies.get(boundary))
                         {
@@ -194,6 +241,41 @@ pub(crate) fn check(
                     .flat_map(|(_, actions)| actions)
                     .filter_map(|action| action.invoked_machine()),
             );
+        }
+    }
+    // Keep installed-provider selection first. Only a complete entry-relative
+    // formation proof discharges the adapter obligation for an internal RAM
+    // handler. Host, mixed and unresolved alternatives remain in the roster.
+    if !placed_candidates.is_empty() {
+        let graph =
+            terminal_semantics::descriptor_results::terminal_placed_origin_graph(&program.catalogs);
+        if let Some(graph) = graph {
+            let mut origins = terminal_semantics::PlacedRamOriginAnalysis::new(
+                &program.catalogs,
+                &graph,
+                &visited,
+                entry,
+            )
+            .with_private_entry_roots(
+                private_entry_ram
+                    .iter()
+                    .map(|recipe| recipe.input().clone()),
+            );
+            let mut internally_bound = BTreeSet::new();
+            let mut unresolved = BTreeSet::new();
+            for (machine, position, boundary, arguments) in placed_candidates {
+                let formations =
+                    origins.boundary_formations(machine, position, boundary, &arguments);
+                if formations.is_some() {
+                    internally_bound.insert(boundary);
+                } else {
+                    unresolved.insert(boundary);
+                }
+            }
+            for boundary in internally_bound.difference(&unresolved) {
+                missing_providers.remove(boundary);
+                imports.remove(boundary);
+            }
         }
     }
     if let Some((boundary, kind)) = external_completion {
@@ -304,7 +386,8 @@ mod tests {
 
     fn program() -> AdmittedTerminalProgram<'static> {
         let entry = MachineId::new(1).unwrap();
-        let module = TerminalModule::for_entry(entry);
+        let mut module = TerminalModule::for_entry(entry);
+        module.machines.push(machine(0, Vec::new()));
         let identity = terminal_codec::terminal_psi_identity(&module).unwrap();
         let mut program = AdmittedTerminalProgram {
             identity,

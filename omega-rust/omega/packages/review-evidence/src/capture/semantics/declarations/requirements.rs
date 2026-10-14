@@ -89,6 +89,14 @@ pub(crate) fn provider_requirement_identity(
             };
             top_level_requirement_identity(compilation, requirement)
         }
+        provider_planning::ProviderSchemaDeclaration::SealedPlacedAccessor(symbol) => {
+            let machine = compilation.machine(symbol).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "placed catalog review lost its exact callable",
+                )]
+            })?;
+            callable_requirement_identity(compilation, machine)
+        }
         provider_planning::ProviderSchemaDeclaration::BoundaryOperator(_) => {
             let operators = compilation.operators().iter().chain(
                 compilation
@@ -127,6 +135,13 @@ pub(crate) fn top_level_requirement_identity(
             requirement.name
         ))]);
     }
+    callable_requirement_identity(compilation, requirement)
+}
+
+fn callable_requirement_identity(
+    compilation: &PackageReviewInput<'_>,
+    requirement: &typed_trees::machine::Machine,
+) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     let path = compilation
         .machine_callable_identity_text(requirement)
         .ok_or_else(|| {

@@ -60,6 +60,6 @@ pub use selected_instructions::{
     AtomicForm, AtomicOperation, AtomicWidth, FloatResultPolicyForm, FloatResultPolicyKind,
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation,
     IeeeFloatFormat, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
-    ieee_float_arithmetic_is_trapping,
+    PlacedScalarForm, ieee_float_arithmetic_is_trapping,
 };
 pub use terminal_psi::ByteSequencePredicate;

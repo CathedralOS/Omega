@@ -3,6 +3,7 @@ import argparse
 import csv
 import hashlib
 import json
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -81,7 +82,13 @@ def inspection(binary):
         for signature in proof_signatures:
             assert signature.split(" erased_scalars=")[0].count("ValueDeclaration {") == 1, signature
         runtime_types = [line for line in text.splitlines() if line.startswith("type ")]
-        assert len(runtime_types) == 1 and "identity=named(name(Main))" in runtime_types[0], runtime_types
+        assert len(runtime_types) == 1, runtime_types
+        # Package-owned nominal identity is canonical; erased array evidence must
+        # still add neither a runtime type nor another Main storage field.
+        identity = runtime_types[0].split(" identity=", 1)[1].split(" shape=", 1)[0].replace("\\", "")
+        owner = re.search(r"package-owner\(32:([a-f0-9]{64})\)", identity)
+        assert owner and identity == f"named(name(nominal(package-owner(32:{owner[1]}),path(Main))))", runtime_types
+        assert runtime_types[0].endswith(" shape=record(fields=1)"), runtime_types
         if name in ("erased_array_calls", "erased_array_transition"):
             assert "Formal { position: 0 }" in text, "forwarded evidence missing"
         if name == "erased_array_calls":

@@ -34,6 +34,17 @@ pub(super) fn derive_selected_installation_reach_resolutions(
     let provider_context =
         crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     for plan in selected.plans() {
+        // A sealed catalog scalar declaration publishes its own concrete reach.
+        // Rejoin its whole plan rather than treating it as a trait requirement.
+        match crate::SealedPlacedAccessor::rejoin_plan(provider_context, plan) {
+            Ok(Some(_)) => continue,
+            Ok(None) => {}
+            Err(error) => {
+                diagnostics.push(error);
+                continue;
+            }
+        }
+
         let top_level_requirements = typed
             .machines()
             .iter()

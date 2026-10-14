@@ -21,6 +21,15 @@ pub enum CompilerIntrinsicExecutionIdentity {
     /// Exact toolchain-owned `Console::read_byte() -> ByteRead` execution
     /// selected for one canonical hosted target.
     HostedReadByte,
+    /// Parameter-rooted scalar access to an exact sealed placed declaration.
+    /// This describes the execution child; actual RAM custody is separately
+    /// required at each occurrence and every activation boundary.
+    PlacedScalarAccess {
+        contract: [u8; 32],
+        placement_commitment: [u8; 32],
+        access_slot: u32,
+        operation: CompilerPlacedScalarOperation,
+    },
     BuiltinFunction(symbols::BuiltinFunction),
     PrimitiveFloatBinary {
         operation: CompilerPrimitiveFloatBinaryOperation,
@@ -47,17 +56,63 @@ pub enum CompilerIntrinsicExecutionIdentity {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompilerPlacedScalarOperation {
+    Read,
+    Take,
+    Write,
+}
+
+/// Portable identity of one sealed scalar requirement's complete schema and
+/// normalized placement operation. Both declaration derivation and receiving
+/// native admission have these axes; no source spelling or backing is inferred.
+pub fn compiler_placed_scalar_contract_identity(
+    schema: crate::provider_plan::ServiceSchemaDigest,
+    placement_commitment: [u8; 32],
+    access_slot: u32,
+    operation: CompilerPlacedScalarOperation,
+) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let mut hash = Sha256::new();
+    hash.update(b"omega.sealed-placed-scalar-catalog.v1\0");
+    hash.update(schema.as_bytes());
+    hash.update(placement_commitment);
+    hash.update(access_slot.to_be_bytes());
+    hash.update([match operation {
+        CompilerPlacedScalarOperation::Read => 0,
+        CompilerPlacedScalarOperation::Take => 1,
+        CompilerPlacedScalarOperation::Write => 2,
+    }]);
+    hash.finalize().into()
+}
+
 /// Canonical representation-rank encoding of one closed compiler-intrinsic
 /// semantic atom. This is shared input to stronger domain-separated product
 /// commitments; it is not an admission or target-catalog decision by itself.
 pub fn compiler_intrinsic_execution_identity_bytes(
     identity: CompilerIntrinsicExecutionIdentity,
-) -> [u8; 8] {
-    let mut bytes = [0_u8; 8];
+) -> Vec<u8> {
+    let mut bytes = vec![0_u8; 8];
     match identity {
         CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => bytes[0] = 0,
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => bytes[0] = 5,
         CompilerIntrinsicExecutionIdentity::HostedReadByte => bytes[0] = 6,
+        CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {
+            contract,
+            placement_commitment,
+            access_slot,
+            operation,
+        } => {
+            bytes[0] = 8;
+            bytes[1] = match operation {
+                CompilerPlacedScalarOperation::Read => 0,
+                CompilerPlacedScalarOperation::Take => 1,
+                CompilerPlacedScalarOperation::Write => 2,
+            };
+            bytes.extend_from_slice(&contract);
+            bytes.extend_from_slice(&placement_commitment);
+            bytes.extend_from_slice(&access_slot.to_be_bytes());
+        }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             bytes[0] = 1;
             bytes[1..5].copy_from_slice(&(function.ordinal() as u32).to_be_bytes());

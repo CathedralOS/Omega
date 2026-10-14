@@ -160,6 +160,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::TrappingInteger { form } => crate::trapping_family_tag(form),
         SelectedInstructionKind::AtomicFence => 238,
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
+        SelectedInstructionKind::PlacedScalarAccess { form, .. } => form.machine_tag(),
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => form.machine_tag(),
         SelectedInstructionKind::FloatResultPolicy { form } => form.machine_tag(),
         SelectedInstructionKind::LoadPacked { .. } => 46,
@@ -346,6 +347,15 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         // Every float form shares one tag; its dense ordinal follows.
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
             bytes.push(form.machine_payload())
+        }
+        SelectedInstructionKind::PlacedScalarAccess {
+            form,
+            contract,
+            byte_offset,
+        } => {
+            bytes.push(form.machine_payload());
+            bytes.extend_from_slice(&contract);
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::FloatResultPolicy { form } => bytes.push(form.machine_payload()),
         SelectedInstructionKind::CompareI64Zero

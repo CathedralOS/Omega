@@ -37,6 +37,7 @@ pub struct PreparedLocalProjectNativeRequest {
     terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     timings: bool,
+    private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
 }
 
 impl PreparedLocalProjectNativeRequest {
@@ -68,11 +69,20 @@ impl PreparedLocalProjectNativeRequest {
             terminal_authority_policy: current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: None,
             timings: false,
+            private_entry_ram: Vec::new(),
         }
     }
 
     /// Record per-stage timings on the produced report. Off by default: the
     /// ladder measures nothing until a caller asks for it.
+    pub fn with_private_entry_ram(
+        mut self,
+        inputs: Vec<compilation_products::PrivateEntryRamInitialization>,
+    ) -> Self {
+        self.private_entry_ram = inputs;
+        self
+    }
+
     pub fn with_timings(mut self, timings: bool) -> Self {
         self.timings = timings;
         self
@@ -177,6 +187,7 @@ pub fn compile_prepared_local_project_for_native_targets(
         terminal_authority_policy,
         receiving_terminal_authority_permission_policy,
         timings,
+        private_entry_ram,
     } = request;
     let (entry_path, source_closure, prepared_targets) = prepared.into_target_review_parts();
     let targets: Vec<_> = prepared_targets
@@ -230,6 +241,7 @@ pub fn compile_prepared_local_project_for_native_targets(
                 timings,
                 product: compiler::CompilationProduct::Native(
                     compilation_products::NativeProductRequest {
+                        private_entry_ram: private_entry_ram.clone(),
                         terminal_authority_policy: terminal_authority_policy.clone(),
                         terminal_authority_permission_policy:
                             receiving_terminal_authority_permission_policy.clone(),

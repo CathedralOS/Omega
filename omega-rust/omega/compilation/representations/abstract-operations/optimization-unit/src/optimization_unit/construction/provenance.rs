@@ -38,6 +38,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::EstablishZeroedStructural { psi_operation, .. }
         | O::EstablishStructuralLocal { psi_operation, .. }
         | O::EstablishReference { psi_operation, .. }
+        | O::EstablishPlacedReference { psi_operation, .. }
         | O::ReleaseReference { psi_operation, .. }
         | O::MoveStructuralField { psi_operation, .. }
         | O::StoreStructuralField { psi_operation, .. }

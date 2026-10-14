@@ -76,7 +76,8 @@ pub use placements::placement_admission::{
 };
 pub use placements::placement_admission::{admit_owned_placement, admit_placement, place};
 pub use placements::placement_plan::{
-    PlacementPlan, PlacementPlanId, ValidatedPlacementPlan, validate_placement_plan,
+    PlacementPlan, PlacementPlanId, PlacementPlanSnapshot, ValidatedPlacementPlan,
+    validate_placement_plan,
 };
 pub use placements::resident_views::{
     BorrowedResidentRetirementError, EstablishedBorrowedResidentPlacement,

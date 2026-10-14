@@ -197,6 +197,7 @@ pub(in crate::legalization::scalar_graph_input) fn definition(
         // its definition like every other ordered result home; unit replay
         // independently authenticates the event, address and exact result.
         | TargetUnitOperation::AtomicAccess { result_home: Some(result_home), .. }
+        | TargetUnitOperation::PlacedScalarAccess { result_home: Some(result_home), .. }
         | TargetUnitOperation::IeeeFloatCompare { result_home, .. }
         | TargetUnitOperation::ScalarRepresentationView { result_home, .. }
         | TargetUnitOperation::FloatResultPolicy { result_home, .. }

@@ -34,6 +34,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
                         | AbstractOperation::EstablishByteSequenceConcatenation { .. }
                         | AbstractOperation::EstablishRecord { .. }
                         | AbstractOperation::EstablishReference { .. }
+                        | AbstractOperation::EstablishPlacedReference { .. }
                         | AbstractOperation::ReleaseReference { .. }
                         | AbstractOperation::EstablishCase { .. }
                         | AbstractOperation::StructuralLeafCopy { .. }

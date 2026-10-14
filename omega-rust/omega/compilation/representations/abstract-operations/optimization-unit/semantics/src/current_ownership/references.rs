@@ -12,7 +12,8 @@ use crate::unit_validation::references::{
     LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceOriginIdentity, ReferenceParent,
     access_path_type, access_referent_tail, contains_reference, formal_origin,
     is_reference_projection, leaf_access_within, leaf_paths, leaf_referent, leaf_type,
-    reference_access, reference_source_type, storage_projection,
+    placed_reference_source_compatible, reference_access, reference_source_type,
+    storage_projection,
 };
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
@@ -1819,7 +1820,7 @@ pub(super) fn apply_operation(
         &moved,
     )?;
     let sources = match operation {
-        O::EstablishReference { source, .. } => {
+        O::EstablishReference { source, .. } | O::EstablishPlacedReference { source, .. } => {
             let transferred = transferred_ingress_leaf(function, structural_types, live, source);
             if let Some(identity) = &transferred {
                 moved.insert(identity.clone());
@@ -1886,6 +1887,7 @@ pub(super) fn apply_operation(
     if !sources.is_empty() {
         let result = match operation {
             O::EstablishReference { result, .. }
+            | O::EstablishPlacedReference { result, .. }
             | O::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
@@ -1961,6 +1963,14 @@ pub(super) fn apply_operation(
                         }
                     })
                     .is_some_and(|actual| match operation {
+                        O::EstablishPlacedReference { correspondence, .. } => {
+                            placed_reference_source_compatible(
+                                structural_types,
+                                actual,
+                                result.structural_type,
+                                correspondence,
+                            )
+                        }
                         O::EstablishReference {
                             storage: Some(storage),
                             ..

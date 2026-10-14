@@ -24,6 +24,13 @@ pub(super) fn classify_compiler_intrinsic(
         CompilerIntrinsicExecutionIdentity::HostedReadByte => {
             disposition([TerminalAuthorityClass::ProcessInput])
         }
+        CompilerIntrinsicExecutionIdentity::PlacedScalarAccess { .. } => {
+            // This child can only execute against an independently proved live
+            // caller RAM loan. It reaches no host/device resource; this empty
+            // classification supplies no backing, placement or access grant.
+            // Native admission still requires its exact realization and custody.
+            empty_disposition()
+        }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             classify_builtin_function(function)
         }

@@ -9,7 +9,6 @@ use selected_instructions::{
     MachineSizeKnowledge, MachineTrapBehavior,
 };
 
-
 /// The canonical user-mode direct call: the row's external footprint and
 /// implicit units under the return-address write/lifecycle pair. Supervisor
 /// calls share this head and override the memory/stack/control contract.

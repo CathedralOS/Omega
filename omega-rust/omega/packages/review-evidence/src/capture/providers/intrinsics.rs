@@ -58,6 +58,17 @@ const fn project_execution_identity(
         CompilerIntrinsicExecutionIdentity::HostedReadByte => {
             PackageReviewCompilerIntrinsicExecution::HostedReadByte
         }
+        CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {
+            contract,
+            placement_commitment,
+            access_slot,
+            operation,
+        } => PackageReviewCompilerIntrinsicExecution::PlacedScalarAccess {
+            contract,
+            placement_commitment,
+            access_slot,
+            operation,
+        },
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function)
         }
@@ -97,6 +108,11 @@ fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> Str
         CompilerIntrinsicExecutionIdentity::HostedReadByte => {
             "Hosted read-byte returning `ByteRead`".to_owned()
         }
+        CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {
+            access_slot,
+            operation,
+            ..
+        } => format!("sealed placed scalar {operation:?} at field slot {access_slot}"),
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             format!("builtin function `{}`", function.name())
         }

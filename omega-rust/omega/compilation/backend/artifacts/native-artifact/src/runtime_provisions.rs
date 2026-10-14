@@ -54,9 +54,21 @@ pub struct TerminalRuntimeProvisions {
     host: Vec<TerminalRuntimeHostProvision>,
     host_requirements: Vec<RuntimeHostRequirement>,
     borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
+    private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
 }
 
 impl TerminalRuntimeProvisions {
+    pub fn private_entry_ram(&self) -> &[terminal_installation::CheckedPrivateEntryRamRecipe] {
+        &self.private_entry_ram
+    }
+    pub fn with_private_entry_ram(
+        mut self,
+        recipes: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
+    ) -> Self {
+        self.private_entry_ram = recipes;
+        self
+    }
+
     /// Capture already admitted facts while they still accompany the image
     /// request. This is not another admission or a runtime authority grant.
     pub fn capture_native_admission(
@@ -163,6 +175,7 @@ impl TerminalRuntimeProvisions {
         }
         Ok(Self {
             borrowed_storage_layouts: Vec::new(),
+            private_entry_ram: Vec::new(),
             identity: checked.terminal_psi_identity(),
             entry: checked.terminal_entry(),
             source_signature_identity: checked.source_signature_identity(),

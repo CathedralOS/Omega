@@ -17,8 +17,8 @@ use super::super::semantics::types::review_signature_type_identity_with_binders;
 use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
-    PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTraitRequirement,
-    PackageReviewSignatureParameter, PackageReviewTraitShape,
+    PackageReviewSignatureParameter, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
+    PackageReviewTraitRequirement, PackageReviewTraitShape,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
