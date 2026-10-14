@@ -1,20 +1,16 @@
-// higher_order_streams: machines as type parameters as sample code — the
-// first sample declaring `data Stream<machine S>` with a `where machine`
-// signature bound, then forwarding a concrete schema machine through a
-// higher-order machine parameter.
+// machine_indexed_stream_dispatch: a machine body constructs, forwards and
+// dispatches over a recursive family indexed by a static machine.
 //
-//   * `Index` is a recursive enum: `Next` carries an `Index` payload, so a
-//     finite chain has observable depth.
-//   * `Stream<machine S>` binds a static machine parameter behind
+//   * `Index` is a recursive enum: `Next` carries an `Index` payload.
+//   * `Stream<machine S>` binds a static machine index behind
 //     `where machine S(index: Index) -> Index`; `Stream::More` stores
-//     `tail: Stream<S>` — recursion through the machine-typed parameter.
-//   * `forward_schema<identity_schema, succ>` invokes a machine passed as
-//     a machine, which invokes the selected requirement — dispatch with
-//     zero `dyn` selectors.
+//     `tail: Stream<S>` -- recursion through the machine-indexed family.
+//   * `forward_schema<identity_schema, succ>` passes a machine through a
+//     nested machine parameter; specialization makes every call direct.
 //
-// The machine builds a two-element Stream<succ>, forwards it through
-// identity_schema, then destructures the result twice and accepts on the
-// Empty tail. Compile-checked only: no standard-library dependency.
+// The body builds a two-element Stream<succ>, forwards it through
+// identity_schema, then destructures the result in two states. Both types are
+// recursive by value and therefore proof-only: compile-checked, no entry.
 pub data Index {
     case Zero;
     case Next(previous: Index);
@@ -45,7 +41,7 @@ where machine Selected(index: Index) -> Index;
     Schema<Selected>(value)
 }
 
-machine higher_order_streams() {
+machine dispatch_stream() {
     let tail: Stream<succ> = Stream::Empty;
     let mid: Stream<succ> = Stream::More { sample: succ(Index::Zero), tail: tail };
     let stream: Stream<succ> = Stream::More { sample: Index::Zero, tail: mid };

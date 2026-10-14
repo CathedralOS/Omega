@@ -1337,6 +1337,7 @@ pass/generics/generic_seq_consuming_map_filter checked 3001ms @fcc053dc7014+wt
 pass/generics/generic_seq_map_filter checked 9944ms @fcc053dc7014+wt
 pass/generics/higher_order_schema checked 9641ms @5041ef1af684+wt
 pass/generics/machine_bound_satisfied_at_call checked 224ms
+pass/generics/machine_indexed_stream_dispatch checked 8295ms @0acd49d4fea4+wt
 pass/generics/machine_type_equations checked 190ms
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 156ms
 pass/generics/omitted_data_binder_range_equation built 2561ms exit:92 @693920652f41
