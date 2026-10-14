@@ -358,13 +358,16 @@ def decode(payload: bytes) -> Observation:
         )
         for _ in range(reader.u64())
     )
-    # Arm rows: pattern kind, pattern handle, pattern-field range, target
-    # kind (1 call, 2 value, 3 unit), target handle, span.
+    # Arm rows: pattern kind, pattern handle, pattern-field range, guard
+    # flag and handle, target kind (1 call, 2 value, 3 unit), target handle,
+    # span.
     arms = tuple(
         (
             reader.byte(),
             reader.u64(),
             reader.u64(),
+            reader.u64(),
+            reader.byte(),
             reader.u64(),
             reader.byte(),
             reader.u64(),
@@ -1124,6 +1127,10 @@ def root_declaration_cases(program: str) -> None:
     assert actual.clauses[0][8] == 1 and actual.clauses[0][15] == 1, actual.clauses
     assert actual.expressions[actual.clauses[0][16]][6] == 0, actual.expressions
     rejected(program, "rank-range-needs-dots", b"machine f(n: u64) terminates by n in 0; {}", 197, (38, 39), parameter_count=1, type_reference_count=1, expression_count=2)
+    # `pattern if condition -> target` guards an arm
+    # (wiki/spec/language/patterns.md#coverage-and-domain-tests); the
+    # condition is an expression read before the arrow.
+    rejected(program, "arm-guard-needs-a-condition", b"machine f(t: T) { transition t { T::B { v } if -> s(v) } }", 198, (47, 49), member_count=2, parameter_count=1, type_reference_count=1, expression_count=2)
     rejected(program, "measures-are-package-private", b"pub measure Card::PowerOrder(card: u64) -> u64 { card }", 196, (4, 11))
     rejected(program, "lexicographic-measure-names-a-field", b"measure Card::Order lexicographic { }", 195, (36, 37))
 
@@ -3051,7 +3058,31 @@ def main() -> None:
             (11, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 32, 35),
         ),
         ((6, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 14, 37),),
-        arms=((2, 0, 0, 0, 1, 1, 1, 27, 35),),
+        arms=((2, 0, 0, 0, 0, 0, 1, 1, 1, 27, 35),),
+    )
+    body(
+        "guarded-arms",
+        b"machine f(t: T, x: u8) { transition t { T::B { v } if v == x -> s(v) _ if x > 1 -> {} _ -> s(0) } state s(v: u8) {} }",
+        (
+            (1, 0, 0, 0, 0, 0, 0, 1, 36, 37, 0, 1, 36, 37),
+            (2, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 1, 40, 44),
+            (1, 0, 0, 0, 0, 0, 0, 1, 54, 55, 0, 1, 54, 55),
+            (1, 0, 0, 0, 0, 0, 0, 1, 59, 60, 0, 1, 59, 60),
+            (9, 3, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 54, 60),
+            (1, 0, 0, 0, 0, 0, 0, 1, 64, 65, 0, 1, 64, 65),
+            (1, 0, 0, 0, 0, 0, 0, 1, 66, 67, 0, 1, 66, 67),
+            (11, 0, 5, 0, 0, 1, 0, 1, 0, 0, 0, 1, 64, 68),
+            (1, 0, 0, 0, 0, 0, 0, 1, 74, 75, 0, 1, 74, 75),
+            (3, 0, 0, 0, 0, 0, 0, 1, 78, 79, 0, 1, 78, 79),
+            (9, 7, 8, 9, 0, 0, 0, 1, 0, 0, 0, 1, 74, 79),
+            (1, 0, 0, 0, 0, 0, 0, 1, 91, 92, 0, 1, 91, 92),
+            (3, 0, 0, 0, 0, 0, 0, 1, 93, 94, 0, 1, 93, 94),
+            (11, 0, 11, 0, 1, 1, 0, 1, 0, 0, 0, 1, 91, 95),
+        ),
+        ((6, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 1, 25, 97),),
+        arguments=(6, 12),
+        arms=((4, 1, 0, 1, 1, 4, 1, 7, 1, 40, 68), (2, 0, 0, 0, 1, 10, 3, 0, 1, 69, 85), (2, 0, 0, 0, 0, 0, 1, 13, 1, 86, 95)),
+        pattern_fields=((1, 47, 48, 0, 0, 1, 47, 48),),
     )
     body(
         "subject-literal-and-terminal-arms",
@@ -3067,7 +3098,7 @@ def main() -> None:
         ),
         ((6, 1, 0, 0, 0, 0, 1, 2, 0, 1, 0, 2, 1, 19, 60),),
         arguments=(5,),
-        arms=((3, 3, 0, 0, 1, 6, 1, 38, 50), (2, 0, 0, 0, 3, 0, 1, 51, 58)),
+        arms=((3, 3, 0, 0, 0, 0, 1, 6, 1, 38, 50), (2, 0, 0, 0, 0, 0, 3, 0, 1, 51, 58)),
     )
     body(
         "case-pattern-binders-and-values",
@@ -3091,10 +3122,10 @@ def main() -> None:
         ((6, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 4, 1, 22, 178),),
         arguments=(6,),
         arms=(
-            (4, 1, 0, 0, 1, 3, 1, 37, 61),
-            (4, 4, 0, 1, 1, 7, 1, 62, 102),
-            (4, 8, 1, 1, 1, 11, 1, 103, 168),
-            (2, 0, 0, 0, 3, 0, 1, 169, 176),
+            (4, 1, 0, 0, 0, 0, 1, 3, 1, 37, 61),
+            (4, 4, 0, 1, 0, 0, 1, 7, 1, 62, 102),
+            (4, 8, 1, 1, 0, 0, 1, 11, 1, 103, 168),
+            (2, 0, 0, 0, 0, 0, 3, 0, 1, 169, 176),
         ),
         pattern_fields=((1, 79, 86, 0, 0, 1, 79, 86), (1, 124, 135, 1, 9, 1, 124, 159)),
     )
@@ -3119,9 +3150,9 @@ def main() -> None:
         ((6, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 1, 20, 74),),
         arguments=(11,),
         arms=(
-            (1, 2, 0, 0, 1, 4, 1, 33, 46),
-            (1, 7, 0, 0, 1, 12, 1, 47, 64),
-            (2, 0, 0, 0, 3, 0, 1, 65, 72),
+            (1, 2, 0, 0, 0, 0, 1, 4, 1, 33, 46),
+            (1, 7, 0, 0, 0, 0, 1, 12, 1, 47, 64),
+            (2, 0, 0, 0, 0, 0, 3, 0, 1, 65, 72),
         ),
     )
     transition_rejections = (
@@ -3711,7 +3742,7 @@ def main() -> None:
         b"machine f(gap: u64) -> u64 { transition { _ -> (gap) } }",
         ((1, 0, 0, 0, 0, 0, 0, 1, 48, 51, 0, 1, 48, 51),),
         ((6, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 29, 54),),
-        arms=((2, 0, 0, 0, 2, 0, 1, 42, 51),),
+        arms=((2, 0, 0, 0, 0, 0, 2, 0, 1, 42, 51),),
     )
     body(
         "construction-value-target",
@@ -3723,7 +3754,7 @@ def main() -> None:
         ),
         ((6, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 28, 66),),
         construct_fields=((1, 50, 55, 1, 1, 50, 62),),
-        arms=((2, 0, 0, 0, 2, 2, 1, 41, 64),),
+        arms=((2, 0, 0, 0, 0, 0, 2, 2, 1, 41, 64),),
     )
     body(
         "path-value-target",
@@ -3734,7 +3765,7 @@ def main() -> None:
             (2, 0, 0, 0, 2, 2, 0, 1, 0, 0, 0, 1, 46, 50),
         ),
         ((6, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 1, 23, 60),),
-        arms=((4, 1, 0, 0, 2, 2, 1, 38, 50), (2, 0, 0, 0, 3, 0, 1, 51, 58)),
+        arms=((4, 1, 0, 0, 0, 0, 2, 2, 1, 38, 50), (2, 0, 0, 0, 0, 0, 3, 0, 1, 51, 58)),
     )
     body(
         "float-literal-argument",

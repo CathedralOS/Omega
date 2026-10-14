@@ -318,12 +318,25 @@ crashes Trap
         let arm: TransitionArm = SyntaxTrees::arm(syntax, statement.first_arm + index);
         transition arm.kind == ArmPatternKind::Guard {
             true -> guarded(checker, syntax, resolution, typing, item, offset, body, statement, index, changed, arm)
-            _ -> targeted(checker, syntax, resolution, typing, item, offset, body, statement, index, changed, arm)
+            _ -> clause(checker, syntax, resolution, typing, item, offset, body, statement, index, changed, arm)
         }
     }
 
     state guarded(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool, arm: TransitionArm) -> bool {
         let grew: bool = Checker::demand_tree(checker, syntax, resolution, typing, item, offset, body, arm.pattern);
+        transition { _ -> clause(checker, syntax, resolution, typing, item, offset, body, statement, index, changed || grew, arm) }
+    }
+
+    // An arm's `if` guard reads as its pattern does.
+    state clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool, arm: TransitionArm) -> bool {
+        transition arm.has_guard {
+            true -> clause_demanded(checker, syntax, resolution, typing, item, offset, body, statement, index, changed, arm)
+            _ -> targeted(checker, syntax, resolution, typing, item, offset, body, statement, index, changed, arm)
+        }
+    }
+
+    state clause_demanded(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool, arm: TransitionArm) -> bool {
+        let grew: bool = Checker::demand_tree(checker, syntax, resolution, typing, item, offset, body, arm.guard);
         transition { _ -> targeted(checker, syntax, resolution, typing, item, offset, body, statement, index, changed || grew, arm) }
     }
 

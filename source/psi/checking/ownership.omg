@@ -372,7 +372,7 @@ crashes Trap
         let arm: TransitionArm = SyntaxTrees::arm(syntax, statement.first_arm + offset);
         transition arm.kind == ArmPatternKind::Guard {
             true -> guard(checker, syntax, resolution, typing, statement, borrowed, offset, arm)
-            _ -> selected(checker, syntax, resolution, typing, statement, borrowed, offset, arm)
+            _ -> clause(checker, syntax, resolution, typing, statement, borrowed, offset, arm)
         }
     }
 
@@ -387,6 +387,37 @@ crashes Trap
         arm: TransitionArm
     ) {
         Checker::own_tree(checker, syntax, resolution, typing, arm.pattern, UseRole::Inspect);
+        transition { _ -> clause(checker, syntax, resolution, typing, statement, borrowed, offset, arm) }
+    }
+
+    // An arm's `if` guard inspects as a guard pattern does.
+    state clause(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        statement: Statement,
+        borrowed: bool,
+        offset: u64 in Trapping,
+        arm: TransitionArm
+    ) {
+        transition arm.has_guard {
+            true -> clause_owned(checker, syntax, resolution, typing, statement, borrowed, offset, arm)
+            _ -> selected(checker, syntax, resolution, typing, statement, borrowed, offset, arm)
+        }
+    }
+
+    state clause_owned(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        statement: Statement,
+        borrowed: bool,
+        offset: u64 in Trapping,
+        arm: TransitionArm
+    ) {
+        Checker::own_tree(checker, syntax, resolution, typing, arm.guard, UseRole::Inspect);
         transition { _ -> selected(checker, syntax, resolution, typing, statement, borrowed, offset, arm) }
     }
 

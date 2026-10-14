@@ -1957,6 +1957,8 @@ machine Parser::match_arm_row(parser: &Parser, frame: ExpressionFrame, value: u6
         pattern: frame.pattern,
         first_field: 0,
         field_count: 0,
+        has_guard: false,
+        guard: 0,
         target_kind: ArmTargetKind::Value,
         target: value,
         source_span: Parser::source_span(parser, frame.arm_start, end)
@@ -2301,6 +2303,7 @@ crashes Trap
             Token::Punctuation { punctuation: PunctuationKind::LeftBracket } -> scan(input, index + 1, depth)
             Token::Punctuation { punctuation: PunctuationKind::RightBracket } -> scan(input, index + 1, depth)
             Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Apostrophe } -> scan(input, index + 1, depth)
             Token::Identifier -> scan(input, index + 1, depth)
             Token::Keyword { keyword } -> scan(input, index + 1, depth)
             Token::Integer { base, empty_digits, has_suffix } -> scan(input, index + 1, depth)

@@ -175,6 +175,7 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedMeasureComponent -> parse_diagnostic(parser_harness, output, 195)
             ParseDiagnosticCode::MeasureNotPublic -> parse_diagnostic(parser_harness, output, 196)
             ParseDiagnosticCode::ExpectedRankRange -> parse_diagnostic(parser_harness, output, 197)
+            ParseDiagnosticCode::ExpectedArmGuard -> parse_diagnostic(parser_harness, output, 198)
             ParseDiagnosticCode::ExpectedMachineName -> parse_diagnostic(parser_harness, output, 40)
             ParseDiagnosticCode::ExpectedMachineParameterOrEnd -> parse_diagnostic(parser_harness, output, 41)
             ParseDiagnosticCode::ExpectedMachineParameter -> parse_diagnostic(parser_harness, output, 42)
@@ -1374,6 +1375,8 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, arm.pattern);
         ParserHarness::write_u64(parser_harness, arm.first_field);
         ParserHarness::write_u64(parser_harness, arm.field_count);
+        ParserHarness::write_flag(parser_harness, arm.has_guard);
+        ParserHarness::write_u64(parser_harness, arm.guard);
         transition arm.target_kind {
             ArmTargetKind::Call -> arm_target(parser_harness, output, index, arm, 1)
             ArmTargetKind::Value -> arm_target(parser_harness, output, index, arm, 2)

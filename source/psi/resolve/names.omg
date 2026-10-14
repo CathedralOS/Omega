@@ -402,11 +402,25 @@ crashes Trap
         ArmPatternKind::Guard -> pattern_value(resolver, sources, syntax, scope, arm)
         ArmPatternKind::Literal -> pattern_value(resolver, sources, syntax, scope, arm)
         ArmPatternKind::Case -> case_pattern(resolver, sources, syntax, scope, arm)
-        ArmPatternKind::Wildcard -> target(resolver, sources, syntax, scope, arm)
+        ArmPatternKind::Wildcard -> guard_clause(resolver, sources, syntax, scope, arm)
     }
 
     state pattern_value(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, arm: TransitionArm) {
         Resolver::bind_tree(resolver, sources, syntax, scope, arm.pattern);
+        transition { _ -> guard_clause(resolver, sources, syntax, scope, arm) }
+    }
+
+    // The arm's `if` guard binds with the pattern's binders in scope, as
+    // its target does.
+    state guard_clause(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, arm: TransitionArm) {
+        transition arm.has_guard && resolver.output.accepted {
+            true -> guard_bound(resolver, sources, syntax, scope, arm)
+            _ -> target(resolver, sources, syntax, scope, arm)
+        }
+    }
+
+    state guard_bound(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, arm: TransitionArm) {
+        Resolver::bind_tree(resolver, sources, syntax, scope, arm.guard);
         transition { _ -> target(resolver, sources, syntax, scope, arm) }
     }
 
@@ -445,7 +459,7 @@ crashes Trap
     }
 
     state binders(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, arm: TransitionArm) {
-        transition { _ -> target(resolver, sources, syntax, Resolver::with_binders(scope, arm.first_field, arm.field_count), arm) }
+        transition { _ -> guard_clause(resolver, sources, syntax, Resolver::with_binders(scope, arm.first_field, arm.field_count), arm) }
     }
 
     state target(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, arm: TransitionArm) {

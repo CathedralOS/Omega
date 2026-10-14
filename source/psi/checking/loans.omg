@@ -100,7 +100,7 @@ crashes Trap
         let arm: TransitionArm = SyntaxTrees::arm(syntax, statement.first_arm + offset);
         transition arm.kind == ArmPatternKind::Guard {
             true -> guard(checker, syntax, resolution, statement, index, offset, arm)
-            _ -> target(checker, syntax, resolution, statement, index, offset, arm)
+            _ -> clause(checker, syntax, resolution, statement, index, offset, arm)
         }
     }
 
@@ -114,6 +114,35 @@ crashes Trap
         arm: TransitionArm
     ) {
         Checker::record_tree_uses(checker, syntax, resolution, arm.pattern, index);
+        transition { _ -> clause(checker, syntax, resolution, statement, index, offset, arm) }
+    }
+
+    // An arm's `if` guard uses places as its pattern does.
+    state clause(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        statement: Statement,
+        index: u64 in Trapping,
+        offset: u64 in Trapping,
+        arm: TransitionArm
+    ) {
+        transition arm.has_guard {
+            true -> clause_uses(checker, syntax, resolution, statement, index, offset, arm)
+            _ -> target(checker, syntax, resolution, statement, index, offset, arm)
+        }
+    }
+
+    state clause_uses(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        statement: Statement,
+        index: u64 in Trapping,
+        offset: u64 in Trapping,
+        arm: TransitionArm
+    ) {
+        Checker::record_tree_uses(checker, syntax, resolution, arm.guard, index);
         transition { _ -> target(checker, syntax, resolution, statement, index, offset, arm) }
     }
 

@@ -460,6 +460,8 @@ crashes Trap
     ) {
         let token: Token = input.tokens[parser.current_index];
         parser.arm_start = token.start;
+        parser.arm_has_guard = false;
+        parser.arm_guard = 0;
         let wildcard: bool = Parser::at_word(parser, input, "_");
         transition wildcard {
             true -> wildcard_arm(parser, input, unsupported, has_subject, subject)
@@ -475,7 +477,7 @@ crashes Trap
         subject: u64 in Trapping
     ) {
         Parser::take_current(parser, input);
-        transition { _ -> arm_arrow(parser, input, unsupported, has_subject, subject, ArmPatternKind::Wildcard, 0, 0, 0) }
+        transition { _ -> arm_guard(parser, input, unsupported, has_subject, subject, ArmPatternKind::Wildcard, 0, 0, 0) }
     }
 
     state arm_expression(
@@ -505,7 +507,7 @@ crashes Trap
         let expression: Expression = SyntaxTrees::expression(&parser.output, pattern);
         transition has_subject {
             true -> subject_pattern(parser, input, unsupported, subject, pattern, expression.kind)
-            _ -> arm_arrow(parser, input, unsupported, false, subject, ArmPatternKind::Guard, pattern, 0, 0)
+            _ -> arm_guard(parser, input, unsupported, false, subject, ArmPatternKind::Guard, pattern, 0, 0)
         }
     }
 
@@ -520,7 +522,7 @@ crashes Trap
         transition kind {
             ExpressionKind::Name -> case_pattern(parser, input, unsupported, subject, pattern)
             ExpressionKind::Path -> case_pattern(parser, input, unsupported, subject, pattern)
-            _ -> arm_arrow(parser, input, unsupported, true, subject, ArmPatternKind::Literal, pattern, 0, 0)
+            _ -> arm_guard(parser, input, unsupported, true, subject, ArmPatternKind::Literal, pattern, 0, 0)
         }
     }
 
@@ -535,7 +537,7 @@ crashes Trap
         let braced: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
         transition braced {
             true -> pattern_fields_open(parser, input, unsupported, subject, pattern)
-            _ -> arm_arrow(parser, input, unsupported, true, subject, ArmPatternKind::Case, pattern,
+            _ -> arm_guard(parser, input, unsupported, true, subject, ArmPatternKind::Case, pattern,
                 parser.pattern_first_field, 0)
         }
     }
@@ -725,8 +727,50 @@ crashes Trap
     ) {
         Parser::take_current(parser, input);
         let count: u64 in Trapping = (parser.output.pattern_field_count as u64 in Trapping) - parser.pattern_first_field;
-        transition { _ -> arm_arrow(parser, input, unsupported, true, subject, ArmPatternKind::Case, pattern,
+        transition { _ -> arm_guard(parser, input, unsupported, true, subject, ArmPatternKind::Case, pattern,
             parser.pattern_first_field, count) }
+    }
+
+    // `if condition` after any pattern guards the arm: the condition is an
+    // expression over the pattern's binders and the body's names, read
+    // before the arrow.
+    state arm_guard(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping,
+        kind: ArmPatternKind,
+        pattern: u64 in Trapping,
+        first_field: u64 in Trapping,
+        field_count: u64 in Trapping
+    ) {
+        let guarded: bool = Parser::at_keyword(parser, input, KeywordKind::If);
+        transition guarded {
+            true -> guard_condition(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count)
+            _ -> arm_arrow(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count)
+        }
+    }
+
+    state guard_condition(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping,
+        kind: ArmPatternKind,
+        pattern: u64 in Trapping,
+        first_field: u64 in Trapping,
+        field_count: u64 in Trapping
+    ) {
+        Parser::take_current(parser, input);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedArmGuard, false, true);
+        parser.arm_has_guard = true;
+        parser.arm_guard = parser.expression_result;
+        transition parser.output.accepted {
+            true -> arm_arrow(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count)
+            _ -> done()
+        }
     }
 
     state arm_arrow(
@@ -789,6 +833,8 @@ crashes Trap
                 pattern: pattern,
                 first_field: first_field,
                 field_count: field_count,
+                has_guard: parser.arm_has_guard,
+                guard: parser.arm_guard,
                 target_kind: ArmTargetKind::Unit,
                 target: 0,
                 source_span: Parser::source_span(parser, parser.arm_start, parser.token_end)
@@ -884,6 +930,8 @@ crashes Trap
                 pattern: pattern,
                 first_field: first_field,
                 field_count: field_count,
+                has_guard: parser.arm_has_guard,
+                guard: parser.arm_guard,
                 target_kind: ArmTargetKind::Value,
                 target: target,
                 source_span: Parser::source_span(parser, parser.arm_start, value.source_span.span.end)
@@ -935,6 +983,8 @@ crashes Trap
             pattern: pattern,
             first_field: first_field,
             field_count: field_count,
+            has_guard: parser.arm_has_guard,
+            guard: parser.arm_guard,
             target_kind: ArmTargetKind::Call,
             target: target,
             source_span: Parser::source_span(parser, parser.arm_start, call.source_span.span.end)

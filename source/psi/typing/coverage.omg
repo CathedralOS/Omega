@@ -100,8 +100,17 @@ crashes Trap
         }
     }
 
+    // A guarded arm is selected only while its guard holds, so it closes
+    // nothing.
     state candidate(syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
         let arm: TransitionArm = SyntaxTrees::range_arm(syntax, range, offset);
+        transition arm.has_guard {
+            true -> arm(syntax, range, offset + 1)
+            _ -> unguarded(syntax, range, offset, arm)
+        }
+    }
+
+    state unguarded(syntax: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping, arm: TransitionArm) -> bool {
         transition arm.kind {
             ArmPatternKind::Wildcard -> answer(true)
             ArmPatternKind::Guard -> guard(syntax, range, offset, arm)
@@ -161,7 +170,7 @@ crashes Trap
         offset: u64 in Trapping
     ) -> bool {
         let arm: TransitionArm = SyntaxTrees::range_arm(syntax, range, offset);
-        transition arm.kind == kind {
+        transition arm.kind == kind && !arm.has_guard {
             true -> same_kind(syntax, resolution, range, kind, flag, data_case, offset, arm)
             _ -> arm(syntax, resolution, range, kind, flag, data_case, offset + 1)
         }

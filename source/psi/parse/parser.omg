@@ -173,6 +173,9 @@ where
     local_type: u64 in Trapping;
     transition_first_arm: u64 in Trapping;
     arm_start: u64 in Trapping;
+    // The arm being parsed's `if` guard, read where its row is stored.
+    arm_has_guard: bool;
+    arm_guard: u64 in Trapping;
     pattern_first_field: u64 in Trapping;
     pattern_field_start: u64 in Trapping;
     pattern_field_end: u64 in Trapping;

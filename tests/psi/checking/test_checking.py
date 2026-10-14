@@ -1134,6 +1134,31 @@ def main() -> None:
         b"}",
     )
     accepted(program, "qualified-argument-carries-its-domain", small + b"machine f(i: u64 in Small) -> u64 { take(i) }")
+    # An arm's `if` guard holds on the selected arm; passing over a guarded
+    # wildcard establishes the guard's failure
+    # (wiki/spec/language/patterns.md#coverage-and-domain-tests).
+    guarded = (
+        b"data T { case A; case B(v: u64); }\n"
+        b"machine three(x: u64) requires x == 3 {}\n"
+        b"machine small(x: u64) requires x < 4 {}\n"
+        b"machine f(t: T, x: u64) {\n"
+        b"    transition t {\n"
+        b"        T::B { v } GUARD-> three(v)\n"
+        b"        _ if x > 3 -> {}\n"
+        b"        _ -> small(x)\n"
+        b"    }\n"
+        b"}"
+    )
+    accepted(program, "arm-guards-are-facts-of-their-arms", guarded.replace(b"GUARD", b"if v == 3 "))
+    rejected(program, "an-unguarded-arm-proves-nothing", guarded.replace(b"GUARD", b""), "RequirementUnproven", b"three(v)")
+    rejected(
+        program,
+        "a-guarded-case-arm-passed-over-proves-nothing",
+        b"data T { case A; case B(v: u64); }\nmachine small(x: u64) requires x < 4 {}\n"
+        b"machine f(t: T, x: u64) {\n    transition t {\n        T::B { v } if x > 3 -> {}\n        _ -> small(x)\n    }\n}",
+        "RequirementUnproven",
+        b"small(x)",
+    )
     accepted(program, "literal-within-the-domain", small + b"machine f() -> u64 { take(3) }")
     rejected(program, "literal-outside-the-domain", small + b"machine f() -> u64 { take(9) }", "DomainUnproven", b"9")
     rejected(

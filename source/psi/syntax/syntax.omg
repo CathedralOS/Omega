@@ -299,6 +299,10 @@ pub data TransitionArm [copy] {
     pattern: u64 in Trapping;
     first_field: u64 in Trapping;
     field_count: u64 in Trapping;
+    // `pattern if guard -> target`: the arm is selected only while its
+    // guard holds (wiki/spec/language/patterns.md#coverage-and-domain-tests).
+    has_guard: bool;
+    guard: u64 in Trapping;
     target_kind: ArmTargetKind;
     target: u64 in Trapping;
     source_span: SourceSpan;
@@ -729,6 +733,7 @@ pub data ParseDiagnosticCode [copy] {
     case MeasureNotPublic;
     // `in` after a witness's subjects without `lower..upper` or `lower..=upper`.
     case ExpectedRankRange;
+    case ExpectedArmGuard;
     case ExpectedMachineName;
     case ExpectedMachineParameterOrEnd;
     case ExpectedMachineParameter;

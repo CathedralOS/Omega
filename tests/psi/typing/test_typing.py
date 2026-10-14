@@ -976,6 +976,29 @@ def main() -> None:
         b"machine g(v: u16) -> u16 { v }\nmachine f(c: u8) -> u16 { g(match c { 0 -> 5, _ -> 8 }) }",
         ((b"match c { 0 -> 5, _ -> 8 }", "u16"), (b"5", "u16"), (b"8!2", "u16")),
     )
+    # An arm's `if` guard is Boolean and covers nothing
+    # (wiki/spec/language/patterns.md#coverage-and-domain-tests).
+    accepted(
+        program,
+        "guarded-arms",
+        b"data T { case A; case B(v: u8); }\n"
+        b"machine f(t: T, x: u8) -> u8 { transition t { T::B { v } if v == x -> s(v) _ if x > 1 -> s(x) _ -> s(1) } state s(v: u8) -> u8 { v } }",
+        ((b"v == x", "bool"), (b"x > 1", "bool")),
+    )
+    rejected(
+        program,
+        "arm-guard-must-be-boolean",
+        b"data T { case A; case B(v: u8); }\nmachine f(t: T) { transition t { T::B { v } if v -> s(v) _ -> s(1) } state s(v: u8) {} }",
+        "NotBoolean",
+        b"v!3",
+    )
+    rejected(
+        program,
+        "guarded-arms-cover-nothing",
+        b"data T { case A; case B(v: u8); }\nmachine f(t: T) { transition t { T::A -> s(0) T::B { v } if v == 1 -> s(v) } state s(v: u8) {} }",
+        "UncoveredDispatch",
+        b"transition t { T::A -> s(0) T::B { v } if v == 1 -> s(v) }",
+    )
     rejected(
         program,
         "match-literal-ladder-needs-a-wildcard",

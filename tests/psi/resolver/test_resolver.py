@@ -935,6 +935,30 @@ def main() -> None:
             state(0), NOT_A_NAME, NOT_A_NAME, data_case(0, 1), parameter(1), NOT_A_NAME, data_case(0, 0),
         ),
     )
+    # An arm's `if` guard sees the pattern's binders
+    # (wiki/spec/language/patterns.md#coverage-and-domain-tests).
+    accepted(
+        program,
+        "arm-guards-see-pattern-binders",
+        b"data T { case A; case B(v: u8); }\n"
+        b"machine f(t: T, x: u8) { transition t { T::B { v } if v == x -> s(v) _ if x > 1 -> s(x) _ -> s(1) } "
+        b"state s(v: u8) {} }",
+        (builtin("u8"), data(0), builtin("u8"), builtin("u8")),
+        (
+            parameter(0), data_case(0, 1), binder(0), parameter(1), NOT_A_NAME, state(0), binder(0), NOT_A_NAME,
+            parameter(1), NOT_A_NAME, NOT_A_NAME, state(0), parameter(1), NOT_A_NAME,
+            state(0), NOT_A_NAME, NOT_A_NAME,
+        ),
+    )
+    rejected(
+        program,
+        "arm-guard-cannot-see-another-arm's-binder",
+        b"data T { case A; case B(v: u8); }\n"
+        b"machine f(t: T) { transition t { T::B { v } -> s(v) _ if v == 1 -> s(1) } state s(v: u8) {} }",
+        UNKNOWN_NAME,
+        b"v == 1",
+        length=1,
+    )
     accepted(
         program,
         "owned-machine-callee",

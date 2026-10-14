@@ -1226,9 +1226,11 @@ crashes Trap
         let arm: TransitionArm = SyntaxTrees::arm(syntax, statement.first_arm + offset);
         Checker::restore_zone(checker);
         Checker::select_arm(checker, syntax, resolution, typing, statement, arm, true, checking, replayable);
+        Checker::select_guard(checker, syntax, resolution, typing, arm, true, checking);
         Checker::walk_target(checker, syntax, resolution, typing, arm, checking);
         Checker::restore_zone(checker);
         Checker::select_arm(checker, syntax, resolution, typing, statement, arm, false, checking, replayable);
+        Checker::select_guard(checker, syntax, resolution, typing, arm, false, checking);
         Checker::resave_zone(checker);
         transition { _ -> arm(checker, syntax, resolution, typing, statement, offset + 1, checking, replayable) }
     }
@@ -1243,6 +1245,35 @@ crashes Trap
     state overflow(checker: &mut Checker, statement: Statement) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, statement.source_span);
     }
+}
+
+// An arm's `if` guard, evaluated after its pattern's facts and binders:
+// the guard holds on the selected arm. Passing over the arm establishes
+// its failure only where the pattern alone always matched (`_`); after any
+// other pattern the subject may have failed to match instead.
+pub machine Checker::select_guard(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    arm: TransitionArm,
+    chosen: bool,
+    checking: bool
+)
+crashes Trap
+{
+    transition arm.has_guard && (chosen || arm.kind == ArmPatternKind::Wildcard) {
+        true -> evaluated(checker, syntax, resolution, typing, arm, chosen, checking)
+        _ -> done()
+    }
+
+    state evaluated(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm, chosen: bool, checking: bool) {
+        Checker::evaluate_tree(checker, syntax, resolution, typing, arm.guard, checking);
+        Checker::assume(checker, syntax, arm.guard, chosen);
+        Checker::assume_alias(checker, syntax, resolution, typing, arm.guard, chosen);
+    }
+
+    state done() {}
 }
 
 // The facts of a transition's arm being selected (`chosen`) or passed over

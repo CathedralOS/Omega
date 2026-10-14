@@ -228,6 +228,7 @@ crashes Trap
     ) {
         let arm: TransitionArm = SyntaxTrees::arm(syntax, statement.first_arm + offset);
         Typer::type_pattern(typer, sources, syntax, resolution, arm, subject_type);
+        Typer::type_guard_clause(typer, sources, syntax, resolution, arm);
         transition typer.output.accepted {
             true -> target(typer, sources, syntax, resolution, statement, result, subject_type, offset, arm)
             _ -> done()
@@ -263,6 +264,33 @@ crashes Trap
             true -> arm(typer, sources, syntax, resolution, statement, result, subject_type, offset)
             _ -> done()
         }
+    }
+
+    state done() {}
+}
+
+// An arm's `if` guard is Boolean, typed after the pattern so its binders
+// are known.
+machine Typer::type_guard_clause(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm)
+crashes Trap
+{
+    transition arm.has_guard && typer.output.accepted {
+        true -> typed(typer, sources, syntax, resolution, arm)
+        _ -> done()
+    }
+
+    state typed(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm) {
+        Typer::type_tree(typer, sources, syntax, resolution, arm.guard);
+        let guard_type: u64 in Trapping = Typing::expression_type(&typer.output, arm.guard);
+        transition typer.output.accepted && guard_type != typer.output.boolean {
+            true -> not_boolean(typer, syntax, arm)
+            _ -> done()
+        }
+    }
+
+    state not_boolean(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm) {
+        let written: Expression = SyntaxTrees::expression(syntax, arm.guard);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::NotBoolean, written.source_span);
     }
 
     state done() {}
