@@ -1534,6 +1534,32 @@ def main() -> None:
         holders.replace(b"REPLACE", b"touch(&mut held);"),
         "LoanConflict",
         b"main.left.value",
+    # A returned reference and a reference field stand for their referents
+    # as a reference parameter does
+    # (wiki/spec/language/lifetimes.md#returned-views): writes through them
+    # are tracked, and a fact about the lent storage does not survive the
+    # call that lent it.
+    accepted(
+        program,
+        "a-returned-reference-is-written-through",
+        b"data Cell { value: u64; }\nmachine nine(x: u64) requires x == 9 {}\n"
+        b"machine pick(cell: &mut Cell) -> &mut u64 { &mut cell.value }\n"
+        b"machine f(cell: &mut Cell) { let held: &mut u64 = pick(cell); held = 9; nine(held); }",
+    )
+    rejected(
+        program,
+        "a-lent-fact-does-not-survive-the-call",
+        b"data Cell { value: u64; }\nmachine one(x: u64) requires x == 1 {}\n"
+        b"machine pick(cell: &mut Cell) -> &mut u64 { &mut cell.value }\n"
+        b"machine f(cell: &mut Cell) requires cell.value == 1 { let held: &mut u64 = pick(cell); held = 9; one(cell.value); }",
+        "RequirementUnproven",
+        b"one(cell.value)",
+    )
+    accepted(
+        program,
+        "a-reference-field-is-written-through",
+        b"data Cell { value: i64; }\ndata Held { target: &mut Cell; }\nmachine same(x: i64) requires x == 89 {}\n"
+        b"machine f(held: &mut Held) { held.target.value = 89; same(held.target.value); }",
     )
     # A declared measure ranks its subject by its body, or lexicographically
     # by the subject's named fields (wiki/spec/language/termination.md#ranking).
@@ -2786,24 +2812,23 @@ def main() -> None:
     accepted(program, "transitive-reference-write", borrowed + b"9" + body)
     rejected(program, "transitive-reference-old-guarantee", borrowed + b"1" + body,
              "GuaranteeUnproven", b"token.value")
-    rejected(
+    # A reference returned from an exclusive argument of known storage is a
+    # view of that storage (wiki/spec/language/lifetimes.md#returned-views).
+    accepted(
         program,
-        "unknown-returned-reference-write",
+        "a-reference-returned-from-a-placed-argument-is-written-through",
         b"data Token { value: u64; }\n"
         b"machine relay(token: &mut Token) -> &mut Token { token }\n"
         b"machine run() -> u64 { let mut token: Token = Token { value: 1 }; "
         b"let alias: &mut Token = relay(&mut token); alias.value = 9; token.value }",
-        "UnsupportedCheck",
-        b"alias.value = 9;",
     )
-    rejected(
+    # A reference field stands for its referent (references.omg).
+    accepted(
         program,
-        "unknown-reference-field-write",
+        "a-reference-field-write-reaches-its-referent",
         b"data Token { value: u64; }\n"
         b"data Holder { token: &mut Token; }\n"
         b"machine change(holder: &mut Holder) { holder.token.value = 9; }",
-        "UnsupportedCheck",
-        b"holder.token.value = 9;",
     )
     accepted(
         program,

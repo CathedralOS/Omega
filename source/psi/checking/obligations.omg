@@ -378,8 +378,54 @@ crashes Trap
         let called: bool = Checker::selects_machine(selection);
         transition called {
             true -> released(checker, syntax, resolution, typing, node, expression, row)
+            _ -> resulted(checker, syntax, typing, node, expression, row)
+        }
+    }
+
+    // A returned reference is a place of its own, standing for its referent
+    // (references.omg); any other result is known by its type.
+    state resulted(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow) {
+        transition row.kind == TypeKind::Reference {
+            true -> returned_view(checker, syntax, typing, node, expression, row)
             _ -> typed(checker, node, row)
         }
+    }
+
+    // An exclusive returned reference may reach any storage an exclusive
+    // argument lent (wiki/spec/language/lifetimes.md#returned-views), and
+    // a write through it is not a write the callee's frame records: what
+    // those arguments reach is released whole before the view is formed.
+    state returned_view(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow) {
+        transition row.access == ReferenceAccess::Shared {
+            true -> viewed(checker, typing, node)
+            _ -> sourced_view(checker, syntax, typing, node, expression, row)
+        }
+    }
+
+    // An exclusive view needs every exclusive source's storage known: a
+    // write through a view of unknown storage stays refused, as a write
+    // through that source would be, rather than gaining facts of its own.
+    state sourced_view(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow) {
+        let placed: bool = Checker::exclusive_arguments_placed(checker, syntax, typing, expression, 0);
+        transition placed {
+            true -> released_view(checker, syntax, typing, node, expression)
+            _ -> typed(checker, node, row)
+        }
+    }
+
+    state released_view(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, expression: Expression) {
+        Checker::release_exclusive_arguments(checker, syntax, typing, expression, Selection::None);
+        transition { _ -> viewed(checker, typing, node) }
+    }
+
+    // The call's value is what the returned reference denotes: a scalar
+    // referent's own subject, or the call place standing for the referent,
+    // so a local capturing it reads and writes that storage.
+    state viewed(checker: &mut Checker, typing: &Typing, node: u64 in Trapping) {
+        let type_handle: u64 in Trapping = Typing::expression_type(typing, node);
+        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Call, node, 0, type_handle);
+        let referent: Value = Checker::reference_value(checker, typing, place);
+        Checker::set_value(checker, node, referent);
     }
 
     // A machine binder may be any machine meeting its contract, so whatever
@@ -389,7 +435,7 @@ crashes Trap
         Checker::release_exclusive_arguments(checker, syntax, typing, expression, selection);
         transition selection {
             Selection::Machine { handle } -> callee(checker, syntax, resolution, typing, node, expression, row, handle)
-            _ -> typed(checker, node, row)
+            _ -> resulted(checker, syntax, typing, node, expression, row)
         }
     }
 
@@ -398,7 +444,7 @@ crashes Trap
         let guarantees: bool = Checker::declares(syntax, item.first_clause, item.clause_count, ClauseKind::Ensures);
         transition guarantees {
             true -> guaranteed(checker, syntax, resolution, typing, node, expression, item)
-            _ -> typed(checker, node, row)
+            _ -> resulted(checker, syntax, typing, node, expression, row)
         }
     }
 
@@ -588,6 +634,41 @@ crashes Trap
 
 // An array's extent: its static integer, or for a `const` generic extent
 // any `u64`, since one body serves every specialization.
+// Whether every exclusive reference argument of a call has known storage
+// (`Checker::storage_origin`), from operand `offset` on.
+pub machine Checker::exclusive_arguments_placed(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, offset: u64 in Trapping) -> bool
+crashes Trap
+{
+    let count: u64 in Trapping = Checker::operand_count(expression);
+    transition offset < count {
+        true -> operand(checker, syntax, typing, expression, offset, count)
+        _ -> answer(true)
+    }
+
+    state operand(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, offset: u64 in Trapping, count: u64 in Trapping) -> bool {
+        let handle: u64 in Trapping = Checker::operand(syntax, expression, offset);
+        let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
+        let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+        let exclusive: bool = row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared;
+        let origin: u64 in Trapping = Checker::storage_origin(checker, syntax, typing, handle);
+        transition exclusive && origin == 0 {
+            true -> answer(false)
+            _ -> next(checker, syntax, typing, expression, offset, count)
+        }
+    }
+
+    state next(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, offset: u64 in Trapping, count: u64 in Trapping) -> bool {
+        transition offset + 1 < count {
+            true -> operand(checker, syntax, typing, expression, offset + 1, count)
+            _ -> answer(true)
+        }
+    }
+
+    state answer(placed: bool) -> bool {
+        placed
+    }
+}
+
 // Whether a collection row is a bounded byte array: a fixed byte array
 // under a declared domain, whose runtime storage is the bounded `{len,
 // bytes}` carrier with a live length rather than an always-full array

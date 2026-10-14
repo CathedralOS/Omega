@@ -180,10 +180,17 @@ crashes Trap
         }
     }
 
+    // A reference field and a returned reference stand for their referents
+    // as a reference parameter does: the storage lies elsewhere, and the
+    // loans the holder carries (loans.omg) keep that storage from being
+    // read or written another way while the reference is used
+    // (wiki/spec/language/lifetimes.md#returned-views).
     state reference(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place) -> Value {
         transition entry.kind {
             PlaceKind::Local -> local(checker, place - 1)
             PlaceKind::Parameter -> parameter(checker, typing, place, entry.type_handle)
+            PlaceKind::Field -> parameter(checker, typing, place, entry.type_handle)
+            PlaceKind::Call -> parameter(checker, typing, place, entry.type_handle)
             _ -> unknown()
         }
     }
