@@ -1,0 +1,6 @@
+machine positive(value: u8 in Trapping) requires value > 0 { }
+machine wrong(value: u8 in Wrapping) requires value == 255 {
+    let wrapped: u8 in Wrapping = value + 1;
+    let trapping: u8 in Trapping = wrapped as u8 in Trapping;
+    positive(trapping + 0);
+}

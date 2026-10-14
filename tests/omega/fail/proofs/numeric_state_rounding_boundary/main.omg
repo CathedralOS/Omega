@@ -1,0 +1,4 @@
+machine upper(value: i64) requires value <= 9 { }
+machine rounded_wrong(value: i64)
+requires 100 * embed(value) <= 1000
+{ upper(value); }

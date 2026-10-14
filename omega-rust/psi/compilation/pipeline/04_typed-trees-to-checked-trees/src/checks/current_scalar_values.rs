@@ -58,6 +58,7 @@ pub(crate) struct CurrentScalarValues<'program> {
     program: &'program dyn ::validation::CheckingInput,
     machine: &'program Machine,
     state: &'program State,
+    statement_index: usize,
     initial: Vec<Binding>,
     current: Vec<Binding>,
     lengths: Vec<Length>,
@@ -77,7 +78,7 @@ impl<'program> CurrentScalarValues<'program> {
             .state_parameters(state)
             .iter()
             .filter_map(|parameter| {
-                let primitive = exact_integer(program, parameter.type_reference)?;
+                let primitive = integer_carrier(program, parameter.type_reference)?;
                 Some(Binding {
                     symbol: parameter.symbol,
                     name: parameter.name.to_string(),
@@ -121,6 +122,7 @@ impl<'program> CurrentScalarValues<'program> {
             program,
             machine,
             state,
+            statement_index,
             current: initial.clone(),
             initial,
             lengths,
@@ -185,7 +187,7 @@ impl<'program> CurrentScalarValues<'program> {
                         local.type_reference,
                         local.initial_value,
                     );
-                    if exact_integer(program, local.type_reference).is_some() {
+                    if integer_carrier(program, local.type_reference).is_some() {
                         values.current.push(Binding {
                             symbol: local.symbol,
                             name: local.name.to_string(),
@@ -420,6 +422,59 @@ impl<'program> CurrentScalarValues<'program> {
         state: &State,
         expression: ExpressionHandle,
     ) -> Option<ScopedArithmeticValue> {
+        self.capture_at_depth(program, machine, state, expression, 0)
+    }
+
+    /// Capture an executed primitive's normal value, not a specification term.
+    /// Trapping addition/subtraction/multiplication have their mathematical
+    /// result on this continuation; their crash path never reaches the use.
+    /// Selection and the result carrier are checked independently. Wrapping
+    /// and Saturating remain source terms with the engine's policy checks.
+    fn capture_at_depth(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        depth: usize,
+    ) -> Option<ScopedArithmeticValue> {
+        if depth >= 64 {
+            return None;
+        }
+        if let Some(binary) = program.expression_table.binary_node(expression)
+            && matches!(
+                binary.operator,
+                BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+            )
+            && validation::has_builtin_binary_expression_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            )
+            && let Some(reference) =
+                validation::expression_result_type_reference(program, machine, state, expression)
+            && integer_carrier(program, reference).is_some()
+            && program.arithmetic_domain_for_type_reference(reference) == ArithmeticDomain::Trapping
+        {
+            return Some(ScopedArithmeticValue::IntegerOperation {
+                operator: binary.operator,
+                left: Box::new(self.capture_at_depth(
+                    program,
+                    machine,
+                    state,
+                    binary.left,
+                    depth + 1,
+                )?),
+                right: Box::new(self.capture_at_depth(
+                    program,
+                    machine,
+                    state,
+                    binary.right,
+                    depth + 1,
+                )?),
+            });
+        }
         admitted(
             program,
             machine,
@@ -519,7 +574,7 @@ impl<'program> CurrentScalarValues<'program> {
         let mut formals = Vec::with_capacity(parameters.len());
         let mut lengths = Vec::new();
         for (parameter, argument) in parameters.iter().zip(arguments) {
-            let Some(primitive) = exact_integer(self.program, parameter.type_reference) else {
+            let Some(primitive) = integer_carrier(self.program, parameter.type_reference) else {
                 if validation::state_reference_parameter_binding_is_stable(
                     self.program,
                     callee,
@@ -576,7 +631,28 @@ impl<'program> CurrentScalarValues<'program> {
                 let position = parameters
                     .iter()
                     .position(|parameter| parameter.symbol == symbol)?;
-                binding.value = ScopedArithmeticValue::Term(self.current(arguments[position])?);
+                let captured =
+                    self.capture(self.program, self.machine, self.state, arguments[position])?;
+                // The argument's captured identity remains mandatory. Bounds
+                // from its exact caller observation add arrival knowledge
+                // (including acyclic predecessors), never a destination
+                // requirement or permission to revive an invalidated value.
+                binding.value = if let Some((minimum, maximum)) =
+                    validation::occurrence_integer_expression_bounds(
+                        self.program,
+                        self.machine.symbol,
+                        self.state.symbol,
+                        self.statement_index,
+                        arguments[position],
+                    ) {
+                    ScopedArithmeticValue::BoundedInteger {
+                        value: Box::new(captured),
+                        minimum: Some(numerics::bignum::BigInt::from_i64(minimum)),
+                        maximum: Some(numerics::bignum::BigInt::from_i64(maximum)),
+                    }
+                } else {
+                    captured
+                };
             }
         }
         Some(goal)
@@ -611,14 +687,14 @@ impl<'program> CurrentScalarValues<'program> {
     }
 }
 
-fn exact_integer(
+fn integer_carrier(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     let primitive = program.primitive_type_reference(reference)?;
-    if !primitive.is_fixed_integer()
-        || program.arithmetic_domain_for_type_reference(reference) != ArithmeticDomain::Exact
-    {
+    // A stored payload has an integer denotation under every arithmetic policy.
+    // This admits observation, not arithmetic with an erased policy.
+    if !primitive.is_fixed_integer() {
         return None;
     }
     Some(primitive)
@@ -742,7 +818,7 @@ fn field_occurrence(
     if !frozen {
         return None;
     }
-    let primitive = exact_integer(program, selected_type)?;
+    let primitive = integer_carrier(program, selected_type)?;
     Some(ScopedArithmeticValue::Atom {
         identity: format!(
             "state:{:?}:parameter:{:?}:field:{segments:?}",
@@ -766,6 +842,18 @@ fn admitted(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) => true,
+        ExpressionNode::Call(_) => validation::integer_embedding_argument(program, expression)
+            .is_some_and(|(_, argument)| {
+                admitted(
+                    program,
+                    machine,
+                    state,
+                    argument,
+                    bindings,
+                    lengths,
+                    depth + 1,
+                )
+            }),
         ExpressionNode::Member(_) => {
             length_occurrence(program, expression, lengths).is_some()
                 || field_occurrence(program, machine, state, expression).is_some()
@@ -847,6 +935,10 @@ fn scoped(
                 }
             }
             ExpressionNode::Integer(_) => {}
+            ExpressionNode::Call(_) => {
+                let (_, argument) = validation::integer_embedding_argument(program, expression)?;
+                pending.push((argument, depth + 1));
+            }
             ExpressionNode::Member(_) => {
                 let value = length_occurrence(program, expression, lengths)
                     .and_then(|length| length.value.clone())

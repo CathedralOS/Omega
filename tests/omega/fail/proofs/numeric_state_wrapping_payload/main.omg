@@ -1,0 +1,10 @@
+machine positive(value: u8 in Wrapping)
+requires embed(value) > 0
+{ }
+
+machine wrong(value: u8 in Wrapping)
+requires value == 255
+{
+    let wrapped: u8 in Wrapping = value + 1;
+    positive(wrapped);
+}

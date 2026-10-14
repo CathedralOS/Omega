@@ -1,0 +1,16 @@
+trait Addition {
+    operator + add(left: u8, right: u8) -> u8;
+}
+
+Selected satisfies Addition {
+    machine add(left: u8, right: u8) -> u8 { 0 }
+}
+
+machine positive(value: u8) requires value > 0 { }
+
+machine wrong<Operation satisfies Addition>(value: u8)
+requires value == 1
+{
+    let changed: u8 = value + 1;
+    positive(changed);
+}

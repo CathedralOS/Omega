@@ -1,0 +1,14 @@
+machine replace(destination: &write u64 in Trapping) -> u64 in Trapping {
+    destination = 99;
+    0
+}
+
+machine small(token: u64 in Trapping, value: u64 in Trapping)
+requires value <= 9
+{ }
+
+machine wrong(mut value: u64 in Trapping)
+requires value <= 9
+{
+    small(replace(&write value), value);
+}

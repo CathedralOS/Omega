@@ -1,0 +1,12 @@
+machine wrong() {
+    transition { _ -> loop(100, 0) }
+    state loop(rest: u64 in Trapping, count: u64 in Trapping)
+    requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
+    {
+        transition rest >= 10 {
+            true -> loop(rest - 10, count + 1)
+            _ -> done()
+        }
+    }
+    state done() { }
+}

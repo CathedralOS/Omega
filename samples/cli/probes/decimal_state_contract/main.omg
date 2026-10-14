@@ -1,0 +1,56 @@
+// Expected exit: 0.
+// Repeated subtraction preserves a mathematical decimal-state invariant.
+machine digit(value: u64 in Trapping)
+requires 48 <= value && value <= 57
+{ }
+
+machine decimal(value: u64 in Trapping) -> i32 {
+    transition value <= 999 {
+        true -> hundreds(value, 0)
+        _ -> 2
+    }
+    state hundreds(rest: u64 in Trapping, count: u64 in Trapping)
+    requires count <= 9 && embed(rest) + embed(count) * 100 <= 999
+    {
+        transition rest >= 100 {
+            true -> hundreds(rest - 100, count + 1)
+            _ -> hundreds_emit(rest, count)
+        }
+    }
+    state hundreds_emit(rest: u64 in Trapping, count: u64 in Trapping) {
+        transition count == 0 {
+            true -> loop(rest, 0)
+            _ -> hundreds_digit(rest, 48 + count)
+        }
+    }
+    state hundreds_digit(rest: u64 in Trapping, code: u64 in Trapping) {
+        digit(code);
+        transition { _ -> loop(rest, 0) }
+    }
+    state loop(rest: u64 in Trapping, count: u64 in Trapping)
+    requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
+    {
+        transition rest >= 10 {
+            true -> loop(rest - 10, count + 1)
+            _ -> emit(rest, count)
+        }
+    }
+    state emit(rest: u64 in Trapping, count: u64 in Trapping) {
+        digit(48 + count);
+        digit(48 + rest);
+        transition rest == 9 && count == 9 {
+            true -> 0
+            _ -> 1
+        }
+    }
+}
+
+machine main() crashes Trap {
+    let status: i32 = decimal(999);
+    transition status == 0 {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() { }
+    state wrong() { crash Trap; }
+}

@@ -1,0 +1,16 @@
+machine wrong(value: u64 in Trapping, unchecked: u64 in Trapping, choice: bool) {
+    transition value <= 99 {
+        true -> dispatch(value, unchecked, choice)
+        _ -> done()
+    }
+    state dispatch(value: u64 in Trapping, unchecked: u64 in Trapping, choice: bool) {
+        transition choice {
+            true -> tens(value, 0)
+            _ -> tens(unchecked, 0)
+        }
+    }
+    state tens(rest: u64 in Trapping, count: u64 in Trapping)
+    requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
+    { }
+    state done() { }
+}

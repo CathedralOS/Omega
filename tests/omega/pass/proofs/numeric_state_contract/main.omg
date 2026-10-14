@@ -1,0 +1,62 @@
+machine digit(value: u64 in Trapping)
+requires 48 <= value && value <= 57
+{ }
+
+data Counter { value: u64 in Trapping; }
+
+machine stored_digit(counter: &Counter)
+requires counter.value <= 9
+{
+    digit(48 + counter.value);
+}
+
+machine captured_digit(count: u64 in Trapping)
+requires count <= 9
+{
+    let code: u64 in Trapping = count + 48;
+    digit(code);
+}
+
+machine upper(value: i64) requires value <= 9 { }
+machine lower(value: i64) requires value >= -9 { }
+
+machine rounded_upper(value: i64)
+requires 100 * embed(value) <= 999
+{ upper(value); }
+
+machine rounded_lower(value: i64)
+requires -100 * embed(value) <= 999
+{ lower(value); }
+
+machine swap(first: u64 in Trapping, second: u64 in Trapping)
+requires first <= second
+{
+    transition { _ -> swapped(second, first) }
+    state swapped(first: u64 in Trapping, second: u64 in Trapping)
+    requires second <= first
+    { }
+}
+
+machine decimal(value: u64 in Trapping) {
+    transition value <= 99 {
+        true -> loop(value, 0)
+        _ -> done()
+    }
+    state loop(rest: u64 in Trapping, count: u64 in Trapping)
+    requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
+    {
+        transition rest >= 10 {
+            true -> loop(rest - 10, count + 1)
+            _ -> emit(rest, count)
+        }
+    }
+    state emit(rest: u64 in Trapping, count: u64 in Trapping)
+    requires rest <= 9 && count <= 9
+    {
+        let first: u64 in Trapping = 48 + count;
+        digit(first);
+        digit(48 + rest);
+        transition { _ -> done() }
+    }
+    state done() { }
+}

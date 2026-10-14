@@ -74,6 +74,7 @@ pass/layouts/runtime_size_of_align_of_exit rejected 4842ms interpreter:unchecked
 	unimplemented: `size_of` requires a portable Terminal data-layout query; native layout must not rewrite the checked source
 pass/locals/static_local_field_names_exit built 2008ms exit:0 interpreter-exit:0 interpreter:agrees @105d2b8e6ff9+wt
 pass/machines/static_namespace_constant_exit built 6980ms exit:0 interpreter-exit:0 interpreter:agrees @0bb2f2c02dae+wt
+pass/proofs/numeric_state_contract_exit built 9232ms exit:0 interpreter-exit:0 interpreter:agrees @b3396fd69abd+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 5436ms exit:41 interpreter-exit:41 interpreter:agrees @506354b3cca3+wt
 pass/providers/nested_binding_borrowed_call_exit built 47955ms exit:0 interpreter-exit:0 interpreter:agrees @6289e072ebd6
 pass/providers/runtime_adapter_dispatch_exit built 5331ms exit:70 interpreter-exit:70 interpreter:agrees @944ee0efb38f+wt

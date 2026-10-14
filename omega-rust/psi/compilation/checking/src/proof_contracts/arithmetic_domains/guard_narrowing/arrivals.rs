@@ -432,7 +432,15 @@ fn condition_belongs_to_state(
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_) => true,
         ExpressionNode::Call(_) => {
-            ordered_values::operand(program, machine, state, expression, frames).is_some()
+            // The proof-only projection has no executable operand, but its
+            // lexical scope is exactly its source's scope. Rejecting it here
+            // discarded unrelated conjuncts of a state invariant before the
+            // narrowing owner could retain their useful ordinary bounds.
+            if let Some((_, argument)) = crate::integer_embedding_argument(program, expression) {
+                condition_belongs_to_state(program, machine, state, argument, frames)
+            } else {
+                ordered_values::operand(program, machine, state, expression, frames).is_some()
+            }
         }
         _ => false,
     }

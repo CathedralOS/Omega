@@ -5,7 +5,7 @@
 //! independently establish the range. Returning a descriptor binds its actual
 //! observation to the exact contract owner, never to the backing capacity.
 
-use super::{CurrentScalarValues, Length, LengthSubject, exact_integer, fixed_length};
+use super::{CurrentScalarValues, Length, LengthSubject, fixed_length, integer_carrier};
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -153,7 +153,8 @@ impl CurrentScalarValues<'_> {
                 }
                 let mut bindings = Vec::new();
                 for (parameter, argument) in parameters.iter().zip(arguments) {
-                    let value = if exact_integer(self.program, parameter.type_reference).is_some() {
+                    let value = if integer_carrier(self.program, parameter.type_reference).is_some()
+                    {
                         self.capture(self.program, self.machine, self.state, *argument)
                     } else if !parameter.is_mutable
                         && fixed_length(self.program, parameter.type_reference, String::new)

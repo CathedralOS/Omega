@@ -1,0 +1,5 @@
+machine zero(value: u8 in Saturating) requires value == 0 { }
+machine wrong(value: u8 in Saturating) requires value == 255 {
+    let saturated: u8 in Saturating = value + 1;
+    zero(saturated);
+}

@@ -1,6 +1,8 @@
 //! Sufficient polynomial bounds from established atom intervals and one premise.
 //!
-//! Scaling aligns one nonconstant coefficient without division or rounding.
+//! Scaling aligns one nonconstant coefficient without division. Strict integer
+//! scopes may round a scaled threshold using the discreteness of the goal;
+//! legacy scopes can contain nonintegers and retain the unrounded threshold.
 //! Horner enclosure retains useful repeated-factor relationships such as
 //! `n*n - n = n*(n-1)`. Neither route installs a queried goal as a premise;
 //! both supplement the existing monomial enclosure and may decline a true bound.
@@ -39,10 +41,24 @@ impl Engine<'_> {
             return false;
         };
         // S >= c and A*G - B*S >= A*b - B*c, for positive A/B, imply G >= b.
+        // When G is integral, A*G > A*(b-1) suffices: the weakest integer
+        // threshold is A*b-(A-1). This is not available to legacy adapters
+        // whose parameter atoms may denote nonintegers.
         // Keep this nonrecursive: never search combinations of stored premises.
+        let integer_slack = if self.strict_symbol_bindings.is_some()
+            && self.strict_symbol_bindings_valid
+            && !self.proof_integer_formation
+        {
+            goal_scale.sub(&BigInt::from_i64(1))
+        } else {
+            BigInt::zero()
+        };
         self.prove_base_lower_bound(
             &scaled_goal.sub(&scaled_stored),
-            &bound.mul(&goal_scale).sub(&stored_bound.mul(&stored_scale)),
+            &bound
+                .mul(&goal_scale)
+                .sub(&stored_bound.mul(&stored_scale))
+                .sub(&integer_slack),
         )
     }
 

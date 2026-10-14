@@ -3389,6 +3389,26 @@ fail/proofs/normal_call_guarantee_mutating_initializer rejected 1498ms expected 
 	cannot prove ensures contract for exit from invalid at statement 2: result == 3
 fail/proofs/normal_return_expression_statement_is_not_return rejected 5218ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from invalid at statement 1: result == true
+fail/proofs/numeric_state_argument_mutation rejected 1546ms expected @b3396fd69abd+wt
+	cannot prove requires contract for call small from wrong: value <= 9 (needs fact `value <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/numeric_state_bad_recurrence rejected 1734ms expected @b3396fd69abd+wt
+	cannot prove requires contract for call loop from start: count + 2 <= 9 && embed(rest - 10) + embed(count + 2) * 10 <= 99 (needs fact `count <= 9 && embed(rest) + embed(count) * 10 <= 99` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/proofs/numeric_state_exact_overflow rejected 539ms expected @b3396fd69abd+wt
+	exact arithmetic in machine `wrong` state `entry` call argument may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
+fail/proofs/numeric_state_initial_arrival rejected 1690ms expected @b3396fd69abd+wt
+	cannot prove requires contract for call loop from wrong: 0 <= 9 && embed(100) + embed(0) * 10 <= 99 (needs fact `count <= 9 && embed(rest) + embed(count) * 10 <= 99` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/numeric_state_mixed_payload rejected 1541ms expected @b3396fd69abd+wt
+	cannot prove requires contract for call positive from wrong: trapping + 0 > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/numeric_state_rounding_boundary rejected 1526ms expected @b3396fd69abd+wt
+	cannot prove requires contract for call upper from rounded_wrong: value <= 9 (needs fact `value <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/numeric_state_saturating_payload rejected 1570ms expected @b3396fd69abd+wt
+	cannot prove requires contract for call zero from wrong: saturated == 0 (needs fact `value == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/numeric_state_selected_operator rejected 1522ms expected @b3396fd69abd+wt
+	cannot prove requires contract for call positive from wrong: changed > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/numeric_state_unknown_arrival rejected 1570ms expected @b3396fd69abd+wt
+	cannot prove requires contract for call tens from wrong: 0 <= 9 && embed(unchecked) + embed(0) * 10 <= 99 (needs fact `count <= 9 && embed(rest) + embed(count) * 10 <= 99` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `dispatch`
+fail/proofs/numeric_state_wrapping_payload rejected 1522ms expected @b3396fd69abd+wt
+	cannot prove requires contract for call positive from wrong: embed(wrapped) > 0 (needs fact `embed(value) > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/opposite_guard_same_target rejected 9976ms expected @5b35eda9b8d6
 	cannot prove requires contract for call impossible from main: 1 == 0 (needs fact `1 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/order_antisymmetry_false_twin rejected 874ms expected @a9ae30e1c334+wt
@@ -6803,6 +6823,8 @@ pass/proofs/nat_metric_triangle_compile checked 2309ms @a9ae30e1c334+wt
 pass/proofs/negative_disjunction_post_mutation_bound checked 36258ms check-target:macos_arm64 @5b35eda9b8d6
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit checked 12498ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/normal_return_expression_statement_sequence_exit checked 10881ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/proofs/numeric_state_contract checked 3879ms @b3396fd69abd+wt
+pass/proofs/numeric_state_contract_exit checked 11012ms check-target:macos_arm64 @b3396fd69abd+wt
 pass/proofs/ordinary_denotational_requirement_published_termination_exit checked 11023ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/piecewise_call_result_arithmetic checked 1652ms @1f63ee648905+wt
 pass/proofs/polynomial_expand_core_nat checked 11957ms check-target:macos_arm64 @a9ae30e1c334+wt
