@@ -1,0 +1,40 @@
+// Expected exit: 0.
+data Cell [copy] { value: u32; }
+data Window<'input> { values: &'input mut [Cell]; }
+data Cursor<'input> { window: Window<'input>; }
+machine advance(window: &mut Window, consumed: u64) -> bool {
+    transition consumed <= window.values.len {
+        true -> valid(window, consumed)
+        false -> false
+    }
+    state valid(window: &mut Window, consumed: u64) -> bool
+    requires consumed <= window.values.len {
+        window.values = &mut window.values[consumed..];
+        true
+    }
+}
+machine relay(cursor: &mut Cursor, consumed: u64) -> bool {
+    advance(&mut cursor.window, consumed)
+}
+machine read(values: &[Cell]) -> u32 {
+    transition values.len == 1 {
+        true -> present(values)
+        false -> 0
+    }
+    state present(values: &[Cell]) -> u32 requires values.len == 1 { values[0].value }
+}
+machine main() crashes Trap {
+    let mut cells: [Cell; 2] = [Cell { value: 7 }, Cell { value: 11 }];
+    let mut cursor: Cursor = Cursor { window: Window { values: &mut cells[..] } };
+    let refused: bool = relay(&mut cursor, 3);
+    let preserved: u64 = cursor.window.values.len;
+    let accepted: bool = relay(&mut cursor, 1);
+    let retained: bool = relay(&mut cursor, 0);
+    let value: u32 = read(cursor.window.values);
+    transition !refused && preserved == 2 && accepted && retained && value == 11 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

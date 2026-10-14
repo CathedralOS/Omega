@@ -411,8 +411,8 @@ pub(super) fn borrow_target_exposes_carrier_binding(
         return false;
     }
     if frozen_bindings::target_replaces_case_binding(program, target, stored, aliases)
-        || frozen_bindings::target_replaces_reference_binding(
-            program, target, stored, aliases, true,
+        || frozen_bindings::target_replaces_untracked_origin(
+            program, target, stored, aliases, true, false,
         )
     {
         return true;

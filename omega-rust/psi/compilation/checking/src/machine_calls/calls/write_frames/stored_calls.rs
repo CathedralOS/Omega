@@ -36,6 +36,10 @@ pub struct StoredReferenceEffect {
     pub destination: LocalWriteOrigin,
     pub sources: Vec<StoredReferenceSource>,
     pub retains_incoming: bool,
+    /// A runtime-selected destination may leave other physical slots intact.
+    /// Unlike a conditional write to one exact slot, it cannot replace the
+    /// destination's complete current descriptor occurrence.
+    pub may_select: bool,
     pub access: language_semantics::ReferenceAccess,
 }
 
@@ -93,6 +97,7 @@ pub(super) fn public_effects(effects: Vec<SlotEffect>) -> Vec<StoredReferenceEff
                 })
                 .collect(),
             retains_incoming: effect.incoming,
+            may_select: effect.may_select,
             access: effect.access,
         })
         .collect()

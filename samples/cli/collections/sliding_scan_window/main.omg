@@ -1,0 +1,51 @@
+// Expected exit: 0.
+// Advancing a stored window preserves its original backing and updates its extent.
+data Reading [copy] { address: u64; value: u32; }
+data Window<'input> { values: &'input mut [Reading]; }
+
+machine advance(window: &mut Window, consumed: u64) -> bool {
+    transition consumed <= window.values.len {
+        true -> valid(window, consumed)
+        false -> false
+    }
+    state valid(window: &mut Window, consumed: u64) -> bool
+    requires consumed <= window.values.len {
+        window.values = &mut window.values[consumed..];
+        true
+    }
+}
+
+machine verify(values: &[Reading]) -> bool {
+    transition values.len == 2 {
+        true -> inspect(values)
+        false -> false
+    }
+    state inspect(values: &[Reading]) -> bool requires values.len == 2 {
+        values[0].address == 20 && values[0].value == 22
+            && values[1].address == 30 && values[1].value == 33
+    }
+}
+
+machine main() crashes Trap {
+    let mut readings: [Reading; 5] = [
+        Reading { address: 999, value: 99 },
+        Reading { address: 10, value: 11 },
+        Reading { address: 20, value: 22 },
+        Reading { address: 30, value: 33 },
+        Reading { address: 888, value: 88 }
+    ];
+    let mut window: Window = Window { values: &mut readings[1..4] };
+    let advanced: bool = advance(&mut window, 1);
+    let first: bool = verify(window.values);
+    let retained: bool = advance(&mut window, 0);
+    let second: bool = verify(window.values);
+    let emptied: bool = advance(&mut window, 2);
+    let exhausted: bool = window.values.len == 0;
+    transition advanced && first && retained && second && emptied && exhausted
+        && readings[0].value == 99 && readings[4].value == 88 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

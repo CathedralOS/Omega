@@ -5,6 +5,7 @@
 use super::{
     FramePathPrecision, FramePlaceOrigin, StoredLocalOrigins, projections::prefix_matches,
 };
+use crate::machine_calls::calls::write_frames::caller_aliases::CallerWriteSite;
 use crate::machine_calls::calls::write_frames::{
     FrameInference, FrameSourcePlace, TopLevelSymbols, coarse_place_path, split_place_root,
 };
@@ -22,12 +23,21 @@ pub(in crate::machine_calls::calls::write_frames) fn statement_exposes_frozen_bi
     aliases: &[(String, FramePlaceOrigin)],
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
+    reference_calls_known: bool,
 ) -> bool {
     use typed_trees::statement::StatementRootRole;
 
     if let Some(call) = statement.as_call() {
         return call_exposes_frozen_binding(
-            program, machine, state, call, stored, aliases, symbols, inference,
+            program,
+            machine,
+            state,
+            call,
+            stored,
+            aliases,
+            symbols,
+            inference,
+            reference_calls_known,
         );
     }
     // Producing a value (including a returned descriptor) does not invoke the
@@ -63,6 +73,8 @@ pub(in crate::machine_calls::calls::write_frames) fn statement_exposes_frozen_bi
                 symbols,
                 inference,
                 consumer_writes,
+                reference_calls_known,
+                false,
             )
         })
 }
@@ -76,6 +88,7 @@ pub(in crate::machine_calls::calls::write_frames) fn call_exposes_frozen_binding
     aliases: &[(String, FramePlaceOrigin)],
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
+    reference_calls_known: bool,
 ) -> bool {
     let arguments = program.statement_table.expression_handles(call.arguments);
     let receiver = program
@@ -97,9 +110,20 @@ pub(in crate::machine_calls::calls::write_frames) fn call_exposes_frozen_binding
         inference,
     );
     (receiver_target_is_unresolved(program, call.target_symbol)
+        && !super::super::boundary_calls::call_has_authority_receiver(
+            program,
+            machine,
+            CallerWriteSite::Call(call),
+        )
         && statement_receiver_exposes_binding(program, state, call, stored, aliases)
         && (!statement_receiver_has_identity(program, call, stored, aliases)
-            || writes_may_replace_binding(program, stored, aliases, writes.as_deref())))
+            || writes_may_replace_binding(
+                program,
+                stored,
+                aliases,
+                writes.as_deref(),
+                reference_calls_known,
+            )))
         || arguments.iter().any(|expression| {
             expression_exposes(
                 program,
@@ -111,6 +135,8 @@ pub(in crate::machine_calls::calls::write_frames) fn call_exposes_frozen_binding
                 symbols,
                 inference,
                 writes.as_deref(),
+                reference_calls_known,
+                reference_calls_known,
             )
         })
 }
@@ -126,7 +152,8 @@ pub(in crate::machine_calls::calls::write_frames) fn expression_exposes_frozen_b
     inference: &mut FrameInference,
 ) -> bool {
     expression_exposes(
-        program, machine, state, expression, stored, aliases, symbols, inference, None,
+        program, machine, state, expression, stored, aliases, symbols, inference, None, false,
+        false,
     )
 }
 
@@ -143,6 +170,8 @@ fn expression_exposes(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     writes: Option<&[String]>,
+    reference_calls_known: bool,
+    consumer_references_known: bool,
 ) -> bool {
     use typed_trees::expression::ExpressionNode;
     if !expression.is_valid() {
@@ -169,6 +198,10 @@ fn expression_exposes(
                 callee.return_type.is_valid()
                     && super::super::type_may_carry_write(program, callee.return_type)
             });
+        let references_known = reference_calls_known
+            && (!carries_authority
+                || consumer_references_known
+                || writes.is_some_and(<[String]>::is_empty));
         if carries_authority {
             call_writes = match (call_writes, writes) {
                 (Some(mut own), Some(consumer)) => {
@@ -180,17 +213,24 @@ fn expression_exposes(
         }
         let writes = call_writes.as_deref();
         if receiver_target_is_unresolved(program, call.target_symbol)
+            // Routing authority is shared call input, not provider-object
+            // storage. Its evaluation and every ordinary argument still run
+            // through the operand traversal below.
+            && !super::super::boundary_calls::call_has_authority_receiver(
+                program, machine, CallerWriteSite::Expression(expression),
+            )
             && (target_replaces_case_binding(program, call.receiver, stored, aliases)
-                || target_replaces_reference_binding(
+                || target_replaces_untracked_origin(
                     program,
                     call.receiver,
                     stored,
                     aliases,
                     false,
+                    references_known,
                 ))
             && (binding_source(program, call.receiver, aliases)
                 .is_none_or(|source| !source.root.is_valid())
-                || writes_may_replace_binding(program, stored, aliases, writes))
+                || writes_may_replace_binding(program, stored, aliases, writes, references_known))
         {
             return true;
         }
@@ -198,7 +238,17 @@ fn expression_exposes(
             .chain(arguments.iter().copied())
             .any(|child| {
                 expression_exposes(
-                    program, machine, state, child, stored, aliases, symbols, inference, writes,
+                    program,
+                    machine,
+                    state,
+                    child,
+                    stored,
+                    aliases,
+                    symbols,
+                    inference,
+                    writes,
+                    reference_calls_known,
+                    references_known,
                 )
             });
     }
@@ -206,17 +256,35 @@ fn expression_exposes(
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow) => {
             if borrow.access.is_exclusive()
-                && super::borrow_target_exposes_carrier_binding(
-                    program,
-                    machine,
-                    state,
-                    borrow.target,
-                    stored,
-                    aliases,
-                )
+                && if consumer_references_known {
+                    target_replaces_case_binding(program, borrow.target, stored, aliases)
+                        || target_replaces_untracked_origin(
+                            program,
+                            borrow.target,
+                            stored,
+                            aliases,
+                            true,
+                            true,
+                        )
+                } else {
+                    super::borrow_target_exposes_carrier_binding(
+                        program,
+                        machine,
+                        state,
+                        borrow.target,
+                        stored,
+                        aliases,
+                    )
+                }
                 && (binding_source(program, borrow.target, aliases)
                     .is_none_or(|source| !source.root.is_valid())
-                    || writes_may_replace_binding(program, stored, aliases, writes))
+                    || writes_may_replace_binding(
+                        program,
+                        stored,
+                        aliases,
+                        writes,
+                        consumer_references_known,
+                    ))
             {
                 return true;
             }
@@ -229,7 +297,17 @@ fn expression_exposes(
     }
     children.into_iter().any(|child| {
         expression_exposes(
-            program, machine, state, child, stored, aliases, symbols, inference, writes,
+            program,
+            machine,
+            state,
+            child,
+            stored,
+            aliases,
+            symbols,
+            inference,
+            writes,
+            reference_calls_known,
+            consumer_references_known,
         )
     })
 }
@@ -242,6 +320,7 @@ fn writes_may_replace_binding(
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],
     writes: Option<&[String]>,
+    references_known: bool,
 ) -> bool {
     let Some(writes) = writes else {
         return true;
@@ -272,6 +351,12 @@ fn writes_may_replace_binding(
                 let mut frozen = local
                     .references
                     .iter()
+                    // A reference-slot summary does not describe the hidden
+                    // contents of an opaque region. Only modeled slots can
+                    // lose this conservative replacement fence.
+                    .filter(|leaf| {
+                        !references_known || leaf.kind != super::StoredOriginKind::Reference
+                    })
                     .map(|leaf| leaf.local_segments.as_slice())
                     .chain(
                         local
@@ -444,10 +529,12 @@ fn receiver_contains_binding(
             Some((PlaceSegment::Case { .. }, container)) => Some((container, true)),
             _ => None,
         });
-    let references = local
-        .references
-        .iter()
-        .map(|leaf| (leaf.local_segments.as_slice(), false));
+    let references = local.references.iter().map(|leaf| {
+        (
+            leaf.local_segments.as_slice(),
+            leaf.kind == super::StoredOriginKind::OpaqueRegion,
+        )
+    });
     cases
         .chain(references)
         .any(|(container, include_endpoint)| {
@@ -470,21 +557,30 @@ fn receiver_contains_binding(
 
 /// An implicit method receiver at a reference leaf borrows the referent, not
 /// the slot. Explicit exclusive borrows can expose the slot itself as well.
-pub(super) fn target_replaces_reference_binding(
+/// Opaque regions have no such referent distinction, and a reference-slot
+/// summary never establishes replacement knowledge for their hidden contents.
+pub(super) fn target_replaces_untracked_origin(
     program: &dyn crate::CheckingInput,
     target: ExpressionHandle,
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],
     include_endpoint: bool,
+    references_known: bool,
 ) -> bool {
+    let untracked = |leaf: &super::StoredWriteOrigin| {
+        !references_known || leaf.kind != super::StoredOriginKind::Reference
+    };
     let Some(source) = binding_source(program, target, aliases) else {
-        return stored.iter().any(|local| !local.references.is_empty());
+        return stored
+            .iter()
+            .any(|local| local.references.iter().any(untracked));
     };
     if !source.root.is_valid() {
         return coarse_place_path(program, target).is_some_and(|path| {
             let (root, _) = split_place_root(&path);
             stored.iter().any(|local| {
-                !local.references.is_empty() && program.symbols.name(local.local_symbol) == root
+                local.references.iter().any(untracked)
+                    && program.symbols.name(local.local_symbol) == root
             })
         });
     }
@@ -492,10 +588,16 @@ pub(super) fn target_replaces_reference_binding(
         .iter()
         .filter(|local| local.local_symbol == source.root)
         .any(|local| {
-            local.references.iter().any(|leaf| {
-                prefix_matches(&source.segments, &leaf.local_segments)
-                    && (include_endpoint || source.segments.len() < leaf.local_segments.len())
-            })
+            local
+                .references
+                .iter()
+                .filter(|leaf| untracked(leaf))
+                .any(|leaf| {
+                    prefix_matches(&source.segments, &leaf.local_segments)
+                        && (include_endpoint
+                            || leaf.kind == super::StoredOriginKind::OpaqueRegion
+                            || source.segments.len() < leaf.local_segments.len())
+                })
         })
 }
 
@@ -518,7 +620,7 @@ pub(in crate::machine_calls::calls::write_frames) fn assignment_replaces_referen
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],
 ) -> bool {
-    target_replaces_reference_binding(program, assignment.target, stored, aliases, false)
+    target_replaces_untracked_origin(program, assignment.target, stored, aliases, false, false)
 }
 
 pub(super) fn target_replaces_case_binding(

@@ -1,0 +1,1 @@
+mutates `cells[0].value` while local borrow `window` is still active

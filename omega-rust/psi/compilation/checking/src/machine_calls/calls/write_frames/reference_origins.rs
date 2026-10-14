@@ -80,10 +80,10 @@ pub(super) fn receiver_frame_origins(
     if !receiver.is_valid() {
         return Some((Vec::new(), Vec::new(), None, false));
     }
-    if super::boundary_calls::expression_has_authority_receiver(
+    if super::boundary_calls::call_has_authority_receiver(
         program,
         current_machine,
-        expression,
+        CallerWriteSite::Expression(expression),
     ) {
         return Some((
             super::receiver_member_chain(program, receiver).unwrap_or_default(),

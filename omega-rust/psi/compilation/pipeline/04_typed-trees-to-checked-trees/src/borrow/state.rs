@@ -18,6 +18,7 @@ pub(super) struct BorrowFactArenas<'arenas> {
     pub(super) argument_accesses: &'arenas mut arena::Arena<BorrowArgumentAccessFact>,
     pub(super) calls: &'arenas mut arena::Arena<BorrowCallFact>,
     pub(super) loans: &'arenas mut arena::Arena<BorrowLoanFact>,
+    pub(super) loan_suppliers: &'arenas mut arena::Arena<arena::Handle<BorrowLoanFact>>,
     pub(super) returned_loans: &'arenas mut arena::Arena<checked_trees::BorrowReturnedLoanFact>,
     pub(super) states: &'arenas mut arena::Arena<StateBorrowFact>,
 }
@@ -198,7 +199,7 @@ fn append_carrier_loans(
                 storage_owner: pending.storage_owner,
                 owner_path,
                 source_owner_symbol: pending.source_owner_symbol,
-                supplying_loan: pending.supplying_loan,
+                supplying_loans: arenas.loan_suppliers.insert_many(pending.supplying_loans),
                 lineage: pending.lineage.clone(),
                 root: pending.place.root,
                 segments,
@@ -263,23 +264,35 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
     let mut grouped: Vec<StatementBorrowLoan> = Vec::with_capacity(loans.len());
     for loan in loans {
         let duplicate = grouped
-            .iter()
+            .iter_mut()
             .rev()
             .take_while(|previous| {
                 previous.owner_symbol == loan.owner_symbol && previous.owner_path == loan.owner_path
             })
-            .any(|previous| {
+            .find(|previous| {
                 previous.formation_expression == loan.formation_expression
                     && previous.storage_owner == loan.storage_owner
                     && previous.source_owner_symbol == loan.source_owner_symbol
-                    && previous.supplying_loan == loan.supplying_loan
+                    && previous.supplying_loans.is_empty() == loan.supplying_loans.is_empty()
+                    && (previous.supplying_loans == loan.supplying_loans
+                        || !loan
+                            .owner_path
+                            .contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex))
                     && previous.place == loan.place
                     && previous.retained_operand == loan.retained_operand
                     && previous.kind == loan.kind
                     && previous.lineage == loan.lineage
                     && previous.call_result == loan.call_result
             });
-        if !duplicate {
+        if let Some(previous) = duplicate {
+            // Equal current alternatives share their immediate predecessor
+            // edges. Keep a DAG rather than copying every route's history.
+            for supplier in loan.supplying_loans {
+                if !previous.supplying_loans.contains(&supplier) {
+                    previous.supplying_loans.push(supplier);
+                }
+            }
+        } else {
             grouped.push(loan);
         }
     }
@@ -300,12 +313,13 @@ fn retire_replaced_carrier_loans(
     if let Some(effects) =
         call_frames.and_then(|frames| frames.stored_reference_effects(machine, statement))
     {
-        // The same exact effects retire flow loans and install replacement
-        // loans. Keeping old origins in this formation roster would revive
-        // them when a later projection captures the replaced field.
+        // Exact effects install a complete post-call descriptor, including
+        // preservation alternatives. Retire the former occurrence even when
+        // one route kept its value; keeping both would turn alternatives into
+        // competing loans. Weak stores cannot retire unselected physical slots.
         current.retain(|loan| {
             !effects.iter().any(|effect| {
-                !effect.retains_incoming
+                !effect.may_select
                     && loan.storage_owner
                         == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
                     && super::loans::place_path_covers_owner(

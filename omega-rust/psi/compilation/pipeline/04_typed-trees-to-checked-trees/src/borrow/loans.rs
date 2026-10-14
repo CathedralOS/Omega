@@ -84,7 +84,7 @@ pub(super) struct StatementBorrowLoan {
     pub(super) place: accesses::BorrowAccessPlace,
     pub(super) retained_operand: Option<checked_trees::BorrowRetainedOperand>,
     pub(super) source_owner_symbol: SymbolHandle,
-    pub(super) supplying_loan: Handle<checked_trees::BorrowLoanFact>,
+    pub(super) supplying_loans: Vec<Handle<checked_trees::BorrowLoanFact>>,
     pub(super) lineage: checked_trees::BorrowLoanLineage,
     pub(super) kind: checked_trees::BorrowAccessKind,
     /// The loan's retained root was captured from a call result, not from a

@@ -1,0 +1,11 @@
+// A known call on opaque storage cannot erase a sibling view's backing duty.
+boundary data Token;
+data Text { bytes: &[u8]; }
+data Holder { token: Token; text: Text; }
+
+machine replace_token(target: &mut Token, replacement: Token) { target = replacement; }
+machine replace(holder: &mut Holder, replacement: Token) {
+    replace_token(&mut holder.token, replacement);
+    let bytes: [u8; 4] = [65, 66, 67, 68];
+    holder.text = Text { bytes: &bytes[..] };
+}

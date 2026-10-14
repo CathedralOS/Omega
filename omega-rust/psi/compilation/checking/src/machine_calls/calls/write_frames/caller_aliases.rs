@@ -943,6 +943,7 @@ fn tracked_prefix_evidence<'program>(
         &prefix.aliases,
         symbols,
         &mut FrameInference::for_state(state.symbol),
+        false,
     ) {
         return None;
     }

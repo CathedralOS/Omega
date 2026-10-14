@@ -8,6 +8,9 @@
 // call to the local's initializer rather than report it as omitted. A lost
 // reassignment exits 30.
 use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
 
 machine thirty() -> i32 {
     30
@@ -21,9 +24,9 @@ machine echo(value: i32) -> i32 {
     value
 }
 
-machine main() reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut total: i32 = thirty();
     let seen: i32 = echo(total);
     total = seventy();
-    Console::exit_process(total);
+    Console::exit_process(&main.console, total);
 }

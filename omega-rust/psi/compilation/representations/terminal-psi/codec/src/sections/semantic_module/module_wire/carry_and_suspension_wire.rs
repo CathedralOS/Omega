@@ -265,6 +265,10 @@ fn encode_loans(writer: &mut Writer, loans: &TerminalSuspensionLoans) -> Result<
     for (_, link) in loans.value_links.iter() {
         encode_handle(writer, *link);
     }
+    writer.len("suspension loan suppliers", loans.supplier_links.len())?;
+    for (_, supplier) in loans.supplier_links.iter() {
+        encode_handle(writer, *supplier);
+    }
     writer.len("suspension loans", loans.occurrences.len())?;
     for (_, loan) in loans.occurrences.iter() {
         match &loan.capture {
@@ -308,7 +312,7 @@ fn encode_loans(writer: &mut Writer, loans: &TerminalSuspensionLoans) -> Result<
             TerminalSuspensionLoanResource::Reborrow => 2,
         });
         encode_handle(writer, loan.parent);
-        encode_handle(writer, loan.supplier);
+        encode_span(writer, loan.suppliers);
         encode_structural_access(writer, loan.access);
         writer.boolean(loan.active_at_call);
     }
@@ -322,6 +326,9 @@ fn decode_loans(reader: &mut Reader<'_>) -> Result<TerminalSuspensionLoans, Code
     }
     for link in decode_counted(reader, decode_handle)? {
         loans.value_links.insert(link);
+    }
+    for supplier in decode_counted(reader, decode_handle)? {
+        loans.supplier_links.insert(supplier);
     }
     for loan in decode_counted(reader, |reader| {
         let capture = match reader.u8()? {
@@ -369,7 +376,7 @@ fn decode_loans(reader: &mut Reader<'_>) -> Result<TerminalSuspensionLoans, Code
             backing,
             resource,
             parent: decode_handle(reader)?,
-            supplier: decode_handle(reader)?,
+            suppliers: decode_span(reader)?,
             access: decode_structural_access(reader)?,
             active_at_call: reader.boolean()?,
         })
@@ -390,11 +397,16 @@ fn validate_loan_coordinates(
             return Err(CodecError::NonCanonicalEncoding);
         }
     }
+    for (_, supplier) in loans.supplier_links.iter() {
+        if !loans.occurrences.is_valid(*supplier) {
+            return Err(CodecError::NonCanonicalEncoding);
+        }
+    }
     for (_, loan) in loans.occurrences.iter() {
-        for dependency in [loan.parent, loan.supplier] {
-            if dependency.is_valid() && !loans.occurrences.is_valid(dependency) {
-                return Err(CodecError::NonCanonicalEncoding);
-            }
+        if (loan.parent.is_valid() && !loans.occurrences.is_valid(loan.parent))
+            || loans.supplier_links.span(loan.suppliers).is_none()
+        {
+            return Err(CodecError::NonCanonicalEncoding);
         }
         match loan.capture {
             TerminalSuspensionLoanCapture::Reference { source_path, .. }
@@ -586,9 +598,14 @@ mod tests {
             resource: TerminalSuspensionLoanResource::DirectRoot,
             ..Default::default()
         });
+        let alternative = loans.occurrences.insert(TerminalSuspensionLoan {
+            resource: TerminalSuspensionLoanResource::DirectRoot,
+            ..Default::default()
+        });
+        let suppliers = loans.supplier_links.insert_many([parent, alternative]);
         let child = loans.occurrences.insert(TerminalSuspensionLoan {
             parent,
-            supplier: parent,
+            suppliers,
             resource: TerminalSuspensionLoanResource::Reborrow,
             access: StructuralAccess::WriteOnlyBorrow,
             active_at_call: true,
@@ -630,8 +647,22 @@ mod tests {
         assert_eq!(selectors, vec![selector]);
         let commitment = suspension_frontier_commitment(&table, &plan);
         let mut changed = plan.clone();
-        changed.loans.occurrences.get_mut(child).supplier = Default::default();
+        changed.loans.occurrences.get_mut(child).suppliers = Default::default();
         assert_ne!(suspension_frontier_commitment(&table, &changed), commitment);
+        changed = plan.clone();
+        *changed.loans.supplier_links.get_mut(suppliers.start()) = alternative;
+        assert_ne!(suspension_frontier_commitment(&table, &changed), commitment);
+        changed = plan.clone();
+        changed.loans.occurrences.get_mut(child).suppliers =
+            HandleSpan::from_parts(suppliers.start(), suppliers.count() + 1);
+        let mut writer = Writer::default();
+        encode_suspension_call_plan(&mut writer, &changed).expect("encode invalid supplier span");
+        assert!(decode_suspension_call_plan(&mut Reader::new(&writer.finish())).is_err());
+        changed = plan.clone();
+        *changed.loans.supplier_links.get_mut(suppliers.start()) = Default::default();
+        let mut writer = Writer::default();
+        encode_suspension_call_plan(&mut writer, &changed).expect("encode absent supplier");
+        assert!(decode_suspension_call_plan(&mut Reader::new(&writer.finish())).is_err());
         changed = plan.clone();
         changed.loans.occurrences.get_mut(parent).capture =
             TerminalSuspensionLoanCapture::Reference {

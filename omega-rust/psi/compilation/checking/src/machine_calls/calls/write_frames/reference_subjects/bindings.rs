@@ -86,6 +86,7 @@ pub(in crate::machine_calls::calls::write_frames) fn are_stable_at_site(
                 &prefix.aliases,
                 symbols,
                 &mut super::super::FrameInference::for_state(state.symbol),
+                false,
             ) || program
                 .statement_table
                 .expression_handles(call.arguments)

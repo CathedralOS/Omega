@@ -277,6 +277,7 @@ fn build_cycle_frame_equation<'program>(
             &local_alias_origins,
             symbols,
             &mut inference,
+            false,
         ) {
             return None;
         }

@@ -65,16 +65,19 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
             // when a stored carrier moves through a call or constructor. Keep
             // this identity rather than reconstructing call operands from
             // source syntax, or borrowing the consumed descriptor itself.
-            if loan.supplying_loan.is_valid() {
-                if !facts.borrow.loans.is_valid(loan.supplying_loan)
-                    || !facts.borrow.state_owns_loan(borrowing, loan.supplying_loan)
-                    || facts.borrow.loans.get(loan.supplying_loan).statement_index
-                        >= loan.statement_index
+            for supplier in facts
+                .borrow
+                .loan_suppliers
+                .span_or_empty(loan.supplying_loans)
+            {
+                if !facts.borrow.loans.is_valid(*supplier)
+                    || !facts.borrow.state_owns_loan(borrowing, *supplier)
+                    || facts.borrow.loans.get(*supplier).statement_index >= loan.statement_index
                 {
                     return None;
                 }
-                if !output.contains(&(receiver, loan.supplying_loan)) {
-                    output.push((receiver, loan.supplying_loan));
+                if !output.contains(&(receiver, *supplier)) {
+                    output.push((receiver, *supplier));
                 }
             }
             let CheckedUnitEffectOperationPlan::EstablishLocal(

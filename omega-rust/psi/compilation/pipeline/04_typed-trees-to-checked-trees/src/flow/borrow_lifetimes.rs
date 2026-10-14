@@ -66,8 +66,10 @@ pub(crate) fn filter_reassigned_borrow_loans(
     statement: &typed_trees::statement::StatementNode,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> arena::HandleSpan<FlowConstraintRef> {
-    // Completed calls replace slots regardless of their result type or where
-    // the invocation appears. Then apply any enclosing assignment's store.
+    // Completed calls publish one current occurrence for each exact slot,
+    // including incoming alternatives on no-write routes. Their former
+    // occurrences retire only after RHS formation. Weak stores leave other
+    // physical slots live. Then apply any enclosing assignment's store.
     let source = if let Some(effects) =
         call_frames.and_then(|frames| frames.stored_reference_effects(machine, statement))
     {
@@ -78,7 +80,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
             let active = borrow.loans.get(loan);
             let replaced = active.statement_index < statement_index
                 && effects.iter().any(|effect| {
-                    !effect.retains_incoming
+                    !effect.may_select
                         && active.storage_owner
                             == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
                         && crate::borrow::place_path_covers_owner(

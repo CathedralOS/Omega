@@ -82,7 +82,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Placed input rows retain their dense formal coordinate and carrier identity.
 // Returned origins distinguish precise projections from public input regions.
 // Placed views, quotients and captured closed conformances share this schema.
-pub(crate) const FORMAT_MARKER: u16 = 157;
+// Conditional descriptor origins share immediate supplier dependencies.
+pub(crate) const FORMAT_MARKER: u16 = 158;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

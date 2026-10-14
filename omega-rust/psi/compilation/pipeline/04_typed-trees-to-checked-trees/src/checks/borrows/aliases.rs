@@ -24,24 +24,35 @@ impl ResolvedAlias {
         borrow: &BorrowFacts,
         handle: Handle<BorrowLoanFact>,
     ) -> bool {
-        let loan = borrow.loans.get(handle);
-        self.lineage.iter().any(|ancestor| {
-            if *ancestor == handle {
-                return true;
-            }
-            let ancestor = borrow.loans.get(*ancestor);
-            let path = borrow.loan_owner_path(loan);
-            loan.owner_symbol.is_valid()
-                && loan.storage_owner.is_valid()
-                && ancestor.owner_symbol == loan.owner_symbol
-                && ancestor.storage_owner == loan.storage_owner
-                && ancestor.statement_index == loan.statement_index
-                && borrow.loan_owner_path(ancestor) == path
-                // A wildcard can describe several coexisting array slots;
-                // matching wildcard paths do not identify one descriptor.
-                && !path.contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
-        })
+        self.lineage
+            .iter()
+            .any(|ancestor| same_descriptor(borrow, *ancestor, handle))
     }
+}
+
+/// Alternatives belong to an exact descriptor occurrence, never merely to
+/// equal backing geometry. Wildcard paths may describe coexisting slots.
+pub(in crate::checks::borrows) fn same_descriptor(
+    borrow: &BorrowFacts,
+    left: Handle<BorrowLoanFact>,
+    right: Handle<BorrowLoanFact>,
+) -> bool {
+    if left == right {
+        return left.is_valid();
+    }
+    if !borrow.loans.is_valid(left) || !borrow.loans.is_valid(right) {
+        return false;
+    }
+    let left = borrow.loans.get(left);
+    let right = borrow.loans.get(right);
+    let path = borrow.loan_owner_path(right);
+    right.owner_symbol.is_valid()
+        && right.storage_owner.is_valid()
+        && left.owner_symbol == right.owner_symbol
+        && left.storage_owner == right.storage_owner
+        && left.statement_index == right.statement_index
+        && borrow.loan_owner_path(left) == path
+        && !path.contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
 }
 
 pub(in crate::checks::borrows) struct ResolvedPlace {

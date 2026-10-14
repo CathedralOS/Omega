@@ -218,24 +218,38 @@ struct BoundaryWriteSignature<'program> {
 /// The exact selected boundary can consume a routing authority without lending
 /// provider-object storage. Operand evaluation still contributes its own writes;
 /// only the receiver storage footprint is absent.
-pub(super) fn expression_has_authority_receiver(
+pub(super) fn call_has_authority_receiver(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    expression: ExpressionHandle,
+    site: CallerWriteSite<'_>,
 ) -> bool {
-    let Some(call) = program.expression_table.call_node(expression) else {
-        return false;
+    let (members, target) = match site {
+        CallerWriteSite::Expression(expression) => {
+            let Some(call) = program.expression_table.call_node(expression) else {
+                return false;
+            };
+            if !call.receiver.is_valid() {
+                return false;
+            }
+            (
+                receiver_member_chain(program, call.receiver).unwrap_or_default(),
+                call.target.as_str(),
+            )
+        }
+        CallerWriteSite::Call(call) => (
+            crate::machine_calls::calls::signature_queries::call_receiver_member_names(
+                program, call,
+            ),
+            call.target.as_str(),
+        ),
+        _ => return false,
     };
-    if !call.receiver.is_valid() {
-        return false;
-    }
-    let members = receiver_member_chain(program, call.receiver).unwrap_or_default();
     boundary_trait_signature_and_receiver_inner(
         program,
         machine,
         &members,
-        call.target.as_str(),
-        CallerWriteSite::Expression(expression),
+        target,
+        site,
         SignatureBinders::ArgumentPinnedTypes,
     )
     .is_some_and(|signature| !signature.has_runtime_receiver)

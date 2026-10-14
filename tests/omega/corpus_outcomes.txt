@@ -653,8 +653,8 @@ fail/borrows/incoming_carrier_duplicate_exclusive_leaf rejected 1724ms expected 
 	machine `duplicate` returns `carrier` as mutable more than once
 fail/borrows/indexed_carrier_case_neighbor_stays_borrowed rejected 712ms expected @e02a3fd5278f+wt
 	statement 4 mutates `neighbor.value` while local borrow `slots` is still active (borrowed at statement 2; its last use is at statement 6 and it is released at state exit)
-fail/borrows/indexed_carrier_conditional_retains_backing rejected 712ms expected @e02a3fd5278f+wt
-	statement 5 mutates `original.value` while local borrow `slots` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
+fail/borrows/indexed_carrier_conditional_retains_backing rejected 1003ms expected @3224bdead711
+	statement 5 mutates `original.value` while local borrow `slots` is still active (borrowed at statement 4; its last use is at statement 6 and it is released at state exit)
 fail/borrows/indexed_carrier_detached_child_stays_borrowed rejected 637ms expected @e02a3fd5278f+wt
 	statement 6 mutates `original.value` while local borrow `detached` is still active (borrowed at statement 4; its last use is at statement 7 and it is released at state exit)
 fail/borrows/indexed_carrier_local_backing_escape rejected 633ms expected @e02a3fd5278f+wt
@@ -747,6 +747,8 @@ fail/borrows/nested_retained_mutable_loan_shared_argument rejected 5381ms expect
 	state `observe_hold` receives `counter` as both mutable and read-only
 fail/borrows/opaque_reference_wrong_input_return rejected 1029ms expected @3ac38090e82f
 	machine `wrong` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
+fail/borrows/opaque_region_call_keeps_view_origin rejected 616ms expected @641c98043b7c
+	machine `replace` stores a borrowed value without a complete normal-exit backing relation
 fail/borrows/opaque_sibling_stored_view_local_escape rejected 1550ms expected @a9ae30e1c334+wt
 	machine `replace` stores a borrowed value without a complete normal-exit backing relation
 fail/borrows/owned_input_reference_escape rejected 1771ms expected @a9ae30e1c334+wt
@@ -891,11 +893,11 @@ fail/borrows/selected_reference_record_helper_wrong_lifetime rejected 2019ms exp
 	machine `invalid` returns a view borrowing input `second`, which is not permitted by the declared result lifetime relation
 	machine `invalid_direct` returns a view borrowing input `second`, which is not permitted by the declared result lifetime relation
 	machine `invalid_projected` returns a view borrowing input `second`, which is not permitted by the declared result lifetime relation
-fail/borrows/selected_stored_carrier_child_holds_parent rejected 437ms expected @dd6871ed0476
-	statement 5 mutates `left.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
+fail/borrows/selected_stored_carrier_child_holds_parent rejected 963ms expected @3224bdead711
 	statement 5 mutates `left.value` while local borrow `child` is still active (borrowed at statement 3; its last use is at statement 7)
-fail/borrows/selected_stored_carrier_retains_incoming rejected 440ms expected @dd6871ed0476
-	statement 4 mutates `left.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 5)
+	statement 5 mutates `left.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 6)
+fail/borrows/selected_stored_carrier_retains_incoming rejected 1005ms expected @3224bdead711
+	statement 4 mutates `left.value` while local borrow `held` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/borrows/shared_carrier_storage_move rejected 1549ms expected @a9ae30e1c334+wt
 	state `take` receives an owned value while local borrow `alias` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/shared_entry_jump_into_mutable_receiver_state rejected 869ms expected @a9ae30e1c334+wt
@@ -948,6 +950,18 @@ fail/borrows/stored_reference_shared_cohort_live_source_write rejected 5253ms ex
 	statement 5 mutates `main.cell.value` while local borrow `message` is still active (borrowed at statement 2; its last use is at statement 6)
 fail/borrows/stored_returned_reference_live_source_write rejected 5492ms expected @a9ae30e1c334+wt
 	statement 2 mutates `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/stored_subview_live_child rejected 1002ms expected @3224bdead711
+	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/borrows/stored_subview_live_exclusive_child rejected 1002ms expected @3224bdead711
+	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/borrows/stored_subview_new_backing_write rejected 972ms expected @3224bdead711
+	statement 4 mutates `cells[1].value` while local borrow `window` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+	statement 4 mutates `cells[1].value` while local borrow `window` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/borrows/stored_subview_preserved_backing_write rejected 972ms expected @3224bdead711
+	statement 3 mutates `cells[0].value` while local borrow `window` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `cells[0].value` while local borrow `window` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/tail_recursive_mutation_retires_field_bound rejected 1343ms expected @0a951af3f8e9+wt
 	cannot prove requires contract for call require_bound from main: work.count <= 8 (needs fact `work.count <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/borrows/tail_recursive_write_conflicts_with_live_sibling_loan rejected 981ms expected @0a951af3f8e9+wt
@@ -5040,6 +5054,7 @@ pass/borrows/nested_reference_byte_observations_exit checked 11122ms check-targe
 pass/borrows/nested_reference_crossings_exit checked 11202ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/nested_reference_leaf_projection_exit checked 11053ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/opaque_reference_identity checked 2840ms @3ac38090e82f
+pass/borrows/opaque_region_known_calls checked 1740ms @641c98043b7c
 pass/borrows/owned_byte_value_call_exit checked 11067ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/owned_nested_record_copy_exit checked 11044ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/owner_byte_read_during_shared_record_loan_exit checked 11145ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7986,6 +8001,7 @@ run/arithmetic/float_structural_initializer_selection checked 24258ms check-targ
 run/arithmetic/pinned_dividend_across_console_calls checked 11062ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/conditional_disjoint_field_loans_exit checked 6088ms check-target:macos_arm64 @589aedee8ebc+wt
 run/borrows/direct_runtime_index_write checked 11448ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/borrows/incoming_carrier_transport checked 5826ms check-target:macos_arm64 @5930657b943b
 run/borrows/indexed_loan_element_write checked 11734ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/local_mut_borrow checked 11276ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/mut_record_loan_member_access checked 11486ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8001,6 +8017,9 @@ run/borrows/shared_local_borrow checked 11726ms check-target:macos_arm64 @a9ae30
 run/borrows/shared_recast_borrow checked 11426ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/shared_record_loan_member_read checked 11292ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/shared_runtime_index_borrow checked 11802ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/borrows/stored_subview_identity checked 6293ms check-target:macos_arm64 @3224bdead711
+run/borrows/stored_subview_nested_call_result checked 6293ms check-target:macos_arm64 @3224bdead711
+run/borrows/stored_subview_repeated_updates checked 6293ms check-target:macos_arm64 @3224bdead711
 run/borrows/transition_shared_borrow checked 11798ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/calls/fixed_dividend_across_console_calls checked 8916ms check-target:macos_arm64 @16ed47526a08
 run/calls/outcome_specific_selected_guarantee_exit rejected 11486ms check-target:macos_arm64 @a9ae30e1c334+wt

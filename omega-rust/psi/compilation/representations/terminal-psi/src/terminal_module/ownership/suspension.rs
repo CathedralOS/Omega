@@ -50,6 +50,7 @@ pub struct TerminalSuspensionLoans {
     pub occurrences: Arena<TerminalSuspensionLoan>,
     pub paths: Arena<StructuralPathSegment>,
     pub value_links: Arena<Handle<TerminalSuspensionLoan>>,
+    pub supplier_links: Arena<Handle<TerminalSuspensionLoan>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,7 +59,9 @@ pub struct TerminalSuspensionLoan {
     pub backing: TerminalSuspensionLoanBacking,
     pub resource: TerminalSuspensionLoanResource,
     pub parent: Handle<TerminalSuspensionLoan>,
-    pub supplier: Handle<TerminalSuspensionLoan>,
+    /// Immediate alternative suppliers, not reborrow parents or flattened
+    /// transport histories. Every dependency stays present after convergence.
+    pub suppliers: HandleSpan<Handle<TerminalSuspensionLoan>>,
     pub access: StructuralAccess,
     /// A retired dependency remains constrained by its descendant. This flag
     /// never reactivates that dependency's descriptor or restores access.
@@ -72,7 +75,7 @@ impl Default for TerminalSuspensionLoan {
             backing: Default::default(),
             resource: Default::default(),
             parent: Handle::invalid(),
-            supplier: Handle::invalid(),
+            suppliers: HandleSpan::empty(),
             access: StructuralAccess::SharedBorrow,
             active_at_call: false,
         }
@@ -196,7 +199,7 @@ pub fn suspension_frontier_commitment(
     plan: &TerminalSuspensionCallPlan,
 ) -> [u8; 32] {
     let mut hash =
-        crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v6\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v7\0");
     hash.raw(&plan.operation.get().to_le_bytes());
     hash.raw(&plan.crossing.get().to_le_bytes());
     match plan.target {
@@ -309,6 +312,10 @@ fn hash_loans(
     for (_, link) in loans.value_links.iter() {
         hash_handle(hash, *link);
     }
+    hash.u64(loans.supplier_links.len() as u64);
+    for (_, supplier) in loans.supplier_links.iter() {
+        hash_handle(hash, *supplier);
+    }
     hash.u64(loans.occurrences.len() as u64);
     for (_, loan) in loans.occurrences.iter() {
         match &loan.capture {
@@ -355,7 +362,7 @@ fn hash_loans(
             TerminalSuspensionLoanResource::Reborrow => 2,
         });
         hash_handle(hash, loan.parent);
-        hash_handle(hash, loan.supplier);
+        hash_span(hash, loan.suppliers);
         hash_access(hash, loan.access);
         hash.byte(u8::from(loan.active_at_call));
     }

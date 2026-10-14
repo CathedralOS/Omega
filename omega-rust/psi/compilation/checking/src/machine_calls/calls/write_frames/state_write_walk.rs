@@ -510,6 +510,7 @@ fn walk_state_write_prefix_inner(
                 &local_alias_origins,
                 symbols,
                 inference,
+                false,
             );
             let Some(record) = assignments.as_deref_mut() else {
                 unreachable!("assignments are recorded only into a roster")
@@ -631,8 +632,10 @@ fn walk_state_write_prefix_inner(
                 inference,
             );
         }
+        // A complete relation can preserve every reference slot while producing
+        // no new loans. Its absence, not its effect count, marks unknown calls.
+        // Cases and non-call exposures still need the frozen-binding fence.
         if !wire_codec_call
-            && stored_call_effects.as_ref().is_none_or(Vec::is_empty)
             && stored_origins::statement_exposes_frozen_binding(
                 program,
                 machine,
@@ -642,6 +645,7 @@ fn walk_state_write_prefix_inner(
                 &local_alias_origins,
                 symbols,
                 inference,
+                stored_call_effects.is_some(),
             )
         {
             return None;

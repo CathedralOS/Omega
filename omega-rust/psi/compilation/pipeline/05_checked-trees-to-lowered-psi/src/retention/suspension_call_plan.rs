@@ -292,7 +292,7 @@ fn retain_loan_graph(
     };
     for (source_row, source_loan, terminal) in &loan_identities {
         let row = carry.suspension_loans.get(*source_row);
-        let (capture, resource, parent, supplier, access) = match row.source {
+        let (capture, resource, parent, suppliers, access) = match row.source {
             SuspensionCrossingLoanSource::Stored { ref resource, .. } => {
                 if !borrow.loans.is_valid(*source_loan) {
                     return unsupported("suspension loan occurrence is unavailable");
@@ -338,13 +338,15 @@ fn retain_loan_graph(
                     BorrowLoanLineage::Reborrow { parent_loan } => dependency(parent_loan),
                     _ => Handle::invalid(),
                 };
-                (
-                    capture,
-                    resource,
-                    parent,
-                    dependency(loan.supplying_loan),
-                    &loan.kind,
-                )
+                let mut suppliers = HandleSpan::empty();
+                for source in borrow.loan_suppliers.span_or_empty(loan.supplying_loans) {
+                    let supplier = dependency(*source);
+                    if !supplier.is_valid() {
+                        return unsupported("suspension loan supplier is not retained");
+                    }
+                    suppliers.push_contiguous(graph.supplier_links.insert(supplier));
+                }
+                (capture, resource, parent, suppliers, &loan.kind)
             }
             SuspensionCrossingLoanSource::CapturedActual { resource } => {
                 if !borrow.call_loan_resources.is_valid(resource) {
@@ -389,7 +391,7 @@ fn retain_loan_graph(
                     })?,
                     path,
                 };
-                let (kind, parent, supplier) = match resource.source {
+                let (kind, parent, suppliers) = match resource.source {
                     CheckedCallBorrowLoanSource::StoredLoan { loan } => {
                         let supplier = dependency(loan);
                         if !supplier.is_valid() {
@@ -404,7 +406,11 @@ fn retain_loan_graph(
                             }
                             _ => TerminalSuspensionLoanResource::Unresolved,
                         };
-                        (kind, Handle::invalid(), supplier)
+                        (
+                            kind,
+                            Handle::invalid(),
+                            graph.supplier_links.insert_many([supplier]),
+                        )
                     }
                     CheckedCallBorrowLoanSource::CallAccess { parents, .. } => {
                         let parents = borrow.call_loan_parents.span(parents).ok_or(
@@ -425,11 +431,11 @@ fn retain_loan_graph(
                                 TerminalSuspensionLoanResource::DirectRoot
                             },
                             parent,
-                            Handle::invalid(),
+                            HandleSpan::empty(),
                         )
                     }
                 };
-                (capture, kind, parent, supplier, &resource.access)
+                (capture, kind, parent, suppliers, &resource.access)
             }
         };
         let backing = match row.backing {
@@ -473,7 +479,7 @@ fn retain_loan_graph(
             backing,
             resource,
             parent,
-            supplier,
+            suppliers,
             access: match access {
                 checked_trees::BorrowAccessKind::Read => StructuralAccess::SharedBorrow,
                 checked_trees::BorrowAccessKind::Mutable => StructuralAccess::MutableBorrow,

@@ -114,6 +114,21 @@ pub(super) fn check_statement_borrows<'p>(
                 );
                 if compatibility.non_interfering
                     || carried_authority(loan, active_loan_handle, active_loan, &compatibility)
+                    // A checked descriptor transfer retains its actual source
+                    // occurrence. Its alternative origins are not simultaneous
+                    // loans, including when a call preserves the old value on
+                    // one route and installs a projection on another. This edge
+                    // comes from source substitution, not backing coincidence;
+                    // it does not grant access through a detached child.
+                    || (active_loan.kind.is_exclusive()
+                        && active_loan.kind.direct_reborrow_effect(&loan.kind).is_some()
+                        && !loan.supplying_loans.is_empty()
+                        && facts.borrow.loan_suppliers.span_or_empty(loan.supplying_loans)
+                            .iter().all(|supplier| super::aliases::same_descriptor(
+                                &facts.borrow,
+                                *supplier,
+                                active_loan_handle,
+                            )))
                     || supplying_accesses.as_ref().is_some_and(|sources| {
                         // A source-derived selected result retains each exact
                         // input lineage. Reborrowing it cannot skip those

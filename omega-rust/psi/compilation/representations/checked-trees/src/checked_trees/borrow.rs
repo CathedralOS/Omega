@@ -202,10 +202,11 @@ pub struct BorrowLoanFact {
     /// the whole owner; dynamic indexes conservatively overlap every element.
     pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
     pub source_owner_symbol: SymbolHandle,
-    /// Historical descriptor occurrence transported into this leaf. This is
-    /// not a reborrow parent: the receiver retains the supplier's parents,
-    /// including after the supplying holder has been consumed.
-    pub supplying_loan: Handle<BorrowLoanFact>,
+    /// Immediate historical descriptor alternatives transported into this
+    /// leaf, in `BorrowFacts::loan_suppliers`. These are not reborrow parents.
+    /// A shared dependency graph retains every supplier without enumerating
+    /// complete histories when conditional replacements repeatedly converge.
+    pub supplying_loans: HandleSpan<Handle<BorrowLoanFact>>,
     /// Checked formation lineage for this loan occurrence.
     ///
     /// An explicit reborrow with one exact prior source occurrence names a
@@ -415,15 +416,17 @@ pub struct CheckedReborrowParentEndStatus {
 /// Semantic phase used by checked-only borrow-resource lifecycle replay.
 ///
 /// The ordering is source-defined rather than arena-defined: last-use expiry
-/// precedes statement entry, reassignment retires the displaced carrier after
-/// its right-hand side, replacement loans activate afterward, and state exit
-/// is the final boundary. These phases do not grant authority by themselves.
+/// precedes statement entry. A replacement's right-hand side forms its loans
+/// while the displaced carrier is still live; only then does reassignment
+/// retire that carrier. In particular, a stored view can be rebound to its own
+/// child without forming a loan from an already retired parent. State exit is
+/// the final boundary. These phases do not grant authority by themselves.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CheckedBorrowResourceLifecyclePhase {
     #[default]
     LastUseExpired,
-    LocalReassigned,
     Activation,
+    LocalReassigned,
     StateExit,
 }
 
@@ -561,6 +564,7 @@ pub struct BorrowFacts {
     pub argument_accesses: Arena<BorrowArgumentAccessFact>,
     pub calls: Arena<BorrowCallFact>,
     pub loans: Arena<BorrowLoanFact>,
+    pub loan_suppliers: Arena<Handle<BorrowLoanFact>>,
     pub returned_loans: Arena<BorrowReturnedLoanFact>,
     pub states: Arena<StateBorrowFact>,
     /// `(machine, state) -> state row` lookup owned by this ledger. The
@@ -596,6 +600,7 @@ impl BorrowFacts {
         argument_accesses: Arena<BorrowArgumentAccessFact>,
         calls: Arena<BorrowCallFact>,
         loans: Arena<BorrowLoanFact>,
+        loan_suppliers: Arena<Handle<BorrowLoanFact>>,
         returned_loans: Arena<BorrowReturnedLoanFact>,
         states: Arena<StateBorrowFact>,
     ) -> Self {
@@ -607,6 +612,7 @@ impl BorrowFacts {
             argument_accesses,
             calls,
             loans,
+            loan_suppliers,
             returned_loans,
             states,
             state_index: OwnedIndex::default(),

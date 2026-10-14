@@ -71,6 +71,7 @@ pub(crate) fn build_borrow_facts(
         arena::Arena::with_capacity(program.expression_table.expression_count());
     let mut calls = arena::Arena::with_capacity(program.statement_table.statement_count());
     let mut loans = arena::Arena::with_capacity(program.statement_table.statement_count());
+    let mut loan_suppliers = arena::Arena::new();
     let mut returned_loans = arena::Arena::new();
     let mut states = arena::Arena::with_capacity(machine_state_count(program));
     let mut state_loan_trackers = Vec::new();
@@ -84,6 +85,7 @@ pub(crate) fn build_borrow_facts(
             argument_accesses: &mut argument_accesses,
             calls: &mut calls,
             loans: &mut loans,
+            loan_suppliers: &mut loan_suppliers,
             returned_loans: &mut returned_loans,
             states: &mut states,
         };
@@ -109,6 +111,7 @@ pub(crate) fn build_borrow_facts(
         argument_accesses,
         calls,
         loans,
+        loan_suppliers,
         returned_loans,
         states,
     )

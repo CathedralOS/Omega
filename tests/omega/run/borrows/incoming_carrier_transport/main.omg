@@ -1,0 +1,20 @@
+// Expected exit: 0.
+// An owned parameter's reference retains ingress custody, not a local loan ID.
+data Cell { value: u32; }
+data Carrier<'input> { cell: &'input Cell; }
+
+machine relay(carrier: Carrier) -> Carrier {
+    let moved: Carrier = carrier;
+    moved
+}
+
+machine main() crashes Trap {
+    let cell: Cell = Cell { value: 7 };
+    let returned: Carrier = relay(Carrier { cell: &cell });
+    transition returned.cell.value == 7 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

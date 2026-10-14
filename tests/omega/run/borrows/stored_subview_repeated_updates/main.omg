@@ -1,0 +1,46 @@
+// Expected exit: 0.
+// Repeated conditional updates share supplier dependencies instead of histories.
+data Cell [copy] { value: u32; }
+data Window<'input> { values: &'input mut [Cell]; }
+machine advance(window: &mut Window, consumed: u64) -> bool {
+    transition consumed <= window.values.len {
+        true -> valid(window, consumed)
+        false -> false
+    }
+    state valid(window: &mut Window, consumed: u64) -> bool
+    requires consumed <= window.values.len {
+        window.values = &mut window.values[consumed..];
+        true
+    }
+}
+machine read(values: &[Cell]) -> bool {
+    transition values.len == 2 {
+        true -> present(values)
+        false -> false
+    }
+    state present(values: &[Cell]) -> bool requires values.len == 2 {
+        values[0].value == 7 && values[1].value == 11
+    }
+}
+machine main() crashes Trap {
+    let mut cells: [Cell; 2] = [Cell { value: 7 }, Cell { value: 11 }];
+    let mut window: Window = Window { values: &mut cells[..] };
+    let accepted_0: bool = advance(&mut window, 0);
+    let accepted_1: bool = advance(&mut window, 0);
+    let accepted_2: bool = advance(&mut window, 0);
+    let accepted_3: bool = advance(&mut window, 0);
+    let accepted_4: bool = advance(&mut window, 0);
+    let accepted_5: bool = advance(&mut window, 0);
+    let accepted_6: bool = advance(&mut window, 0);
+    let accepted_7: bool = advance(&mut window, 0);
+    let accepted_8: bool = advance(&mut window, 0);
+    let accepted_9: bool = advance(&mut window, 0);
+    let accepted_10: bool = advance(&mut window, 0);
+    let accepted_11: bool = advance(&mut window, 0);
+    transition read(window.values) {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

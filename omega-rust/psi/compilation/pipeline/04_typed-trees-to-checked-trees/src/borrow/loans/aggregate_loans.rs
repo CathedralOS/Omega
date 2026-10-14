@@ -107,7 +107,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                     place: source.place.clone(),
                     retained_operand: source.retained_operand,
                     source_owner_symbol: source.source_owner_symbol,
-                    supplying_loan: Default::default(),
+                    supplying_loans: Vec::new(),
                     lineage: retained_reference_lineage(
                         program,
                         initializer.expression,
@@ -181,7 +181,7 @@ pub(super) fn aggregate_expression_borrow_loans(
                     place: source.place.clone(),
                     retained_operand: source.retained_operand,
                     source_owner_symbol: source.source_owner_symbol,
-                    supplying_loan: Default::default(),
+                    supplying_loans: Vec::new(),
                     lineage: retained_reference_lineage(program, expression, source, &rebased),
                     kind: if is_mutably_borrow_carrying_data(program, type_reference) {
                         checked_trees::BorrowAccessKind::Mutable
@@ -347,7 +347,7 @@ pub(super) fn result_source_loans(
                             },
                         )),
                         source_owner_symbol: source.source_owner_symbol,
-                        supplying_loan: Default::default(),
+                        supplying_loans: Vec::new(),
                         lineage: retained_reference_lineage(program, argument, source, &rebased),
                         kind: field.kind.clone(),
                         call_result: false,
@@ -396,7 +396,11 @@ pub(super) fn transferred_aggregate_loans(
                 place: loan.place.clone(),
                 retained_operand: loan.retained_operand,
                 source_owner_symbol: loan.owner_symbol,
-                supplying_loan: loan.handle,
+                // Ingress custody lives in place.incoming_reference, not in
+                // a local loan occurrence. Its zero handle adds no DAG edge.
+                supplying_loans: std::iter::once(loan.handle)
+                    .filter(|handle| handle.is_valid())
+                    .collect(),
                 lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
                 kind: loan.kind.clone(),
                 call_result: false,

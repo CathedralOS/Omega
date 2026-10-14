@@ -205,8 +205,8 @@ pub(super) fn retain_call_frontier(
         if let BorrowLoanLineage::Reborrow { parent_loan } = loan.lineage {
             append_dependency(borrow, state, parent_loan, &mut closure)?;
         }
-        if loan.supplying_loan.is_valid() {
-            append_dependency(borrow, state, loan.supplying_loan, &mut closure)?;
+        for supplier in borrow.loan_suppliers.span_or_empty(loan.supplying_loans) {
+            append_dependency(borrow, state, *supplier, &mut closure)?;
         }
     }
 
@@ -446,12 +446,12 @@ pub(super) fn retained_lifetime_demand(
             }
             _ => return Err("the loan lifetime resource is unavailable"),
         }
-        if loan.supplying_loan.is_valid() {
+        for supplying in borrow.loan_suppliers.span_or_empty(loan.supplying_loans) {
             let supplier = frontier
                 .loans
                 .handles()
                 .zip(rows)
-                .find(|(_, row)| row.stored_loan() == loan.supplying_loan)
+                .find(|(_, row)| row.stored_loan() == *supplying)
                 .map(|(handle, _)| handle)
                 .ok_or("the transported loan's supplier is not retained")?;
             pending.push(supplier);
@@ -526,15 +526,19 @@ pub(super) fn retain_backing_values(
         let handle = retained_loans[loan_cursor];
         loan_cursor += 1;
         let loan = borrow.loans.get(handle);
-        for dependency in [
-            match loan.lineage {
-                BorrowLoanLineage::Reborrow { parent_loan } => parent_loan,
-                BorrowLoanLineage::DirectRoot | BorrowLoanLineage::UnretainedDerived => {
-                    Handle::invalid()
-                }
-            },
-            loan.supplying_loan,
-        ] {
+        for dependency in std::iter::once(match loan.lineage {
+            BorrowLoanLineage::Reborrow { parent_loan } => parent_loan,
+            BorrowLoanLineage::DirectRoot | BorrowLoanLineage::UnretainedDerived => {
+                Handle::invalid()
+            }
+        })
+        .chain(
+            borrow
+                .loan_suppliers
+                .span_or_empty(loan.supplying_loans)
+                .iter()
+                .copied(),
+        ) {
             if dependency.is_valid() && !retained_loans.contains(&dependency) {
                 retained_loans.push(dependency);
             }

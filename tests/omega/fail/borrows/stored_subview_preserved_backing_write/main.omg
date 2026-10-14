@@ -1,0 +1,20 @@
+data Cell [copy] { value: u32; }
+data Window<'input> { values: &'input mut [Cell]; }
+machine advance(window: &mut Window, consumed: u64) -> bool {
+    transition consumed <= window.values.len {
+        true -> valid(window, consumed)
+        false -> false
+    }
+    state valid(window: &mut Window, consumed: u64) -> bool
+    requires consumed <= window.values.len {
+        window.values = &mut window.values[consumed..];
+        true
+    }
+}
+machine main() {
+    let mut cells: [Cell; 2] = [Cell { value: 7 }, Cell { value: 11 }];
+    let mut window: Window = Window { values: &mut cells[..] };
+    let accepted: bool = advance(&mut window, 3);
+    cells[0].value = 99;
+    let extent: u64 = window.values.len;
+}

@@ -1,0 +1,33 @@
+// Expected exit: 0.
+data Cell [copy] { value: u32; }
+data Shared<'input> { values: &'input [Cell]; }
+data Exclusive<'input> { values: &'input mut [Cell]; }
+machine shared(window: &mut Shared) { window.values = &window.values[..]; }
+machine exclusive(window: &mut Exclusive) { window.values = &mut window.values[..]; }
+machine read(values: &[Cell]) -> u32 {
+    transition values.len == 1 {
+        true -> present(values)
+        false -> 0
+    }
+    state present(values: &[Cell]) -> u32 requires values.len == 1 { values[0].value }
+}
+machine main() crashes Trap {
+    let mut cells: [Cell; 1] = [Cell { value: 7 }];
+    let mut shared_window: Shared = Shared { values: &cells[..] };
+    shared(&mut shared_window);
+    shared(&mut shared_window);
+    let shared_value: u32 = read(shared_window.values);
+    let mut exclusive_window: Exclusive = Exclusive { values: &mut cells[..] };
+    exclusive(&mut exclusive_window);
+    exclusive(&mut exclusive_window);
+    let helper_value: u32 = read(exclusive_window.values);
+    exclusive_window.values = &mut exclusive_window.values[..];
+    exclusive_window.values = &mut exclusive_window.values[..];
+    let local_value: u32 = read(exclusive_window.values);
+    transition shared_value == 7 && helper_value == 7 && local_value == 7 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -54,6 +54,7 @@ pub(super) fn validate_frozen_inputs(
             &[],
             symbols,
             inference,
+            false,
         ) {
             return None;
         }
