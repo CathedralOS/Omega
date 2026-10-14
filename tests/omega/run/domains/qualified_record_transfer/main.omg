@@ -1,0 +1,35 @@
+// Expected exit: 0.
+data Handle { value: u64; }
+domain Handle::Open(handle) requires handle.value != 0 established by issue_handle, issue_local;
+machine issue_handle(value: u64) -> Handle in Open requires value != 0 { Handle { value: value } }
+machine issue_local(value: u64) -> Handle in Open requires value != 0 {
+    let handle: Handle = Handle { value: value };
+    handle
+}
+machine forward_handle(handle: Handle in Open) -> Handle in Open { handle }
+machine through_local(value: u64) -> Handle in Open requires value != 0 {
+    let handle: Handle in Open = issue_local(value);
+    forward_handle(handle)
+}
+machine read_handle(handle: &Handle in Open) -> u64 { handle.value }
+machine close_handle(handle: Handle in Open) {}
+machine consume_handle(handle: Handle in Open) -> bool { handle.value == 7 }
+machine conditional_consume(handle: Handle in Open, selected: bool) -> bool {
+    selected && consume_handle(handle)
+}
+machine main() crashes Trap {
+    let first: Handle in Open = issue_handle(41);
+    let observed: u64 = read_handle(&first);
+    close_handle(first);
+    transition observed == 41 { true -> next() false -> wrong() }
+    state next() {
+        let second: Handle in Open = through_local(73);
+        let observed: u64 = read_handle(&second);
+        close_handle(second);
+        let consumed: bool = conditional_consume(issue_handle(7), true);
+        let skipped: bool = conditional_consume(issue_handle(7), false);
+        transition observed == 73 && consumed && !skipped { true -> done() false -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

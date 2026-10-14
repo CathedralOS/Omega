@@ -1,0 +1,16 @@
+// Expected exit: 0.
+// An issued affine handle may be observed through a borrow and consumed once.
+data Handle { value: u64; }
+domain Handle::Open established by issue_handle;
+machine issue_handle(value: u64) -> Handle in Open { Handle { value: value } }
+machine read_handle(handle: &Handle in Open) -> u64 { handle.value }
+machine close_handle(handle: Handle in Open) {}
+data Main {}
+machine Main::main(main: &mut Main) crashes Trap {
+    let handle: Handle in Open = issue_handle(41);
+    let value: u64 = read_handle(&handle);
+    close_handle(handle);
+    transition value == 41 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

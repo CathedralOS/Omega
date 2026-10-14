@@ -29,8 +29,7 @@ use std::collections::BTreeSet;
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralArgument, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule, Terminator,
-    find_structural_case,
+    StructuralTypeShape, TerminalMachine, TerminalModule, Terminator, find_structural_case,
 };
 
 /// The declared scalar type of a value anywhere it may be declared on the
@@ -774,74 +773,6 @@ fn validate_operation_foundation(
         OperationKind::CallStructuralScalar { .. } => {
             call_foundations::validate_call_structural_scalar(module, machine, operation)?
         }
-        OperationKind::CallStructuralWithScalarArguments {
-            callee,
-            arguments,
-            erased_arguments: _,
-            erased_proof_arguments: _,
-            structural_arguments,
-            claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-        } if claim_transfers.is_empty()
-            && operation.result.structural().is_none_or(|result| {
-                result.multiplicity != StructuralMultiplicity::Linear && result.claims.is_empty()
-            }) =>
-        {
-            let Some(callee) = module.machine(*callee) else {
-                return malformed("mixed structural-result call references an unknown callee");
-            };
-            let Some(expected_result) = callee.result.structural() else {
-                return malformed(
-                    "mixed structural-result call references a non-structural-result callee",
-                );
-            };
-            let Some(actual_result) = operation.result.structural() else {
-                return malformed("mixed structural-result call has no structural result");
-            };
-            if arguments.len() != callee.parameters.len()
-                || structural_arguments.len() != callee.structural_parameters.len()
-                || actual_result.structural_type != expected_result.structural_type
-                || actual_result.multiplicity != expected_result.multiplicity
-                || actual_result.qualifications != expected_result.qualifications
-                || actual_result.projected_qualifications
-                    != expected_result.projected_qualifications
-                || !actual_result.claims.is_empty()
-                || !claim_transfers.is_empty()
-                || if is_claim_free_structural_call(actual_result, callee) {
-                    requirement_obligations.len() != callee.contract.requires.len()
-                } else {
-                    !requirement_obligations.is_empty() || !crash_continuations.is_empty()
-                }
-            {
-                return malformed("mixed structural-result call exceeds its bounded signature");
-            }
-            let Some(StructuralPlaceDeclaration {
-                kind:
-                    StructuralPlaceKind::OperationResult {
-                        producer,
-                        structural_type,
-                    },
-                ..
-            }) = machine.structural_place(actual_result.place)
-            else {
-                return malformed(
-                    "mixed structural-result call result has no operation-result declaration",
-                );
-            };
-            if *producer != operation.id || *structural_type != actual_result.structural_type {
-                return malformed(
-                    "mixed structural-result call result disagrees with its producer",
-                );
-            }
-            validate_structural_arguments(
-                module,
-                machine,
-                structural_arguments,
-                &callee.structural_parameters,
-                StructuralArgumentPresentation::Ordinary,
-            )?;
-        }
         terminal_psi::call_structural_pair_pattern!(..) => {
             call_foundations::validate_call_structural(module, machine, operation)?
         }
@@ -951,21 +882,6 @@ fn validate_structural_qualifications(
 // wire format has no separate payload-shape distinction for claim-free calls;
 // a second scalar/flat-record whitelist here would reject verified nested and
 // reference-bearing records without adding an encoding or custody check.
-fn is_claim_free_structural_call(
-    result: &terminal_psi::StructuralOperationResult,
-    callee: &TerminalMachine,
-) -> bool {
-    matches!(
-        result.multiplicity,
-        terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty()
-        && callee.entry_claims.is_empty()
-        && callee.content_entry_claims.is_empty()
-        && callee.contract.outcome_specific_ensures.is_empty()
-}
-
 fn callee_exact_payloadless_return(callee: &TerminalMachine) -> bool {
     let Some(result) = callee.result.structural() else {
         return false;

@@ -105,24 +105,21 @@ pub(in crate::execution::terminal_unit) fn signature(
         || (multiplicity != Multiplicity::Linear
             && !claim_bearing
             && !owned_bytes
-            && ((!view_result && !qualifications.is_empty())
-                || (!view_result
-                    && !represented_copy
-                    && !validation::reference_result_custody::is_reference_record(
-                        program, reference,
-                    )
-                    && !validation::has_contents(
-                        program,
-                        reference,
-                        &[],
-                        validation::ContentsRequirement::CleanupOwned,
-                    )
-                    && !validation::has_contents(
-                        program,
-                        reference,
-                        &[],
-                        validation::ContentsRequirement::OwnedOrSharedView,
-                    ))))
+            && (!view_result
+                && !represented_copy
+                && !validation::reference_result_custody::is_reference_record(program, reference)
+                && !validation::has_contents(
+                    program,
+                    reference,
+                    &[],
+                    validation::ContentsRequirement::BorrowFree,
+                )
+                && !validation::has_contents(
+                    program,
+                    reference,
+                    &[],
+                    validation::ContentsRequirement::OwnedOrSharedView,
+                )))
     {
         return None;
     }

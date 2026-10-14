@@ -1224,32 +1224,10 @@ pub fn structural_call_custody(
         })
         .collect::<Vec<_>>();
     let result_frontier = crate::linear_claim_frontier(program, return_type);
-    if result_frontier.is_empty() {
-        // Primitive byte predicates describe an independently established
-        // byte value, not resource claims — the carrier owns or views the
-        // bytes either way. Preserve the exact signature roster when every
-        // minted qualification is one of those predicates on a byte
-        // carrier; arbitrary qualified or loan-bearing results keep the
-        // fence.
-        let byte_predicated = result.multiplicity == Multiplicity::Unrestricted
-            && crate::byte_sequence_carrier(program, return_type, &[]).is_some()
-            && result_qualifications.iter().all(|domain| {
-                program
-                    .domain_definitions()
-                    .iter()
-                    .find(|definition| definition.semantic_id == *domain)
-                    .and_then(|definition| {
-                        typed_trees::byte_predicates::domain_byte_predicate(
-                            program,
-                            definition.symbol,
-                        )
-                    })
-                    .is_some()
-            });
-        if !result_qualifications.is_empty() && !byte_predicated {
-            return Err("claim-bearing structural call has no returned claim frontier");
-        }
-    }
+    // Qualification and linear custody are independent. Preserve the exact
+    // result domains above even when this carrier returns no linear claims;
+    // checking the callee's result establishes that evidence, not this call's
+    // storage classification. The claim and loan joins below remain unchanged.
     // Owned claims and stored loans are independent parts of one returned
     // value. Compose their existing exact joins: neither a linear carrier
     // nor its nominal cleanup can discard its reference frontier.

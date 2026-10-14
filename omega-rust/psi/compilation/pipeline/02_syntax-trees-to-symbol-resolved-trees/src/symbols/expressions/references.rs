@@ -498,7 +498,7 @@ pub(in crate::symbols) fn assign_name_symbol(
 // selected the value frontier. Package aliases need no invented declaration
 // symbols: the existing constructor selector retains their source authority.
 // Membership has a separate domain-path node and never enters this value route.
-fn normalize_qualified_case_value(
+pub(in crate::symbols) fn normalize_qualified_case_value(
     symbols: &SymbolTable,
     expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
     path: &symbol_resolved_trees::expression::TableNamePath,

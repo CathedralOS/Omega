@@ -175,6 +175,12 @@ pub(crate) fn bind_parameters(
                         *parameter_position,
                         path,
                     )?;
+                // An empty projection can observe a whole primitive loan.
+                // Bind its readable referent carrier, as scalar contract
+                // lowering does, rather than comparing the reference type
+                // itself with the scalar observation. Write-only stays absent.
+                let reference =
+                    validation::field_domains::readable_type_reference(program, reference)?;
                 (
                     CanonicalPlace {
                         root: facts::PlaceRoot::Symbol(root),

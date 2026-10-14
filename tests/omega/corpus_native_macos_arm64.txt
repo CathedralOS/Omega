@@ -2292,6 +2292,7 @@ run/calls/runtime_float_distinct_operand_calls_exit built 12474ms exit:0 stdout:
 run/calls/runtime_float_normalized_operand_single_evaluation_exit built 11046ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
 run/calls/table_report_call_survival built 6386ms exit:0 stdout:match @589aedee8ebc+wt
 run/contained_health_loop_command_branch checked 192ms
+run/domains/qualified_record_transfer built 6237ms exit:0 @868a854ecd4d+wt
 run/nested_mut_alias_assignment_return built 944ms exit:0 stdout:match @874bbd295e3e+wt
 run/stores/runtime_float_indexed_call_result_exit built 9716ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
 run/stores/runtime_float_store_selector_snapshot_exit built 9116ms exit:0 stdout:match stderr:match @589aedee8ebc+wt

@@ -1,0 +1,7 @@
+data Choice [copy] { case Good; case Bad; }
+data Handle { choice: Choice; }
+domain Handle::Open(handle) requires handle.choice != Choice::Bad established by issue_handle, issue_literal;
+machine issue_handle(choice: Choice) -> Handle in Open requires choice != Choice::Bad {
+    Handle { choice: choice }
+}
+machine issue_literal() -> Handle in Open { Handle { choice: Choice::Good } }

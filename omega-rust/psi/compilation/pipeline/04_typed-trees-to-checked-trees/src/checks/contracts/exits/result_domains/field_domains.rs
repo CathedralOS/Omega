@@ -179,18 +179,38 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         // A reference return with captured referents proves at that storage
         // below; one without (a returned literal has no storage) keeps this
         // value judgment, which is what grants a literal its domain.
-        let root_satisfied = returned_storage.is_none()
-            && path.is_empty()
-            && super::super::super::writes::value_proves_qualification_in_contexts(
-                program,
-                facts,
-                state_flow,
-                exit.statement_index,
-                returned,
-                domain_symbol,
-                semantic_domain,
-                &entry_contexts,
-            );
+        let established_root = path.is_empty()
+            && returned_storage.is_none()
+            && program.domain_definition(domain_symbol).is_some_and(|domain| {
+                // Only this returned root may acquire provenance from the
+                // authorized machine. Its children still owe their own live
+                // memberships; authorization never proves a predicate or an
+                // indexed application from its declaration alone.
+                domain.semantic_id == semantic_domain
+                    && crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
+                        program, machine, domain_symbol,
+                    )
+                    && super::super::super::writes::value_satisfies_domain_predicates_in_contexts(
+                        program, facts, state_flow, exit.statement_index, returned,
+                        domain_symbol, &entry_contexts, &mut Vec::new(),
+                        facts.flow.control.operands.is_valid(exit.returned_value)
+                            .then(|| facts.flow.control.operands.get(exit.returned_value)),
+                        call_frames,
+                    )
+            });
+        let root_satisfied = established_root
+            || (returned_storage.is_none()
+                && path.is_empty()
+                && super::super::super::writes::value_proves_qualification_in_contexts(
+                    program,
+                    facts,
+                    state_flow,
+                    exit.statement_index,
+                    returned,
+                    domain_symbol,
+                    semantic_domain,
+                    &entry_contexts,
+                ));
         let satisfied = if let Some(subjects) = returned_storage.as_ref() {
             {
                 subjects.iter().all(|storage| {

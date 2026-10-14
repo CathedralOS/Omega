@@ -200,6 +200,50 @@ pub(crate) fn current_predicates(
         .collect()
 }
 
+/// Read an exact scalar conclusion after authenticating its declaration,
+/// argument substitution and surviving capture. This does not turn a raw
+/// `ensures` expression into a caller fact or choose a side of a disjunction.
+pub(in crate::checks) fn scalar_at_place(
+    program: &dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    caller: &FlowStateFact,
+    statement: usize,
+    contexts: &[facts::FactContextHandle],
+    frames: &validation::CallFrameResolver<'_>,
+    place: &CanonicalPlace,
+) -> Option<facts::ScalarValue> {
+    fn equality_value(
+        predicate: &crate::facts::boolean_predicates::BoundPredicate,
+        expression: &checked_trees::CheckedBooleanExpression,
+        place: &CanonicalPlace,
+    ) -> Option<facts::ScalarValue> {
+        use checked_trees::{CheckedBooleanExpression as Boolean, CheckedIntegerComparisonKind};
+        match expression {
+            Boolean::And { left, right } => equality_value(predicate, left, place)
+                .or_else(|| equality_value(predicate, right, place)),
+            Boolean::IntegerComparison {
+                kind: CheckedIntegerComparisonKind::Equal,
+                left,
+                right,
+            } => [(left, right), (right, left)]
+                .into_iter()
+                .find_map(|(subject, value)| {
+                    let binding = predicate.binding(subject)?;
+                    if binding.place != *place {
+                        return None;
+                    }
+                    // Evaluation retains the constant's selected carrier and
+                    // arithmetic policy; no callee observation is read as a local.
+                    crate::values::evaluate_checked_scalar(value, &mut |_| None)
+                }),
+            _ => None,
+        }
+    }
+    current_predicates(program, facts, caller, statement, contexts, frames)
+        .iter()
+        .find_map(|predicate| equality_value(predicate, &predicate.expression, place))
+}
+
 pub(super) fn proves(
     program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,

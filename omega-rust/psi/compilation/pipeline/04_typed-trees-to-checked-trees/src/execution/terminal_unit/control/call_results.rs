@@ -250,7 +250,9 @@ pub(crate) fn checked_structural_result_type(
         });
     }
     let multiplicity = crate::checks::type_multiplicity(program, result_type);
-    let qualifications = parameter_qualifications(program, shapes, result_type, binders)?;
+    // Register exact domain identities independently of storage and linear
+    // claims. An affine qualified result need not own any linear claim.
+    parameter_qualifications(program, shapes, result_type, binders)?;
     // A byte owner transfers its established predicate roster with its live
     // bytes. Signature classification does not establish those predicates;
     // the callee's completion and receiving replay still prove exact custody.
@@ -295,8 +297,7 @@ pub(crate) fn checked_structural_result_type(
         result_type,
         &[],
         validation::ContentsRequirement::OwnedOrSharedView
-    )) || !qualifications.is_empty()))
-    {
+    )))) {
         return None;
     }
     Some(CheckedUnitStructuralResultBindingPlan {

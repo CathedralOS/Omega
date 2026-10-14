@@ -1,0 +1,6 @@
+data Handle { value: u64; }
+domain Handle::Open(handle) requires handle.value != 0 established by issue_handle;
+machine issue_handle(mut value: u64) -> Handle in Open requires value != 0 {
+    value = 0;
+    Handle { value: value }
+}

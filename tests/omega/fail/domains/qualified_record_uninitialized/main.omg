@@ -1,0 +1,8 @@
+data Handle { value: u64; }
+domain Handle::Open established by issue_handle;
+machine issue_handle() -> Handle in Open { Handle { value: 41 } }
+machine close_handle(handle: Handle in Open) {}
+machine use_handle() {
+    let handle: Handle in Open;
+    close_handle(handle);
+}

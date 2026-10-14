@@ -1,0 +1,7 @@
+domain u64::Shifted;
+machine + u64::Shifted::replace(left: u64 in Shifted, right: u64 in Shifted) -> u64 { 9 }
+data Handle { value: u64; }
+domain Handle::Open(handle)
+requires handle.value == ((1 as u64 in Shifted) + (1 as u64 in Shifted))
+established by issue_handle;
+machine issue_handle() -> Handle in Open { Handle { value: 2 } }

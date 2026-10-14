@@ -1,0 +1,13 @@
+data Ticket [copy] { value: u64; }
+domain Ticket::Issued established by issue_ticket;
+machine issue_ticket() -> Ticket ensures result in Ticket::Issued { Ticket { value: 41 } }
+machine install(ticket: &mut Ticket) -> u64 ensures ticket in Ticket::Issued {
+    ticket = issue_ticket();
+    0
+}
+data Envelope { ticket: Ticket; changed: u64; }
+domain Envelope::Authorized(envelope) requires envelope.ticket in Ticket::Issued established by issue_envelope;
+machine issue_envelope() -> Envelope in Authorized {
+    let mut ticket: Ticket = Ticket { value: 41 };
+    Envelope { ticket: ticket, changed: install(&mut ticket) }
+}

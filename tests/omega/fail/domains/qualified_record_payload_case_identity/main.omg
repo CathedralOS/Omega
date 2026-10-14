@@ -1,0 +1,14 @@
+// Omitted zero-valid fields do not turn a case value into a tag-only value.
+data Choice [copy] { case Cell(counter: u32); case Empty; }
+data Handle { choice: Choice; }
+domain Handle::Zero(handle) requires (handle.choice == Choice::Cell {}) established by issue_payload;
+machine issue_payload() -> Handle in Zero {
+    Handle { choice: Choice::Cell { counter: 1 } }
+}
+
+data CommonChoice [copy] { counter: u32; case Cell; case Empty; }
+data CommonHandle { choice: CommonChoice; }
+domain CommonHandle::Zero(handle) requires (handle.choice == CommonChoice::Cell {}) established by issue_common;
+machine issue_common() -> CommonHandle in Zero {
+    CommonHandle { choice: CommonChoice::Cell { counter: 1 } }
+}

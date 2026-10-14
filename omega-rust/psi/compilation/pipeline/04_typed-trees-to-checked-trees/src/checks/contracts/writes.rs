@@ -37,11 +37,13 @@ use byte_lengths::{known_byte_lengths_before, static_max_byte_length};
 pub(super) use domain_implications::value_proves_qualification_in_contexts;
 use domain_implications::{value_proves_domain, value_proves_qualification};
 use member_domains::initializer_satisfies_predicate_domain;
+pub(super) use member_domains::value_satisfies_domain_predicates_in_contexts;
 
 pub(super) fn check_domain_field_writes(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
+    frames: Option<&validation::CallFrameResolver<'_>>,
     decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -109,6 +111,7 @@ pub(super) fn check_domain_field_writes(
                         local.initial_value,
                         domain_symbol,
                         &mut Vec::new(),
+                        frames,
                     ))
                 {
                     diagnostics.push(Diagnostic::error(format!(
@@ -166,6 +169,7 @@ pub(super) fn check_domain_field_writes(
                             assignment.value,
                             domain_symbol,
                             &mut Vec::new(),
+                            frames,
                         )))
                 {
                     let target_label = program.expression_table.display_name(assignment.target);

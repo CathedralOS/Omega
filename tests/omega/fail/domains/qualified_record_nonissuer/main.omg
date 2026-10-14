@@ -1,0 +1,4 @@
+data Handle { value: u64; }
+domain Handle::Open established by issue_handle;
+machine issue_handle() -> Handle in Open { Handle { value: 41 } }
+machine forge_handle() -> Handle in Open { Handle { value: 41 } }

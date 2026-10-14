@@ -129,7 +129,13 @@ fn operand_type(
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_) => exact_domain_subject_type(program, domain, expression),
+        ExpressionNode::Name(_) => {
+            exact_domain_subject_type(program, domain, expression).or_else(|| {
+                crate::value_custody::expression_types::domain_expression_result_type_reference(
+                    program, domain, expression,
+                )
+            })
+        }
         ExpressionNode::Integer(_) => {
             crate::landed_integer_literal_type_reference(program, expression)
         }
@@ -156,6 +162,8 @@ fn operand_type(
         }
         // Unknown is a wildcard for overload lookup, never an assumed copy
         // of the other operand's type. Consumers separately admit bound leaves.
-        _ => None,
+        _ => crate::value_custody::expression_types::domain_expression_result_type_reference(
+            program, domain, expression,
+        ),
     }
 }

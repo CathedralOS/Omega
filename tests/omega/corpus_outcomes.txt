@@ -1972,6 +1972,37 @@ fail/domains/offset_borrow_return_unestablished_field rejected 411ms expected @1
 	cannot prove index `0` is within unknown slice length of `bag.rows[2].labels[1].text` in pick::entry
 fail/domains/qualified_mutable_invalid_field rejected 106ms expected @dca1c7cd7e6f+wt
 	reading `packet.<whole value>` crosses an open default-domain invariant window before data `Packet` is established: the zeroed representation is not yet a `Packet` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/domains/qualified_record_authored_arithmetic rejected 925ms expected @868a854ecd4d+wt
+	cannot prove default-domain field requirement for return from issue_handle at statement 0: Handle requires Handle::Open
+fail/domains/qualified_record_capture_after_mutation rejected 843ms expected @868a854ecd4d+wt
+	cannot prove default-domain field requirement for return from issue_handle at statement 1: Handle requires Handle::Open
+fail/domains/qualified_record_capture_before_mutation rejected 834ms expected @868a854ecd4d+wt
+	cannot prove default-domain field requirement for return from issue_handle at statement 1: Handle requires Handle::Open
+fail/domains/qualified_record_child_provenance rejected 827ms expected @868a854ecd4d+wt
+	cannot prove default-domain field requirement for return from issue_envelope at statement 0: Envelope requires Envelope::Authorized
+fail/domains/qualified_record_disjunctive_guarantee rejected 809ms expected @868a854ecd4d+wt
+	cannot prove default-domain field requirement for return from issue_handle at statement 1: Handle requires Handle::One
+fail/domains/qualified_record_distinct_capture_epochs rejected 865ms expected @868a854ecd4d+wt
+	cannot prove default-domain field requirement for return from issue_handle at statement 1: Handle requires Handle::Open
+fail/domains/qualified_record_double_consume rejected 387ms expected @868a854ecd4d+wt
+	cannot use `handle` in machine `use_handle` state `entry` (statement 2) after `handle` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `handle` first
+fail/domains/qualified_record_false_predicate rejected 881ms expected @868a854ecd4d+wt
+	cannot prove default-domain field requirement for return from issue_handle at statement 0: Handle requires Handle::Open
+fail/domains/qualified_record_late_child_issuance rejected 835ms expected @868a854ecd4d+wt
+	cannot prove default-domain field requirement for return from issue_envelope at statement 1: Envelope requires Envelope::Authorized
+fail/domains/qualified_record_nonissuer rejected 833ms expected @868a854ecd4d+wt
+	cannot prove default-domain field requirement for return from forge_handle at statement 0: Handle requires Handle::Open
+fail/domains/qualified_record_payload_case_identity rejected 827ms expected @868a854ecd4d+wt
+	cannot prove default-domain field requirement for return from issue_payload at statement 0: Handle requires Handle::Zero
+	cannot prove default-domain field requirement for return from issue_common at statement 0: CommonHandle requires CommonHandle::Zero
+fail/domains/qualified_record_stale_predicate rejected 819ms expected @868a854ecd4d+wt
+	cannot prove default-domain field requirement for return from issue_handle at statement 1: Handle requires Handle::Open
+fail/domains/qualified_record_uninitialized rejected 215ms expected @868a854ecd4d+wt
+	reading `handle` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `Handle[in Open]`
+fail/domains/qualified_record_unknown_case rejected 790ms expected @868a854ecd4d+wt
+	cannot prove default-domain field requirement for return from issue_handle at statement 0: Handle requires Handle::Open
+fail/domains/qualified_record_wrapped_arithmetic rejected 775ms expected @868a854ecd4d+wt
+	cannot prove default-domain field requirement for return from issue_handle at statement 0: Handle requires Handle::Open
 fail/domains/qualified_scalar_field_invalid_store rejected 642ms expected @8d3a0acb500a+wt
 	cannot prove assignment value `0` satisfies bounded target `observation.count` in `main.entry`; expected 1..=2147483647
 fail/domains/qualified_scalar_record_call_unestablished rejected 1496ms expected @a9ae30e1c334+wt
@@ -5664,6 +5695,12 @@ pass/domains/policy_plan_shapes checked 9261ms @5041ef1af684+wt
 pass/domains/predicate_domain_param checked 9737ms @5041ef1af684+wt
 pass/domains/progress_domain_provider checked 9522ms @5041ef1af684+wt
 pass/domains/qualified_mutable_field_exit checked 10906ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/domains/qualified_record_capture_after_mutation checked 2791ms @868a854ecd4d+wt
+pass/domains/qualified_record_capture_before_mutation checked 2882ms @868a854ecd4d+wt
+pass/domains/qualified_record_case_predicate checked 2961ms @868a854ecd4d+wt
+pass/domains/qualified_record_issuer_forwarding checked 2837ms @868a854ecd4d+wt
+pass/domains/qualified_record_retained_guarantee checked 2391ms @868a854ecd4d+wt
+pass/domains/qualified_record_wrapped_arithmetic checked 2483ms @868a854ecd4d+wt
 pass/domains/record_interval_domain_member_exit checked 11741ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/record_literal_view_member_store_exit checked 11555ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/record_predicate_domain_member_exit checked 11607ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7504,6 +7541,7 @@ run/calls/runtime_float_distinct_operand_calls_exit checked 11431ms check-target
 run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 11428ms check-target:macos_arm64 @1f63ee648905+wt
 run/calls/table_report_call_survival checked 5492ms check-target:macos_arm64 @589aedee8ebc+wt
 run/contained_health_loop_command_branch checked 1918ms @a9ae30e1c334+wt
+run/domains/qualified_record_transfer checked 6006ms check-target:macos_arm64 @868a854ecd4d+wt
 run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:macos_arm64 @9c4d1c444502
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/providers/module_named_float_conversion_family_exit checked 16353ms check-target:macos_arm64 @77cde1c51efd+wt

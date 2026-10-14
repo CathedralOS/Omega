@@ -852,6 +852,17 @@ fn assign_proof_expression_symbols(
             if path.head_symbol.is_valid() || path.symbol.is_valid() {
                 return;
             }
+            // Declaration facts bind their lexical subjects first, then use
+            // the ordinary value constructor selection. A payload-free case
+            // is a value here, not a type name or a membership classifier.
+            if super::expressions::normalize_qualified_case_value(
+                symbols,
+                expression_table,
+                &path,
+                expression,
+            ) {
+                return;
+            }
             let members = expression_table.name_path_members(path.members);
             if members.is_empty()
                 || matches!(members, [member] if language_core::is_reserved_result(member.as_str()))

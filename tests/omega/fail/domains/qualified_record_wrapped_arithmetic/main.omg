@@ -1,0 +1,5 @@
+data Handle { value: u64; }
+domain Handle::Open(handle)
+requires handle.value == (((255u8 as u8 in Wrapping) + 2) as u64)
+established by issue_handle;
+machine issue_handle() -> Handle in Open { Handle { value: 257 } }

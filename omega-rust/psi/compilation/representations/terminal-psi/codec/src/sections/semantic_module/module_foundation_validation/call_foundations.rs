@@ -3,8 +3,8 @@
 
 use super::{
     StructuralArgumentPresentation, callee_exact_payloadless_return, has_service,
-    has_structural_type, is_claim_free_structural_call, validate_claim_actions,
-    validate_structural_arguments, validate_structural_path, validate_structural_qualifications,
+    has_structural_type, validate_claim_actions, validate_structural_arguments,
+    validate_structural_path, validate_structural_qualifications,
 };
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
@@ -338,6 +338,9 @@ pub(super) fn validate_call_structural_scalar(
     )
 }
 
+/// Scalar and structural argument rosters are independent of result custody.
+/// Every structural result uses the same exact signature, qualification and
+/// claim-path checks; an empty claim roster needs no separate admission rule.
 pub(super) fn validate_call_structural(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -394,31 +397,19 @@ pub(super) fn validate_call_structural(
         && expected_result.qualifications.is_empty()
         && actual_result.claims.is_empty()
         && callee_exact_payloadless_return(callee);
-    let claim_free_result = is_claim_free_structural_call(actual_result, callee)
-        && selected_evidence.is_empty()
-        && claim_transfers.is_empty()
-        && requirement_obligations.len() == callee.contract.requires.len();
     if arguments.len() != callee.parameters.len()
         || structural_arguments.len() != callee.structural_parameters.len()
         || (!selected_evidence.is_empty() && !exact_payloadless)
         || actual_result.structural_type != expected_result.structural_type
         || actual_result.multiplicity != expected_result.multiplicity
         || actual_result.qualifications != expected_result.qualifications
+        || actual_result.projected_qualifications != expected_result.projected_qualifications
     {
         return malformed("structural call has the wrong callee signature or structural arity");
     }
     validate_structural_call_result_declaration(module, machine, operation, actual_result)?;
     if exact_payloadless {
         return Ok(());
-    }
-    if claim_free_result {
-        return validate_structural_arguments(
-            module,
-            machine,
-            structural_arguments,
-            &callee.structural_parameters,
-            StructuralArgumentPresentation::Ordinary,
-        );
     }
     // Input claims cross at their owned arguments; the result binds the
     // claims the callee's returning edge holds, one per result path. The

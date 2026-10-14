@@ -227,6 +227,7 @@ pub(super) fn check_flow_call_contracts(
             program,
             facts,
             state_flow,
+            call_frames,
             &mut value_qualifications,
             &mut diagnostics,
         );

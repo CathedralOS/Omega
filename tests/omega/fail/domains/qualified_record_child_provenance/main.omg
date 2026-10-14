@@ -1,0 +1,8 @@
+data Ticket { value: u64; }
+domain Ticket::Issued(ticket) requires true established by issue_ticket;
+machine issue_ticket() -> Ticket in Issued { Ticket { value: 41 } }
+data Envelope { ticket: Ticket; }
+domain Envelope::Authorized(envelope) requires envelope.ticket in Ticket::Issued established by issue_envelope;
+machine issue_envelope() -> Envelope in Authorized {
+    Envelope { ticket: Ticket { value: 41 } }
+}

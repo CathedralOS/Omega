@@ -1,0 +1,10 @@
+data Handle { value: u64; changed: u64; }
+domain Handle::Open(handle) requires handle.value != 0 established by issue_handle;
+machine replace(value: &mut u64) -> u64 ensures value == 0 {
+    value = 0;
+    0
+}
+machine issue_handle() -> Handle in Open {
+    let mut value: u64 = 1;
+    Handle { changed: replace(&mut value), value: value }
+}

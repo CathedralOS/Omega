@@ -1,0 +1,12 @@
+data Handle { value: u64; }
+domain Handle::Open(handle) requires handle.value != 0 established by issue_handle, issue_guarded;
+machine issue_handle() -> Handle in Open { Handle { value: 41 } }
+machine issue_guarded(value: u64) -> Handle in Open requires value != 0 {
+    Handle { value: value }
+}
+machine forward_handle(handle: Handle in Open) -> Handle in Open { handle }
+machine local_handle() -> Handle in Open {
+    let handle: Handle in Open = issue_handle();
+    handle
+}
+machine forwarded_call() -> Handle in Open { forward_handle(issue_handle()) }

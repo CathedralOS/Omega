@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "issued_handle");
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}

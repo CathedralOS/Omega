@@ -1,0 +1,1 @@
+reading `handle` crosses an open default-domain invariant window before its declared qualification is established

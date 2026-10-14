@@ -67,9 +67,12 @@ pub(crate) fn initial_linear_places(
             } else {
                 type_multiplicity(program, parameter.type_reference) == Multiplicity::Affine
                     && matches!(
-                        program
-                            .type_reference_table
-                            .type_reference(parameter.type_reference),
+                        program.type_reference_table.type_reference(
+                            validation::peel_declared_constraints(
+                                program,
+                                parameter.type_reference,
+                            )
+                        ),
                         TypeReferenceNode::Named { .. }
                             | TypeReferenceNode::Generic { .. }
                             | TypeReferenceNode::FixedArray { .. }
@@ -142,9 +145,17 @@ pub(crate) fn initial_linear_places(
         // keys it to this statement). Member operations fill each leaf;
         // subsequent element stores replace established contents rather
         // than minting the root.
-        let type_node = program
-            .type_reference_table
-            .type_reference(local.type_reference);
+        // Qualifications change evidence, not whether this affine carrier
+        // owns storage. Reserve the same occurrence beneath constraints so
+        // construction, selected moves and cleanup retain their normal
+        // establishment/transfer events even with an empty linear frontier.
+        let type_node =
+            program
+                .type_reference_table
+                .type_reference(validation::peel_declared_constraints(
+                    program,
+                    local.type_reference,
+                ));
         let declaration_established = local.initial_value.is_valid()
             || matches!(
                 type_node,

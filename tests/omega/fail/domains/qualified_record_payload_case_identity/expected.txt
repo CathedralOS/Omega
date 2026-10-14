@@ -1,0 +1,2 @@
+cannot prove default-domain field requirement for return from issue_payload
+cannot prove default-domain field requirement for return from issue_common
