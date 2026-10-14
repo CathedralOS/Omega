@@ -253,7 +253,7 @@ pub(super) fn plan(
         operations,
         trace,
     )?;
-    let coordinate = operation.call()?.coordinate;
+    let coordinate = operation.invocation_coordinate()?;
     call_phase("statement sequence: call: result binding");
     if let Some(result) = &structural_result
         && !result.local.is_named()

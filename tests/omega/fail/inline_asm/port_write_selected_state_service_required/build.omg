@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "port_write_selected_state_service_required");
+    builder.freestanding = true;
+}

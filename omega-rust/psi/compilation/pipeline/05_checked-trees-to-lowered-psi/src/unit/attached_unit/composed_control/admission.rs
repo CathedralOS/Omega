@@ -42,9 +42,10 @@ pub(super) fn admit_calls<'a>(
                 // A store writes storage or a loan this state holds; it
                 // names no callee.
                 | CheckedUnitEffectOperationPlan::Store(_)
-                // An atomic event names no callee.
+                // An atomic event or port write names no callee.
                 | CheckedUnitEffectOperationPlan::AtomicFence { .. }
-            | CheckedUnitEffectOperationPlan::AtomicAccess(_)
+                | CheckedUnitEffectOperationPlan::AtomicAccess(_)
+                | CheckedUnitEffectOperationPlan::PortWrite { .. }
                 // The paired call carries the callee dependency; cleanup only
                 // disposes its discarded result.
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }

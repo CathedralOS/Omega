@@ -755,6 +755,17 @@ impl CheckedUnitEffectOperationPlan {
         }
     }
 
+    /// The authored invocation this operation performs: an ordinary or
+    /// boundary call, or a checked port write. Continuations after either
+    /// share one call boundary; every other operation answers `None`.
+    pub fn invocation_coordinate(&self) -> Option<CheckedUnitCallCoordinate> {
+        match self {
+            Self::Call(call) => Some(call.coordinate),
+            Self::PortWrite { coordinate, .. } => Some(*coordinate),
+            _ => None,
+        }
+    }
+
     pub fn call_mut(&mut self) -> Option<&mut CheckedUnitCallPlan> {
         match self {
             Self::Call(call) => Some(call),

@@ -1425,8 +1425,8 @@ pass/inline_asm/asm_memory_transfer_compile built 259ms
 pass/inline_asm/asm_msr_multi checked 9449ms @5041ef1af684+wt
 pass/inline_asm/asm_port_contract checked 9365ms @5041ef1af684+wt
 pass/inline_asm/asm_port_immediate checked 9438ms @5041ef1af684+wt
-pass/inline_asm/asm_port_out_final_validation incomplete 1860ms @47d3b5bbd8c+wt
-	`main` has no executable body: this compiler does not lower a call of it yet (call operation: call site)
+pass/inline_asm/asm_port_out_final_validation rejected 7599ms @73488f3b9a96
+	native artifact terminal-authority closure review failed: root-reachable checked physical operation has no selected provider requirement custody
 pass/inline_asm/asm_reach_inherit checked 9408ms @5041ef1af684+wt
 pass/inline_asm/asm_reach_wrapper checked 9576ms @5041ef1af684+wt
 pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 1809ms @47d3b5bbd8c+wt
@@ -1437,6 +1437,7 @@ pass/inline_asm/asm_sysregs checked 9520ms @5041ef1af684+wt
 pass/inline_asm/asm_typed_places checked 9874ms @5041ef1af684+wt
 pass/inline_asm/asm_where_contract checked 9720ms @5041ef1af684+wt
 pass/inline_asm/asm_where_exact_clobbers_compile checked 225ms
+pass/inline_asm/port_write_terminal_sequences checked 29689ms terminal-inspections:match @73488f3b9a96
 pass/layouts/access_plan_inaccessible_seed checked 263ms
 pass/layouts/authored_layout_query_names_exit built 5946ms exit:0 @b016b7e0a226
 pass/layouts/byte_view_borrow_with_encoded_sibling checked 702ms @693920652f41

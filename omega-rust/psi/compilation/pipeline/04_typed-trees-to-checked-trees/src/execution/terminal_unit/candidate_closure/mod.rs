@@ -421,10 +421,12 @@ pub(super) fn retain_available(
                     // A store names no callee: its destination is storage or
                     // a loan inside this frame, its index and scalar value
                     // are dense, and a sum field's copy or construction and
-                    // its window repair stay in-frame.
+                    // its window repair stay in-frame. A port write is a
+                    // checked physical event with exact operands, not a call.
                     CheckedUnitEffectOperationPlan::Store(_)
                     | CheckedUnitEffectOperationPlan::AtomicFence { .. }
-            | CheckedUnitEffectOperationPlan::AtomicAccess(_)
+                    | CheckedUnitEffectOperationPlan::AtomicAccess(_)
+                    | CheckedUnitEffectOperationPlan::PortWrite { .. }
                     | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. })
                     // A borrowed reference binds storage already owned by the
                     // frame; establish/release carry no callee dependency.

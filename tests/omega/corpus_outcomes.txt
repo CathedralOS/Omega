@@ -2785,6 +2785,9 @@ fail/inline_asm/asm_where_contract rejected 3422ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` asm `requires` fact `main.value` is not boolean-shaped
 fail/inline_asm/asm_where_missing_clobber rejected 8ms expected @a9ae30e1c334+wt
 	tests/omega/fail/inline_asm/asm_where_missing_clobber/main.omg:10:1: asm where `clobbers` must exactly match the realized instruction contract: missing `r11`, `r15`
+fail/inline_asm/port_write_selected_state_service_required rejected 1889ms expected @73488f3b9a96
+	machine `emit_selected_state` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
+	machine `emit_selected_state` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
 fail/layouts/callee_integer_at_forwarded_write_requires_fit rejected 1681ms expected @a9ae30e1c334+wt
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_intermediate_write_requires_fit rejected 1580ms expected @a9ae30e1c334+wt
@@ -6260,8 +6263,8 @@ pass/inline_asm/asm_memory_transfer_compile checked 10675ms check-target:macos_a
 pass/inline_asm/asm_msr_multi checked 9781ms @5041ef1af684+wt
 pass/inline_asm/asm_port_contract checked 9849ms @5041ef1af684+wt
 pass/inline_asm/asm_port_immediate checked 9264ms @5041ef1af684+wt
-pass/inline_asm/asm_port_out_final_validation incomplete 11063ms check-target:linux_x86_64 @a9ae30e1c334+wt
-	`main` has no executable body: this compiler does not lower a call of it yet (call operation: call site)
+pass/inline_asm/asm_port_out_final_validation rejected 7659ms check-target:linux_x86_64 @73488f3b9a96
+	native artifact terminal-authority closure review failed: root-reachable checked physical operation has no selected provider requirement custody
 pass/inline_asm/asm_reach_inherit checked 9759ms @5041ef1af684+wt
 pass/inline_asm/asm_reach_wrapper checked 9566ms @5041ef1af684+wt
 pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 11132ms check-target:linux_x86_64 @a9ae30e1c334+wt
@@ -6272,6 +6275,7 @@ pass/inline_asm/asm_sysregs checked 9535ms @5041ef1af684+wt
 pass/inline_asm/asm_typed_places checked 9753ms @5041ef1af684+wt
 pass/inline_asm/asm_where_contract checked 9446ms @5041ef1af684+wt
 pass/inline_asm/asm_where_exact_clobbers_compile checked 11183ms @a9ae30e1c334+wt
+pass/inline_asm/port_write_terminal_sequences checked 30804ms terminal-inspections:match @73488f3b9a96
 pass/layouts/access_plan_inaccessible_seed checked 1987ms @a9ae30e1c334+wt
 pass/layouts/alternating_member_padding_layout_compile checked 1807ms @a9ae30e1c334+wt
 pass/layouts/array_align_queries_compile checked 1673ms @a9ae30e1c334+wt

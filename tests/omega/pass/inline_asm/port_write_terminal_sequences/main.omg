@@ -1,0 +1,42 @@
+// Checked port writes compose like any other effect operation: in sequence,
+// between ordinary calls that carry their own continuations, and inside a
+// state a transition selects. Terminal production carries each exact
+// port/value event; this package binds no native entry, so the privileged
+// provider settlement a native artifact needs stays a separate obligation.
+use omega::language::core::assembly;
+
+pub data Device {
+    writes: u64;
+}
+
+machine record(device: &mut Device) {
+    device.writes = 1;
+}
+
+pub machine emit_sequence() reaches PortIo {
+    asm where clobbers r10, r11, r15, rax, rdx {
+        out 0x3F8, 0x41;
+        out 0x3F8, 0x42
+    }
+    asm where clobbers r10, r11, r15, rax, rdx {
+        out 0x2F8, 0x43
+    }
+}
+
+pub machine Device::emit_between_calls(device: &mut Device) reaches PortIo {
+    record(device);
+    asm where clobbers r10, r11, r15, rax, rdx {
+        out 0x3F8, 0x44
+    }
+    record(device);
+}
+
+pub machine emit_selected_state(ready: u8) reaches PortIo {
+    transition ready == 1 { true -> emit() _ -> idle() }
+    state emit() {
+        asm where clobbers r10, r11, r15, rax, rdx {
+            out 0x3F8, 0x45
+        }
+    }
+    state idle() {}
+}

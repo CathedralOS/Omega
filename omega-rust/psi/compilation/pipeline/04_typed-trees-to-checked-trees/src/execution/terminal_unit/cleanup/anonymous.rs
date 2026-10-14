@@ -208,11 +208,10 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
 ) -> Option<()> {
-    let call = operations.iter().rev().find_map(|operation| {
-        operation
-            .call()
-            .filter(|call| call.coordinate == coordinate)
-    })?;
+    let invocation = operations
+        .iter()
+        .rev()
+        .find(|operation| operation.invocation_coordinate() == Some(coordinate))?;
     // Normal completion retires an anonymous holder independently of the
     // callee route. Boundary receipts settle claims, not a borrowed holder's
     // physical carrier; whole transfers below still belong to the callee.
@@ -225,8 +224,8 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
         {
             continue;
         }
-        let arguments = call
-            .structural_arguments
+        let arguments = invocation
+            .call_structural_arguments()
             .iter()
             .filter(|argument| {
                 argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)

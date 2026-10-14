@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "port_write_terminal_sequences");
+    builder.freestanding = true;
+}

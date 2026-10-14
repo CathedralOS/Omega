@@ -85,8 +85,11 @@ pub(super) fn admit(
                 }) => {}
             // An atomic event's root authority and operands rejoined at
             // mint; its observed prior is an ordinary dense scalar local.
+            // A port write carries exact constant operands and its service
+            // reach: no structural custody crosses the selected edge.
             CheckedUnitEffectOperationPlan::AtomicFence { .. }
-            | CheckedUnitEffectOperationPlan::AtomicAccess(_) => {}
+            | CheckedUnitEffectOperationPlan::AtomicAccess(_)
+            | CheckedUnitEffectOperationPlan::PortWrite { .. } => {}
             // The window pair the sequencer itself joined — a move-out
             // binding the displaced field value and the exact restoration
             // into the opened hole — carries no new custody across the
@@ -116,8 +119,8 @@ pub(super) fn admit(
                     ))
                     && match boundary {
                         checked_trees::CheckedUnitCleanupBoundary::Call(coordinate) => operations[..operation_index].iter()
-                            .filter_map(CheckedUnitEffectOperationPlan::call)
-                            .any(|call| call.coordinate == *coordinate),
+                            .filter_map(CheckedUnitEffectOperationPlan::invocation_coordinate)
+                            .any(|invocation| invocation == *coordinate),
                         checked_trees::CheckedUnitCleanupBoundary::StatementEntry { statement_index }
                         | checked_trees::CheckedUnitCleanupBoundary::Replacement { statement_index, .. } => statements.get(*statement_index as usize).is_some(),
                     } => {}
@@ -152,9 +155,6 @@ pub(super) fn admit(
                     }
                     checked_trees::reference_hold_pattern!() => {
                         "state graph: operation custody: reference custody"
-                    }
-                    CheckedUnitEffectOperationPlan::PortWrite { .. } => {
-                        "state graph: operation custody: port write"
                     }
                     CheckedUnitEffectOperationPlan::Complete { .. } => {
                         "state graph: operation custody: completion"
