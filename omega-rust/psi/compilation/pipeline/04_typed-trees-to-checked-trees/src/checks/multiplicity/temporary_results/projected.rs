@@ -1,145 +1,92 @@
-//! A temporary's selected subtree moves; its exact complement dies at the call.
+//! Call continuations retire the complement of an already transferred subtree.
+//! Establishment and transfer belong to the shared occurrence ledger, not this
+//! cleanup. The original owner, rather than the projected argument, dies here.
+use super::owners::{TemporaryConsumption, TemporaryOwner};
 use super::{
-    CheckFacts, FlowPermissionEventFact, HandleSpan, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionProvenance, SymbolHandle,
-    TypeReferenceNode,
+    CheckFacts, FlowPermissionEventFact, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    PermissionEventKind, PermissionProvenance, SymbolHandle, TypeReferenceNode,
 };
-use crate::checks::multiplicity::linear_validation::permission_source;
-use crate::checks::type_carries_linear_obligation;
 use crate::checks::type_multiplicity;
-use crate::flow::FlowOwnershipEventSource;
 use language_semantics::PermissionEventSource;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn append(
-    program: &dyn ::validation::CheckingInput,
+pub(in crate::checks::multiplicity) fn append_cleanup(
+    program: &dyn validation::CheckingInput,
     facts: &mut CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    calls: &[checked_trees::FlowCallFact],
-    event: &crate::flow::DiscoveredMoveEvent,
+    consumer: PermissionEventSource,
+    evaluation: checked_trees::FlowPermissionEvaluation,
+    owners: &[TemporaryOwner],
+    places: &mut [super::super::linear_obligations::LinearPlace],
+    remaining: &super::super::cleanup_dispositions::RemainingCustody,
     permissions: &mut Vec<FlowPermissionEventFact>,
-) {
-    let Some(expression) = event.root.as_expression() else {
-        return;
-    };
-    let FlowOwnershipEventSource::Call {
-        statement_index,
-        call_ordinal,
-        ..
-    } = event.source
-    else {
-        return;
-    };
-    let path = facts
-        .flow
-        .ownership
-        .segments
-        .span_or_empty(event.segments)
-        .to_vec();
-    if path.is_empty()
-        || !path.iter().all(|segment| {
-            matches!(
-                segment,
-                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+) -> Result<Vec<facts::PlaceRoot>, diagnostics::Diagnostic> {
+    let mut retired = Vec::new();
+    for owner in owners
+        .iter()
+        .rev()
+        .filter(|owner| owner.consumer == consumer && owner.evaluation == evaluation)
+    {
+        let TemporaryConsumption::OwnedProjection { path } = &owner.consumption else {
+            continue;
+        };
+        let root = facts::PlaceRoot::Expression(owner.expression);
+        let statement = match consumer {
+            PermissionEventSource::Call {
+                statement_index, ..
+            } => statement_index,
+            _ => continue,
+        };
+        let mut residuals = Vec::new();
+        if remaining.is_present(root, path)
+            || complement(
+                program,
+                state,
+                statement,
+                &validation::CanonicalPlace {
+                    root,
+                    segments: Vec::new(),
+                },
+                path,
+                &mut residuals,
             )
-        })
-        || permissions.iter().any(|prior| {
-            prior.machine_symbol == machine
-                && prior.state_symbol == state
-                && prior.root == event.root
-        })
-    {
-        return;
+            .is_none()
+        {
+            return Err(diagnostics::Diagnostic::error(
+                "projected temporary cleanup lacks its exact completed transfer and residual partition",
+            ));
+        }
+        for path in residuals {
+            if !remaining.is_present(root, &path) {
+                continue;
+            }
+            permissions.push(FlowPermissionEventFact {
+                expression: owner.expression,
+                evaluation,
+                machine_symbol: machine,
+                state_symbol: state,
+                source: consumer,
+                kind: PermissionEventKind::AffineDrop,
+                multiplicity: Multiplicity::Affine,
+                access: PermissionAccess::Owned,
+                claim_identity: PermissionClaimIdentity::Unknown,
+                provenance: PermissionProvenance::Established {
+                    machine_symbol: machine,
+                    state_symbol: state,
+                    source: owner.producer,
+                },
+                root,
+                segments: facts.flow.ownership.segments.insert_many(path),
+                obligation_live: false,
+            });
+        }
+        for place in places.iter_mut().filter(|place| place.root == root) {
+            place.live = false;
+        }
+        retired.push(root);
     }
-    let mut producers = calls.iter().filter(|call| {
-        call.statement_index == statement_index
-            && call.authored_expression == expression
-            && call.call_ordinal > call_ordinal
-    });
-    let Some(producer) = producers.next() else {
-        return;
-    };
-    if producers.next().is_some() {
-        return;
-    }
-    let root = validation::CanonicalPlace {
-        root: event.root,
-        segments: Vec::new(),
-    };
-    let selected = validation::CanonicalPlace {
-        root: event.root,
-        segments: path.clone(),
-    };
-    let affine = |place: &validation::CanonicalPlace| {
-        validation::canonical_place_type_reference(program, state, statement_index, place)
-            .is_some_and(|reference| {
-                matches!(
-                    program.type_reference_table.type_reference(reference),
-                    TypeReferenceNode::Named { .. }
-                        | TypeReferenceNode::Generic { .. }
-                        | TypeReferenceNode::FixedArray { .. }
-                ) && type_multiplicity(program, reference) == Multiplicity::Affine
-                    && !type_carries_linear_obligation(program, reference)
-            })
-    };
-    if !affine(&root) || !affine(&selected) {
-        return;
-    }
-    let mut residuals = Vec::new();
-    if complement(
-        program,
-        state,
-        statement_index,
-        &root,
-        &path,
-        &mut residuals,
-    )
-    .is_none()
-    {
-        return;
-    }
-    let source = PermissionEventSource::Call {
-        statement_index,
-        call_ordinal: producer.call_ordinal,
-        target_symbol: producer.target_symbol,
-    };
-    let provenance = PermissionProvenance::Established {
-        machine_symbol: machine,
-        state_symbol: state,
-        source,
-    };
-    let base = FlowPermissionEventFact {
-        expression: Default::default(),
-        evaluation: event.evaluation,
-        machine_symbol: machine,
-        state_symbol: state,
-        source,
-        kind: PermissionEventKind::Establish,
-        multiplicity: Multiplicity::Affine,
-        access: PermissionAccess::Owned,
-        claim_identity: PermissionClaimIdentity::Unknown,
-        provenance,
-        root: event.root,
-        segments: HandleSpan::empty(),
-        obligation_live: false,
-    };
-    permissions.push(base.clone());
-    permissions.push(FlowPermissionEventFact {
-        expression: event.expression,
-        source: permission_source(event.source),
-        kind: PermissionEventKind::Transfer,
-        segments: event.segments,
-        ..base.clone()
-    });
-    for path in residuals {
-        permissions.push(FlowPermissionEventFact {
-            source: permission_source(event.source),
-            kind: PermissionEventKind::AffineDrop,
-            segments: facts.flow.ownership.segments.insert_many(path),
-            ..base.clone()
-        });
-    }
+    Ok(retired)
 }
 
 // Only traverse the selected branch. Untouched siblings are maximal residuals,

@@ -1,0 +1,26 @@
+// Expected exit: 0.
+data Token { value: u64; }
+data Pair { first: Token; second: Token; }
+data Wrapper { only: Token; }
+machine make() -> Pair {
+    Pair { first: Token { value: 73 }, second: Token { value: 19 } }
+}
+machine identity(value: u64) -> u64 { value }
+machine wrap() -> Wrapper { Wrapper { only: Token { value: 53 } } }
+machine consume(value: Token, observed: &mut u64) { observed = value.value; }
+machine main() crashes Trap {
+    let value: u64 = identity(make().first.value);
+    let mut observed: u64 = 0;
+    consume(Pair {
+        first: Token { value: 41 }, second: Token { value: 29 }
+    }.first, &mut observed);
+    let mut singleton: u64 = 0;
+    consume(wrap().only, &mut singleton);
+    let from_call: u64 = singleton;
+    consume(Wrapper { only: Token { value: 61 } }.only, &mut singleton);
+    transition value == 73 && observed == 41 && from_call == 53 && singleton == 61 {
+        true -> done() false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

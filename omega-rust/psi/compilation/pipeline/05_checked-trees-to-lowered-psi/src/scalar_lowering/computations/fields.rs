@@ -72,7 +72,6 @@ impl super::Expansion<'_> {
     ) -> Result<usize, LoweringError> {
         let (machine, state) = crate::declarations::state_declaration(self.checked, site.state)?;
         let mut completed = None;
-        let mut discards = Vec::new();
         let established = self
             .established_values
             .iter()
@@ -185,17 +184,10 @@ impl super::Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "computed receiver lost its complete value root",
                 ))?;
-            // Disposal is a property of the produced type, not of the field
-            // selected from it. Never erase a nominal hook or a reference debt
-            // by describing an arbitrary affine record as a trivial discard.
-            if !crate::content_classes::plain_owned_with_numeric_constraints(
-                self.checked,
-                root.type_reference,
-            ) {
-                return unsupported(
-                    "unimplemented: computed receiver disposal requires its nontrivial cleanup plan",
-                );
-            }
+            // Observation does not dispose its receiver. Source permission
+            // production retains this exact expression owner and its normal
+            // death's ordered residual/hook plan. The completed storage below
+            // is exported with the scalar expansion for that cleanup to use.
             let prepared = structural_values::prepare_value(
                 identities,
                 self.checked,
@@ -211,11 +203,6 @@ impl super::Expansion<'_> {
                 self.structural_types,
                 receiver_storage(self.fields, subject, field)?,
             )?;
-            if self.checked.type_multiplicity(root.type_reference)
-                == language_semantics::Multiplicity::Affine
-            {
-                discards.push(prepared.place);
-            }
             let expression = completed_observation(
                 self.fields,
                 site.bindings,
@@ -249,9 +236,7 @@ impl super::Expansion<'_> {
             erased_formal_types: Vec::new(),
             erased_proof_formals: Vec::new(),
             bindings: vec![crate::emission::operation_emission::LoweredScalarBinding::Expression(expression)],
-            terminator: crate::scalar_lowering::branch_states::prepared::LoweredScalarBranchTerminator::jump_with_cleanup(target, arguments,
-                discards.into_iter().map(crate::unit::unit_cleanup::PreparedNormalCleanupAction::discard_root).collect(),
-            ),
+            terminator: crate::scalar_lowering::branch_states::prepared::LoweredScalarBranchTerminator::jump(target, arguments),
         });
         match completed {
             Some(value) => value.finish(

@@ -31,7 +31,7 @@ mod type_multiplicity;
 pub(crate) use linear_obligations::{
     check_linear_obligations, nominal_drop_machine_symbol, type_reference_is_reference,
 };
-pub(crate) use linear_validation::{established_provenance, linear_claim_frontier};
+pub(crate) use linear_validation::linear_claim_frontier;
 pub(crate) use temporary_results::owned_temporary_type;
 pub(crate) use type_multiplicity::{
     data_field_name, type_carries_linear_obligation, type_multiplicity,

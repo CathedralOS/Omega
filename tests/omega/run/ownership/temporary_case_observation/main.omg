@@ -1,0 +1,8 @@
+// Expected exit: 0.
+data Message { case Empty; case Value(number: u64); }
+machine main() crashes Trap {
+    let selected: bool = Message::Value { number: 73 } in Message::Value;
+    transition selected { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

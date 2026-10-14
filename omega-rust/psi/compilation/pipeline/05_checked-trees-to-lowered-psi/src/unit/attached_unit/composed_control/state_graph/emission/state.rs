@@ -783,13 +783,8 @@ impl StateGraphEmission<'_, '_> {
         // A closed-sum case whose arm is an authored `(expression)` returns
         // it: mint each one's private return block exactly like a conditional
         // return arm's, before the successor-edge closure borrows this
-        // state's emission slots. The case edge carries the subject's
-        // consumption into the return block.
-        let case_subject_discards = prepared_cases
-            .as_ref()
-            .filter(|prepared| prepared.discard_subject)
-            .map(|prepared| vec![prepared.source])
-            .unwrap_or_default();
+        // state's emission slots. Ordinary selected-exit cleanup owns the
+        // subject's residual partition after the arm's operand transfers.
         // Cases sharing one payload-free returning arm complete through one
         // block: the arm's operands and call run once, so its source
         // coordinates stay unique. Each later case enters through its own
@@ -864,7 +859,7 @@ impl StateGraphEmission<'_, '_> {
                             namespace,
                             &established,
                             &payload_parameters,
-                            &case_subject_discards,
+                            &[],
                             return_arm,
                             &mut evaluation,
                             &mut next_value,

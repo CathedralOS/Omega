@@ -22,20 +22,41 @@ pub(in crate::checks::multiplicity) fn append_borrow(
     permissions: &mut Vec<FlowPermissionEventFact>,
     diagnostics: &mut Vec<Diagnostic>,
     dispositions: &mut checked_trees::ContextualCleanupFacts,
-) {
-    for (owner, access, borrowed_path) in owners.iter().filter_map(|owner| match &owner.consumption {
-        TemporaryConsumption::Borrow { access, borrowed_path } => Some((owner, *access, borrowed_path)),
-        TemporaryConsumption::OwnedTransfer => None,
-    }).filter(|(owner, _, _)| {
-        owner.consumer == consumer
-            && owner.evaluation == evaluation
-    }) {
+) -> Vec<facts::PlaceRoot> {
+    let mut retired = Vec::new();
+    for (owner, access, borrowed_path) in owners
+        .iter()
+        .filter_map(|owner| match &owner.consumption {
+            TemporaryConsumption::Borrow {
+                access,
+                borrowed_path,
+            } => Some((owner, *access, borrowed_path)),
+            TemporaryConsumption::OwnedTransfer | TemporaryConsumption::OwnedProjection { .. } => {
+                None
+            }
+        })
+        .filter(|(owner, _, _)| owner.consumer == consumer && owner.evaluation == evaluation)
+    {
         let root = facts::PlaceRoot::Expression(owner.expression);
         let carries_claims = type_carries_linear_obligation(program, owner.type_reference);
         if super::super::owned_cleanup::claim_receipts(
-            program, owner.type_reference, root, &[], places, &[],
-        ).is_none() {
-            let PermissionEventSource::Call { target_symbol, statement_index, .. } = owner.consumer else { continue; };
+            program,
+            owner.type_reference,
+            root,
+            &[],
+            places,
+            &[],
+        )
+        .is_none()
+        {
+            let PermissionEventSource::Call {
+                target_symbol,
+                statement_index,
+                ..
+            } = owner.consumer
+            else {
+                continue;
+            };
             diagnostics.push(Diagnostic::error(format!(
                 "cannot automatically dispose borrowed temporary `{}` after call `{}` at statement {}: every contained linear obligation needs its owner-authorized terminal disposition",
                 program.normalized_type_identity_text(owner.type_reference),
@@ -43,43 +64,87 @@ pub(in crate::checks::multiplicity) fn append_borrow(
             )));
             continue;
         }
-        if validation::reference_result_custody::binding_multiplicity(program, owner.type_reference) == Multiplicity::Unrestricted {
+        if validation::reference_result_custody::binding_multiplicity(program, owner.type_reference)
+            == Multiplicity::Unrestricted
+        {
             continue;
         }
         if carries_claims {
             // The death owns the complete value. Its selected hook plan, not
             // the borrowed callee, authorizes disposal of every remaining claim.
-            dispositions.dispositions.append(checked_trees::ContextualCleanupDisposition {
-                establishment_ordered: false,
-                zero_image: false,
-                machine, state, source: owner.consumer,
-                exit: checked_trees::FlowClaimJoinExit::default(),
-                root, disposed_type: owner.type_reference,
-                path: HandleSpan::empty(), exclusions: HandleSpan::empty(),
-            });
+            dispositions
+                .dispositions
+                .append(checked_trees::ContextualCleanupDisposition {
+                    establishment_ordered: false,
+                    zero_image: false,
+                    machine,
+                    state,
+                    source: owner.consumer,
+                    exit: checked_trees::FlowClaimJoinExit::default(),
+                    root,
+                    disposed_type: owner.type_reference,
+                    path: HandleSpan::empty(),
+                    exclusions: HandleSpan::empty(),
+                });
         }
         permissions.push(FlowPermissionEventFact {
             expression: Default::default(),
-            evaluation, machine_symbol: machine, state_symbol: state, source: owner.consumer,
+            evaluation,
+            machine_symbol: machine,
+            state_symbol: state,
+            source: owner.consumer,
             kind: PermissionEventKind::Establish,
-            multiplicity: Multiplicity::Unrestricted, access,
+            multiplicity: Multiplicity::Unrestricted,
+            access,
             claim_identity: PermissionClaimIdentity::Unknown,
-            provenance: PermissionProvenance::Established { machine_symbol: machine, state_symbol: state, source: owner.producer },
-            root, segments: facts.flow.ownership.segments.insert_many(borrowed_path.iter().copied()),
+            provenance: PermissionProvenance::Established {
+                machine_symbol: machine,
+                state_symbol: state,
+                source: owner.producer,
+            },
+            root,
+            segments: facts
+                .flow
+                .ownership
+                .segments
+                .insert_many(borrowed_path.iter().copied()),
             obligation_live: false,
         });
-        for place in places.iter_mut().filter(|place| place.root == root && place.live) {
+        for place in places
+            .iter_mut()
+            .filter(|place| place.root == root && place.live)
+        {
             permissions.push(FlowPermissionEventFact {
                 expression: Default::default(),
-                evaluation, machine_symbol: machine, state_symbol: state, source: owner.consumer,
-                kind: if place.multiplicity == Multiplicity::Linear { PermissionEventKind::Consume } else { PermissionEventKind::AffineDrop },
-                multiplicity: place.multiplicity, access: PermissionAccess::Owned,
-                claim_identity: place.claim_identity.unwrap_or(PermissionClaimIdentity::Unknown),
+                evaluation,
+                machine_symbol: machine,
+                state_symbol: state,
+                source: owner.consumer,
+                kind: if place.multiplicity == Multiplicity::Linear {
+                    PermissionEventKind::Consume
+                } else {
+                    PermissionEventKind::AffineDrop
+                },
+                multiplicity: place.multiplicity,
+                access: PermissionAccess::Owned,
+                claim_identity: place
+                    .claim_identity
+                    .unwrap_or(PermissionClaimIdentity::Unknown),
                 provenance: place.provenance.unwrap_or(PermissionProvenance::Unknown),
-                root, segments: facts.flow.ownership.segments.insert_many(place.path.iter().copied()),
+                root,
+                segments: facts
+                    .flow
+                    .ownership
+                    .segments
+                    .insert_many(place.path.iter().copied()),
                 obligation_live: false,
             });
             place.live = false;
         }
+        // The disposition owns the containing home as well as its claim
+        // leaves. Leaf receipts alone would leave an empty transparent home
+        // available for a second cleanup at state exit.
+        retired.push(root);
     }
+    retired
 }

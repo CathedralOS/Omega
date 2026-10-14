@@ -4,8 +4,7 @@ use super::super::super::super::{
     StructuralParameterDeclaration,
 };
 use super::super::super::{
-    PlaceId, StructuralMultiplicity, StructuralTypeShape, ValueDeclaration, terminal_scalar_type,
-    unsupported,
+    PlaceId, StructuralTypeShape, ValueDeclaration, terminal_scalar_type, unsupported,
 };
 use super::super::{LoweringError, catalogs};
 use super::CheckedComposedUnitControlStatePlan;
@@ -21,7 +20,6 @@ pub(super) struct PreparedCase<'a> {
 pub(super) struct PreparedCases<'a> {
     pub source: PlaceId,
     pub path: Vec<terminal_psi::StructuralPathSegment>,
-    pub discard_subject: bool,
     pub cases: Vec<PreparedCase<'a>>,
 }
 
@@ -41,8 +39,7 @@ pub(super) fn prepare<'a>(
     // Stage 04's closed-sum planner admitted the original carrier. Its path
     // selects the inspected sum without transferring that carrier's
     // ownership or loan.
-    let owned = subject.access == checked_trees::CheckedStructuralAccess::Owned;
-    let (place, structural_type, multiplicity) = match subject.source {
+    let (place, structural_type) = match subject.source {
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             let parameter =
                 parameters
@@ -50,21 +47,13 @@ pub(super) fn prepare<'a>(
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph case parameter missing",
                     ))?;
-            (
-                parameter.place,
-                parameter.structural_type,
-                parameter.multiplicity,
-            )
+            (parameter.place, parameter.structural_type)
         }
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal,
         } => {
             let produced = result(state, binding_ordinal, operations)?;
-            (
-                produced.place(),
-                produced.structural_type(),
-                produced.multiplicity(),
-            )
+            (produced.place(), produced.structural_type())
         }
         _ => return unsupported("Unit graph case subject source unsupported"),
     };
@@ -170,10 +159,6 @@ pub(super) fn prepare<'a>(
     Ok(Some(PreparedCases {
         source: place,
         path,
-        // An owned case is consumed by selection. A borrowed descriptor is
-        // not: the arm may still forward or reborrow it. Its checked deferred
-        // release stays on the selected exit, after operand evaluation.
-        discard_subject: owned && multiplicity == StructuralMultiplicity::Affine,
         cases,
     }))
 }

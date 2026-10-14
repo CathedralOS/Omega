@@ -331,8 +331,6 @@ fn validate_partial_affine_discards(
                                 parameter.multiplicity,
                                 StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
                             ) && parameter.access == terminal_psi::StructuralAccess::Owned
-                                && parameter.qualifications.is_empty()
-                                && parameter.projected_qualifications.is_empty()
                         })
                 },
                 |parameter| {
@@ -342,12 +340,11 @@ fn validate_partial_affine_discards(
                     ) && parameter.access == terminal_psi::StructuralAccess::Owned
                 },
             );
-            if !supported_root
-                || actions.iter().any(|action| matches!(action, terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) if *place == discard.place))
-            {
-                return malformed(
-                    "affine region cleanup does not name a distinct owned region",
-                );
+            if !supported_root {
+                return malformed("affine region cleanup does not name an owned custody root");
+            }
+            if actions.iter().any(|action| matches!(action, terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) if *place == discard.place)) {
+                return malformed("affine region cleanup overlaps a whole-root discard");
             }
             let Some(root_type) = structural_place_type(machine, discard.place) else {
                 return malformed("partial affine cleanup has no exact structural root type");

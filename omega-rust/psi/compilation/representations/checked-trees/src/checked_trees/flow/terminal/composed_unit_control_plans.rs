@@ -3,17 +3,16 @@
 
 use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::flow::terminal::{
-    CheckedByteSequenceCarrier, CheckedCallScalarArgument,
-    CheckedProviderAttachmentRequirementPlan, CheckedScalarBranchDestination,
-    CheckedScalarGuardedExit, CheckedStructuralAccess, CheckedStructuralControlSuccessorPlan,
-    CheckedStructuralControlTransferSourcePlan, CheckedStructuralResultPlan,
+    CheckedCallScalarArgument, CheckedProviderAttachmentRequirementPlan,
+    CheckedScalarBranchDestination, CheckedScalarGuardedExit,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralResultPlan,
     CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape,
+    CheckedUnitStructuralParameterPlan,
 };
 use crate::checked_trees::values::CheckedErasedProofParameterPlan;
 use crate::{CheckedScalarExpression, ClosedScalarContractValue};
-use language_semantics::{Multiplicity, SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
+use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use symbols::SymbolHandle;
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::PrimitiveType;
@@ -284,9 +283,10 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         when_true: CheckedConditionalReturnArm,
         when_false: CheckedConditionalReturnArm,
     },
-    /// Consume one whole owned parameter or exact result from this state's
+    /// Inspect one retained parameter or exact result from this state's
     /// operation prefix and transfer control through the exact closed case
-    /// roster. Payload scalars are introduced only on their selected edge;
+    /// roster. Transfers and cleanup partition owned custody on that edge.
+    /// Payload scalars are introduced only on their selected edge;
     /// they are not speculative reads from inactive storage. A case whose
     /// arm is an authored `(expression)` closes its own edge with the
     /// value's producer instead of a transfer.
@@ -717,8 +717,9 @@ pub enum CheckedClosedSumSubjectKind {
     #[default]
     Place,
     /// The dispatch's one authored call, evaluated once at the first arm's
-    /// statement. Its structural result is an anonymous temporary that every
-    /// case edge consumes; the parser's copies of the call in later guards
+    /// statement. Its structural result is an anonymous temporary whose
+    /// payload transfers and residual cleanup follow the selected edge;
+    /// the parser's copies of the call in later guards
     /// and payload reads observe that one result
     /// (wiki/spec/language/expressions.md, "Transition dispatch").
     Computed,
@@ -760,154 +761,4 @@ pub struct CheckedClosedSumPayloadTransferPlan {
     pub field_identity: CheckedMemberIdentity,
     pub primitive_type: PrimitiveType,
     pub target_scalar_parameter_index: u32,
-}
-
-/// An owned value one edge establishes for a qualified successor parameter,
-/// as its declaration publishes it: the stored carrier identity, the
-/// multiplicity and the domain roster the declared type carries. A fresh
-/// copy of a `[u8; N] in D` field or local and an authored `[u8; N] in D`
-/// literal both arrive under exactly the domains their declaration names.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedEstablishedQualifiedValue {
-    pub type_identity: TypeIdentityId,
-    pub multiplicity: Multiplicity,
-    pub qualifications: Vec<SemanticDomainId>,
-}
-
-impl CheckedEstablishedQualifiedValue {
-    /// Whether this value arrives as exactly the roster `parameter` declares.
-    fn arrives_as(&self, parameter: &CheckedUnitStructuralParameterPlan) -> bool {
-        self.type_identity == parameter.type_identity
-            && self.multiplicity == parameter.multiplicity
-            && self.qualifications == parameter.qualifications
-            && parameter.projected_qualifications.is_empty()
-    }
-}
-
-/// A shared loan freezes its referent. A mutable bounded byte owner instead
-/// preserves its primitive byte predicates through independently checked
-/// stores. Neither rule grants transport for arbitrary mutable qualified
-/// values. An immutable owned byte parameter likewise forwards its
-/// established value whole, with exactly the same primitive predicate roster
-/// on every arrival. A successor's qualified parameter is admitted only when
-/// every live edge into its state forwards a source parameter with exactly
-/// the same carrier, access, multiplicity and qualifications; establishes,
-/// for a shared byte view, an authored literal under those qualifications;
-/// or establishes, for an owned byte carrier, a value whose own declaration
-/// carries them (`established_value` reads that declaration). Each is then
-/// a byte-predicate domain without establishment routes, which Terminal
-/// verification decides from the arriving octets at the edge.
-///
-/// The container of structural types, domains and value declarations lives
-/// with the checking stage, so callers pass the three lookups.
-pub fn forwards_qualified_parameter<'shapes>(
-    states: &[CheckedComposedUnitControlStatePlan],
-    live: &[bool],
-    target_index: usize,
-    parameter_index: usize,
-    structural_type_shape: impl Fn(TypeIdentityId) -> Option<&'shapes CheckedUnitStructuralTypeShape>,
-    domain_without_establishment_routes: impl Fn(SemanticDomainId, TypeIdentityId) -> bool,
-    established_value: impl Fn(
-        &crate::CheckedUnitEffectOperationPlan,
-    ) -> Option<CheckedEstablishedQualifiedValue>,
-) -> bool {
-    let Some(target) = states.get(target_index) else {
-        return false;
-    };
-    let Some(parameter) = target.structural_parameters.get(parameter_index) else {
-        return false;
-    };
-    if !(parameter.access == CheckedStructuralAccess::SharedBorrow
-        || (matches!(
-            parameter.access,
-            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::Owned
-        ) && parameter.projected_qualifications.is_empty()
-            && matches!(
-                structural_type_shape(parameter.type_identity),
-                Some(CheckedUnitStructuralTypeShape::ByteSequence(
-                    CheckedByteSequenceCarrier::BoundedOwned { .. }
-                ))
-            )
-            && parameter.qualifications.iter().all(|qualification| {
-                domain_without_establishment_routes(*qualification, parameter.type_identity)
-            })))
-        || parameter.multiplicity != Multiplicity::Unrestricted
-    {
-        return false;
-    }
-    let literal_establishes_qualifications = parameter.access
-        == CheckedStructuralAccess::SharedBorrow
-        && parameter.projected_qualifications.is_empty()
-        && matches!(
-            structural_type_shape(parameter.type_identity),
-            Some(CheckedUnitStructuralTypeShape::ByteSequence(
-                CheckedByteSequenceCarrier::BorrowedView { .. }
-            ))
-        )
-        && parameter.qualifications.iter().all(|qualification| {
-            domain_without_establishment_routes(*qualification, parameter.type_identity)
-        });
-    // A fresh owned value carries whatever its declaration establishes: the
-    // establishment on the edge or the source state's own result binding.
-    let owned_establishment_arrives = |operation: &crate::CheckedUnitEffectOperationPlan| {
-        parameter.access == CheckedStructuralAccess::Owned
-            && established_value(operation).is_some_and(|value| value.arrives_as(parameter))
-    };
-    states
-        .iter()
-        .zip(live)
-        .filter(|(_, live)| **live)
-        .all(|(source, _)| {
-            source
-                .successors()
-                .into_iter()
-                .filter(|successor| successor.target_state == target.state)
-                .all(|successor| {
-                    successor.transfers.iter().any(|transfer| {
-                        transfer.target_parameter_index as usize == parameter_index
-                            && match &transfer.source {
-                                CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral { .. } => {
-                                    literal_establishes_qualifications
-                                }
-                                CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
-                                    source.structural_parameters.get(*index as usize).is_some_and(|forwarded| {
-                                        forwarded.type_identity == parameter.type_identity
-                                            && forwarded.access == parameter.access
-                                            && forwarded.multiplicity == parameter.multiplicity
-                                            && forwarded.qualifications == parameter.qualifications
-                                            && forwarded.projected_qualifications
-                                                == parameter.projected_qualifications
-                                    })
-                                }
-                                // A projected loan or copy forwards custody of
-                                // storage declared under the same base identity
-                                // and access: the subject's admission already
-                                // proved the declared type match, and byte-
-                                // predicate qualifications re-verify on the
-                                // storage at the edge either way.
-                                CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. }
-                                | CheckedStructuralControlTransferSourcePlan::ProjectedValue { subject } => {
-                                    subject.type_identity == parameter.type_identity
-                                        && subject.access == parameter.access
-                                }
-                                CheckedStructuralControlTransferSourcePlan::EstablishedValue {
-                                    establishment,
-                                    ..
-                                } => owned_establishment_arrives(establishment),
-                                CheckedStructuralControlTransferSourcePlan::StructuralResult {
-                                    binding_ordinal,
-                                } => source
-                                    .operations
-                                    .iter()
-                                    .find(|operation| {
-                                        operation.structural_result_binding().is_some_and(
-                                            |result| result.binding_ordinal == *binding_ordinal,
-                                        )
-                                    })
-                                    .is_some_and(owned_establishment_arrives),
-                                _ => false,
-                            }
-                    })
-                })
-        })
 }

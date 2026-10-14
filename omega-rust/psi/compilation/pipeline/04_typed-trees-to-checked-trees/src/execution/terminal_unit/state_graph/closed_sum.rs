@@ -1,5 +1,5 @@
-//! Case terminators inspect exact sums. An owned subject is consumed and its
-//! disposal obligation retained; a shared or mutable loan is read in place.
+//! Case terminators inspect exact sums. Each selected arm transfers or disposes
+//! owned custody through normal-edge cleanup; a shared or mutable loan is read in place.
 //! Captured locals retain their real descriptor result and cross its referee,
 //! never re-evaluating the reference's formation or borrowing its owned custody.
 //! A field or fixed-index subject observes a subtree of that same carrier;
@@ -11,16 +11,15 @@
 //! subject and each payload read's receiver) all read that one result.
 use super::super::{
     CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
-    DataMember, PermissionAccess, PermissionClaimIdentity,
+    DataMember,
 };
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpressionRole,
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventSource,
-    ScalarCalleeClosure, ShapeCollector, Signature, TransitionExit, TransitionGuardNode,
-    TransitionTargetNode, TypeReferenceNode, returns, terminal_calls,
+    CheckedUnitStructuralArgumentSourcePlan, Multiplicity, ScalarCalleeClosure, ShapeCollector,
+    Signature, TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode,
+    returns, terminal_calls,
 };
-use crate::checks::established_provenance;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::state_graph::{
     EdgeCalls, FusedStates, SuccessorEdge, successor_bindings,
@@ -55,6 +54,7 @@ pub(super) fn build(
         return None;
     };
     let (expression, _) = crate::proof::exact_outcome_case_test(program, guard)?;
+    trace.phase("state graph: case subject storage");
     let subject_place = validation::contextual_canonical_place_from_expression(
         program,
         state.symbol,
@@ -69,112 +69,103 @@ pub(super) fn build(
             transition_start,
         )?),
     };
-    let (mut subject, mut type_reference, expected_provenance) =
-        if let DispatchSubject::Computed(subject_expression) = dispatch {
-            trace.phase("state graph: terminator: case subject call");
-            trace.statement(u32::try_from(transition_start).ok());
-            let (result, type_reference) = subject_call(
-                program,
-                facts,
-                scalar_callees,
-                shapes,
-                machine,
-                state,
-                structural,
-                entry_claims,
-                operations,
-                transition_start,
-                subject_expression,
-                trace,
-            )?;
-            (
-                CheckedUnitStructuralArgumentPlan::structural_result(
-                    result.binding_ordinal,
-                    result.type_identity,
-                    CheckedStructuralAccess::Owned,
-                ),
-                type_reference,
-                language_semantics::PermissionProvenance::Unknown,
-            )
-        } else if let Some((index, parameter)) = program
-            .state_parameters(state)
+    let (mut subject, mut type_reference) = if let DispatchSubject::Computed(subject_expression) =
+        dispatch
+    {
+        trace.phase("state graph: terminator: case subject call");
+        trace.statement(u32::try_from(transition_start).ok());
+        let (result, type_reference) = subject_call(
+            program,
+            facts,
+            scalar_callees,
+            shapes,
+            machine,
+            state,
+            structural,
+            entry_claims,
+            operations,
+            transition_start,
+            subject_expression,
+            trace,
+        )?;
+        (
+            CheckedUnitStructuralArgumentPlan::structural_result(
+                result.binding_ordinal,
+                result.type_identity,
+                CheckedStructuralAccess::Owned,
+            ),
+            type_reference,
+        )
+    } else if let Some((index, parameter)) = program
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .find(|(_, parameter)| dispatch.is_symbol(parameter.symbol))
+    {
+        let (position, retained) = structural
             .iter()
             .enumerate()
-            .find(|(_, parameter)| dispatch.is_symbol(parameter.symbol))
+            .find(|(_, retained)| retained.position as usize == index)?;
+        // Selection observes the same stored subject on every arm. Owned
+        // payload transfers and residual cleanup belong to the selected
+        // edge; a shared or mutable loan stays the caller's.
+        let inspected = match retained.access {
+            CheckedStructuralAccess::Owned => parameter.type_reference,
+            checked_trees::checked_borrowed_access_pair_pattern!() => {
+                let TypeReferenceNode::Reference { referee, .. } = program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference)
+                else {
+                    return None;
+                };
+                *referee
+            }
+            CheckedStructuralAccess::WriteOnlyBorrow => return None,
+        };
+        if !matches!(
+            retained.multiplicity,
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        ) || retained.multiplicity != program.type_multiplicity(parameter.type_reference)
+            || !retained.qualifications.is_empty()
+            || retained.primitive_referent.is_some()
         {
-            let (position, retained) = structural
-                .iter()
-                .enumerate()
-                .find(|(_, retained)| retained.position as usize == index)?;
-            // An owned subject is consumed by the dispatch. A shared or
-            // mutable loan is only inspected: each case edge reads the
-            // referent's tag and payloads in place and the loan stays the
-            // caller's.
-            let inspected = match retained.access {
-                CheckedStructuralAccess::Owned => parameter.type_reference,
-                checked_trees::checked_borrowed_access_pair_pattern!() => {
-                    let TypeReferenceNode::Reference { referee, .. } = program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference)
-                    else {
-                        return None;
-                    };
-                    *referee
-                }
-                CheckedStructuralAccess::WriteOnlyBorrow => return None,
-            };
-            if !matches!(
-                retained.multiplicity,
-                Multiplicity::Affine | Multiplicity::Unrestricted
-            ) || retained.multiplicity != program.type_multiplicity(parameter.type_reference)
-                || !retained.qualifications.is_empty()
-                || retained.primitive_referent.is_some()
-            {
-                return None;
-            }
-            (
-                CheckedUnitStructuralArgumentPlan {
-                    source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        parameter_index: u32::try_from(position).ok()?,
-                    },
-                    path: Vec::new(),
-                    type_identity: retained.type_identity.clone(),
-                    access: retained.access,
+            return None;
+        }
+        (
+            CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: u32::try_from(position).ok()?,
                 },
-                inspected,
-                // A claim-free owned parameter is established at state entry;
-                // its exit event carries that incoming storage occurrence.
-                established_provenance(
-                    machine.symbol,
-                    state.symbol,
-                    PermissionEventSource::StateEntry,
-                ),
+                path: Vec::new(),
+                type_identity: retained.type_identity,
+                access: retained.access,
+            },
+            inspected,
+        )
+    } else {
+        let mut matching = operations
+            .iter()
+            .filter_map(super::retained_structural_result)
+            .filter_map(|result| {
+                let local = statements
+                    .get(result.statement_index as usize)?
+                    .as_local_data()?;
+                (dispatch.is_symbol(local.symbol)
+                    && !local.is_mutable
+                    && result.statement_index < transition_start as u32)
+                    .then_some((result, local))
+            });
+        let (result, local) = matching.next()?;
+        if matching.next().is_some()
+            || !matches!(
+                result.multiplicity,
+                Multiplicity::Affine | Multiplicity::Unrestricted
             )
-        } else {
-            let mut matching = operations
-                .iter()
-                .filter_map(super::retained_structural_result)
-                .filter_map(|result| {
-                    let local = statements
-                        .get(result.statement_index as usize)?
-                        .as_local_data()?;
-                    (dispatch.is_symbol(local.symbol)
-                        && !local.is_mutable
-                        && result.statement_index < transition_start as u32)
-                        .then_some((result, local))
-                });
-            let (result, local) = matching.next()?;
-            if matching.next().is_some()
-                || !matches!(
-                    result.multiplicity,
-                    Multiplicity::Affine | Multiplicity::Unrestricted
-                )
-            {
-                return None;
-            }
-            let (subject, inspected) = if let Some(shell) =
-                validation::reference_shell(program, local.type_reference)
-            {
+        {
+            return None;
+        }
+        let (subject, inspected) =
+            if let Some(shell) = validation::reference_shell(program, local.type_reference) {
                 // The descriptor's affine custody belongs to its producer,
                 // not to the unrestricted shared-reference source type. The
                 // producer is whichever operation bound the result: a place
@@ -209,24 +200,34 @@ pub(super) fn build(
                 (
                     CheckedUnitStructuralArgumentPlan::structural_result(
                         result.binding_ordinal,
-                        result.type_identity.clone(),
+                        result.type_identity,
                         CheckedStructuralAccess::Owned,
                     ),
                     local.type_reference,
                 )
             };
-            (
-                subject,
-                inspected,
-                language_semantics::PermissionProvenance::Established {
-                    machine_symbol: machine.symbol,
-                    state_symbol: state.symbol,
-                    source: PermissionEventSource::Statement {
-                        statement_index: result.statement_index as usize,
-                    },
-                },
-            )
+        (subject, inspected)
+    };
+    // Give successor planning the exact saved root, named or anonymous.
+    // Canonical places rejoin parser copies to this one expression identity.
+    let mut established_results = local_results.to_vec();
+    if let DispatchSubject::Computed(expression) = dispatch {
+        let CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } =
+            subject.source
+        else {
+            return None;
         };
+        let result = operations
+            .iter()
+            .filter_map(super::retained_structural_result)
+            .find(|result| result.binding_ordinal == binding_ordinal)?
+            .clone();
+        established_results.push((result, facts::PlaceRoot::Expression(expression)));
+    }
+    let edge_calls = EdgeCalls {
+        local_results: &established_results,
+        ..edge_calls
+    };
     if let DispatchSubject::Place(place) = dispatch
         && !place.segments.is_empty()
     {
@@ -251,16 +252,15 @@ pub(super) fn build(
         type_reference = projected;
         shapes.add_type(projected, &[], &[])?;
     }
+    trace.phase("state graph: case subject contents");
+    // Dispatch observes the stored tag; it does not copy, consume or dispose
+    // of the payload. Qualification, loan and cleanup obligations belong to
+    // the selected arm's existing transfer and normal-exit judgments.
     if !validation::has_contents(
         program,
         type_reference,
         &[],
-        validation::ContentsRequirement::NumericOwned,
-    ) && !validation::has_contents(
-        program,
-        type_reference,
-        &[],
-        validation::ContentsRequirement::OwnedOrSharedView,
+        validation::ContentsRequirement::BorrowedStorage,
     ) {
         return None;
     }
@@ -285,18 +285,15 @@ pub(super) fn build(
         .into_iter()
         .filter(|variant| !::validation::impossible_variant(program, variant))
         .collect::<Vec<_>>();
-    // A case edge forwards only primitive payloads, each into a scalar
-    // successor parameter (`payload_field` below). A structural payload such
-    // as `IoResult::Error { kind: ErrorKind }` may still sit in a case whose
-    // arm leaves it unread: the subject's plain owned contents, checked
-    // above for the whole type graph, give that field no references, slices
-    // or cleanup code, so the dispatch's one disposal of the whole subject
-    // covers it exactly as it covers an unread primitive payload.
+    // Primitive payloads enter the scalar roster below. Structural payloads
+    // use ordinary rooted successor transfers; unread fields remain in the
+    // selected edge's checked cleanup partition.
     // Each arm selects at least one case, except a final `_` that follows
     // complete coverage (see below).
     if variants.is_empty() || statements.len() - transition_start > variants.len() + 1 {
         return None;
     }
+    trace.phase("state graph: case selected arms");
     let mut cases = Vec::new();
     let mut count = returns::next_result_ordinal(operations.as_slice())?;
     // Every copy of a computed subject the dispatch reads: the guards'
@@ -467,7 +464,7 @@ pub(super) fn build(
                         state,
                         structural,
                         entry_claims,
-                        local_results,
+                        edge_calls.local_results,
                         operations,
                         result,
                         next_scalar_binding,
@@ -489,6 +486,16 @@ pub(super) fn build(
                     let &(_, target) = fused.get(target_index)?;
                     let arguments = program.statement_table.expression_handles(*arguments);
                     let target_parameters = program.state_parameters(target);
+                    for argument in arguments {
+                        dispatch.payload_field(
+                            program,
+                            state,
+                            ordinal as usize,
+                            *argument,
+                            variant,
+                            &mut subject_reads,
+                        )?;
+                    }
                     let mut payloads = Vec::new();
                     for (parameter_index, parameter) in
                         signatures[target_index].1.iter().enumerate()
@@ -542,40 +549,6 @@ pub(super) fn build(
                         shapes,
                         trace,
                     )?;
-                    if subject.access == CheckedStructuralAccess::Owned
-                        && successor.transfers.iter().any(|transfer| {
-                        match (&subject.source, &transfer.source) {
-                            (
-                                CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                                    parameter_index,
-                                },
-                                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
-                                    index,
-                                },
-                            ) => parameter_index == index,
-                            (
-                                CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                    binding_ordinal: subject,
-                                },
-                                checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
-                                    binding_ordinal,
-                                },
-                            ) => subject == binding_ordinal,
-                            // A structural payload copied out of the subject
-                            // would read storage the dispatch has consumed;
-                            // only primitive payloads travel, as scalars.
-                            (
-                                _,
-                                checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
-                                    subject: payload_subject,
-                                    ..
-                                },
-                            ) => payload_subject.source == subject.source,
-                            _ => false,
-                        }
-                    }) {
-                        return None;
-                    }
                     (
                         CheckedClosedSumCaseOutcomePlan::Successor(successor),
                         payloads,
@@ -610,88 +583,11 @@ pub(super) fn build(
     // does not require forwarding every field. Payload transfers retain the
     // exact subject, case and field identities, independent of generated
     // destructure markers or preparations preceding the dispatch.
-    // Affine dispatch requires the actual source exit disposition. Copyable
-    // subjects have no disposal debt; do not invent an affine-drop receipt.
-    // Parameter-origin carriers and fresh results have different provenance.
-    // An inspected loan disposes nothing.
-    let needs_discard = subject.access == CheckedStructuralAccess::Owned
-        && program.type_multiplicity(type_reference) == Multiplicity::Affine;
-    // Source exit rows describe entry custody. An ordinary preceding call
-    // can already own a whole parameter's disposal, including the call that
-    // produces this dispatch subject. Projected moves leave their debt here.
-    let consumed_parameters = operations
-        .iter()
-        .flat_map(|operation| operation.call_structural_arguments())
-        .filter(|argument| {
-            argument.access == CheckedStructuralAccess::Owned && argument.path.is_empty()
-        })
-        .filter_map(|argument| argument.source_parameter_index())
-        .collect::<Vec<_>>();
-    let mut consumed_drops = Vec::new();
-    let mut found = false;
-    for event in facts
-        .flow
-        .ownership
-        .state_exit_cleanup_roots(machine.symbol, state.symbol)?
-    {
-        if !dispatch.is_symbol_root(event.root) {
-            if let Some(source_position) = program
-                .state_parameters(state)
-                .iter()
-                .position(|parameter| event.root == facts::PlaceRoot::Symbol(parameter.symbol))
-            {
-                let (index, parameter) = structural
-                    .iter()
-                    .enumerate()
-                    .find(|(_, parameter)| parameter.position as usize == source_position)?;
-                let index = u32::try_from(index).ok()?;
-                if !consumed_parameters.contains(&index)
-                    || parameter.access != CheckedStructuralAccess::Owned
-                    || parameter.multiplicity != Multiplicity::Affine
-                    || event.access != PermissionAccess::Owned
-                    || event.multiplicity != Multiplicity::Affine
-                    || event.claim_identity != PermissionClaimIdentity::Unknown
-                    || event.provenance
-                        != established_provenance(
-                            machine.symbol,
-                            state.symbol,
-                            PermissionEventSource::StateEntry,
-                        )
-                    || event.obligation_live
-                    || !event.segments.is_empty()
-                    || consumed_drops.contains(&index)
-                {
-                    return None;
-                }
-                consumed_drops.push(index);
-            }
-            continue;
-        }
-        // Other locals use the ordinary graph's result-custody accounting.
-        if !subject.path.is_empty() {
-            // This root remains available to the selected arm. Its authored
-            // disposition is retained by the common edge-cleanup planner.
-            continue;
-        }
-        if !needs_discard
-            || event.access != PermissionAccess::Owned
-            || event.multiplicity != Multiplicity::Affine
-            || event.claim_identity != PermissionClaimIdentity::Unknown
-            || event.provenance != expected_provenance
-            || event.obligation_live
-            || !event.segments.is_empty()
-            || found
-        {
-            return None;
-        }
-        found = true;
-    }
-    // A computed subject is an anonymous temporary: the ownership facts name
-    // no place for it, so no exit event can carry its disposal. The dispatch
-    // edge consumes it, and Terminal replays that consumption on each case.
-    if found != (needs_discard && matches!(dispatch, DispatchSubject::Place(_))) {
-        return None;
-    }
+    // Selection observes a subject; the chosen arm owns its transfers and
+    // remaining disposal. Named subjects use the ordinary normal-edge plan,
+    // which retains partial moves, hooks and exact selected-exit coordinates.
+    // Requiring a separate whole-root drop here would reject a valid payload
+    // move before that shared custody owner can account for its complement.
     Some(CheckedComposedUnitControlTerminatorPlan::ClosedSum {
         subject,
         subject_type: type_reference,
@@ -719,10 +615,6 @@ enum DispatchSubject<'place> {
 impl DispatchSubject<'_> {
     fn is_symbol(self, symbol: symbols::SymbolHandle) -> bool {
         matches!(self, Self::Place(subject) if subject.root == facts::PlaceRoot::Symbol(symbol))
-    }
-
-    fn is_symbol_root(self, root: facts::PlaceRoot) -> bool {
-        matches!(root, facts::PlaceRoot::Symbol(symbol) if self.is_symbol(symbol))
     }
 
     fn is_symbol_place(self, place: &validation::CanonicalPlace) -> bool {

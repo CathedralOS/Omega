@@ -27,14 +27,75 @@ mod owned_transfers;
 mod owners;
 mod projected;
 
-pub(super) use borrowed_owners::append_borrow;
 pub(super) use owned_transfers::append_owned_transfer;
 pub(crate) use owners::owned_temporary_type;
 pub(super) use owners::{TemporaryOwner, temporary_owners};
 
+/// One call completion disposes temporary owners in reverse establishment
+/// order. Usage selects the exact whole or residual plan, not a separate
+/// cleanup order for borrowed versus transferred arguments.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn append_continuation_cleanup(
+    program: &dyn validation::CheckingInput,
+    facts: &mut CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    consumer: language_semantics::PermissionEventSource,
+    evaluation: checked_trees::FlowPermissionEvaluation,
+    owners: &[TemporaryOwner],
+    places: &mut [super::linear_obligations::LinearPlace],
+    remaining: &super::cleanup_dispositions::RemainingCustody,
+    permissions: &mut Vec<FlowPermissionEventFact>,
+    dispositions: &mut checked_trees::ContextualCleanupFacts,
+) -> Result<Vec<facts::PlaceRoot>, Diagnostic> {
+    let mut retired = Vec::new();
+    for owner in owners
+        .iter()
+        .rev()
+        .filter(|owner| owner.consumer == consumer && owner.evaluation == evaluation)
+    {
+        let mut diagnostics = Vec::new();
+        match owner.consumption {
+            owners::TemporaryConsumption::Borrow { .. } => {
+                retired.extend(borrowed_owners::append_borrow(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    consumer,
+                    evaluation,
+                    std::slice::from_ref(owner),
+                    places,
+                    permissions,
+                    &mut diagnostics,
+                    dispositions,
+                ))
+            }
+            owners::TemporaryConsumption::OwnedProjection { .. } => {
+                retired.extend(projected::append_cleanup(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    consumer,
+                    evaluation,
+                    std::slice::from_ref(owner),
+                    places,
+                    remaining,
+                    permissions,
+                )?)
+            }
+            owners::TemporaryConsumption::OwnedTransfer => {}
+        }
+        if let Some(diagnostic) = diagnostics.into_iter().next() {
+            return Err(diagnostic);
+        }
+    }
+    Ok(retired)
+}
+
 pub(super) fn append_whole_affine_transfer(
     program: &dyn ::validation::CheckingInput,
-    facts: &mut CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     calls: &[checked_trees::FlowCallFact],
@@ -42,15 +103,8 @@ pub(super) fn append_whole_affine_transfer(
     permission_events: &mut Vec<FlowPermissionEventFact>,
 ) {
     if !event.segments.is_empty() {
-        projected::append(
-            program,
-            facts,
-            machine_symbol,
-            state_symbol,
-            calls,
-            event,
-            permission_events,
-        );
+        // Projected owners use the same established source custody as named
+        // owners; their consumer continuation publishes residual cleanup.
         return;
     }
     let Some(expression) = event.root.as_expression() else {

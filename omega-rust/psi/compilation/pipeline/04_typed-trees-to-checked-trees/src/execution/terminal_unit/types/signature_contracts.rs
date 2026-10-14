@@ -210,41 +210,6 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
     Some(output)
 }
 
-/// The domain roster a declaration carries on its root carrier, read without
-/// registering anything: the same roster `parameter_qualifications` publishes
-/// for a signature, here for an established value's own declaration.
-pub(in crate::execution::terminal_unit) fn declared_qualifications(
-    program: &dyn ::validation::CheckingInput,
-    mut type_reference: TypeReferenceHandle,
-) -> Option<Vec<SemanticDomainId>> {
-    let mut output = Vec::new();
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                for constraint in program.type_reference_table.constraints(*constraints) {
-                    match constraint {
-                        TypeConstraintNode::ArithmeticDomain(_)
-                        | TypeConstraintNode::Range { .. } => continue,
-                        TypeConstraintNode::Domain(domain) if domain.semantic_id.is_valid() => {
-                            output.push(domain.semantic_id);
-                        }
-                        _ => return None,
-                    }
-                }
-                type_reference = *base_type;
-            }
-            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
-            _ => break,
-        }
-    }
-    output.sort_by_key(|domain| domain.0);
-    output.dedup();
-    Some(output)
-}
-
 pub(in crate::execution::terminal_unit) fn parameter_qualifications(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,

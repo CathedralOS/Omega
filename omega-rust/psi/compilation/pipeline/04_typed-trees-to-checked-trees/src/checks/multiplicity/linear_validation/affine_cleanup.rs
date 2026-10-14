@@ -22,6 +22,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// still carries hook effects and requirements through ordinary admission.
 pub(crate) fn append_owned_cleanup_permission_events(
     program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
     state: &typed_trees::state::State,
     machine_symbol: SymbolHandle,
     coordinate: FlowClaimJoinExit,
@@ -32,6 +33,7 @@ pub(crate) fn append_owned_cleanup_permission_events(
 ) {
     visit_owned_cleanup_events(
         program,
+        operators,
         state,
         machine_symbol,
         coordinate,
@@ -46,6 +48,7 @@ pub(crate) fn append_owned_cleanup_permission_events(
 
 fn visit_owned_cleanup_events(
     program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
     state: &typed_trees::state::State,
     machine_symbol: SymbolHandle,
     coordinate: FlowClaimJoinExit,
@@ -54,18 +57,17 @@ fn visit_owned_cleanup_events(
     mut emit: impl FnMut(FlowPermissionEventFact, Vec<facts::PlaceSegment>),
 ) {
     let evaluation = exit_evaluation(program, state, coordinate);
-    let mut append = |symbol: SymbolHandle, type_reference: TypeReferenceHandle| {
+    let mut append = |root: facts::PlaceRoot, type_reference: TypeReferenceHandle| {
         let tracked_root = tracked_places
             .iter()
-            .find(|place| place.root == facts::PlaceRoot::Symbol(symbol) && place.path.is_empty());
+            .find(|place| place.root == root && place.path.is_empty());
         if let Some(place) = tracked_root {
-            if !place.live && !remaining.is_reserved(facts::PlaceRoot::Symbol(symbol)) {
+            if !place.live && !remaining.is_reserved(root) {
                 return;
             }
         } else if type_multiplicity(program, type_reference) == Multiplicity::Unrestricted {
             return;
         }
-        let root = facts::PlaceRoot::Symbol(symbol);
         // A transparent owner has contained claims rather than a fabricated
         // aggregate claim. Once those claims have left, its remaining home
         // still needs an ordinary exit disposition with the actual transfers
@@ -119,16 +121,43 @@ fn visit_owned_cleanup_events(
         }
     };
 
-    for statement in program
+    for (statement_index, statement) in program
         .statement_table
         .statements(state.statement_nodes)
         .iter()
+        .enumerate()
         .rev()
     {
         if let Some(local) = statement.as_local_data()
             && !local.relevance.is_erased()
         {
-            append(local.symbol, local.type_reference);
+            append(facts::PlaceRoot::Symbol(local.symbol), local.type_reference);
+        }
+        // A saved expression is an owner too. It completed before this
+        // statement's receiving local and after owners in earlier statements.
+        // Only established roots participate; a reserved sibling-arm result
+        // cannot acquire cleanup authority on this exit.
+        if let Some(machine) = program.machine_by_symbol(machine_symbol) {
+            for (expression, reference) in
+                crate::checks::ownership_occurrences::observed_owned_temporaries(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    statement,
+                    operators,
+                )
+                .into_iter()
+                .rev()
+            {
+                let root = facts::PlaceRoot::Expression(expression);
+                if tracked_places
+                    .iter()
+                    .any(|place| place.root == root && place.ever_established)
+                {
+                    append(root, reference);
+                }
+            }
         }
     }
     for parameter in program
@@ -137,7 +166,10 @@ fn visit_owned_cleanup_events(
         .rev()
         .filter(|parameter| !parameter.relevance.is_erased())
     {
-        append(parameter.symbol, parameter.type_reference);
+        append(
+            facts::PlaceRoot::Symbol(parameter.symbol),
+            parameter.type_reference,
+        );
     }
 }
 
@@ -275,26 +307,15 @@ pub(crate) fn apply_recorded_cleanup_events(
         }
         let path = segments.span_or_empty(disposition.path);
         let root = disposition.root;
-        let Some(symbol) = root.as_symbol() else {
-            continue;
-        };
-        let reference = program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.symbol == symbol)
-            .map(|parameter| parameter.type_reference)
-            .or_else(|| {
-                program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .iter()
-                    .filter_map(|statement| statement.as_local_data())
-                    .find(|local| local.symbol == symbol)
-                    .map(|local| local.type_reference)
-            })
-            .and_then(|reference| {
-                validation::project_type_reference_from_segments(program, reference, path)
-            });
+        let reference = validation::canonical_place_type_reference(
+            program,
+            state.symbol,
+            coordinate.statement_index,
+            &validation::CanonicalPlace {
+                root,
+                segments: path.to_vec(),
+            },
+        );
         let removed = cleanup
             .exclusions
             .span_or_empty(disposition.exclusions)

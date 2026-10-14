@@ -17,6 +17,7 @@ use super::{
 use crate::execution::terminal_unit::calls::projected_argument_path;
 use crate::execution::terminal_unit::cleanup::partial_affine_cleanup::partial_affine_residuals;
 use crate::execution::terminal_unit::types::{ShapeCollector, base_type_identity};
+use checked_trees::CheckedNormalCleanupAction;
 
 #[allow(clippy::too_many_arguments)]
 fn validate_permissions_at(
@@ -30,7 +31,7 @@ fn validate_permissions_at(
     source_plan: &CheckedUnitStructuralArgumentSourcePlan,
     residuals: &[CheckedUnitPartialAffineDiscardPlan],
 ) -> Option<()> {
-    let expression = root.as_expression()?;
+    root.as_expression()?;
     let (_, state_flow) = flow.control.states.iter().find(|(_, candidate)| {
         candidate.machine_symbol == machine && candidate.state_symbol == state
     })?;
@@ -39,22 +40,9 @@ fn validate_permissions_at(
         .iter()
         .filter(|call| call.statement_index == statement_index)
         .collect::<Vec<_>>();
-    if calls.len() < 2 {
-        return None;
-    }
     let consumer = calls
         .iter()
         .find(|call| call.call_ordinal == call_ordinal)?;
-    // The temporary's producer is the nested call that authored its
-    // expression root, not a fixed ordinal: wider argument lists admit
-    // producers at any later ordinal in the same statement.
-    let mut producers = calls
-        .iter()
-        .filter(|call| call.call_ordinal > call_ordinal && call.authored_expression == expression);
-    let producer = producers.next()?;
-    if producers.next().is_some() {
-        return None;
-    }
     let consumer_site =
         validation::find_call_site(program, machine, state, statement_index, call_ordinal)?;
     let mut selected = validation::call_site_argument_expressions(program, &consumer_site)
@@ -77,11 +65,10 @@ fn validate_permissions_at(
         call_ordinal: call.call_ordinal,
         target_symbol: call.target_symbol,
     };
-    let provenance = language_semantics::PermissionProvenance::Established {
-        machine_symbol: machine,
-        state_symbol: state,
-        source: source(producer),
-    };
+    // The shared occurrence ledger establishes constructors and call results
+    // alike. Retain its exact producer receipt rather than requiring a nested
+    // call shape or reconstructing a second establishment for this consumer.
+    let mut provenance = None;
     let mut established = false;
     let mut transferred = false;
     let mut dropped = Vec::new();
@@ -91,16 +78,28 @@ fn validate_permissions_at(
         if event.access != PermissionAccess::Owned
             || event.multiplicity != Multiplicity::Affine
             || event.claim_identity != PermissionClaimIdentity::Unknown
-            || event.provenance != provenance
+            || provenance.is_some_and(|provenance| event.provenance != provenance)
             || event.obligation_live
         {
             return None;
         }
         let segments = flow.ownership.segments.span(event.segments)?;
         match event.kind {
-            PermissionEventKind::Establish
-                if !established && event.source == source(producer) && segments.is_empty() =>
-            {
+            PermissionEventKind::Establish if !established && segments.is_empty() => {
+                if !matches!(event.source,
+                    PermissionEventSource::Call { statement_index: at, .. }
+                    | PermissionEventSource::Statement { statement_index: at }
+                    if at == statement_index)
+                    || event.provenance
+                        != (language_semantics::PermissionProvenance::Established {
+                            machine_symbol: machine,
+                            state_symbol: state,
+                            source: event.source,
+                        })
+                {
+                    return None;
+                }
+                provenance = Some(event.provenance);
                 established = true;
             }
             PermissionEventKind::Transfer
@@ -142,7 +141,7 @@ fn validate_permissions_at(
 /// Publish the original anonymous owner's residual partition for any call
 /// evaluation schedule. Scalar and operation callers consume these same rows;
 /// a selected subtree never becomes a second whole temporary.
-pub(crate) fn projected_temporary_residuals(
+pub(crate) fn projected_temporary_cleanup(
     program: &dyn ::validation::CheckingInput,
     flow: &checked_trees::FlowFacts,
     machine: symbols::SymbolHandle,
@@ -150,7 +149,7 @@ pub(crate) fn projected_temporary_residuals(
     consumer: &checked_trees::FlowCallFact,
     owner_type: typed_trees::types::TypeReferenceHandle,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
+) -> Option<Vec<CheckedNormalCleanupAction>> {
     let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
         argument.source
     else {
@@ -188,7 +187,29 @@ pub(crate) fn projected_temporary_residuals(
         &argument.source,
         &residuals,
     )?;
-    Some(residuals)
+    Some(projected_owner_actions(
+        argument.source.clone(),
+        identity,
+        residuals,
+    ))
+}
+
+/// Retain the original dying home even when its residual partition is empty.
+/// Finalization replaces these seeds from the contextual disposition roster.
+fn projected_owner_actions(
+    source: CheckedUnitStructuralArgumentSourcePlan,
+    type_identity: typed_trees::type_identity::TypeIdentityId,
+    residuals: Vec<CheckedUnitPartialAffineDiscardPlan>,
+) -> Vec<CheckedNormalCleanupAction> {
+    let mut actions = residuals
+        .into_iter()
+        .map(CheckedNormalCleanupAction::Discard)
+        .collect::<Vec<_>>();
+    actions.push(CheckedNormalCleanupAction::RetireHome {
+        source,
+        type_identity,
+    });
+    actions
 }
 
 /// Dispose anonymous argument owners at the call's normal continuation.
@@ -267,12 +288,14 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
             }) {
                 continue;
             }
-            cleanup_actions.push(CheckedUnitPartialAffineDiscardPlan {
-                source,
-                path: Vec::new(),
-                type_identity: result.type_identity.clone(),
-                case_conditions: Default::default(),
-            });
+            cleanup_actions.push(CheckedNormalCleanupAction::Discard(
+                CheckedUnitPartialAffineDiscardPlan {
+                    source,
+                    path: Vec::new(),
+                    type_identity: result.type_identity,
+                    case_conditions: Default::default(),
+                },
+            ));
         } else {
             let [argument] = transfers.as_slice() else {
                 return None;
@@ -294,7 +317,11 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
                 &source,
                 &residuals,
             )?;
-            cleanup_actions.extend(residuals);
+            cleanup_actions.extend(projected_owner_actions(
+                source,
+                result.type_identity,
+                residuals,
+            ));
         }
         dying.push(result);
     }
@@ -318,10 +345,7 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
     operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
         selected_regions: Vec::new(),
         boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
-        cleanup_actions: cleanup_actions
-            .into_iter()
-            .map(checked_trees::CheckedNormalCleanupAction::Discard)
-            .collect(),
+        cleanup_actions,
     });
     Some(())
 }

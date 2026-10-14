@@ -80,7 +80,7 @@ pub(crate) fn apply_statement_permission_production(
         .machine_by_symbol(machine_symbol)
         .zip(program.state_by_symbol(state_symbol))
     {
-        for (expression, _) in crate::checks::ownership_occurrences::observed_linear_temporaries(
+        for (expression, _) in crate::checks::ownership_occurrences::observed_owned_temporaries(
             program,
             machine,
             state,
@@ -194,7 +194,6 @@ pub(crate) fn apply_statement_permission_production(
                     let transfer_start = permission_events.len();
                     temporary_results::append_whole_affine_transfer(
                         program,
-                        facts,
                         machine_symbol,
                         state_symbol,
                         &calls,
@@ -336,8 +335,7 @@ pub(crate) fn apply_statement_permission_production(
                         permission_events,
                         conditional_carrier_transfers,
                     );
-                    let mut diagnostics = Vec::new();
-                    temporary_results::append_borrow(
+                    let retired_owners = temporary_results::append_continuation_cleanup(
                         program,
                         facts,
                         machine_symbol,
@@ -346,13 +344,10 @@ pub(crate) fn apply_statement_permission_production(
                         evaluation,
                         temporary_owners,
                         places,
+                        remaining,
                         permission_events,
-                        &mut diagnostics,
                         cleanup_dispositions,
-                    );
-                    if let Some(diagnostic) = diagnostics.into_iter().next() {
-                        return Err(diagnostic);
-                    }
+                    )?;
                     if let Some((_, regions)) = completion_regions
                         .iter()
                         .find(|(candidate, _)| *candidate == source)
@@ -369,11 +364,28 @@ pub(crate) fn apply_statement_permission_production(
                             permission_events,
                         )?;
                     }
-                    remaining.advance(
+                    // Completion disposes anonymous owners as well as moving
+                    // operands. Publish those contextual deaths before their
+                    // storage retires; advancing custody alone loses the hook
+                    // and residual action roster needed by execution.
+                    remaining.observe_ordinary(
                         program,
                         &permission_events[completion_start..],
                         &facts.flow.ownership.segments,
+                        cleanup_dispositions,
+                        checked_trees::FlowClaimJoinExit::default(),
+                        &[],
+                        false,
                     );
+                    for root in retired_owners {
+                        remaining.retire_storage(
+                            root,
+                            machine_symbol,
+                            state_symbol,
+                            source,
+                            cleanup_dispositions,
+                        );
+                    }
                 }
                 // A completed anonymous owner must exist before the next
                 // operand or invocation uses it, including inside a selection.

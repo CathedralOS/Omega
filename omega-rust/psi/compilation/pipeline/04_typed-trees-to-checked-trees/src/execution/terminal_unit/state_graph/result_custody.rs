@@ -37,7 +37,6 @@ pub(super) fn account(
     )],
     operations: &mut [CheckedUnitEffectOperationPlan],
     terminator: &CheckedComposedUnitControlTerminatorPlan,
-    disposable_locals: &[symbols::SymbolHandle],
     trace: &control::LocalConstructionTrace,
 ) -> Option<()> {
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -68,18 +67,6 @@ pub(super) fn account(
             }
         }
         _ => None,
-    };
-    let case_successors = match terminator {
-        CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => cases
-            .iter()
-            .filter_map(|case| match &case.outcome {
-                checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => {
-                    Some(successor)
-                }
-                checked_trees::CheckedClosedSumCaseOutcomePlan::Return(_) => None,
-            })
-            .collect::<Vec<_>>(),
-        _ => Vec::new(),
     };
     let construction_uses = construction_local_uses(facts, state.symbol, operations.iter())?;
     // Return producers have the same value-place operands as ordinary
@@ -199,14 +186,16 @@ pub(super) fn account(
         {
             return None;
         }
-        let permits_disposal = |successors: &[&CheckedStructuralControlSuccessorPlan]| {
+        let permits_disposal = |statement: Option<u32>, continuation: bool| {
             !retired_whole
                 && local_results::permits_disposal(
                     program,
+                    facts,
                     state,
-                    result,
-                    successors,
-                    disposable_locals,
+                    operation,
+                    operations,
+                    statement,
+                    continuation,
                 )
         };
         // An owned selection moved each candidate source's custody into
@@ -407,7 +396,7 @@ pub(super) fn account(
                     || uses
                         .iter()
                         .any(|(_, argument)| construction_owns_result(argument, operations.len()))
-                    || permits_disposal(&[])
+                    || permits_disposal(arm.statement_ordinal(), false)
             };
         // With no normal exit there is no transfer/disposal owner here to
         // count beside an earlier in-sequence consumption.
@@ -431,13 +420,13 @@ pub(super) fn account(
             // through dominance. The returned binding itself is the return's.
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
             | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
-                permits_disposal(&[])
+                permits_disposal(None, false)
             }
             CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } => {
                 matches!(returned.source,
                     CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
                         if binding_ordinal == result.binding_ordinal)
-                    || permits_disposal(&[])
+                    || permits_disposal(None, false)
             }
             CheckedComposedUnitControlTerminatorPlan::Jump { .. }
             | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
@@ -452,32 +441,29 @@ pub(super) fn account(
                 // The source checker owns move validity; normal-edge cleanup
                 // retains the exact disposal schedule for each coordinate.
                 has_normal_exit
-                    && terminator
-                        .successors()
-                        .iter()
-                        .all(|edge| transferred(edge) || permits_disposal(&[edge]))
+                    && terminator.successors().iter().all(|edge| {
+                        transferred(edge)
+                            || permits_disposal(Some(edge.statement_ordinal), edge.is_continuation)
+                    })
                     && return_arms
                         .iter()
                         .zip(&return_construction_uses)
                         .all(|(arm, uses)| return_arm_owns(arm, uses))
             }
             CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => {
-                if consumed_case_subject(terminator) == Some(result.binding_ordinal) {
-                    case_successors.iter().all(|edge| !transferred(edge))
-                } else {
-                    // Each selected case owns a disposition, just as an
-                    // ordinary conditional does. A shared view can end on a
-                    // non-transferring edge through its local dominance
-                    // permit; it need not survive an unrelated sum dispatch.
-                    // Reference returns additionally admit an exact reborrow,
-                    // whose custody is counted below rather than booked twice
-                    // as a synthetic unrestricted disposition.
-                    let mut return_uses = return_construction_uses.iter();
-                    let complete_partition = !cases.is_empty()
+                // Each selected case owns a disposition, just as an
+                // ordinary conditional does. A shared view can end on a
+                // non-transferring edge through its local dominance
+                // permit; it need not survive an unrelated sum dispatch.
+                // Reference returns additionally admit an exact reborrow,
+                // whose custody is counted below rather than booked twice
+                // as a synthetic unrestricted disposition.
+                let mut return_uses = return_construction_uses.iter();
+                let complete_partition = !cases.is_empty()
                         && cases.iter().all(|case| match &case.outcome {
                             checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(
                                 successor,
-                            ) => transferred(successor) || permits_disposal(&[successor]),
+                            ) => transferred(successor) || permits_disposal(Some(successor.statement_ordinal), successor.is_continuation),
                             checked_trees::CheckedClosedSumCaseOutcomePlan::Return(arm) => {
                                 let exact_reborrow = matches!(arm,
                                     CheckedConditionalReturnArm::Structural(returned)
@@ -489,51 +475,50 @@ pub(super) fn account(
                                 })
                             }
                         });
-                    if view_source.is_some() {
-                        // Rebinding ends this named occurrence before the
-                        // selected exit. Its checked loan release still owes
-                        // exactly one disposition below; returning the newer
-                        // occurrence cannot also be charged to this producer.
-                        // A stored RHS likewise transferred its custody into
-                        // the receiving home before the selected exit.
-                        if !complete_partition && occurrence_end.is_none() && !stored {
-                            // An expression-rooted temporary has no named
-                            // local occurrence to rebind and no local
-                            // disposal permit a selected exit could honor:
-                            // the call it was formed for already consumed
-                            // its custody in-sequence. The nested schedule
-                            // may emit its establishment after that call,
-                            // so scan every operation for the consuming
-                            // argument rather than only consumers.
-                            let consumed_by_forming_call = !result_local.is_valid()
-                                && operations.iter().any(|consumer| {
-                                    consumer.call_structural_arguments().iter().any(|argument| {
-                                        argument.source_structural_result_binding_ordinal()
-                                            == Some(result.binding_ordinal)
-                                    })
-                                });
-                            if !consumed_by_forming_call {
-                                return None;
-                            }
+                if view_source.is_some() {
+                    // Rebinding ends this named occurrence before the
+                    // selected exit. Its checked loan release still owes
+                    // exactly one disposition below; returning the newer
+                    // occurrence cannot also be charged to this producer.
+                    // A stored RHS likewise transferred its custody into
+                    // the receiving home before the selected exit.
+                    if !complete_partition && occurrence_end.is_none() && !stored {
+                        // An expression-rooted temporary has no named
+                        // local occurrence to rebind and no local
+                        // disposal permit a selected exit could honor:
+                        // the call it was formed for already consumed
+                        // its custody in-sequence. The nested schedule
+                        // may emit its establishment after that call,
+                        // so scan every operation for the consuming
+                        // argument rather than only consumers.
+                        let consumed_by_forming_call = !result_local.is_valid()
+                            && operations.iter().any(|consumer| {
+                                consumer.call_structural_arguments().iter().any(|argument| {
+                                    argument.source_structural_result_binding_ordinal()
+                                        == Some(result.binding_ordinal)
+                                })
+                            });
+                        if !consumed_by_forming_call {
+                            return None;
                         }
-                        closed_sum_all_reference_returns = cases.iter().all(|case| {
-                            let checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
-                                checked_trees::CheckedConditionalReturnArm::Structural(returned),
-                            ) = &case.outcome
-                            else {
-                                return false;
-                            };
-                            returned
-                                .established_reference_source(&facts.values.structural_values)
-                                .is_some_and(|source| exact_view_reborrow(source, operations.len()))
-                        });
-                        has_normal_exit
-                            && occurrence_end.is_none()
-                            && !stored
-                            && result.multiplicity == Multiplicity::Unrestricted
-                    } else {
-                        has_normal_exit && complete_partition
                     }
+                    closed_sum_all_reference_returns = cases.iter().all(|case| {
+                        let checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
+                            checked_trees::CheckedConditionalReturnArm::Structural(returned),
+                        ) = &case.outcome
+                        else {
+                            return false;
+                        };
+                        returned
+                            .established_reference_source(&facts.values.structural_values)
+                            .is_some_and(|source| exact_view_reborrow(source, operations.len()))
+                    });
+                    has_normal_exit
+                        && occurrence_end.is_none()
+                        && !stored
+                        && result.multiplicity == Multiplicity::Unrestricted
+                } else {
+                    has_normal_exit && complete_partition
                 }
             }
             // A crash abandons custody; it owns no normal disposal.
@@ -890,26 +875,6 @@ fn view_formation_claims(
             .map(|(_, claim)| claim.claim_identity)
             .collect(),
     )
-}
-
-/// The state-local result a closed-sum dispatch consumes: an owned subject
-/// read whole. A field or fixed-index subject only observes a subtree of its
-/// root, which keeps the custody of any other local: each case moves it on,
-/// leaves it to that edge's cleanup, or retires it at a return.
-pub(super) fn consumed_case_subject(
-    terminator: &CheckedComposedUnitControlTerminatorPlan,
-) -> Option<u32> {
-    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } = terminator else {
-        return None;
-    };
-    match subject.source {
-        CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
-            if subject.access == CheckedStructuralAccess::Owned =>
-        {
-            Some(binding_ordinal)
-        }
-        _ => None,
-    }
 }
 
 /// Installation transfers the completed descriptor, regardless of whether its

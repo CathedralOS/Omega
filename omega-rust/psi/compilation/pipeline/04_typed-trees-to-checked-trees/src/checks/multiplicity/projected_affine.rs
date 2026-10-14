@@ -26,9 +26,6 @@ pub(super) fn append_transfer(
     remaining: &super::cleanup_dispositions::RemainingCustody,
     permissions: &mut Vec<FlowPermissionEventFact>,
 ) {
-    let Some(symbol) = event.root.as_symbol() else {
-        return;
-    };
     let Some(statement_index) = event_statement_index(event.source) else {
         return;
     };
@@ -55,7 +52,7 @@ pub(super) fn append_transfer(
     // the authority on whether the moved path holds a value.
     let owners = places
         .iter()
-        .filter(|place| place.root == facts::PlaceRoot::Symbol(symbol))
+        .filter(|place| place.root == event.root)
         .collect::<Vec<_>>();
     if owners.iter().any(|owner| owner.path == path)
         || !(owners.iter().any(|owner| owner.ever_established) || remaining.is_reserved(event.root))

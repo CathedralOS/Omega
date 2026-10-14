@@ -1,108 +1,126 @@
-//! Selected successors partition existing local obligations, not value storage.
+//! Selected exits partition established result custody, named or anonymous.
+//! Permission production owns eligibility and the exact remaining complement.
+//! This join only identifies the retained producer and selected exit; normal
+//! cleanup later materializes that same receipt's hooks and home retirement.
 
-use super::super::{CheckedUnitStructuralResultBindingPlan, SymbolHandle};
-use super::{CheckedStructuralControlSuccessorPlan, Multiplicity};
+use checked_trees::{CheckFacts, CheckedUnitEffectOperationPlan};
+use language_semantics::{Multiplicity, PermissionEventSource};
 
-/// A state-exit receipt permits disposal only on successors that do not move
-/// this local. Keep the operation's global discard flag false: scalar edge
-/// operands still observe its original home before selected-edge cleanup.
 pub(super) fn permits_disposal(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
     state: &typed_trees::state::State,
-    result: &CheckedUnitStructuralResultBindingPlan,
-    successors: &[&CheckedStructuralControlSuccessorPlan],
-    disposable_locals: &[SymbolHandle],
+    operation: &CheckedUnitEffectOperationPlan,
+    operations: &[CheckedUnitEffectOperationPlan],
+    statement: Option<u32>,
+    continuation: bool,
 ) -> bool {
-    validate(program, state, result, successors, disposable_locals).is_some()
+    validate(
+        program,
+        facts,
+        state,
+        operation,
+        operations,
+        statement,
+        continuation,
+    )
+    .is_some()
 }
 
 fn validate(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
     state: &typed_trees::state::State,
-    result: &CheckedUnitStructuralResultBindingPlan,
-    successors: &[&CheckedStructuralControlSuccessorPlan],
-    disposable_locals: &[SymbolHandle],
+    operation: &CheckedUnitEffectOperationPlan,
+    operations: &[CheckedUnitEffectOperationPlan],
+    statement: Option<u32>,
+    continuation: bool,
 ) -> Option<()> {
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let local = statements
-        .get(result.statement_index as usize)?
-        .as_local_data()?;
-    // Disposal rejoins the same stored carrier identity that establishment
-    // and shape collection publish. Policy and predicate qualifications keep
-    // their own checked obligations; they cannot change the storage identity
-    // used to select a local's disposition. The shared owner also preserves
-    // bounded byte owners, borrowed views, and stored reference descriptors.
-    let expected_identity =
-        validation::stored_structural_type_identity(program, local.type_reference, &[], &[]);
-    // A reference-loaned result publishes the storage it lends rather than a
-    // stored descriptor. This is a genuine carrier distinction; use the same
-    // shell and referent identity owners as its establishment producer.
-    let referent_identity = validation::reference_shell(program, local.type_reference)
-        .map(|shell| validation::structural_type_identity(program, shell.referee, &[], &[]));
-    // An affine reference/view binding is accounted for by its loan release,
-    // not by owned-local disposal. Counting both would invent a second owner.
-    // Unrestricted aliases still need the ordinary dominance permit below.
-    if referent_identity.is_some() && result.multiplicity != Multiplicity::Unrestricted {
-        return None;
-    }
-    let carrier_multiplicity =
-        validation::reference_result_custody::binding_multiplicity(program, local.type_reference);
-    if !local.symbol.is_valid()
-        || program
-            .state_local_declaration(state, local.symbol)
-            .is_none()
-        || program
-            .state_parameter_by_symbol(state, local.symbol)
-            .is_some()
-        || !(result.type_identity == expected_identity
-            || referent_identity.as_ref() == Some(&result.type_identity))
-        || result.multiplicity != carrier_multiplicity
+    let result = operation.structural_result_binding()?;
+    let root = super::super::cleanup::normal_edges::producer_root(facts, state.symbol, operation)?;
+    // A named home can have a later occupant. Only the result still occupying
+    // it at this operation prefix can own the home's eventual disposition.
+    if let Some(symbol) = root.as_symbol()
+        && super::super::local_storage::source(program, state, operations, symbol)
+            != Some(
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: result.binding_ordinal,
+                },
+            )
     {
         return None;
     }
-    // A normal return has no successor transfer, whatever its result kind. It
-    // still needs the same exact lexical disposal receipt as a
-    // non-transferring selected edge.
-    let mut has_disposal_edge = successors.is_empty();
-    for successor in successors {
-        if result.statement_index >= successor.statement_ordinal {
-            return None;
-        }
-        // An edge whose operand call takes the local whole moves it there
-        // just as a direct transfer does; only a non-moving edge disposes.
-        match successor.result_moves(result) {
-            0 => has_disposal_edge = true,
-            1 => {}
-            _ => return None,
-        }
-    }
-    if !has_disposal_edge {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let statement_index = statement.map_or_else(
+        || {
+            if matches!(
+                statements.last(),
+                Some(typed_trees::statement::StatementNode::Expression(_))
+            ) {
+                statements.len() - 1
+            } else {
+                statements.len()
+            }
+        },
+        |statement| statement as usize,
+    );
+    if result.statement_index as usize > statement_index {
         return None;
     }
-    // Only an unrestricted carrier needs dominance rather than an exact
-    // disposal receipt. A copyable source type can materialize an affine loan
-    // carrier: after that occurrence moves into a constructor, source
-    // copyability cannot invent a second state-exit owner for it.
-    if carrier_multiplicity == Multiplicity::Unrestricted {
+    let reference = validation::canonical_place_type_reference(
+        program,
+        state.symbol,
+        statement_index,
+        &validation::CanonicalPlace {
+            root,
+            segments: Vec::new(),
+        },
+    )?;
+    let expected_identity =
+        validation::stored_structural_type_identity(program, reference, &[], &[]);
+    let referent_identity = validation::reference_shell(program, reference)
+        .map(|shell| validation::structural_type_identity(program, shell.referee, &[], &[]));
+    let multiplicity =
+        validation::reference_result_custody::binding_multiplicity(program, reference);
+    // A borrowed descriptor's release is not an additional owned disposal.
+    if (referent_identity.is_some() && result.multiplicity != Multiplicity::Unrestricted)
+        || (result.type_identity != expected_identity
+            && referent_identity != Some(result.type_identity))
+        || result.multiplicity != multiplicity
+    {
+        return None;
+    }
+    if multiplicity == Multiplicity::Unrestricted {
         return Some(());
     }
-    // Permission eligibility has one producer owner. Here it is rejoined to
-    // this operation's result identity and selected successor partition. The
-    // normal-edge planner subsequently selects no-code or executable disposal;
-    // nominal hooks must not be mistaken for missing ownership receipts here.
-    // The result already identifies its established structural storage. A
-    // whole-type content gate would reject a valid residual disposition after
-    // contained claims leave; selected normal-edge actions own that geometry.
-    // Several producers may complete in this declaration's expression. Only
-    // the one actually received by this local owns its lexical disposal;
-    // a nested call or constructor operand belongs to its real consumer.
-    // Linear locals join the exact Consume/contextual-disposition receipt in
-    // the roster; their multiplicity never supplies disposal authority itself.
-    (matches!(
-        result.multiplicity,
-        Multiplicity::Affine | Multiplicity::Linear
-    ) && result.local.is_named()
-        && result.local.symbol == local.symbol
-        && disposable_locals.contains(&local.symbol))
-    .then_some(())
+    let machine =
+        facts.flow.control.states.iter().find_map(|(_, row)| {
+            (row.state_symbol == state.symbol).then_some(row.machine_symbol)
+        })?;
+    let exit = checked_trees::FlowClaimJoinExit {
+        state_symbol: state.symbol,
+        statement_index,
+        kind: if continuation {
+            checked_trees::FlowClaimJoinExitKind::TransitionContinuation
+        } else if statements
+            .get(statement_index)
+            .is_some_and(|statement| statement.as_transition().is_some())
+        {
+            checked_trees::FlowClaimJoinExitKind::TransitionTarget
+        } else {
+            checked_trees::FlowClaimJoinExitKind::FinalExpression
+        },
+    };
+    facts
+        .contextual_cleanup
+        .dispositions
+        .iter()
+        .any(|(_, disposition)| {
+            disposition.machine == machine
+                && disposition.state == state.symbol
+                && disposition.root == root
+                && disposition.source == PermissionEventSource::StateExit
+                && disposition.exit == exit
+        })
+        .then_some(())
 }

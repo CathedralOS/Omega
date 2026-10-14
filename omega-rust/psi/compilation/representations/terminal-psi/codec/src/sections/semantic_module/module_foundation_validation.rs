@@ -1272,6 +1272,9 @@ fn block_parameter(
 
 /// Cleanup custody comes from the exact operation result declaration, not the
 /// operation's construction mechanism. A matching type alone is insufficient.
+/// Qualifications remain attached to that value; their presence is not a
+/// cleanup prohibition. Current-ownership checking independently enforces
+/// residual partitions, live claims, loans and nominal cleanup obligations.
 fn is_owned_cleanup_operation_result(
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
@@ -1309,8 +1312,6 @@ fn is_owned_cleanup_operation_result(
                 result.multiplicity,
                 StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
             )
-            && result.qualifications.is_empty()
-            && result.projected_qualifications.is_empty()
     })
 }
 

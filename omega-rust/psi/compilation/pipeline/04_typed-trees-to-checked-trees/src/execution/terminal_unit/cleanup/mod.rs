@@ -12,7 +12,7 @@
 
 mod actions;
 pub(super) mod anonymous;
-pub(crate) use anonymous::projected_temporary_residuals;
+pub(crate) use anonymous::projected_temporary_cleanup;
 mod cleanup_evidence;
 mod nominal_requirements;
 pub(super) mod normal_edges;

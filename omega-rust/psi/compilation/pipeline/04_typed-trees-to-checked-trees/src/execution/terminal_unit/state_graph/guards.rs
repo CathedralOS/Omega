@@ -1,120 +1,48 @@
-//! Guard retention and parameter forwarding checks a state plans before its
-//! statement sequence.
+//! Retained guard expressions and source-checked arrival contracts.
 //!
-//! `retained_guard` + `guard_is_boolean` read the authored guard coordinate;
-//! `forwards_qualified_parameter` admits a successor's forwarded parameters.
-//! The terminator module shares these with `build_traced` through `super::`.
-use super::super::{
-    CheckFacts, CheckedComposedUnitControlStatePlan, CheckedScalarExpressionRole,
-    CheckedUnitEffectOperationPlan, PrimitiveType,
-};
-use crate::execution::terminal_unit::types::{ShapeCollector, declared_qualifications};
+//! Checking proves every state transfer, including the implicit requirements
+//! from qualified parameters and their fields. Planning consumes that decision;
+//! it does not re-prove membership by recognizing carrier shapes. Exact operand
+//! transfer, ownership, and emitted qualification transport remain separate.
 
-/// A returning exit disposes whole roots only: a partial affine drop or a
-/// residual discard at the return has no Terminal return-cleanup row here.
-#[allow(clippy::too_many_arguments)]
-/// A shared loan freezes its referent. A mutable bounded byte owner instead
-/// preserves its primitive byte predicates through independently checked stores.
-/// Neither rule grants transport for arbitrary mutable qualified values.
-/// An immutable owned byte parameter likewise forwards its established value
-/// whole, with exactly the same primitive predicate roster on every arrival.
-/// A successor's qualified parameter is admitted only when every live
-/// edge into its state forwards a source parameter with exactly the same
-/// carrier, access, multiplicity and qualifications, or, for a shared byte
-/// view, establishes an authored literal under those qualifications: each
-/// is then a byte-predicate domain without establishment routes, which
-/// Terminal verification decides from the literal's octets at the edge.
+use super::super::{
+    CheckFacts, CheckedComposedUnitControlStatePlan, CheckedScalarExpressionRole, PrimitiveType,
+};
+
+/// Every live edge into a qualified state must have a completed call check.
+/// Invocation-only entry is handled by its caller; a reentered entry still
+/// checks all graph arrivals here. The decision summarizes all calls at its
+/// coordinate, not a unique operand: transfer planning retains that identity.
 ///
-/// A re-entered entry answers to this same rule, and the walk below is
-/// complete for it. An entry has two arrival kinds: its invocation, whose
-/// qualifications the caller establishes at the call, and its reentry edges.
-/// The caller's rule above exempts the invocation-only entry outright, so a
-/// state reaching here with index 0 is re-entered and the invocation
-/// arrival is already licensed; what remains unproven is exactly the edge
-/// transport this walk requires, because the walk visits every live edge
-/// whose target is that state, backedges into the entry included. Refusing
-/// index 0 outright instead re-decided the caller's rule by hand and
-/// refused a machine that recurses in its entry -- the only recursion shape
-/// `Nat::BoundedDistance` admits -- however exactly its edges forward the
-/// qualified parameter.
-pub(in crate::execution::terminal_unit) fn forwards_qualified_parameter(
-    program: &dyn ::validation::CheckingInput,
+/// A decision may retain a constant obligation. This permits planning only;
+/// machine lowering refuses pending obligations before Terminal production.
+pub(in crate::execution::terminal_unit) fn checked_qualified_arrivals(
     facts: &CheckFacts,
-    shapes: &ShapeCollector<'_>,
     planned: &[CheckedComposedUnitControlStatePlan],
     live: &[bool],
     target_index: usize,
-    parameter_index: usize,
 ) -> bool {
-    checked_trees::forwards_qualified_parameter(
-        planned,
-        live,
-        target_index,
-        parameter_index,
-        |identity| {
-            shapes
-                .types
-                .get(&identity)
-                .map(|declaration| &declaration.shape)
-        },
-        |qualification, identity| {
-            shapes.domains.iter().any(|domain| {
-                domain.domain == qualification
-                    && domain.carrier_type_identity == identity
-                    && domain.byte_predicate.is_some()
-                    && domain.establishment_routes.is_empty()
-            })
-        },
-        |operation| established_qualified_value(program, facts, operation),
-    )
-}
-
-/// The declaration an establishment publishes its owned value under: a byte
-/// literal carries its admitted domains; a structural value carries its
-/// named local's declared type, or, for an anonymous copy of a readable
-/// leaf, that leaf's declared type.
-fn established_qualified_value(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Option<checked_trees::CheckedEstablishedQualifiedValue> {
-    let result = operation.structural_result_binding()?;
-    let qualifications = match operation {
-        CheckedUnitEffectOperationPlan::EstablishLocal(
-            checked_trees::CheckedUnitLocalBindingPlan::ByteSequence { qualifications, .. },
-        ) => {
-            let mut qualifications = qualifications.clone();
-            qualifications.sort_by_key(|domain| domain.0);
-            qualifications.dedup();
-            qualifications
+    let target = planned[target_index].state;
+    let mut has_arrival = false;
+    for (source, live) in planned.iter().zip(live) {
+        if !live {
+            continue;
         }
-        CheckedUnitEffectOperationPlan::EstablishLocal(
-            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
-        ) => {
-            let declared = if result.local.declared_type.is_valid() {
-                result.local.declared_type
-            } else {
-                let values = &facts.values.structural_values;
-                if !values.nodes.is_valid(*value) {
-                    return None;
-                }
-                match &values.nodes.get(*value).kind {
-                    checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace {
-                        leaf,
-                        ..
-                    } => *leaf,
-                    _ => return None,
-                }
-            };
-            declared_qualifications(program, declared)?
+        for successor in source.successors() {
+            if successor.target_state != target {
+                continue;
+            }
+            has_arrival = true;
+            if !facts.call_requires_decided(
+                source.state,
+                successor.statement_ordinal,
+                successor.target_state,
+            ) {
+                return false;
+            }
         }
-        _ => return None,
-    };
-    Some(checked_trees::CheckedEstablishedQualifiedValue {
-        type_identity: result.type_identity,
-        multiplicity: result.multiplicity,
-        qualifications,
-    })
+    }
+    has_arrival
 }
 
 /// The exact Boolean value one authored guard retains at its `Guard`

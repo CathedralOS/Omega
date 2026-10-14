@@ -414,18 +414,20 @@ impl Builder<'_, '_> {
             match self.program.type_multiplicity(owner_type) {
                 language_semantics::Multiplicity::Affine
                 | language_semantics::Multiplicity::Linear => {
-                    discards = Some(vec![checked_trees::CheckedUnitPartialAffineDiscardPlan {
-                        source: argument_plan.source.clone(),
-                        path: Vec::new(),
-                        type_identity: self.program.normalized_type_identity(owner_type),
-                        case_conditions: Default::default(),
-                    }]);
+                    discards = Some(vec![checked_trees::CheckedNormalCleanupAction::Discard(
+                        checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                            source: argument_plan.source.clone(),
+                            path: Vec::new(),
+                            type_identity: self.program.normalized_type_identity(owner_type),
+                            case_conditions: Default::default(),
+                        },
+                    )]);
                 }
                 language_semantics::Multiplicity::Unrestricted => {}
             }
         } else if !argument_plan.path.is_empty() {
             discards = Some(
-                crate::execution::terminal_unit::cleanup::projected_temporary_residuals(
+                crate::execution::terminal_unit::cleanup::projected_temporary_cleanup(
                     self.program,
                     self.flow,
                     self.machine,
@@ -439,11 +441,7 @@ impl Builder<'_, '_> {
         if let Some(discards) = discards {
             temporary_cleanups.push(checked_trees::CheckedScalarComputationTemporaryCleanup {
                 argument_ordinal,
-                actions: self.plans.temporary_cleanup_actions.insert_many(
-                    discards
-                        .into_iter()
-                        .map(checked_trees::CheckedNormalCleanupAction::Discard),
-                ),
+                actions: self.plans.temporary_cleanup_actions.insert_many(discards),
             });
         }
         // The retained root owns the complete carrier; the

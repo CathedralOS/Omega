@@ -19,6 +19,9 @@ pub(crate) enum TemporaryConsumption {
     /// The call receives the completed owner whole, with every claim its
     /// producer established or its operands moved into it.
     OwnedTransfer,
+    /// The call receives one owned subtree; its normal continuation disposes
+    /// the original owner's untouched complement.
+    OwnedProjection { path: Vec<facts::PlaceSegment> },
 }
 
 pub(crate) struct TemporaryOwner {
@@ -28,6 +31,7 @@ pub(crate) struct TemporaryOwner {
     pub(crate) evaluation: checked_trees::FlowPermissionEvaluation,
     pub(crate) producer: PermissionEventSource,
     pub(crate) consumer: PermissionEventSource,
+    completion_ordinal: usize,
 }
 
 /// The claim-bearing type of a by-value operand an anonymous producer
@@ -156,6 +160,15 @@ pub(crate) fn temporary_owners(
                     type_reference,
                     TemporaryConsumption::OwnedTransfer,
                 )
+            } else if !site.is_internal_state_transfer(program, machine.symbol)
+                && let Some((expression, type_reference, path)) =
+                    owned_projection(program, state.symbol, consumer, parameter, *argument)
+            {
+                (
+                    expression,
+                    type_reference,
+                    TemporaryConsumption::OwnedProjection { path },
+                )
             } else {
                 if parameter.is_const || parameter.is_mutable || parameter.relevance.is_erased() {
                     continue;
@@ -225,7 +238,7 @@ pub(crate) fn temporary_owners(
             if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
                 continue;
             }
-            let producer = if let Some(_) = program.expression_table.call_node(expression) {
+            let producer = if program.expression_table.call_node(expression).is_some() {
                 let mut producers = calls.iter().filter(|producer| {
                     producer.statement_index == consumer.statement_index
                         && producer.authored_expression == expression
@@ -254,6 +267,18 @@ pub(crate) fn temporary_owners(
                     statement_index: consumer.statement_index,
                 }
             };
+            let mut completions = completed
+                .get(consumer.statement_index)
+                .into_iter()
+                .flatten()
+                .enumerate()
+                .filter(|(_, completed)| **completed == expression);
+            let Some((completion_ordinal, _)) = completions.next() else {
+                continue;
+            };
+            if completions.next().is_some() {
+                continue;
+            }
             owners.push(TemporaryOwner {
                 expression,
                 type_reference,
@@ -265,8 +290,73 @@ pub(crate) fn temporary_owners(
                     call_ordinal: consumer.call_ordinal,
                     target_symbol: consumer.target_symbol,
                 },
+                completion_ordinal,
             });
         }
     }
+    // Cleanup later filters one exact consumer and reverses this shared
+    // completion order, without grouping borrowed and projected owners.
+    owners.sort_by_key(|owner| owner.completion_ordinal);
     owners
+}
+
+fn owned_projection(
+    program: &dyn validation::CheckingInput,
+    state: symbols::SymbolHandle,
+    consumer: &checked_trees::FlowCallFact,
+    parameter: &typed_trees::signature::StateParameter,
+    argument: typed_trees::expression::ExpressionHandle,
+) -> Option<(
+    typed_trees::expression::ExpressionHandle,
+    typed_trees::types::TypeReferenceHandle,
+    Vec<facts::PlaceSegment>,
+)> {
+    // An internal state transfer has no call continuation: its selected exit
+    // owns residual disposal. Ordinary machine invocations retain this death
+    // beside their other anonymous argument owners.
+    if parameter.is_const
+        || parameter.relevance.is_erased()
+        || type_reference_is_reference(program, parameter.type_reference)
+    {
+        return None;
+    }
+    let place = validation::canonical_place_from_expression_in_state(
+        program,
+        state,
+        consumer.statement_index,
+        argument,
+    )?;
+    let expression = place.root.as_expression()?;
+    if place.segments.is_empty() {
+        return None;
+    }
+    let endpoint = validation::canonical_place_type_reference(
+        program,
+        state,
+        consumer.statement_index,
+        &place,
+    )?;
+    if program.type_multiplicity(endpoint) == language_semantics::Multiplicity::Unrestricted
+        || type_reference_is_reference(program, endpoint)
+        || super::super::projected_affine::has_reference_prefix(
+            program,
+            state,
+            consumer.statement_index,
+            &place,
+        )
+    {
+        return None;
+    }
+    let reference = validation::canonical_place_type_reference(
+        program,
+        state,
+        consumer.statement_index,
+        &validation::CanonicalPlace {
+            root: place.root,
+            segments: Vec::new(),
+        },
+    )?;
+    (program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine
+        && !type_carries_linear_obligation(program, reference))
+    .then_some((expression, reference, place.segments))
 }

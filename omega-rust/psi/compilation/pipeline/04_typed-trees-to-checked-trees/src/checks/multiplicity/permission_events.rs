@@ -173,7 +173,7 @@ pub(crate) fn prepare_permission_events(
         // custody; only a real expression root reserves a new owner here.
         for (statement_index, statement) in statements.iter().enumerate() {
             for (expression, reference) in
-                crate::checks::ownership_occurrences::observed_linear_temporaries(
+                crate::checks::ownership_occurrences::observed_owned_temporaries(
                     program,
                     machine,
                     state,
@@ -409,6 +409,7 @@ pub(crate) fn prepare_permission_events(
                         let event_start = permission_events.len();
                         append_owned_cleanup_permission_events(
                             program,
+                            &facts.operators,
                             state,
                             state_flow.machine_symbol,
                             coordinate,

@@ -2030,6 +2030,12 @@ fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejec
 	cannot prove requires contract for call accept from Main::main: main.items[0] in Item::Valid (invalidated by prior mutation of main.items[__hoist_14].value; main.items[0].value is part of Item::Valid)
 fail/domains/interval_membership_wrapping_false rejected 1589ms expected @d1fa4738e67a+wt
 	cannot prove requires contract for call keep from main: 11 in u8::Small in state `entry`
+fail/domains/issued_state_arrival_double_move rejected 599ms expected @0e81fb3e4cce+wt
+	affine value `resource` was already transferred or consumed; it cannot be moved here
+fail/domains/issued_state_arrival_mutated rejected 599ms expected @0e81fb3e4cce+wt
+	cannot prove requires contract for call received from main: resource in Resource::Open (invalidated by prior mutation of resource.identity; resource.identity is part of Resource::Open) in state `entry`
+fail/domains/issued_state_arrival_unissued rejected 609ms expected @0e81fb3e4cce+wt
+	cannot prove requires contract for call received from main: resource in Resource::Open in state `entry`
 fail/domains/module_domain_broad_import_hides_leaf rejected 853ms expected @a9ae30e1c334+wt
 	data `Main` field `span` uses `in Distance`, but no `domain` named `Distance` is declared for `u64` (domains are bound to their storage type)
 fail/domains/named_const_subject_binding rejected 15ms expected @a9ae30e1c334+wt
@@ -7747,9 +7753,18 @@ run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 11428m
 run/calls/table_report_call_survival checked 5492ms check-target:macos_arm64 @589aedee8ebc+wt
 run/contained_health_loop_command_branch checked 1918ms @a9ae30e1c334+wt
 run/contracts/captured_bound_unused_mutation checked 5150ms check-target:macos_arm64 @7e164e32caf5+wt
+run/domains/issued_owned_case_parameter checked 5542ms check-target:macos_arm64 @0e81fb3e4cce+wt
+run/domains/issued_owned_case_residual checked 5499ms check-target:macos_arm64 @0e81fb3e4cce+wt
+run/domains/issued_owned_case_return checked 5257ms check-target:macos_arm64 @0e81fb3e4cce+wt
+run/domains/issued_owned_case_temporary checked 5352ms check-target:macos_arm64 @0e81fb3e4cce+wt
+run/domains/issued_owned_reinitialized_home checked 5390ms check-target:macos_arm64 @0e81fb3e4cce+wt
+run/domains/issued_owned_state_arrivals checked 5608ms check-target:macos_arm64 @0e81fb3e4cce+wt
+run/domains/issued_owned_temporary_observation checked 5609ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/domains/qualified_record_transfer checked 6006ms check-target:macos_arm64 @868a854ecd4d+wt
 run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:macos_arm64 @9c4d1c444502
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/ownership/temporary_case_observation checked 5301ms check-target:macos_arm64 @0e81fb3e4cce+wt
+run/ownership/temporary_projected_copy_argument checked 5449ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/providers/module_named_float_conversion_family_exit checked 16353ms check-target:macos_arm64 @77cde1c51efd+wt
 run/stores/runtime_float_indexed_call_result_exit checked 16446ms check-target:macos_arm64 @77cde1c51efd+wt
 run/stores/runtime_float_store_selector_snapshot_exit checked 16333ms check-target:macos_arm64 @77cde1c51efd+wt

@@ -472,6 +472,42 @@ impl RemainingCustody {
         self.remove(root, path);
     }
 
+    /// A checked normal-continuation disposition retires the containing home,
+    /// even when its permission receipts name only contained claims.
+    pub(super) fn retire_storage(
+        &mut self,
+        root: PlaceRoot,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        source: PermissionEventSource,
+        output: &mut ContextualCleanupFacts,
+    ) {
+        // A completed partial transfer can leave no residual region. Retain
+        // its source death with the whole region excluded: this authorizes
+        // home retirement, never a second disposal of the moved value.
+        if !output.dispositions.iter().any(|(_, row)| {
+            row.machine == machine && row.state == state && row.source == source && row.root == root
+        }) {
+            let exclusions = output.exclusions.insert_many([Place {
+                root,
+                segments: Default::default(),
+            }]);
+            output.dispositions.append(ContextualCleanupDisposition {
+                machine,
+                state,
+                source,
+                root,
+                exit: FlowClaimJoinExit::default(),
+                disposed_type: Default::default(),
+                path: Default::default(),
+                exclusions,
+                establishment_ordered: false,
+                zero_image: false,
+            });
+        }
+        self.remove(root, &[]);
+    }
+
     /// Claim events name leaves; the successful write also establishes its
     /// containing storage region. A child write never clears a removed parent.
     fn establish_storage(

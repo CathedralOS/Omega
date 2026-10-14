@@ -218,9 +218,10 @@ pub(super) fn statement_steps_at_evaluation(
 }
 
 /// An observation borrows its temporary receiver; it cannot discharge the
-/// receiver's resource claims. Keep the actual completed expression root so
-/// ordinary permission production and scope-exit checking own those claims.
-pub(super) fn observed_linear_temporaries(
+/// receiver's custody. Keep the actual completed expression root so ordinary
+/// permission production and scope-exit checking own its residual partition,
+/// including affine storage with no linear claims.
+pub(super) fn observed_owned_temporaries(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -263,11 +264,23 @@ pub(super) fn observed_linear_temporaries(
         ) else {
             continue;
         };
-        if !super::multiplicity::linear_claim_frontier(program, reference).is_empty() {
+        if program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted {
             owners.push((expression, reference));
         }
     }
-    owners
+    // Observation order differs from establishment order, for example when an
+    // indexed observation evaluates another temporary for its selector. Reuse
+    // this exact occurrence inventory rather than rebuilding an AST schedule.
+    let mut completed_owners = Vec::new();
+    for occurrence in &occurrences {
+        if let StatementStep::Complete(expression) = occurrence.step
+            && let Some(owner) = owners.iter().find(|(owner, _)| *owner == expression)
+            && !completed_owners.contains(owner)
+        {
+            completed_owners.push(*owner);
+        }
+    }
+    completed_owners
 }
 
 struct StatementOrder<'a> {

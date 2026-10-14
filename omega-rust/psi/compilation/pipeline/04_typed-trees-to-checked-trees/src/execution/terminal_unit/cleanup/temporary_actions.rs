@@ -133,28 +133,7 @@ pub(in crate::execution::terminal_unit) fn operations(
                     .structural_result_binding()
                     .is_some_and(|result| result.binding_ordinal == binding_ordinal)
             })?;
-            let expression = match producer {
-                CheckedUnitEffectOperationPlan::EstablishLocal(
-                    checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
-                ) => facts.values.structural_values.nodes.get(*value).expression,
-                CheckedUnitEffectOperationPlan::Call(call) => {
-                    let state_flow = facts.flow.control.states.iter().find_map(|(_, row)| {
-                        (row.machine_symbol == machine && row.state_symbol == state).then_some(row)
-                    })?;
-                    facts
-                        .flow
-                        .control
-                        .calls
-                        .span(state_flow.calls)?
-                        .iter()
-                        .find_map(|row| {
-                            (row.statement_index == call.coordinate.statement_index as usize
-                                && row.call_ordinal == call.coordinate.call_ordinal as usize)
-                                .then_some(row.authored_expression)
-                        })?
-                }
-                _ => return None,
-            };
+            let root = super::normal_edges::producer_root(facts, state, producer)?;
             completed.extend(selected_actions(
                 program,
                 facts,
@@ -163,7 +142,7 @@ pub(in crate::execution::terminal_unit) fn operations(
                 machine,
                 state,
                 *coordinate,
-                facts::PlaceRoot::Expression(expression),
+                root,
                 source.clone(),
             )?);
         }

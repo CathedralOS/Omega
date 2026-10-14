@@ -43,7 +43,7 @@ mod terminator;
 
 use fused::fused_states;
 pub(super) use fused::{FusedStates, fused_target_index, terminator_statement_index};
-use guards::forwards_qualified_parameter;
+use guards::checked_qualified_arrivals;
 pub(super) use guards::{guard_is_boolean, retained_guard};
 pub(super) use result_custody::retained_structural_result;
 pub(super) use successors::{
@@ -503,47 +503,6 @@ pub(super) fn build_traced(
         {
             return None;
         }
-        trace.phase("state graph: exit result locals");
-        let disposable_locals = if matches!(
-            terminator,
-            CheckedComposedUnitControlTerminatorPlan::Jump { .. }
-                | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
-                | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { .. }
-                | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. }
-                | CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. }
-                | CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
-                | CheckedComposedUnitControlTerminatorPlan::ReturnUnit
-                | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
-                | CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. }
-        ) {
-            // A consumed ClosedSum subject's state-exit disposal is the case
-            // dispatch's own consumption, already proved inside the
-            // terminator build; exclude it from the result-local roster.
-            // The root of a projected subject stays on it.
-            let case_subject_local = result_custody::consumed_case_subject(&terminator)
-                .and_then(|binding_ordinal| {
-                    operations.iter().find_map(|operation| {
-                        let (result, _) = operation.discardable_structural_result()?;
-                        (result.binding_ordinal == binding_ordinal)
-                            .then_some(result.statement_index)
-                    })
-                })
-                .and_then(
-                    |statement_index| match statements.get(statement_index as usize) {
-                        Some(StatementNode::LocalData(local)) => Some(local.symbol),
-                        _ => None,
-                    },
-                );
-            crate::execution::terminal_cleanup::state_exit_result_locals(
-                program,
-                facts,
-                owner,
-                state,
-                case_subject_local,
-            )?
-        } else {
-            Vec::new()
-        };
         result_custody::account(
             program,
             facts,
@@ -553,7 +512,6 @@ pub(super) fn build_traced(
             &sequence.structural_results,
             &mut operations,
             &terminator,
-            &disposable_locals,
             trace,
         )?;
         planned.push(CheckedComposedUnitControlStatePlan {
@@ -605,31 +563,25 @@ pub(super) fn build_traced(
             continue;
         }
         trace.state(Some(state.symbol));
-        for (parameter_index, parameter) in planned[state_index]
-            .structural_parameters
-            .iter()
-            .enumerate()
+        let qualified_arrival =
+            planned[state_index]
+                .structural_parameters
+                .iter()
+                .any(|parameter| {
+                    !parameter.qualifications.is_empty()
+                        || !parameter.projected_qualifications.is_empty()
+                });
+        if qualified_arrival
+            && !(state_index == 0 && invocation_only_entry)
+            && !checked_qualified_arrivals(facts, &planned, &live_states, state_index)
         {
+            trace
+                .phase("state graph: state signature: qualified parameter lacks a checked arrival");
+            return None;
+        }
+        for parameter in &planned[state_index].structural_parameters {
             let reference =
                 || program.state_parameters(state)[parameter.position as usize].type_reference;
-            if parameter.multiplicity != Multiplicity::Linear
-                && !parameter.qualifications.is_empty()
-                && !(state_index == 0 && invocation_only_entry)
-                && !forwards_qualified_parameter(
-                    program,
-                    facts,
-                    shapes,
-                    &planned,
-                    &live_states,
-                    state_index,
-                    parameter_index,
-                )
-            {
-                trace.phase(
-                    "state graph: state signature: parameter custody shape: qualified non-linear parameter",
-                );
-                return None;
-            }
             match parameter.access {
                 CheckedStructuralAccess::Owned => {
                     // The registered structural shape carries records and

@@ -387,7 +387,7 @@ pass/drops/runtime_cleanup_helper_normal_guarantee_exit built 1599ms exit:0 inte
 pass/drops/runtime_composed_nominal_output_hook_exit built 14800ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5833e7d00af3
 pass/drops/runtime_composed_nominal_return_hook_exit built 1579ms exit:0 interpreter-exit:0 interpreter:agrees @47ad8bb72cea
 pass/drops/runtime_computed_call_owner_retirement_exit built 5618ms exit:0 interpreter-exit:0 interpreter:agrees @e6fa1ec2311e+wt
-pass/drops/runtime_effectful_projected_temporary_cleanup_exit built 3576ms exit:0 interpreter-exit:0 interpreter:agrees @e28fa01a1e73+wt
+pass/drops/runtime_effectful_projected_temporary_cleanup_exit built 5579ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 pass/drops/runtime_empty_array_owner_cleanup_exit built 1753ms exit:0 interpreter-exit:0 interpreter:agrees @1cc178f9ab8f
 pass/drops/runtime_indexed_nominal_cleanup_exit built 13348ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5833e7d00af3
 pass/drops/runtime_local_nominal_cleanup_exit built 3588ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @093f0ff4e0f2
@@ -415,7 +415,7 @@ pass/drops/runtime_projected_transition_cleanup_exit built 2000ms exit:0 interpr
 pass/drops/runtime_record_construction_cleanup_order_exit built 13307ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @68b079fa706e+wt
 pass/drops/runtime_replaced_record_custody_transfer_exit built 13115ms exit:0 interpreter-exit:0 interpreter:agrees @68b079fa706e+wt
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 3659ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @792abb82ccd2
-pass/drops/runtime_scalar_temporary_nominal_continuation_exit built 1723ms exit:0 interpreter-exit:0 interpreter:agrees @4df42bc194d5+wt
+pass/drops/runtime_scalar_temporary_nominal_continuation_exit built 5663ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 pass/drops/runtime_scalar_temporary_residual_partition_exit built 1647ms exit:0 interpreter-exit:0 interpreter:agrees @8611f9d5adf1
 pass/drops/runtime_selected_transfer_fieldwise_construction_exit built 12981ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @212593d788a7
 pass/drops/runtime_selected_transfer_incomplete_construction_exit built 5270ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9bf00044985b
@@ -767,6 +767,13 @@ run/borrows/shared_local_borrow built 5331ms exit:0 interpreter-exit:0 interpret
 run/borrows/shared_record_loan_member_read built 5382ms exit:0 interpreter-exit:0 interpreter:agrees @3fa817733300+wt
 run/borrows/transition_shared_borrow built 5289ms exit:0 interpreter-exit:0 interpreter:agrees @3fa817733300+wt
 run/contracts/captured_bound_unused_mutation built 5614ms exit:0 interpreter-exit:0 interpreter:agrees @7e164e32caf5+wt
+run/domains/issued_owned_case_parameter built 5393ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
+run/domains/issued_owned_case_residual built 5388ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
+run/domains/issued_owned_case_return built 5318ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
+run/domains/issued_owned_case_temporary built 5328ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
+run/domains/issued_owned_reinitialized_home built 5583ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
+run/domains/issued_owned_state_arrivals built 5572ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
+run/domains/issued_owned_temporary_observation built 5540ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 run/nested_mut_alias_assignment_return built 2526ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @cba4ef8c9ab1
 pass/ownership/runtime_replacement_call_child_snapshot_exit built 3512ms exit:0 interpreter-exit:0 interpreter:agrees @3c27bc9c6110
 pass/borrow/runtime_write_only_call_result_observation_exit built 3502ms exit:0 interpreter-exit:0 interpreter:agrees @820be24a59a0+wt
@@ -1077,3 +1084,5 @@ pass/proofs/piecewise_call_result_arithmetic checked 1638ms @1f63ee648905+wt
 pass/slices/local_array_element_view_exit built 11362ms exit:70 interpreter-exit:70 interpreter:agrees @1f63ee648905+wt
 run/calls/runtime_float_distinct_operand_calls_exit built 11482ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @1f63ee648905+wt
 run/calls/runtime_float_normalized_operand_single_evaluation_exit built 11407ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @1f63ee648905+wt
+run/ownership/temporary_case_observation built 5551ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
+run/ownership/temporary_projected_copy_argument built 5252ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt

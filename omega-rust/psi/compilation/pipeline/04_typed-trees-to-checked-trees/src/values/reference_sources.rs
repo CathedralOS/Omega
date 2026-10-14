@@ -32,6 +32,13 @@ pub(crate) fn transported_value_type(
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
+    // Forming a loan and transporting an existing descriptor are different
+    // ownership events. Formation's caller retains the temporary referent
+    // and schedules its cleanup; treating it as transport would register only
+    // the new descriptor and lose that backing owner's normal continuation.
+    if validation::reference_formation_source(program, expression).is_some() {
+        return None;
+    }
     if validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,

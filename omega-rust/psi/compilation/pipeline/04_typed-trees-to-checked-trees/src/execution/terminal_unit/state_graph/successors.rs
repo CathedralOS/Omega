@@ -488,6 +488,31 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     });
                 }
             }
+            // Reuse established storage before planning a fresh value. A
+            // saved dispatch result is one occurrence, not a second call.
+            mark(SuccessorGuard::ProjectedValue);
+            // A static subtree keeps its root and complete path. Multiplicity
+            // decides whether emission copies the leaf or transfers its
+            // custody; selected normal cleanup owns any remaining complement.
+            if let Some(subject) = projected_value_subject(
+                    program,
+                    machine,
+                    source,
+                    source_structural,
+                    edge_calls.local_results,
+                    ordinal,
+                    expression,
+                    target,
+                )
+                && subject.access == target.access
+            {
+                return Some(CheckedStructuralControlTransferPlan {
+                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue {
+                        subject,
+                    },
+                    target_parameter_index: u32::try_from(target_index).ok()?,
+                });
+            }
             mark(SuccessorGuard::EstablishedArgument);
             // A fresh composite argument — a record, case, or fixed-array
             // literal, or a call's structural result — has no custody root to
@@ -661,29 +686,6 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         operands: checked_trees::CheckedOperandSequence::new(operand_calls),
                         establishment: Box::new(establishment),
                         presentation,
-                    },
-                    target_parameter_index: u32::try_from(target_index).ok()?,
-                });
-            }
-            mark(SuccessorGuard::ProjectedValue);
-            // A static subtree keeps its root and complete path. Multiplicity
-            // decides whether emission copies the leaf or transfers its
-            // custody; selected normal cleanup owns any remaining complement.
-            if let Some(subject) = projected_value_subject(
-                    program,
-                    machine,
-                    source,
-                    source_structural,
-                    edge_calls.local_results,
-                    ordinal,
-                    expression,
-                    target,
-                )
-                && subject.access == target.access
-            {
-                return Some(CheckedStructuralControlTransferPlan {
-                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue {
-                        subject,
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                 });
@@ -1094,7 +1096,6 @@ fn projected_value_subject(
         ordinal as usize,
         expression,
     )?;
-    let root_symbol = place.root.as_symbol()?;
     if place.segments.is_empty() {
         return None;
     }
@@ -1102,7 +1103,12 @@ fn projected_value_subject(
         .state_parameters(source)
         .iter()
         .enumerate()
-        .find(|(_, parameter)| super::super::types::parameter_is_root(parameter, root_symbol));
+        .find(|(_, parameter)| {
+            place
+                .root
+                .as_symbol()
+                .is_some_and(|symbol| super::super::types::parameter_is_root(parameter, symbol))
+        });
     let (argument_source, root_access) = if let Some((position, _)) = parameter {
         let (parameter_index, parameter) = source_structural
             .iter()
@@ -1115,15 +1121,21 @@ fn projected_value_subject(
             parameter.access,
         )
     } else {
-        let (declaration, local) = program.state_local_declaration(source, root_symbol)?;
-        let mut candidates = local_results.iter().filter(|(result, root)| {
-            *root == place.root
-                && result.statement_index == declaration as u32
-                && result.statement_index < ordinal
-        });
+        let mut candidates = local_results
+            .iter()
+            .filter(|(result, root)| *root == place.root && result.statement_index <= ordinal);
         let (result, _) = candidates.next()?;
+        let root_type = validation::canonical_place_type_reference(
+            program,
+            source.symbol,
+            ordinal as usize,
+            &validation::CanonicalPlace {
+                root: place.root,
+                segments: Vec::new(),
+            },
+        )?;
         if candidates.next().is_some()
-            || super::super::types::base_type_identity(program, local.type_reference, &[], &[])?
+            || super::super::types::base_type_identity(program, root_type, &[], &[])?
                 != result.type_identity
         {
             return None;
@@ -1132,10 +1144,7 @@ fn projected_value_subject(
             CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
             },
-            super::super::types::structural_access_for_type_reference(
-                program,
-                local.type_reference,
-            )?,
+            super::super::types::structural_access_for_type_reference(program, root_type)?,
         )
     };
     if root_access == CheckedStructuralAccess::WriteOnlyBorrow {

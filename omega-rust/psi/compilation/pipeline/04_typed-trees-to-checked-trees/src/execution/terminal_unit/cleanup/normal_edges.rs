@@ -29,7 +29,7 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
         shapes,
         machine.symbol,
         state,
-        |root| owner_source(program, state, state_plan, root).map(Some),
+        |root| owner_source(program, facts, state, state_plan, root).map(Some),
     )
 }
 
@@ -53,6 +53,9 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
         plan.machine,
         state,
         |root| {
+            if root.as_expression().is_some() {
+                return expression_source(facts, state.symbol, &plan.operations, root).map(Some);
+            }
             let position = program
                 .state_parameters(state)
                 .iter()
@@ -226,10 +229,14 @@ fn cleanup_rows(
 
 fn owner_source(
     program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
     state: &typed_trees::state::State,
     plan: &CheckedComposedUnitControlStatePlan,
     root: PlaceRoot,
 ) -> Option<CheckedUnitStructuralArgumentSourcePlan> {
+    if root.as_expression().is_some() {
+        return expression_source(facts, state.symbol, &plan.operations, root);
+    }
     let symbol = root.as_symbol()?;
     if let Some(position) =
         typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)
@@ -243,4 +250,85 @@ fn owner_source(
         });
     }
     super::super::local_storage::source(program, state, &plan.operations, symbol)
+}
+
+fn expression_source(
+    facts: &CheckFacts,
+    state: SymbolHandle,
+    operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+    root: PlaceRoot,
+) -> Option<CheckedUnitStructuralArgumentSourcePlan> {
+    let mut matching = operations.iter().filter_map(|operation| {
+        let result = operation.structural_result_binding()?;
+        (producer_root(facts, state, operation) == Some(root)).then_some(result)
+    });
+    let Some(result) = matching.next() else {
+        // Computation-owned values live in the expression namespace rather
+        // than the flat operation-result roster. Cleanup names that retained
+        // owner; emission must find its already-established storage and must
+        // never evaluate the expression to obtain a cleanup operand.
+        let expression = root.as_expression()?;
+        return facts
+            .values
+            .structural_values
+            .nodes
+            .iter()
+            .any(|(_, value)| value.state == state && value.expression == expression)
+            .then_some(
+                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
+            );
+    };
+    if matching.next().is_some() {
+        return None;
+    }
+    Some(CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        binding_ordinal: result.binding_ordinal,
+    })
+}
+
+/// Join a retained result to the source occurrence that established it. The
+/// call coordinate is authoritative; equal expressions or return types cannot
+/// identify a second evaluation as the owner of the first one's cleanup.
+pub(in crate::execution::terminal_unit) fn producer_root(
+    facts: &CheckFacts,
+    state: SymbolHandle,
+    operation: &checked_trees::CheckedUnitEffectOperationPlan,
+) -> Option<PlaceRoot> {
+    use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitLocalBindingPlan};
+    let result = operation.structural_result_binding()?;
+    if result.local.is_named() {
+        return Some(PlaceRoot::Symbol(result.local.symbol));
+    }
+    let expression = match operation {
+        CheckedUnitEffectOperationPlan::EstablishLocal(
+            CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+        ) => facts.values.structural_values.nodes.get(*value).expression,
+        CheckedUnitEffectOperationPlan::Call(call) => {
+            let flow = facts
+                .flow
+                .control
+                .states
+                .iter()
+                .find_map(|(_, row)| (row.state_symbol == state).then_some(row))?;
+            let mut calls = facts
+                .flow
+                .control
+                .calls
+                .span(flow.calls)?
+                .iter()
+                .filter(|row| {
+                    row.statement_index == call.coordinate.statement_index as usize
+                        && row.call_ordinal == call.coordinate.call_ordinal as usize
+                });
+            let expression = calls.next()?.authored_expression;
+            if calls.next().is_some() {
+                return None;
+            }
+            expression
+        }
+        _ => return None,
+    };
+    expression
+        .is_valid()
+        .then_some(PlaceRoot::Expression(expression))
 }

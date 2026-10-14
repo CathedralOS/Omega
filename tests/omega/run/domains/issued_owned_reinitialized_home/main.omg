@@ -1,0 +1,15 @@
+// Expected exit: 0.
+data Resource { identity: u64; }
+domain Resource::Open(resource) requires resource.identity != 0 established by acquire;
+machine acquire(identity: u64) -> Resource in Open requires identity != 0 {
+    Resource { identity: identity }
+}
+machine close(resource: Resource in Open) {}
+machine main() crashes Trap {
+    let mut resource: Resource in Open = acquire(41);
+    close(resource);
+    resource = acquire(73);
+    transition resource.identity == 73 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

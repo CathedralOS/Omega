@@ -187,15 +187,22 @@ fn evaluated_value_root<'a>(
         argument,
         parameter,
     )?;
-    // A shared projection lends the retained producer's home. The argument
-    // planner selects its original path after establishment; evaluating the
-    // projection itself here would detach a linear child from its owner.
-    if crate::semantic::calls::shared_argument_referent(program, argument, parameter.type_reference)
-        .is_some()
-        && validation::slice_view_shell(program, parameter.type_reference, &[]).is_none()
-        && let checked_trees::CheckedStructuralValueKind::Projection { source, .. } =
-            facts.values.structural_values.nodes.get(root.root).kind
+    // Every projection selects from its original producer's home. Prepare
+    // that producer once for borrowed and owned operands alike; the argument
+    // plan retains the path and the continuation owns the residual cleanup.
+    while let checked_trees::CheckedStructuralValueKind::Projection { source, .. } =
+        facts.values.structural_values.nodes.get(root.root).kind
     {
+        if validation::canonical_place_from_expression_in_state(
+            program,
+            state,
+            statement_index,
+            root.expression,
+        )
+        .is_some_and(|place| place.root.as_symbol().is_some())
+        {
+            return None;
+        }
         root = facts.values.structural_values.root_for_expression(
             state,
             u32::try_from(statement_index).ok()?,

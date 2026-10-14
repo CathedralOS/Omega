@@ -938,6 +938,29 @@ pub(super) fn lower_unit_structural_domains(
     let mut selected = Vec::new();
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
+        // A callable publishes its result contract even when its only caller
+        // observes a field immediately. Register that signature's domains here,
+        // not incidentally through a receiving local or another parameter.
+        if !body.entry()?.returns_unit && body.scalar_result_type().is_none() {
+            let (_, state) = crate::declarations::state_declaration(checked, body.entry()?.state)?;
+            let mut result_domains =
+                validation::view_result_carrier_qualifications(&checked.typed, state.return_type)
+                    .map_err(LoweringError::Unsupported)?;
+            result_domains.extend(
+                validation::structural_result_projected_qualifications(
+                    &checked.typed,
+                    state.return_type,
+                )
+                .map_err(LoweringError::Unsupported)?
+                .into_iter()
+                .map(|row| row.domain),
+            );
+            for domain in result_domains {
+                if !selected.contains(&domain) {
+                    selected.push(domain);
+                }
+            }
+        }
         for operation in body.operations() {
             crate::expression_preparation::structural_value_requirements::collect_operation_requirements(
                 checked,
