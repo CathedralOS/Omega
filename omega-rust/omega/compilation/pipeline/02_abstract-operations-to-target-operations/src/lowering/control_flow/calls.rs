@@ -546,8 +546,9 @@ fn ordinary_contract(
 }
 
 /// The structural result retains its exact declared type and home layout.
-/// Its path-bound claims are custody, not storage; outcome-specific evidence
-/// still needs separate transport.
+/// Its path-bound claims are custody, not storage. Outcome-specific evidence
+/// is proof-only: unit validation already joined it to the callee's guarded
+/// rows, and it has no runtime representation to lower.
 /// Qualifications do not restrict physical carrier families; the caller may
 /// add only domains this call's own establishment rows mint.
 fn structural_result_home(
@@ -556,11 +557,7 @@ fn structural_result_home(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralHomeRequirement, LoweringError> {
-    let AbstractStructuralCallResult::Structural {
-        result,
-        selected_evidence,
-    } = call.result
-    else {
+    let AbstractStructuralCallResult::Structural { result, .. } = call.result else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let callee_result = declaration
@@ -571,7 +568,6 @@ fn structural_result_home(
         || callee_result.multiplicity != result.multiplicity
         || !result_qualifications_match(callee_result.qualifications, result)
         || callee_result.projected_qualifications != result.projected_qualifications
-        || !selected_evidence.is_empty()
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

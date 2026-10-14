@@ -321,6 +321,25 @@ pub(crate) fn lower_evidence_term_ids(
             }
         }
     }
+    // A caller arm's selected outcome-specific output is a term of that
+    // caller, after its proof-output identities.
+    let mut selected_output_position = 0_usize;
+    for (_, arm) in checked.facts.proof.outcome_specific_arms.iter() {
+        let Some(machine_position) = body_position(arm.caller_machine_symbol) else {
+            continue;
+        };
+        for term in arm.rows.iter().filter_map(|row| row.selected_term) {
+            let index = usize::try_from(term.arena_index() - 1)
+                .expect("arena indices fit the host address space");
+            let root = evidence_term_root(&mut parents, index);
+            roots
+                .entry(root)
+                .or_insert((machine_position, 4_u8, selected_output_position));
+            selected_output_position = selected_output_position
+                .checked_add(1)
+                .expect("selected-output identity order fits usize");
+        }
+    }
     let mut roots = roots
         .into_iter()
         .map(|(root, lane_key)| (lane_key, root))

@@ -171,10 +171,7 @@ pub(super) fn encode_call_dynamic(
     for argument in arguments {
         writer.id(argument);
     }
-    writer.len(
-        "dynamic-call family actuals",
-        family_actuals.len(),
-    )?;
+    writer.len("dynamic-call family actuals", family_actuals.len())?;
     for actual in family_actuals {
         writer.id(actual);
     }
@@ -277,6 +274,25 @@ pub(super) fn encode_call_structural(
     }
     encode_obligation_ids(writer, &requirement_obligations)?;
     encode_crash_routes(writer, &crash_continuations)?;
+    encode_selected_evidence(writer, selected_evidence)
+}
+
+pub(super) fn decode_call_structural(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::CallStructural {
+        callee: reader.id("MachineId")?,
+        structural_arguments: decode_structural_arguments(reader)?,
+        claim_transfers: decode_claim_transfers(reader)?,
+        requirement_obligations: decode_ids(reader, "ObligationId")?,
+        crash_continuations: decode_crash_routes(reader)?,
+        selected_evidence: decode_selected_evidence(reader)?,
+    })
+}
+
+/// Outcome-specific selections shared by both structural call encodings.
+fn encode_selected_evidence(
+    writer: &mut Writer,
+    selected_evidence: Vec<OutcomeSpecificCallEvidence>,
+) -> Result<(), CodecError> {
     writer.len("guarded call selected evidence", selected_evidence.len())?;
     for binding in selected_evidence {
         writer.id(binding.guard.result_type);
@@ -329,61 +345,56 @@ pub(super) fn encode_call_structural(
     Ok(())
 }
 
-pub(super) fn decode_call_structural(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::CallStructural {
-        callee: reader.id("MachineId")?,
-        structural_arguments: decode_structural_arguments(reader)?,
-        claim_transfers: decode_claim_transfers(reader)?,
-        requirement_obligations: decode_ids(reader, "ObligationId")?,
-        crash_continuations: decode_crash_routes(reader)?,
-        selected_evidence: decode_counted(reader, |reader| {
-            Ok(OutcomeSpecificCallEvidence {
-                guard: OutcomeSpecificGuard {
-                    result_type: reader.id("StructuralTypeId")?,
-                    result_case: reader.id("StructuralCaseId")?,
-                },
-                position: reader.u32()?,
-                callee_obligation: reader.id("ObligationId")?,
-                callee_term: reader.id("EvidenceTermId")?,
-                output_field: reader.string("guarded call output field")?,
-                callee_proposition: reader.id("PropositionId")?,
-                instantiated_proposition: reader.id("PropositionId")?,
-                output: reader.id("EvidenceTermId")?,
-                result_substitution: match reader.u8()? {
-                    0 => None,
-                    1 => Some(OutcomeSpecificCallResultSubstitution {
-                        argument_position: reader.u32()?,
-                        callee_result: reader.id("PlaceId")?,
-                        caller_result: reader.id("PlaceId")?,
-                    }),
-                    tag => {
-                        return Err(CodecError::InvalidTag(
-                            "OutcomeSpecificCallResultSubstitution",
-                            tag,
-                        ));
-                    }
-                },
-                validity: OutcomeSpecificCallEvidenceValidity {
-                    result: reader.id("PlaceId")?,
-                    proposition_dependencies: decode_ids(reader, "PlaceId")?,
-                    evidence_interface: decode_evidence_interface(reader)?,
-                    interface_dependencies: decode_ids(reader, "PlaceId")?,
-                },
-                expected_use_count: reader.u32()?,
-                uses: decode_counted(reader, |reader| {
-                    Ok(terminal_psi::OutcomeSpecificEvidenceUse {
-                        target: reader.id("MachineId")?,
-                        input_position: reader.u32()?,
-                        target_requirement: reader.id("PropositionId")?,
-                        target_term: reader.id("EvidenceTermId")?,
-                        source: reader.id("EvidenceTermId")?,
-                        instantiated_proposition: reader.id("PropositionId")?,
-                        target_parameter: reader.id("PlaceId")?,
-                        caller_result: reader.id("PlaceId")?,
-                    })
-                })?,
-            })
-        })?,
+fn decode_selected_evidence(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<OutcomeSpecificCallEvidence>, CodecError> {
+    decode_counted(reader, |reader| {
+        Ok(OutcomeSpecificCallEvidence {
+            guard: OutcomeSpecificGuard {
+                result_type: reader.id("StructuralTypeId")?,
+                result_case: reader.id("StructuralCaseId")?,
+            },
+            position: reader.u32()?,
+            callee_obligation: reader.id("ObligationId")?,
+            callee_term: reader.id("EvidenceTermId")?,
+            output_field: reader.string("guarded call output field")?,
+            callee_proposition: reader.id("PropositionId")?,
+            instantiated_proposition: reader.id("PropositionId")?,
+            output: reader.id("EvidenceTermId")?,
+            result_substitution: match reader.u8()? {
+                0 => None,
+                1 => Some(OutcomeSpecificCallResultSubstitution {
+                    argument_position: reader.u32()?,
+                    callee_result: reader.id("PlaceId")?,
+                    caller_result: reader.id("PlaceId")?,
+                }),
+                tag => {
+                    return Err(CodecError::InvalidTag(
+                        "OutcomeSpecificCallResultSubstitution",
+                        tag,
+                    ));
+                }
+            },
+            validity: OutcomeSpecificCallEvidenceValidity {
+                result: reader.id("PlaceId")?,
+                proposition_dependencies: decode_ids(reader, "PlaceId")?,
+                evidence_interface: decode_evidence_interface(reader)?,
+                interface_dependencies: decode_ids(reader, "PlaceId")?,
+            },
+            expected_use_count: reader.u32()?,
+            uses: decode_counted(reader, |reader| {
+                Ok(terminal_psi::OutcomeSpecificEvidenceUse {
+                    target: reader.id("MachineId")?,
+                    input_position: reader.u32()?,
+                    target_requirement: reader.id("PropositionId")?,
+                    target_term: reader.id("EvidenceTermId")?,
+                    source: reader.id("EvidenceTermId")?,
+                    instantiated_proposition: reader.id("PropositionId")?,
+                    target_parameter: reader.id("PlaceId")?,
+                    caller_result: reader.id("PlaceId")?,
+                })
+            })?,
+        })
     })
 }
 
@@ -397,6 +408,7 @@ pub(super) fn encode_call_structural_with_scalar_arguments(
     claim_transfers: Vec<ClaimTransfer>,
     requirement_obligations: Vec<ObligationId>,
     crash_continuations: Vec<CrashRouteBucket>,
+    selected_evidence: Vec<OutcomeSpecificCallEvidence>,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS);
     writer.id(callee);
@@ -418,7 +430,7 @@ pub(super) fn encode_call_structural_with_scalar_arguments(
     }
     encode_obligation_ids(writer, &requirement_obligations)?;
     encode_crash_routes(writer, &crash_continuations)?;
-    Ok(())
+    encode_selected_evidence(writer, selected_evidence)
 }
 
 pub(super) fn decode_call_structural_with_scalar_arguments(
@@ -433,6 +445,7 @@ pub(super) fn decode_call_structural_with_scalar_arguments(
         claim_transfers: decode_claim_transfers(reader)?,
         requirement_obligations: decode_ids(reader, "ObligationId")?,
         crash_continuations: decode_crash_routes(reader)?,
+        selected_evidence: decode_selected_evidence(reader)?,
     })
 }
 

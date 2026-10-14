@@ -7,16 +7,17 @@
 //! position and obligation can never drift between the two sides. Rows a
 //! bounded producer cannot yet name exactly are refused rather than guessed.
 
-use crate::proofs::evidence_lowering::evidence_terms::lower_evidence_interface;
+use crate::proofs::evidence_lowering::evidence_terms::{
+    lower_evidence_contract_lanes, lower_evidence_interface,
+};
 use crate::proofs::evidence_lowering::outcome_specific_ensures::outcome_specific_ensure_rows;
 use crate::proofs::evidence_lowering::proof_output_calls::{
     terminal_evidence_term_id, terminal_proposition_application_id,
 };
 use crate::proofs::{
     CheckedTrees, EvidenceTermDeclaration, EvidenceTermId, LoweredPsi, LoweringError,
-    OperationKind, OperationResult, OutcomeSpecificCallEvidence,
-    OutcomeSpecificCallEvidenceValidity, Proposition, PropositionApplicationIdentity,
-    PropositionDeclaration,
+    OperationResult, OutcomeSpecificCallEvidence, OutcomeSpecificCallEvidenceValidity, Proposition,
+    PropositionApplicationIdentity, PropositionDeclaration,
 };
 
 pub(crate) fn lower_outcome_specific_call_evidence(
@@ -76,7 +77,7 @@ pub(crate) fn lower_outcome_specific_call_evidence(
                 .ok_or(LoweringError::Unsupported(
                     "outcome-specific arm operation is absent",
                 ))?;
-            let OperationKind::CallStructural { callee, .. } = &operation.kind else {
+            let terminal_psi::call_structural_pair_pattern!(callee, ..) = &operation.kind else {
                 return Err(LoweringError::Unsupported(
                     "outcome-specific arm operation is not a structural call",
                 ));
@@ -88,6 +89,30 @@ pub(crate) fn lower_outcome_specific_call_evidence(
             };
             (result.place, *callee)
         };
+        // A selection rides only a call whose callee is an exact payloadless
+        // producer: no inputs, entry claims, other contract rows or crash
+        // routes. The Terminal contract replays the same callee surface.
+        let callee =
+            lowered
+                .semantic_module
+                .machine(callee_id)
+                .ok_or(LoweringError::Unsupported(
+                    "outcome-specific arm callee is absent",
+                ))?;
+        if !callee.parameters.is_empty()
+            || !callee.structural_parameters.is_empty()
+            || !callee.entry_claims.is_empty()
+            || !callee.content_entry_claims.is_empty()
+            || !callee.contract.requires.is_empty()
+            || !callee.contract.ensures.is_empty()
+            || !callee.contract.crash_routes.is_empty()
+            || !lower_evidence_contract_lanes(checked, callee_symbol, callee_id, term_ids)?
+                .is_empty()
+        {
+            return Err(LoweringError::Unsupported(
+                "outcome-specific selection from a callee with inputs or other contracts is unimplemented",
+            ));
+        }
         let ensure_rows = outcome_specific_ensure_rows(
             identities,
             checked,
@@ -218,9 +243,8 @@ pub(crate) fn lower_outcome_specific_call_evidence(
             .ok_or(LoweringError::Unsupported(
                 "outcome-specific arm operation is absent",
             ))?;
-        let OperationKind::CallStructural {
-            selected_evidence, ..
-        } = &mut operation.kind
+        let terminal_psi::call_structural_pair_pattern!(selected_evidence, ..) =
+            &mut operation.kind
         else {
             return Err(LoweringError::Unsupported(
                 "outcome-specific arm operation is not a structural call",

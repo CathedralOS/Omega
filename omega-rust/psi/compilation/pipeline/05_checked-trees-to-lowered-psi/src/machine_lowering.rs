@@ -342,12 +342,7 @@ fn lower_terminal_selection(
     // Guarded guarantees are admitted from the finished closure: whether the
     // entry returns one exact payloadless case is a fact of its lowered body,
     // whichever producer emitted it.
-    reject_unguarded_outcome_guarantees(
-        checked,
-        &source_machines,
-        selection.machine,
-        &lowered.semantic_module,
-    )?;
+    reject_unguarded_outcome_guarantees(checked, &source_machine_ids, &lowered.semantic_module)?;
     crate::retention::conformance_applications::lower_closed_conformance_applications(
         identities,
         checked,

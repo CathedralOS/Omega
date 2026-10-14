@@ -2414,6 +2414,8 @@ run/borrows/shared_recast_borrow built 1044ms exit:0 @48008365d839
 run/borrows/shared_record_loan_member_read built 1284ms exit:0 @48008365d839
 run/borrows/shared_runtime_index_borrow built 1341ms exit:0 @48008365d839
 run/borrows/transition_shared_borrow built 1309ms exit:0 @48008365d839
+run/calls/outcome_specific_selected_guarantee_exit built 11219ms exit:0 @55ccf9be57c4
+run/calls/outcome_specific_selected_guarantee_variants_exit built 10042ms exit:0 @55ccf9be57c4
 run/calls/resultless_scalar_parameters built 5055ms exit:0 stdout:match stderr:match @10b02229ff8b
 run/calls/runtime_float_distinct_operand_calls_exit built 12474ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
 run/calls/runtime_float_normalized_operand_single_evaluation_exit built 11046ms exit:0 stdout:match stderr:match @589aedee8ebc+wt

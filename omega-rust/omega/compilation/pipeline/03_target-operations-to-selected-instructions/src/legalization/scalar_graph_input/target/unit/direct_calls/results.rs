@@ -71,7 +71,7 @@ pub(super) fn validate(
                 result:
                     AbstractStructuralCallResult::Structural {
                         result: expected_result,
-                        selected_evidence,
+                        ..
                     },
                 structural_arguments,
                 requirement_obligations: _,
@@ -145,13 +145,13 @@ pub(super) fn validate(
                 }
                 _ => return Err(LegalizationError::custody()),
             };
+            // Claims cross as custody, not bytes: the enclosing call check
+            // replays the claim and requirement rosters exactly and both ride
+            // the legalized instruction. Outcome-specific evidence is
+            // proof-only; unit validation joined it before target lowering.
             if result != expected_result
                 || *result_home != expected_home
                 || *reference_results != expected_references
-                // Claims cross as custody, not bytes: the enclosing call check
-                // replays the claim and requirement rosters exactly and both
-                // ride the legalized instruction.
-                || !selected_evidence.is_empty()
             {
                 return Err(LegalizationError::custody());
             }

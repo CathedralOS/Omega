@@ -362,9 +362,9 @@ pub(super) fn validate_call_structural(
         _ => &[],
     };
     let selected_evidence = match &operation.kind {
-        OperationKind::CallStructural {
-            selected_evidence, ..
-        } => selected_evidence.as_slice(),
+        terminal_psi::call_structural_pair_pattern!(selected_evidence, ..) => {
+            selected_evidence.as_slice()
+        }
         _ => &[],
     };
     let Some(callee) = module.machine(*callee) else {

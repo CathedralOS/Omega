@@ -503,6 +503,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             claim_transfers,
             requirement_obligations,
             crash_continuations,
+            selected_evidence,
         } => call_operations::encode_call_structural_with_scalar_arguments(
             writer,
             callee,
@@ -513,6 +514,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             claim_transfers,
             requirement_obligations,
             crash_continuations,
+            selected_evidence,
         )?,
         OperationKind::BoundaryCall {
             boundary,

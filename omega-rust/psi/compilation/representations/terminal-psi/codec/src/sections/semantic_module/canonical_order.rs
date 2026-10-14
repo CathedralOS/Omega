@@ -743,22 +743,21 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                         "call claim transfers by claim and argument index",
                     ));
                 }
-                OperationKind::CallStructural {
-                    selected_evidence, ..
-                } if !strictly_increasing(selected_evidence.iter().map(|binding| {
-                    (
-                        binding.guard,
-                        binding.position,
-                        binding.output_field.as_str(),
-                        binding.output,
-                    )
-                })) || selected_evidence.iter().any(|binding| {
-                    !strictly_increasing(binding.validity.proposition_dependencies.iter().copied())
-                        || !strictly_increasing(
-                            binding.validity.interface_dependencies.iter().copied(),
+                terminal_psi::call_structural_pair_pattern!(selected_evidence, ..)
+                    if !strictly_increasing(selected_evidence.iter().map(|binding| {
+                        (
+                            binding.guard,
+                            binding.position,
+                            binding.output_field.as_str(),
+                            binding.output,
                         )
-                        || !strictly_increasing(binding.uses.iter().cloned())
-                }) =>
+                    })) || selected_evidence.iter().any(|binding| {
+                        !strictly_increasing(
+                            binding.validity.proposition_dependencies.iter().copied(),
+                        ) || !strictly_increasing(
+                            binding.validity.interface_dependencies.iter().copied(),
+                        ) || !strictly_increasing(binding.uses.iter().cloned())
+                    }) =>
                 {
                     return Err(CodecError::NonCanonicalOrder(
                         "guarded-call selections or validity dependency roots",

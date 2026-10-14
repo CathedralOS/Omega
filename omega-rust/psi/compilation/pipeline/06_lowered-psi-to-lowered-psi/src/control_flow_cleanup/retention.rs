@@ -405,15 +405,10 @@ fn machine_transitions(machine: &terminal_psi::TerminalMachine) -> Vec<MachineId
             match &operation.kind {
                 terminal_psi::OperationKind::Call { callee, .. }
                 | terminal_psi::OperationKind::CallUnit { callee, .. }
-                | terminal_psi::OperationKind::CallStructuralScalar { callee, .. }
-                | terminal_psi::OperationKind::CallStructuralWithScalarArguments {
-                    callee, ..
-                } => targets.push(*callee),
-                terminal_psi::OperationKind::CallStructural {
-                    callee,
-                    selected_evidence,
-                    ..
-                } => {
+                | terminal_psi::OperationKind::CallStructuralScalar { callee, .. } => {
+                    targets.push(*callee)
+                }
+                terminal_psi::call_structural_pair_pattern!(callee, selected_evidence, ..) => {
                     targets.push(*callee);
                     for evidence in selected_evidence {
                         for evidence_use in &evidence.uses {

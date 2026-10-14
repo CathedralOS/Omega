@@ -131,6 +131,7 @@ pub(super) fn lower(
             claim_transfers,
             requirement_obligations,
             crash_continuations,
+            selected_evidence,
         } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedStructuralResult(machine.id));
@@ -139,7 +140,7 @@ pub(super) fn lower(
                 psi_operation: operation.id,
                 result: AbstractStructuralCallResult::Structural {
                     result,
-                    selected_evidence: Vec::new(),
+                    selected_evidence,
                 },
                 callee: callee.into(),
                 arguments,

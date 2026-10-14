@@ -83,7 +83,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Returned origins distinguish precise projections from public input regions.
 // Placed views, quotients and captured closed conformances share this schema.
 // Conditional descriptor origins share immediate supplier dependencies.
-pub(crate) const FORMAT_MARKER: u16 = 158;
+// Mixed structural calls carry outcome-specific selections.
+pub(crate) const FORMAT_MARKER: u16 = 159;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

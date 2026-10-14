@@ -1,0 +1,64 @@
+// A caller arm selects an output of the callee's outcome-specific guarantee
+// for the exact result case it tests, from a helper machine whose own result
+// is scalar and from a later state of the entry machine. Each selection rides
+// the caller's structural call and is erased before native code: exit 0 means
+// both selected arms ran.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Outcome [copy] {
+    case Success;
+    case Failure;
+}
+
+trait Evidence {
+}
+
+proposition selected_ready() evidence Evidence;
+
+Fresh satisfies Evidence {
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine pick() -> Outcome
+ensures Outcome::Success -> { selected: selected_ready(); }
+{
+    selected = Fresh;
+    Outcome::Success
+}
+
+machine check() -> bool {
+    transition pick() {
+        Outcome::Success { ; selected: proof } -> (true)
+        _ -> (false)
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    transition { _ -> later(main) }
+
+    state later(main: &mut Main) {
+        transition pick() {
+            Outcome::Success { ; selected: proof } -> checked(main, check())
+            _ -> bad(main)
+        }
+    }
+
+    state checked(main: &mut Main, valid: bool) {
+        transition valid {
+            true -> ok(main)
+            false -> bad(main)
+        }
+    }
+
+    state ok(main: &mut Main) {
+        main.console.exit_process(0);
+    }
+
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
+    }
+}

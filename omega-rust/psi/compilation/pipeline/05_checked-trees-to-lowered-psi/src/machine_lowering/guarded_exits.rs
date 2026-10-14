@@ -1,17 +1,19 @@
 //! Guarded-exit admission for outcome-specific guarantees.
 //!
 //! A checked `outcome`-parameterized guarantee is provable only through a
-//! guarded exit: the selected entry itself returns one exact payloadless
+//! guarded exit: the guaranteeing machine itself returns one exact payloadless
 //! structural case. The lowering route refuses guarantees that cannot reach
-//! such an exit once the source closure is lowered. A caller arm that matches
-//! a callee's guarded case does not yet carry the callee's guarantee.
+//! such an exit once the source closure is lowered. The guaranteeing machine
+//! may be the entry or any callee in the closure; a caller arm that selects
+//! the guarded case carries the guarantee on its structural call site.
 //!
-//! The exact case exit is read from the lowered entry machine, not from which
+//! The exact case exit is read from the lowered machine, not from which
 //! producer lowered it: a payloadless case constructor is an ordinary Unit
 //! body, and the verifier replays the same exact-case exit
 //! (`exact_payloadless_case_return_exits`) before it accepts any guarded row.
 
 use checked_trees::CheckedTrees;
+use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 use terminal_psi::{
     OperationKind, OutcomeSpecificGuard, TerminalMachine, TerminalModule, Terminator,
@@ -61,29 +63,31 @@ pub(crate) fn exact_payloadless_return_guard(
 /// Refuse outcome-specific guarantees no guarded exit of the lowered closure
 /// can publish.
 ///
-/// A guarantee is admitted when its machine is the entry of a single-machine
-/// closure whose lowered entry returns one exact payloadless case.
+/// A guarantee is admitted when its machine's lowered body returns one exact
+/// payloadless case.
 pub(crate) fn reject_unguarded_outcome_guarantees(
     checked: &CheckedTrees,
-    source_machines: &[SymbolHandle],
-    entry: SymbolHandle,
+    source_machine_ids: &[(SymbolHandle, MachineId)],
     module: &TerminalModule,
 ) -> Result<(), LoweringError> {
-    let exact_payloadless_entry = source_machines == [entry]
-        && match module.entry {
-            terminal_psi::TargetMachineCallable::Machine(entry) => module.machine(entry),
-            terminal_psi::TargetMachineCallable::Boundary(_) => None,
-        }
-        .and_then(exact_payloadless_return_guard)
-        .is_some();
+    let guarded = |machine: SymbolHandle| {
+        source_machine_ids
+            .iter()
+            .find(|(source, _)| *source == machine)
+            .and_then(|(_, terminal)| module.machine(*terminal))
+            .and_then(exact_payloadless_return_guard)
+            .is_some()
+    };
     if checked
         .facts
         .proof
         .outcome_specific_guarantees
         .iter()
         .any(|(_, guarantee)| {
-            source_machines.contains(&guarantee.machine_symbol)
-                && !(exact_payloadless_entry && guarantee.machine_symbol == entry)
+            source_machine_ids
+                .iter()
+                .any(|(source, _)| *source == guarantee.machine_symbol)
+                && !guarded(guarantee.machine_symbol)
         })
     {
         return unsupported(

@@ -795,8 +795,8 @@ pub enum OperationKind {
         selected_evidence: Vec<OutcomeSpecificCallEvidence>,
     },
     /// Invoke one in-module structural-result machine with independently
-    /// retained positional scalar and structural arguments. Its claims
-    /// cross exactly as `CallStructural`'s do.
+    /// retained positional scalar and structural arguments. Its claims and
+    /// outcome-specific selections cross exactly as `CallStructural`'s do.
     CallStructuralWithScalarArguments {
         callee: MachineId,
         arguments: Vec<ValueId>,
@@ -810,6 +810,9 @@ pub enum OperationKind {
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
+        /// Canonical proof-only selections from exact outcome-specific callee
+        /// rows, as on `CallStructural`.
+        selected_evidence: Vec<OutcomeSpecificCallEvidence>,
     },
     /// Invoke one exact bodyless boundary machine. Completion receipts
     /// name every live caller claim consumed by the successful invocation at

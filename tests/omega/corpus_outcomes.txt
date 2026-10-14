@@ -8055,8 +8055,8 @@ run/calls/byte_literal_expression_values checked 6095ms check-target:macos_arm64
 run/calls/fixed_dividend_across_console_calls checked 8916ms check-target:macos_arm64 @16ed47526a08
 run/calls/nested_range_call_operands checked 6080ms check-target:macos_arm64 @0553d60b9b91+wt
 run/calls/ordered_literal_call_operands checked 6036ms check-target:macos_arm64 @0553d60b9b91+wt
-run/calls/outcome_specific_selected_guarantee_exit rejected 11486ms check-target:macos_arm64 @a9ae30e1c334+wt
-	terminal-artifact production failed: Lowering(Unsupported("outcome-specific guarantees require guarded exit and caller-arm lowering"))
+run/calls/outcome_specific_selected_guarantee_exit checked 12421ms check-target:macos_arm64 @55ccf9be57c4
+run/calls/outcome_specific_selected_guarantee_variants_exit checked 12113ms check-target:macos_arm64 @55ccf9be57c4
 run/calls/owned_literal_call_operands checked 6033ms check-target:macos_arm64 @0553d60b9b91+wt
 run/calls/resultless_scalar_parameters checked 11475ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/calls/runtime_float_distinct_operand_calls_exit checked 11431ms check-target:macos_arm64 @1f63ee648905+wt

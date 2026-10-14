@@ -207,6 +207,7 @@ impl DirectCall {
                     claim_transfers,
                     requirement_obligations,
                     crash_continuations,
+                    selected_evidence: Vec::new(),
                 }
             }
         }
