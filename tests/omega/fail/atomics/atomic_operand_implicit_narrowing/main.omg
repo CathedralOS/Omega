@@ -1,0 +1,6 @@
+data Counter { value: AtomicU32; }
+
+machine replace(counter: &Counter, expected: u64, proposed: u64) {
+    let prior: u32 in Wrapping = counter.value.compare_exchange(
+        expected, proposed, NoOrdering, NoOrdering);
+}

@@ -1,0 +1,25 @@
+// Both operands execute once, left to right, even when comparison mismatches.
+data Counter { value: AtomicU32; }
+data Trace { code: u32 in Wrapping; }
+
+machine record(trace: &mut Trace, digit: u32 in Wrapping, value: u32) -> u32 {
+    trace.code = trace.code * 10 + digit;
+    value
+}
+
+machine main() crashes Trap {
+    let counter: Counter = Counter { value: 0 };
+    let mut trace: Trace = Trace { code: 0 };
+    counter.value.store(10, NoOrdering);
+    let first: u32 in Wrapping = counter.value.compare_exchange(
+        record(&mut trace, 1, 10), record(&mut trace, 2, 99), NoOrdering, NoOrdering);
+    let second: u32 in Wrapping = counter.value.compare_exchange(
+        record(&mut trace, 3, 10), record(&mut trace, 4, 42), NoOrdering, NoOrdering);
+    let observed: u32 = counter.value.load(NoOrdering);
+    transition first == 10 && second == 99 && observed == 99 && trace.code == 1234 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

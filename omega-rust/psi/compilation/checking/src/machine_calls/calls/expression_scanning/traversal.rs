@@ -5,6 +5,10 @@
 //! and per-occurrence bounds checks; checked structural projections retain every
 //! field and selector for lowering rather than admitting source arrangements. Per-call target,
 //! argument, and bound validation remains in the parent module.
+//! Atomic carriers use the same authored-operand decoder as arithmetic checking
+//! and execution planning. Their synthetic resident-update formula is not source
+//! arithmetic; visiting it would invent boolean/numeric operations and repeat
+//! checks on the observed-prior placeholder instead of the authored operands.
 
 use super::validate_expression_call_bounds;
 use crate::declarations::symbols::TopLevelSymbols;
@@ -635,18 +639,32 @@ fn scan_expression_calls_at_position(
                 }
             }
         }
-        ExpressionNode::Atomic(atomic) => scan_expression_calls(
-            program,
-            machine,
-            state,
-            symbols,
-            writable_roots,
-            value_environment,
-            atomic.value,
-            executes,
-            boundary_operator_applications,
-            diagnostics,
-        ),
+        ExpressionNode::Atomic(_) => {
+            let Some(operands) =
+                crate::value_custody::atomic_operations::atomic_value_operands(program, expression)
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{}` has an invalid atomic operation carrier: cannot identify its evaluated operands",
+                    machine.name.as_str(),
+                    state.name.as_str(),
+                )));
+                return;
+            };
+            for operand in operands {
+                scan_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    symbols,
+                    writable_roots,
+                    value_environment,
+                    operand,
+                    executes,
+                    boundary_operator_applications,
+                    diagnostics,
+                );
+            }
+        }
         ExpressionNode::Call(call) => {
             let call = call.clone();
             if executes

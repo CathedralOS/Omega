@@ -499,13 +499,34 @@ pub(crate) fn build_checked_value_computation_plans(
                             program, reference,
                         )
                     }) {
-                        builder.record_root(
-                            pure,
-                            statement_ordinal,
-                            CheckedScalarExpressionRole::AssignmentValue,
-                            assignment.value,
-                            primitive_type,
-                        );
+                        // An atomic assignment's model is not evaluated. Its
+                        // authored inputs own ordinary computation roots, so
+                        // calls, selections and pure values share one event
+                        // operand schedule instead of a pure-only path.
+                        if let Some(carrier) =
+                            validation::atomic_assignment_carrier(program, assignment)
+                        {
+                            for (ordinal, operand) in carrier.operands.into_iter().enumerate() {
+                                let Ok(operand_ordinal) = u32::try_from(ordinal) else {
+                                    break;
+                                };
+                                builder.record_root(
+                                    pure,
+                                    statement_ordinal,
+                                    CheckedScalarExpressionRole::AtomicOperand { operand_ordinal },
+                                    operand,
+                                    primitive_type,
+                                );
+                            }
+                        } else {
+                            builder.record_root(
+                                pure,
+                                statement_ordinal,
+                                CheckedScalarExpressionRole::AssignmentValue,
+                                assignment.value,
+                                primitive_type,
+                            );
+                        }
                     }
                     if let ExpressionNode::Call(call) =
                         program.expression_table.expression(assignment.value)

@@ -28,6 +28,26 @@ pub(super) fn collect_assignment_calls(
     // makes the statement count an invocation the store already evaluates.
     let plans = &facts.values.scalar_computations;
     let selectors = validation::assignment_target_selectors(program, assignment.target);
+    let values = if let Some(carrier) = validation::atomic_assignment_carrier(program, assignment) {
+        carrier
+            .operands
+            .into_iter()
+            .enumerate()
+            .map(|(ordinal, operand)| {
+                Some((
+                    CheckedScalarExpressionRole::AtomicOperand {
+                        operand_ordinal: u32::try_from(ordinal).ok()?,
+                    },
+                    operand,
+                ))
+            })
+            .collect::<Option<Vec<_>>>()?
+    } else {
+        vec![(
+            CheckedScalarExpressionRole::AssignmentValue,
+            assignment.value,
+        )]
+    };
     let operands = selectors
         .into_iter()
         .enumerate()
@@ -39,10 +59,7 @@ pub(super) fn collect_assignment_calls(
                 expression,
             ))
         })
-        .chain(std::iter::once(Some((
-            CheckedScalarExpressionRole::AssignmentValue,
-            assignment.value,
-        ))));
+        .chain(values.into_iter().map(Some));
     for operand in operands {
         let (role, expression) = operand?;
         let Some(root) = plans.root_at(state.symbol, u32::try_from(statement_index).ok()?, role)
@@ -53,7 +70,8 @@ pub(super) fn collect_assignment_calls(
             CheckedScalarExpressionRole::AssignmentIndex { .. } => {
                 typed_trees::types::PrimitiveType::U64
             }
-            CheckedScalarExpressionRole::AssignmentValue => {
+            CheckedScalarExpressionRole::AssignmentValue
+            | CheckedScalarExpressionRole::AtomicOperand { .. } => {
                 let reference = validation::declared_place_type_raw(
                     program,
                     owner,

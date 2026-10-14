@@ -306,10 +306,28 @@ fail/arrays/borrowed_array_call_argument_wrong_extent rejected 826ms expected @a
 	argument `receipts` for state `entry` expects `&[Receipt; 2]`, got `array literal`
 fail/arrays/qualified_array_literal_rejects_element_policy_conversion rejected 811ms expected @a9ae30e1c334+wt
 	store in array literal element of type `u32` implicitly converts `u32 in Saturating` to `u32 in Wrapping` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
+fail/atomics/atomic_boolean_expected rejected 221ms expected @e460ea1df091+wt
+	machine `replace` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
+	store in machine `replace` state `entry` assignment implicitly converts `bool` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/atomics/atomic_boolean_fetch rejected 163ms expected @e460ea1df091+wt
+	machine `update` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
+fail/atomics/atomic_boolean_replacement rejected 163ms expected @e460ea1df091+wt
+	machine `replace` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
+fail/atomics/atomic_boolean_store rejected 162ms expected @e460ea1df091+wt
+	machine `update` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
+fail/atomics/atomic_boolean_swap rejected 161ms expected @e460ea1df091+wt
+	machine `update` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
 fail/atomics/atomic_compare_exchange_failure_stronger_rejected rejected 6ms expected @a9ae30e1c334+wt
 	tests/omega/fail/atomics/atomic_compare_exchange_failure_stronger_rejected/main.omg:1:1: atomic compare_exchange failure ordering `GlobalOrder` is invalid for success ordering `Receive`; failure cannot publish or be stronger than success
 fail/atomics/atomic_load_publish_ordering_rejected rejected 3ms expected @a9ae30e1c334+wt
 	tests/omega/fail/atomics/atomic_load_publish_ordering_rejected/main.omg:7:40: atomic load cannot use `Publish` ordering; use `NoOrdering`, `Receive`, or `GlobalOrder`
+fail/atomics/atomic_operand_boolean_arithmetic rejected 166ms expected @e460ea1df091+wt
+	machine `replace` state `entry` applies an operator to a boolean and a numeric value -- Omega does not coerce a boolean to a number -- compare booleans directly (`b == true`) or convert a number explicitly (`n != 0`)
+fail/atomics/atomic_operand_call_argument rejected 163ms expected @e460ea1df091+wt
+	argument `value` for state `entry` expects `bool`, got `integer literal`
+fail/atomics/atomic_operand_implicit_narrowing rejected 162ms expected @e460ea1df091+wt
+	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 fail/atomics/case_payload_non_event_write rejected 930ms expected @a9ae30e1c334+wt
 	machine `overwrite` state `entry` assignment cannot write `choice` because it is not mutable in this state (if `choice` is undeclared -- a typo -- no such field or local exists)
 fail/atomics/fence_authored_bodyless_lookalike rejected 10ms expected @b2d763407d51+wt
@@ -4580,9 +4598,12 @@ pass/atomics/runtime_atomic_after_quoted_write_exit checked 10962ms check-target
 pass/atomics/runtime_atomic_bitwise_widths_exit checked 11190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/runtime_atomic_case_field_state_exit checked 4692ms check-target:macos_arm64 @6c0183cab07b
 pass/atomics/runtime_atomic_compare_exchange_exit checked 10896ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/atomics/runtime_atomic_computed_operands_exit checked 5819ms check-target:macos_arm64 @e460ea1df091+wt
+pass/atomics/runtime_atomic_computed_updates_exit checked 5819ms check-target:macos_arm64 @e460ea1df091+wt
 pass/atomics/runtime_atomic_fence_captured_ordering_exit checked 4305ms check-target:macos_arm64 @b2d763407d51+wt
 pass/atomics/runtime_atomic_fences_exit checked 4314ms check-target:macos_arm64 @b2d763407d51+wt
 pass/atomics/runtime_atomic_fetch_add_exit checked 10884ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/atomics/runtime_atomic_operand_order_exit checked 5819ms check-target:macos_arm64 @e460ea1df091+wt
 pass/atomics/runtime_authored_fence_name_exit checked 4288ms check-target:macos_arm64 @b2d763407d51+wt
 pass/atomics/runtime_case_payload_atomic_events_exit checked 4669ms check-target:macos_arm64 @6c0183cab07b
 pass/atomics/runtime_mixed_common_atomic_cell_exit checked 10589ms check-target:macos_arm64 @a9ae30e1c334+wt

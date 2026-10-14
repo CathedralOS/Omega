@@ -120,13 +120,9 @@ fn report_float_bitwise_operator(
     true
 }
 
-/// Reject a binary operator that MIXES a text operand with a numeric/bool one:
-/// `n == s` (`n: i32`, `s: String`) and `b + s` compile and run on a meaningless
-/// comparison/combination of a number and a string pointer. Fires ONLY when one
-/// operand resolves to `Text` and the other to a resolved `Numeric`/`Boolean` --
-/// both-text (string equality / concatenation) and numeric<->bool (the 0/1
-/// coercion) are fine, and an operand that does not classify (a call result, a
-/// nested comparison) is skipped, so this never false-positives on them.
+/// Reject a binary operator mixing distinct resolved scalar classes. Computed
+/// comparisons and resolved calls retain their result class; unresolved values
+/// supply no class evidence. Boolean-to-integer conversion must be explicit.
 fn report_cross_class_binary_operands(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
@@ -141,13 +137,8 @@ fn report_cross_class_binary_operands(
     ) else {
         return false;
     };
-    // Any two DIFFERENT value classes mixed in one binary op is an implicit
-    // coercion Omega does not perform: a `bool` fed to arithmetic/comparison as its
-    // `{0, 1}` value (`self.flag + 5`, `self.flag == self.count`), or text combined
-    // with a number. Both are rejected -- write the conversion explicitly. Only a
-    // PROVABLE class on each side counts, so a comparison RESULT (value_class None,
-    // e.g. `(a == b)`) is NOT a Boolean here: `let n: i32 = (a == b)` (the intended
-    // 0/1 coercion of a comparison into a numeric slot) is untouched.
+    // The source rules apply to computed values too: representation as zero or
+    // one is not permission to feed a boolean into numeric arithmetic.
     if left_class == right_class {
         return false;
     }

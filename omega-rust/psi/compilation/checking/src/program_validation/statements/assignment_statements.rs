@@ -107,74 +107,107 @@ pub(super) fn validate<'a, 'p>(
         );
     }
     let owner = format!("machine `{}` state `{state_name}` assignment", machine.name);
-    // Cross-class scalar guard: `self.i32 = true` (a bool into a numeric
-    // field) is a soundness hole -- the backend silently stores `1` --
-    // whether the bool arrives as a literal or through a `self.bool_field`
-    // place. Reject the unambiguous cross-class cases before value-range
-    // analysis (which assumes a class-compatible RHS).
-    if let Some(target_primitive) = assignment_target_primitive {
-        expression_types::report_cross_class_store(
-            program,
-            Some(machine),
-            current_state,
-            assignment.value,
-            target_primitive,
-            &owner,
-            "place",
-            diagnostics,
-        );
-    }
-    // Nominal guard: `self.foo = self.bar` (a `Bar` value into a `Foo` place)
-    // is silently accepted -- the wrong-data-type complement of the scalar
-    // guard above.
-    if let Some(target_type) = assignment_target_type {
-        expression_types::report_data_type_conflict(
-            program,
-            machine,
-            current_state,
-            assignment.value,
-            target_type,
-            &owner,
-            "place",
-            diagnostics,
-        );
-        // Shape guard: `self.scalar = self.xs` (array into a scalar place) --
-        // caught by the backend today (a crude `NeedsMachineOwnedWrite`); this
-        // gives a clear frontend message and covers the mirror.
-        expression_types::report_array_scalar_shape_mismatch(
-            program,
-            machine,
-            current_state,
-            assignment.value,
-            target_type,
-            &owner,
-            "place",
-            diagnostics,
-        );
-        // Scalar-vs-data shape guard: `self.struct_field = 5` / `self.scalar
-        // = self.struct` (a scalar into a struct slot or the mirror), between
-        // the scalar-class and nominal gates.
-        expression_types::report_scalar_data_shape_mismatch(
-            program,
-            machine,
-            current_state,
-            assignment.value,
-            target_type,
-            &owner,
-            "place",
-            diagnostics,
-        );
-    }
-    if let Some(target_type) = assignment_target_type_raw {
-        domain_weakening::validate_implicit_domain_weakening(
-            program,
-            machine,
-            current_state,
-            assignment.value,
-            target_type,
-            &owner,
-            diagnostics,
-        );
+    // The sealed atomic event consumes its authored inputs at the cell's value
+    // type. Its generated resident-update model is neither a source value nor
+    // evidence that each input fits. Ordinary assignment has one delivered RHS;
+    // store, swap, fetch and compare-exchange use the same delivery checks below.
+    let atomic = atomic_operations::atomic_assignment_carrier(program, assignment);
+    let ordinary_value = [assignment.value];
+    let delivered_values = atomic.as_ref().map_or(ordinary_value.as_slice(), |atomic| {
+        atomic.operands.as_slice()
+    });
+    for &value in delivered_values {
+        // Cross-class scalar guard: `self.i32 = true` (a bool into a numeric
+        // field) is a soundness hole -- the backend silently stores `1` --
+        // whether the bool arrives as a literal or through a `self.bool_field`
+        // place. Reject the unambiguous cross-class cases before value-range
+        // analysis (which assumes a class-compatible RHS).
+        if let Some(target_primitive) = assignment_target_primitive {
+            expression_types::report_cross_class_store(
+                program,
+                Some(machine),
+                current_state,
+                value,
+                target_primitive,
+                &owner,
+                "place",
+                diagnostics,
+            );
+        }
+        // Nominal guard: `self.foo = self.bar` (a `Bar` value into a `Foo` place)
+        // is silently accepted -- the wrong-data-type complement of the scalar
+        // guard above.
+        if let Some(target_type) = assignment_target_type {
+            expression_types::report_data_type_conflict(
+                program,
+                machine,
+                current_state,
+                value,
+                target_type,
+                &owner,
+                "place",
+                diagnostics,
+            );
+            // Shape guard: `self.scalar = self.xs` (array into a scalar place) --
+            // caught by the backend today (a crude `NeedsMachineOwnedWrite`); this
+            // gives a clear frontend message and covers the mirror.
+            expression_types::report_array_scalar_shape_mismatch(
+                program,
+                machine,
+                current_state,
+                value,
+                target_type,
+                &owner,
+                "place",
+                diagnostics,
+            );
+            // Scalar-vs-data shape guard: `self.struct_field = 5` / `self.scalar
+            // = self.struct` (a scalar into a struct slot or the mirror), between
+            // the scalar-class and nominal gates.
+            expression_types::report_scalar_data_shape_mismatch(
+                program,
+                machine,
+                current_state,
+                value,
+                target_type,
+                &owner,
+                "place",
+                diagnostics,
+            );
+        }
+        if let Some(target_type) = assignment_target_type_raw {
+            domain_weakening::validate_implicit_domain_weakening(
+                program,
+                machine,
+                current_state,
+                value,
+                target_type,
+                &owner,
+                diagnostics,
+            );
+        }
+        if atomic.is_some()
+            && let Some(target_primitive) = assignment_target_primitive
+        {
+            arithmetic_domains::check_value_narrowing(
+                program,
+                machine,
+                current_state,
+                value,
+                target_primitive,
+                assignment_target_type_raw.map_or(
+                    numerics::arithmetic::ArithmeticDomain::Exact,
+                    |reference| {
+                        program.arithmetic_domain_for_type_reference(places::assignment_value_type(
+                            program, reference,
+                        ))
+                    },
+                ),
+                value_environment,
+                &owner,
+                diagnostics,
+            );
+        }
     }
     // Assignment operands share the executable producer's ordered evaluation.
     // Source validation owns types, access, effects and restoration debt, not

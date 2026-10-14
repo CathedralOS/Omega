@@ -19,8 +19,10 @@
 //! to be declared atomic storage. Its retained field type supplies atomic-cell
 //! identity, so shared access authorizes the event without granting ordinary
 //! shared mutation. Independent Terminal verification checks that identity.
-//! Operands are the carrier's own `AtomicOperand` scalar rows, rechecked
-//! against the decoder's operand expressions.
+//! Operands retain `AtomicOperand` roles, either as pure scalar rows or ordinary
+//! computation roots. The latter own their nested calls and ordered effects;
+//! neither the generated update model nor a separate statement call executes.
+//! Both forms bind the decoder's exact authored expression and cell value type.
 
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedUnitScalarResultBindingPlan,
@@ -160,6 +162,7 @@ pub(super) fn writing_event(
             operand_row(
                 program,
                 facts,
+                machine.symbol,
                 state,
                 statement_index,
                 u32::try_from(ordinal).ok()?,
@@ -236,22 +239,40 @@ pub(super) fn writing_event(
     })
 }
 
-/// The retained `AtomicOperand` row for one authored operand, exact for the
-/// leaf carrier.
+/// The retained `AtomicOperand` source for one authored operand, exact for the
+/// leaf carrier. The event consumes the ordinary computation when it owns
+/// calls; otherwise the bound pure row supplies the same value coordinate.
 fn operand_row(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    machine: symbols::SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: u32,
     operand_ordinal: u32,
     operand: typed_trees::expression::ExpressionHandle,
     primitive_type: PrimitiveType,
 ) -> Option<CheckedCallScalarArgument> {
-    let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
-        state.symbol,
-        statement_index,
-        CheckedScalarExpressionRole::AtomicOperand { operand_ordinal },
-    )?;
+    let role = CheckedScalarExpressionRole::AtomicOperand { operand_ordinal };
+    let computations = &facts.values.scalar_computations;
+    let mut roots = computations.roots_for_statement_role(state.symbol, statement_index, role);
+    if let Some(root) = roots.next() {
+        if roots.next().is_some()
+            || !computations.is_authored_root(root, machine, operand, primitive_type)
+            || facts
+                .values
+                .scalar_expressions
+                .expression_at(state.symbol, statement_index, role)
+                .is_some()
+        {
+            return None;
+        }
+        return Some(CheckedCallScalarArgument::Computation(root.root));
+    }
+    let (binding, value) =
+        facts
+            .values
+            .scalar_expressions
+            .bound_expression_at(state.symbol, statement_index, role)?;
     (binding.expression == operand
         && crate::values::scalar_expression_type(value) == Some(primitive_type)
         && super::structural_scalar_store::scalar_custody_is_exact(
