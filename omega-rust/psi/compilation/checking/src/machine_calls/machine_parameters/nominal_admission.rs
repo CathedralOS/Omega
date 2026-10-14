@@ -76,8 +76,8 @@ pub(super) fn validate_nominal_machine_selection(
             })
             .collect::<Vec<_>>()
     });
-    let operand_mismatch = std::cell::RefCell::new(None::<String>);
-    let arguments_match = |actual: &[typed_trees::types::TypeReferenceHandle],
+    let mut operand_mismatch = None::<String>;
+    let mut arguments_match = |actual: &[typed_trees::types::TypeReferenceHandle],
                            actual_owner: SymbolHandle,
                            bindings: &mut Vec<TypeBinding>| {
         if actual.len() != required_arguments.len() {
@@ -217,8 +217,8 @@ pub(super) fn validate_nominal_machine_selection(
                     let matches = actual
                         .zip(required)
                         .is_some_and(|(actual, required)| actual == required);
-                    if !matches && operand_mismatch.borrow().is_none() {
-                        *operand_mismatch.borrow_mut() = Some(format!(
+                    if !matches && operand_mismatch.is_none() {
+                        operand_mismatch = Some(format!(
                             "actual index/type identity {:?}, required {:?}",
                             actual.and_then(|identity| program.type_identity_text(identity)),
                             required.and_then(|identity| program.type_identity_text(identity))
@@ -330,8 +330,8 @@ pub(super) fn validate_nominal_machine_selection(
                     let matches = actual
                         .zip(required)
                         .is_some_and(|(actual, required)| actual == required);
-                    if !matches && operand_mismatch.borrow().is_none() {
-                        *operand_mismatch.borrow_mut() = Some(format!(
+                    if !matches && operand_mismatch.is_none() {
+                        operand_mismatch = Some(format!(
                             "actual index/type identity {:?}, required {:?}",
                             actual.and_then(|identity| program.type_identity_text(identity)),
                             required.and_then(|identity| program.type_identity_text(identity))
@@ -504,7 +504,7 @@ pub(super) fn validate_nominal_machine_selection(
         diagnostics.push(Diagnostic::error(format!(
             "static machine argument `{selected_name}` for nominal parameter `{}` retains {matching_rows} authored satisfaction row(s) for exact requirement `{}::{}`; exactly one is required and structural coincidence establishes none; required operands [{required_arguments}], provider [{provider_tuple}], caller [{caller_tuple}], contextual demand {}, operand mismatch {}",
             parameter.name, trait_definition.name, requirement.name, applied.is_some(),
-            operand_mismatch.into_inner().unwrap_or_else(|| "unresolved source correspondence".to_owned())
+            operand_mismatch.unwrap_or_else(|| "unresolved source correspondence".to_owned())
         )));
         return Err(());
     }
