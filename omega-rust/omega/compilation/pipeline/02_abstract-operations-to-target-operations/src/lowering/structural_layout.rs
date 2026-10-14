@@ -1482,6 +1482,7 @@ mod placed_geometry_tests {
         let accessor = StructuralTypeId::new(2).unwrap();
         let field = StructuralFieldId::new(1).unwrap();
         let accessor_declaration = StructuralTypeDeclaration {
+            quotient_carrier: None,
             id: accessor,
             identity: TerminalIdentityIndex(2),
             no_code_affine_cleanup: false,
@@ -1496,6 +1497,7 @@ mod placed_geometry_tests {
             },
         };
         let root_declaration = StructuralTypeDeclaration {
+            quotient_carrier: None,
             id: root,
             identity: TerminalIdentityIndex(1),
             no_code_affine_cleanup: false,
