@@ -2397,25 +2397,31 @@ fn transfer_return_custody(
     // were matched above; the signature never supplies an origin. Close only
     // local ancestry with actual disposal on this path, including earlier
     // replacements. Residency selects return/cleanup; identity selects ancestry.
-    let mut occurrences = custody
-        .leaves
-        .iter()
-        .map(
-            |((carrier, path), leaf)| terminal_semantics::ReferenceCompletionOccurrence {
-                identity: &leaf.identity,
-                parents: leaf.parents.iter().collect(),
-                returned: *carrier == source && owned_relative_path(path, &[]).is_some(),
-                disposed: function
-                    .structural_parameter(*carrier)
-                    .is_none_or(|parameter| parameter.access == StructuralAccess::Owned)
-                    && terminal_semantics::cleanup_disposes_reference(
-                        cleanup_actions,
-                        *carrier,
-                        path,
-                    ),
-            },
-        )
-        .collect::<Vec<_>>();
+    // Case alternatives of one carrier are one residency (validated with the
+    // custody): it is returned by any alternative and disposed only when every
+    // alternative is disposed.
+    let mut occurrences = Vec::<terminal_semantics::ReferenceCompletionOccurrence<'_, _>>::new();
+    for ((carrier, path), leaf) in &custody.leaves {
+        let returned = *carrier == source && owned_relative_path(path, &[]).is_some();
+        let disposed = function
+            .structural_parameter(*carrier)
+            .is_none_or(|parameter| parameter.access == StructuralAccess::Owned)
+            && terminal_semantics::cleanup_disposes_reference(cleanup_actions, *carrier, path);
+        if let Some(alternative) = occurrences
+            .iter_mut()
+            .find(|occurrence| *occurrence.identity == leaf.identity)
+        {
+            alternative.returned |= returned;
+            alternative.disposed &= disposed;
+            continue;
+        }
+        occurrences.push(terminal_semantics::ReferenceCompletionOccurrence {
+            identity: &leaf.identity,
+            parents: leaf.parents.iter().collect(),
+            returned,
+            disposed,
+        });
+    }
     occurrences.extend(custody.retired.values().map(|retired| {
         terminal_semantics::ReferenceCompletionOccurrence {
             identity: &retired.leaf.identity,

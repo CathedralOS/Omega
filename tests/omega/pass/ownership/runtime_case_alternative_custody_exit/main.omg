@@ -1,0 +1,75 @@
+// A consuming call returns a sum whose either case may carry the same moved
+// linear payload, so one reference occurrence is resident below both cases of
+// the received value. It is one residency with alternative layouts, not two
+// live loans: the sum crosses a return unchanged, arrives at another state
+// parameter, and is dispatched there to restore the caller's field. The
+// restored reference still reads the original backing (73).
+use omega::language::core::drop;
+
+data Token<'storage> [linear] { value: u64; reference: &'storage i32; }
+machine Token::drop(token: &mut Token<'storage>) {}
+data Holder<'storage> { guard: u64; token: Token<'storage>; }
+data Attempt<'storage> {
+    case Success(token: Token<'storage>);
+    case Failure(token: Token<'storage>);
+}
+
+machine try_transform<'storage>(token: Token<'storage>, succeed: bool) -> Attempt<'storage> {
+    transition succeed {
+        true -> success(token)
+        false -> Attempt::Failure { token: token }
+    }
+    state success(token: Token<'storage>) -> Attempt<'storage> {
+        let value: u64 = token.value;
+        let reference: &'storage i32 = token.reference;
+        drop(token);
+        Attempt::Success { token: Token {
+            value: ((value as u64 in Wrapping) + 1) as u64,
+            reference: reference
+        } }
+    }
+}
+
+machine relay<'storage>(token: Token<'storage>, succeed: bool) -> Attempt<'storage> {
+    try_transform(token, succeed)
+}
+
+machine restore<'storage>(attempt: Attempt<'storage>) -> Token<'storage> {
+    transition attempt {
+        Attempt::Success { token } -> (token)
+        Attempt::Failure { token } -> (token)
+    }
+}
+
+machine settle<'storage>(token: Token<'storage>, succeed: bool) -> Token<'storage> {
+    let attempt: Attempt<'storage> = relay(token, succeed);
+    transition { _ -> restoring(attempt) }
+    state restoring(attempt: Attempt<'storage>) -> Token<'storage> {
+        restore(attempt)
+    }
+}
+
+machine apply<'storage>(holder: &mut Holder<'storage>, succeed: bool) -> u64 {
+    let detached: Token<'storage> = holder.token;
+    holder.token = settle(detached, succeed);
+    holder.token.value
+}
+
+machine main() crashes Trap {
+    let backing: i32 = 73;
+    let mut holder: Holder = Holder {
+        guard: 19,
+        token: Token { value: 41, reference: &backing }
+    };
+    let succeeded: u64 = apply(&mut holder, true);
+    let after: i32 = holder.token.reference;
+    let guard: u64 = holder.guard;
+    let remaining: Token = holder.token;
+    drop(remaining);
+    transition succeeded == 42 && after == 73 && guard == 19 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

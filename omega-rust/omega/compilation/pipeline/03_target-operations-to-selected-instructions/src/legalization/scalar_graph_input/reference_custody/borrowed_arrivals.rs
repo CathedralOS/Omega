@@ -56,7 +56,7 @@ fn transport(
     after: &Custody,
     source: &StructuralArgument,
     locations: &BTreeMap<Identity, Identity>,
-    identities: &BTreeMap<OccurrenceIdentity, OccurrenceIdentity>,
+    identities: &BTreeMap<OccurrenceIdentity, Vec<OccurrenceIdentity>>,
     parameters: &[StructuralParameterDeclaration],
     bindings: &[AbstractStructuralBinding],
 ) -> Option<StructuralArgument> {
@@ -79,7 +79,11 @@ fn transport(
         let location = (source.place, source.path[..crossing].to_vec());
         let destination = locations.get(&location).unwrap_or(&location);
         let arrived = after.leaf(destination.0, &destination.1)?;
-        let identity = identities.get(&leaf.identity).unwrap_or(&leaf.identity);
+        let identity = if locations.contains_key(&location) {
+            OccurrenceIdentity::parameter(destination)
+        } else {
+            leaf.identity.clone()
+        };
         if locations.contains_key(&location) {
             let parameter = parameters
                 .iter()
@@ -91,11 +95,16 @@ fn transport(
         let mut parents: Vec<_> = leaf
             .parents
             .iter()
-            .map(|parent| identities.get(parent).unwrap_or(parent).clone())
+            .flat_map(|parent| {
+                identities
+                    .get(parent)
+                    .cloned()
+                    .unwrap_or_else(|| vec![parent.clone()])
+            })
             .collect();
         parents.sort();
         parents.dedup();
-        if arrived.identity != *identity
+        if arrived.identity != identity
             || arrived.root != leaf.root
             || arrived.referent != leaf.referent
             || arrived.formations != leaf.formations
@@ -129,7 +138,10 @@ pub(super) fn bind(
     if bindings.len() != parameters.len() {
         return Err(invalid());
     }
-    let mut identities = BTreeMap::new();
+    // Case alternatives of one carrier hold one occurrence, which arrives at
+    // one parameter coordinate per alternative.
+    let mut identities = BTreeMap::<_, Vec<_>>::new();
+    let mut selected = BTreeMap::new();
     let mut locations = BTreeMap::new();
     for (binding, parameter) in bindings.iter().zip(parameters) {
         if binding.argument.access != StructuralAccess::Owned
@@ -143,14 +155,17 @@ pub(super) fn bind(
             }
             if let Some(relative) = owned_relative_path(&location.1, &binding.argument.path) {
                 let destination = (parameter.place, relative.to_vec());
-                if identities
-                    .insert(
-                        leaf.identity.clone(),
-                        OccurrenceIdentity::parameter(&destination),
-                    )
-                    .is_some()
-                    || locations.insert(location.clone(), destination).is_some()
-                {
+                let repeated = selected
+                    .insert(leaf.identity.clone(), (location, leaf))
+                    .is_some_and(|(previous, previous_leaf)| {
+                        previous_leaf != leaf
+                            || !super::retirements::alternative_residency(previous, location)
+                    });
+                identities
+                    .entry(leaf.identity.clone())
+                    .or_default()
+                    .push(OccurrenceIdentity::parameter(&destination));
+                if repeated || locations.insert(location.clone(), destination).is_some() {
                     return Err(invalid());
                 }
             }

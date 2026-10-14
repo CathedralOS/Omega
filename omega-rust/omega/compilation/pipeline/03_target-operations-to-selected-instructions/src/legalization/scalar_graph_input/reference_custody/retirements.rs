@@ -4,8 +4,9 @@
 //! they connect the surviving cohort to the exact original parent occurrence.
 
 use super::{Custody, Leaf, LegalizationError, OccurrenceIdentity, OperationId, invalid};
-use semantic_vocabulary::EdgeId;
+use semantic_vocabulary::{EdgeId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::StructuralPathSegment;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum DisposalEvent {
@@ -78,9 +79,14 @@ impl Custody {
     }
 
     pub(super) fn validate_occurrences(&self) -> Result<(), LegalizationError> {
-        let mut identities = BTreeSet::new();
-        for leaf in self.leaves.values() {
-            if !identities.insert(&leaf.identity) || self.retired.contains_key(&leaf.identity) {
+        let mut identities = BTreeMap::<_, (&(PlaceId, Vec<StructuralPathSegment>), &Leaf)>::new();
+        for (location, leaf) in &self.leaves {
+            let duplicate = identities
+                .insert(&leaf.identity, (location, leaf))
+                .is_some_and(|(previous, previous_leaf)| {
+                    previous_leaf != leaf || !alternative_residency(previous, location)
+                });
+            if duplicate || self.retired.contains_key(&leaf.identity) {
                 return Err(LegalizationError::ReferenceCompletion {
                     reason: terminal_semantics::ReferenceCompletionError::DuplicateOccurrence,
                 });
@@ -91,11 +97,9 @@ impl Custody {
             .values()
             .chain(self.retired.values().map(|retired| &retired.leaf))
         {
-            if leaf
-                .parents
-                .iter()
-                .any(|parent| !identities.contains(parent) && !self.retired.contains_key(parent))
-            {
+            if leaf.parents.iter().any(|parent| {
+                !identities.contains_key(parent) && !self.retired.contains_key(parent)
+            }) {
                 return Err(LegalizationError::ReferenceCompletion {
                     reason: terminal_semantics::ReferenceCompletionError::MissingParent,
                 });
@@ -103,6 +107,30 @@ impl Custody {
         }
         Ok(())
     }
+}
+
+/// A sum carrier holds one active case, so the same occurrence resident below
+/// two different cases of one carrier is a single residency with alternative
+/// layouts, not two live loans. The leaves must agree on their whole contract.
+pub(super) fn alternative_residency(
+    left: &(PlaceId, Vec<StructuralPathSegment>),
+    right: &(PlaceId, Vec<StructuralPathSegment>),
+) -> bool {
+    left.0 == right.0
+        && left
+            .1
+            .iter()
+            .zip(&right.1)
+            .find(|(left, right)| left != right)
+            .is_some_and(|pair| {
+                matches!(
+                    pair,
+                    (
+                        StructuralPathSegment::Case(_),
+                        StructuralPathSegment::Case(_)
+                    )
+                )
+            })
 }
 
 /// Retained parent occurrences are history, not selected live values. Their

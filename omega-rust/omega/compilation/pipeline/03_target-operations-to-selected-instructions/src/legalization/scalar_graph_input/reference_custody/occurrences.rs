@@ -347,7 +347,7 @@ pub(super) fn re_home_bound_leaves(
     }
     let mut moved = Vec::new();
     let mut selected_sources = BTreeSet::new();
-    let mut selected_identities = BTreeSet::new();
+    let mut selected_identities = BTreeMap::new();
     let mut destinations = BTreeSet::new();
     for (binding, parameter) in bindings.iter().zip(parameters) {
         if parameter.access != StructuralAccess::Owned
@@ -363,9 +363,17 @@ pub(super) fn re_home_bound_leaves(
                 continue;
             };
             let destination = (parameter.place, relative.to_vec());
+            // Case alternatives of one carrier hold one occurrence; each
+            // alternative arrives at its own parameter coordinate.
+            let repeated = selected_identities
+                .insert(leaf.identity.clone(), (source.clone(), leaf.clone()))
+                .is_some_and(|(previous, previous_leaf)| {
+                    previous_leaf != *leaf
+                        || !super::retirements::alternative_residency(&previous, source)
+                });
             if leaf_referent(types, parameter.structural_type, relative) != Some(leaf.referent)
                 || !selected_sources.insert(source.clone())
-                || !selected_identities.insert(leaf.identity.clone())
+                || repeated
                 || !destinations.insert(destination.clone())
             {
                 return Err(invalid());
@@ -403,7 +411,8 @@ pub(super) fn re_home_bound_leaves(
 }
 
 /// Only live occurrences are selected. Retired keys keep their generation;
-/// their parent links follow an independently selected live ancestor.
+/// their parent links follow an independently selected live ancestor. A parent
+/// re-homed as several case alternatives links to every alternative.
 pub(super) fn remap_parents(
     custody: &mut Custody,
     identities: &[(OccurrenceIdentity, OccurrenceIdentity)],
@@ -414,12 +423,21 @@ pub(super) fn remap_parents(
             .values_mut()
             .map(|retired| &mut retired.leaf),
     ) {
-        for parent in &mut leaf.parents {
-            if let Some((_, destination)) = identities.iter().find(|(source, _)| source == parent) {
-                *parent = destination.clone();
+        let mut parents = Vec::with_capacity(leaf.parents.len());
+        for parent in &leaf.parents {
+            let len = parents.len();
+            parents.extend(
+                identities
+                    .iter()
+                    .filter(|(source, _)| source == parent)
+                    .map(|(_, destination)| destination.clone()),
+            );
+            if parents.len() == len {
+                parents.push(parent.clone());
             }
         }
-        leaf.parents.sort();
-        leaf.parents.dedup();
+        parents.sort();
+        parents.dedup();
+        leaf.parents = parents;
     }
 }
