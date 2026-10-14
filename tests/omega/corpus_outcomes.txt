@@ -1209,6 +1209,8 @@ fail/calls/affine_constructor_result_reuse rejected 1183ms expected @a9ae30e1c33
 	cannot use `item` in machine `Worker::check` state `check` (statement 2) after `item` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `item` first
 fail/calls/authored_numeric_name_requires rejected 1601ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call abs from main: 100 >= -3 && 100 <= 3 (needs fact `value >= -3 && value <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/borrowed_binding_nested_field rejected 323ms expected @8df1d091a810
+	data `Holder` field `characters` places the routed `Binding<R>` carrier outside the first direct field/owned concrete-machine-parameter rung
 fail/calls/borrowed_service_field_literal_authority rejected 266ms expected @a87ecf7b03bf
 	construction of `Loan` field `service` expects reference `&Binding<Service>`, but the source does not supply its carrier and access
 fail/calls/borrowed_service_field_wrong_contract rejected 258ms expected @a87ecf7b03bf
@@ -1388,6 +1390,8 @@ fail/calls/static_binding_additional_authority rejected 310ms expected @3ac38090
 fail/calls/static_binding_dangling_return rejected 995ms expected @3ac38090e82f
 	machine `invalid` returns a view with lifetime `'loan`, but no input borrows `'loan`; annotate the input the view comes from, e.g. `buffer: &'loan T`
 	machine `invalid` returns a view borrowing the owned input `binding`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/calls/static_binding_field_wrong_authority rejected 210ms expected @8df1d091a810
+	projected binding call target belongs to a different requirement
 fail/calls/static_binding_implicit_discard rejected 272ms expected @3ac38090e82f
 	call to `read` discards its non-unit `i32` result; consume the value or discard it explicitly with `_ = read(...);`
 fail/calls/static_binding_missing_authority rejected 54ms expected @3ac38090e82f
@@ -5090,6 +5094,7 @@ pass/borrows/qualified_byte_owner_exclusive_call_exit checked 10895ms check-targ
 pass/borrows/qualified_byte_owner_shared_call_exit checked 6413ms check-target:macos_arm64 @9dd545defbc0
 pass/borrows/qualified_record_view_call_exit checked 11199ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit checked 10923ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/reference_parameter_field_store_exit checked 15020ms check-target:macos_arm64 @8df1d091a810
 pass/borrows/retained_envelope_refs checked 9757ms @5041ef1af684+wt
 pass/borrows/returned_owned_byte_field_snapshot_exit checked 10942ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_record_byte_field_store_exit checked 11135ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5310,6 +5315,7 @@ pass/build/uefi_os_handoff_invocation rejected 9044ms check-target:uefi_x86_64 @
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity
 pass/calling/calling_count_boundaries_exit checked 7399ms check-target:macos_arm64 @a14ec34a59ab+wt
 pass/calls/ambient_receiver_scalar_return_exit checked 10883ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/borrowed_binding_field_authority_exit checked 14360ms check-target:macos_arm64 @8df1d091a810
 pass/calls/borrowed_case_dispatch_member_leaf_reads checked 11238ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/borrowed_float_argument_scalar_result_exit checked 10908ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/borrowed_float_result_exit checked 12891ms check-target:macos_arm64 @9c4d1c444502
@@ -5337,6 +5343,7 @@ pass/calls/case_payload_clone_observation_exit checked 12242ms check-target:maco
 pass/calls/case_scrutinee_param_clone_exit checked 11622ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/case_scrutinee_self_dispatch_exit checked 11715ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/completed_effectful_result_requirement_exit checked 12402ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/computed_binding_argument_exit checked 15245ms check-target:macos_arm64 @8df1d091a810
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 12619ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/constant_result_requires_argument_accepted checked 12089ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/copy_projection_from_borrowed_receiver checked 11612ms check-target:macos_arm64 @a9ae30e1c334+wt

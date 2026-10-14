@@ -1,0 +1,19 @@
+// Storing a reference parameter into a reference field copies the reference
+// carrier; it does not move the referent out of borrowed storage.
+data Token { value: i32; }
+data Holder<'loan> { reference: &'loan Token; offset: i32; }
+machine fill(first: &Token, second: &Token) -> i32 {
+    let mut holder: Holder = Holder { reference: first, offset: 0 };
+    holder.reference = second;
+    holder.offset = 1;
+    holder.reference.value
+}
+data Main { first: Token; second: Token; }
+machine Main::main(main: &mut Main) crashes Trap {
+    main.first.value = 41;
+    main.second.value = 42;
+    let result: i32 = fill(&main.first, &main.second);
+    transition result == 42 && main.first.value == 41 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

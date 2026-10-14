@@ -1,0 +1,4 @@
+// A borrowed binding still cannot nest inside an aggregate field.
+use omega::language::core::binding;
+pub boundary trait Character { machine echo(value: i32) -> i32; }
+data Holder<'loan> { characters: [&'loan Binding<Character>; 2]; }

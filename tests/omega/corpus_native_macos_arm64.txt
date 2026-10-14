@@ -201,6 +201,7 @@ pass/borrows/qualified_byte_owner_exclusive_call_exit built 1130ms exit:70 @e264
 pass/borrows/qualified_byte_owner_shared_call_exit built 6481ms exit:70 @9dd545defbc0
 pass/borrows/qualified_record_view_call_exit built 2993ms exit:70 @53d5dde47ae5
 pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit built 4968ms exit:70 @ccd480905812+wt
+pass/borrows/reference_parameter_field_store_exit built 17465ms exit:0 @8df1d091a810
 pass/borrows/retained_envelope_refs checked 9600ms @5041ef1af684+wt
 pass/borrows/returned_owned_byte_field_snapshot_exit built 1689ms exit:70 @d633d9554974+wt
 pass/borrows/returned_record_byte_field_store_exit built 1437ms exit:70 @011fd400e8c1+wt
@@ -357,6 +358,7 @@ pass/build/uefi_os_handoff_invocation rejected 12507ms @6c75d91f0312
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity
 pass/calls/ambient_receiver_scalar_return_exit built 3704ms exit:70 @48d34a64a938+wt
+pass/calls/borrowed_binding_field_authority_exit built 17213ms exit:0 @8df1d091a810
 pass/calls/borrowed_case_dispatch_member_leaf_reads built 1399ms exit:70 @48008365d839
 pass/calls/borrowed_float_argument_scalar_result_exit built 885ms exit:70 @48008365d839
 pass/calls/borrowed_float_result_exit built 3689ms exit:70 @48008365d839
@@ -382,6 +384,7 @@ pass/calls/case_arm_payload_receiver_arg built 1139ms exit:70 @bb878591d2fc+wt
 pass/calls/case_payload_clone_observation_exit built 1215ms exit:70 @bb878591d2fc+wt
 pass/calls/case_scrutinee_param_clone_exit built 1052ms exit:0 @bb878591d2fc+wt
 pass/calls/case_scrutinee_self_dispatch_exit built 2129ms exit:0 @fb2178def922
+pass/calls/computed_binding_argument_exit built 9090ms exit:0 @8df1d091a810
 pass/calls/conditional_arm_tail_call_to_machine_exit built 1360ms exit:70 @c9c108ecb4ac+wt
 pass/calls/constant_result_requires_argument_accepted built 2322ms exit:70 @bed5f45e9185+wt
 pass/calls/copy_projection_from_borrowed_receiver built 2075ms exit:70 @65bfe6bcd6c9+wt

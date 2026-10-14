@@ -1,0 +1,32 @@
+// A call in operand position lends an explicit binding exactly as a statement
+// call does: through an entry field, a forwarded parameter and a local loan.
+use omega::language::core::binding;
+
+pub boundary trait Character {
+    machine echo(value: i32) -> i32;
+}
+CharacterImplementation satisfies Character {
+    Character::echo = echo;
+}
+machine echo(value: i32) -> i32 { value }
+
+machine inner(character: &Binding<Character>, value: i32) -> i32 reaches Character {
+    Character::echo(character, value)
+}
+machine outer(character: &Binding<Character>, value: i32) -> i32 reaches Character {
+    Character::echo(character, value)
+}
+machine relay(character: &Binding<Character>) -> i32 reaches Character {
+    outer(character, inner(character, 20))
+}
+
+data Main { character: Binding<Character>; }
+machine Main::main(main: &mut Main) reaches Character crashes Trap {
+    let direct: i32 = outer(&main.character, inner(&main.character, 10));
+    let forwarded: i32 = relay(&main.character);
+    let local: &Binding<Character> = &main.character;
+    let borrowed: i32 = outer(local, inner(local, 30));
+    transition direct == 10 && forwarded == 20 && borrowed == 30 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

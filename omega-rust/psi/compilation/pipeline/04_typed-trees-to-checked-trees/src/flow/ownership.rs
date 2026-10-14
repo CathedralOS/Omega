@@ -65,20 +65,49 @@ pub(super) fn append_statement_ownership_events(
         StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             let source = FlowOwnershipEventSource::Statement { statement_index };
+            // A projected slot whose declared type is a reference stores the
+            // reference carrier a same-typed value supplies. A whole reference
+            // binding keeps its write-through destination; only a slot names
+            // reference storage of its own.
+            let stored_type = validation::expression_type_reference_in_state(
+                program,
+                state_symbol,
+                statement_index,
+                assignment.target,
+            )
+            .map(|destination| {
+                let stores_reference = validation::reference_shell(program, destination).is_some()
+                    && canonical_place_from_expression_in_state(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        assignment.target,
+                    )
+                    .is_some_and(|place| !place.segments.is_empty())
+                    && validation::expression_type_reference_in_state(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        assignment.value,
+                    )
+                    .is_some_and(|value| {
+                        program.normalized_type_identity(value)
+                            == program.normalized_type_identity(destination)
+                    });
+                if stores_reference {
+                    destination
+                } else {
+                    validation::assignment_value_type(program, destination)
+                }
+            })
+            .unwrap_or_default();
             append_move_events_for_expression(
                 program,
                 sink,
                 state_symbol,
                 statement_index,
                 assignment.value,
-                validation::expression_type_reference_in_state(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    assignment.target,
-                )
-                .map(|reference| validation::assignment_value_type(program, reference))
-                .unwrap_or_default(),
+                stored_type,
                 source,
             );
             // The assignment twin of the `let`-init owned-production seam
