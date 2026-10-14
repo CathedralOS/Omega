@@ -1182,6 +1182,7 @@ pub(super) fn apply(
                 continue;
             }
             record.references.push(StoredWriteOrigin {
+                kind: super::stored_origins::StoredOriginKind::Reference,
                 local_symbol: effect.root,
                 local_path: path(
                     program,

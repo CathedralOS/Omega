@@ -1,12 +1,10 @@
-//! Nested boundary applications as ordered computation operands.
+//! Boundary applications as ordered computation operands.
 //!
-//! A boundary call that is a statement's whole value (`let x = a * b`,
-//! `self.x = a * b`) is that statement's result operation: the unit plan binds
-//! its scalar result directly. An application nested under another operand
-//! (`a * b + c`, `a * b > c`, `sqrt(a * a)`) has no statement that can own it,
-//! so it becomes a computation node here. Its operands complete left to right
-//! through the ordinary builder, then its exact source call runs once and its
-//! scalar result feeds the enclosing operand. That keeps the authored
+//! Whole-value and nested scalar calls share one computation owner. Its
+//! authority completes first, then ordinary operands complete left to right,
+//! and the exact source call runs once. Its scalar result feeds the enclosing
+//! consumer and its authority carrier retires on normal completion.
+//! That keeps the authored
 //! evaluation schedule of `wiki/spec/language/expressions.md`: ordered,
 //! single invocation, and no invocation on a skipped short-circuit path.
 //!
@@ -21,74 +19,12 @@
 //! completion and contract requirements independently of evaluation.
 use super::call_arguments::ComputedCallOperands;
 use super::{
-    Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind,
-    CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType,
+    Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
+    ExpressionNode, PrimitiveType,
 };
 
 impl Builder<'_, '_> {
-    /// Destinations whose statement already owns a whole-value boundary call
-    /// as its result operation. Building a node there would sequence the same
-    /// occurrence twice: once by the statement and once by the computation.
-    /// A cast around the call belongs to the operand computation, including
-    /// a same-carrier policy change: the statement's direct-call route does
-    /// not own that enclosing expression. See [`Self::same_carrier_cast_value`].
-    pub(super) fn statement_owns_boundary_call(
-        &self,
-        role: CheckedScalarExpressionRole,
-        expression: ExpressionHandle,
-    ) -> bool {
-        // A transition arm owns its return through the exit computation,
-        // including a whole boundary application. Only a final expression
-        // statement has a separate statement-level result operation. Treating
-        // the Return role alone as ownership would omit the arm's only call.
-        if matches!(
-            role,
-            CheckedScalarExpressionRole::Return | CheckedScalarExpressionRole::ContinuationReturn
-        ) {
-            return validation::find_state_in_machine(self.program, self.machine, self.state)
-                .and_then(|state| {
-                    self.program
-                        .statement_table
-                        .statement_at(state, self.statement_index)
-                })
-                .is_some_and(|statement| {
-                    matches!(
-                        statement,
-                        typed_trees::statement::StatementNode::Expression(_)
-                    )
-                })
-                && self.is_bodyless_boundary_call(expression);
-        }
-        // Primitive storage and indexed primitive leaves use the same computation
-        // owner as calls nested inside their RHS. Field stores retain their
-        // statement result operation;
-        // confusing these owners either drops the call or evaluates it twice.
-        if role == CheckedScalarExpressionRole::StorageInitializer {
-            return false;
-        }
-        if role == CheckedScalarExpressionRole::AssignmentValue
-            && validation::find_state_in_machine(
-                self.program, self.machine, self.state,
-            )
-            .and_then(|state| {
-                self.program.statement_table.statement_at(state, self.statement_index)
-            })
-            .is_some_and(|statement| {
-                matches!(statement, typed_trees::statement::StatementNode::Assignment(assignment)
-                    if matches!(self.program.expression_table.expression(assignment.target),
-                        ExpressionNode::Name(_) | ExpressionNode::Indexed(_)))
-            })
-        {
-            return false;
-        }
-        matches!(
-            role,
-            CheckedScalarExpressionRole::LocalInitializer { .. }
-                | CheckedScalarExpressionRole::AssignmentValue
-        ) && self.is_bodyless_boundary_call(expression)
-    }
-
-    fn is_bodyless_boundary_call(&self, mut expression: ExpressionHandle) -> bool {
+    pub(super) fn is_bodyless_boundary_call(&self, mut expression: ExpressionHandle) -> bool {
         let call = loop {
             if !self
                 .program
@@ -136,6 +72,7 @@ impl Builder<'_, '_> {
         // a runtime value merely because early selection was deferred.
         let mut selected_call = call.clone();
         selected_call.target_symbol = authored_target;
+        let mut authority_value = checked_trees::CheckedStructuralValueHandle::invalid();
         if call.receiver.is_valid()
             && !program.call_has_no_runtime_receiver_for_target(&selected_call)
         {
@@ -158,13 +95,52 @@ impl Builder<'_, '_> {
             };
             let receiver =
                 boundary_trait_receiver_source(program, state, source, &site, owner.symbol)?;
-            if let BoundaryTraitReceiver::Parameter(source) = receiver
-                && !self
-                    .authored_parameters
-                    .iter()
-                    .any(|parameter| parameter.symbol == source)
+            if let BoundaryTraitReceiver::Parameters(sources) = receiver
+                && sources.iter().any(|source| {
+                    !self
+                        .authored_parameters
+                        .iter()
+                        .any(|parameter| parameter.symbol == *source)
+                })
             {
                 return None;
+            }
+            let machine = program.machine_by_symbol(self.machine)?;
+            let reference = validation::expression_result_type_reference(
+                program,
+                machine,
+                state,
+                call.receiver,
+            )?;
+            if validation::canonical_place_from_expression_in_state(
+                program,
+                self.state,
+                self.statement_index,
+                call.receiver,
+            )
+            .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Expression(_)))
+            {
+                authority_value = self.structural_value(call.receiver, reference)?;
+                if self
+                    .structural_values
+                    .root_for_expression(
+                        self.state,
+                        u32::try_from(self.statement_index).ok()?,
+                        call.receiver,
+                    )
+                    .is_none()
+                {
+                    self.structural_values.roots.append(
+                        checked_trees::CheckedStructuralValueRoot {
+                            machine: self.machine,
+                            state: self.state,
+                            statement_ordinal: u32::try_from(self.statement_index).ok()?,
+                            expression: call.receiver,
+                            type_reference: reference,
+                            root: authority_value,
+                        },
+                    );
+                }
             }
         }
         let operands = program
@@ -181,6 +157,7 @@ impl Builder<'_, '_> {
             validation::call_target_return_type(program, target.1)?,
             &operands,
             expected_type,
+            authority_value,
         )
     }
 
@@ -196,6 +173,7 @@ impl Builder<'_, '_> {
         return_type: typed_trees::types::TypeReferenceHandle,
         operands: &[ExpressionHandle],
         expected_type: PrimitiveType,
+        authority_value: checked_trees::CheckedStructuralValueHandle,
     ) -> Option<CheckedScalarComputationHandle> {
         // The scalar carrier is the executed payload. A policy-only cast may
         // change later arithmetic, but this call retains its own source use.
@@ -208,9 +186,23 @@ impl Builder<'_, '_> {
         let ComputedCallOperands {
             arguments,
             structural_arguments,
-            temporary_cleanups,
+            mut temporary_cleanups,
             claim_transfers,
         } = self.call_operands(source_call, operands, parameters)?;
+        if authority_value.is_valid() {
+            let mut cleanups = self
+                .plans
+                .temporary_cleanups
+                .span(temporary_cleanups)?
+                .to_vec();
+            // Reverse establishment order: authority is evaluated first and
+            // its captured carrier retires after all ordinary temporaries.
+            cleanups.push(checked_trees::CheckedScalarComputationTemporaryCleanup {
+                argument_ordinal: None,
+                actions: Default::default(),
+            });
+            temporary_cleanups = self.plans.temporary_cleanups.insert_many(cleanups);
+        }
         Some(self.insert(
             expected_type,
             CheckedScalarComputationKind::Call {
@@ -219,6 +211,7 @@ impl Builder<'_, '_> {
                 callee: checked_trees::CheckedScalarCallee::Boundary {
                     machine: target_machine,
                     state: target_state,
+                    authority_value,
                 },
                 call_ordinal,
                 arguments,

@@ -10,6 +10,10 @@
 //! private-local filtering. Exact-origin consumers likewise reject unknown
 //! sources. This replaces the local pure-tail-return exception with ordinary
 //! transfer, without treating incomplete effect summaries as complete.
+//!
+//! Opaque regions retain conservative contained-write footprints but are not
+//! reference slots. Borrowing such a region does not load its unknown contents;
+//! exact-reference capture crosses only declared reference boundaries.
 
 use super::path_instantiation::aggregate_arguments::reference_leaves;
 use super::place_paths::{
@@ -148,6 +152,7 @@ pub(super) fn retire_private_call_argument_cases(
 
 #[derive(Debug, Clone)]
 pub(super) struct StoredWriteOrigin {
+    pub kind: StoredOriginKind,
     pub local_symbol: SymbolHandle,
     pub local_path: String,
     pub local_segments: Vec<PlaceSegment>,
@@ -160,6 +165,14 @@ pub(super) struct StoredWriteOrigin {
     /// survive transport and prevent overlapping writes from being discarded
     /// as private local storage; it proves no actual referent identity.
     pub origin: Option<FramePlaceOrigin>,
+}
+
+/// A possible hidden pointer contributes a conservative write footprint, but
+/// is not a descriptor that reading a reference value may dereference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum StoredOriginKind {
+    Reference,
+    OpaqueRegion,
 }
 
 /// The type supplies a reference frontier even when value transfer cannot
@@ -331,6 +344,7 @@ pub(super) fn declaration_origins_for_query(
         };
         for origin in captured {
             origins.push(StoredWriteOrigin {
+                kind: leaf.kind,
                 local_symbol: local.symbol,
                 local_path: append_place_suffix(local.name.as_str(), &leaf.local_suffix),
                 local_segments: leaf.local_segments.clone(),

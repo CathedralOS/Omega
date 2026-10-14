@@ -1,0 +1,12 @@
+// Opaque contents remain unknown; borrowing their owner keeps its identity.
+boundary data Opaque;
+data Carrier<'loan> { value: &'loan Opaque; }
+
+machine identity<'loan>(value: &'loan Opaque) -> &'loan Opaque { value }
+machine forwarded<'loan>(value: &'loan Opaque) -> &'loan Opaque {
+    let retained: &'loan Opaque = identity(value);
+    retained
+}
+machine projected<'loan>(carrier: Carrier<'loan>) -> &'loan Opaque {
+    identity(carrier.value)
+}

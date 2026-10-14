@@ -150,7 +150,7 @@ pub(crate) fn boundary_trait_expression_call_signature<'program>(
     expression: ExpressionHandle,
 ) -> Option<&'program typed_trees::signature::StateSignature> {
     let call = program.expression_table.call_node(expression)?;
-    let receiver_members = receiver_member_chain(program, call.receiver)?;
+    let receiver_members = receiver_member_chain(program, call.receiver).unwrap_or_default();
     boundary_trait_signature_and_receiver_inner(
         program,
         current_machine,
@@ -215,6 +215,32 @@ struct BoundaryWriteSignature<'program> {
     bindings: TypeBindings,
 }
 
+/// The exact selected boundary can consume a routing authority without lending
+/// provider-object storage. Operand evaluation still contributes its own writes;
+/// only the receiver storage footprint is absent.
+pub(super) fn expression_has_authority_receiver(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(call) = program.expression_table.call_node(expression) else {
+        return false;
+    };
+    if !call.receiver.is_valid() {
+        return false;
+    }
+    let members = receiver_member_chain(program, call.receiver).unwrap_or_default();
+    boundary_trait_signature_and_receiver_inner(
+        program,
+        machine,
+        &members,
+        call.target.as_str(),
+        CallerWriteSite::Expression(expression),
+        SignatureBinders::ArgumentPinnedTypes,
+    )
+    .is_some_and(|signature| !signature.has_runtime_receiver)
+}
+
 /// Resolve a receiver head without discarding its application arguments:
 /// callers retain the original reference for exact owner substitution.
 fn boundary_receiver_type_symbol(
@@ -275,70 +301,54 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
     binders: SignatureBinders,
 ) -> Option<BoundaryWriteSignature<'program>> {
     let (receiver_symbol, target_symbol) = call_site_symbols(program, site)?;
-    let (trait_definition, has_runtime_receiver, receiver_reference) = match receiver_members {
-        [receiver] => {
-            if !receiver_symbol.is_valid() {
-                return None;
-            }
-            let (state, _, _) = caller_statement_owner(program, current_machine, site)?;
-            if let Some(parameter) = program.state_parameters(state).iter().find(|parameter| {
-                parameter.symbol == receiver_symbol && parameter.name.as_str() == receiver
-            }) {
-                let receiver_type =
-                    boundary_receiver_type_symbol(program, parameter.type_reference)?;
-                (
-                    program.trait_definition_by_symbol(receiver_type)?,
-                    true,
-                    parameter.type_reference,
-                )
-            } else {
-                // A qualified static call names the trait declaration itself;
-                // that qualifier is not reachable caller storage.
-                let mut definitions = program.traits().iter().filter(|definition| {
-                    definition.symbol == receiver_symbol && definition.name.as_str() == receiver
-                });
-                let definition = definitions.next()?;
-                if definitions.next().is_some()
-                    || program.symbols.get(receiver_symbol).kind != symbols::SymbolKind::Trait
-                    || program.symbols.name(receiver_symbol) != definition.name.as_str()
-                {
-                    return None;
-                }
-                (definition, false, TypeReferenceHandle::invalid())
-            }
+    let (state, _, before) = caller_statement_owner(program, current_machine, site)?;
+    let reference = match site {
+        CallerWriteSite::Call(call) => {
+            crate::receiver_projections::projected_statement_receiver_type_reference(
+                program, state, before, call,
+            )
         }
-        [root, receiver] if is_self_receiver(root) => {
-            let data =
-                crate::value_custody::places::machine_attached_data(program, current_machine)?;
-            let mut fields = program
-                .data_members(data)
-                .iter()
-                .filter_map(|member| match member {
-                    DataMember::Field(field) if field.name.as_str() == receiver => Some(field),
-                    _ => None,
-                });
-            let field = fields.next()?;
-            if fields.next().is_some() {
-                return None;
-            }
-            let receiver_type = boundary_receiver_type_symbol(program, field.type_reference)?;
-            let definition = program.trait_definition_by_symbol(receiver_type)?;
-            (definition, true, field.type_reference)
-        }
-        [_, _, ..] => {
-            let reference = parameter_boundary_receiver_type(
+        CallerWriteSite::Expression(expression) => {
+            let call = program.expression_table.call_node(expression)?;
+            crate::receiver_projections::expression(
                 program,
-                current_machine,
-                receiver_members,
-                receiver_symbol,
-                site,
-            )?;
-            let receiver_type = boundary_receiver_type_symbol(program, reference)?;
-            let definition = program.trait_definition_by_symbol(receiver_type)?;
-            (definition, true, reference)
+                state,
+                before,
+                call.receiver,
+                &mut Vec::new(),
+            )
+            .ok()?
+            .map(|projection| projection.type_reference)
+            .or_else(|| {
+                crate::declared_place_type_raw(program, current_machine, Some(state), call.receiver)
+            })
         }
-        _ => return None,
+        CallerWriteSite::Transition(_) => parameter_boundary_receiver_type(
+            program,
+            current_machine,
+            receiver_members,
+            receiver_symbol,
+            site,
+        ),
+        CallerWriteSite::Statement(_) => None,
     };
+    let (trait_definition, has_runtime_receiver, receiver_reference) =
+        if let Some(reference) = reference {
+            let receiver_type = boundary_receiver_type_symbol(program, reference)?;
+            (
+                program.trait_definition_by_symbol(receiver_type)?,
+                true,
+                reference,
+            )
+        } else {
+            // Only an exact declaration identity supplies a namespace. Runtime
+            // roots are rejoined above through their complete scoped projection.
+            (
+                program.trait_definition_by_symbol(receiver_symbol)?,
+                false,
+                TypeReferenceHandle::invalid(),
+            )
+        };
     if !trait_definition.is_boundary {
         return None;
     }

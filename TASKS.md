@@ -5041,9 +5041,11 @@ wait for Cathedral's instruction coverage. The interpreter is
   to actual arrival and scoped providers through ordinary program-entry,
   calling, installed-root and provider contracts.
   Consume the landed exact entry schema selection identity here.
-  Needs a source customer and a firmware or controlled-provider execution
-  harness. Repair general capabilities in their owners; no firmware-protocol
-  intrinsics.
+  Cathedral's `source/kernel/boot/uefi` is the source customer;
+  `tools/boot-harness/run.py` there builds a fresh image and checks the greeting
+  followed by the owned-memory report under QEMU/OVMF. Its ordinary boot
+  machine is not yet connected to this physical-to-semantic adapter. Repair
+  general capabilities in their owners; no firmware-protocol intrinsics.
 
   Acceptance: authored integrity/projections/calls lead from physical arrival
   to the selected continuation, establishing image and initial-storage roots

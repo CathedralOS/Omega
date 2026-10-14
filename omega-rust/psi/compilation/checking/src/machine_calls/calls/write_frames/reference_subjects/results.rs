@@ -79,7 +79,8 @@ pub(super) fn call_origins(
         .into_iter()
         .map(|leaf| {
             let origin = leaf.origin?;
-            (leaf.local_segments.is_empty()
+            (leaf.kind == stored_origins::StoredOriginKind::Reference
+                && leaf.local_segments.is_empty()
                 && leaf.local_suffix.is_empty()
                 && origin.precision == FramePathPrecision::Exact
                 && origin.source.root.is_valid())

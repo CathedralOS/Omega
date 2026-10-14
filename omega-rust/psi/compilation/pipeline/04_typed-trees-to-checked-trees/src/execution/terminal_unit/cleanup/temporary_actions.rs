@@ -207,13 +207,19 @@ pub(crate) fn finalize_scalar_actions(
         let plans = &facts.values.scalar_computations;
         let mut replacements = Vec::new();
         for (_, node) in plans.nodes.iter() {
-            let (source_call, operands, retained) = match node.kind {
+            let (source_call, operands, retained, authority) = match node.kind {
                 checked_trees::CheckedScalarComputationKind::Call {
                     source_call,
                     structural_arguments,
                     temporary_cleanups,
+                    ref callee,
                     ..
-                } => (source_call, structural_arguments, temporary_cleanups),
+                } => (
+                    source_call,
+                    structural_arguments,
+                    temporary_cleanups,
+                    callee.authority_value(),
+                ),
                 _ => continue,
             };
             if retained.is_empty() {
@@ -243,9 +249,22 @@ pub(crate) fn finalize_scalar_actions(
                         .checked_add(u32::try_from(row_position).ok()?)?,
                     retained.start().generation(),
                 );
-                let argument = operands.get(row.argument_ordinal as usize)?.as_place()?;
+                let source = match row.argument_ordinal {
+                    Some(ordinal) => operands.get(ordinal as usize)?.as_place()?.source.clone(),
+                    None if facts.values.structural_values.nodes.is_valid(authority) => {
+                        CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                            expression: facts
+                                .values
+                                .structural_values
+                                .nodes
+                                .get(authority)
+                                .expression,
+                        }
+                    }
+                    None => return None,
+                };
                 let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
-                    argument.source
+                    source
                 else {
                     return None;
                 };
@@ -260,7 +279,7 @@ pub(crate) fn finalize_scalar_actions(
                         state_flow.state_symbol,
                         coordinate,
                         facts::PlaceRoot::Expression(expression),
-                        argument.source.clone(),
+                        source,
                     )?,
                 ));
             }

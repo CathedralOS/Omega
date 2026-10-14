@@ -283,14 +283,8 @@ fn complete_expression_tree(
             return false;
         };
         let arguments = program.expression_table.expression_handles(call.arguments);
-        let Some((receiver_members, receiver_origins, receiver_data_name)) =
-            super::receiver_frame_origins(
-                program,
-                current_machine,
-                call.receiver,
-                symbols,
-                inference,
-            )
+        let Some((receiver_members, receiver_origins, receiver_data_name, authority_receiver)) =
+            super::receiver_frame_origins(program, current_machine, expression, symbols, inference)
         else {
             return false;
         };
@@ -347,7 +341,10 @@ fn complete_expression_tree(
             None,
         )
         .or_else(|| {
-            if call.receiver.is_valid() && receiver_member_chain(program, call.receiver).is_none() {
+            if call.receiver.is_valid()
+                && !authority_receiver
+                && receiver_member_chain(program, call.receiver).is_none()
+            {
                 return None;
             }
             known_boundary_call_written_paths_for_parts(
@@ -369,6 +366,7 @@ fn complete_expression_tree(
                 .then(|| receiver_origins.first())
                 .flatten();
             if call.receiver.is_valid()
+                && !authority_receiver
                 && receiver_member_chain(program, call.receiver).is_none()
                 && single_receiver_origin.is_none()
             {

@@ -235,7 +235,8 @@ fn same_relation(left: Option<&AggregateOrigins>, right: Option<&AggregateOrigin
         && left.moves.len() == right.moves.len()
         && left.references.iter().all(|leaf| {
             right.references.iter().any(|other| {
-                leaf.local_suffix == other.local_suffix
+                leaf.kind == other.kind
+                    && leaf.local_suffix == other.local_suffix
                     && leaf.local_segments == other.local_segments
                     && leaf.may_select == other.may_select
                     && leaf.origin == other.origin
@@ -254,7 +255,8 @@ fn same_relation(left: Option<&AggregateOrigins>, right: Option<&AggregateOrigin
 fn append_new(held: &mut AggregateOrigins, incoming: AggregateOrigins) {
     for leaf in incoming.references {
         if !held.references.iter().any(|prior| {
-            prior.local_suffix == leaf.local_suffix
+            prior.kind == leaf.kind
+                && prior.local_suffix == leaf.local_suffix
                 && prior.local_segments == leaf.local_segments
                 && prior.may_select == leaf.may_select
                 && prior.origin == leaf.origin
@@ -348,6 +350,7 @@ fn finite_substitutions(
                     {
                         AggregateOrigins {
                             references: vec![ReferenceLeaf {
+                                kind: super::super::stored_origins::StoredOriginKind::Reference,
                                 local_suffix: String::new(),
                                 local_segments: Vec::new(),
                                 may_select: false,
@@ -372,6 +375,7 @@ fn finite_substitutions(
                                 .references
                                 .into_iter()
                                 .map(|leaf| ReferenceLeaf {
+                                    kind: leaf.kind,
                                     local_suffix: leaf.local_path,
                                     local_segments: leaf.local_segments,
                                     may_select: leaf.may_select,

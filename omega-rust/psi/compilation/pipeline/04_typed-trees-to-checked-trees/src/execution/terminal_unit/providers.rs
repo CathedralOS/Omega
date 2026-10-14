@@ -9,7 +9,7 @@ use super::{
 use crate::execution::terminal_unit::types::ShapeCollector;
 
 use crate::execution::terminal_unit::calls::{
-    parameter_binding_receiver_source, provider_attachment_receiver_matches,
+    parameter_binding_receiver_sources, provider_attachment_receiver_matches,
 };
 
 pub(super) fn checked_provider_attachment_requirements(
@@ -180,6 +180,16 @@ pub(super) fn checked_provider_attachment_requirements(
             crate::execution::terminal_unit::calls::provider_attachment_receiver_field(
                 program, &call_site,
             );
+        let parameter_sources = parameter_binding_receiver_sources(
+            program,
+            state,
+            call.statement_index,
+            &call_site,
+            candidates.first()?.2.symbol,
+        );
+        let mut covered_sources = parameter_sources
+            .as_ref()
+            .map(|sources| vec![false; sources.len()]);
         let mut claimed = false;
         for (field, provider_type_identity, provider, _) in candidates {
             let attached_receiver = receiver_field.as_ref().map(|name| name.as_str())
@@ -193,34 +203,50 @@ pub(super) fn checked_provider_attachment_requirements(
             // Provider roots bind attachment type + exact used field + boundary,
             // not the spelling `self`. The ordinary parameter must have that
             // same nominal carrier and project exactly its declared direct field.
-            let parameter_receiver = parameter_binding_receiver_source(
-                program, state, call.statement_index, &call_site, provider.symbol,
-            ).is_some_and(|(source, place)| {
-                let Some(reference) = validation::unwrapped_type_reference(program, source.type_reference) else {
-                    return false;
-                };
-                if program.normalized_type_identity(reference) != attachment_type_identity
-                    || program.closed_data_definition(reference).is_none_or(|owner| owner.symbol != attached.symbol)
-                {
-                    return false;
-                }
-                // Ordinary per-state plans supply their retained roster here.
-                // Composed collection has no roster; its already-planned call
-                // independently checked the same source parameter position.
-                if !structural_parameters.is_empty() && !structural_parameters.iter().any(|parameter| {
-                    parameter.type_identity == attachment_type_identity
-                        && program.state_parameters(state).get(parameter.position as usize)
-                            .is_some_and(|parameter| parameter.symbol == source.symbol)
-                }) {
-                    return false;
-                }
-                let [facts::PlaceSegment::Field { symbol }] = place.segments.as_slice() else {
-                    return false;
-                };
-                program.data_members(attached).iter().any(|member| matches!(member,
+            let mut parameter_receiver = false;
+            if let Some(sources) = &parameter_sources {
+                for (index, (source, place)) in sources.iter().enumerate() {
+                    let matches = (|| {
+                        let Some(reference) =
+                            validation::unwrapped_type_reference(program, source.type_reference)
+                        else {
+                            return false;
+                        };
+                        if program.normalized_type_identity(reference) != attachment_type_identity
+                            || program
+                                .closed_data_definition(reference)
+                                .is_none_or(|owner| owner.symbol != attached.symbol)
+                        {
+                            return false;
+                        }
+                        // Ordinary per-state plans supply their retained roster here.
+                        // Composed collection has no roster; its already-planned call
+                        // independently checked the same source parameter position.
+                        if !structural_parameters.is_empty()
+                            && !structural_parameters.iter().any(|parameter| {
+                                parameter.type_identity == attachment_type_identity
+                                    && program
+                                        .state_parameters(state)
+                                        .get(parameter.position as usize)
+                                        .is_some_and(|parameter| parameter.symbol == source.symbol)
+                            })
+                        {
+                            return false;
+                        }
+                        let [facts::PlaceSegment::Field { symbol }] = place.segments.as_slice()
+                        else {
+                            return false;
+                        };
+                        program.data_members(attached).iter().any(|member| matches!(member,
                     DataMember::Field(source_field) if source_field.symbol == *symbol
                         && source_field.name.as_str() == field.identity.spelling() && !source_field.relevance.is_erased()))
-            });
+                    })();
+                    if matches {
+                        covered_sources.as_mut()?[index] = true;
+                        parameter_receiver = true;
+                    }
+                }
+            }
             if !attached_receiver && !parameter_receiver {
                 continue;
             }
@@ -236,9 +262,10 @@ pub(super) fn checked_provider_attachment_requirements(
                 boundary: call.target_symbol,
             });
             claimed = true;
-            break;
         }
-        if !claimed {
+        // Every possible authority origin must have an attachment route. One
+        // matching branch cannot authorize another uncovered input carrier.
+        if !claimed || covered_sources.is_some_and(|sources| sources.contains(&false)) {
             return None;
         }
     }

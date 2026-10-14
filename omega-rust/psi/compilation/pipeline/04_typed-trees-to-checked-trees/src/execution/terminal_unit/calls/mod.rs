@@ -92,8 +92,9 @@ pub(crate) use argument_paths::{
     projected_selected_path,
 };
 pub(crate) use boundary_admission::{
-    BoundaryTraitReceiver, boundary_trait_receiver_source, parameter_binding_receiver_source,
-    provider_attachment_receiver_field, provider_attachment_receiver_matches,
+    BoundaryTraitReceiver, boundary_authority_refusal, boundary_trait_receiver_source,
+    parameter_binding_receiver_sources, provider_attachment_receiver_field,
+    provider_attachment_receiver_matches,
 };
 pub(in crate::execution) use call_operations::ExpectedCallValueResult;
 pub(in crate::execution) use call_operations::build_call_operation;

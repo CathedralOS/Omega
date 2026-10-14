@@ -497,6 +497,7 @@ pub(super) fn reference_result_relation(
         references: origins
             .into_iter()
             .map(|origin| ReferenceLeaf {
+                kind: super::stored_origins::StoredOriginKind::Reference,
                 local_suffix: String::new(),
                 local_segments: Vec::new(),
                 may_select: false,
@@ -566,13 +567,15 @@ fn merge_relative_origins(
                 )?;
             }
             let leaf = ReferenceLeaf {
+                kind: leaf.kind,
                 local_suffix: leaf.local_suffix.clone(),
                 local_segments: leaf.local_segments.clone(),
                 may_select: leaf.may_select,
                 origin,
             };
             if !relative.references.iter().any(|existing| {
-                existing.local_suffix == leaf.local_suffix
+                existing.kind == leaf.kind
+                    && existing.local_suffix == leaf.local_suffix
                     && existing.local_segments == leaf.local_segments
                     && existing.may_select == leaf.may_select
                     && existing.origin == leaf.origin
@@ -895,6 +898,7 @@ fn instantiate_result_origins(
             resolve_origins,
         )? {
             returned.references.push(ReferenceLeaf {
+                kind: leaf.kind,
                 local_suffix: leaf.local_suffix.clone(),
                 local_segments: leaf.local_segments.clone(),
                 may_select: leaf.may_select,

@@ -59,7 +59,9 @@ impl CheckedScalarComputationStructuralArgument {
 /// subtree or invokes its checked nominal hook; their order stays intact.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedScalarComputationTemporaryCleanup {
-    pub argument_ordinal: u32,
+    /// None selects the call's authority value; Some selects an ordinary
+    /// structural formal. Authority never consumes a formal position.
+    pub argument_ordinal: Option<u32>,
     pub actions: HandleSpan<crate::CheckedNormalCleanupAction>,
 }
 
@@ -360,6 +362,9 @@ pub enum CheckedScalarCallee {
     Boundary {
         machine: SymbolHandle,
         state: SymbolHandle,
+        /// Evaluated call authority, separate from the requirement's formal
+        /// arguments. Its value completes before every ordinary operand.
+        authority_value: super::structural_values::CheckedStructuralValueHandle,
     },
     /// A requirement invoked through a runtime implementation selector
     /// (`Trait::member(selector, data...)`). `selector` is evaluated before
@@ -378,11 +383,20 @@ pub enum CheckedScalarCallee {
 }
 
 impl CheckedScalarCallee {
+    pub fn authority_value(&self) -> super::structural_values::CheckedStructuralValueHandle {
+        match self {
+            Self::Boundary {
+                authority_value, ..
+            } => *authority_value,
+            Self::Body { .. } | Self::Dynamic { .. } => Default::default(),
+        }
+    }
+
     /// The statically named machine and state of a body or boundary callee.
     /// A dynamic callee selects its executable at runtime and names none.
     pub fn static_target(&self) -> Option<(SymbolHandle, SymbolHandle)> {
         match self {
-            Self::Body { machine, state } | Self::Boundary { machine, state } => {
+            Self::Body { machine, state } | Self::Boundary { machine, state, .. } => {
                 Some((*machine, *state))
             }
             Self::Dynamic { .. } => None,

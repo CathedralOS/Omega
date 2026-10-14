@@ -54,7 +54,7 @@ pub(super) fn lower(
             }
             if matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }) {
                     let slot = produced_values.iter().find(|slot| {
-                        slot.source_call == source_call && slot.argument_ordinal == argument_ordinal
+                        slot.source_call == source_call && slot.argument_ordinal == Some(argument_ordinal)
                     }).ok_or(LoweringError::Unsupported(
                         "computed value has no reserved argument home",
                     ))?;

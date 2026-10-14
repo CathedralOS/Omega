@@ -61,6 +61,7 @@ pub(super) fn written_paths(
 /// aggregate declarations. Only the string view coarsens array selectors.
 #[derive(Clone)]
 pub(in crate::machine_calls::calls::write_frames) struct ReferenceLeaf {
+    pub kind: super::super::stored_origins::StoredOriginKind,
     pub local_suffix: String,
     pub local_segments: Vec<PlaceSegment>,
     pub may_select: bool,
@@ -275,6 +276,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                 .flatten();
                 let Some(origins) = origins else {
                     leaves.references.push(ReferenceLeaf {
+                        kind: super::super::stored_origins::StoredOriginKind::Reference,
                         local_suffix,
                         local_segments,
                         may_select: false,
@@ -288,6 +290,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                         FramePathPrecision::CollectionCoarse => origin.path,
                     };
                     leaves.references.push(ReferenceLeaf {
+                        kind: super::super::stored_origins::StoredOriginKind::Reference,
                         local_suffix: local_suffix.clone(),
                         local_segments: local_segments.clone(),
                         may_select: false,

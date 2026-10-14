@@ -1,0 +1,38 @@
+// Expected exit: 0.
+use omega::language::core::binding;
+
+pub boundary trait Character {
+    machine echo(value: i32) -> i32;
+    machine store(output: &mut i32, value: i32);
+}
+CharacterImplementation satisfies Character {
+    Character::echo = echo;
+    Character::store = store;
+}
+machine echo(value: i32) -> i32 { value }
+machine store(output: &mut i32, value: i32) { output = value; }
+
+data Main { character: Binding<Character>; value: i32; phase: i32; }
+
+machine letter() -> i32 { 65 }
+machine write(character: &Binding<Character>, output: &mut i32) reaches Character {
+    Character::store(character, output, letter());
+}
+machine authority<'loan>(character: &'loan Binding<Character>, phase: &mut i32) -> &'loan Binding<Character> {
+    phase = 1;
+    character
+}
+machine ordinary_argument(phase: &mut i32) -> i32 {
+    let previous: i32 = phase;
+    phase = 2;
+    transition previous == 1 { true -> 65 _ -> 0 }
+}
+machine Main::main(context: &mut Main) reaches Character crashes Trap {
+    write(&context.character, &mut context.value);
+    let value: i32 = Character::echo(authority(&context.character, &mut context.phase), ordinary_argument(&mut context.phase));
+    let nested: i32 = Character::echo(&context.character, Character::echo(&context.character, context.value));
+    _ = Character::echo(&context.character, value);
+    transition value == 65 && nested == 65 && context.phase == 2 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

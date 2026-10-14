@@ -61,27 +61,42 @@ pub(super) fn retained_receiver_projection<'name>(
 /// computed origin is storage evidence, not authority for lookup by name.
 ///
 /// A receiver carrying a finite divergent candidate set keeps every proven
-/// route: the callee's `self`-relative writes instantiate under each base and
+/// route: the callee's receiver-relative writes instantiate under each base and
 /// union, and one unproven route fails the whole frame closed. A divergent
 /// receiver has no single member-chain spelling, so its member path is empty;
 /// its referent data name is the only remaining callee selector, so it is
 /// returned beside the candidates — a resolved attached machine still names
 /// the one execution the call can take.
+/// Boundary authority is not provider-object storage. Its operand is still
+/// traversed for effects, but contributes no receiver-relative write base.
 pub(super) fn receiver_frame_origins(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,
-    receiver: ExpressionHandle,
+    expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-) -> Option<(Vec<String>, Vec<FramePlaceOrigin>, Option<String>)> {
+) -> Option<(Vec<String>, Vec<FramePlaceOrigin>, Option<String>, bool)> {
+    let receiver = program.expression_table.call_node(expression)?.receiver;
     if !receiver.is_valid() {
-        return Some((Vec::new(), Vec::new(), None));
+        return Some((Vec::new(), Vec::new(), None, false));
+    }
+    if super::boundary_calls::expression_has_authority_receiver(
+        program,
+        current_machine,
+        expression,
+    ) {
+        return Some((
+            super::receiver_member_chain(program, receiver).unwrap_or_default(),
+            Vec::new(),
+            None,
+            true,
+        ));
     }
     if let Some(origin) = frame_place_path(program, receiver)
         .or_else(|| owned_receiver_origin(program, current_machine, receiver, symbols, inference))
     {
         let members = origin.path.split('.').map(str::to_owned).collect();
-        return Some((members, vec![origin], None));
+        return Some((members, vec![origin], None, false));
     }
     match program.expression_table.expression(receiver) {
         ExpressionNode::Call(_) | ExpressionNode::Match(_) => {
@@ -99,6 +114,7 @@ pub(super) fn receiver_frame_origins(
                 Vec::new(),
                 origins,
                 receiver_referee_name(program, current_machine, receiver),
+                false,
             ))
         }
         _ => None,

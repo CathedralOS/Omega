@@ -379,6 +379,16 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         if outer.iter().any(|prior: &&checked_trees::FlowCallFact| {
             prior.statement_index == call.statement_index
         }) {
+            for unclaimed in outer.iter().copied().chain(std::iter::once(call)) {
+                if let Some(reason) =
+                    crate::execution::terminal_unit::calls::boundary_authority_refusal(
+                        program, machine, state, unclaimed,
+                    )
+                {
+                    trace.phase(reason);
+                    break;
+                }
+            }
             return None;
         }
         outer.push(call);

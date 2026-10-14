@@ -196,6 +196,10 @@ impl TypeReferenceOwner<'_> {
             } | Self::StateLocalData {
                 generic_depth: 0,
                 ..
+            } | Self::StateReturn {
+                owner: StateSignatureOwner::Machine(_),
+                generic_depth: 0,
+                ..
             }
         )
     }
@@ -498,7 +502,7 @@ pub(crate) fn validate_type_reference_handle(
 /// type shell. Concrete-machine parameters may own or borrow one exact
 /// carrier. Borrowing preserves its identity; it does not establish another
 /// binding. Borrowed locals retain the same existing loan. Aggregate/generic
-/// nesting, reference fields, owned locals, returns,
+/// nesting, reference fields, owned locals, owned returns,
 /// traits, requirements, and operators retain their implementation fences.
 fn validate_routed_service_carrier_placement(
     program: &dyn crate::CheckingInput,

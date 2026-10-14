@@ -483,20 +483,25 @@ pub(super) fn build(
     if if let Some((_, qualifier)) = selected_realization {
         call.has_receiver && call.receiver_symbol != qualifier
     } else if matches!(requirement, BoundaryRequirement::Trait { .. }) {
+        let receiver = boundary_trait_receiver_source(program, state, call, call_site, owner);
+        if receiver.is_none()
+            && let Some(reason) =
+                super::boundary_authority_refusal(program, machine.symbol, state, call)
+        {
+            phase(reason);
+        }
         !call.has_receiver
-            || boundary_trait_receiver_source(program, state, call, call_site, owner).is_none_or(
-                |receiver| match receiver {
-                    BoundaryTraitReceiver::Parameter(source) => {
-                        !caller_parameters.iter().any(|parameter| {
-                            program
-                                .state_parameters(state)
-                                .get(parameter.position as usize)
-                                .is_some_and(|parameter| parameter.symbol == source)
-                        })
-                    }
-                    BoundaryTraitReceiver::Namespace => false,
-                },
-            )
+            || receiver.is_none_or(|receiver| match receiver {
+                BoundaryTraitReceiver::Parameters(sources) => sources.iter().any(|source| {
+                    !caller_parameters.iter().any(|parameter| {
+                        program
+                            .state_parameters(state)
+                            .get(parameter.position as usize)
+                            .is_some_and(|parameter| parameter.symbol == *source)
+                    })
+                }),
+                BoundaryTraitReceiver::Namespace => false,
+            })
     } else {
         false
     } {

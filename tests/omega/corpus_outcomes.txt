@@ -742,6 +742,8 @@ fail/borrows/nested_result_retains_operand_loan rejected 1582ms expected @a9ae30
 	state `observe` receives `value` as mutable more than once
 fail/borrows/nested_retained_mutable_loan_shared_argument rejected 5381ms expected @a9ae30e1c334+wt
 	state `observe_hold` receives `counter` as both mutable and read-only
+fail/borrows/opaque_reference_wrong_input_return rejected 1029ms expected @3ac38090e82f
+	machine `wrong` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
 fail/borrows/opaque_sibling_stored_view_local_escape rejected 1550ms expected @a9ae30e1c334+wt
 	machine `replace` stores a borrowed value without a complete normal-exit backing relation
 fail/borrows/owned_input_reference_escape rejected 1771ms expected @a9ae30e1c334+wt
@@ -1337,6 +1339,23 @@ fail/calls/state_arrival_call_result_above_bound rejected 421ms expected @a0a35c
 	cannot prove requires contract for call visit from main: index <= 3 (needs fact `index <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/statement_call_undeclared_callee_rejected rejected 829ms expected @a9ae30e1c334+wt
 	machine `main` cannot resolve ordinary call `no_such_leg` to a machine entry or requirement
+fail/calls/static_binding_additional_authority rejected 310ms expected @3ac38090e82f
+	state `read` expects 0 argument(s), got 1
+fail/calls/static_binding_dangling_return rejected 995ms expected @3ac38090e82f
+	machine `invalid` returns a view with lifetime `'loan`, but no input borrows `'loan`; annotate the input the view comes from, e.g. `buffer: &'loan T`
+	machine `invalid` returns a view borrowing the owned input `binding`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/calls/static_binding_implicit_discard rejected 272ms expected @3ac38090e82f
+	call to `read` discards its non-unit `i32` result; consume the value or discard it explicitly with `_ = read(...);`
+fail/calls/static_binding_missing_authority rejected 54ms expected @3ac38090e82f
+	a boundary call requires an explicit shared `&Binding<R>` authority argument
+fail/calls/static_binding_mutable_authority rejected 52ms expected @3ac38090e82f
+	a boundary call requires a shared `&Binding<R>` authority argument
+fail/calls/static_binding_owned_authority rejected 51ms expected @3ac38090e82f
+	a boundary call requires a shared `&Binding<R>` authority argument
+fail/calls/static_binding_owned_return rejected 263ms expected @3ac38090e82f
+	machine `invalid` state `entry` return type places the routed `Binding<R>` carrier outside the first direct field/owned concrete-machine-parameter rung
+fail/calls/static_binding_wrong_authority rejected 51ms expected @3ac38090e82f
+	projected binding call target belongs to a different requirement
 fail/calls/static_tail_local_custody_no_decrease rejected 1528ms expected @a9ae30e1c334+wt
 	machine call cycle: `Counter::even`, `Counter::odd` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 	cannot prove requires contract for call take from Main::main: constructor:79:package:0101010101010101010101010101010101010101010101010101010101010101::Point6:record13:common:name:x1:113:common:name:y1:0 == Point.zero() (needs fact `p == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
@@ -4789,6 +4808,7 @@ pass/borrows/mutable_reference_match_local checked 10255ms check-target:macos_ar
 pass/borrows/nested_reference_byte_observations_exit checked 11122ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/nested_reference_crossings_exit checked 11202ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/nested_reference_leaf_projection_exit checked 11053ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/opaque_reference_identity checked 2840ms @3ac38090e82f
 pass/borrows/owned_byte_value_call_exit checked 11067ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/owned_nested_record_copy_exit checked 11044ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/owner_byte_read_during_shared_record_loan_exit checked 11145ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5263,6 +5283,7 @@ pass/calls/state_and_machine_names_exit checked 12329ms check-target:macos_arm64
 pass/calls/state_graph_callee_forwards_mut_parameter_exit checked 12332ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/statement_call_recursive_overload_compile checked 2608ms @a9ae30e1c334+wt
 pass/calls/static_arithmetic_name_callback_exit checked 20086ms check-target:macos_arm64 @1f63ee648905+wt
+pass/calls/static_binding_authority checked 2799ms @3ac38090e82f
 pass/calls/static_context_forwarded_through_state_arms_exit checked 12504ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/static_context_forwarded_twice_exit checked 11766ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/static_state_context_field_window_exit checked 41845ms check-target:macos_arm64 @1f63ee648905+wt
@@ -7750,6 +7771,7 @@ run/calls/outcome_specific_selected_guarantee_exit rejected 11486ms check-target
 run/calls/resultless_scalar_parameters checked 11475ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/calls/runtime_float_distinct_operand_calls_exit checked 11431ms check-target:macos_arm64 @1f63ee648905+wt
 run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 11428ms check-target:macos_arm64 @1f63ee648905+wt
+run/calls/static_binding_authority checked 8787ms check-target:macos_arm64 @3ac38090e82f
 run/calls/table_report_call_survival checked 5492ms check-target:macos_arm64 @589aedee8ebc+wt
 run/contained_health_loop_command_branch checked 1918ms @a9ae30e1c334+wt
 run/contracts/captured_bound_unused_mutation checked 5150ms check-target:macos_arm64 @7e164e32caf5+wt

@@ -297,6 +297,13 @@ fn collect_reachable_nodes(
                 structural_arguments,
                 ..
             } => {
+                let authority = callee.authority_value();
+                if authority.is_valid() {
+                    if !structural_roots.contains(&authority) {
+                        structural_roots.push(authority);
+                    }
+                    pending.extend(structural_dependencies(checked, authority)?.scalars);
+                }
                 let structural_arguments = plans
                     .structural_arguments
                     .span(*structural_arguments)

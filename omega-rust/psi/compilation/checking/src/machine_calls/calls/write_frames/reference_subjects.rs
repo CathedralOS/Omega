@@ -172,6 +172,38 @@ fn reference_value_replaces_binding(
     })
 }
 
+pub(super) fn expression_origins_before_statement(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    before: &StatementNode,
+    expression: ExpressionHandle,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
+) -> Option<Vec<FrameSourcePlace>> {
+    let (state, _, index) = caller_aliases::caller_statement_owner(
+        program,
+        machine,
+        caller_aliases::CallerWriteSite::Statement(before),
+    )?;
+    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
+    let origins = value_origins(
+        program,
+        machine,
+        expression,
+        symbols,
+        &mut FrameInference::default(),
+        &prefix.aliases,
+        &prefix.stored,
+        true,
+    )?;
+    origins
+        .into_iter()
+        .map(|origin| (origin.precision == FramePathPrecision::Exact).then_some(origin.source))
+        .collect()
+}
+
 pub(super) fn local_origin(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -182,6 +214,23 @@ pub(super) fn local_origin(
         HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
     >,
 ) -> Option<FrameSourcePlace> {
+    let origins = local_origins(program, machine, symbols, before, local_symbol, collections)?;
+    let [origin] = origins.as_slice() else {
+        return None;
+    };
+    Some(origin.clone())
+}
+
+pub(super) fn local_origins(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    before: &StatementNode,
+    local_symbol: SymbolHandle,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
+) -> Option<Vec<FrameSourcePlace>> {
     let (state, _, index) = caller_aliases::caller_statement_owner(
         program,
         machine,
@@ -203,25 +252,45 @@ pub(super) fn local_origin(
         .aliases
         .iter()
         .filter(|(name, _)| name == local.name.as_str());
-    let (_, origin) = origins.next()?;
-    if origins.next().is_some() || origin.precision != FramePathPrecision::Exact {
+    let candidates = if let Some((_, origin)) = origins.next() {
+        if origins.next().is_some() {
+            return None;
+        }
+        std::slice::from_ref(origin)
+    } else {
+        prefix
+            .divergent
+            .iter()
+            .find(|(name, _)| name == local.name.as_str())?
+            .1
+            .as_slice()
+    };
+    if candidates.is_empty() {
         return None;
     }
-    let source = origin.source.clone();
-    validate_source_projection(program, machine, state, index, &source, &prefix.stored)?;
-    // A reference local left in the result has not been canonically resolved.
-    // It is not evidence that the similarly named slot kept its old referent.
-    if statements[..index].iter().any(|statement| {
-        matches!(statement,
+    candidates
+        .iter()
+        .map(|origin| {
+            if origin.precision != FramePathPrecision::Exact {
+                return None;
+            }
+            let source = origin.source.clone();
+            validate_source_projection(program, machine, state, index, &source, &prefix.stored)?;
+            // A reference local left in the result has not been canonically resolved.
+            // It is not evidence that the similarly named slot kept its old referent.
+            if statements[..index].iter().any(|statement| {
+                matches!(statement,
         StatementNode::LocalData(local) if local.symbol == source.root
             && type_reference_is_reference(program, local.type_reference))
-    }) {
-        return None;
-    }
-    if source.root == machine.symbol {
-        return None;
-    }
-    Some(source)
+            }) {
+                return None;
+            }
+            if source.root == machine.symbol {
+                return None;
+            }
+            Some(source)
+        })
+        .collect()
 }
 
 /// Every exact captured referent of one reference value. Singleton consumers

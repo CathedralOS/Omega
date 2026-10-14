@@ -303,6 +303,16 @@ impl Expansion<'_> {
         let mut scalar_ordinal = 0usize;
         let mut structural_ordinal = 0usize;
         let mut operands = Vec::new();
+        if callee.authority_value().is_valid() {
+            let slot = self
+                .produced_values
+                .iter()
+                .find(|slot| slot.source_call == source_call && slot.argument_ordinal.is_none())
+                .ok_or(LoweringError::Unsupported(
+                    "computed authority has no reserved home",
+                ))?;
+            operands.push(Operand::Produced(slot.clone()));
+        }
         for (position, source_parameter) in signature.parameters.iter().enumerate() {
             // An `[erased]` formal position has no operand of either kind
             // (contracts.md#explicit-erased-bindings); the typed relevance
@@ -330,7 +340,7 @@ impl Expansion<'_> {
                     && matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. })
                 {
                     let slot = self.produced_values.iter().find(|slot| {
-                        slot.source_call == source_call && slot.argument_ordinal == structural_ordinal
+                        slot.source_call == source_call && slot.argument_ordinal == Some(structural_ordinal)
                     }).ok_or(LoweringError::Unsupported(
                         "computed value has no reserved argument home",
                     ))?;
@@ -681,6 +691,7 @@ impl Expansion<'_> {
             identities,
             site.state,
             source_call,
+            callee.authority_value(),
             structural,
             temporary_cleanups,
         )?;
@@ -805,11 +816,14 @@ impl Expansion<'_> {
                             self.structural_types,
                             &slot.storage,
                         )?;
-                    if prepared.place != slot.place
-                        || prepared.structural_type != slot.structural_type
-                    {
+                    if prepared.place != slot.place {
                         return unsupported(
-                            "computed value did not establish its reserved argument",
+                            "computed value did not establish its reserved operand place",
+                        );
+                    }
+                    if prepared.structural_type != slot.structural_type {
+                        return unsupported(
+                            "computed value disagrees with its reserved operand carrier",
                         );
                     }
                     prepared.finish(
@@ -836,6 +850,7 @@ impl Expansion<'_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         state: symbols::SymbolHandle,
         source_call: Handle<checked_trees::FlowCallFact>,
+        authority: checked_trees::CheckedStructuralValueHandle,
         arguments: &[CheckedScalarComputationStructuralArgument],
         retained: HandleSpan<CheckedScalarComputationTemporaryCleanup>,
     ) -> Result<Vec<crate::unit::unit_cleanup::PreparedNormalCleanupAction>, LoweringError> {
@@ -850,16 +865,40 @@ impl Expansion<'_> {
         let mut actions = Vec::new();
         let mut retired = Vec::with_capacity(retained.len());
         for discard in retained {
-            let ordinal = discard.argument_ordinal as usize;
-            let argument = arguments
-                .get(ordinal)
-                .and_then(|argument| argument.as_place())
-                .ok_or(LoweringError::Unsupported(
-                    "temporary retirement lost its structural operand",
-                ))?;
+            let ordinal = discard.argument_ordinal.map(|ordinal| ordinal as usize);
+            let source = match ordinal {
+                Some(ordinal) => arguments
+                    .get(ordinal)
+                    .and_then(|argument| argument.as_place())
+                    .ok_or(LoweringError::Unsupported(
+                        "temporary retirement lost its structural operand",
+                    ))?
+                    .source
+                    .clone(),
+                None if self
+                    .checked
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .is_valid(authority) =>
+                {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        expression: self
+                            .checked
+                            .facts
+                            .values
+                            .structural_values
+                            .nodes
+                            .get(authority)
+                            .expression,
+                    }
+                }
+                None => return unsupported("authority retirement lost its evaluated operand"),
+            };
             if retired.contains(&ordinal)
                 || !matches!(
-                    argument.source,
+                    source,
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
                 )
             {
@@ -906,7 +945,7 @@ impl Expansion<'_> {
             let action_start = actions.len();
             for action in discards {
                 use crate::unit::unit_cleanup::PreparedNormalCleanupAction;
-                if action.source() != &argument.source {
+                if action.source() != &source {
                     return unsupported("temporary cleanup names a different owner");
                 }
                 let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(

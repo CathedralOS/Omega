@@ -440,7 +440,7 @@ impl Builder<'_, '_> {
         }
         if let Some(discards) = discards {
             temporary_cleanups.push(checked_trees::CheckedScalarComputationTemporaryCleanup {
-                argument_ordinal,
+                argument_ordinal: Some(argument_ordinal),
                 actions: self.plans.temporary_cleanup_actions.insert_many(discards),
             });
         }

@@ -82,7 +82,8 @@ fn resolve_origins(
         .references
         .iter()
         .filter(|leaf| {
-            !crossed.is_some_and(|depth| leaf.local_segments.len() <= depth)
+            leaf.kind == super::StoredOriginKind::Reference
+                && !crossed.is_some_and(|depth| leaf.local_segments.len() <= depth)
                 && source_reaches_leaf(&origin.source.segments, &leaf.local_segments)
                 && !super::projections::reference_is_shadowed(local, leaf, &origin.source.segments)
         })
@@ -90,7 +91,8 @@ fn resolve_origins(
         .max();
     let mut sources = Vec::new();
     for leaf in &local.references {
-        if Some(leaf.local_segments.len()) != selected_depth
+        if leaf.kind != super::StoredOriginKind::Reference
+            || Some(leaf.local_segments.len()) != selected_depth
             || !source_reaches_leaf(&origin.source.segments, &leaf.local_segments)
             || super::projections::reference_is_shadowed(local, leaf, &origin.source.segments)
         {

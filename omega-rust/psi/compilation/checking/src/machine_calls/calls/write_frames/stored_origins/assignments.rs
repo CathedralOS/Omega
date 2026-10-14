@@ -291,6 +291,7 @@ fn assigned_stored_origins(
             let mut local_segments = source.segments.clone();
             local_segments.extend(leaf.local_segments.iter().copied());
             replaced.references.push(StoredWriteOrigin {
+                kind: leaf.kind,
                 local_symbol: source.root,
                 local_path: match precision {
                     FramePathPrecision::Exact => {

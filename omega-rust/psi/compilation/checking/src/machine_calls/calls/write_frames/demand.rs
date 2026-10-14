@@ -357,6 +357,54 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
+    /// Complete exact referents captured by a reference-valued operand at this
+    /// statement prefix. This source relation grants neither a loan nor a write.
+    pub fn reference_expression_origins_before_statement(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+        expression: ExpressionHandle,
+    ) -> Option<Vec<(SymbolHandle, Vec<facts::PlaceSegment>)>> {
+        super::reference_subjects::expression_origins_before_statement(
+            self.program,
+            machine,
+            &self.tables.symbols,
+            statement,
+            expression,
+            &self.caches.state_write_shared_collections,
+        )
+        .map(|origins| {
+            origins
+                .into_iter()
+                .map(|source| (source.root, source.segments))
+                .collect()
+        })
+    }
+
+    /// Preserve all exact captured alternatives instead of requiring a
+    /// singleton identity when the consumer accepts an origin family.
+    pub fn local_reference_origins_before_statement(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+        local: SymbolHandle,
+    ) -> Option<Vec<(SymbolHandle, Vec<facts::PlaceSegment>)>> {
+        super::reference_subjects::local_origins(
+            self.program,
+            machine,
+            &self.tables.symbols,
+            statement,
+            local,
+            &self.caches.state_write_shared_collections,
+        )
+        .map(|origins| {
+            origins
+                .into_iter()
+                .map(|source| (source.root, source.segments))
+                .collect()
+        })
+    }
+
     /// Complete storage alternatives for a whole reference result, relative
     /// to the selected state's exact declarations. This uses the result
     /// relation, including internal jumps and chronological alias capture;
@@ -1182,15 +1230,16 @@ pub(super) fn collect_expression_call_written_paths(
             {
                 return None;
             }
-            let (receiver_members, receiver_origins, receiver_data_name) =
+            let (receiver_members, receiver_origins, receiver_data_name, authority_receiver) =
                 super::receiver_frame_origins(
                     program,
                     current_machine,
-                    call.receiver,
+                    expression,
                     symbols,
                     inference,
                 )?;
             if !exact_receiver
+                && !authority_receiver
                 && !super::call_trees::receiver_expression_preserves_origin(
                     program,
                     current_machine,
@@ -1252,7 +1301,7 @@ pub(super) fn collect_expression_call_written_paths(
                 Some(&argument_origins),
             )
             .or_else(|| {
-                if !exact_receiver {
+                if !exact_receiver && !authority_receiver {
                     return None;
                 }
                 probe_paths(known_boundary_call_written_paths_for_parts, inference)

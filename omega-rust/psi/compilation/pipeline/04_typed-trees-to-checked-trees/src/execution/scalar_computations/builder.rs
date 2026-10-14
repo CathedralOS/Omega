@@ -123,7 +123,7 @@ impl Builder<'_, '_> {
         if pure
             .expression_at(self.state, statement_ordinal, role)
             .is_some()
-            || self.statement_owns_boundary_call(role, expression)
+            && !self.is_bodyless_boundary_call(expression)
         {
             return;
         }

@@ -19,7 +19,8 @@ use typed_trees::types::TypeReferenceHandle;
 #[derive(Clone)]
 pub(crate) struct Slot {
     pub(crate) source_call: arena::Handle<FlowCallFact>,
-    pub(crate) argument_ordinal: usize,
+    /// None is the separately evaluated authority, never a formal argument.
+    pub(crate) argument_ordinal: Option<usize>,
     pub(crate) root: CheckedStructuralValueHandle,
     pub(crate) type_reference: TypeReferenceHandle,
     pub(crate) storage: Storage,
@@ -41,6 +42,7 @@ pub(crate) fn prepare(
         let CheckedScalarComputationKind::Call {
             source_call,
             structural_arguments,
+            ref callee,
             ..
         } = plans.nodes.get(handle).kind
         else {
@@ -52,6 +54,23 @@ pub(crate) fn prepare(
             .ok_or(LoweringError::Unsupported(
                 "computed producer has stale structural operands",
             ))?;
+        let mut operands = Vec::new();
+        let authority = callee.authority_value();
+        if authority.is_valid() {
+            let node = checked.facts.values.structural_values.nodes.get(authority);
+            let root = checked
+                .facts
+                .values
+                .structural_values
+                .root_for_expression(node.state, node.statement_index, node.expression)
+                .ok_or(LoweringError::Unsupported(
+                    "computed authority lost its value root",
+                ))?;
+            if root.root != authority {
+                return unsupported("computed authority has conflicting value roots");
+            }
+            operands.push((None, root));
+        }
         for (argument_ordinal, argument) in arguments.iter().enumerate() {
             let CheckedScalarComputationStructuralArgument::Place(argument) = argument else {
                 continue;
@@ -63,8 +82,15 @@ pub(crate) fn prepare(
                 continue;
             }
             let root = produced_value_root(checked, source_call, argument)?;
-            let identity =
-                validation::structural_type_identity(&checked.typed, root.type_reference, &[], &[]);
+            operands.push((Some(argument_ordinal), root));
+        }
+        for (argument_ordinal, root) in operands {
+            let identity = validation::stored_structural_type_identity(
+                &checked.typed,
+                root.type_reference,
+                &[],
+                &[],
+            );
             let declaration = crate::terminal_identities::structural_declaration_by_identity(
                 types,
                 identities,

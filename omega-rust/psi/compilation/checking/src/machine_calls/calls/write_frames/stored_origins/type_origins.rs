@@ -229,6 +229,7 @@ fn walk_declared_origins(
                         program, name, &segments,
                     );
                     origins.references.push(StoredWriteOrigin {
+                        kind: super::StoredOriginKind::Reference,
                         local_symbol: symbol,
                         local_path: path.clone(),
                         local_segments: segments.clone(),
@@ -298,6 +299,7 @@ fn walk_declared_origins(
                                 program, name, &segments,
                             );
                             origins.references.push(StoredWriteOrigin {
+                                kind: super::StoredOriginKind::OpaqueRegion,
                                 local_symbol: origins.local_symbol,
                                 local_path: path,
                                 local_segments: segments,

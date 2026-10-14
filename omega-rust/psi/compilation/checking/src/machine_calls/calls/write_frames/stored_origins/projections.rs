@@ -305,6 +305,7 @@ pub(in crate::machine_calls::calls::write_frames) fn project_stored_origins(
             }
         }
         leaves.references.push(ReferenceLeaf {
+            kind: prior.kind,
             local_suffix,
             may_select: prior.may_select
                 && local_segments

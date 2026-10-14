@@ -1,0 +1,5 @@
+// An opaque sibling's declared borrow cannot become the promised input's loan.
+boundary data Opaque;
+machine wrong<'left, 'right>(known: &'left Opaque, other: &'right Opaque) -> &'left Opaque {
+    other
+}
