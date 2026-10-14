@@ -1,22 +1,23 @@
 use domain::model;
 use omega_language_std::console;
+use omega::language::core::binding;
 // A digit is one token. Whitespace is optional; EOF and other bytes are errors.
-machine digit() -> i32 in Wrapping reaches Console {
-    transition { _ -> read() }
-    state read() -> i32 in Wrapping {
-        let observed: ByteRead = block Console::read_byte();
+machine digit(console: &Binding<Console>) -> i32 in Wrapping reaches Console {
+    transition { _ -> read(console) }
+    state read(console: &Binding<Console>) -> i32 in Wrapping {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
             ByteRead::Eof -> (0 - 1)
-            ByteRead::Byte { value } -> classify(value)
+            ByteRead::Byte { value } -> classify(console, value)
         }
     }
-    state classify(value: i32) -> i32 in Wrapping {
+    state classify(console: &Binding<Console>, value: i32) -> i32 in Wrapping {
         transition value == 32 || value == 10 || value == 13 || value == 9 {
-            true -> again()
+            true -> again(console)
             _ -> number(value)
         }
     }
-    state again() -> i32 in Wrapping { transition { _ -> read() } }
+    state again(console: &Binding<Console>) -> i32 in Wrapping { transition { _ -> read(console) } }
     state number(value: i32) -> i32 in Wrapping {
         transition value >= 48 && value <= 57 {
             true -> ((value as i32 in Wrapping) - 48)
@@ -24,71 +25,71 @@ machine digit() -> i32 in Wrapping reaches Console {
         }
     }
 }
-machine input_end() -> bool reaches Console {
-    transition { _ -> read() }
-    state read() -> bool {
-        let observed: ByteRead = block Console::read_byte();
+machine input_end(console: &Binding<Console>) -> bool reaches Console {
+    transition { _ -> read(console) }
+    state read(console: &Binding<Console>) -> bool {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
             ByteRead::Eof -> true
-            ByteRead::Byte { value } -> classify(value)
+            ByteRead::Byte { value } -> classify(console, value)
         }
     }
-    state classify(value: i32) -> bool {
+    state classify(console: &Binding<Console>, value: i32) -> bool {
         transition value == 32 || value == 10 || value == 13 || value == 9 {
-            true -> again()
+            true -> again(console)
             _ -> false
         }
     }
-    state again() -> bool { transition { _ -> read() } }
+    state again(console: &Binding<Console>) -> bool { transition { _ -> read(console) } }
 }
-machine load(job: &mut Job) -> bool reaches Console {
-    job.width = block digit();
-    job.height = block digit();
-    job.layers = block digit();
-    job.orientation = block digit();
-    job.stride = block digit();
+machine load(console: &Binding<Console>, job: &mut Job) -> bool reaches Console {
+    job.width = block digit(console);
+    job.height = block digit(console);
+    job.layers = block digit(console);
+    job.orientation = block digit(console);
+    job.stride = block digit(console);
     transition job.width >= 1 && job.width <= 8 && job.height >= 1 && job.height <= 8
         && job.layers >= 1 && job.layers <= 4 && job.orientation >= 0
         && job.orientation <= 1 && job.stride >= 1 && job.stride <= 2 {
-        true -> clear(job, 0)
+        true -> clear(console, job, 0)
         _ -> false
     }
-    state clear(job: &mut Job, index: i32 in Wrapping) -> bool {
+    state clear(console: &Binding<Console>, job: &mut Job, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 256 {
-            true -> zero(job, index)
-            _ -> cell(job, 0)
+            true -> zero(console, job, index)
+            _ -> cell(console, job, 0)
         }
     }
-    state zero(job: &mut Job, index: i32 in Wrapping) -> bool {
+    state zero(console: &Binding<Console>, job: &mut Job, index: i32 in Wrapping) -> bool {
         job.mask[index] = 0;
         job.covered[index] = 0;
-        transition { _ -> clear(job, index + 1) }
+        transition { _ -> clear(console, job, index + 1) }
     }
-    state cell(job: &mut Job, index: i32 in Wrapping) -> bool {
+    state cell(console: &Binding<Console>, job: &mut Job, index: i32 in Wrapping) -> bool {
         transition index < job.width * job.height * job.layers {
-            true -> bounds(job, index)
-            _ -> finish()
+            true -> bounds(console, job, index)
+            _ -> finish(console)
         }
     }
-    state finish() -> bool {
-        let complete: bool = block input_end();
+    state finish(console: &Binding<Console>) -> bool {
+        let complete: bool = block input_end(console);
         complete
     }
-    state bounds(job: &mut Job, index: i32 in Wrapping) -> bool {
+    state bounds(console: &Binding<Console>, job: &mut Job, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 256 {
-            true -> read(job, index)
+            true -> read(console, job, index)
             _ -> false
         }
     }
-    state read(job: &mut Job, index: i32 in Wrapping) -> bool {
-        let value: i32 in Wrapping = block digit();
+    state read(console: &Binding<Console>, job: &mut Job, index: i32 in Wrapping) -> bool {
+        let value: i32 in Wrapping = block digit(console);
         transition value == 0 || value == 1 {
-            true -> store(job, index, value)
+            true -> store(console, job, index, value)
             _ -> false
         }
     }
-    state store(job: &mut Job, index: i32 in Wrapping, value: i32 in Wrapping) -> bool {
+    state store(console: &Binding<Console>, job: &mut Job, index: i32 in Wrapping, value: i32 in Wrapping) -> bool {
         job.mask[index] = value as i32;
-        transition { _ -> cell(job, index + 1) }
+        transition { _ -> cell(console, job, index + 1) }
     }
 }

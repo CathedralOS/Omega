@@ -2,79 +2,80 @@ use omega_language_std::console;
 use data::dataset;
 use partition::allocation;
 use partition::audit;
-pub machine number(value: i32 in Saturating)
+use omega::language::core::binding;
+pub machine number(console: &Binding<Console>, value: i32 in Saturating)
 reaches Console
 invokes Console;
 {
-    Console::write_byte(((value / 100) % 10 + 48) as i32);
-    Console::write_byte(((value / 10) % 10 + 48) as i32);
-    Console::write_byte((value % 10 + 48) as i32);
+    Console::write_byte(console, ((value / 100) % 10 + 48) as i32);
+    Console::write_byte(console, ((value / 10) % 10 + 48) as i32);
+    Console::write_byte(console, (value % 10 + 48) as i32);
 }
-pub machine report(data: &Dataset, result: &Allocation, audit: &Audit)
+pub machine report(console: &Binding<Console>, data: &Dataset, result: &Allocation, audit: &Audit)
 reaches Console
 invokes Console;
 {
-    Console::write("mask "); number(result.mask); Console::write_line("");
-    Console::write("train "); number(data.count - result.test_count);
-    Console::write(" test "); number(result.test_count); Console::write_line("");
-    Console::write("score "); number(result.score);
-    Console::write(" total_error "); number(result.total_error); Console::write_line("");
-    transition { _ -> rows(data, result, audit, 1) }
+    Console::write(console, "mask "); number(console, result.mask); Console::write_line(console, "");
+    Console::write(console, "train "); number(console, data.count - result.test_count);
+    Console::write(console, " test "); number(console, result.test_count); Console::write_line(console, "");
+    Console::write(console, "score "); number(console, result.score);
+    Console::write(console, " total_error "); number(console, result.total_error); Console::write_line(console, "");
+    transition { _ -> rows(console, data, result, audit, 1) }
     // Canonical output sorted by record ID, independent of input order.
-    state rows(data: &Dataset, result: &Allocation, audit: &Audit, id: i32 in Saturating) {
+    state rows(console: &Binding<Console>, data: &Dataset, result: &Allocation, audit: &Audit, id: i32 in Saturating) {
         transition id <= 99 {
-            true -> find(data, result, audit, id, 0)
-            _ -> metrics(data, result, audit)
+            true -> find(console, data, result, audit, id, 0)
+            _ -> metrics(console, data, result, audit)
         }
     }
-    state find(data: &Dataset, result: &Allocation, audit: &Audit, id: i32 in Saturating, index: i32 in Saturating) {
+    state find(console: &Binding<Console>, data: &Dataset, result: &Allocation, audit: &Audit, id: i32 in Saturating, index: i32 in Saturating) {
         transition index < data.count && index >= 0 && index < 16 {
-            true -> match_id(data, result, audit, id, index)
-            _ -> rows(data, result, audit, id + 1)
+            true -> match_id(console, data, result, audit, id, index)
+            _ -> rows(console, data, result, audit, id + 1)
         }
     }
-    state match_id(data: &Dataset, result: &Allocation, audit: &Audit, id: i32 in Saturating, index: i32 in Saturating)
+    state match_id(console: &Binding<Console>, data: &Dataset, result: &Allocation, audit: &Audit, id: i32 in Saturating, index: i32 in Saturating)
     requires index >= 0 && index < 16
     {
         transition data.records[index].id == id {
-            true -> assignment(data, result, audit, id, index)
-            _ -> find(data, result, audit, id, index + 1)
+            true -> assignment(console, data, result, audit, id, index)
+            _ -> find(console, data, result, audit, id, index + 1)
         }
     }
-    state assignment(data: &Dataset, result: &Allocation, audit: &Audit, id: i32 in Saturating, index: i32 in Saturating)
+    state assignment(console: &Binding<Console>, data: &Dataset, result: &Allocation, audit: &Audit, id: i32 in Saturating, index: i32 in Saturating)
     requires index >= 0 && index < 16
     {
-        Console::write("id "); number(id);
-        Console::write(" group "); number(data.records[index].group);
+        Console::write(console, "id "); number(console, id);
+        Console::write(console, " group "); number(console, data.records[index].group);
         let included: bool = audit.assignments[index] == 1;
         transition included {
-            true -> test(data, result, audit, id)
-            _ -> train(data, result, audit, id)
+            true -> test(console, data, result, audit, id)
+            _ -> train(console, data, result, audit, id)
         }
     }
-    state test(data: &Dataset, result: &Allocation, audit: &Audit, id: i32 in Saturating) {
-        Console::write_line(" test");
-        transition { _ -> rows(data, result, audit, id + 1) }
+    state test(console: &Binding<Console>, data: &Dataset, result: &Allocation, audit: &Audit, id: i32 in Saturating) {
+        Console::write_line(console, " test");
+        transition { _ -> rows(console, data, result, audit, id + 1) }
     }
-    state train(data: &Dataset, result: &Allocation, audit: &Audit, id: i32 in Saturating) {
-        Console::write_line(" train");
-        transition { _ -> rows(data, result, audit, id + 1) }
+    state train(console: &Binding<Console>, data: &Dataset, result: &Allocation, audit: &Audit, id: i32 in Saturating) {
+        Console::write_line(console, " train");
+        transition { _ -> rows(console, data, result, audit, id + 1) }
     }
-    state metrics(data: &Dataset, result: &Allocation, audit: &Audit) {
-        Console::write("stratum 001 total "); number(data.totals[0]);
-        Console::write(" test "); number(result.counts[0]);
-        Console::write(" error "); number(absolute(data.denominator * result.counts[0] - data.numerator * data.totals[0])); Console::write_line("");
-        Console::write("stratum 002 total "); number(data.totals[1]);
-        Console::write(" test "); number(result.counts[1]);
-        Console::write(" error "); number(absolute(data.denominator * result.counts[1] - data.numerator * data.totals[1])); Console::write_line("");
-        Console::write("stratum 003 total "); number(data.totals[2]);
-        Console::write(" test "); number(result.counts[2]);
-        Console::write(" error "); number(absolute(data.denominator * result.counts[2] - data.numerator * data.totals[2])); Console::write_line("");
+    state metrics(console: &Binding<Console>, data: &Dataset, result: &Allocation, audit: &Audit) {
+        Console::write(console, "stratum 001 total "); number(console, data.totals[0]);
+        Console::write(console, " test "); number(console, result.counts[0]);
+        Console::write(console, " error "); number(console, absolute(data.denominator * result.counts[0] - data.numerator * data.totals[0])); Console::write_line(console, "");
+        Console::write(console, "stratum 002 total "); number(console, data.totals[1]);
+        Console::write(console, " test "); number(console, result.counts[1]);
+        Console::write(console, " error "); number(console, absolute(data.denominator * result.counts[1] - data.numerator * data.totals[1])); Console::write_line(console, "");
+        Console::write(console, "stratum 003 total "); number(console, data.totals[2]);
+        Console::write(console, " test "); number(console, result.counts[2]);
+        Console::write(console, " error "); number(console, absolute(data.denominator * result.counts[2] - data.numerator * data.totals[2])); Console::write_line(console, "");
         transition result.score == 0 {
-            true -> exact()
-            _ -> approximate()
+            true -> exact(console)
+            _ -> approximate(console)
         }
     }
-    state exact() { Console::write_line("balance exact"); }
-    state approximate() { Console::write_line("balance impossible_exact"); }
+    state exact(console: &Binding<Console>) { Console::write_line(console, "balance exact"); }
+    state approximate(console: &Binding<Console>) { Console::write_line(console, "balance impossible_exact"); }
 }

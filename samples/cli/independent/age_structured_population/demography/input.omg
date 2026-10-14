@@ -1,42 +1,43 @@
 use omega_language_std::console;
+use omega::language::core::binding;
 pub data Parsed [copy] { value: i64 in Wrapping; valid: bool; }
 // One signed decimal per LF-delimited field. Ten digits bound accumulation;
 // malformed, empty, missing and overlong fields are rejected before forecasting.
-pub machine read_number() -> Parsed reaches Console
-invokes Console;
+pub machine read_number(console: &Binding<Console>) -> Parsed reaches Console
+invokes console;
 blocks;
 crashes Trap
 {
-    transition { _ -> scan(0, 0, false, false) }
-    state scan(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, sign: bool) -> Parsed {
-        let observed: ByteRead = block Console::read_byte();
+    transition { _ -> scan(console, 0, 0, false, false) }
+    state scan(console: &Binding<Console>, accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, sign: bool) -> Parsed {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
             ByteRead::Eof -> finish(accumulated, digits, negative)
-            ByteRead::Byte { value } -> classify(accumulated, digits, negative, sign, value)
+            ByteRead::Byte { value } -> classify(console, accumulated, digits, negative, sign, value)
             _ -> Parsed { value: 0, valid: false }
         }
     }
-    state classify(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, sign: bool, byte: i32) -> Parsed {
+    state classify(console: &Binding<Console>, accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, sign: bool, byte: i32) -> Parsed {
         transition byte == 10 {
             true -> finish(accumulated, digits, negative)
-            false -> character(accumulated, digits, negative, sign, byte)
+            false -> character(console, accumulated, digits, negative, sign, byte)
         }
     }
-    state character(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, sign: bool, byte: i32) -> Parsed {
+    state character(console: &Binding<Console>, accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, sign: bool, byte: i32) -> Parsed {
         transition byte == 45 && digits == 0 && !sign {
-            true -> scan(accumulated, digits, true, true)
-            false -> digit(accumulated, digits, negative, byte)
+            true -> scan(console, accumulated, digits, true, true)
+            false -> digit(console, accumulated, digits, negative, byte)
         }
     }
-    state digit(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, byte: i32) -> Parsed {
+    state digit(console: &Binding<Console>, accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, byte: i32) -> Parsed {
         transition byte >= 48 && byte <= 57 && digits < 10 {
-            true -> accumulate(accumulated, digits, negative, byte)
+            true -> accumulate(console, accumulated, digits, negative, byte)
             false -> Parsed { value: 0, valid: false }
         }
     }
-    state accumulate(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, byte: i32) -> Parsed {
+    state accumulate(console: &Binding<Console>, accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, byte: i32) -> Parsed {
         let next: i64 in Wrapping = accumulated * 10 + (byte as i64 in Wrapping) - 48;
-        transition { _ -> scan(next, digits + 1, negative, true) }
+        transition { _ -> scan(console, next, digits + 1, negative, true) }
     }
     state finish(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool) -> Parsed {
         transition negative {
@@ -45,11 +46,11 @@ crashes Trap
         }
     }
 }
-pub machine input_complete() -> bool reaches Console
-invokes Console;
+pub machine input_complete(console: &Binding<Console>) -> bool reaches Console
+invokes console;
 blocks;
 crashes Trap
 {
-    let observed: ByteRead = block Console::read_byte();
+    let observed: ByteRead = block Console::read_byte(console);
     transition observed { ByteRead::Eof -> true ByteRead::Byte { value } -> false _ -> false }
 }

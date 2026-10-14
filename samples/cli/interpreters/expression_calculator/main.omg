@@ -146,7 +146,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state flush_number(main: &mut Main, value: i32) {
         transition main.token_count < 16 {
             true -> store_number(main, value)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -162,7 +162,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition (value == 40 || value == 41 || value == 42 || value == 43 || value == 45)
             && main.token_count < 16 {
             true -> store_symbol(main, value)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -182,7 +182,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state final_number(main: &mut Main) {
         transition main.token_count < 16 {
             true -> store_final_number(main)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -218,7 +218,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state push_value(main: &mut Main, value: i32 in Wrapping) {
         transition main.values.count < 16 {
             true -> stored_value(main, value)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -238,7 +238,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state push_open(main: &mut Main) {
         transition main.operators.count < 16 {
             true -> stored_open(main)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -258,7 +258,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state close(main: &mut Main) {
         transition main.operators.count >= 1 && main.operators.count <= 16 {
             true -> close_top(main)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -277,7 +277,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state pop_open(main: &mut Main) {
         transition main.operators.count >= 1 && main.operators.count <= 16 {
             true -> popped_open(main)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -311,7 +311,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state push_operator(main: &mut Main) {
         transition main.operators.count < 16 {
             true -> stored_operator(main)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -339,7 +339,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.values.count >= 2 && main.values.count <= 16
             && main.operators.count >= 1 && main.operators.count <= 16 {
             true -> reduce(main)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -352,7 +352,7 @@ machine Main::main(main: &mut Main) reaches Console {
         let right: i32 in Wrapping = ValueStack::pop(&mut main.values);
         transition main.values.count >= 1 && main.values.count <= 16 {
             true -> reduce_left(main, right)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -375,7 +375,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state push_result(main: &mut Main, result: i32 in Wrapping) {
         transition main.values.count < 16 {
             true -> stored_result(main, result)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -391,7 +391,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state finish(main: &mut Main) {
         transition main.values.count == 1 {
             true -> report(main)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -400,7 +400,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.console.exit_process(result as i32);
     }
 
-    state malformed() {
-        Console::exit_process(1);
+    state malformed(console: &Binding<Console>) {
+        Console::exit_process(console, 1);
     }
 }

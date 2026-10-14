@@ -3,6 +3,7 @@ module io::input;
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 use omega::language::core::float_operations;
+use omega::language::core::binding;
 
 pub data Raw { values: [u32; 16]; count: u32; }
 pub data Input {
@@ -14,57 +15,57 @@ pub data Input {
     conductance: [f64; 8];
 }
 
-pub machine parse(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
-    transition { _ -> read(raw, 0, false, 0) }
-    state read(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
+pub machine parse(console: &Binding<Console>, raw: &mut Raw) -> bool reaches Console invokes console; blocks; crashes Trap {
+    transition { _ -> read(console, raw, 0, false, 0) }
+    state read(console: &Binding<Console>, raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
         transition bytes < 256 {
-            true -> receive(raw, accumulator, active, bytes)
+            true -> receive(console, raw, accumulator, active, bytes)
             false -> bad()
         }
     }
-    state receive(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
-        let observed: ByteRead = block Console::read_byte();
+    state receive(console: &Binding<Console>, raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
-            ByteRead::Byte { value } -> classify(raw, accumulator, active, bytes, value)
+            ByteRead::Byte { value } -> classify(console, raw, accumulator, active, bytes, value)
             ByteRead::Eof -> finish(raw, accumulator, active)
         }
     }
-    state classify(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32, character: i32) -> bool {
+    state classify(console: &Binding<Console>, raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32, character: i32) -> bool {
         transition character >= 48 && character <= 57 {
-            true -> digit(raw, accumulator, bytes, character)
-            false -> delimiter(raw, accumulator, active, bytes, character)
+            true -> digit(console, raw, accumulator, bytes, character)
+            false -> delimiter(console, raw, accumulator, active, bytes, character)
         }
     }
-    state digit(raw: &mut Raw, accumulator: u32 in Saturating, bytes: u32, character: i32) -> bool {
+    state digit(console: &Binding<Console>, raw: &mut Raw, accumulator: u32 in Saturating, bytes: u32, character: i32) -> bool {
         let digit: u32 in Saturating = narrow_i32_to_u32_trapping(character) as u32 in Saturating;
         let next: u32 in Saturating = accumulator * 10 + digit - 48;
         transition next <= 200 {
-            true -> read(raw, next, true, bytes + 1)
+            true -> read(console, raw, next, true, bytes + 1)
             false -> bad()
         }
     }
-    state delimiter(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32, character: i32) -> bool {
+    state delimiter(console: &Binding<Console>, raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32, character: i32) -> bool {
         transition character == 32 || character == 10 || character == 13 || character == 9 {
-            true -> separate(raw, accumulator, active, bytes)
+            true -> separate(console, raw, accumulator, active, bytes)
             false -> bad()
         }
     }
-    state separate(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
+    state separate(console: &Binding<Console>, raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
         transition active {
-            true -> capacity(raw, accumulator, bytes)
-            false -> read(raw, 0, false, bytes + 1)
+            true -> capacity(console, raw, accumulator, bytes)
+            false -> read(console, raw, 0, false, bytes + 1)
         }
     }
-    state capacity(raw: &mut Raw, accumulator: u32 in Saturating, bytes: u32) -> bool {
+    state capacity(console: &Binding<Console>, raw: &mut Raw, accumulator: u32 in Saturating, bytes: u32) -> bool {
         transition raw.count < 16 {
-            true -> store(raw, accumulator, bytes)
+            true -> store(console, raw, accumulator, bytes)
             false -> bad()
         }
     }
-    state store(raw: &mut Raw, accumulator: u32 in Saturating, bytes: u32) -> bool {
+    state store(console: &Binding<Console>, raw: &mut Raw, accumulator: u32 in Saturating, bytes: u32) -> bool {
         raw.values[raw.count] = accumulator as u32;
         raw.count = raw.count + 1;
-        transition { _ -> read(raw, 0, false, bytes + 1) }
+        transition { _ -> read(console, raw, 0, false, bytes + 1) }
     }
     state finish(raw: &mut Raw, accumulator: u32 in Saturating, active: bool) -> bool {
         transition active {

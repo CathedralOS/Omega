@@ -11,39 +11,41 @@
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega::language::core::binding;
 
-machine main() reaches Console {
-    Console::write_line("fibonacci_golden: iterating fibonacci pairs to approximate the golden ratio");
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    Console::write_line(&main.console, "fibonacci_golden: iterating fibonacci pairs to approximate the golden ratio");
 
     transition {
-        _ -> step(1, 1, 0)
+        _ -> step(&main.console, 1, 1, 0)
     }
 
-    state step(left: i32 in Wrapping, right: i32 in Wrapping, iteration: i32 in Wrapping) {
+    state step(console: &Binding<Console>, left: i32 in Wrapping, right: i32 in Wrapping, iteration: i32 in Wrapping) {
         transition iteration == 13 {
-            true -> ratio_calc(left, right)
-            _ -> advance(left, right, iteration)
+            true -> ratio_calc(console, left, right)
+            _ -> advance(console, left, right, iteration)
         }
     }
 
-    state advance(left: i32 in Wrapping, right: i32 in Wrapping, iteration: i32 in Wrapping) {
+    state advance(console: &Binding<Console>, left: i32 in Wrapping, right: i32 in Wrapping, iteration: i32 in Wrapping) {
         let next: i32 in Wrapping = left + right;
         let next_iteration: i32 in Wrapping = iteration + 1;
         transition {
-            _ -> step(right, next, next_iteration)
+            _ -> step(console, right, next, next_iteration)
         }
     }
 
-    state ratio_calc(left: i32 in Wrapping, right: i32 in Wrapping) {
+    state ratio_calc(console: &Binding<Console>, left: i32 in Wrapping, right: i32 in Wrapping) {
         let left_float: f64 = F64::from_i32(left as i32);
         let right_float: f64 = F64::from_i32(right as i32);
         let ratio: f64 = right_float / left_float;
         let scaled: f64 = ratio * 100.0;
         let result: i32 in Saturating = I32::from_f64(scaled);
-        Console::write_line("result: floor(100 * fib(15)/fib(14)), 161 for this run (the exit code)");
-        Console::write_line("[press Enter to close]");
+        Console::write_line(console, "result: floor(100 * fib(15)/fib(14)), 161 for this run (the exit code)");
+        Console::write_line(console, "[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause);
-        Console::exit_process(result as i32);
+        _ = block Console::read_line(console, &mut pause);
+        Console::exit_process(console, result as i32);
     }
 }

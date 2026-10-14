@@ -1,6 +1,7 @@
 use domain::network;
 use platform::decimal;
 use omega_language_std::console;
+use omega::language::core::binding;
 
 pub data Solver {
     network: Network;
@@ -8,36 +9,36 @@ pub data Solver {
     feasible: i64 in Wrapping;
 }
 
-machine report(solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping) reaches Console {
+machine report(console: &Binding<Console>, solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping) reaches Console {
     solver.roots = solver.roots + 1;
     let branch_sum: i64 in Wrapping = solver.network.r1 + solver.network.r2;
     let accepted: bool = lower >= solver.network.demand * 1024;
-    Console::write("ROOT ");
-    number(lower); number(upper);
-    number(lower * solver.network.r2); number(lower * solver.network.r1);
-    number(1024 * branch_sum);
-    number(solver.network.elevation * 1024 * branch_sum + lower * solver.network.r1 * solver.network.r2);
-    number(1024 * branch_sum);
-    number(solver.network.a * 1048576 + solver.network.b * lower * 1024 - solver.network.c * lower * lower);
-    number(solver.network.d * 1048576);
-    number(residual(&solver.network, lower));
-    number(solver.network.d * 1048576 * branch_sum);
+    Console::write(console, "ROOT ");
+    number(console, lower); number(console, upper);
+    number(console, lower * solver.network.r2); number(console, lower * solver.network.r1);
+    number(console, 1024 * branch_sum);
+    number(console, solver.network.elevation * 1024 * branch_sum + lower * solver.network.r1 * solver.network.r2);
+    number(console, 1024 * branch_sum);
+    number(console, solver.network.a * 1048576 + solver.network.b * lower * 1024 - solver.network.c * lower * lower);
+    number(console, solver.network.d * 1048576);
+    number(console, residual(&solver.network, lower));
+    number(console, solver.network.d * 1048576 * branch_sum);
     transition accepted {
-        true -> feasible(solver)
-        false -> insufficient()
+        true -> feasible(console, solver)
+        false -> insufficient(console)
     }
-    state feasible(solver: &mut Solver) {
+    state feasible(console: &Binding<Console>, solver: &mut Solver) {
         solver.feasible = solver.feasible + 1;
-        Console::write_line("1");
+        Console::write_line(console, "1");
     }
-    state insufficient() { Console::write_line("0"); }
+    state insufficient(console: &Binding<Console>) { Console::write_line(console, "0"); }
 }
 
 // All 1/16-unit brackets in [0, maximum] are examined, endpoints are
 // emitted once, and sign brackets are bisected to one 1/1024-unit tick.
 // A quadratic's double root has no sign change: handle its exact integer
 // discriminant separately, including non-grid rational vertices.
-pub machine solve(solver: &mut Solver)
+pub machine solve(console: &Binding<Console>, solver: &mut Solver)
 reaches Console
 invokes Console;
 {
@@ -47,138 +48,138 @@ invokes Console;
     let constant: i64 in Wrapping = (solver.network.a - solver.network.elevation * solver.network.d)
         * (solver.network.r1 + solver.network.r2);
     transition quadratic != 0 && linear * linear - 4 * quadratic * constant == 0 {
-        true -> tangent(solver, quadratic, linear)
-        false -> initial(solver)
+        true -> tangent(console, solver, quadratic, linear)
+        false -> initial(console, solver)
     }
-    state tangent(solver: &mut Solver, quadratic: i64 in Wrapping, linear: i64 in Wrapping) {
+    state tangent(console: &Binding<Console>, solver: &mut Solver, quadratic: i64 in Wrapping, linear: i64 in Wrapping) {
         let denominator: i64 in Wrapping = 2 * quadratic;
         transition denominator != 0 {
-            true -> tangent_divide(solver, quadratic, linear, denominator)
-            false -> done(solver)
+            true -> tangent_divide(console, solver, quadratic, linear, denominator)
+            false -> done(console, solver)
         }
     }
-    state tangent_divide(solver: &mut Solver, quadratic: i64 in Wrapping, linear: i64 in Wrapping, denominator: i64 in Wrapping)
+    state tangent_divide(console: &Binding<Console>, solver: &mut Solver, quadratic: i64 in Wrapping, linear: i64 in Wrapping, denominator: i64 in Wrapping)
     requires denominator != 0
     {
         let vertex: i64 in Wrapping = -linear * 1024 / denominator;
         transition linear >= 0 && linear <= -2 * quadratic * solver.network.maximum {
-            true -> tangent_report(solver, vertex)
-            false -> done(solver)
+            true -> tangent_report(console, solver, vertex)
+            false -> done(console, solver)
         }
     }
-    state tangent_report(solver: &mut Solver, vertex: i64 in Wrapping) {
+    state tangent_report(console: &Binding<Console>, solver: &mut Solver, vertex: i64 in Wrapping) {
         transition residual(&solver.network, vertex) == 0 {
-            true -> tangent_exact(solver, vertex)
-            false -> tangent_interval(solver, vertex)
+            true -> tangent_exact(console, solver, vertex)
+            false -> tangent_interval(console, solver, vertex)
         }
     }
-    state tangent_exact(solver: &mut Solver, vertex: i64 in Wrapping) {
-        report(solver, vertex, vertex);
-        transition { _ -> done(solver) }
+    state tangent_exact(console: &Binding<Console>, solver: &mut Solver, vertex: i64 in Wrapping) {
+        report(console, solver, vertex, vertex);
+        transition { _ -> done(console, solver) }
     }
-    state tangent_interval(solver: &mut Solver, vertex: i64 in Wrapping) {
-        report(solver, vertex, vertex + 1);
-        transition { _ -> done(solver) }
+    state tangent_interval(console: &Binding<Console>, solver: &mut Solver, vertex: i64 in Wrapping) {
+        report(console, solver, vertex, vertex + 1);
+        transition { _ -> done(console, solver) }
     }
-    state initial(solver: &mut Solver) {
+    state initial(console: &Binding<Console>, solver: &mut Solver) {
         transition residual(&solver.network, 0) == 0 {
-            true -> zero(solver)
-            false -> scan(solver, 0)
+            true -> zero(console, solver)
+            false -> scan(console, solver, 0)
         }
     }
-    state zero(solver: &mut Solver) {
-        report(solver, 0, 0);
-        transition { _ -> scan(solver, 0) }
+    state zero(console: &Binding<Console>, solver: &mut Solver) {
+        report(console, solver, 0, 0);
+        transition { _ -> scan(console, solver, 0) }
     }
-    state scan(solver: &mut Solver, lower: i64 in Wrapping) {
+    state scan(console: &Binding<Console>, solver: &mut Solver, lower: i64 in Wrapping) {
         transition lower < solver.network.maximum * 1024 {
-            true -> split_vertex(solver, lower)
-            false -> done(solver)
+            true -> split_vertex(console, solver, lower)
+            false -> done(console, solver)
         }
     }
     // Splitting at floor(vertex*1024) prevents two close simple roots from
     // hiding in one coarse bracket. Nonzero integer discriminant gives root
     // separation >= 1/512 because |quadratic| <= 512: the rounded vertex
     // remains between both roots. Thus sign brackets cover every simple root.
-    state split_vertex(solver: &mut Solver, lower: i64 in Wrapping) {
+    state split_vertex(console: &Binding<Console>, solver: &mut Solver, lower: i64 in Wrapping) {
         transition solver.network.c > 0 {
-            true -> vertex(solver, lower)
-            false -> bracket(solver, lower, lower + 64)
+            true -> vertex(console, solver, lower)
+            false -> bracket(console, solver, lower, lower + 64)
         }
     }
-    state vertex(solver: &mut Solver, lower: i64 in Wrapping) {
+    state vertex(console: &Binding<Console>, solver: &mut Solver, lower: i64 in Wrapping) {
         let linear: i64 in Wrapping = solver.network.b * (solver.network.r1 + solver.network.r2)
             - solver.network.d * solver.network.r1 * solver.network.r2;
         let denominator: i64 in Wrapping = 2 * solver.network.c * (solver.network.r1 + solver.network.r2);
         transition denominator != 0 {
-            true -> vertex_divide(solver, lower, linear, denominator)
-            false -> done(solver)
+            true -> vertex_divide(console, solver, lower, linear, denominator)
+            false -> done(console, solver)
         }
     }
-    state vertex_divide(solver: &mut Solver, lower: i64 in Wrapping, linear: i64 in Wrapping, denominator: i64 in Wrapping)
+    state vertex_divide(console: &Binding<Console>, solver: &mut Solver, lower: i64 in Wrapping, linear: i64 in Wrapping, denominator: i64 in Wrapping)
     requires denominator != 0
     {
         let middle: i64 in Wrapping = linear * 1024 / denominator;
         transition middle > lower && middle < lower + 64 {
-            true -> bracket(solver, lower, middle)
-            false -> capped(solver, lower)
+            true -> bracket(console, solver, lower, middle)
+            false -> capped(console, solver, lower)
         }
     }
-    state capped(solver: &mut Solver, lower: i64 in Wrapping) {
+    state capped(console: &Binding<Console>, solver: &mut Solver, lower: i64 in Wrapping) {
         // Stage the scalar before forwarding the mutable solver loan.
         let maximum: i64 in Wrapping = solver.network.maximum * 1024;
         transition lower + 64 > maximum {
-            true -> bracket(solver, lower, maximum)
-            false -> bracket(solver, lower, lower + 64)
+            true -> bracket(console, solver, lower, maximum)
+            false -> bracket(console, solver, lower, lower + 64)
         }
     }
-    state bracket(solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping) {
+    state bracket(console: &Binding<Console>, solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping) {
         let left: i64 in Wrapping = residual(&solver.network, lower);
         let right: i64 in Wrapping = residual(&solver.network, upper);
         transition right == 0 {
-            true -> endpoint(solver, upper)
-            false -> crossing(solver, lower, upper, left, right)
+            true -> endpoint(console, solver, upper)
+            false -> crossing(console, solver, lower, upper, left, right)
         }
     }
-    state endpoint(solver: &mut Solver, upper: i64 in Wrapping) {
-        report(solver, upper, upper);
-        transition { _ -> scan(solver, upper) }
+    state endpoint(console: &Binding<Console>, solver: &mut Solver, upper: i64 in Wrapping) {
+        report(console, solver, upper, upper);
+        transition { _ -> scan(console, solver, upper) }
     }
-    state crossing(solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping, left: i64 in Wrapping, right: i64 in Wrapping) {
+    state crossing(console: &Binding<Console>, solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping, left: i64 in Wrapping, right: i64 in Wrapping) {
         transition opposite(left, right) {
-            true -> refine(solver, lower, upper, upper)
-            false -> scan(solver, upper)
+            true -> refine(console, solver, lower, upper, upper)
+            false -> scan(console, solver, upper)
         }
     }
-    state refine(solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping, resume: i64 in Wrapping) {
+    state refine(console: &Binding<Console>, solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping, resume: i64 in Wrapping) {
         transition upper - lower > 1 {
-            true -> midpoint(solver, lower, upper, resume, (lower + upper) / 2)
-            false -> interval(solver, lower, upper, resume)
+            true -> midpoint(console, solver, lower, upper, resume, (lower + upper) / 2)
+            false -> interval(console, solver, lower, upper, resume)
         }
     }
-    state midpoint(solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping, resume: i64 in Wrapping, middle: i64 in Wrapping) {
+    state midpoint(console: &Binding<Console>, solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping, resume: i64 in Wrapping, middle: i64 in Wrapping) {
         let value: i64 in Wrapping = residual(&solver.network, middle);
         transition value == 0 {
-            true -> exact(solver, middle, resume)
-            false -> half(solver, lower, upper, resume, middle, value)
+            true -> exact(console, solver, middle, resume)
+            false -> half(console, solver, lower, upper, resume, middle, value)
         }
     }
-    state exact(solver: &mut Solver, middle: i64 in Wrapping, resume: i64 in Wrapping) {
-        report(solver, middle, middle);
-        transition { _ -> scan(solver, resume) }
+    state exact(console: &Binding<Console>, solver: &mut Solver, middle: i64 in Wrapping, resume: i64 in Wrapping) {
+        report(console, solver, middle, middle);
+        transition { _ -> scan(console, solver, resume) }
     }
-    state half(solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping, resume: i64 in Wrapping, middle: i64 in Wrapping, value: i64 in Wrapping) {
+    state half(console: &Binding<Console>, solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping, resume: i64 in Wrapping, middle: i64 in Wrapping, value: i64 in Wrapping) {
         transition opposite(residual(&solver.network, lower), value) {
-            true -> refine(solver, lower, middle, resume)
-            false -> refine(solver, middle, upper, resume)
+            true -> refine(console, solver, lower, middle, resume)
+            false -> refine(console, solver, middle, upper, resume)
         }
     }
-    state interval(solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping, resume: i64 in Wrapping) {
-        report(solver, lower, upper);
-        transition { _ -> scan(solver, resume) }
+    state interval(console: &Binding<Console>, solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping, resume: i64 in Wrapping) {
+        report(console, solver, lower, upper);
+        transition { _ -> scan(console, solver, resume) }
     }
-    state done(solver: &mut Solver) {
-        Console::write("SUMMARY "); number(solver.roots); number(solver.feasible);
-        Console::write_line("");
+    state done(console: &Binding<Console>, solver: &mut Solver) {
+        Console::write(console, "SUMMARY "); number(console, solver.roots); number(console, solver.feasible);
+        Console::write_line(console, "");
     }
 }

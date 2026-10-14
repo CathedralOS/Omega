@@ -2,6 +2,7 @@ use omega::language::core::float_operations;
 use omega_language_std::console;
 use io::input;
 use io::output;
+use omega::language::core::binding;
 pub data Problem {
     count: u64; wavelength: f64; tolerance: f64;
     angles: [f64; 6]; vectors: [f64; 6]; lines: [u64; 8];
@@ -95,34 +96,34 @@ machine collect(problem: &mut Problem, kind: u64, squared: u64, count: u64) {
     }
     state done() { }
 }
-pub machine enumerate(problem: &mut Problem) reaches Console invokes Console; {
-    Console::write_line("units lattice/scale/angles/residuals 1e-12; indices/families exact");
-    classes(problem, 0); Console::write("hypotheses"); integer(problem.hypotheses); Console::write_line("");
+pub machine enumerate(console: &Binding<Console>, problem: &mut Problem) reaches Console invokes Console; {
+    Console::write_line(console, "units lattice/scale/angles/residuals 1e-12; indices/families exact");
+    classes(console, problem, 0); Console::write(console, "hypotheses"); integer(console, problem.hypotheses); Console::write_line(console, "");
 }
-machine classes(problem: &mut Problem, kind: u64) reaches Console invokes Console; {
-    transition kind < 3 { true -> search(problem, kind) false -> done() }
-    state search(problem: &mut Problem, kind: u64) requires kind < 3 {
-        collect(problem, kind, 1, 0); masks(problem, kind, 1);
-        transition { _ -> classes(problem, kind + 1) }
+machine classes(console: &Binding<Console>, problem: &mut Problem, kind: u64) reaches Console invokes Console; {
+    transition kind < 3 { true -> search(console, problem, kind) false -> done() }
+    state search(console: &Binding<Console>, problem: &mut Problem, kind: u64) requires kind < 3 {
+        collect(problem, kind, 1, 0); masks(console, problem, kind, 1);
+        transition { _ -> classes(console, problem, kind + 1) }
     }
     state done() { }
 }
-machine masks(problem: &mut Problem, kind: u64, mask: u64) reaches Console invokes Console; {
-    transition mask < 256 { true -> test(problem, kind, mask) false -> done() }
-    state test(problem: &mut Problem, kind: u64, mask: u64) requires mask < 256 {
+machine masks(console: &Binding<Console>, problem: &mut Problem, kind: u64, mask: u64) reaches Console invokes Console; {
+    transition mask < 256 { true -> test(console, problem, kind, mask) false -> done() }
+    state test(console: &Binding<Console>, problem: &mut Problem, kind: u64, mask: u64) requires mask < 256 {
         problem.selected = 0; problem.missing = 0; problem.last = 0;
         choose(problem, mask, 0, 0);
         transition problem.selected == problem.count && problem.missing <= 2 {
-            true -> candidate(problem, kind, mask) false -> masks(problem, kind, mask + 1)
+            true -> candidate(console, problem, kind, mask) false -> masks(console, problem, kind, mask + 1)
         }
     }
-    state candidate(problem: &mut Problem, kind: u64, mask: u64) requires mask < 256 {
-        transition fit(problem) && problem.hypotheses < 768 { true -> emit(problem, kind, mask) false -> masks(problem, kind, mask + 1) }
+    state candidate(console: &Binding<Console>, problem: &mut Problem, kind: u64, mask: u64) requires mask < 256 {
+        transition fit(problem) && problem.hypotheses < 768 { true -> emit(console, problem, kind, mask) false -> masks(console, problem, kind, mask + 1) }
     }
-    state emit(problem: &mut Problem, kind: u64, mask: u64) requires mask < 256, problem.hypotheses < 768 {
+    state emit(console: &Binding<Console>, problem: &mut Problem, kind: u64, mask: u64) requires mask < 256, problem.hypotheses < 768 {
         let total: u64 = problem.hypotheses;
-        report(problem, kind, mask); problem.hypotheses = total + 1;
-        transition { _ -> masks(problem, kind, mask + 1) }
+        report(console, problem, kind, mask); problem.hypotheses = total + 1;
+        transition { _ -> masks(console, problem, kind, mask + 1) }
     }
     state done() { }
 }

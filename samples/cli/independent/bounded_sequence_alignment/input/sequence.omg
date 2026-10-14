@@ -1,5 +1,6 @@
 module input::sequence;
 use omega_language_std::console;
+use omega::language::core::binding;
 
 pub data Sequence {
     bases: [u8; 16];
@@ -10,51 +11,51 @@ pub data Sequence {
 // Capacity is checked before storing. Lowercase is normalized; no whitespace,
 // FASTA headers, punctuation or alphabet beyond A/C/G/T/N is silently accepted.
 // Status: 0 valid, 1 empty, 2 alphabet, 3 capacity, 4 unavailable line.
-pub machine read_sequence(sequence: &mut Sequence) -> i32
+pub machine read_sequence(console: &Binding<Console>, sequence: &mut Sequence) -> i32
 reaches Console
-invokes Console;
+invokes console;
 blocks;
 crashes Trap
 {
     sequence.length = 0;
-    transition { _ -> next(sequence) }
-    state next(sequence: &mut Sequence) -> i32 {
-        let observed: ByteRead = block Console::read_byte();
+    transition { _ -> next(console, sequence) }
+    state next(console: &Binding<Console>, sequence: &mut Sequence) -> i32 {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
             ByteRead::Eof -> end(sequence)
-            ByteRead::Byte { value } -> byte(sequence, value)
+            ByteRead::Byte { value } -> byte(console, sequence, value)
         }
     }
-    state byte(sequence: &mut Sequence, value: i32) -> i32 {
+    state byte(console: &Binding<Console>, sequence: &mut Sequence, value: i32) -> i32 {
         transition value == 10 {
             true -> finish(sequence)
-            false -> normalize(sequence, value)
+            false -> normalize(console, sequence, value)
         }
     }
-    state normalize(sequence: &mut Sequence, value: i32) -> i32 {
+    state normalize(console: &Binding<Console>, sequence: &mut Sequence, value: i32) -> i32 {
         transition value >= 97 && value <= 122 {
-            true -> alphabet(sequence, value - 32)
-            false -> alphabet(sequence, value)
+            true -> alphabet(console, sequence, value - 32)
+            false -> alphabet(console, sequence, value)
         }
     }
-    state alphabet(sequence: &mut Sequence, value: i32) -> i32 {
+    state alphabet(console: &Binding<Console>, sequence: &mut Sequence, value: i32) -> i32 {
         transition value == 65 || value == 67 || value == 71 || value == 84 || value == 78 {
-            true -> capacity(sequence, value)
+            true -> capacity(console, sequence, value)
             false -> (2)
         }
     }
-    state capacity(sequence: &mut Sequence, value: i32) -> i32 {
+    state capacity(console: &Binding<Console>, sequence: &mut Sequence, value: i32) -> i32 {
         transition sequence.length >= 0 && sequence.length < 16 && value >= 0 && value <= 255 {
-            true -> store(sequence, value)
+            true -> store(console, sequence, value)
             false -> (3)
         }
     }
-    state store(sequence: &mut Sequence, value: i32) -> i32
+    state store(console: &Binding<Console>, sequence: &mut Sequence, value: i32) -> i32
     requires sequence.length >= 0 && sequence.length < 16, value >= 0 && value <= 255
     {
         sequence.bases[sequence.length] = value as u8;
         sequence.length = sequence.length + 1;
-        transition { _ -> next(sequence) }
+        transition { _ -> next(console, sequence) }
     }
     state finish(sequence: &mut Sequence) -> i32 {
         transition sequence.length == 0 { true -> (1) false -> (0) }

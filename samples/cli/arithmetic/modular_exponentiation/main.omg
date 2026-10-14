@@ -14,6 +14,7 @@
 // Expected exit: 87.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 // Each constant divisor is provably nonzero. The changing algorithm values
 // are explicit state inputs; no application object retains scratch storage.
@@ -57,12 +58,13 @@ machine modular_power(base: i32, exponent: i32) -> i32 {
 
 }
 
-machine main() reaches Console {
-    Console::write_line("modular_exponentiation: 3^7 mod 100 by repeated squaring, fully exact");
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    Console::write_line(&main.console, "modular_exponentiation: 3^7 mod 100 by repeated squaring, fully exact");
     let result: i32 = modular_power(3, 7);
-    Console::write_line("result: 3^7 mod 100 = 87 (the exit code)");
-    Console::write_line("[press Enter to close]");
+    Console::write_line(&main.console, "result: 3^7 mod 100 = 87 (the exit code)");
+    Console::write_line(&main.console, "[press Enter to close]");
     let mut pause: [u8; 256];
-    _ = block Console::read_line(&mut pause);
-    Console::exit_process(result);
+    _ = block Console::read_line(&main.console, &mut pause);
+    Console::exit_process(&main.console, result);
 }

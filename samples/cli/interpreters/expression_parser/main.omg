@@ -103,7 +103,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state push_digit(main: &mut Main) {
         transition main.value_count < 16 && main.position < 16 {
             true -> store_digit(main)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -118,7 +118,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state push_open(main: &mut Main) {
         transition main.operator_count < 16 && main.position < 16 {
             true -> store_open(main)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -133,7 +133,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state close(main: &mut Main) {
         transition main.operator_count >= 1 && main.operator_count <= 16 {
             true -> close_top(main)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -152,7 +152,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state pop_open(main: &mut Main) {
         transition main.operator_count >= 1 && main.position < 16 {
             true -> after_open(main)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -187,7 +187,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state push_operator(main: &mut Main) {
         transition main.operator_count < 16 && main.position < 16 {
             true -> store_operator(main)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -217,7 +217,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.value_count >= 2 && main.value_count <= 16
             && main.operator_count >= 1 && main.operator_count <= 16 {
             true -> reduce(main)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -243,7 +243,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state store_result(main: &mut Main, result: i32 in Wrapping) {
         transition main.value_count >= 1 && main.value_count <= 16 {
             true -> write_result(main, result)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -259,7 +259,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state finish(main: &mut Main) {
         transition main.value_count == 1 {
             true -> report(main)
-            _ -> malformed()
+            _ -> malformed(&main.console)
         }
     }
 
@@ -269,7 +269,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.console.exit_process(result as i32);
     }
 
-    state malformed() {
-        Console::exit_process(1);
+    state malformed(console: &Binding<Console>) {
+        Console::exit_process(console, 1);
     }
 }

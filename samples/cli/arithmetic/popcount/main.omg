@@ -14,38 +14,40 @@
 
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::binding;
 
-machine main() reaches Console {
-    Console::write_line("popcount: counting the set bits of 0xDEADBEEF by shift-and-mask");
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    Console::write_line(&main.console, "popcount: counting the set bits of 0xDEADBEEF by shift-and-mask");
 
     transition {
-        _ -> step(3735928559, 0) // 0xDEADBEEF
+        _ -> step(&main.console, 3735928559, 0) // 0xDEADBEEF
     }
 
     // Loop head: stop once every bit has been shifted out.
-    state step(word: u32 in Wrapping, count: u32 in Wrapping) {
+    state step(console: &Binding<Console>, word: u32 in Wrapping, count: u32 in Wrapping) {
         transition word == 0 {
-            true -> done(count)
-            _ -> count_bit(word, count)
+            true -> done(console, count)
+            _ -> count_bit(console, word, count)
         }
     }
 
     // Loop body: accumulate the low bit, then shift it away.
-    state count_bit(word: u32 in Wrapping, count: u32 in Wrapping) {
+    state count_bit(console: &Binding<Console>, word: u32 in Wrapping, count: u32 in Wrapping) {
         let bit: u32 in Wrapping = word & 1;
         let next_count: u32 in Wrapping = count + bit;
         let next_word: u32 in Wrapping = word >> 1;
         transition {
-            _ -> step(next_word, next_count)
+            _ -> step(console, next_word, next_count)
         }
     }
 
-    state done(count: u32 in Wrapping) {
+    state done(console: &Binding<Console>, count: u32 in Wrapping) {
         let result: i32 = narrow_u32_to_i32_trapping(count as u32);
-        Console::write_line("result: the population count, 24 for 0xDEADBEEF (the exit code)");
-        Console::write_line("[press Enter to close]");
+        Console::write_line(console, "result: the population count, 24 for 0xDEADBEEF (the exit code)");
+        Console::write_line(console, "[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause);
-        Console::exit_process(result);
+        _ = block Console::read_line(console, &mut pause);
+        Console::exit_process(console, result);
     }
 }

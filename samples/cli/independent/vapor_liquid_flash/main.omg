@@ -5,36 +5,38 @@ use omega_language_std::console;
 use io::input;
 use io::report;
 use model::flash;
-machine main() reaches Console {
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut raw: io::input::Raw;
     let mut feed: io::input::Feed;
     let mut solution: model::flash::Solution;
-    let parsed: bool = block io::input::parse(&mut raw);
+    let parsed: bool = block io::input::parse(&main.console, &mut raw);
     transition parsed {
-        true -> validate(&raw, &mut feed, &mut solution)
-        false -> invalid()
+        true -> validate(&main.console, &raw, &mut feed, &mut solution)
+        false -> invalid(&main.console)
     }
-    state validate(raw: &io::input::Raw, feed: &mut io::input::Feed, solution: &mut model::flash::Solution) {
+    state validate(console: &Binding<Console>, raw: &io::input::Raw, feed: &mut io::input::Feed, solution: &mut model::flash::Solution) {
         transition io::input::validate(raw, feed) {
-            true -> solve(feed, solution)
-            false -> invalid()
+            true -> solve(console, feed, solution)
+            false -> invalid(console)
         }
     }
-    state solve(feed: &io::input::Feed, solution: &mut model::flash::Solution) {
+    state solve(console: &Binding<Console>, feed: &io::input::Feed, solution: &mut model::flash::Solution) {
         model::flash::solve(feed, solution);
         transition solution.status == 3 {
-            true -> ambiguous(feed, solution)
-            false -> verify(feed, solution)
+            true -> ambiguous(console, feed, solution)
+            false -> verify(console, feed, solution)
         }
     }
-    state ambiguous(feed: &io::input::Feed, solution: &model::flash::Solution) { io::report::emit(feed, solution); Console::exit_process(3); }
-    state verify(feed: &io::input::Feed, solution: &model::flash::Solution) {
+    state ambiguous(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution) { io::report::emit(console, feed, solution); Console::exit_process(console, 3); }
+    state verify(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution) {
         transition model::flash::verify(feed, solution) {
-            true -> done(feed, solution)
-            false -> failed()
+            true -> done(console, feed, solution)
+            false -> failed(console)
         }
     }
-    state done(feed: &io::input::Feed, solution: &model::flash::Solution) { io::report::emit(feed, solution); Console::exit_process(0); }
-    state failed() { Console::write_line("FAIL numerical_closure_or_composition"); Console::exit_process(65); }
-    state invalid() { Console::write_line("INVALID fractions_or_K"); Console::exit_process(64); }
+    state done(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution) { io::report::emit(console, feed, solution); Console::exit_process(console, 0); }
+    state failed(console: &Binding<Console>) { Console::write_line(console, "FAIL numerical_closure_or_composition"); Console::exit_process(console, 65); }
+    state invalid(console: &Binding<Console>) { Console::write_line(console, "INVALID fractions_or_K"); Console::exit_process(console, 64); }
 }

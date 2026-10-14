@@ -2,36 +2,37 @@
 // one finite record; EOF, a malformed byte, and excess digits reject explicitly.
 use omega_language_std::console;
 use model::records;
-pub machine read_token() -> Token
+use omega::language::core::binding;
+pub machine read_token(console: &Binding<Console>) -> Token
 reaches Console
-invokes Console;
+invokes console;
 blocks;
 crashes Trap
 {
-    transition { _ -> scan(0, 0) }
-    state scan(value: i64 in Saturating, digits: u64 in Saturating) -> Token {
-        let observed: ByteRead = block Console::read_byte();
+    transition { _ -> scan(console, 0, 0) }
+    state scan(console: &Binding<Console>, value: i64 in Saturating, digits: u64 in Saturating) -> Token {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
             ByteRead::Eof -> finish(value, digits)
-            ByteRead::Byte { value as byte } -> classify(value, digits, byte)
+            ByteRead::Byte { value as byte } -> classify(console, value, digits, byte)
         }
     }
-    state classify(value: i64 in Saturating, digits: u64 in Saturating, byte: i32) -> Token {
+    state classify(console: &Binding<Console>, value: i64 in Saturating, digits: u64 in Saturating, byte: i32) -> Token {
         transition {
-            byte == 32 || byte == 10 || byte == 13 || byte == 9 -> space(value, digits)
-            byte >= 48 && byte <= 57 && digits < 9 -> append(value, digits, byte)
+            byte == 32 || byte == 10 || byte == 13 || byte == 9 -> space(console, value, digits)
+            byte >= 48 && byte <= 57 && digits < 9 -> append(console, value, digits, byte)
             _ -> (Token { value: 0, valid: false })
         }
     }
-    state space(value: i64 in Saturating, digits: u64 in Saturating) -> Token {
+    state space(console: &Binding<Console>, value: i64 in Saturating, digits: u64 in Saturating) -> Token {
         transition digits > 0 {
             true -> (Token { value: value, valid: true })
-            false -> scan(value, digits)
+            false -> scan(console, value, digits)
         }
     }
-    state append(value: i64 in Saturating, digits: u64 in Saturating, byte: i32) -> Token {
+    state append(console: &Binding<Console>, value: i64 in Saturating, digits: u64 in Saturating, byte: i32) -> Token {
         let digit: i64 in Saturating = (byte as i64 in Saturating) - 48;
-        transition { _ -> scan(value * 10 + digit, digits + 1) }
+        transition { _ -> scan(console, value * 10 + digit, digits + 1) }
     }
     state finish(value: i64 in Saturating, digits: u64 in Saturating) -> Token {
         Token { value: value, valid: digits > 0 }
@@ -39,23 +40,23 @@ crashes Trap
 }
 // The complete stream ends after the declared records; surplus numeric data
 // and malformed trailing characters are both rejected.
-pub machine at_end() -> bool
+pub machine at_end(console: &Binding<Console>) -> bool
 reaches Console
-invokes Console;
+invokes console;
 blocks;
 crashes Trap
 {
-    transition { _ -> scan() }
-    state scan() -> bool {
-        let observed: ByteRead = block Console::read_byte();
+    transition { _ -> scan(console) }
+    state scan(console: &Binding<Console>) -> bool {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
             ByteRead::Eof -> (true)
-            ByteRead::Byte { value } -> whitespace(value)
+            ByteRead::Byte { value } -> whitespace(console, value)
         }
     }
-    state whitespace(value: i32) -> bool {
+    state whitespace(console: &Binding<Console>, value: i32) -> bool {
         transition value == 32 || value == 10 || value == 13 || value == 9 {
-            true -> scan()
+            true -> scan(console)
             false -> (false)
         }
     }

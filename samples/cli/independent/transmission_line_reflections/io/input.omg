@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::binding;
 
 pub data Request [copy] {
     valid: bool;
@@ -9,59 +10,59 @@ pub data Request [copy] {
 // Grammar: one case digit, one space, one or two horizon digits, LF.
 // Bytes are read through the documented Console provider; EOF and host traps
 // are explicit rejection routes. No input can grow the simulation storage.
-pub machine read_request() -> Request
+pub machine read_request(console: &Binding<Console>) -> Request
 reaches Console
-invokes Console;
+invokes console;
 blocks;
 crashes Trap
 {
-    let observed: ByteRead = block Console::read_byte();
+    let observed: ByteRead = block Console::read_byte(console);
     transition observed {
-        ByteRead::Byte { value } -> identifier(value)
+        ByteRead::Byte { value } -> identifier(console, value)
         _ -> (Request { valid: false, identifier: 0, horizon: 0 })
     }
-    state identifier(value: i32) -> Request {
+    state identifier(console: &Binding<Console>, value: i32) -> Request {
         transition value >= 48 && value <= 53 {
-            true -> separator((value - 48) as u64 in Saturating)
+            true -> separator(console, (value - 48) as u64 in Saturating)
             false -> invalid()
         }
     }
-    state separator(identifier: u64 in Saturating) -> Request {
-        let observed: ByteRead = block Console::read_byte();
+    state separator(console: &Binding<Console>, identifier: u64 in Saturating) -> Request {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
-            ByteRead::Byte { value: 32 } -> first(identifier)
+            ByteRead::Byte { value: 32 } -> first(console, identifier)
             _ -> invalid()
         }
     }
-    state first(identifier: u64 in Saturating) -> Request {
-        let observed: ByteRead = block Console::read_byte();
+    state first(console: &Binding<Console>, identifier: u64 in Saturating) -> Request {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
-            ByteRead::Byte { value } -> digit(identifier, value)
+            ByteRead::Byte { value } -> digit(console, identifier, value)
             _ -> invalid()
         }
     }
-    state digit(identifier: u64 in Saturating, value: i32) -> Request {
+    state digit(console: &Binding<Console>, identifier: u64 in Saturating, value: i32) -> Request {
         transition value >= 49 && value <= 57 {
-            true -> second(identifier, (value - 48) as u64 in Saturating)
+            true -> second(console, identifier, (value - 48) as u64 in Saturating)
             false -> invalid()
         }
     }
-    state second(identifier: u64 in Saturating, horizon: u64 in Saturating) -> Request {
-        let observed: ByteRead = block Console::read_byte();
+    state second(console: &Binding<Console>, identifier: u64 in Saturating, horizon: u64 in Saturating) -> Request {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
             ByteRead::Byte { value: 10 } -> valid(identifier, horizon)
-            ByteRead::Byte { value } -> second_digit(identifier, horizon, value)
+            ByteRead::Byte { value } -> second_digit(console, identifier, horizon, value)
             _ -> invalid()
         }
     }
-    state second_digit(identifier: u64 in Saturating, horizon: u64 in Saturating, value: i32) -> Request {
+    state second_digit(console: &Binding<Console>, identifier: u64 in Saturating, horizon: u64 in Saturating, value: i32) -> Request {
         transition value >= 48 && value <= 57 {
-            true -> newline(identifier, horizon * 10 + ((value - 48) as u64 in Saturating))
+            true -> newline(console, identifier, horizon * 10 + ((value - 48) as u64 in Saturating))
             false -> invalid()
         }
     }
-    state newline(identifier: u64 in Saturating, horizon: u64 in Saturating) -> Request {
-        let observed: ByteRead = block Console::read_byte();
+    state newline(console: &Binding<Console>, identifier: u64 in Saturating, horizon: u64 in Saturating) -> Request {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
             ByteRead::Byte { value: 10 } -> valid(identifier, horizon)
             _ -> invalid()

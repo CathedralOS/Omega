@@ -4,18 +4,20 @@ use omega_language_std::console;
 use io::input;
 use model::registration;
 use io::output;
-machine main() reaches Console {
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut raw: Raw;
-    let accepted: bool = block read(&mut raw);
-    transition accepted { true -> validate(&raw) false -> invalid() }
-    state validate(raw: &Raw) {
+    let accepted: bool = block read(&main.console, &mut raw);
+    transition accepted { true -> validate(&main.console, &raw) false -> invalid(&main.console) }
+    state validate(console: &Binding<Console>, raw: &Raw) {
         let mut problem: Problem;
-        transition decode(raw, &mut problem) { true -> fit(&mut problem) false -> invalid() }
+        transition decode(raw, &mut problem) { true -> fit(console, &mut problem) false -> invalid(console) }
     }
-    state fit(problem: &mut Problem) {
-        transition solve(problem) { true -> report(problem) false -> unidentified() }
+    state fit(console: &Binding<Console>, problem: &mut Problem) {
+        transition solve(problem) { true -> report(console, problem) false -> unidentified(console) }
     }
-    state report(problem: &Problem) { emit(problem); Console::exit_process(0); }
-    state unidentified() { Console::write_line("status non-identifiable"); Console::exit_process(2); }
-    state invalid() { Console::write_line("error invalid input"); Console::exit_process(64); }
+    state report(console: &Binding<Console>, problem: &Problem) { emit(console, problem); Console::exit_process(console, 0); }
+    state unidentified(console: &Binding<Console>) { Console::write_line(console, "status non-identifiable"); Console::exit_process(console, 2); }
+    state invalid(console: &Binding<Console>) { Console::write_line(console, "error invalid input"); Console::exit_process(console, 64); }
 }

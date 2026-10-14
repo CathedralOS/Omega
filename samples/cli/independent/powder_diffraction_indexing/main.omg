@@ -3,15 +3,17 @@
 use omega_language_std::console;
 use io::input;
 use domain::indexing;
-machine main() reaches Console {
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut raw: Raw = Raw { values: [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0], count: 0, };
-    transition block read(&mut raw) { true -> validate(&raw) false -> invalid() }
-    state validate(raw: &Raw) {
+    transition block read(&main.console, &mut raw) { true -> validate(&main.console, &raw) false -> invalid(&main.console) }
+    state validate(console: &Binding<Console>, raw: &Raw) {
         let mut problem: Problem = Problem { count: 0, wavelength: 0.0, tolerance: 0.0, angles: [0.0,0.0,0.0,0.0,0.0,0.0], vectors: [0.0,0.0,0.0,0.0,0.0,0.0], lines: [0,0,0,0,0,0,0,0], assignments: [0,0,0,0,0,0], residuals: [0.0,0.0,0.0,0.0,0.0,0.0], predictions: [0.0,0.0,0.0,0.0,0.0,0.0], selected: 0, missing: 0, last: 0, hypotheses: 0, scale: 0.0, lattice: 0.0, };
-        transition decode(raw, &mut problem) { true -> solve(&mut problem) false -> invalid() }
+        transition decode(raw, &mut problem) { true -> solve(console, &mut problem) false -> invalid(console) }
     }
-    state solve(problem: &mut Problem) { enumerate(problem); transition problem.hypotheses > 0 { true -> done() false -> incompatible() } }
-    state done() { Console::exit_process(0); }
-    state incompatible() { Console::exit_process(2); }
-    state invalid() { Console::write_line("error invalid input"); Console::exit_process(64); }
+    state solve(console: &Binding<Console>, problem: &mut Problem) { enumerate(console, problem); transition problem.hypotheses > 0 { true -> done(console) false -> incompatible(console) } }
+    state done(console: &Binding<Console>) { Console::exit_process(console, 0); }
+    state incompatible(console: &Binding<Console>) { Console::exit_process(console, 2); }
+    state invalid(console: &Binding<Console>) { Console::write_line(console, "error invalid input"); Console::exit_process(console, 64); }
 }

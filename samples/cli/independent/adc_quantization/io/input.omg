@@ -2,44 +2,45 @@
 // Neither sentinel is an admitted physical setting or sample.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::binding;
 
-pub machine number() -> i64 in Wrapping reaches Console
-invokes Console;
+pub machine number(console: &Binding<Console>) -> i64 in Wrapping reaches Console
+invokes console;
 blocks;
 crashes Trap
 {
-    transition { _ -> scan(0, false, false, false) }
-    state scan(magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool) -> i64 in Wrapping {
-        let byte: ByteRead = block Console::read_byte();
+    transition { _ -> scan(console, 0, false, false, false) }
+    state scan(console: &Binding<Console>, magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool) -> i64 in Wrapping {
+        let byte: ByteRead = block Console::read_byte(console);
         transition byte {
             ByteRead::Eof -> finish(magnitude, negative, digits)
-            ByteRead::Byte { value } -> classify(magnitude, negative, started, digits, value)
+            ByteRead::Byte { value } -> classify(console, magnitude, negative, started, digits, value)
         }
     }
-    state classify(magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool, character: i32) -> i64 in Wrapping {
+    state classify(console: &Binding<Console>, magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool, character: i32) -> i64 in Wrapping {
         transition character == 32 || character == 10 || character == 13 || character == 9 {
-            true -> space(magnitude, negative, started, digits)
-            _ -> symbol(magnitude, negative, started, digits, character)
+            true -> space(console, magnitude, negative, started, digits)
+            _ -> symbol(console, magnitude, negative, started, digits, character)
         }
     }
-    state space(magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool) -> i64 in Wrapping {
-        transition started { true -> finish(magnitude, negative, digits) _ -> scan(magnitude, negative, false, false) }
+    state space(console: &Binding<Console>, magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool) -> i64 in Wrapping {
+        transition started { true -> finish(magnitude, negative, digits) _ -> scan(console, magnitude, negative, false, false) }
     }
-    state symbol(magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool, character: i32) -> i64 in Wrapping {
+    state symbol(console: &Binding<Console>, magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool, character: i32) -> i64 in Wrapping {
         transition character == 45 && !started {
-            true -> scan(magnitude, true, true, false)
-            _ -> digit(magnitude, negative, character)
+            true -> scan(console, magnitude, true, true, false)
+            _ -> digit(console, magnitude, negative, character)
         }
     }
-    state digit(magnitude: i64 in Wrapping, negative: bool, character: i32) -> i64 in Wrapping {
+    state digit(console: &Binding<Console>, magnitude: i64 in Wrapping, negative: bool, character: i32) -> i64 in Wrapping {
         transition character >= 48 && character <= 57 {
-            true -> accumulate(magnitude, negative, character)
+            true -> accumulate(console, magnitude, negative, character)
             _ -> (2001)
         }
     }
-    state accumulate(magnitude: i64 in Wrapping, negative: bool, character: i32) -> i64 in Wrapping {
+    state accumulate(console: &Binding<Console>, magnitude: i64 in Wrapping, negative: bool, character: i32) -> i64 in Wrapping {
         let next: i64 in Wrapping = magnitude * 10 + (widen_i32_to_i64(character) as i64 in Wrapping) - 48;
-        transition next <= 1000 { true -> scan(next, negative, true, true) _ -> (2001) }
+        transition next <= 1000 { true -> scan(console, next, negative, true, true) _ -> (2001) }
     }
     state finish(magnitude: i64 in Wrapping, negative: bool, digits: bool) -> i64 in Wrapping {
         transition digits { true -> sign(magnitude, negative) _ -> empty(negative) }

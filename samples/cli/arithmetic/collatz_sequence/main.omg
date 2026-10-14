@@ -7,51 +7,53 @@
 // Expected exit: 111.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
-machine main() reaches Console {
-    Console::write_line("collatz_sequence: count hailstone steps from 27 down to 1");
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    Console::write_line(&main.console, "collatz_sequence: count hailstone steps from 27 down to 1");
 
     transition {
-        _ -> step(27, 0)
+        _ -> step(&main.console, 27, 0)
     }
 
     // One hailstone step, or stop once the sequence has collapsed to 1.
-    state step(value: i32 in Wrapping, steps: i32 in Wrapping) {
+    state step(console: &Binding<Console>, value: i32 in Wrapping, steps: i32 in Wrapping) {
         transition value == 1 {
-            true -> done(steps)
-            _ -> advance(value, steps)
+            true -> done(console, steps)
+            _ -> advance(console, value, steps)
         }
     }
 
     // Count this step, then branch on parity.
-    state advance(value: i32 in Wrapping, steps: i32 in Wrapping) {
+    state advance(console: &Binding<Console>, value: i32 in Wrapping, steps: i32 in Wrapping) {
         let next_steps: i32 in Wrapping = steps + 1;
         let remainder: i32 = (value % 2) as i32;
         transition remainder == 0 {
-            true -> halve(value, next_steps)
-            _ -> climb(value, next_steps)
+            true -> halve(console, value, next_steps)
+            _ -> climb(console, value, next_steps)
         }
     }
 
-    state halve(value: i32 in Wrapping, steps: i32 in Wrapping) {
+    state halve(console: &Binding<Console>, value: i32 in Wrapping, steps: i32 in Wrapping) {
         let next: i32 in Wrapping = value / 2;
         transition {
-            _ -> step(next, steps)
+            _ -> step(console, next, steps)
         }
     }
 
-    state climb(value: i32 in Wrapping, steps: i32 in Wrapping) {
+    state climb(console: &Binding<Console>, value: i32 in Wrapping, steps: i32 in Wrapping) {
         let next: i32 in Wrapping = value * 3 + 1;
         transition {
-            _ -> step(next, steps)
+            _ -> step(console, next, steps)
         }
     }
 
-    state done(steps: i32 in Wrapping) {
-        Console::write_line("result: the step count, 111 for seed 27 (the exit code)");
-        Console::write_line("[press Enter to close]");
+    state done(console: &Binding<Console>, steps: i32 in Wrapping) {
+        Console::write_line(console, "result: the step count, 111 for seed 27 (the exit code)");
+        Console::write_line(console, "[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause);
-        Console::exit_process(steps as i32);
+        _ = block Console::read_line(console, &mut pause);
+        Console::exit_process(console, steps as i32);
     }
 }

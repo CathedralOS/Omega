@@ -1,77 +1,78 @@
 module io::input;
 use omega_language_std::console;
 use omega::language::core::float_operations;
+use omega::language::core::binding;
 
 pub data Raw { values: [f64; 17]; count: u32; }
 pub data Feed { count: u32; fractions: [f64; 8]; ratios: [f64; 8]; }
 // Finite decimal grammar, 1023 bytes, 32 characters/token, 17 tokens.
 // No floating parser can manufacture NaN/Inf; exponent and sign tokens refuse.
-pub machine parse(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
-    transition { _ -> read(raw, 0.0, 1.0, false, false, false, 0, 0) }
-    state read(raw: &mut Raw, value: f64, scale: f64, active: bool, dot: bool, digits: bool, length: u32, bytes: u32) -> bool {
+pub machine parse(console: &Binding<Console>, raw: &mut Raw) -> bool reaches Console invokes console; blocks; crashes Trap {
+    transition { _ -> read(console, raw, 0.0, 1.0, false, false, false, 0, 0) }
+    state read(console: &Binding<Console>, raw: &mut Raw, value: f64, scale: f64, active: bool, dot: bool, digits: bool, length: u32, bytes: u32) -> bool {
         transition bytes < 1024 {
-            true -> receive(raw, value, scale, active, dot, digits, length, bytes)
+            true -> receive(console, raw, value, scale, active, dot, digits, length, bytes)
             false -> bad()
         }
     }
-    state receive(raw: &mut Raw, value: f64, scale: f64, active: bool, dot: bool, digits: bool, length: u32, bytes: u32) -> bool {
-        let observed: ByteRead = block Console::read_byte();
+    state receive(console: &Binding<Console>, raw: &mut Raw, value: f64, scale: f64, active: bool, dot: bool, digits: bool, length: u32, bytes: u32) -> bool {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
             ByteRead::Eof -> finish(raw, value, active, digits)
-            ByteRead::Byte { value as character } -> classify(raw, value, scale, active, dot, digits, length, bytes, character)
+            ByteRead::Byte { value as character } -> classify(console, raw, value, scale, active, dot, digits, length, bytes, character)
         }
     }
-    state classify(raw: &mut Raw, value: f64, scale: f64, active: bool, dot: bool, digits: bool, length: u32, bytes: u32, character: i32) -> bool {
+    state classify(console: &Binding<Console>, raw: &mut Raw, value: f64, scale: f64, active: bool, dot: bool, digits: bool, length: u32, bytes: u32, character: i32) -> bool {
         transition length < 32 && character >= 48 && character <= 57 {
-            true -> digit(raw, value, scale, dot, length, bytes, character)
-            false -> punctuation(raw, value, scale, active, dot, digits, length, bytes, character)
+            true -> digit(console, raw, value, scale, dot, length, bytes, character)
+            false -> punctuation(console, raw, value, scale, active, dot, digits, length, bytes, character)
         }
     }
-    state digit(raw: &mut Raw, value: f64, scale: f64, dot: bool, length: u32, bytes: u32, character: i32) -> bool {
+    state digit(console: &Binding<Console>, raw: &mut Raw, value: f64, scale: f64, dot: bool, length: u32, bytes: u32, character: i32) -> bool {
         let digit: f64 = (character as f64) - 48.0;
         transition dot {
-            true -> fractional(raw, value, scale, digit, length, bytes)
-            false -> integral(raw, value, digit, length, bytes)
+            true -> fractional(console, raw, value, scale, digit, length, bytes)
+            false -> integral(console, raw, value, digit, length, bytes)
         }
     }
-    state fractional(raw: &mut Raw, value: f64, scale: f64, digit: f64, length: u32, bytes: u32) -> bool {
-        transition { _ -> read(raw, value + digit * scale / 10.0, scale / 10.0, true, true, true, length + 1, bytes + 1) }
+    state fractional(console: &Binding<Console>, raw: &mut Raw, value: f64, scale: f64, digit: f64, length: u32, bytes: u32) -> bool {
+        transition { _ -> read(console, raw, value + digit * scale / 10.0, scale / 10.0, true, true, true, length + 1, bytes + 1) }
     }
-    state integral(raw: &mut Raw, value: f64, digit: f64, length: u32, bytes: u32) -> bool {
+    state integral(console: &Binding<Console>, raw: &mut Raw, value: f64, digit: f64, length: u32, bytes: u32) -> bool {
         let next: f64 = value * 10.0 + digit;
         transition next <= 20.0 {
-            true -> read(raw, next, 1.0, true, false, true, length + 1, bytes + 1)
+            true -> read(console, raw, next, 1.0, true, false, true, length + 1, bytes + 1)
             false -> bad()
         }
     }
-    state punctuation(raw: &mut Raw, value: f64, scale: f64, active: bool, dot: bool, digits: bool, length: u32, bytes: u32, character: i32) -> bool {
+    state punctuation(console: &Binding<Console>, raw: &mut Raw, value: f64, scale: f64, active: bool, dot: bool, digits: bool, length: u32, bytes: u32, character: i32) -> bool {
         transition character == 46 && !dot && length < 32 {
-            true -> read(raw, value, scale, true, true, digits, length + 1, bytes + 1)
-            false -> delimiter(raw, value, active, digits, bytes, character)
+            true -> read(console, raw, value, scale, true, true, digits, length + 1, bytes + 1)
+            false -> delimiter(console, raw, value, active, digits, bytes, character)
         }
     }
-    state delimiter(raw: &mut Raw, value: f64, active: bool, digits: bool, bytes: u32, character: i32) -> bool {
+    state delimiter(console: &Binding<Console>, raw: &mut Raw, value: f64, active: bool, digits: bool, bytes: u32, character: i32) -> bool {
         transition character == 32 || character == 9 || character == 10 || character == 13 {
-            true -> separate(raw, value, active, digits, bytes)
+            true -> separate(console, raw, value, active, digits, bytes)
             false -> bad()
         }
     }
-    state separate(raw: &mut Raw, value: f64, active: bool, digits: bool, bytes: u32) -> bool {
+    state separate(console: &Binding<Console>, raw: &mut Raw, value: f64, active: bool, digits: bool, bytes: u32) -> bool {
         transition active {
-            true -> capacity(raw, value, digits, bytes)
-            false -> read(raw, 0.0, 1.0, false, false, false, 0, bytes + 1)
+            true -> capacity(console, raw, value, digits, bytes)
+            false -> read(console, raw, 0.0, 1.0, false, false, false, 0, bytes + 1)
         }
     }
-    state capacity(raw: &mut Raw, value: f64, digits: bool, bytes: u32) -> bool {
+    state capacity(console: &Binding<Console>, raw: &mut Raw, value: f64, digits: bool, bytes: u32) -> bool {
         transition raw.count < 17 && digits {
-            true -> store(raw, value, bytes)
+            true -> store(console, raw, value, bytes)
             false -> bad()
         }
     }
-    state store(raw: &mut Raw, value: f64, bytes: u32) -> bool requires raw.count < 17 {
+    state store(console: &Binding<Console>, raw: &mut Raw, value: f64, bytes: u32) -> bool requires raw.count < 17 {
         raw.values[raw.count] = value;
         raw.count = raw.count + 1;
-        transition { _ -> read(raw, 0.0, 1.0, false, false, false, 0, bytes + 1) }
+        transition { _ -> read(console, raw, 0.0, 1.0, false, false, false, 0, bytes + 1) }
     }
     state finish(raw: &mut Raw, value: f64, active: bool, digits: bool) -> bool {
         transition !active {

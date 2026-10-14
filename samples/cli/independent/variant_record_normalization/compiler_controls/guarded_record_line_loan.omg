@@ -1,8 +1,8 @@
 // Complete target-neutral reproducer of record + byte-buffer case successors.
 // Expected main result: 42; selected edge retains both storage homes.
-data Sequence { bases: [u64 in Wrapping; 12]; length: u64 in Wrapping; }
-data Variant { first: Sequence; second: Sequence; position: u64 in Wrapping; }
-data Ledger { variants: [Variant; 32]; count: u64 in Wrapping; }
+pub data Sequence { bases: [u64 in Wrapping; 12]; length: u64 in Wrapping; }
+pub data Variant { first: Sequence; second: Sequence; position: u64 in Wrapping; }
+pub data Ledger { variants: [Variant; 32]; count: u64 in Wrapping; }
 data Application { first: Sequence; second: Sequence; ledger: Ledger; }
 data ReadOutcome {
     case Invalid;

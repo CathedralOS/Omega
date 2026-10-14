@@ -1,86 +1,87 @@
 use omega_language_std::console;
 use domain::exact;
 use domain::sets;
+use omega::language::core::binding;
 
-pub machine number(value: u64 in Wrapping) reaches Console
+pub machine number(console: &Binding<Console>, value: u64 in Wrapping) reaches Console
 invokes Console;
 {
     // The declared model displays values at most 756. Subtraction extracts
     // its three decimal columns without retaining a division operand over IO.
-    transition { _ -> hundreds(value, 0) }
-    state hundreds(left: u64 in Wrapping, count: u64 in Wrapping) {
+    transition { _ -> hundreds(console, value, 0) }
+    state hundreds(console: &Binding<Console>, left: u64 in Wrapping, count: u64 in Wrapping) {
         transition left >= 100 {
-            true -> hundreds(left - 100, count + 1)
-            false -> leading(left, count)
+            true -> hundreds(console, left - 100, count + 1)
+            false -> leading(console, left, count)
         }
     }
-    state leading(left: u64 in Wrapping, count: u64 in Wrapping) {
+    state leading(console: &Binding<Console>, left: u64 in Wrapping, count: u64 in Wrapping) {
         transition count > 0 {
-            true -> high(left, count)
-            false -> tens(left, 0, false)
+            true -> high(console, left, count)
+            false -> tens(console, left, 0, false)
         }
     }
-    state high(left: u64 in Wrapping, count: u64 in Wrapping) {
-        Console::write_byte((count % 10 + 48) as i32);
-        transition { _ -> tens(left, 0, true) }
+    state high(console: &Binding<Console>, left: u64 in Wrapping, count: u64 in Wrapping) {
+        Console::write_byte(console, (count % 10 + 48) as i32);
+        transition { _ -> tens(console, left, 0, true) }
     }
-    state tens(left: u64 in Wrapping, count: u64 in Wrapping, high: bool) {
+    state tens(console: &Binding<Console>, left: u64 in Wrapping, count: u64 in Wrapping, high: bool) {
         transition left >= 10 {
-            true -> tens(left - 10, count + 1, high)
-            false -> middle(left, count, high)
+            true -> tens(console, left - 10, count + 1, high)
+            false -> middle(console, left, count, high)
         }
     }
-    state middle(left: u64 in Wrapping, count: u64 in Wrapping, high: bool) {
+    state middle(console: &Binding<Console>, left: u64 in Wrapping, count: u64 in Wrapping, high: bool) {
         transition count > 0 || high {
-            true -> low(left, count)
-            false -> units(left)
+            true -> low(console, left, count)
+            false -> units(console, left)
         }
     }
-    state low(left: u64 in Wrapping, count: u64 in Wrapping) {
-        Console::write_byte((count % 10 + 48) as i32);
-        transition { _ -> units(left) }
+    state low(console: &Binding<Console>, left: u64 in Wrapping, count: u64 in Wrapping) {
+        Console::write_byte(console, (count % 10 + 48) as i32);
+        transition { _ -> units(console, left) }
     }
-    state units(left: u64 in Wrapping) {
-        Console::write_byte((left % 10 + 48) as i32);
+    state units(console: &Binding<Console>, left: u64 in Wrapping) {
+        Console::write_byte(console, (left % 10 + 48) as i32);
     }
 }
 
-pub machine fraction(value: Fraction) reaches Console
+pub machine fraction(console: &Binding<Console>, value: Fraction) reaches Console
 invokes Console;
 {
-    number(value.numerator); Console::write("/"); number(value.denominator);
+    number(console, value.numerator); Console::write(console, "/"); number(console, value.denominator);
 }
 
-pub machine membership(mask: u64 in Wrapping) reaches Console
+pub machine membership(console: &Binding<Console>, mask: u64 in Wrapping) reaches Console
 invokes Console;
 {
-    transition { _ -> step(mask, 0) }
-    state step(mask: u64 in Wrapping, gene: u64 in Wrapping) {
-        transition gene < 10 { true -> inspect(mask, gene)
+    transition { _ -> step(console, mask, 0) }
+    state step(console: &Binding<Console>, mask: u64 in Wrapping, gene: u64 in Wrapping) {
+        transition gene < 10 { true -> inspect(console, mask, gene)
  false -> done()
  }
     }
-    state inspect(mask: u64 in Wrapping, gene: u64 in Wrapping) {
-        transition member(mask, gene) { true -> emit(mask, gene)
- false -> step(mask, gene + 1)
+    state inspect(console: &Binding<Console>, mask: u64 in Wrapping, gene: u64 in Wrapping) {
+        transition member(mask, gene) { true -> emit(console, mask, gene)
+ false -> step(console, mask, gene + 1)
  }
     }
-    state emit(mask: u64 in Wrapping, gene: u64 in Wrapping) {
-        Console::write_byte((gene + 65) as i32);
-        transition { _ -> step(mask, gene + 1) }
+    state emit(console: &Binding<Console>, mask: u64 in Wrapping, gene: u64 in Wrapping) {
+        Console::write_byte(console, (gene + 65) as i32);
+        transition { _ -> step(console, mask, gene + 1) }
     }
     state done() { }
 }
 
-pub machine result(identifier: u64 in Wrapping, annotated: u64 in Wrapping, hits: u64 in Wrapping, probability: Fraction, adjusted: Fraction, rank: u64 in Wrapping) reaches Console
+pub machine result(console: &Binding<Console>, identifier: u64 in Wrapping, annotated: u64 in Wrapping, hits: u64 in Wrapping, probability: Fraction, adjusted: Fraction, rank: u64 in Wrapping) reaches Console
 invokes Console;
 {
-    Console::write("set="); number(identifier);
-    Console::write(" K="); number(size(annotated));
-    Console::write(" hits="); number(size(hits));
-    Console::write(" p="); fraction(probability);
-    Console::write(" q="); fraction(adjusted);
-    Console::write(" rank="); number(rank);
-    Console::write(" members="); membership(annotated);
-    Console::write(" overlap="); membership(hits); Console::write_line("");
+    Console::write(console, "set="); number(console, identifier);
+    Console::write(console, " K="); number(console, size(annotated));
+    Console::write(console, " hits="); number(console, size(hits));
+    Console::write(console, " p="); fraction(console, probability);
+    Console::write(console, " q="); fraction(console, adjusted);
+    Console::write(console, " rank="); number(console, rank);
+    Console::write(console, " members="); membership(console, annotated);
+    Console::write(console, " overlap="); membership(console, hits); Console::write_line(console, "");
 }

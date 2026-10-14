@@ -1,63 +1,64 @@
 module domain::report;
 use omega_language_std::console;
 use omega::language::core::float_operations;
+use omega::language::core::binding;
 
 // Fixed six-place decimal output is independently checked to 2e-6.
 // The declared fixture inventory keeps scaled magnitudes below i32::MAX.
-pub machine number(value: f64)
+pub machine number(console: &Binding<Console>, value: f64)
 reaches Console
 invokes Console;
 crashes Trap
 {
-    transition value < 0.0 { true -> negative(value) _ -> positive(value) }
-    state negative(value: f64) {
-        Console::write("-");
-        transition { _ -> positive(0.0 - value) }
+    transition value < 0.0 { true -> negative(console, value) _ -> positive(console, value) }
+    state negative(console: &Binding<Console>, value: f64) {
+        Console::write(console, "-");
+        transition { _ -> positive(console, 0.0 - value) }
     }
-    state positive(value: f64) {
+    state positive(console: &Binding<Console>, value: f64) {
         let scaled: i32 in Trapping = I32::from_f64(value * 1000000.0 + 0.5);
-        digits(scaled as i32);
+        digits(console, scaled as i32);
     }
 }
 
-machine digits(scaled: i32) reaches Console {
+machine digits(console: &Binding<Console>, scaled: i32) reaches Console {
     let value: i32 in Wrapping = scaled as i32 in Wrapping;
-    integer((value / 1000000) as i32);
-    Console::write(".");
-    Console::write_byte(((value / 100000 % 10) + 48) as i32);
-    Console::write_byte(((value / 10000 % 10) + 48) as i32);
-    Console::write_byte(((value / 1000 % 10) + 48) as i32);
-    Console::write_byte(((value / 100 % 10) + 48) as i32);
-    Console::write_byte(((value / 10 % 10) + 48) as i32);
-    Console::write_byte(((value % 10) + 48) as i32);
+    integer(console, (value / 1000000) as i32);
+    Console::write(console, ".");
+    Console::write_byte(console, ((value / 100000 % 10) + 48) as i32);
+    Console::write_byte(console, ((value / 10000 % 10) + 48) as i32);
+    Console::write_byte(console, ((value / 1000 % 10) + 48) as i32);
+    Console::write_byte(console, ((value / 100 % 10) + 48) as i32);
+    Console::write_byte(console, ((value / 10 % 10) + 48) as i32);
+    Console::write_byte(console, ((value % 10) + 48) as i32);
 }
 
-pub machine integer(value: i32)
+pub machine integer(console: &Binding<Console>, value: i32)
 reaches Console
 invokes Console;
 {
     let wrapped: i32 in Wrapping = value as i32 in Wrapping;
-    transition { _ -> emit(wrapped, 1000000000, false) }
-    state emit(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool)
+    transition { _ -> emit(console, wrapped, 1000000000, false) }
+    state emit(console: &Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool)
         requires divisor > 0
     {
         let digit: i32 in Wrapping = value / divisor;
         transition digit > 0 || started || divisor == 1 {
-            true -> print(value, divisor, digit)
-            _ -> advance(value, divisor, false)
+            true -> print(console, value, divisor, digit)
+            _ -> advance(console, value, divisor, false)
         }
     }
-    state print(value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping)
+    state print(console: &Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping)
         requires divisor > 0
     {
-        Console::write_byte((digit + 48) as i32);
-        transition { _ -> advance(value, divisor, true) }
+        Console::write_byte(console, (digit + 48) as i32);
+        transition { _ -> advance(console, value, divisor, true) }
     }
-    state advance(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool)
+    state advance(console: &Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool)
         requires divisor > 0
     {
         transition divisor >= 10 {
-            true -> emit(value % divisor, divisor / 10, started)
+            true -> emit(console, value % divisor, divisor / 10, started)
             _ -> done()
         }
     }

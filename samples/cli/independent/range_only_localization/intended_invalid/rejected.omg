@@ -2,11 +2,13 @@
 // table must reject. This does not depend on the application's parser.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::binding;
 
 machine unsafe_range(values: &[i32; 3], index: u64) -> i32 { values[index] }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let values: [i32; 3] = [3, 4, 5];
     let result: i32 = unsafe_range(&values, 1);
-    Console::exit_process(result);
+    Console::exit_process(&main.console, result);
 }

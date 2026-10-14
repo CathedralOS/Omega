@@ -6,38 +6,40 @@ use omega_language_std::console;
 use io::input;
 use io::report;
 use model::stages;
+use omega::language::core::binding;
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut raw: io::input::Raw;
     let mut input: io::input::Input;
     let mut solution: model::stages::Solution;
-    let parsed: bool = block io::input::parse(&mut raw);
+    let parsed: bool = block io::input::parse(&main.console, &mut raw);
     transition parsed {
-        true -> validate_input(&raw, &mut input, &mut solution)
-        false -> invalid()
+        true -> validate_input(&main.console, &raw, &mut input, &mut solution)
+        false -> invalid(&main.console)
     }
-    state validate_input(raw: &io::input::Raw, input: &mut io::input::Input, solution: &mut model::stages::Solution) {
+    state validate_input(console: &Binding<Console>, raw: &io::input::Raw, input: &mut io::input::Input, solution: &mut model::stages::Solution) {
         transition io::input::validate(raw, input) {
-            true -> calculate(input, solution)
-            false -> invalid()
+            true -> calculate(console, input, solution)
+            false -> invalid(console)
         }
     }
-    state calculate(input: &io::input::Input, solution: &mut model::stages::Solution) {
+    state calculate(console: &Binding<Console>, input: &io::input::Input, solution: &mut model::stages::Solution) {
         transition model::stages::solve(input, solution) {
-            true -> output(input, solution)
-            false -> failed()
+            true -> output(console, input, solution)
+            false -> failed(console)
         }
     }
-    state output(input: &io::input::Input, solution: &model::stages::Solution) {
-        io::report::emit(input, solution);
-        Console::exit_process(0);
+    state output(console: &Binding<Console>, input: &io::input::Input, solution: &model::stages::Solution) {
+        io::report::emit(console, input, solution);
+        Console::exit_process(console, 0);
     }
-    state invalid() {
-        Console::write_line("INVALID bounded counterflow input");
-        Console::exit_process(64);
+    state invalid(console: &Binding<Console>) {
+        Console::write_line(console, "INVALID bounded counterflow input");
+        Console::exit_process(console, 64);
     }
-    state failed() {
-        Console::write_line("FAIL numerical balance");
-        Console::exit_process(65);
+    state failed(console: &Binding<Console>) {
+        Console::write_line(console, "FAIL numerical balance");
+        Console::exit_process(console, 65);
     }
 }

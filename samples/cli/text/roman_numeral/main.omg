@@ -12,6 +12,7 @@ domain [u8; 16]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data RomanParse {
     case Invalid;
@@ -88,33 +89,34 @@ machine parse_roman(text: &[u8; 16] in Utf8) -> RomanParse {
     }
 }
 
-machine main() reaches Console {
-    Console::write_line("roman_numeral: parses MCMXCIV with the subtractive-pair look-back rule");
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    Console::write_line(&main.console, "roman_numeral: parses MCMXCIV with the subtractive-pair look-back rule");
     let text: [u8; 16] in Utf8 = "MCMXCIV";
     transition parse_roman(&text) {
-        RomanParse::Parsed { total } -> check(total)
-        RomanParse::Invalid -> bad()
+        RomanParse::Parsed { total } -> check(&main.console, total)
+        RomanParse::Invalid -> bad(&main.console)
     }
 
-    state check(total: i32 in Wrapping) {
-        transition total == 1994 { true -> ok() false -> mismatch() }
+    state check(console: &Binding<Console>, total: i32 in Wrapping) {
+        transition total == 1994 { true -> ok(console) false -> mismatch(console) }
     }
-    state ok() {
-        Console::write_line("PASS: MCMXCIV parsed to 1994 (exit 70)");
-        transition { _ -> finish(70) }
+    state ok(console: &Binding<Console>) {
+        Console::write_line(console, "PASS: MCMXCIV parsed to 1994 (exit 70)");
+        transition { _ -> finish(console, 70) }
     }
-    state mismatch() {
-        Console::write_line("FAIL: parse total did not equal 1994 (exit 71)");
-        transition { _ -> finish(71) }
+    state mismatch(console: &Binding<Console>) {
+        Console::write_line(console, "FAIL: parse total did not equal 1994 (exit 71)");
+        transition { _ -> finish(console, 71) }
     }
-    state bad() {
-        Console::write_line("FAIL: unknown symbol or index guard tripped (exit 99)");
-        transition { _ -> finish(99) }
+    state bad(console: &Binding<Console>) {
+        Console::write_line(console, "FAIL: unknown symbol or index guard tripped (exit 99)");
+        transition { _ -> finish(console, 99) }
     }
-    state finish(code: i32) {
-        Console::write_line("[press Enter to close]");
+    state finish(console: &Binding<Console>, code: i32) {
+        Console::write_line(console, "[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause);
-        Console::exit_process(code);
+        _ = block Console::read_line(console, &mut pause);
+        Console::exit_process(console, code);
     }
 }

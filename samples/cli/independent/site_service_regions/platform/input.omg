@@ -1,51 +1,52 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
+use omega::language::core::binding;
 pub data Reader { valid: bool; value: f64; }
 // A whitespace-separated signed integer, bounded to [-100,100]. This parser
 // consumes one separator, accepts EOF after digits, and rejects partial tokens.
-pub machine read_integer(reader: &mut Reader) reaches Console
-invokes Console;
+pub machine read_integer(console: &Binding<Console>, reader: &mut Reader) reaches Console
+invokes console;
 blocks;
 crashes Trap
 {
     reader.value = 0.0;
-    transition { _ -> skip(reader) }
-    state skip(reader: &mut Reader) {
-        let observed: ByteRead = block Console::read_byte();
+    transition { _ -> skip(console, reader) }
+    state skip(console: &Binding<Console>, reader: &mut Reader) {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
             ByteRead::Eof -> bad(reader)
-            ByteRead::Byte { value } -> start(reader, value)
+            ByteRead::Byte { value } -> start(console, reader, value)
         }
     }
-    state start(reader: &mut Reader, value: i32) {
+    state start(console: &Binding<Console>, reader: &mut Reader, value: i32) {
         transition value == 32 || value == 10 || value == 13 || value == 9 {
-            true -> skip(reader)
-            false -> sign(reader, value)
+            true -> skip(console, reader)
+            false -> sign(console, reader, value)
         }
     }
-    state sign(reader: &mut Reader, value: i32) {
+    state sign(console: &Binding<Console>, reader: &mut Reader, value: i32) {
         transition value == 45 {
-            true -> next(reader, -1.0, false)
-            false -> digit(reader, value, 1.0, false)
+            true -> next(console, reader, -1.0, false)
+            false -> digit(console, reader, value, 1.0, false)
         }
     }
-    state next(reader: &mut Reader, sign: f64, seen: bool) {
-        let observed: ByteRead = block Console::read_byte();
+    state next(console: &Binding<Console>, reader: &mut Reader, sign: f64, seen: bool) {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
             ByteRead::Eof -> finish(reader, sign, seen)
-            ByteRead::Byte { value } -> digit(reader, value, sign, seen)
+            ByteRead::Byte { value } -> digit(console, reader, value, sign, seen)
         }
     }
-    state digit(reader: &mut Reader, value: i32, sign: f64, seen: bool) {
+    state digit(console: &Binding<Console>, reader: &mut Reader, value: i32, sign: f64, seen: bool) {
         transition value >= 48 && value <= 57 {
-            true -> accumulate(reader, value, sign)
+            true -> accumulate(console, reader, value, sign)
             false -> separator(reader, value, sign, seen)
         }
     }
-    state accumulate(reader: &mut Reader, value: i32, sign: f64) {
+    state accumulate(console: &Binding<Console>, reader: &mut Reader, value: i32, sign: f64) {
         reader.value = reader.value * 10.0 + F64::from_i32(value) - 48.0;
         transition reader.value <= 100.0 {
-            true -> next(reader, sign, true)
+            true -> next(console, reader, sign, true)
             false -> bad(reader)
         }
     }
@@ -62,22 +63,22 @@ crashes Trap
     state bad(reader: &mut Reader) { reader.valid = false; }
     state done() { }
 }
-pub machine end_input(reader: &mut Reader) reaches Console
-invokes Console;
+pub machine end_input(console: &Binding<Console>, reader: &mut Reader) reaches Console
+invokes console;
 blocks;
 crashes Trap
 {
-    transition { _ -> read(reader) }
-    state read(reader: &mut Reader) {
-        let observed: ByteRead = block Console::read_byte();
+    transition { _ -> read(console, reader) }
+    state read(console: &Binding<Console>, reader: &mut Reader) {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
             ByteRead::Eof -> done()
-            ByteRead::Byte { value } -> check(reader, value)
+            ByteRead::Byte { value } -> check(console, reader, value)
         }
     }
-    state check(reader: &mut Reader, value: i32) {
+    state check(console: &Binding<Console>, reader: &mut Reader, value: i32) {
         transition value == 32 || value == 10 || value == 13 || value == 9 {
-            true -> read(reader)
+            true -> read(console, reader)
             false -> bad(reader)
         }
     }

@@ -18,6 +18,7 @@
 //
 // Expected exit: 0.
 use omega::language::core::external_binding;
+use omega::language::core::binding;
 
 pub data Receipt [linear] { code: i32; }
 
@@ -91,7 +92,7 @@ machine pack(first: i32, second: i32, swap: bool) -> Pair {
     }
 }
 
-data Main { hits: i32 in Wrapping; }
+data Main { hits: i32 in Wrapping; acknowledgement: Binding<Acknowledgement>; }
 
 machine verify(correct: bool) crashes Trap {
     transition correct {
@@ -105,11 +106,11 @@ machine verify(correct: bool) crashes Trap {
 machine Main::main(main: &mut Main) reaches Acknowledgement crashes Trap {
     main.hits = 0;
     let straight: Pair = pack(1, 2, true);
-    let first_left: i32 = Acknowledgement::ack(straight.left);
-    let first_right: i32 = Acknowledgement::ack(straight.right);
+    let first_left: i32 = Acknowledgement::ack(&main.acknowledgement, straight.left);
+    let first_right: i32 = Acknowledgement::ack(&main.acknowledgement, straight.right);
     let swapped: Pair = pack(1, 2, false);
-    let second_left: i32 = Acknowledgement::ack(swapped.left);
-    let second_right: i32 = Acknowledgement::ack(swapped.right);
+    let second_left: i32 = Acknowledgement::ack(&main.acknowledgement, swapped.left);
+    let second_right: i32 = Acknowledgement::ack(&main.acknowledgement, swapped.right);
     main.hits = 1;
     verify(first_left == 1 && first_right == 2
         && second_left == 2 && second_right == 1);

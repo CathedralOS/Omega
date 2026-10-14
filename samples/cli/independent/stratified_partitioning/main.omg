@@ -14,7 +14,7 @@ data Main {
     audit: Audit;
 }
 machine Main::main(context: &mut Main) reaches Console {
-    block Tokens::read(&mut context.tokens);
+    block Tokens::read(&context.console, &mut context.tokens);
     Dataset::load(&mut context.data, &context.tokens);
     transition context.data.valid {
         true -> solve(context)
@@ -39,8 +39,8 @@ machine Main::main(context: &mut Main) reaches Console {
         context.console.exit_process(66);
     }
     state output(context: &mut Main) {
-        report(&context.data, &context.allocation, &context.audit);
-        context.console.write("leakage "); number(context.audit.leakage); context.console.write_line("");
+        report(&context.console, &context.data, &context.allocation, &context.audit);
+        context.console.write("leakage "); number(&context.console, context.audit.leakage); context.console.write_line("");
         context.console.exit_process(0);
     }
     state invalid(context: &mut Main) {

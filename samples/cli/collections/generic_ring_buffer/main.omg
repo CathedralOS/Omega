@@ -4,6 +4,7 @@
 // The scripted sequence leaves 50, 5, 15 in slots 3, 4, 5: sum 70.
 // Expected exit: 70.
 use omega_language_std::console;
+use omega::language::core::binding;
 
 data Ring [copy] where head < 8, tail < 8 {
     slots: [i32 in Saturating; 8];
@@ -28,9 +29,10 @@ machine Ring::pop(ring: &mut Ring) -> i32 in Saturating {
     (value)
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut ring: Ring;
-    Console::write_line("generic_ring_buffer: pushes and pops through a fixed 8-slot ring");
+    Console::write_line(&main.console, "generic_ring_buffer: pushes and pops through a fixed 8-slot ring");
     Ring::push(&mut ring, 20);
     Ring::push(&mut ring, 30);
     Ring::push(&mut ring, 40);
@@ -41,43 +43,43 @@ machine main() reaches Console {
     let second: i32 in Saturating = Ring::pop(&mut ring);
     let last: i32 in Saturating = Ring::pop(&mut ring);
     transition ring.size == 3 {
-        true -> check_popped(&ring, first, second, last)
-        _ -> bad_size()
+        true -> check_popped(&main.console, &ring, first, second, last)
+        _ -> bad_size(&main.console)
     }
 
-    state check_popped(ring: &Ring, first: i32 in Saturating, second: i32 in Saturating, last: i32 in Saturating) {
+    state check_popped(console: &Binding<Console>, ring: &Ring, first: i32 in Saturating, second: i32 in Saturating, last: i32 in Saturating) {
         transition first == 20 && second == 30 && last == 40 {
-            true -> check_sum(ring)
-            _ -> bad_pop()
+            true -> check_sum(console, ring)
+            _ -> bad_pop(console)
         }
     }
-    state check_sum(ring: &Ring) {
+    state check_sum(console: &Binding<Console>, ring: &Ring) {
         let sum: i32 in Saturating = ring.slots[3] + ring.slots[4] + ring.slots[5];
         transition sum == 70 {
-            true -> good()
-            _ -> bad_sum()
+            true -> good(console)
+            _ -> bad_sum(console)
         }
     }
-    state good() {
-        Console::write_line("PASS: size=3, last pop 40, remaining sum 70 (exit 70)");
-        transition { _ -> finish(70) }
+    state good(console: &Binding<Console>) {
+        Console::write_line(console, "PASS: size=3, last pop 40, remaining sum 70 (exit 70)");
+        transition { _ -> finish(console, 70) }
     }
-    state bad_size() {
-        Console::write_line("FAIL: wrong ring size (exit 71)");
-        transition { _ -> finish(71) }
+    state bad_size(console: &Binding<Console>) {
+        Console::write_line(console, "FAIL: wrong ring size (exit 71)");
+        transition { _ -> finish(console, 71) }
     }
-    state bad_pop() {
-        Console::write_line("FAIL: wrong last-popped value (exit 72)");
-        transition { _ -> finish(72) }
+    state bad_pop(console: &Binding<Console>) {
+        Console::write_line(console, "FAIL: wrong last-popped value (exit 72)");
+        transition { _ -> finish(console, 72) }
     }
-    state bad_sum() {
-        Console::write_line("FAIL: wrong sum of remaining slots (exit 73)");
-        transition { _ -> finish(73) }
+    state bad_sum(console: &Binding<Console>) {
+        Console::write_line(console, "FAIL: wrong sum of remaining slots (exit 73)");
+        transition { _ -> finish(console, 73) }
     }
-    state finish(code: i32) {
-        Console::write_line("[press Enter to close]");
+    state finish(console: &Binding<Console>, code: i32) {
+        Console::write_line(console, "[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause);
-        Console::exit_process(code);
+        _ = block Console::read_line(console, &mut pause);
+        Console::exit_process(console, code);
     }
 }

@@ -1,62 +1,63 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 use model::records;
+use omega::language::core::binding;
 // Decimal output is authored here rather than relying on a numeric library.
-pub machine write_number(value: i64 in Saturating) reaches Console
+pub machine write_number(console: &Binding<Console>, value: i64 in Saturating) reaches Console
 invokes Console;
 {
     transition value < 0 {
-        true -> negative(value)
-        false -> digit(value, 1000000000, false)
+        true -> negative(console, value)
+        false -> digit(console, value, 1000000000, false)
     }
-    state negative(value: i64 in Saturating) {
-        Console::write("-");
-        transition { _ -> digit(0 - value, 1000000000, false) }
+    state negative(console: &Binding<Console>, value: i64 in Saturating) {
+        Console::write(console, "-");
+        transition { _ -> digit(console, 0 - value, 1000000000, false) }
     }
-    state digit(value: i64 in Saturating, place: i64 in Saturating, started: bool)
+    state digit(console: &Binding<Console>, value: i64 in Saturating, place: i64 in Saturating, started: bool)
     requires place > 0 {
         let number: i64 in Saturating = value / place;
         let remaining: i64 in Saturating = value % place;
         transition number > 0 || started || place == 1 {
-            true -> emit(remaining, place, number)
-            false -> next(remaining, place, started)
+            true -> emit(console, remaining, place, number)
+            false -> next(console, remaining, place, started)
         }
     }
-    state emit(value: i64 in Saturating, place: i64 in Saturating, number: i64 in Saturating) {
-        Console::write_byte(narrow_i64_to_i32_saturating((number + 48) as i64));
-        transition { _ -> next(value, place, true) }
+    state emit(console: &Binding<Console>, value: i64 in Saturating, place: i64 in Saturating, number: i64 in Saturating) {
+        Console::write_byte(console, narrow_i64_to_i32_saturating((number + 48) as i64));
+        transition { _ -> next(console, value, place, true) }
     }
-    state next(value: i64 in Saturating, place: i64 in Saturating, started: bool) {
+    state next(console: &Binding<Console>, value: i64 in Saturating, place: i64 in Saturating, started: bool) {
         let following: i64 in Saturating = place / 10;
         transition following > 0 {
-            true -> digit(value, following, started)
+            true -> digit(console, value, following, started)
             false -> done()
         }
     }
     state done() {}
 }
-pub machine write_echo(index: u64 in Saturating, result: EchoResult) reaches Console
+pub machine write_echo(console: &Binding<Console>, index: u64 in Saturating, result: EchoResult) reaches Console
 invokes Console;
 {
-    Console::write("echo ");
-    write_number(narrow_u64_to_i64_saturating(index as u64) as i64 in Saturating);
-    Console::write(" ");
+    Console::write(console, "echo ");
+    write_number(console, narrow_u64_to_i64_saturating(index as u64) as i64 in Saturating);
+    Console::write(console, " ");
     transition {
-        result.matches == 0 -> unmatched()
-        result.matches > 1 -> ambiguous(result)
-        result.order == 1 -> primary(result)
-        _ -> multiple(result)
+        result.matches == 0 -> unmatched(console)
+        result.matches > 1 -> ambiguous(console, result)
+        result.order == 1 -> primary(console, result)
+        _ -> multiple(console, result)
     }
-    state unmatched() { Console::write_line("unmatched"); }
-    state ambiguous(result: EchoResult) {
-        Console::write("ambiguous paths="); write_number(result.matches); Console::write_line("");
+    state unmatched(console: &Binding<Console>) { Console::write_line(console, "unmatched"); }
+    state ambiguous(console: &Binding<Console>, result: EchoResult) {
+        Console::write(console, "ambiguous paths="); write_number(console, result.matches); Console::write_line(console, "");
     }
-    state primary(result: EchoResult) {
-        Console::write("primary layer="); write_number(result.layer);
-        Console::write(" thickness_um="); write_number(result.thickness); Console::write_line("");
+    state primary(console: &Binding<Console>, result: EchoResult) {
+        Console::write(console, "primary layer="); write_number(console, result.layer);
+        Console::write(console, " thickness_um="); write_number(console, result.thickness); Console::write_line(console, "");
     }
-    state multiple(result: EchoResult) {
-        Console::write("multiple layer="); write_number(result.layer);
-        Console::write(" order="); write_number(result.order); Console::write_line("");
+    state multiple(console: &Binding<Console>, result: EchoResult) {
+        Console::write(console, "multiple layer="); write_number(console, result.layer);
+        Console::write(console, " order="); write_number(console, result.order); Console::write_line(console, "");
     }
 }

@@ -1,5 +1,6 @@
 use omega_language_std::console;
 use io::input;
+use omega::language::core::binding;
 pub data Settings {
     width: i64 in Wrapping;
     signedness: i64 in Wrapping;
@@ -12,21 +13,21 @@ pub data Settings {
     rounding: i64 in Wrapping;
     count: i64 in Wrapping;
 }
-pub machine settings(configuration: &mut Settings) -> bool reaches Console
-invokes Console;
+pub machine settings(console: &Binding<Console>, configuration: &mut Settings) -> bool reaches Console
+invokes console;
 blocks;
 crashes Trap
 {
-    configuration.width = block number();
-    configuration.signedness = block number();
-    configuration.reference_low = block number();
-    configuration.reference_high = block number();
-    configuration.raw_low = block number();
-    configuration.raw_high = block number();
-    configuration.physical_low = block number();
-    configuration.physical_high = block number();
-    configuration.rounding = block number();
-    configuration.count = block number();
+    configuration.width = block number(console);
+    configuration.signedness = block number(console);
+    configuration.reference_low = block number(console);
+    configuration.reference_high = block number(console);
+    configuration.raw_low = block number(console);
+    configuration.raw_high = block number(console);
+    configuration.physical_low = block number(console);
+    configuration.physical_high = block number(console);
+    configuration.rounding = block number(console);
+    configuration.count = block number(console);
     transition configuration.width >= 2 && configuration.width <= 8 &&
         configuration.signedness >= 0 && configuration.signedness <= 1 &&
         configuration.rounding == 0 && configuration.count >= 1 && configuration.count <= 32 &&

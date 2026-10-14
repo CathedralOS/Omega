@@ -27,6 +27,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
 // Swaps copy these payload-free values out of borrowed array storage.
 data Color [copy] {
@@ -44,13 +45,14 @@ data Partition {
     t: Color;
 }
 
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut context: Partition;
-    block Partition::sort(&mut context);
+    block Partition::sort(&main.console, &mut context);
 }
 
-machine Partition::sort(context: &mut Partition) reaches Console {
-    Console::write_line("dutch_flag: partitioning [White, Blue, Red] into [Red, White, Blue]");
+machine Partition::sort(console: &Binding<Console>, context: &mut Partition) reaches Console {
+    Console::write_line(console, "dutch_flag: partitioning [White, Blue, Red] into [Red, White, Blue]");
     context.items[0] = Color::White;
     context.items[1] = Color::Blue;
     context.items[2] = Color::Red;
@@ -58,75 +60,75 @@ machine Partition::sort(context: &mut Partition) reaches Console {
     context.w = 0;
     context.b = 3;
     transition {
-        _ -> head(context)
+        _ -> head(console, context)
     }
 
     // Loop head: partition until the white cursor meets the blue fence.
-    state head(context: &mut Partition) {
+    state head(console: &Binding<Console>, context: &mut Partition) {
         transition context.w < context.b {
-            true -> w_guard(context)
-            _ -> check0(context)
+            true -> w_guard(console, context)
+            _ -> check0(console, context)
         }
     }
 
     // Literal re-guard: dominates every items[context.w] access downstream
     // (classify and both swaps -- no state between rewrites w).
-    state w_guard(context: &mut Partition) {
+    state w_guard(console: &Binding<Console>, context: &mut Partition) {
         transition context.w < 3 {
-            true -> classify(context)
-            _ -> confused(96)
+            true -> classify(console, context)
+            _ -> confused(console, 96)
         }
     }
 
-    state classify(context: &mut Partition) {
+    state classify(console: &Binding<Console>, context: &mut Partition) {
         transition context.items[context.w] {
-            Color::Red -> r_guard(context)
-            Color::White -> w_bump_guard(context)
-            _ -> b_guard(context)
+            Color::Red -> r_guard(console, context)
+            Color::White -> w_bump_guard(console, context)
+            _ -> b_guard(console, context)
         }
     }
 
-    state r_guard(context: &mut Partition) {
+    state r_guard(console: &Binding<Console>, context: &mut Partition) {
         transition context.r < 3 {
-            true -> red_swap(context)
-            _ -> confused(97)
+            true -> red_swap(console, context)
+            _ -> confused(console, 97)
         }
     }
 
     // Red at the cursor: swap it into the red prefix, grow the prefix
     // (`r + 1` proves on the DIRECT edge from r_guard), then join the
     // white path to bump the cursor.
-    state red_swap(context: &mut Partition) {
+    state red_swap(console: &Binding<Console>, context: &mut Partition) {
         context.t = context.items[context.r];
         context.items[context.r] = context.items[context.w];
         context.items[context.w] = context.t;
         context.r = context.r + 1;
         transition {
-            _ -> w_bump_guard(context)
+            _ -> w_bump_guard(console, context)
         }
     }
 
     // Re-guard before the increment: the bound must sit on the DIRECT edge
     // for the `+ 1` to prove (the bubble_sort `advance` idiom). The red and
     // white arms both join here.
-    state w_bump_guard(context: &mut Partition) {
+    state w_bump_guard(console: &Binding<Console>, context: &mut Partition) {
         transition context.w < 3 {
-            true -> w_bump(context)
-            _ -> confused(95)
+            true -> w_bump(console, context)
+            _ -> confused(console, 95)
         }
     }
 
-    state w_bump(context: &mut Partition) {
+    state w_bump(console: &Binding<Console>, context: &mut Partition) {
         context.w = context.w + 1;
         transition {
-            _ -> head(context)
+            _ -> head(console, context)
         }
     }
 
-    state b_guard(context: &mut Partition) {
+    state b_guard(console: &Binding<Console>, context: &mut Partition) {
         transition context.b > 0 {
-            true -> blue_swap(context)
-            _ -> confused(98)
+            true -> blue_swap(console, context)
+            _ -> confused(console, 98)
         }
     }
 
@@ -134,71 +136,71 @@ machine Partition::sort(context: &mut Partition) reaches Console {
     // The decremented fence lands in `bp`; nothing bounds the stored `b`
     // from above, so the literal re-guard `bp < 3` carries the index proof
     // into blue_put (b <= 3 always holds, so the else arm never fires).
-    state blue_swap(context: &mut Partition) {
+    state blue_swap(console: &Binding<Console>, context: &mut Partition) {
         context.bp = context.b - 1;
         transition context.bp < 3 {
-            true -> blue_put(context)
-            _ -> confused(99)
+            true -> blue_put(console, context)
+            _ -> confused(console, 99)
         }
     }
 
-    state blue_put(context: &mut Partition) {
+    state blue_put(console: &Binding<Console>, context: &mut Partition) {
         context.t = context.items[context.w];
         context.items[context.w] = context.items[context.bp];
         context.items[context.bp] = context.t;
         context.b = context.bp;
         transition {
-            _ -> head(context)
+            _ -> head(console, context)
         }
     }
 
     // Verify [Red, White, Blue] element by element via case dispatch.
-    state check0(context: &mut Partition) {
+    state check0(console: &Binding<Console>, context: &mut Partition) {
         transition context.items[0] {
-            Color::Red -> check1(context)
-            _ -> bad(71)
+            Color::Red -> check1(console, context)
+            _ -> bad(console, 71)
         }
     }
-    state check1(context: &mut Partition) {
+    state check1(console: &Binding<Console>, context: &mut Partition) {
         transition context.items[1] {
-            Color::White -> check2(context)
-            _ -> bad(72)
+            Color::White -> check2(console, context)
+            _ -> bad(console, 72)
         }
     }
-    state check2(context: &mut Partition) {
+    state check2(console: &Binding<Console>, context: &mut Partition) {
         transition context.items[2] {
-            Color::Blue -> good()
-            _ -> bad(73)
+            Color::Blue -> good(console)
+            _ -> bad(console, 73)
         }
     }
-    state good() {
-        Console::write_line("PASS: the flag reads [Red, White, Blue] (exit 70)");
+    state good(console: &Binding<Console>) {
+        Console::write_line(console, "PASS: the flag reads [Red, White, Blue] (exit 70)");
         transition {
-            _ -> report(70)
+            _ -> report(console, 70)
         }
     }
-    state bad(code: i32) {
-        Console::write_line("FAIL: an element ended up out of order");
+    state bad(console: &Binding<Console>, code: i32) {
+        Console::write_line(console, "FAIL: an element ended up out of order");
         transition {
-            _ -> report_bad(code)
+            _ -> report_bad(console, code)
         }
     }
-    state confused(code: i32) {
-        Console::write_line("FAIL: a loop-invariant re-guard tripped");
+    state confused(console: &Binding<Console>, code: i32) {
+        Console::write_line(console, "FAIL: a loop-invariant re-guard tripped");
         transition {
-            _ -> report_bad(code)
+            _ -> report_bad(console, code)
         }
     }
-    state report(code: i32) {
-        Console::write_line("[press Enter to close]");
+    state report(console: &Binding<Console>, code: i32) {
+        Console::write_line(console, "[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause);
-        Console::exit_process(code);
+        _ = block Console::read_line(console, &mut pause);
+        Console::exit_process(console, code);
     }
-    state report_bad(code: i32) {
-        Console::write_line("[press Enter to close]");
+    state report_bad(console: &Binding<Console>, code: i32) {
+        Console::write_line(console, "[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause);
-        Console::exit_process(code);
+        _ = block Console::read_line(console, &mut pause);
+        Console::exit_process(console, code);
     }
 }

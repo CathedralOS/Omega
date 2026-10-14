@@ -21,6 +21,7 @@
 //
 // Expected exit: 0.
 use omega::language::core::external_binding;
+use omega::language::core::binding;
 
 pub data Receipt [linear] { code: i32; }
 
@@ -77,7 +78,7 @@ linux_arm64 boundary machine ReceiptSink::ack(receipt: Receipt) -> i32
 macos_arm64 boundary machine ReceiptSink::ack(receipt: Receipt) -> i32
     satisfies Acknowledgement::ack via macos_arm64_receipt_sink_binding();
 
-data Main { hits: i32 in Wrapping; choose_first: bool; }
+data Main { hits: i32 in Wrapping; choose_first: bool; acknowledgement: Binding<Acknowledgement>; }
 
 machine verify(correct: bool) crashes Trap {
     transition correct {
@@ -93,18 +94,18 @@ machine Main::main(main: &mut Main) reaches Acknowledgement crashes Trap {
     main.choose_first = true;
     let receipt: Receipt = Receipt { code: 7 };
     transition main.choose_first {
-        true -> consume_first(main, receipt)
+        true -> consume_first(&main.acknowledgement, main, receipt)
         _ -> consume_second(main, receipt)
     }
 
-    state consume_first(main: &mut Main, receipt: Receipt) {
-        let code: i32 = Acknowledgement::ack(receipt);
+    state consume_first(acknowledgement: &Binding<Acknowledgement>, main: &mut Main, receipt: Receipt) {
+        let code: i32 = Acknowledgement::ack(acknowledgement, receipt);
         main.hits = 1;
         verify(code == 7);
     }
 
     state consume_second(main: &mut Main, receipt: Receipt) {
-        let code: i32 = Acknowledgement::ack(receipt);
+        let code: i32 = Acknowledgement::ack(&main.acknowledgement, receipt);
         main.hits = 2;
         verify(false);
     }

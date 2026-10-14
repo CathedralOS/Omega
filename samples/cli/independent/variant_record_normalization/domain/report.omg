@@ -2,83 +2,84 @@ use domain::sequence;
 use domain::normalization;
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::binding;
 
-pub machine number(value: u64 in Wrapping) reaches Console
+pub machine number(console: &Binding<Console>, value: u64 in Wrapping) reaches Console
 invokes Console;
 {
-    transition { _ -> digit(value, 10000000000000000000, false) }
-    state digit(value: u64 in Wrapping, divisor: u64 in Wrapping, started: bool) {
+    transition { _ -> digit(console, value, 10000000000000000000, false) }
+    state digit(console: &Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping, started: bool) {
         transition divisor > 0 {
-            true -> calculate(value, divisor, started)
+            true -> calculate(console, value, divisor, started)
             _ -> stop()
         }
     }
-    state calculate(value: u64 in Wrapping, divisor: u64 in Wrapping, started: bool) {
+    state calculate(console: &Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping, started: bool) {
         let current: u64 in Wrapping = value / divisor;
         transition current > 0 || started || divisor == 1 {
-            true -> write(value, divisor, current)
-            _ -> next(value, divisor, false)
+            true -> write(console, value, divisor, current)
+            _ -> next(console, value, divisor, false)
         }
     }
-    state write(value: u64 in Wrapping, divisor: u64 in Wrapping, current: u64 in Wrapping) {
+    state write(console: &Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping, current: u64 in Wrapping) {
         transition current < 10 {
-            true -> write_digit(value, divisor, current)
+            true -> write_digit(console, value, divisor, current)
             _ -> stop()
         }
     }
-    state write_digit(value: u64 in Wrapping, divisor: u64 in Wrapping, current: u64 in Wrapping) {
+    state write_digit(console: &Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping, current: u64 in Wrapping) {
         let byte: u64 in Wrapping = current + 48;
-        Console::write_byte(narrow_u64_to_i32_exact(byte as u64));
-        transition { _ -> next(value % divisor, divisor, true) }
+        Console::write_byte(console, narrow_u64_to_i32_exact(byte as u64));
+        transition { _ -> next(console, value % divisor, divisor, true) }
     }
-    state next(value: u64 in Wrapping, divisor: u64 in Wrapping, started: bool) {
+    state next(console: &Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping, started: bool) {
         transition divisor > 1 {
-            true -> digit(value, divisor / 10, started)
+            true -> digit(console, value, divisor / 10, started)
             _ -> stop()
         }
     }
     state stop() { }
 }
-pub machine separator() reaches Console
+pub machine separator(console: &Binding<Console>) reaches Console
 invokes Console;
-{ Console::write_byte(124); }
-pub machine newline() reaches Console
+{ Console::write_byte(console, 124); }
+pub machine newline(console: &Binding<Console>) reaches Console
 invokes Console;
-{ Console::write_byte(10); }
-pub machine bases(sequence: &Sequence) reaches Console
+{ Console::write_byte(console, 10); }
+pub machine bases(console: &Binding<Console>, sequence: &Sequence) reaches Console
 invokes Console;
 {
     transition sequence.length == 0 {
-        true -> empty()
-        _ -> base(sequence, 0)
+        true -> empty(console)
+        _ -> base(console, sequence, 0)
     }
-    state empty() { Console::write_byte(45); }
-    state base(sequence: &Sequence, index: u64 in Wrapping) {
+    state empty(console: &Binding<Console>) { Console::write_byte(console, 45); }
+    state base(console: &Binding<Console>, sequence: &Sequence, index: u64 in Wrapping) {
         transition index < sequence.length {
-            true -> read(sequence, index)
+            true -> read(console, sequence, index)
             _ -> stop()
         }
     }
-    state read(sequence: &Sequence, index: u64 in Wrapping) {
+    state read(console: &Binding<Console>, sequence: &Sequence, index: u64 in Wrapping) {
         let value: u64 in Wrapping = Sequence::base(sequence, index);
         transition value {
-            1 -> write(sequence, index, 65)
-            2 -> write(sequence, index, 67)
-            3 -> write(sequence, index, 71)
-            4 -> write(sequence, index, 84)
-            _ -> write(sequence, index, 63)
+            1 -> write(console, sequence, index, 65)
+            2 -> write(console, sequence, index, 67)
+            3 -> write(console, sequence, index, 71)
+            4 -> write(console, sequence, index, 84)
+            _ -> write(console, sequence, index, 63)
         }
     }
-    state write(sequence: &Sequence, index: u64 in Wrapping, character: i32) {
-        Console::write_byte(character);
-        transition { _ -> base(sequence, index + 1) }
+    state write(console: &Binding<Console>, sequence: &Sequence, index: u64 in Wrapping, character: i32) {
+        Console::write_byte(console, character);
+        transition { _ -> base(console, sequence, index + 1) }
     }
     state stop() { }
 }
-pub machine variant_row(variant: &Variant) reaches Console
+pub machine variant_row(console: &Binding<Console>, variant: &Variant) reaches Console
 invokes Console;
 {
-    number(variant.contig); separator(); number(variant.position); separator();
-    number(variant.removed); separator(); bases(&variant.inserted); separator();
-    number(variant.provenance);
+    number(console, variant.contig); separator(console); number(console, variant.position); separator(console);
+    number(console, variant.removed); separator(console); bases(console, &variant.inserted); separator(console);
+    number(console, variant.provenance);
 }

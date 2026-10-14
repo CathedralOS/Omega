@@ -1,81 +1,82 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
 use physics::model;
+use omega::language::core::binding;
 
 // Fixed twelve-digit signed decimal fields avoid a host formatting dependency.
 // All values in this bounded model fit; the validator checks each numeric field.
-pub machine integer(value: i64 in Saturating) reaches Console
+pub machine integer(console: &Binding<Console>, value: i64 in Saturating) reaches Console
 invokes Console;
 {
     transition value < 0 {
-        true -> negative(value)
-        false -> digits(value, 100000000000)
+        true -> negative(console, value)
+        false -> digits(console, value, 100000000000)
     }
-    state negative(value: i64 in Saturating) {
-        Console::write_byte(45);
-        transition { _ -> digits(0 - value, 100000000000) }
+    state negative(console: &Binding<Console>, value: i64 in Saturating) {
+        Console::write_byte(console, 45);
+        transition { _ -> digits(console, 0 - value, 100000000000) }
     }
-    state digits(value: i64 in Saturating, divisor: i64 in Saturating)
+    state digits(console: &Binding<Console>, value: i64 in Saturating, divisor: i64 in Saturating)
     requires divisor >= 1
     {
         let digit: i64 in Saturating = (value / divisor) % 10;
-        Console::write_byte((digit as i32) + 48);
+        Console::write_byte(console, (digit as i32) + 48);
         transition divisor >= 10 {
-            true -> digits(value, divisor / 10)
+            true -> digits(console, value, divisor / 10)
             false -> done()
         }
     }
     state done() { }
 }
 
-pub machine field(value: f64) reaches Console
+pub machine field(console: &Binding<Console>, value: f64) reaches Console
 invokes Console;
 {
     let scaled: f64 = value * 1000000.0;
     transition scaled == scaled && scaled >= -99999999999.0 && scaled <= 99999999999.0 {
-        true -> bounded(scaled)
-        false -> invalid()
+        true -> bounded(console, scaled)
+        false -> invalid(console)
     }
-    state bounded(scaled: f64)
+    state bounded(console: &Binding<Console>, scaled: f64)
     requires scaled == scaled && scaled >= -99999999999.0 && scaled <= 99999999999.0
     {
-        Console::write_byte(44);
+        Console::write_byte(console, 44);
         // The named conversion explicitly truncates; an Exact recast would
         // instead owe preservation of the fractional value.
         let converted: i64 = I64::from_f64(scaled);
-        integer(converted as i64 in Saturating);
+        integer(console, converted as i64 in Saturating);
     }
-    state invalid() { Console::write_line("ERROR numeric output range"); Console::exit_process(70); }
+    state invalid(console: &Binding<Console>) { Console::write_line(console, "ERROR numeric output range"); Console::exit_process(console, 70); }
 }
 
-pub machine report(tick: u64, tree: &ReflectionTree)
+pub machine report(console: &Binding<Console>, tick: u64, tree: &ReflectionTree)
 requires tick < 24
 reaches Console
 invokes Console;
 {
-    Console::write("W,");
-    integer(tick as i64 in Saturating);
-    field(tree.record.junction_left_in);
-    field(tree.record.junction_right_in);
-    field(tree.record.junction_left_out);
-    field(tree.record.junction_right_out);
-    field(tree.record.source_in);
-    field(tree.record.source_out);
-    field(tree.record.load_in);
-    field(tree.record.load_out);
-    Console::write_byte(10);
-    Console::write("V,");
-    integer(tick as i64 in Saturating);
-    field(tree.record.source_voltage);
-    field(tree.record.junction_voltage);
-    field(tree.record.load_voltage);
-    Console::write_byte(10);
-    Console::write("E,");
-    integer(tick as i64 in Saturating);
-    field(tree.supplied);
-    field(tree.source_heat);
-    field(tree.load_heat);
-    field(tree.travelling);
-    field(tree.supplied - tree.source_heat - tree.load_heat - tree.travelling);
-    Console::write_byte(10);
+    Console::write(console, "W,");
+    integer(console, tick as i64 in Saturating);
+    field(console, tree.record.junction_left_in);
+    field(console, tree.record.junction_right_in);
+    field(console, tree.record.junction_left_out);
+    field(console, tree.record.junction_right_out);
+    field(console, tree.record.source_in);
+    field(console, tree.record.source_out);
+    field(console, tree.record.load_in);
+    field(console, tree.record.load_out);
+    Console::write_byte(console, 10);
+    Console::write(console, "V,");
+    integer(console, tick as i64 in Saturating);
+    field(console, tree.record.source_voltage);
+    field(console, tree.record.junction_voltage);
+    field(console, tree.record.load_voltage);
+    Console::write_byte(console, 10);
+    Console::write(console, "E,");
+    integer(console, tick as i64 in Saturating);
+    field(console, tree.supplied);
+    field(console, tree.source_heat);
+    field(console, tree.load_heat);
+    field(console, tree.travelling);
+    field(console, tree.supplied - tree.source_heat - tree.load_heat - tree.travelling);
+    Console::write_byte(console, 10);
 }

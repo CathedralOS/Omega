@@ -1,38 +1,39 @@
 use omega_language_std::console;
 use demography::model;
 use omega::language::core::numeric_conversion;
+use omega::language::core::binding;
 // Decimal output uses no allocation and includes a sign for net emigration.
-pub machine number(value: i64 in Wrapping) reaches Console
+pub machine number(console: &Binding<Console>, value: i64 in Wrapping) reaches Console
 invokes Console;
 {
-    transition value < 0 { true -> negative(value) false -> begin(value) }
-    state negative(value: i64 in Wrapping) { Console::write_byte(45); transition { _ -> begin(0 - value) } }
-    state begin(value: i64 in Wrapping) { transition { _ -> digit(value, 10000000000, false) } }
-    state digit(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
-        transition divisor > 0 { true -> choose(value, divisor, started) false -> done() }
+    transition value < 0 { true -> negative(console, value) false -> begin(console, value) }
+    state negative(console: &Binding<Console>, value: i64 in Wrapping) { Console::write_byte(console, 45); transition { _ -> begin(console, 0 - value) } }
+    state begin(console: &Binding<Console>, value: i64 in Wrapping) { transition { _ -> digit(console, value, 10000000000, false) } }
+    state digit(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
+        transition divisor > 0 { true -> choose(console, value, divisor, started) false -> done() }
     }
-    state choose(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
+    state choose(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
     requires divisor > 0
     {
         let quotient: i64 in Wrapping = value / divisor;
         transition quotient > 0 || started || divisor == 1 {
-            true -> emit(value, divisor, quotient)
-            false -> digit(value, divisor / 10, false)
+            true -> emit(console, value, divisor, quotient)
+            false -> digit(console, value, divisor / 10, false)
         }
     }
-    state emit(value: i64 in Wrapping, divisor: i64 in Wrapping, quotient: i64 in Wrapping)
+    state emit(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, quotient: i64 in Wrapping)
     requires divisor > 0
     {
-        Console::write_byte(narrow_i64_to_i32_wrapping((quotient + 48) as i64));
-        transition { _ -> digit(value % divisor, divisor / 10, true) }
+        Console::write_byte(console, narrow_i64_to_i32_wrapping((quotient + 48) as i64));
+        transition { _ -> digit(console, value % divisor, divisor / 10, true) }
     }
     state done() {}
 }
-pub machine row(year: i64 in Wrapping, census: &Census, balance: &Balance) reaches Console
+pub machine row(console: &Binding<Console>, year: i64 in Wrapping, census: &Census, balance: &Balance) reaches Console
 invokes Console;
 {
-    number(year); Console::write(","); number(census.newborn); Console::write(",");
-    number(census.juvenile); Console::write(","); number(census.adult); Console::write(",");
-    number(total(census)); Console::write(","); number(balance.births); Console::write(",");
-    number(balance.deaths); Console::write(","); number(balance.migration); Console::write_line("");
+    number(console, year); Console::write(console, ","); number(console, census.newborn); Console::write(console, ",");
+    number(console, census.juvenile); Console::write(console, ","); number(console, census.adult); Console::write(console, ",");
+    number(console, total(census)); Console::write(console, ","); number(console, balance.births); Console::write(console, ",");
+    number(console, balance.deaths); Console::write(console, ","); number(console, balance.migration); Console::write_line(console, "");
 }

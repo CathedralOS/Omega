@@ -2,36 +2,38 @@ use platform::input;
 use domain::network;
 use domain::solver;
 use omega_language_std::console;
+use omega::language::core::binding;
 
 // Explicit build entry; EOF is a valid record terminator. No pause prompt.
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let mut input: Input;
-    _ = block read(&mut input);
+    _ = block read(&main.console, &mut input);
     transition input.accepted {
-        true -> model(input)
-        false -> invalid()
+        true -> model(&main.console, input)
+        false -> invalid(&main.console)
     }
-    state model(input: Input) {
+    state model(console: &Binding<Console>, input: Input) {
         let network: Network = Network {
             a: input.values[0], b: input.values[1], c: input.values[2],
             d: input.values[3], r1: input.values[4], r2: input.values[5],
             elevation: input.values[6], maximum: input.values[7], demand: input.values[8]
         };
         transition valid(&network) {
-            true -> operating(network)
-            false -> invalid()
+            true -> operating(console, network)
+            false -> invalid(console)
         }
     }
-    state operating(network: Network) {
+    state operating(console: &Binding<Console>, network: Network) {
         let mut solver: Solver;
         solver.network = network;
-        solve(&mut solver);
+        solve(console, &mut solver);
         transition solver.feasible > 0 {
-            true -> success()
-            false -> infeasible()
+            true -> success(console)
+            false -> infeasible(console)
         }
     }
-    state success() { Console::exit_process(0); }
-    state infeasible() { Console::write_line("INFEASIBLE"); Console::exit_process(2); }
-    state invalid() { Console::write_line("INVALID_INPUT"); Console::exit_process(64); }
+    state success(console: &Binding<Console>) { Console::exit_process(console, 0); }
+    state infeasible(console: &Binding<Console>) { Console::write_line(console, "INFEASIBLE"); Console::exit_process(console, 2); }
+    state invalid(console: &Binding<Console>) { Console::write_line(console, "INVALID_INPUT"); Console::exit_process(console, 64); }
 }

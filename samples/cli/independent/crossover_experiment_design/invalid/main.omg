@@ -1,11 +1,13 @@
 // Complete intended-invalid source: unchecked period directly indexes storage.
 // Rejection must name the index obligation; unrelated package rejection is red.
 use omega_language_std::console;
+use omega::language::core::binding;
 machine unchecked_period(cells: &[i32; 3], period: u64) -> i32 {
     transition { _ -> (cells[period]) }
 }
-machine main() reaches Console {
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
     let cells: [i32; 3] = [0, 1, 2];
     let observed: i32 = unchecked_period(&cells, 4);
-    Console::exit_process(observed);
+    Console::exit_process(&main.console, observed);
 }

@@ -16,27 +16,29 @@
 //   "ab " -> 3
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
-machine main() reaches Console {
-    transition { _ -> rd(0) }
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    transition { _ -> rd(&main.console, 0) }
 
-    state rd(n: i32 in Wrapping) {
-        let r: ByteRead = block Console::read_byte();
+    state rd(console: &Binding<Console>, n: i32 in Wrapping) {
+        let r: ByteRead = block Console::read_byte(console);
         transition r {
-            ByteRead::Byte { value } -> wr(n, value)
-            _ -> fin(n)
+            ByteRead::Byte { value } -> wr(console, n, value)
+            _ -> fin(console, n)
         }
     }
 
-    state wr(n: i32 in Wrapping, value: i32) {
+    state wr(console: &Binding<Console>, n: i32 in Wrapping, value: i32) {
         let b: i32 in Wrapping = value as i32 in Wrapping;
         let rotated: i32 in Wrapping = b + 1;
         let output: i32 = rotated as i32;
-        Console::write_byte(output);
-        transition { _ -> rd(n + 1) }
+        Console::write_byte(console, output);
+        transition { _ -> rd(console, n + 1) }
     }
 
-    state fin(n: i32 in Wrapping) {
-        Console::exit_process(n as i32);
+    state fin(console: &Binding<Console>, n: i32 in Wrapping) {
+        Console::exit_process(console, n as i32);
     }
 }

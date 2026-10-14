@@ -15,10 +15,10 @@ machine Main::main(main: &mut Main) reaches Console {
     let mut first: input::sequence::Sequence;
     let mut second: input::sequence::Sequence;
     let mut result: alignment::local::Alignment;
-    let status: i32 = block input::sequence::read_sequence(&mut first);
+    let status: i32 = block input::sequence::read_sequence(&main.console, &mut first);
     transition status == 0 { true -> read_second(main, &first, &mut second, &mut result) false -> diagnostic(main, status) }
     state read_second(main: &mut Main, first: &input::sequence::Sequence, second: &mut input::sequence::Sequence, result: &mut alignment::local::Alignment) {
-        let status: i32 = block input::sequence::read_sequence(second);
+        let status: i32 = block input::sequence::read_sequence(&main.console, second);
         transition status == 0 { true -> compute(main, first, second, result) false -> diagnostic(main, status) }
     }
     state compute(main: &mut Main, first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut alignment::local::Alignment) {
@@ -26,7 +26,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition valid { true -> emit(main, result) false -> internal(main) }
     }
     state emit(main: &mut Main, result: &alignment::local::Alignment) {
-        output::report::report(result);
+        output::report::report(&main.console, result);
         main.console.exit_process(0);
     }
     state diagnostic(main: &mut Main, status: i32) {

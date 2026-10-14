@@ -1,52 +1,53 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
 use domain::indexing;
+use omega::language::core::binding;
 pub data Raw { values: [f64; 9]; count: u64; }
 // Finite decimal syntax; no NaN/infinity spellings or exponents. The byte and
 // digit caps bound execution even on an unterminated hostile stream.
-pub machine read(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
-    transition { _ -> next(raw, 0, 0.0, 1.0, false, false, false, 0, 0) }
-    state next(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, fraction: bool, digits: u64, decimals: u64) -> bool {
-        transition bytes < 2048 { true -> receive(raw, bytes, accumulator, scale, negative, active, fraction, digits, decimals) false -> bad() }
+pub machine read(console: &Binding<Console>, raw: &mut Raw) -> bool reaches Console invokes console; blocks; crashes Trap {
+    transition { _ -> next(console, raw, 0, 0.0, 1.0, false, false, false, 0, 0) }
+    state next(console: &Binding<Console>, raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, fraction: bool, digits: u64, decimals: u64) -> bool {
+        transition bytes < 2048 { true -> receive(console, raw, bytes, accumulator, scale, negative, active, fraction, digits, decimals) false -> bad() }
     }
-    state receive(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, fraction: bool, digits: u64, decimals: u64) -> bool {
-        let observed: ByteRead = block Console::read_byte();
+    state receive(console: &Binding<Console>, raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, fraction: bool, digits: u64, decimals: u64) -> bool {
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
-            ByteRead::Eof -> finish(raw, accumulator, scale, negative, active, digits)
-            ByteRead::Byte { value } -> classify(raw, bytes, accumulator, scale, negative, active, fraction, digits, decimals, value)
+            ByteRead::Eof -> finish(console, raw, accumulator, scale, negative, active, digits)
+            ByteRead::Byte { value } -> classify(console, raw, bytes, accumulator, scale, negative, active, fraction, digits, decimals, value)
             _ -> bad()
         }
     }
-    state classify(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, fraction: bool, digits: u64, decimals: u64, character: i32) -> bool {
+    state classify(console: &Binding<Console>, raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, fraction: bool, digits: u64, decimals: u64, character: i32) -> bool {
         transition {
-            character >= 48 && character <= 57 && digits < 18 && decimals < 12 -> digit(raw, bytes, accumulator, scale, negative, fraction, digits, decimals, character)
-            character == 45 && !active -> next(raw, bytes + 1, accumulator, scale, true, true, fraction, digits, decimals)
-            character == 46 && !fraction -> next(raw, bytes + 1, accumulator, scale, negative, true, true, digits, decimals)
-            character == 32 || character == 9 || character == 10 || character == 13 -> separate(raw, bytes, accumulator, scale, negative, active, digits)
+            character >= 48 && character <= 57 && digits < 18 && decimals < 12 -> digit(console, raw, bytes, accumulator, scale, negative, fraction, digits, decimals, character)
+            character == 45 && !active -> next(console, raw, bytes + 1, accumulator, scale, true, true, fraction, digits, decimals)
+            character == 46 && !fraction -> next(console, raw, bytes + 1, accumulator, scale, negative, true, true, digits, decimals)
+            character == 32 || character == 9 || character == 10 || character == 13 -> separate(console, raw, bytes, accumulator, scale, negative, active, digits)
             _ -> bad()
         }
     }
-    state digit(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, fraction: bool, digits: u64, decimals: u64, character: i32) -> bool {
+    state digit(console: &Binding<Console>, raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, fraction: bool, digits: u64, decimals: u64, character: i32) -> bool {
         let next_accumulator: f64 = accumulator * 10.0 + F64::from_i32(character) - 48.0;
         transition fraction {
-            true -> next(raw, bytes + 1, next_accumulator, scale * 10.0, negative, true, true, digits + 1, decimals + 1)
-            false -> next(raw, bytes + 1, next_accumulator, scale, negative, true, false, digits + 1, decimals)
+            true -> next(console, raw, bytes + 1, next_accumulator, scale * 10.0, negative, true, true, digits + 1, decimals + 1)
+            false -> next(console, raw, bytes + 1, next_accumulator, scale, negative, true, false, digits + 1, decimals)
         }
     }
-    state separate(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, digits: u64) -> bool {
-        transition active { true -> capacity(raw, bytes, accumulator, scale, negative, digits, false) false -> next(raw, bytes + 1, 0.0, 1.0, false, false, false, 0, 0) }
+    state separate(console: &Binding<Console>, raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, digits: u64) -> bool {
+        transition active { true -> capacity(console, raw, bytes, accumulator, scale, negative, digits, false) false -> next(console, raw, bytes + 1, 0.0, 1.0, false, false, false, 0, 0) }
     }
-    state finish(raw: &mut Raw, accumulator: f64, scale: f64, negative: bool, active: bool, digits: u64) -> bool {
-        transition active { true -> capacity(raw, 0, accumulator, scale, negative, digits, true) false -> good() }
+    state finish(console: &Binding<Console>, raw: &mut Raw, accumulator: f64, scale: f64, negative: bool, active: bool, digits: u64) -> bool {
+        transition active { true -> capacity(console, raw, 0, accumulator, scale, negative, digits, true) false -> good() }
     }
-    state capacity(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, digits: u64, finished: bool) -> bool {
-        transition raw.count < 9 && digits > 0 { true -> store(raw, bytes, accumulator, scale, negative, finished) false -> bad() }
+    state capacity(console: &Binding<Console>, raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, digits: u64, finished: bool) -> bool {
+        transition raw.count < 9 && digits > 0 { true -> store(console, raw, bytes, accumulator, scale, negative, finished) false -> bad() }
     }
-    state store(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, finished: bool) -> bool requires raw.count < 9 {
+    state store(console: &Binding<Console>, raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, finished: bool) -> bool requires raw.count < 9 {
         let signed: f64 = sign(accumulator / scale, negative);
         raw.values[raw.count] = signed;
         raw.count = raw.count + 1;
-        transition finished { true -> good() false -> next(raw, bytes + 1, 0.0, 1.0, false, false, false, 0, 0) }
+        transition finished { true -> good() false -> next(console, raw, bytes + 1, 0.0, 1.0, false, false, false, 0, 0) }
     }
     state good() -> bool { true }
     state bad() -> bool { false }

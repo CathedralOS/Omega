@@ -22,82 +22,82 @@ data Application {
 machine Main::main(main: &mut Main) reaches Console {
     let mut application: Application;
     main.console.write_line("VARIANT_NORMALIZATION|1");
-    transition { _ -> read(&mut application) }
-    state read(application: &mut Application) {
+    transition { _ -> read(&main.console, &mut application) }
+    state read(console: &Binding<Console>, application: &mut Application) {
         let mut line: [u8; 64];
-        let result: LineReadResult = block Console::read_line(&mut line);
+        let result: LineReadResult = block Console::read_line(console, &mut line);
         transition result {
-            LineReadResult::LineComplete { count } -> process(application, &line, count as u64 in Wrapping, false)
-            LineReadResult::EndOfInput { count } -> eof(application, &line, count as u64 in Wrapping)
-            LineReadResult::Full { count } -> overflow(application)
-            LineReadResult::Invalid -> overflow(application)
+            LineReadResult::LineComplete { count } -> process(console, application, &line, count as u64 in Wrapping, false)
+            LineReadResult::EndOfInput { count } -> eof(console, application, &line, count as u64 in Wrapping)
+            LineReadResult::Full { count } -> overflow(console, application)
+            LineReadResult::Invalid -> overflow(console, application)
         }
     }
-    state eof(application: &mut Application, line: &[u8; 64], count: u64 in Wrapping) {
+    state eof(console: &Binding<Console>, application: &mut Application, line: &[u8; 64], count: u64 in Wrapping) {
         transition count == 0 {
-            true -> finish(application)
-            _ -> process(application, line, count, true)
+            true -> finish(console, application)
+            _ -> process(console, application, line, count, true)
         }
     }
-    state process(application: &mut Application, line: &[u8; 64], count: u64 in Wrapping, last: bool) {
+    state process(console: &Binding<Console>, application: &mut Application, line: &[u8; 64], count: u64 in Wrapping, last: bool) {
         transition application.line_number < 512 {
-            true -> bounded_process(application, line, count, last)
-            _ -> record_capacity(application)
+            true -> bounded_process(console, application, line, count, last)
+            _ -> record_capacity(console, application)
         }
     }
-    state record_capacity(application: &mut Application) {
+    state record_capacity(console: &Binding<Console>, application: &mut Application) {
         application.rejected = application.rejected + 1;
-        Console::write_line("FATAL|record_capacity");
-        transition { _ -> finish(application) }
+        Console::write_line(console, "FATAL|record_capacity");
+        transition { _ -> finish(console, application) }
     }
-    state bounded_process(application: &mut Application, line: &[u8; 64], count: u64 in Wrapping, last: bool) {
+    state bounded_process(console: &Binding<Console>, application: &mut Application, line: &[u8; 64], count: u64 in Wrapping, last: bool) {
         application.line_number = application.line_number + 1;
         let mut input: Input;
         parse(line, count, &mut input);
-        let reason: u64 in Wrapping = consume(application, &input);
+        let reason: u64 in Wrapping = consume(console, application, &input);
         transition reason == 0 {
-            true -> next(application, last)
-            _ -> reject(application, last, reason)
+            true -> next(console, application, last)
+            _ -> reject(console, application, last, reason)
         }
     }
-    state reject(application: &mut Application, last: bool, reason: u64 in Wrapping) {
+    state reject(console: &Binding<Console>, application: &mut Application, last: bool, reason: u64 in Wrapping) {
         application.rejected = application.rejected + 1;
-        Console::write("REJECT|"); number(application.line_number); separator(); number(reason); newline();
-        transition { _ -> next(application, last) }
+        Console::write(console, "REJECT|"); number(console, application.line_number); separator(console); number(console, reason); newline(console);
+        transition { _ -> next(console, application, last) }
     }
-    state next(application: &mut Application, last: bool) {
+    state next(console: &Binding<Console>, application: &mut Application, last: bool) {
         transition last {
-            true -> finish(application)
-            _ -> read(application)
+            true -> finish(console, application)
+            _ -> read(console, application)
         }
     }
-    state overflow(application: &mut Application) {
+    state overflow(console: &Binding<Console>, application: &mut Application) {
         application.rejected = application.rejected + 1;
-        Console::write_line("FATAL|line_capacity");
-        transition { _ -> finish(application) }
+        Console::write_line(console, "FATAL|line_capacity");
+        transition { _ -> finish(console, application) }
     }
-    state finish(application: &mut Application) {
-        render_ledger(&application.ledger);
-        Console::write("SUMMARY|"); number(application.ledger.count); separator();
-        number(application.ledger.merged); separator(); number(application.ledger.conflicts); separator();
-        number(application.rejected); newline();
+    state finish(console: &Binding<Console>, application: &mut Application) {
+        render_ledger(console, &application.ledger);
+        Console::write(console, "SUMMARY|"); number(console, application.ledger.count); separator(console);
+        number(console, application.ledger.merged); separator(console); number(console, application.ledger.conflicts); separator(console);
+        number(console, application.rejected); newline(console);
         transition application.rejected == 0 {
-            true -> exit(0)
-            _ -> exit(2)
+            true -> exit(console, 0)
+            _ -> exit(console, 2)
         }
     }
-    state exit(code: i32) { Console::exit_process(code); }
+    state exit(console: &Binding<Console>, code: i32) { Console::exit_process(console, code); }
 }
 
-machine consume(application: &mut Application, input: &Input) -> u64 in Wrapping reaches Console {
+machine consume(console: &Binding<Console>, application: &mut Application, input: &Input) -> u64 in Wrapping reaches Console {
     transition input.valid {
-        true -> select(application, input)
+        true -> select(console, application, input)
         _ -> 1
     }
-    state select(application: &mut Application, input: &Input) -> u64 in Wrapping {
+    state select(console: &Binding<Console>, application: &mut Application, input: &Input) -> u64 in Wrapping {
         transition input.kind == 0 {
             true -> reference(application, input)
-            _ -> variant(application, input)
+            _ -> variant(console, application, input)
         }
     }
     state reference(application: &mut Application, input: &Input) -> u64 in Wrapping {
@@ -134,88 +134,88 @@ machine consume(application: &mut Application, input: &Input) -> u64 in Wrapping
         application.second_defined = true;
         (0)
     }
-    state variant(application: &mut Application, input: &Input) -> u64 in Wrapping {
+    state variant(console: &Binding<Console>, application: &mut Application, input: &Input) -> u64 in Wrapping {
         application.locked = true;
         transition input.contig == 0 {
-            true -> first(application, input)
-            _ -> second(application, input)
+            true -> first(console, application, input)
+            _ -> second(console, application, input)
         }
     }
-    state first(application: &mut Application, input: &Input) -> u64 in Wrapping {
+    state first(console: &Binding<Console>, application: &mut Application, input: &Input) -> u64 in Wrapping {
         transition application.first_defined {
-            true -> first_run(application, input)
+            true -> first_run(console, application, input)
             _ -> 2
         }
     }
-    state second(application: &mut Application, input: &Input) -> u64 in Wrapping {
+    state second(console: &Binding<Console>, application: &mut Application, input: &Input) -> u64 in Wrapping {
         transition application.second_defined {
-            true -> second_run(application, input)
+            true -> second_run(console, application, input)
             _ -> 2
         }
     }
-    state first_run(application: &mut Application, input: &Input) -> u64 in Wrapping {
+    state first_run(console: &Binding<Console>, application: &mut Application, input: &Input) -> u64 in Wrapping {
         let reference: Sequence = application.first_reference;
-        transition { _ -> run(application, input, &reference) }
+        transition { _ -> run(console, application, input, &reference) }
     }
-    state second_run(application: &mut Application, input: &Input) -> u64 in Wrapping {
+    state second_run(console: &Binding<Console>, application: &mut Application, input: &Input) -> u64 in Wrapping {
         let reference: Sequence = application.second_reference;
-        transition { _ -> run(application, input, &reference) }
+        transition { _ -> run(console, application, input, &reference) }
     }
-    state run(application: &mut Application, input: &Input, reference: &Sequence) -> u64 in Wrapping {
+    state run(console: &Binding<Console>, application: &mut Application, input: &Input, reference: &Sequence) -> u64 in Wrapping {
         let mut result: Normalization;
         normalize(reference, input.position, &input.removed, &input.inserted, &mut result);
         transition result.status {
-            0 -> accepted(application, input, &mut result)
+            0 -> accepted(console, application, input, &mut result)
             1 -> 3
             2 -> 4
             _ -> 5
         }
     }
-    state accepted(application: &mut Application, input: &Input, result: &mut Normalization) -> u64 in Wrapping {
+    state accepted(console: &Binding<Console>, application: &mut Application, input: &Input, result: &mut Normalization) -> u64 in Wrapping {
         result.canonical.contig = input.contig;
         result.canonical.provenance = source_mask(input.source);
         let action: u64 in Wrapping = Ledger::add(&mut application.ledger, &result.canonical);
         transition action < 2 {
-            true -> emit(input, result, action)
+            true -> emit(console, input, result, action)
             _ -> 6
         }
     }
-    state emit(input: &Input, result: &Normalization, action: u64 in Wrapping) -> u64 in Wrapping {
-        Console::write("CANON|"); variant_row(&result.canonical); separator(); number(action); newline();
+    state emit(console: &Binding<Console>, input: &Input, result: &Normalization, action: u64 in Wrapping) -> u64 in Wrapping {
+        Console::write(console, "CANON|"); variant_row(console, &result.canonical); separator(console); number(console, action); newline(console);
         (0)
     }
 }
 
-machine render_ledger(ledger: &Ledger) reaches Console {
-    transition { _ -> row(ledger, 0) }
-    state row(ledger: &Ledger, index: u64 in Wrapping) {
+machine render_ledger(console: &Binding<Console>, ledger: &Ledger) reaches Console {
+    transition { _ -> row(console, ledger, 0) }
+    state row(console: &Binding<Console>, ledger: &Ledger, index: u64 in Wrapping) {
         transition index < ledger.count && index < 32 {
-            true -> read(ledger, index)
+            true -> read(console, ledger, index)
             _ -> stop()
         }
     }
-    state read(ledger: &Ledger, index: u64 in Wrapping) {
+    state read(console: &Binding<Console>, ledger: &Ledger, index: u64 in Wrapping) {
         let variant: Variant = ledger.variants[index];
-        Console::write("MERGE|"); number(index); separator(); variant_row(&variant); newline();
-        transition { _ -> pairs(ledger, index, &variant, 0) }
+        Console::write(console, "MERGE|"); number(console, index); separator(console); variant_row(console, &variant); newline(console);
+        transition { _ -> pairs(console, ledger, index, &variant, 0) }
     }
-    state pairs(ledger: &Ledger, index: u64 in Wrapping, variant: &Variant, previous: u64 in Wrapping) {
+    state pairs(console: &Binding<Console>, ledger: &Ledger, index: u64 in Wrapping, variant: &Variant, previous: u64 in Wrapping) {
         transition previous < index && previous < 32 {
-            true -> compare(ledger, index, variant, previous)
-            _ -> row(ledger, index + 1)
+            true -> compare(console, ledger, index, variant, previous)
+            _ -> row(console, ledger, index + 1)
         }
     }
-    state compare(ledger: &Ledger, index: u64 in Wrapping, variant: &Variant, previous: u64 in Wrapping) {
+    state compare(console: &Binding<Console>, ledger: &Ledger, index: u64 in Wrapping, variant: &Variant, previous: u64 in Wrapping) {
         let other: Variant = ledger.variants[previous];
         transition other.contig == variant.contig && other.position <= variant.position + variant.removed
             && variant.position <= other.position + other.removed {
-            true -> emit(ledger, index, variant, previous)
-            _ -> pairs(ledger, index, variant, previous + 1)
+            true -> emit(console, ledger, index, variant, previous)
+            _ -> pairs(console, ledger, index, variant, previous + 1)
         }
     }
-    state emit(ledger: &Ledger, index: u64 in Wrapping, variant: &Variant, previous: u64 in Wrapping) {
-        Console::write("CONFLICT|"); number(previous); separator(); number(index); newline();
-        transition { _ -> pairs(ledger, index, variant, previous + 1) }
+    state emit(console: &Binding<Console>, ledger: &Ledger, index: u64 in Wrapping, variant: &Variant, previous: u64 in Wrapping) {
+        Console::write(console, "CONFLICT|"); number(console, previous); separator(console); number(console, index); newline(console);
+        transition { _ -> pairs(console, ledger, index, variant, previous + 1) }
     }
     state stop() { }
 }

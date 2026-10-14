@@ -28,7 +28,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state emit(main: &mut Main, envelope: &geometry::Envelope) {
-        output::report(envelope);
+        output::report(&main.console, envelope);
         main.console.exit_process(0);
     }
     state invalid(main: &mut Main) {

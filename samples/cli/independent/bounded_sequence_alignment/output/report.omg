@@ -1,61 +1,62 @@
 module output::report;
 use omega_language_std::console;
 use alignment::local;
+use omega::language::core::binding;
 
 // Scores and coordinates are nonnegative and at most 48. Emit decimal rather
 // than exposing an exit-code-only witness. Output preserves the traceback bytes.
-pub machine number(value: i32 in Wrapping) reaches Console
+pub machine number(console: &Binding<Console>, value: i32 in Wrapping) reaches Console
 invokes Console;
 {
-    transition value >= 0 && value <= 48 { true -> digits(value) false -> bad() }
-    state digits(value: i32 in Wrapping) {
-        transition value >= 10 { true -> tens(value) false -> units(value) }
+    transition value >= 0 && value <= 48 { true -> digits(console, value) false -> bad(console) }
+    state digits(console: &Binding<Console>, value: i32 in Wrapping) {
+        transition value >= 10 { true -> tens(console, value) false -> units(console, value) }
     }
-    state tens(value: i32 in Wrapping) {
-        Console::write_byte(((value / 10) + 48) as i32);
-        transition { _ -> units(value) }
+    state tens(console: &Binding<Console>, value: i32 in Wrapping) {
+        Console::write_byte(console, ((value / 10) + 48) as i32);
+        transition { _ -> units(console, value) }
     }
-    state units(value: i32 in Wrapping) { Console::write_byte(((value % 10) + 48) as i32); }
-    state bad() { Console::write_line("ERROR internal-number"); Console::exit_process(70); }
+    state units(console: &Binding<Console>, value: i32 in Wrapping) { Console::write_byte(console, ((value % 10) + 48) as i32); }
+    state bad(console: &Binding<Console>) { Console::write_line(console, "ERROR internal-number"); Console::exit_process(console, 70); }
 }
 
-pub machine report(result: &alignment::local::Alignment) reaches Console
+pub machine report(console: &Binding<Console>, result: &alignment::local::Alignment) reaches Console
 invokes Console;
 {
-    Console::write("score="); number(result.score); Console::write_line("");
-    Console::write("first="); number(result.first_start); Console::write(":"); number(result.first_end); Console::write_line("");
-    Console::write("second="); number(result.second_start); Console::write(":"); number(result.second_end); Console::write_line("");
-    Console::write("alignment-first=");
-    transition { _ -> first(result, result.columns) }
-    state first(result: &alignment::local::Alignment, remaining: i32 in Wrapping) {
-        transition remaining > 0 && remaining <= 32 { true -> first_index(result, remaining - 1) false -> second_begin(result) }
+    Console::write(console, "score="); number(console, result.score); Console::write_line(console, "");
+    Console::write(console, "first="); number(console, result.first_start); Console::write(console, ":"); number(console, result.first_end); Console::write_line(console, "");
+    Console::write(console, "second="); number(console, result.second_start); Console::write(console, ":"); number(console, result.second_end); Console::write_line(console, "");
+    Console::write(console, "alignment-first=");
+    transition { _ -> first(console, result, result.columns) }
+    state first(console: &Binding<Console>, result: &alignment::local::Alignment, remaining: i32 in Wrapping) {
+        transition remaining > 0 && remaining <= 32 { true -> first_index(console, result, remaining - 1) false -> second_begin(console, result) }
     }
-    state first_index(result: &alignment::local::Alignment, position: i32 in Wrapping) {
-        transition position >= 0 && position < 32 { true -> first_byte(result, position) false -> bad() }
+    state first_index(console: &Binding<Console>, result: &alignment::local::Alignment, position: i32 in Wrapping) {
+        transition position >= 0 && position < 32 { true -> first_byte(console, result, position) false -> bad(console) }
     }
-    state first_byte(result: &alignment::local::Alignment, position: i32 in Wrapping)
+    state first_byte(console: &Binding<Console>, result: &alignment::local::Alignment, position: i32 in Wrapping)
     requires position >= 0 && position < 32
     {
-        Console::write_byte(result.first_trace[position] as i32);
-        transition { _ -> first(result, position) }
+        Console::write_byte(console, result.first_trace[position] as i32);
+        transition { _ -> first(console, result, position) }
     }
-    state second_begin(result: &alignment::local::Alignment) {
-        Console::write_line("");
-        Console::write("alignment-second=");
-        transition { _ -> second(result, result.columns) }
+    state second_begin(console: &Binding<Console>, result: &alignment::local::Alignment) {
+        Console::write_line(console, "");
+        Console::write(console, "alignment-second=");
+        transition { _ -> second(console, result, result.columns) }
     }
-    state second(result: &alignment::local::Alignment, remaining: i32 in Wrapping) {
-        transition remaining > 0 && remaining <= 32 { true -> second_index(result, remaining - 1) false -> done() }
+    state second(console: &Binding<Console>, result: &alignment::local::Alignment, remaining: i32 in Wrapping) {
+        transition remaining > 0 && remaining <= 32 { true -> second_index(console, result, remaining - 1) false -> done(console) }
     }
-    state second_index(result: &alignment::local::Alignment, position: i32 in Wrapping) {
-        transition position >= 0 && position < 32 { true -> second_byte(result, position) false -> bad() }
+    state second_index(console: &Binding<Console>, result: &alignment::local::Alignment, position: i32 in Wrapping) {
+        transition position >= 0 && position < 32 { true -> second_byte(console, result, position) false -> bad(console) }
     }
-    state second_byte(result: &alignment::local::Alignment, position: i32 in Wrapping)
+    state second_byte(console: &Binding<Console>, result: &alignment::local::Alignment, position: i32 in Wrapping)
     requires position >= 0 && position < 32
     {
-        Console::write_byte(result.second_trace[position] as i32);
-        transition { _ -> second(result, position) }
+        Console::write_byte(console, result.second_trace[position] as i32);
+        transition { _ -> second(console, result, position) }
     }
-    state done() { Console::write_line(""); }
-    state bad() { Console::write_line("ERROR internal-trace"); Console::exit_process(70); }
+    state done(console: &Binding<Console>) { Console::write_line(console, ""); }
+    state bad(console: &Binding<Console>) { Console::write_line(console, "ERROR internal-trace"); Console::exit_process(console, 70); }
 }

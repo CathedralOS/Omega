@@ -7,43 +7,45 @@
 // Expected exit: 6.
 
 use omega_language_std::console;
+use omega::language::core::binding;
 
-machine main() reaches Console {
-    Console::write_line("digital_root: collapse 12345 by repeated digit sums (15, then 6)");
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    Console::write_line(&main.console, "digital_root: collapse 12345 by repeated digit sums (15, then 6)");
 
     transition {
-        _ -> collapse(12345)
+        _ -> collapse(&main.console, 12345)
     }
 
     // Outer loop: stop once the value is a single digit, else sum its digits.
-    state collapse(value: i32 in Wrapping) {
+    state collapse(console: &Binding<Console>, value: i32 in Wrapping) {
         transition value < 10 {
-            true -> done(value)
-            _ -> digits(value, 0)
+            true -> done(console, value)
+            _ -> digits(console, value, 0)
         }
     }
 
     // Inner loop: peel off decimal digits, adding each to the running sum.
-    state digits(value: i32 in Wrapping, sum: i32 in Wrapping) {
+    state digits(console: &Binding<Console>, value: i32 in Wrapping, sum: i32 in Wrapping) {
         transition value == 0 {
-            true -> collapse(sum)
-            _ -> add_digit(value, sum)
+            true -> collapse(console, sum)
+            _ -> add_digit(console, value, sum)
         }
     }
 
-    state add_digit(value: i32 in Wrapping, sum: i32 in Wrapping) {
+    state add_digit(console: &Binding<Console>, value: i32 in Wrapping, sum: i32 in Wrapping) {
         let next_sum: i32 in Wrapping = sum + value % 10;
         let remaining: i32 in Wrapping = value / 10;
         transition {
-            _ -> digits(remaining, next_sum)
+            _ -> digits(console, remaining, next_sum)
         }
     }
 
-    state done(result: i32 in Wrapping) {
-        Console::write_line("result: the digital root, 6 for 12345 (the exit code)");
-        Console::write_line("[press Enter to close]");
+    state done(console: &Binding<Console>, result: i32 in Wrapping) {
+        Console::write_line(console, "result: the digital root, 6 for 12345 (the exit code)");
+        Console::write_line(console, "[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause);
-        Console::exit_process(result as i32);
+        _ = block Console::read_line(console, &mut pause);
+        Console::exit_process(console, result as i32);
     }
 }

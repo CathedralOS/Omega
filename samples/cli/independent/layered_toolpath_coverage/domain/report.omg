@@ -1,41 +1,42 @@
 use domain::model;
 use omega_language_std::console;
+use omega::language::core::binding;
 // All values in this bounded model fit four decimal digits.
-machine number(value: i32 in Wrapping) reaches Console {
-    Console::write_byte(((value / 1000) % 10 + 48) as i32);
-    Console::write_byte(((value / 100) % 10 + 48) as i32);
-    Console::write_byte(((value / 10) % 10 + 48) as i32);
-    Console::write_byte((value % 10 + 48) as i32);
+machine number(console: &Binding<Console>, value: i32 in Wrapping) reaches Console {
+    Console::write_byte(console, ((value / 1000) % 10 + 48) as i32);
+    Console::write_byte(console, ((value / 100) % 10 + 48) as i32);
+    Console::write_byte(console, ((value / 10) % 10 + 48) as i32);
+    Console::write_byte(console, (value % 10 + 48) as i32);
 }
-machine coordinate(x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping) reaches Console {
-    number(x); Console::write(" "); number(y); Console::write(" "); number(z);
+machine coordinate(console: &Binding<Console>, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping) reaches Console {
+    number(console, x); Console::write(console, " "); number(console, y); Console::write(console, " "); number(console, z);
 }
-machine segment(kind: bool, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
+machine segment(console: &Binding<Console>, kind: bool, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
     end_x: i32 in Wrapping, end_y: i32 in Wrapping, end_z: i32 in Wrapping) reaches Console {
     transition kind {
-        true -> deposition(x, y, z, end_x, end_y, end_z)
-        _ -> travel(x, y, z, end_x, end_y, end_z)
+        true -> deposition(console, x, y, z, end_x, end_y, end_z)
+        _ -> travel(console, x, y, z, end_x, end_y, end_z)
     }
-    state deposition(x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
+    state deposition(console: &Binding<Console>, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
         end_x: i32 in Wrapping, end_y: i32 in Wrapping, end_z: i32 in Wrapping) {
-        Console::write("D ");
-        coordinate(x, y, z); Console::write(" "); coordinate(end_x, end_y, end_z); Console::write_line("");
+        Console::write(console, "D ");
+        coordinate(console, x, y, z); Console::write(console, " "); coordinate(console, end_x, end_y, end_z); Console::write_line(console, "");
     }
-    state travel(x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
+    state travel(console: &Binding<Console>, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
         end_x: i32 in Wrapping, end_y: i32 in Wrapping, end_z: i32 in Wrapping) {
-        Console::write("T ");
-        coordinate(x, y, z); Console::write(" "); coordinate(end_x, end_y, end_z); Console::write_line("");
+        Console::write(console, "T ");
+        coordinate(console, x, y, z); Console::write(console, " "); coordinate(console, end_x, end_y, end_z); Console::write_line(console, "");
     }
 }
-machine audit(job: &Job) reaches Console {
-    Console::write("AUDIT region="); number(job.region);
-    Console::write(" covered="); number(job.covered_count);
-    Console::write(" missed="); number(job.missed);
-    Console::write(" waste="); number(job.waste);
-    Console::write(" duplicate="); number(job.duplicate);
-    Console::write(" deposition="); number(job.deposition);
-    Console::write(" travel="); number(job.travel);
-    Console::write(" D="); number(job.deposition_segments);
-    Console::write(" T="); number(job.travel_segments);
-    Console::write_line("");
+machine audit(console: &Binding<Console>, job: &Job) reaches Console {
+    Console::write(console, "AUDIT region="); number(console, job.region);
+    Console::write(console, " covered="); number(console, job.covered_count);
+    Console::write(console, " missed="); number(console, job.missed);
+    Console::write(console, " waste="); number(console, job.waste);
+    Console::write(console, " duplicate="); number(console, job.duplicate);
+    Console::write(console, " deposition="); number(console, job.deposition);
+    Console::write(console, " travel="); number(console, job.travel);
+    Console::write(console, " D="); number(console, job.deposition_segments);
+    Console::write(console, " T="); number(console, job.travel_segments);
+    Console::write_line(console, "");
 }

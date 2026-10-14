@@ -1,5 +1,6 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::binding;
 
 pub data Input {
     values: [i64 in Wrapping; 9];
@@ -15,92 +16,92 @@ pub data Input {
 
 // One record, at most 96 consumed bytes and at most nine signed decimal
 // tokens of at most four digits. Spaces and LF/EOF delimit; other bytes reject.
-pub machine read(input: &mut Input)
+pub machine read(console: &Binding<Console>, input: &mut Input)
 reaches Console
-invokes Console;
+invokes console;
 blocks;
 crashes Trap
 {
-    transition { _ -> next(input) }
-    state next(input: &mut Input) {
+    transition { _ -> next(console, input) }
+    state next(console: &Binding<Console>, input: &mut Input) {
         transition input.count < 96 {
-            true -> byte(input)
+            true -> byte(console, input)
             false -> reject(input)
         }
     }
-    state byte(input: &mut Input) {
+    state byte(console: &Binding<Console>, input: &mut Input) {
         input.count = input.count + 1;
-        let observed: ByteRead = block Console::read_byte();
+        let observed: ByteRead = block Console::read_byte(console);
         transition observed {
-            ByteRead::Eof -> finish(input)
-            ByteRead::Byte { value } -> classify(input, value)
+            ByteRead::Eof -> finish(console, input)
+            ByteRead::Byte { value } -> classify(console, input, value)
         }
     }
-    state classify(input: &mut Input, value: i32) {
+    state classify(console: &Binding<Console>, input: &mut Input, value: i32) {
         transition value {
-            10 -> finish(input)
-            32 -> separate(input)
-            45 -> sign(input)
-            _ -> digit(input, value)
+            10 -> finish(console, input)
+            32 -> separate(console, input)
+            45 -> sign(console, input)
+            _ -> digit(console, input, value)
         }
     }
-    state sign(input: &mut Input) {
+    state sign(console: &Binding<Console>, input: &mut Input) {
         transition input.active {
             true -> reject(input)
-            false -> set_sign(input)
+            false -> set_sign(console, input)
         }
     }
-    state set_sign(input: &mut Input) {
+    state set_sign(console: &Binding<Console>, input: &mut Input) {
         input.active = true;
         input.negative = true;
-        transition { _ -> next(input) }
+        transition { _ -> next(console, input) }
     }
-    state digit(input: &mut Input, value: i32) {
+    state digit(console: &Binding<Console>, input: &mut Input, value: i32) {
         transition value >= 48 && value <= 57 && input.digits < 4 {
-            true -> accumulate(input, value)
+            true -> accumulate(console, input, value)
             false -> reject(input)
         }
     }
-    state accumulate(input: &mut Input, value: i32) {
+    state accumulate(console: &Binding<Console>, input: &mut Input, value: i32) {
         input.digits = input.digits + 1;
         input.magnitude = input.magnitude * 10 + (value as i64 in Wrapping) - 48;
         input.active = true;
         input.digit_seen = true;
-        transition { _ -> next(input) }
+        transition { _ -> next(console, input) }
     }
-    state separate(input: &mut Input) {
+    state separate(console: &Binding<Console>, input: &mut Input) {
         transition input.active {
-            true -> store(input, false)
-            false -> next(input)
+            true -> store(console, input, false)
+            false -> next(console, input)
         }
     }
-    state finish(input: &mut Input) {
+    state finish(console: &Binding<Console>, input: &mut Input) {
         transition input.active {
-            true -> store(input, true)
+            true -> store(console, input, true)
             false -> complete(input)
         }
     }
-    state store(input: &mut Input, finished: bool) {
+    state store(console: &Binding<Console>, input: &mut Input, finished: bool) {
         transition input.index < 9 && input.digit_seen {
-            true -> save(input, finished)
+            true -> save(console, input, finished)
             false -> reject(input)
         }
     }
-    state save(input: &mut Input, finished: bool) {
+    state save(console: &Binding<Console>, input: &mut Input, finished: bool) {
         transition input.negative {
-            true -> negative(input, finished)
-            false -> positive(input, finished)
+            true -> negative(console, input, finished)
+            false -> positive(console, input, finished)
         }
     }
-    state negative(input: &mut Input, finished: bool) {
+    state negative(console: &Binding<Console>, input: &mut Input, finished: bool) {
         input.values[input.index] = -input.magnitude;
-        transition { _ -> advance(input, finished) }
+        transition { _ -> advance(console, input, finished) }
     }
-    state positive(input: &mut Input, finished: bool) {
+    state positive(console: &Binding<Console>, input: &mut Input, finished: bool) {
         input.values[input.index] = input.magnitude;
-        transition { _ -> advance(input, finished) }
+        transition { _ -> advance(console, input, finished) }
     }
-    state advance(input: &mut Input, finished: bool) {
+    state advance(console: &Binding<Console>, input: &mut Input, finished: bool) {
         input.index = input.index + 1;
         input.magnitude = 0;
         input.digits = 0;
@@ -109,7 +110,7 @@ crashes Trap
         input.digit_seen = false;
         transition finished {
             true -> complete(input)
-            false -> next(input)
+            false -> next(console, input)
         }
     }
     state complete(input: &mut Input) { input.accepted = input.index == 9; }

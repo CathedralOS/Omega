@@ -3,101 +3,102 @@ use omega_language_std::console;
 use omega::language::core::float_operations;
 use io::input;
 use model::flash;
+use omega::language::core::binding;
 // Fifteen fractional digits; computation and displayed reconstruction are
 // separately checked against the frozen oracle. Values are nonnegative <= 1.
-machine number(value: f64) reaches Console {
+machine number(console: &Binding<Console>, value: f64) reaches Console {
     let integer: i32 in Saturating = I32::from_f64(value);
     let character: i32 in Saturating = integer + 48;
-    Console::write_byte(character as i32);
-    Console::write_byte(46);
-    transition { _ -> digit(value - ((integer as i32) as f64), 0) }
-    state digit(remainder: f64, position: u32) {
+    Console::write_byte(console, character as i32);
+    Console::write_byte(console, 46);
+    transition { _ -> digit(console, value - ((integer as i32) as f64), 0) }
+    state digit(console: &Binding<Console>, remainder: f64, position: u32) {
         transition position < 15 {
-            true -> write(remainder, position)
+            true -> write(console, remainder, position)
             false -> done()
         }
     }
-    state write(remainder: f64, position: u32) {
+    state write(console: &Binding<Console>, remainder: f64, position: u32) {
         let expanded: f64 = remainder * 10.0;
         let integer: i32 in Saturating = I32::from_f64(expanded);
         let character: i32 in Saturating = integer + 48;
-    Console::write_byte(character as i32);
-        transition { _ -> digit(expanded - ((integer as i32) as f64), position + 1) }
+    Console::write_byte(console, character as i32);
+        transition { _ -> digit(console, expanded - ((integer as i32) as f64), position + 1) }
     }
     state done() { }
 }
-pub machine emit(feed: &io::input::Feed, solution: &model::flash::Solution) reaches Console invokes Console; crashes Trap {
-    Console::write_line("model: fixed_temperature_pressure supplied_K; ideal equilibrium y=K*x");
+pub machine emit(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution) reaches Console invokes Console; crashes Trap {
+    Console::write_line(console, "model: fixed_temperature_pressure supplied_K; ideal equilibrium y=K*x");
     transition solution.status {
-        0 -> liquid(feed, solution)
-        1 -> vapor(feed, solution)
-        2 -> split(feed, solution)
-        3 -> ambiguous(feed)
-        4 -> bubble(feed, solution)
-        _ -> dew(feed, solution)
+        0 -> liquid(console, feed, solution)
+        1 -> vapor(console, feed, solution)
+        2 -> split(console, feed, solution)
+        3 -> ambiguous(console, feed)
+        4 -> bubble(console, feed, solution)
+        _ -> dew(console, feed, solution)
     }
-    state liquid(feed: &io::input::Feed, solution: &model::flash::Solution) { Console::write_line("status: liquid"); summary(feed, solution); }
-    state vapor(feed: &io::input::Feed, solution: &model::flash::Solution) { Console::write_line("status: vapor"); summary(feed, solution); }
-    state split(feed: &io::input::Feed, solution: &model::flash::Solution) { Console::write_line("status: two_phase"); summary(feed, solution); }
-    state bubble(feed: &io::input::Feed, solution: &model::flash::Solution) { Console::write_line("status: bubble_boundary"); summary(feed, solution); }
-    state dew(feed: &io::input::Feed, solution: &model::flash::Solution) { Console::write_line("status: dew_boundary"); summary(feed, solution); }
-    state ambiguous(feed: &io::input::Feed) {
-        Console::write_line("status: non_identifiable");
-        Console::write_line("vapor_fraction: undetermined; all positive-abundance K=1");
-        Console::write_line("phase_presence: undetermined; if_present_composition: feed; closure_scope: every_admissible_split");
-        ambiguous_rows(feed);
+    state liquid(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution) { Console::write_line(console, "status: liquid"); summary(console, feed, solution); }
+    state vapor(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution) { Console::write_line(console, "status: vapor"); summary(console, feed, solution); }
+    state split(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution) { Console::write_line(console, "status: two_phase"); summary(console, feed, solution); }
+    state bubble(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution) { Console::write_line(console, "status: bubble_boundary"); summary(console, feed, solution); }
+    state dew(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution) { Console::write_line(console, "status: dew_boundary"); summary(console, feed, solution); }
+    state ambiguous(console: &Binding<Console>, feed: &io::input::Feed) {
+        Console::write_line(console, "status: non_identifiable");
+        Console::write_line(console, "vapor_fraction: undetermined; all positive-abundance K=1");
+        Console::write_line(console, "phase_presence: undetermined; if_present_composition: feed; closure_scope: every_admissible_split");
+        ambiguous_rows(console, feed);
     }
 }
-machine summary(feed: &io::input::Feed, solution: &model::flash::Solution) reaches Console invokes Console; crashes Trap {
-    Console::write("vapor_fraction: "); number(solution.beta); Console::write_line("");
-    transition { _ -> scan(feed, solution, 0) }
-    state scan(feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) {
+machine summary(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution) reaches Console invokes Console; crashes Trap {
+    Console::write(console, "vapor_fraction: "); number(console, solution.beta); Console::write_line(console, "");
+    transition { _ -> scan(console, feed, solution, 0) }
+    state scan(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) {
         transition position < feed.count && position < 8 {
-            true -> row(feed, solution, position)
+            true -> row(console, feed, solution, position)
             false -> done()
         }
     }
-    state row(feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) requires position < 8 {
-        Console::write("component: "); Console::write_byte((position as i32) + 48);
-        Console::write(" feed="); number(feed.fractions[position]);
+    state row(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) requires position < 8 {
+        Console::write(console, "component: "); Console::write_byte(console, (position as i32) + 48);
+        Console::write(console, " feed="); number(console, feed.fractions[position]);
         transition solution.beta < 1.0 {
-            true -> liquid(feed, solution, position)
-            false -> absent_liquid(feed, solution, position)
+            true -> liquid(console, feed, solution, position)
+            false -> absent_liquid(console, feed, solution, position)
         }
     }
-    state liquid(feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) requires position < 8 { Console::write(" liquid="); number(solution.liquid[position]); transition { _ -> vapor_kind(feed, solution, position) } }
-    state absent_liquid(feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) requires position < 8 { Console::write(" liquid=absent"); transition { _ -> vapor_kind(feed, solution, position) } }
-    state vapor_kind(feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) requires position < 8 {
+    state liquid(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) requires position < 8 { Console::write(console, " liquid="); number(console, solution.liquid[position]); transition { _ -> vapor_kind(console, feed, solution, position) } }
+    state absent_liquid(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) requires position < 8 { Console::write(console, " liquid=absent"); transition { _ -> vapor_kind(console, feed, solution, position) } }
+    state vapor_kind(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) requires position < 8 {
         transition solution.beta > 0.0 {
-            true -> vapor(feed, solution, position)
-            false -> absent_vapor(feed, solution, position)
+            true -> vapor(console, feed, solution, position)
+            false -> absent_vapor(console, feed, solution, position)
         }
     }
-    state vapor(feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) requires position < 8 { Console::write(" vapor="); number(solution.vapor[position]); transition { _ -> closure(feed, solution, position) } }
-    state absent_vapor(feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) requires position < 8 { Console::write(" vapor=absent"); transition { _ -> closure(feed, solution, position) } }
-    state closure(feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) requires position < 8 {
-        Console::write(" reconstructed="); number(solution.reconstructed[position]);
-        Console::write(" closure="); number(solution.closure[position]); Console::write_line("");
-        transition { _ -> scan(feed, solution, position + 1) }
+    state vapor(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) requires position < 8 { Console::write(console, " vapor="); number(console, solution.vapor[position]); transition { _ -> closure(console, feed, solution, position) } }
+    state absent_vapor(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) requires position < 8 { Console::write(console, " vapor=absent"); transition { _ -> closure(console, feed, solution, position) } }
+    state closure(console: &Binding<Console>, feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) requires position < 8 {
+        Console::write(console, " reconstructed="); number(console, solution.reconstructed[position]);
+        Console::write(console, " closure="); number(console, solution.closure[position]); Console::write_line(console, "");
+        transition { _ -> scan(console, feed, solution, position + 1) }
     }
     state done() { }
 }
 
 // With every active K=1, conservation has zero constant and beta coefficients.
 // Emit that split-independent identity, without inventing phase presence or beta.
-machine ambiguous_rows(feed: &io::input::Feed) reaches Console invokes Console; crashes Trap {
-    transition { _ -> scan(feed, 0) }
-    state scan(feed: &io::input::Feed, position: u32) {
+machine ambiguous_rows(console: &Binding<Console>, feed: &io::input::Feed) reaches Console invokes Console; crashes Trap {
+    transition { _ -> scan(console, feed, 0) }
+    state scan(console: &Binding<Console>, feed: &io::input::Feed, position: u32) {
         transition position < feed.count && position < 8 {
-            true -> row(feed, position)
+            true -> row(console, feed, position)
             false -> done()
         }
     }
-    state row(feed: &io::input::Feed, position: u32) requires position < 8 {
-        Console::write("component_identity: "); Console::write_byte((position as i32) + 48);
-        Console::write(" feed="); number(feed.fractions[position]);
-        Console::write_line(" closure=0.000000000000000");
-        transition { _ -> scan(feed, position + 1) }
+    state row(console: &Binding<Console>, feed: &io::input::Feed, position: u32) requires position < 8 {
+        Console::write(console, "component_identity: "); Console::write_byte(console, (position as i32) + 48);
+        Console::write(console, " feed="); number(console, feed.fractions[position]);
+        Console::write_line(console, " closure=0.000000000000000");
+        transition { _ -> scan(console, feed, position + 1) }
     }
     state done() { }
 }

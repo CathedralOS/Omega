@@ -1,5 +1,6 @@
 // Ten synthetic IDs. Masks are private bounded set storage, not gene biology.
 use omega_language_std::console;
+use omega::language::core::binding;
 
 pub data Parsed [copy] { mask: u64 in Wrapping; duplicates: u64 in Wrapping; valid: bool; }
 
@@ -45,52 +46,52 @@ pub machine intersection(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 i
 }
 
 // Newline terminates each row; at most 63 IDs precede it. EOF and any other byte reject.
-pub machine read_set() -> Parsed reaches Console
-invokes Console;
+pub machine read_set(console: &Binding<Console>) -> Parsed reaches Console
+invokes console;
 blocks;
 crashes Trap
 {
-    transition { _ -> scan(0, 0, 0) }
-    state scan(mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping) -> Parsed {
-        transition count < 64 { true -> read(mask, duplicates, count)
+    transition { _ -> scan(console, 0, 0, 0) }
+    state scan(console: &Binding<Console>, mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping) -> Parsed {
+        transition count < 64 { true -> read(console, mask, duplicates, count)
  false -> invalid()
  }
     }
-    state read(mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping) -> Parsed {
-        let byte: ByteRead = block Console::read_byte();
+    state read(console: &Binding<Console>, mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping) -> Parsed {
+        let byte: ByteRead = block Console::read_byte(console);
         transition byte {
             ByteRead::Eof -> invalid()
-            ByteRead::Byte { value } -> decode(mask, duplicates, count, value)
+            ByteRead::Byte { value } -> decode(console, mask, duplicates, count, value)
         }
     }
-    state decode(mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping, value: i32) -> Parsed {
+    state decode(console: &Binding<Console>, mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping, value: i32) -> Parsed {
         transition value == 10 {
             true -> Parsed { mask: mask, duplicates: duplicates, valid: true }
-            false -> validate(mask, duplicates, count, value)
+            false -> validate(console, mask, duplicates, count, value)
         }
     }
-    state validate(mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping, value: i32) -> Parsed {
+    state validate(console: &Binding<Console>, mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping, value: i32) -> Parsed {
         transition value >= 65 && value <= 74 {
-            true -> insert(mask, duplicates, count, (value - 65) as u64 in Wrapping)
+            true -> insert(console, mask, duplicates, count, (value - 65) as u64 in Wrapping)
             false -> invalid()
         }
     }
-    state insert(mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping, gene: u64 in Wrapping) -> Parsed {
+    state insert(console: &Binding<Console>, mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping, gene: u64 in Wrapping) -> Parsed {
         let weight: u64 in Wrapping = power(gene);
         transition member(mask, gene) {
-            true -> scan(mask, duplicates + 1, count + 1)
-            false -> scan(mask + weight, duplicates, count + 1)
+            true -> scan(console, mask, duplicates + 1, count + 1)
+            false -> scan(console, mask + weight, duplicates, count + 1)
         }
     }
     state invalid() -> Parsed { Parsed { mask: 0, duplicates: 0, valid: false } }
 }
 
-pub machine end_input() -> bool reaches Console
-invokes Console;
+pub machine end_input(console: &Binding<Console>) -> bool reaches Console
+invokes console;
 blocks;
 crashes Trap
 {
-    let observed: ByteRead = block Console::read_byte();
+    let observed: ByteRead = block Console::read_byte(console);
     transition observed { ByteRead::Eof -> true
  ByteRead::Byte { value } -> false
  }

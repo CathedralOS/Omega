@@ -6,31 +6,33 @@ use omega::language::core::float_operations;
 use domain::grid;
 use domain::solver;
 use platform::decimal;
+use omega::language::core::binding;
 
-machine field(value:f64) reaches Console invokes Console; {
+machine field(console: &Binding<Console>, value:f64) reaches Console invokes Console; {
  let scaled:f64=value*1000000000000.0;
  transition scaled == scaled && scaled >= -900000000000000000.0 && scaled <= 900000000000000000.0 {
-  true -> emit(scaled) false -> failure()
+  true -> emit(console, scaled) false -> failure(console)
  }
- state emit(scaled:f64) requires scaled == scaled && scaled >= -900000000000000000.0 && scaled <= 900000000000000000.0 {
+ state emit(console: &Binding<Console>, scaled:f64) requires scaled == scaled && scaled >= -900000000000000000.0 && scaled <= 900000000000000000.0 {
   let integer:i64=I64::from_f64(scaled);
-  number(integer as i64 in Wrapping);
+  number(console, integer as i64 in Wrapping);
  }
- state failure() { Console::write_line("REJECT numeric output"); Console::exit_process(70); }
+ state failure(console: &Binding<Console>) { Console::write_line(console, "REJECT numeric output"); Console::exit_process(console, 70); }
 }
-machine count(value:u64 in Saturating) reaches Console invokes Console; {
- transition value <= 1000 { true -> bounded(value) false -> failure() }
- state bounded(value:u64 in Saturating) requires value <= 1000 { number(value as i64 in Wrapping); }
- state failure() { Console::write_line("REJECT report count"); Console::exit_process(70); }
+machine count(console: &Binding<Console>, value:u64 in Saturating) reaches Console invokes Console; {
+ transition value <= 1000 { true -> bounded(console, value) false -> failure(console) }
+ state bounded(console: &Binding<Console>, value:u64 in Saturating) requires value <= 1000 { number(console, value as i64 in Wrapping); }
+ state failure(console: &Binding<Console>) { Console::write_line(console, "REJECT report count"); Console::exit_process(console, 70); }
 }
-machine main() reaches Console invokes Console; {
- let request:ByteRead=block Console::read_byte();
- transition request { ByteRead::Byte { value } -> ending(value) _ -> input_error() }
- state ending(value:i32) {
-  let tail:ByteRead=block Console::read_byte();
-  transition tail { ByteRead::Eof -> setup(value) _ -> input_error() }
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console invokes Console; {
+ let request:ByteRead=block Console::read_byte(&main.console);
+ transition request { ByteRead::Byte { value } -> ending(&main.console, value) _ -> input_error(&main.console) }
+ state ending(console: &Binding<Console>, value:i32) {
+  let tail:ByteRead=block Console::read_byte(console);
+  transition tail { ByteRead::Eof -> setup(console, value) _ -> input_error(console) }
  }
- state setup(value:i32) {
+ state setup(console: &Binding<Console>, value:i32) {
   let zero:f64=0.0;
   let one:f64=1.0;
   let mut grid:domain::grid::Grid;
@@ -43,55 +45,55 @@ machine main() reaches Console invokes Console; {
   grid.maximum=400;
   grid.tolerance=0.0000000001;
   transition value {
-   48 -> check(&mut grid)
-   49 -> eight(&mut grid)
-   50 -> twelve(&mut grid)
-   51 -> mixed(&mut grid)
-   52 -> reaction(&mut grid)
-   53 -> coefficient(&mut grid,0.0)
-   54 -> coefficient(&mut grid,-1.0)
-   55 -> malformed(&mut grid)
-   56 -> singular(&mut grid)
-   57 -> limited(&mut grid,1)
-   97 -> limited(&mut grid,0)
-   98 -> negative_reaction(&mut grid)
-   99 -> missing(&mut grid)
-   100 -> coefficient(&mut grid,zero/zero)
-   101 -> coefficient(&mut grid,one/zero)
-   102 -> bad_tolerance(&mut grid)
-   _ -> input_error()
+   48 -> check(console, &mut grid)
+   49 -> eight(console, &mut grid)
+   50 -> twelve(console, &mut grid)
+   51 -> mixed(console, &mut grid)
+   52 -> reaction(console, &mut grid)
+   53 -> coefficient(console, &mut grid,0.0)
+   54 -> coefficient(console, &mut grid,-1.0)
+   55 -> malformed(console, &mut grid)
+   56 -> singular(console, &mut grid)
+   57 -> limited(console, &mut grid,1)
+   97 -> limited(console, &mut grid,0)
+   98 -> negative_reaction(console, &mut grid)
+   99 -> missing(console, &mut grid)
+   100 -> coefficient(console, &mut grid,zero/zero)
+   101 -> coefficient(console, &mut grid,one/zero)
+   102 -> bad_tolerance(console, &mut grid)
+   _ -> input_error(console)
   }
  }
- state eight(grid:&mut domain::grid::Grid) { grid.n=8; transition { _ -> check(grid) } }
- state twelve(grid:&mut domain::grid::Grid) { grid.n=12; transition { _ -> check(grid) } }
- state mixed(grid:&mut domain::grid::Grid) { grid.n=8; grid.linear=true; grid.kind[1]=1; grid.kind[2]=1; grid.kind[3]=1; transition { _ -> check(grid) } }
- state reaction(grid:&mut domain::grid::Grid) { grid.n=8; grid.diffusion=2.0; grid.reaction=3.0; transition { _ -> check(grid) } }
- state coefficient(grid:&mut domain::grid::Grid,value:f64) { grid.diffusion=value; transition { _ -> check(grid) } }
- state malformed(grid:&mut domain::grid::Grid) { grid.kind[2]=9; transition { _ -> check(grid) } }
- state singular(grid:&mut domain::grid::Grid) { grid.kind[0]=1; grid.kind[1]=1; grid.kind[2]=1; grid.kind[3]=1; transition { _ -> check(grid) } }
- state limited(grid:&mut domain::grid::Grid,maximum:u64 in Saturating) { grid.maximum=maximum; transition { _ -> check(grid) } }
- state negative_reaction(grid:&mut domain::grid::Grid) { grid.reaction=-1.0; transition { _ -> check(grid) } }
- state missing(grid:&mut domain::grid::Grid) { grid.boundary_count=3; transition { _ -> check(grid) } }
- state bad_tolerance(grid:&mut domain::grid::Grid) { grid.tolerance=0.0; transition { _ -> check(grid) } }
- state check(grid:&mut domain::grid::Grid) {
-  transition domain::grid::valid(grid) { true -> execute(grid) false -> invalid() }
+ state eight(console: &Binding<Console>, grid:&mut domain::grid::Grid) { grid.n=8; transition { _ -> check(console, grid) } }
+ state twelve(console: &Binding<Console>, grid:&mut domain::grid::Grid) { grid.n=12; transition { _ -> check(console, grid) } }
+ state mixed(console: &Binding<Console>, grid:&mut domain::grid::Grid) { grid.n=8; grid.linear=true; grid.kind[1]=1; grid.kind[2]=1; grid.kind[3]=1; transition { _ -> check(console, grid) } }
+ state reaction(console: &Binding<Console>, grid:&mut domain::grid::Grid) { grid.n=8; grid.diffusion=2.0; grid.reaction=3.0; transition { _ -> check(console, grid) } }
+ state coefficient(console: &Binding<Console>, grid:&mut domain::grid::Grid,value:f64) { grid.diffusion=value; transition { _ -> check(console, grid) } }
+ state malformed(console: &Binding<Console>, grid:&mut domain::grid::Grid) { grid.kind[2]=9; transition { _ -> check(console, grid) } }
+ state singular(console: &Binding<Console>, grid:&mut domain::grid::Grid) { grid.kind[0]=1; grid.kind[1]=1; grid.kind[2]=1; grid.kind[3]=1; transition { _ -> check(console, grid) } }
+ state limited(console: &Binding<Console>, grid:&mut domain::grid::Grid,maximum:u64 in Saturating) { grid.maximum=maximum; transition { _ -> check(console, grid) } }
+ state negative_reaction(console: &Binding<Console>, grid:&mut domain::grid::Grid) { grid.reaction=-1.0; transition { _ -> check(console, grid) } }
+ state missing(console: &Binding<Console>, grid:&mut domain::grid::Grid) { grid.boundary_count=3; transition { _ -> check(console, grid) } }
+ state bad_tolerance(console: &Binding<Console>, grid:&mut domain::grid::Grid) { grid.tolerance=0.0; transition { _ -> check(console, grid) } }
+ state check(console: &Binding<Console>, grid:&mut domain::grid::Grid) {
+  transition domain::grid::valid(grid) { true -> execute(console, grid) false -> invalid(console) }
  }
- state execute(grid:&mut domain::grid::Grid) {
+ state execute(console: &Binding<Console>, grid:&mut domain::grid::Grid) {
   let status:i32=domain::solver::solve(grid);
-  Console::write("GRID "); count(grid.n); count(grid.count); count(grid.nonzeros); Console::write_line("");
-  Console::write("CG "); number(status as i64 in Wrapping); count(grid.iterations); field(grid.norm); field(grid.threshold); field(grid.error); Console::write_line("");
-  transition { _ -> report(grid,status,0) }
+  Console::write(console, "GRID "); count(console, grid.n); count(console, grid.count); count(console, grid.nonzeros); Console::write_line(console, "");
+  Console::write(console, "CG "); number(console, status as i64 in Wrapping); count(console, grid.iterations); field(console, grid.norm); field(console, grid.threshold); field(console, grid.error); Console::write_line(console, "");
+  transition { _ -> report(console, grid,status,0) }
  }
- state report(grid:&domain::grid::Grid,status:i32,index:u64 in Saturating) {
-  transition index < grid.count { true -> cell(grid,status,index) false -> finish(status) }
+ state report(console: &Binding<Console>, grid:&domain::grid::Grid,status:i32,index:u64 in Saturating) {
+  transition index < grid.count { true -> cell(console, grid,status,index) false -> finish(console, status) }
  }
- state cell(grid:&domain::grid::Grid,status:i32,index:u64 in Saturating) {
-  Console::write("CELL "); count(index); field(grid.solution[index%144]); Console::write_line("");
-  transition { _ -> report(grid,status,index+1) }
+ state cell(console: &Binding<Console>, grid:&domain::grid::Grid,status:i32,index:u64 in Saturating) {
+  Console::write(console, "CELL "); count(console, index); field(console, grid.solution[index%144]); Console::write_line(console, "");
+  transition { _ -> report(console, grid,status,index+1) }
  }
- state finish(status:i32) { transition status { 0 -> success() _ -> nonconvergence() } }
- state success() { Console::write_line("CONVERGED"); Console::exit_process(0); }
- state nonconvergence() { Console::write_line("NOT_CONVERGED"); Console::exit_process(2); }
- state invalid() { Console::write_line("REJECT grid: positive finite diffusion, nonnegative reaction, four valid anchored boundaries, bounded mesh and controls required"); Console::exit_process(65); }
- state input_error() { Console::write_line("REJECT input: expected exactly one byte 0..9 or a..f"); Console::exit_process(64); }
+ state finish(console: &Binding<Console>, status:i32) { transition status { 0 -> success(console) _ -> nonconvergence(console) } }
+ state success(console: &Binding<Console>) { Console::write_line(console, "CONVERGED"); Console::exit_process(console, 0); }
+ state nonconvergence(console: &Binding<Console>) { Console::write_line(console, "NOT_CONVERGED"); Console::exit_process(console, 2); }
+ state invalid(console: &Binding<Console>) { Console::write_line(console, "REJECT grid: positive finite diffusion, nonnegative reaction, four valid anchored boundaries, bounded mesh and controls required"); Console::exit_process(console, 65); }
+ state input_error(console: &Binding<Console>) { Console::write_line(console, "REJECT input: expected exactly one byte 0..9 or a..f"); Console::exit_process(console, 64); }
 }
