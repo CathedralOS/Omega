@@ -450,13 +450,9 @@ pub(in crate::legalization) fn read(
         return None;
     };
     let (operation, result, place, field) = (*operation, *result, *place, *field);
-    if function
-        .content_entry_claims
-        .iter()
-        .any(|claim| claim.input.root == place)
-    {
-        return None;
-    }
+    // A scalar snapshot of a content-claimed root neither consumes nor
+    // discharges the claim; lowering already admitted the read under the
+    // owned-observation rule, and this replay only rejoins its geometry.
     // Read the selected address in a reference home, never an arbitrary
     // candidate from the independently reconstructed origin set.
     let mut through_reference = false;

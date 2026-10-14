@@ -386,7 +386,6 @@ pass/control_flow/termination_index_distance_compile built 572ms exit:0 @9baafc0
 pass/control_flow/transition_operand_schedule checked 454ms @2d8ed253669f+wt
 pass/control_flow/transition_tail_self_call checked 458ms @2d8ed253669f+wt
 pass/core/carry_permission_provider_adapter built 1082ms @2d8ed253669f+wt
-pass/core/content_conservation_contract rejected 3667ms @b2906d953be
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: linear structural result`
 pass/core/content_retained_custody_round_trip built 633ms @2d8ed253669f+wt
 pass/core/extent_core_surface checked 572ms @2d8ed253669f+wt

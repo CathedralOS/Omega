@@ -170,9 +170,17 @@ pub(super) fn replay_installed_provider_calls(
                     }
                     let caller_content = source
                         .and_then(|source| source.content.as_ref())
+                        .map(|content| CallerClaimContent {
+                            root: content.input.root,
+                            segments: content.input.segments.clone(),
+                            projections: content.projections.clone(),
+                        })
+                        .or_else(|| {
+                            minted_claim_content(module, terminal_caller, receipt.claim, argument)
+                        })
                         .ok_or_else(malformed)?;
-                    if caller_content.input.root != argument.place
-                        || caller_content.input.segments != candidate_content.input.segments
+                    if caller_content.root != argument.place
+                        || caller_content.segments != candidate_content.input.segments
                         || caller_content.projections != candidate_content.projections
                     {
                         return Err(malformed());
@@ -280,4 +288,78 @@ fn replays_result(
         }
         _ => false,
     }
+}
+
+/// The content one caller claim carries at the argument it supplies.
+struct CallerClaimContent {
+    root: semantic_vocabulary::PlaceId,
+    segments: Vec<semantic_vocabulary::ContentPlaceSegment>,
+    projections: Vec<terminal_psi::ClaimContentProjection>,
+}
+
+/// Content of a claim minted inside the caller rather than received at its
+/// entry: a call, construction or destructuring result, or an owned block
+/// arrival. A claim keeps its identity as it moves, so the row is the one
+/// bound at the exact argument place and path the receipt names; that
+/// occurrence's transferred qualifications select the module's owner-unique
+/// content projections. Only a whole-root claim joins here; a projected
+/// residual keeps the whole-root refusal above.
+fn minted_claim_content(
+    module: &terminal_psi::TerminalModule,
+    caller: &terminal_psi::TerminalMachine,
+    claim: semantic_vocabulary::ClaimId,
+    argument: &terminal_psi::StructuralArgument,
+) -> Option<CallerClaimContent> {
+    if !argument.path.is_empty() {
+        return None;
+    }
+    let (root, qualifications) = caller
+        .operations()
+        .find_map(|operation| {
+            let result = operation.result.structural()?;
+            if result.place != argument.place
+                || !result
+                    .claims
+                    .iter()
+                    .any(|binding| binding.claim == claim && binding.path.is_empty())
+            {
+                return None;
+            }
+            Some((result.place, result.qualifications.as_slice()))
+        })
+        .or_else(|| {
+            let binding = caller.block_entry_claims.iter().find(|binding| {
+                binding.claim == claim && binding.input == argument.place && binding.path.is_empty()
+            })?;
+            let parameter = caller.blocks.iter().find_map(|block| {
+                block
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == binding.input)
+            })?;
+            Some((parameter.place, parameter.qualifications.as_slice()))
+        })?;
+    let mut projections = qualifications
+        .iter()
+        .filter_map(|domain| {
+            let projection = module
+                .structural_domain(*domain)?
+                .content_projection
+                .as_ref()?;
+            Some(terminal_psi::ClaimContentProjection {
+                projection: projection.identity,
+                algebra: projection.algebra.clone(),
+            })
+        })
+        .collect::<Vec<_>>();
+    if projections.is_empty() {
+        return None;
+    }
+    projections.sort();
+    projections.dedup();
+    Some(CallerClaimContent {
+        root,
+        segments: Vec::new(),
+        projections,
+    })
 }

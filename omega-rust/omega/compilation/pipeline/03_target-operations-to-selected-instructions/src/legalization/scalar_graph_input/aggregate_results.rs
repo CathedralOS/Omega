@@ -134,13 +134,6 @@ pub(super) fn cleanup(
         {
             return Some((structural_type, StructuralMultiplicity::Affine));
         }
-        if function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == place)
-        {
-            return None;
-        }
         if let Some(parameter) = function.structural_parameter(place) {
             return (parameter.access == terminal_psi::StructuralAccess::Owned)
                 .then_some((parameter.structural_type, parameter.multiplicity));

@@ -328,13 +328,6 @@ fn readable_source_type(
     structural_types: &[StructuralTypeDeclaration],
     source: PlaceId,
 ) -> Option<(StructuralTypeId, StructuralAccess)> {
-    if machine
-        .content_entry_claims
-        .iter()
-        .any(|claim| claim.input.root == source)
-    {
-        return None;
-    }
     // An observation retains the owner's obligation at its existing home.
     // Reference and view carriers retain their separate claim-free contract;
     // Terminal replay already checked current ownership and loan availability.
@@ -344,10 +337,18 @@ fn readable_source_type(
                 declaration.id == structural_type && (declaration.shape).is_composite_shape()
             })
     };
+    // A content-bearing entry claim is an entry claim for observation: owned
+    // composite storage may be read under it (a partition provider reads the
+    // magnitude it conserves), while borrowed or linear non-owned sources
+    // keep the narrower rule. The snapshot neither consumes nor discharges it.
     let has_entry_claim = machine
         .entry_claims
         .iter()
-        .any(|claim| claim.input == source);
+        .any(|claim| claim.input == source)
+        || machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == source);
     if let Some(parameter) = machine.parameter(source) {
         return (parameter.access != StructuralAccess::WriteOnlyBorrow
             && (owned_storage(parameter.structural_type, parameter.access)
