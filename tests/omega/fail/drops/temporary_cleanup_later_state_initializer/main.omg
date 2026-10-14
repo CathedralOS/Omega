@@ -1,0 +1,18 @@
+data Token { value: u64; }
+machine Token::drop(token: &mut Token)
+requires token.value == 7
+{
+    token.value = 0;
+}
+machine read(token: &Token) -> u64 { token.value }
+machine main(flag: bool) -> u64 {
+    transition flag {
+        true -> formed()
+        false -> formed()
+    }
+    // A non-final initializer still owes the hook its prerequisite.
+    state formed() -> u64 {
+        let observed: u64 = read(&Token { value: 8 });
+        observed
+    }
+}

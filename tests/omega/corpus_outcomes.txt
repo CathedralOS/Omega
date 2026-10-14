@@ -2264,16 +2264,22 @@ fail/drops/selected_replacement_old_cleanup_prerequisite rejected 1604ms expecte
 	cannot prove automatic cleanup requires at selected edge from choose state entry after statement 2: missing token.ready == true required by Token::drop clause `token.ready`
 fail/drops/successor_cleanup_unmet_prerequisite rejected 1542ms expected @a9ae30e1c334+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
-fail/drops/temporary_cleanup_captured_false rejected 1636ms expected @a9ae30e1c334+wt
+fail/drops/temporary_cleanup_captured_false rejected 1621ms expected @5224f3a25f86+wt
 	cannot prove automatic cleanup requires at selected edge from explicit state entry after statement 1: missing Token.ready == true required by Token::drop clause `token.ready`
 	cannot prove automatic cleanup requires at selected edge from implicit state entry after statement 1: missing Token.ready == true required by Token::drop clause `token.ready`
-fail/drops/temporary_cleanup_captured_false_integer rejected 1688ms expected @a9ae30e1c334+wt
+fail/drops/temporary_cleanup_captured_false_integer rejected 1343ms expected @5224f3a25f86+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Token does not establish Token::drop clause `token.value == 7`
-fail/drops/temporary_cleanup_false_compound_contract rejected 1591ms expected @a9ae30e1c334+wt
+fail/drops/temporary_cleanup_false_compound_contract rejected 1394ms expected @5224f3a25f86+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Token does not establish Token::drop clause `token.ready && token.value == 7`
-fail/drops/temporary_cleanup_false_integer_contract rejected 1556ms expected @a9ae30e1c334+wt
+fail/drops/temporary_cleanup_false_integer_contract rejected 1319ms expected @5224f3a25f86+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Token does not establish Token::drop clause `token.value == 7`
-fail/drops/temporary_cleanup_unmet_prerequisite rejected 1587ms expected @a9ae30e1c334+wt
+fail/drops/temporary_cleanup_later_state_initializer rejected 1361ms expected @5224f3a25f86+wt
+	cannot prove automatic cleanup requires at selected edge from main state formed after statement 0: Token does not establish Token::drop clause `token.value == 7`
+fail/drops/temporary_cleanup_nested_owner_contract rejected 1158ms expected @5224f3a25f86+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Outer.token does not establish Token::drop clause `token.value == 7`
+fail/drops/temporary_cleanup_selected_operand rejected 1168ms expected @5224f3a25f86+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Token does not establish Token::drop clause `token.value == 7`
+fail/drops/temporary_cleanup_unmet_prerequisite rejected 1269ms expected @5224f3a25f86+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: missing Token.ready == true required by Token::drop clause `token.ready`
 fail/drops/zero_case_container_keeps_cleanup_prerequisite rejected 1530ms expected @a9ae30e1c334+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing owner.ready == true required by OptionalReceipt::drop clause `owner.ready`

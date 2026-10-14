@@ -1,0 +1,9 @@
+data Token { value: u64; }
+machine Token::drop(token: &mut Token)
+requires token.value == 7
+{
+    token.value = 0;
+}
+machine read(token: &Token) -> u64 { token.value }
+// An owner formed only on a selected operand path still dies there.
+machine main(flag: bool) -> bool { flag && read(&Token { value: 8 }) == 8 }

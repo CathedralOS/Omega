@@ -1,0 +1,11 @@
+data Token { value: u64; }
+machine Token::drop(token: &mut Token)
+requires token.value == 7
+{
+    token.value = 0;
+}
+machine read(token: &Token) -> u64 { token.value }
+data Outer { token: Token; marker: u64; }
+machine read_outer(outer: &Outer) -> u64 { outer.marker }
+// The contained Token dies with its anonymous owner after read_outer.
+machine main() -> u64 { read_outer(&Outer { token: Token { value: 8 }, marker: 1 }) }
