@@ -88,6 +88,16 @@ fn judge_qualification_cast(
             if crate::field_domains::domain_is_vacuous(program, domain.symbol, &mut Vec::new()) {
                 return;
             }
+            // A structural carrier's predicates read its fields, places and
+            // selected cases, which only the flow contexts at the cast's own
+            // occurrence know. Checked contracts judge those casts there, with
+            // the evidence a qualified initializer or call argument uses.
+            if program
+                .primitive_type_reference(domain.target_type)
+                .is_none()
+            {
+                return;
+            }
             let judgment = operand_mint_judgment(program, cast, source);
             match judgment {
                 MintJudgment::Discharged => {}

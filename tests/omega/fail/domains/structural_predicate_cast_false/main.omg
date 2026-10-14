@@ -1,0 +1,7 @@
+// A record literal whose field refutes `quantity.value >= 0` is not a member.
+data Quantity [copy] { value: i32; }
+domain Quantity::Additive(quantity) requires quantity.value >= 0;
+machine read(q: Quantity in Quantity::Additive) -> i32 { q.value }
+machine main() -> i32 {
+    transition { _ -> read(Quantity { value: -3 } as Quantity in Additive) }
+}

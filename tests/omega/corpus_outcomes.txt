@@ -2216,6 +2216,12 @@ fail/domains/semantic_predicate_domain_call_false rejected 1154ms expected @8961
 	cannot prove requires contract for call measure from main: 0 in u64::Distance in state `entry`
 fail/domains/semantic_record_domain_call_false rejected 1254ms expected @896172b5d9d8+wt
 	cannot prove requires contract for call combine from main: Quantity in Quantity::Additive in state `entry`
+fail/domains/structural_predicate_cast_false rejected 1417ms expected @2012446ad74a+wt
+	`as ... in Quantity::Additive` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+fail/domains/structural_predicate_cast_routed rejected 235ms expected @2012446ad74a+wt
+	`as ... in Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/domains/structural_predicate_cast_unproved rejected 1389ms expected @2012446ad74a+wt
+	`as ... in Quantity::Additive` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
 fail/domains/structural_qualification_cast_other_domain rejected 226ms expected @0bb0340f378d+wt
 	implicit domain strengthening in argument `counter` for state `entry` assumes `Counter::Ready`; a qualification with no predicate or establishment route may be introduced only by an explicit `as` to the intended target
 fail/domains/structural_qualification_transition_other_domain rejected 282ms expected @2012446ad74a+wt
@@ -8106,6 +8112,7 @@ run/domains/module_qualified_cast_domain checked 13309ms check-target:macos_arm6
 run/domains/predicate_interval_premises checked 13508ms check-target:macos_arm64 @2012446ad74a+wt
 run/domains/qualified_record_transfer checked 6006ms check-target:macos_arm64 @868a854ecd4d+wt
 run/domains/semantic_predicate_domain_admission checked 11814ms check-target:macos_arm64 @896172b5d9d8+wt
+run/domains/structural_predicate_casts checked 12972ms check-target:macos_arm64 @2012446ad74a+wt
 run/domains/structural_qualification_cast_transitions checked 12461ms check-target:macos_arm64 @2012446ad74a+wt
 run/domains/structural_qualification_cast_values checked 11150ms check-target:macos_arm64 @0bb0340f378d+wt
 run/domains/structural_qualification_nested_values checked 11004ms check-target:macos_arm64 @73e466d6222f+wt

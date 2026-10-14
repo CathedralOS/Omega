@@ -325,6 +325,7 @@ pub(super) fn check_domain_field_writes(
                     &mut contexts,
                     decisions,
                     diagnostics,
+                    frames,
                 );
             }
             for target in transition.targets() {
@@ -364,6 +365,7 @@ pub(super) fn check_domain_field_writes(
                         &mut branch_contexts,
                         decisions,
                         diagnostics,
+                        frames,
                     );
                 }
             }
@@ -379,6 +381,7 @@ pub(super) fn check_domain_field_writes(
                 &mut contexts,
                 decisions,
                 diagnostics,
+                frames,
             );
         }
     }
@@ -422,6 +425,7 @@ fn scan_construction_field_domains(
     contexts: &mut Vec<facts::FactContextHandle>,
     decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
     diagnostics: &mut Vec<Diagnostic>,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
     if !expression.is_valid() {
         return;
@@ -436,6 +440,7 @@ fn scan_construction_field_domains(
             contexts,
             decisions,
             diagnostics,
+            frames,
         ),
         ExpressionNode::Match(dispatch) => {
             scan_construction_field_domains(
@@ -447,6 +452,7 @@ fn scan_construction_field_domains(
                 contexts,
                 decisions,
                 diagnostics,
+                frames,
             );
             let mut joined_contexts: Option<Vec<facts::FactContextHandle>> = None;
             for arm in program.expression_table.match_arms(dispatch.arms) {
@@ -461,6 +467,7 @@ fn scan_construction_field_domains(
                         &mut arm_contexts,
                         decisions,
                         diagnostics,
+                        frames,
                     );
                 }
                 scan_construction_field_domains(
@@ -472,6 +479,7 @@ fn scan_construction_field_domains(
                     &mut arm_contexts,
                     decisions,
                     diagnostics,
+                    frames,
                 );
                 match &mut joined_contexts {
                     Some(joined) => joined.retain(|context| arm_contexts.contains(context)),
@@ -494,6 +502,7 @@ fn scan_construction_field_domains(
                     contexts,
                     decisions,
                     diagnostics,
+                    frames,
                 );
                 for (domain_symbol, semantic_domain) in construction_field_domain_identities(
                     program,
@@ -594,6 +603,7 @@ fn scan_construction_field_domains(
                     contexts,
                     decisions,
                     diagnostics,
+                    frames,
                 );
             }
         }
@@ -607,6 +617,7 @@ fn scan_construction_field_domains(
                 contexts,
                 decisions,
                 diagnostics,
+                frames,
             );
             scan_construction_field_domains(
                 program,
@@ -617,18 +628,34 @@ fn scan_construction_field_domains(
                 contexts,
                 decisions,
                 diagnostics,
+                frames,
             );
         }
-        ExpressionNode::Cast(cast) => scan_construction_field_domains(
-            program,
-            facts,
-            state_flow,
-            statement_index,
-            cast.value,
-            contexts,
-            decisions,
-            diagnostics,
-        ),
+        ExpressionNode::Cast(cast) => {
+            scan_construction_field_domains(
+                program,
+                facts,
+                state_flow,
+                statement_index,
+                cast.value,
+                contexts,
+                decisions,
+                diagnostics,
+                frames,
+            );
+            judge_structural_qualification_cast(
+                program,
+                facts,
+                state_flow,
+                statement_index,
+                expression,
+                cast,
+                contexts,
+                decisions,
+                diagnostics,
+                frames,
+            );
+        }
         ExpressionNode::Call(call) => {
             scan_construction_field_domains(
                 program,
@@ -639,6 +666,7 @@ fn scan_construction_field_domains(
                 contexts,
                 decisions,
                 diagnostics,
+                frames,
             );
             for argument in program.expression_table.expression_handles(call.arguments) {
                 scan_construction_field_domains(
@@ -650,6 +678,7 @@ fn scan_construction_field_domains(
                     contexts,
                     decisions,
                     diagnostics,
+                    frames,
                 );
             }
             if let Some(call) = facts
@@ -685,6 +714,7 @@ fn scan_construction_field_domains(
                 contexts,
                 decisions,
                 diagnostics,
+                frames,
             );
             scan_construction_field_domains(
                 program,
@@ -695,6 +725,7 @@ fn scan_construction_field_domains(
                 contexts,
                 decisions,
                 diagnostics,
+                frames,
             );
         }
         ExpressionNode::Member(member) => scan_construction_field_domains(
@@ -706,6 +737,7 @@ fn scan_construction_field_domains(
             contexts,
             decisions,
             diagnostics,
+            frames,
         ),
         ExpressionNode::Borrow(inner) => scan_construction_field_domains(
             program,
@@ -716,6 +748,7 @@ fn scan_construction_field_domains(
             contexts,
             decisions,
             diagnostics,
+            frames,
         ),
         ExpressionNode::Range(range) => {
             scan_construction_field_domains(
@@ -727,6 +760,7 @@ fn scan_construction_field_domains(
                 contexts,
                 decisions,
                 diagnostics,
+                frames,
             );
             scan_construction_field_domains(
                 program,
@@ -737,6 +771,7 @@ fn scan_construction_field_domains(
                 contexts,
                 decisions,
                 diagnostics,
+                frames,
             );
         }
         ExpressionNode::Unary(unary) => scan_construction_field_domains(
@@ -748,6 +783,7 @@ fn scan_construction_field_domains(
             contexts,
             decisions,
             diagnostics,
+            frames,
         ),
         typed_trees::literal_expression_pattern!() => {}
     }
@@ -813,6 +849,82 @@ fn construction_field_type_by_symbol(
 
 /// Retain the successful source judgment, not the field annotation. The walk
 /// calls this before advancing through the next operand's mutation contexts.
+/// `value as T in D` over a structural carrier owes `D`'s predicates at the
+/// cast's own occurrence ("Predicate qualification: prove the target
+/// predicates", domains.md, exact coercion). The operand's live contexts decide
+/// them exactly as they decide a qualified initializer: constructed fields,
+/// assigned values, guards and carried memberships. Scalar carriers keep the
+/// value-interval judgment in `validation`; vacuous and routed domains are
+/// judged there too, since neither depends on the operand's facts.
+#[allow(clippy::too_many_arguments)]
+fn judge_structural_qualification_cast(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    cast: &typed_trees::expression::TableCastExpression,
+    contexts: &[facts::FactContextHandle],
+    decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
+    diagnostics: &mut Vec<Diagnostic>,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+) {
+    let domain_symbol = cast.semantic_domain_symbol;
+    let Some(domain) = program.domain_definition(domain_symbol) else {
+        return;
+    };
+    if cast.semantic_domain.is_empty()
+        || cast.form.is_recast()
+        || program
+            .primitive_type_reference(domain.target_type)
+            .is_some()
+        || validation::field_domains::domain_requires_provenance(program, domain_symbol)
+        || validation::field_domains::domain_is_vacuous(program, domain_symbol, &mut Vec::new())
+    {
+        return;
+    }
+    let semantic_domain = if cast.semantic_domain_id.is_valid() {
+        cast.semantic_domain_id
+    } else {
+        domain.semantic_id
+    };
+    if value_proves_qualification_in_contexts(
+        program,
+        facts,
+        state_flow,
+        statement_index,
+        cast.value,
+        domain_symbol,
+        semantic_domain,
+        contexts,
+    ) || value_satisfies_domain_predicates_in_contexts(
+        program,
+        facts,
+        state_flow,
+        statement_index,
+        cast.value,
+        domain_symbol,
+        contexts,
+        &mut Vec::new(),
+        None,
+        frames,
+    ) {
+        record_qualification(
+            decisions,
+            state_flow,
+            statement_index,
+            expression,
+            semantic_domain,
+        );
+        return;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "`as ... in {}` cannot prove every domain predicate from the checked operand value; \
+         constrain that value with a guarantee or guard",
+        symbol_name(program, domain_symbol),
+    )));
+}
+
 fn record_qualification(
     decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
     state: &FlowStateFact,

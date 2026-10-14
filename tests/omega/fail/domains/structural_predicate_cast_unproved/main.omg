@@ -1,0 +1,8 @@
+// A parameter with no premise about its field cannot be qualified.
+data Quantity [copy] { value: i32; }
+domain Quantity::Additive(quantity) requires quantity.value >= 0;
+machine read(q: Quantity in Quantity::Additive) -> i32 { q.value }
+machine relay(q: Quantity) -> i32 { read(q as Quantity in Additive) }
+machine main() -> i32 {
+    transition { _ -> relay(Quantity { value: 3 }) }
+}

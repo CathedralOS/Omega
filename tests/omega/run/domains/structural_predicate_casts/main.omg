@@ -1,0 +1,31 @@
+// Expected exit: 0.
+// `value as T in D` over a record proves D's predicates from the operand's
+// own facts at the cast: a record literal's constructed fields, a local's
+// assigned value, a field projection's stored value. Each qualified value
+// then reaches a consumer requiring the domain: a local, a call argument,
+// and a later state's parameter.
+data Quantity [copy] { value: i32; }
+
+domain Quantity::Additive(quantity) requires quantity.value >= 0;
+
+data Holder [copy] { quantity: Quantity; }
+
+machine read(q: Quantity in Quantity::Additive) -> i32 { q.value }
+
+machine main() crashes Trap {
+    let qualified: Quantity in Quantity::Additive = Quantity { value: 3 } as Quantity in Additive;
+    let plain: Quantity = Quantity { value: 4 };
+    let holder: Holder = Holder { quantity: Quantity { value: 5 } };
+    let literal: i32 = read(Quantity { value: 2 } as Quantity in Additive);
+    let local: i32 = read(plain as Quantity in Additive);
+    let field: i32 = read(holder.quantity as Quantity in Additive);
+    transition read(qualified) == 3 && literal == 2 && local == 4 && field == 5 {
+        true -> later(Quantity { value: 6 } as Quantity in Additive)
+        false -> wrong()
+    }
+    state later(q: Quantity in Quantity::Additive) {
+        transition read(q) == 6 { true -> done() false -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

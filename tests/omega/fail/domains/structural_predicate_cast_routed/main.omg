@@ -1,0 +1,8 @@
+// Proving a routed domain's predicates does not supply its provenance.
+data Token [copy] { value: u64; }
+domain Token::Issued(token) requires token.value > 0 established by issue;
+machine issue(value: u64) -> Token in Token::Issued requires value > 0 { Token { value: value } }
+machine spend(t: Token in Token::Issued) -> u64 { t.value }
+machine main() -> u64 {
+    transition { _ -> spend(Token { value: 3 } as Token in Issued) }
+}

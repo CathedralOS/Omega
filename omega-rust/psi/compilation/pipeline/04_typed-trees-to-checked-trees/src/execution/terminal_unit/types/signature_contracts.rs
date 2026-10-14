@@ -509,15 +509,42 @@ pub(in crate::execution::terminal_unit) fn body_structural_qualifications(
         }))
         .collect::<BTreeSet<_>>();
     domains.retain(|domain| !scalar_domains.contains(&domain.0));
-    // A vacuous cast whose structural value this body produces is owned by
-    // that value: its checked membership travels with the produced place.
+    // A cast whose membership checking decided at its own occurrence, and
+    // whose structural value this body produces, is owned by that value: the
+    // checked membership travels with the produced place. A vacuous cast's
+    // decision is its successful judgment; a predicate cast's is its proof.
     // Only a commitment with no such producer remains a body request.
-    let (owned, unowned): (Vec<&checked_trees::VacuousQualificationUse>, Vec<_>) = facts
+    let decided = facts
         .qualifications
         .vacuous_uses
         .iter()
-        .filter(|use_| use_.machine == machine)
-        .partition(|use_| {
+        .map(|use_| {
+            (
+                use_.machine,
+                use_.state,
+                use_.statement_index,
+                use_.expression,
+                use_.semantic_domain,
+            )
+        })
+        .chain(
+            facts
+                .qualifications
+                .value_formations
+                .iter()
+                .map(|(_, decision)| {
+                    (
+                        decision.machine,
+                        decision.state,
+                        decision.statement_index,
+                        decision.expression,
+                        decision.semantic_domain,
+                    )
+                }),
+        )
+        .filter(|(owner, ..)| *owner == machine);
+    let (owned, unowned): (Vec<_>, Vec<_>) =
+        decided.partition(|(_, state, statement, expression, _)| {
             facts
                 .values
                 .structural_values
@@ -525,14 +552,18 @@ pub(in crate::execution::terminal_unit) fn body_structural_qualifications(
                 .iter()
                 .any(|(_, node)| {
                     node.machine == machine
-                        && node.state == use_.state
-                        && node.statement_index == use_.statement_index
-                        && node.expression == use_.expression
+                        && node.state == *state
+                        && node.statement_index == *statement
+                        && node.expression == *expression
                 })
         });
     domains.retain(|domain| {
-        !owned.iter().any(|use_| use_.semantic_domain == *domain)
-            || unowned.iter().any(|use_| use_.semantic_domain == *domain)
+        !owned
+            .iter()
+            .any(|(.., semantic_domain)| semantic_domain == domain)
+            || unowned
+                .iter()
+                .any(|(.., semantic_domain)| semantic_domain == domain)
     });
     domains.sort_by_key(|domain| domain.0);
     domains.dedup();
