@@ -2,6 +2,11 @@
 
 You are one session of a coordinated wave. {customer_block}
 
+First complete the mandatory main preflight in `AGENTS.md`: fetch main
+successfully, update clean main or create an isolated checkout from its exact
+fetched commit, then reread current instructions. A failed fetch stops new work;
+cached main is not a fallback. Preserve unpublished work in a resumed checkout.
+
 Read `AGENTS.md` fully, then run the `advance` skill
 (`.agents/skills/advance/SKILL.md`) restricted to this customer. Do not select
 other work.

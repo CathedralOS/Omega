@@ -104,10 +104,11 @@ absent, report the missing runtime rather than pretending a shell is an agent.
 
 ## Select and partition
 
-1. Record the starting revision, branch, worktree status, host, scope, and
-   publication authorization. Preserve unrelated work. Fetch current main when
-   available; report an unavailable fetch and the exact pinned snapshot rather
-   than presenting it as current remote main.
+1. Complete the [mandatory main preflight](../../../AGENTS.md#sessions-and-subagents)
+   before dispatch. Record the starting revision, branch, worktree status, host,
+   scope and publication authorization. Fetch successfully, preserve unrelated
+   work and reread updated instructions. A failed fetch stops the new launch;
+   cached main is not a fallback.
 2. Read the relevant board sections and named code, then check live assignments
    with `python3 tools/claims.py status`. These name outcome DRIs, not file fences. Read the [coordinator selection rules](../../../tools/swarm/README.md#coordinator-selection-rules).
 3. Choose a required compiler capability with a real failing program, or a

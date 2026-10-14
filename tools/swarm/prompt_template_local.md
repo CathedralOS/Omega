@@ -7,6 +7,12 @@ end.
 
 {customer_block}
 
+Complete the mandatory main preflight in `AGENTS.md` before dispatch. The
+coordinator must successfully fetch main and record its exact commit before
+creating workers. New worktrees use that commit; resumed worktrees retain their
+unpublished work and integrate current main at a safe checkpoint. Reread the
+updated instructions before implementation. A failed fetch stops a new launch.
+
 Read and follow, in this order:
 
 - `AGENTS.md`
@@ -37,9 +43,10 @@ adjacent journeys will reveal their own needs when undertaken.
 {continuation_block}
 ## Workspace
 
-Work only inside `{worktree}` on branch `{branch}` based on `origin/main`.
+The coordinator freshly fetched main at `{base}`. Work only inside
+`{worktree}` on branch `{branch}`.
 If the coordinator did not already create the worktree, create it with
-`git worktree add {worktree} -b {branch} origin/main`. Stay inside it for all
+`git worktree add {worktree} -b {branch} {base}`. Stay inside it for all
 compiler work; never edit the coordinator's main checkout.
 
 ## Host

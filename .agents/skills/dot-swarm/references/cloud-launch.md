@@ -38,8 +38,11 @@ different cloud executor.
 
 1. **Checkout.** Confirm the actual working directory, Git root, origin and push
    destination resolve to `CathedralOS/Omega`; do not print credential-bearing
-   URLs. Record HEAD, branch, status and existing worktrees. Fetch main and
-   preserve unrelated work under the [advance](../../advance/SKILL.md) rules.
+   URLs. Record HEAD, branch, status and existing worktrees. Complete the
+   [mandatory main preflight](../../../../AGENTS.md#sessions-and-subagents): fetch
+   successfully, fast-forward clean main or use an isolated checkout at the
+   fetched commit, and reread updated instructions before implementation.
+   A failed fetch stops a new launch; preserve unrelated and resumed work.
    The expected Linux path may be `/workspace/Omega`; discover it rather than
    assuming that `/workspace` is itself the repository.
 2. **Commit identity.** Before the first claim or other remote write, inspect

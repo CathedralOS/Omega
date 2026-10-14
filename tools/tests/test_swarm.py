@@ -67,7 +67,8 @@ class OutcomeOwnershipTests(unittest.TestCase):
         session = record['sessions'][0]
         repository = LAUNCH.parents[2]
         state = {'worktree': repository / 'build' / 'test-owner',
-                 'branch': 'swarm/w9-alpha', 'ahead': 0}
+                 'branch': 'swarm/w9-alpha', 'ahead': 0,
+                 'base': module.git(repository, 'rev-parse', 'HEAD')}
         prompts = {
             'cloud': module.render_prompt(TEMPLATE.read_text(encoding='utf-8'),
                                           record, session),
@@ -155,12 +156,19 @@ class SwarmTests(unittest.TestCase):
     def validate(self, record):
         return self.module.validate_manifest(record, self.repository)
 
+    def configure_origin(self):
+        remote = self.root / "origin.git"
+        self.git(self.root, "init", "--bare", str(remote))
+        self.git(self.repository, "remote", "add", "origin", str(remote))
+        self.git(self.repository, "push", "-u", "origin", "main")
+
     def test_semantic_launch_review_and_continuation_deliver_verified_context(self):
         spec = self.repository / 'wiki/spec/rule.md'
         spec.parent.mkdir(parents=True)
         spec.write_text('The selected canonical rule.\n', encoding='utf-8')
         self.git(self.repository, 'add', '.')
         self.git(self.repository, 'commit', '-m', 'canonical rule')
+        self.configure_origin()
         base = self.git(self.repository, 'rev-parse', 'HEAD')
         record = manifest(dict(host='local', source_revision=base, semantic_contracts=[dict(
             implementation=['src/one'], contract='wiki/spec/rule.md',
@@ -177,7 +185,7 @@ class SwarmTests(unittest.TestCase):
             self.assertEqual(result, 0)
             return (self.module.build_directory(self.repository, 'w9') / 'prompts/alpha.md').read_text(encoding='utf-8')
         self.assertIn('The selected canonical rule.', delivered_prompt())
-        state = dict(worktree=self.repository, branch='main', ahead=1)
+        state = dict(worktree=self.repository, branch='main', ahead=1, base=base)
         cloud = TEMPLATE.read_text(encoding='utf-8')
         local = TEMPLATE.with_name('prompt_template_local.md').read_text(encoding='utf-8')
         for prompt in (self.module.render_prompt(cloud, record, session),
@@ -535,7 +543,8 @@ class SwarmTests(unittest.TestCase):
         self.assertIn("authored oracle (exit 7)", prompt)
         self.assertNotIn("Your customer is board item", prompt)
         local = TEMPLATE.with_name("prompt_template_local.md").read_text(encoding="utf-8")
-        state = {"worktree": self.repository / "wt", "branch": "swarm/w9-alpha", "ahead": 0}
+        state = {"worktree": self.repository / "wt", "branch": "swarm/w9-alpha", "ahead": 0,
+                 "base": self.git(self.repository, "rev-parse", "HEAD")}
         local_prompt = self.module.render_local_prompt(
             local, record, session, self.repository, state)
         self.assertIn("samples/cli/demo", local_prompt)
@@ -599,6 +608,7 @@ class SwarmTests(unittest.TestCase):
         self.assertEqual(body["devin_mode"], "fusion")
 
     def test_launch_idempotency_requires_relaunch(self):
+        self.configure_origin()
         record = manifest()
         manifest_path = self.root / "wave.json"
         manifest_path.write_text(json.dumps(record), encoding="utf-8")
@@ -622,6 +632,9 @@ class SwarmTests(unittest.TestCase):
         receipts = self.module.read_receipts(
             self.module.build_directory(self.repository, "w9"))
         self.assertEqual(receipts["alpha"]["session_id"], "s2")
+        fetched = self.git(self.repository, "rev-parse", "FETCH_HEAD")
+        self.assertEqual(receipts["alpha"]["base"], fetched)
+        self.assertIn(f"freshly fetched main at `{fetched}`", receipts["alpha"]["body"]["prompt"])
 
     def test_status_and_report_with_and_without_structured_output(self):
         directory = self.module.build_directory(self.repository, "w9")
@@ -851,7 +864,8 @@ class SwarmTests(unittest.TestCase):
             encoding="utf-8")
         record = manifest({"host": "local"})
         state = {"ahead": 0, "worktree": self.repository / "worker",
-                 "branch": "swarm/w9-alpha"}
+                 "branch": "swarm/w9-alpha",
+                 "base": self.git(self.repository, "rev-parse", "HEAD")}
         for system, machine in (("Linux", "x86_64"), ("Windows", "AMD64"),
                                 ("Darwin", "arm64")):
             with self.subTest(system=system), mock.patch.object(
@@ -877,18 +891,44 @@ class SwarmTests(unittest.TestCase):
             self.module.command_local(arguments, self.repository)
         return json.loads(output.getvalue())
 
-    def test_local_create_worktrees_reports_base_when_fetch_fails(self):
-        # No origin remote: the fetch fails, the launch table must say so,
-        # and the slot still branches from the cached origin/main ref.
+    def test_local_fetch_failure_refuses_cached_base_before_preparation(self):
         self.git(self.repository, "update-ref", "refs/remotes/origin/main",
                  "HEAD")
-        record = self.run_local(self.local_manifest())
-        self.assertIn("fetch failed", record["base"])
-        self.assertTrue((self.repository / ".codex" / "worktrees"
-                         / "w9-alpha").is_dir())
-        self.assertEqual(
-            self.git(self.repository, "rev-parse", "refs/heads/swarm/w9-alpha"),
-            self.git(self.repository, "rev-parse", "HEAD"))
+        with mock.patch.object(self.module, "session_probes",
+                               return_value=({"alpha": "skipped"}, {"alpha": []},
+                                             {"alpha": {}}, {"alpha": "skipped"})) as probes:
+            with self.assertRaisesRegex(self.module.SwarmError, "fetch"):
+                self.run_local(self.local_manifest())
+        probes.assert_not_called()
+        self.assertFalse((self.repository / ".codex" / "worktrees"
+                          / "w9-alpha").exists())
+        self.assertFalse(self.module.build_directory(self.repository, "w9").exists())
+
+    def test_local_dispatch_table_requires_fetch_without_worktree_creation(self):
+        self.git(self.repository, "update-ref", "refs/remotes/origin/main", "HEAD")
+        arguments = argparse.Namespace(
+            manifest=str(self.local_manifest()), layer=None, sessions=None,
+            create_worktrees=False, skip_host_gates=True,
+            skip_route_check=True, skip_claims_check=True)
+        with self.assertRaisesRegex(self.module.SwarmError, "fetch"):
+            self.module.command_local(arguments, self.repository)
+
+    def test_cloud_fetch_failure_creates_no_sessions_or_receipts(self):
+        self.git(self.repository, "update-ref", "refs/remotes/origin/main", "HEAD")
+        path = self.root / "wave.json"
+        path.write_text(json.dumps(manifest()), encoding="utf-8")
+        arguments = argparse.Namespace(
+            manifest=str(path), layer=None, dry_run=False,
+            skip_host_gates=True, skip_route_check=True, skip_claims_check=True,
+            relaunch=None, base_url="https://example.invalid")
+        with mock.patch.object(self.module, "api_request",
+                               return_value={"session_id": "unexpected-create"}) as request, \
+                mock.patch.object(self.module, "host_gate_results") as gates:
+            with self.assertRaisesRegex(self.module.SwarmError, "fetch"):
+                self.module.command_launch(arguments, self.repository)
+        request.assert_not_called()
+        gates.assert_not_called()
+        self.assertFalse(self.module.build_directory(self.repository, "w9").exists())
 
     def test_local_create_worktrees_reports_fetched_base(self):
         remote = self.root / "origin.git"
@@ -900,6 +940,45 @@ class SwarmTests(unittest.TestCase):
                          self.git(self.repository, "rev-parse", "origin/main"))
         self.assertTrue((self.repository / ".codex" / "worktrees"
                          / "w9-alpha").is_dir())
+
+    def test_local_new_worker_uses_remote_main_and_preserves_dirty_checkout(self):
+        remote = self.root / "origin.git"
+        self.git(self.root, "init", "--bare", str(remote))
+        self.git(self.repository, "remote", "add", "origin", str(remote))
+        self.git(self.repository, "push", "-u", "origin", "main")
+        old_head = self.git(self.repository, "rev-parse", "HEAD")
+        publisher = self.root / "publisher"
+        self.git(self.root, "clone", "--branch", "main", str(remote), str(publisher))
+        self.git(publisher, "config", "user.name", "Swarm Test")
+        self.git(publisher, "config", "user.email", "test@example.invalid")
+        (publisher / "latest.txt").write_text("new main instructions\n", encoding="utf-8")
+        self.git(publisher, "add", "latest.txt")
+        self.git(publisher, "commit", "-m", "repo: update startup instructions")
+        self.git(publisher, "push", "origin", "main")
+        fresh_head = self.git(publisher, "rev-parse", "HEAD")
+        dirty = self.repository / "src" / "one" / "code.rs"
+        dirty.write_text("// unpublished work\n", encoding="utf-8")
+        self.assertEqual(self.git(self.repository, "rev-parse", "origin/main"), old_head)
+        # Even a narrow fetch configuration must update main explicitly. A later
+        # tracking-ref change cannot change the commit chosen for this worker.
+        self.git(self.repository, "config", "remote.origin.fetch",
+                 "refs/heads/unrelated:refs/remotes/origin/unrelated")
+        original_state = self.module.local_session_state
+
+        def move_tracking_ref(*arguments):
+            self.git(self.repository, "update-ref", "refs/remotes/origin/main", old_head)
+            return original_state(*arguments)
+
+        with mock.patch.object(self.module, "local_session_state", side_effect=move_tracking_ref):
+            record = self.run_local(self.local_manifest())
+        worker = self.repository / ".codex" / "worktrees" / "w9-alpha"
+        self.assertEqual(record["base"], fresh_head)
+        self.assertEqual(self.git(worker, "rev-parse", "HEAD"), fresh_head)
+        prompt = (self.repository / record["sessions"][0]["prompt"]).read_text()
+        self.assertIn(f"-b swarm/w9-alpha {fresh_head}`", prompt)
+        self.assertEqual((worker / "latest.txt").read_text(), "new main instructions\n")
+        self.assertEqual(self.git(self.repository, "rev-parse", "HEAD"), old_head)
+        self.assertEqual(dirty.read_text(), "// unpublished work\n")
 
 
 class OwnershipPathTests(unittest.TestCase):

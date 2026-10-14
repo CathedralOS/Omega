@@ -20,7 +20,10 @@ Follow the concrete path through completion; let working programs reveal design.
 
 ## Assign outcomes, not territory
 
-Fetch main and inspect live claims plus in-flight assignments. Choose existing
+Complete the [mandatory main preflight](../../../AGENTS.md#sessions-and-subagents)
+on the coordinator before dispatch and on each independent executor before
+implementation. A failed fetch stops a new launch; cached main is not a fallback.
+Inspect live claims plus in-flight assignments. Choose existing
 release capabilities or measured iteration-performance/test-environment outcomes.
 Applications are witnesses, not separate priorities. Do not manufacture mining,
 fuzzing or gardening assignments to fill slots.

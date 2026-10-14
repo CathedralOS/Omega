@@ -25,7 +25,11 @@ width; do not make the user inventory their machine.
 
 ## Prepare and dispatch
 
-Inspect main, host capacity, live claims and in-flight assignments. Assign
+Complete the [mandatory main preflight](../../../AGENTS.md#sessions-and-subagents)
+before preparing dispatch: fetch successfully, update a clean main checkout or
+use an isolated checkout at the fetched commit, and reread current instructions.
+Stop a new launch if the fetch fails. Inspect host capacity, live claims and
+in-flight assignments. Assign
 distinct outcomes, not disjoint files. Compiler capabilities and measured
 iteration-performance/test-environment incidents are eligible. Preserve explicit
 parked scope; idle rather than mine tasks or invent audits.

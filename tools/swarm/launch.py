@@ -59,7 +59,7 @@ PROMPT_FIELDS = ("name", "wave", "customer_block", "owner_label", "exclusions",
                  "max_acu_limit", "suggested_first_slice_block",
                  "probe_block", "claim_command", "structured_output_schema")
 LOCAL_PROMPT_FIELDS = ("name", "wave", "customer_block", "owner_label",
-                       "repository", "worktree", "branch", "claim_command",
+                       "repository", "worktree", "branch", "base", "claim_command",
                        "wave_items", "exclusions", "build_tool", "host_block",
                        "suggested_first_slice_block", "probe_block",
                        "continuation_block")
@@ -155,6 +155,20 @@ def git(repository, *arguments):
     if result.returncode:
         raise SwarmError(f"Git failed ({result.returncode}): {result.stderr.strip()}")
     return result.stdout.strip()
+
+
+def fetch_launch_base(repository):
+    """A dispatch table must never turn a failed fetch into stale worker code."""
+    try:
+        git(repository, "fetch", "--no-recurse-submodules", "origin",
+            "refs/heads/main:refs/remotes/origin/main")
+        base = git(repository, "rev-parse", "--verify", "FETCH_HEAD")
+    except SwarmError as error:
+        raise SwarmError(
+            f"Mandatory main fetch failed; swarm launch stopped: {error}") from error
+    if not re.fullmatch(r"[0-9a-f]{40}", base):
+        raise SwarmError("Mandatory main fetch did not resolve a complete commit")
+    return base
 
 
 def require_fields(record, fields, where):
@@ -839,6 +853,7 @@ def render_local_prompt(template, manifest, session, repository, state):
         "repository": str(repository),
         "worktree": str(state["worktree"]),
         "branch": state["branch"],
+        "base": state["base"],
         "claim_command": claim_command(session, owner_label,
                                        LOCAL_CLAIM_LEASE_MINUTES),
         "wave_items": ", ".join(s["item"] for s in manifest["sessions"]),
@@ -878,6 +893,7 @@ def session_probes(repository, sessions, arguments):
 
 
 def command_local(arguments, repository):
+    base = fetch_launch_base(repository)
     manifest = load_manifest(arguments.manifest, repository)
     sessions, skipped = sessions_for(manifest, "local")
     sessions = filter_layer(sessions, arguments.layer)
@@ -899,23 +915,11 @@ def command_local(arguments, repository):
     wave_directory = build_directory(repository, manifest["wave"])
     prompts_directory = wave_directory / "prompts"
     prompts_directory.mkdir(parents=True, exist_ok=True)
-    if arguments.create_worktrees:
-        # New slots branch from `origin/main`, so fetch it first: spawning on
-        # the cached ref converts main's drift into landing rebase debt for
-        # every worker in the wave. A failed fetch keeps the cached ref and
-        # is reported in `base` rather than silently spawning on staleness.
-        try:
-            git(repository, "fetch", "origin", "main")
-            base = git(repository, "rev-parse", "--verify", "origin/main")
-            persist_base(wave_directory, base)
-        except SwarmError as error:
-            base = (f"origin/main fetch failed; new worktrees use the "
-                    f"cached ref ({error})")
-    else:
-        base = None
+    persist_base(wave_directory, base)
     rows = []
     for session in sessions:
         state = local_session_state(repository, manifest["wave"], session)
+        state["base"] = base
         prompt = render_local_prompt(template, manifest, session, repository,
                                      state)
         unresolved = [field for field in LOCAL_PROMPT_FIELDS
@@ -934,7 +938,7 @@ def command_local(arguments, repository):
                     state["branch"])
             else:
                 git(repository, "worktree", "add", worktree_arg, "-b",
-                    state["branch"], "origin/main")
+                    state["branch"], base)
             state["state"] = ("resumable" if state["ahead"] else "existing")
         rows.append({
             "name": session["name"],
@@ -1080,6 +1084,7 @@ def command_plan(arguments, repository):
 
 
 def command_launch(arguments, repository):
+    base = None if arguments.dry_run else fetch_launch_base(repository)
     manifest = load_manifest(arguments.manifest, repository)
     sessions, skipped = sessions_for(manifest, "launch")
     sessions = filter_layer(sessions, arguments.layer)
@@ -1105,18 +1110,9 @@ def command_launch(arguments, repository):
     wave_directory = build_directory(repository, manifest["wave"])
     receipts = read_receipts(wave_directory)
     organization = ""
-    base = None
     if not arguments.dry_run:
         _, organization = credentials()
-        # Pin the launch base for the report's native scoreboard; a failed
-        # fetch keeps the cached ref rather than blocking the wave.
-        try:
-            git(repository, "fetch", "origin", "main")
-            base = git(repository, "rev-parse", "--verify", "origin/main")
-            persist_base(wave_directory, base)
-        except SwarmError as error:
-            base = (f"origin/main fetch failed; scoreboard base unpinned "
-                    f"({error})")
+        persist_base(wave_directory, base)
     launched = []
     for session in sessions:
         name = session["name"]
@@ -1125,6 +1121,10 @@ def command_launch(arguments, repository):
                              "session_id": receipts[name]["session_id"]})
             continue
         prompt = render_prompt(template, manifest, session)
+        if base is not None:
+            prompt += (f"\nCoordinator freshly fetched main at `{base}`. Apply the "
+                       "mandatory main preflight in AGENTS.md on your executor "
+                       "before implementation.\n")
         body = request_body(manifest, session, prompt)
         if arguments.dry_run:
             launched.append({"name": name, "dry_run": True, "body": body})
@@ -1140,6 +1140,7 @@ def command_launch(arguments, repository):
             "session_id": session_id,
             "url": response.get("url") or session_url(session_id),
             "created_utc": datetime.now(timezone.utc).isoformat(),
+            "base": base,
             "body": body,
         }
         write_receipts(wave_directory, receipts)

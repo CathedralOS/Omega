@@ -64,6 +64,16 @@ credentials either; real `launch`, `status`, and `report` call the Devin API
 
 ## Workflow
 
+Before a new launch, complete the
+[mandatory main preflight](../../AGENTS.md#sessions-and-subagents): successfully
+fetch main, record its exact commit, update clean main or use an isolated
+checkout at that commit, and reread current instructions before selecting work.
+Each independent executor repeats this preflight before implementation. Preserve
+unpublished work in existing outcomes. `local` and real `launch` refuse a failed
+fetch before preparing workers; new local worktrees use the recorded commit,
+even if the tracking ref moves later. `plan` and `launch --dry-run` remain
+offline previews and do not establish fresh-main preflight.
+
 1. Write a manifest (see `manifest.schema.json`; `waves/wave-1.json` is the
    worked example). Optional top-level `secret_ids` lists Devin organization
    secrets to inject into every session's environment — e.g.

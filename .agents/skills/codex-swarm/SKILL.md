@@ -95,8 +95,11 @@ cannot dispatch work or acquire managed rollout/completion credit. See
 
 ## Select work and record the pool
 
-1. Preserve the starting checkout and fetch current main. Record the exact
-   revision; an unavailable fetch leaves a named local snapshot, not fresh main.
+1. Complete the [mandatory main preflight](../../../AGENTS.md#sessions-and-subagents)
+   before dispatch. Fetch successfully, preserve the starting checkout, record
+   the exact main commit and reread updated instructions. A failed fetch stops
+   the new launch; cached main is not a fallback. Each independent executor
+   repeats this preflight before implementation.
 2. Inspect live claims and the coordinator's in-flight assignments. Select real
    capability or development-health outcomes under `advance`. Recheck board
    evidence against current code before dispatching an already-landed repair.

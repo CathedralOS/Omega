@@ -312,6 +312,17 @@ are byte-sensitive.
 
 ## Sessions and subagents
 
+Before launching a new swarm or creating a new worker, successfully fetch remote
+`main` and record its exact commit. Fast-forward a clean checkout on `main`;
+preserve dirty or non-main checkouts and create new worktrees from the fetched
+commit. Read `AGENTS.md` and the matching skills from that updated source before
+selecting or dispatching work. A failed fetch stops the new launch; a cached
+`origin/main` is never a fallback. Each independent cloud executor repeats this
+preflight before implementation. Existing outcomes retain their worktrees and
+unpublished work, integrating fetched main at a safe checkpoint outside an
+active qualification capture. Offline plans and dry runs are previews, not a
+completed launch preflight.
+
 - Give a session or subagent a complete piece of work, never a stage: the
   sample that must run, its oracle, and that it lands its own result.
   State directions directly; never imply or insinuate them. The session
