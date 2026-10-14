@@ -17,6 +17,9 @@ no `Main::exit` — run a check target, not native.
 
 ## Native realization waits on a design decision
 
+Waiting on [OWNER_QUESTIONS.md Q1](../../../../OWNER_QUESTIONS.md#q1---is-a-domain-qualified-fixed-byte-array-a-bounded-carrier)
+(`qualified-fixed-byte-array-carrier`).
+
 Measured on macOS arm64 on 2026-10-13. Copying a qualified byte owner into
 an unqualified fixed array (`let copy: [u8; 8] = tagged.label;`, or
 `let plain: [u8; 8] = bytes;` from a `[u8; 8] in Domain` local) has no
