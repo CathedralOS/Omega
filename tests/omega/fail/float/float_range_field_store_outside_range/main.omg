@@ -1,0 +1,8 @@
+// The field's range excludes its upper endpoint, so storing 0.5 is refused.
+// pass/float/float_range_field_storage_exit is the admitted storage.
+data Ratio [copy] { value: f32[0.0..0.5]; }
+
+machine main() {
+    let mut built: Ratio = Ratio { value: 0.25 };
+    built.value = 0.5;
+}

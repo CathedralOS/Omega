@@ -2294,6 +2294,8 @@ fail/float/finite_result_requires_proof rejected 487ms expected @9c4d1c444502
 	cannot prove return value `value` satisfies `finite` for bounded return type in `invalid.entry`
 fail/float/finite_store_invalidated rejected 464ms expected @9c4d1c444502
 	cannot prove transition argument `sample.value` satisfies `finite` for bounded parameter `value` in `inspect.entry`
+fail/float/float_range_field_store_outside_range rejected 223ms expected @71a3b689b85d+wt
+	cannot prove assignment value `0.5` satisfies bounded target `built.value` in `main.entry`; expected 0..0.5
 fail/float/float_semantics_lookalike_grants_no_primitive rejected 34ms expected @9c4d1c444502
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
 fail/float/format_conversion_exclusive_upper rejected 1866ms expected @9c4d1c444502
@@ -5993,6 +5995,7 @@ pass/float/float_catalog_calls checked 17848ms @5041ef1af684+wt
 pass/float/float_match_effects checked 18708ms @5041ef1af684+wt
 pass/float/float_match_patterns checked 18887ms @5041ef1af684+wt
 pass/float/float_ops_surface checked 18956ms @5041ef1af684+wt
+pass/float/float_range_field_storage_exit checked 15937ms check-target:macos_arm64 @71a3b689b85d+wt
 pass/float/float_saturating_arithmetic_exit checked 28544ms check-target:macos_arm64 @9c4d1c444502
 pass/float/float_to_int_trapping_nan_traps checked 27036ms check-target:macos_arm64 @9c4d1c444502
 pass/float/float_trapping_overflow_traps checked 27155ms check-target:macos_arm64 @9c4d1c444502

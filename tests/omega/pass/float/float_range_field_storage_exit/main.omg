@@ -1,0 +1,28 @@
+// RUN CANARY (exit 70). A record field whose type is an IEEE range keeps the
+// range as a predicate over its own format, not an integer interval: zeroed
+// storage reads 0.0 where the range admits zero, construction and a whole
+// store into the field keep the value, and an inclusive negative f64 endpoint
+// is an ordinary member. fail/float/float_range_field_store_outside_range
+// pins the store the exclusive endpoint refuses.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Ratio [copy] { value: f32[0.0..0.5]; wide: f64[-1.0..=1.0]; }
+
+machine half(ratio: Ratio) -> f32 { ratio.value }
+
+machine main() reaches Console {
+    let zero: Ratio;
+    let mut built: Ratio = Ratio { value: 0.25, wide: -1.0 };
+    built.value = 0.375;
+    let observed: f32 = half(built);
+    transition zero.value == 0.0f32
+        && zero.wide == 0.0f64
+        && observed == 0.375f32
+        && built.wide == -1.0f64
+    {
+        true -> Console::exit_process(70)
+        false -> Console::exit_process(71)
+    }
+}

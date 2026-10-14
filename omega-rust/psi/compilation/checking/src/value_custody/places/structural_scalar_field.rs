@@ -1020,6 +1020,14 @@ fn realized_scalar_carrier(
         }
         for constraint in rows {
             match constraint {
+                // IEEE endpoints restrict the value as a predicate over its
+                // own format; they are not an integer interval.
+                TypeConstraintNode::Range {
+                    minimum, maximum, ..
+                } if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) => {
+                    crate::closed_float_range_endpoint(program, *minimum, primitive)?;
+                    crate::closed_float_range_endpoint(program, *maximum, primitive)?;
+                }
                 TypeConstraintNode::Range {
                     minimum,
                     maximum,

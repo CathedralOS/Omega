@@ -1261,6 +1261,7 @@ pass/float/float_catalog_calls checked 18393ms @5041ef1af684+wt
 pass/float/float_match_effects checked 18596ms @5041ef1af684+wt
 pass/float/float_match_patterns checked 18373ms @5041ef1af684+wt
 pass/float/float_ops_surface checked 18966ms @5041ef1af684+wt
+pass/float/float_range_field_storage_exit built 16187ms exit:70 @71a3b689b85d+wt
 pass/float/float_saturating_arithmetic_exit built 2960ms exit:77 @12e6b9755e61+wt
 pass/float/float_to_int_trapping_nan_traps built 4789ms exit:signal signal:5 @bed5f45e9185+wt
 pass/float/float_trapping_overflow_traps built 1988ms exit:signal signal:5 @12e6b9755e61+wt

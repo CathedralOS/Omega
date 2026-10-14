@@ -53,6 +53,12 @@ impl PredicateTerms for FieldSubject {
                     ScalarTerm::integer(integer, integer_value(literal, self.carrier)?)
                         .map_err(LoweringError::InvalidCrashPredicate)
                 }
+                // An IEEE range endpoint of the field's own format.
+                CheckedScalarExpression::IeeeFloatLiteral { value }
+                    if ScalarType::IeeeFloat(value.format()) == self.carrier =>
+                {
+                    Ok(ScalarTerm::IeeeFloatLiteral(*value))
+                }
                 CheckedScalarExpression::Boolean(predicate) => self.boolean(identities, predicate),
                 _ => unsupported("scalar field predicate names a value outside its formal subject"),
             },
