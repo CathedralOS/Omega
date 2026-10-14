@@ -2547,6 +2547,8 @@ fail/float/unguarded_scalar_state_contract rejected 1179ms expected @9c4d1c44450
 	cannot prove requires contract for call bounded from unchecked: value == value && value >= -100.0 && value <= 100.0 (needs fact `value == value && value >= -100.0 && value <= 100.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/generics/applied_array_field_needs_explicit_borrow rejected 77ms expected @d1fa4738e67a+wt
 	generic machine `count` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `scan_batch$specialized$bf15ef4e5fffadba$0` state `scan_batch$specialized$bf15ef4e5fffadba$0::entry`
+fail/generics/applied_data_argument_parameter_mismatch rejected 232ms expected @6ef08ceefee0+wt
+	machine `wrong` state `entry` local `held` expects `Box<Output>`, but the value is delivered as `Box<Input>`
 fail/generics/applied_payload_field_needs_case_membership rejected 658ms expected @d1fa4738e67a+wt
 	cannot prove selected case for payload access
 fail/generics/attached_machine_unresolved_extent rejected 869ms expected @a9ae30e1c334+wt
@@ -2695,12 +2697,14 @@ fail/generics/erased_static_const_keeps_declared_carrier rejected 722ms expected
 	const parameter `Tag` of `unused` requires `u8`, but `TAG` declares `u16`
 fail/generics/erased_static_const_keeps_literal_landing rejected 783ms expected @a9ae30e1c334+wt
 	const parameter `Tag` of `unused` requires `u8`, but its literal already landed as `u16`
+fail/generics/field_store_generic_result_parameter_mismatch rejected 231ms expected @6ef08ceefee0+wt
+	machine `store` state `entry` assignment expects `Output`, but the value is delivered as `Input`
 fail/generics/forwarded_const_argument_conflicts_with_explicit_selection rejected 1983ms expected @d1fa4738e67a+wt
 	generic machine `FixedBuffer::select` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `FixedBuffer<2>::total` state `FixedBuffer<2>::total::total`
 fail/generics/forwarded_slice_argument_element_mismatch rejected 159ms expected @71e65af3059c+wt
 	argument `items` for state `entry` expects `&[Element]`, got `named value`
-fail/generics/forwarded_slice_result_element_mismatch rejected 146ms expected @82646dcce47b+wt
-	machine `wrong` state `entry` local `__hoist_14` expects `&[Output]`, got `call expression`
+fail/generics/forwarded_slice_result_element_mismatch rejected 222ms expected @6ef08ceefee0+wt
+	machine `wrong` state `entry` local `__hoist_14` expects `&[Output]`, but the value is delivered as `&[Input]`
 fail/generics/generic_carrier_equation_index_conflict rejected 16ms expected @a9ae30e1c334+wt
 	generic data `Box` where equation binds `Index` to 8 but its explicit argument is 9
 fail/generics/generic_carrier_equation_mismatch rejected 15ms expected @a9ae30e1c334+wt
@@ -2742,8 +2746,12 @@ fail/generics/index_equality_selected_boolean_relation rejected 1372ms expected 
 fail/generics/indexed_domain_capacity_invalid_initializer rejected 814ms expected @a9ae30e1c334+wt
 	construction of `DomainBytes<u64 in AtMost<256>, 256>` field `length` cannot be proven within its declared range `-9223372036854775808..=256`; constrain the value, construct with a literal in range, or widen the field
 	`as ... in AtMost<256>` cannot mint: a `AtMost<256>` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
-fail/generics/local_slice_result_element_mismatch rejected 238ms expected @82646dcce47b+wt
-	machine `wrong` state `entry` local `viewed` expects `&[Output]`, got `call expression`
+fail/generics/inferred_argument_parameter_conflict rejected 215ms expected @6ef08ceefee0+wt
+	argument `right` for state `entry` expects `T`, got `named value`
+fail/generics/local_generic_result_parameter_mismatch rejected 250ms expected @6ef08ceefee0+wt
+	machine `wrong` state `entry` local `received` expects `Output`, but the value is delivered as `Input`
+fail/generics/local_slice_result_element_mismatch rejected 225ms expected @6ef08ceefee0+wt
+	machine `wrong` state `entry` local `viewed` expects `&[Output]`, but the value is delivered as `&[Input]`
 fail/generics/machine_bound_violated_at_call rejected 750ms expected @a9ae30e1c334+wt
 	generic machine `Main::copy_it` has a concrete specialization tuple that does not satisfy its authored type bounds
 fail/generics/machine_equation_constructor_binder_carrier_constructed rejected 2642ms expected @a9ae30e1c334+wt
@@ -2778,6 +2786,8 @@ fail/generics/machine_equation_selected_const_kind_conflict rejected 61ms expect
 	generic machine `capacity` where equation mixes type and value kinds: const binder `Count` holds a non-integer argument
 fail/generics/machine_equation_selected_const_policy_conflict rejected 53ms expected @a9ae30e1c334+wt
 	machine equation application constrained const declarations require declaration-site proof checking before they can publish compatibility identity
+fail/generics/named_value_parameter_mismatch rejected 237ms expected @6ef08ceefee0+wt
+	machine `wrong` state `finish` terminal expression expects `Output`, got `named value`
 fail/generics/nominal_binder_structural_coincidence_rejected rejected 752ms expected @a9ae30e1c334+wt
 	static machine argument `lookalike` for nominal parameter `Selected` retains 0 authored satisfaction row(s) for exact requirement `Handler::call`; exactly one is required and structural coincidence establishes none
 fail/generics/omitted_data_binder_explicit_conflict rejected 36ms expected @a9ae30e1c334+wt
@@ -2786,6 +2796,8 @@ fail/generics/omitted_data_binder_underdetermined rejected 41ms expected @a9ae30
 	generic data `Loose` cannot determine `Capacity` from its where equations; supply the argument explicitly
 fail/generics/open_index_unlicensed_algebra rejected 179ms expected @a9ae30e1c334+wt
 	open index operator `+` requires an explicit conformance binder on the machine owning the index expression, but the owner is not a machine
+fail/generics/parameter_value_concrete_local_mismatch rejected 249ms expected @6ef08ceefee0+wt
+	machine `wrong` state `entry` local `count` expects `u8`, but the value is delivered as `Input`
 fail/generics/property_bound_violated_at_instantiation rejected 828ms expected @a9ae30e1c334+wt
 	type parameter `T [copy]` of `Box` was instantiated with `Heavy`, which does not satisfy `[copy]`
 	data `Box<Heavy>` declares `[copy]` but field `value` is not `copy`: only primitives, shared references and data types declaring `[copy]` qualify
@@ -2803,8 +2815,12 @@ fail/generics/qualified_closed_equation_value_reconstruction rejected 2578ms exp
 	generic machine `recovered` where type equation operand `models::COUNT` does not name a closed type
 fail/generics/returned_applied_field_does_not_widen_access rejected 168ms expected @d1fa4738e67a+wt
 	mutable argument `returned` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/generics/returned_generic_result_parameter_mismatch rejected 254ms expected @6ef08ceefee0+wt
+	machine `wrong` state `entry` local `__hoist_14` expects `Output`, but the value is delivered as `Input`
 fail/generics/selected_operator_preserves_blocking_ceiling rejected 1353ms expected @a9ae30e1c334+wt
 	machine `choose` omits `blocks;` from its published contract, but its body may block
+fail/generics/state_argument_generic_result_parameter_mismatch rejected 259ms expected @6ef08ceefee0+wt
+	argument `value` for state `finish` expects `Output`, got `call expression`
 fail/generics/static_callable_excess_local_type_argument rejected 905ms expected @a9ae30e1c334+wt
 	call `Routine` has an invalid static type argument correspondence
 fail/generics/static_callable_local_type_argument_wrong_value rejected 828ms expected @a9ae30e1c334+wt
@@ -2825,9 +2841,12 @@ fail/generics/structured_const_ineligible_float_field rejected 20ms expected @a9
 	const argument for `Indexed::I` is invalid at this index site: `f64` is not eligible as a const index: runtime floating/text identity is not canonical structural data
 fail/generics/structured_const_rat_unreduced rejected 57ms expected @a9ae30e1c334+wt
 	const argument for `RatIndexed::R` is invalid at this index site: `Rat` index numerator magnitude and denominator must be gcd-reduced
-fail/generics/transition_value_slice_element_mismatch rejected 168ms expected @82646dcce47b+wt
-	machine `wrong` state `entry` return value expects `&[Output]`, got `named value`
-	machine `wrong` state `entry` return value expects `&[Output]`, got `named value`
+fail/generics/transition_value_generic_result_parameter_mismatch rejected 239ms expected @6ef08ceefee0+wt
+	machine `wrong` state `entry` return value expects `Output`, but the value is delivered as `Input`
+	machine `wrong` state `entry` return value expects `Output`, but the value is delivered as `Input`
+fail/generics/transition_value_slice_element_mismatch rejected 243ms expected @6ef08ceefee0+wt
+	machine `wrong` state `entry` return value expects `&[Output]`, but the value is delivered as `&[Input]`
+	machine `wrong` state `entry` return value expects `&[Output]`, but the value is delivered as `&[Input]`
 fail/generics/value_binder_used_as_nested_type rejected 3433ms expected @a9ae30e1c334+wt
 	data `Invalid` field `nested` generic argument uses value parameter `Count` as a type; const and runtime value parameters supply values, not types
 fail/generics/value_generic_runtime_static_length rejected 191ms expected @a9ae30e1c334+wt
@@ -6251,6 +6270,7 @@ pass/generics/foreign_case_payload_reads_exit checked 16573ms check-target:macos
 pass/generics/forwarded_slice_result_local_receipt checked 1822ms @82646dcce47b+wt
 pass/generics/generic_callback_schema checked 9793ms @5041ef1af684+wt
 pass/generics/generic_data_instantiation checked 1641ms @a9ae30e1c334+wt
+pass/generics/generic_result_parameter_receipt checked 2458ms @6ef08ceefee0+wt
 pass/generics/generic_seq_consuming_map_filter checked 2806ms @fcc053dc7014+wt
 pass/generics/generic_seq_map_filter checked 9967ms @fcc053dc7014+wt
 pass/generics/higher_order_schema checked 10059ms @5041ef1af684+wt

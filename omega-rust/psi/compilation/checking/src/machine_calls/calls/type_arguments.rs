@@ -228,7 +228,11 @@ pub(super) fn validate_resolved_call_arguments(
         &[],
         |argument, required| {
             crate::value_custody::expression_types::argument_matches_carrier(
-                program, argument, required, &bindings,
+                program,
+                caller.symbol,
+                argument,
+                required,
+                &bindings,
             )
         },
         diagnostics,

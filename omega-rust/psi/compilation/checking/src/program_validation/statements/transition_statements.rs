@@ -150,8 +150,9 @@ pub(super) fn validate(
                         diagnostics,
                     );
                 }
-                expression_types::report_reference_carrier_mismatch(
+                expression_types::report_delivered_type_mismatch(
                     program,
+                    machine.symbol,
                     *return_expression,
                     state.return_type,
                     &format!(

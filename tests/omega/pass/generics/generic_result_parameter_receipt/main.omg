@@ -1,0 +1,18 @@
+// Receiving a generic result where its applied type corresponds keeps
+// checking: an annotated local, an assigned field, a transition value, a
+// state argument and an inferred call.
+data Pair<Left, Right> { left: Left; right: Right; }
+machine same<T>(item: T) -> T { item }
+machine pair<T>(left: T, right: T) -> u8 { 0u8 }
+machine received<Input, Output>(item: Input, other: Output, spare: Output, extra: Output, last: Output, holder: &mut Pair<Input, Output>, flag: bool) -> Output {
+    let kept: Output = same<Output>(other);
+    holder.right = kept;
+    holder.left = same<Input>(item);
+    let paired: u8 = pair(spare, extra);
+    transition flag {
+        true -> (same<Output>(last))
+        false -> finish(same<Output>(last))
+    }
+    state finish(value: Output) -> Output { same<Output>(value) }
+}
+machine main() {}

@@ -1,0 +1,8 @@
+// An assigned field keeps its declared carrier: a `Pair<Input, Output>`'s
+// `right` field holds an `Output`, not the `Input` a call delivered.
+data Pair<Left, Right> { left: Left; right: Right; }
+machine same<T>(item: T) -> T { item }
+machine store<Input, Output>(holder: &mut Pair<Input, Output>, item: Input) {
+    holder.right = same<Input>(item);
+}
+machine main() {}

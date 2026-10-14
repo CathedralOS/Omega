@@ -63,7 +63,8 @@ mod float_destinations;
 mod shape_validation;
 mod value_classification;
 
-// Shared vocabulary: result types and reference type matching.
+// Shared vocabulary: result types, delivered types and reference type matching.
+mod delivered_types;
 mod reference_values;
 mod result_type;
 mod scalar_observations;
@@ -78,6 +79,7 @@ pub use result_type::{
     join_result_type_references, parameter_expression_result_type_reference,
 };
 
+pub(crate) use delivered_types::report_delivered_type_mismatch;
 pub(crate) use reference_values::{
     declared_reference_access, place_forwarded_exclusive_reference_access,
     place_permits_reference_borrow,
@@ -151,6 +153,7 @@ pub(crate) fn argument_matches_type_reference_with_substitutions(
 ) -> bool {
     argument_matches_type_reference_using(
         program,
+        SymbolHandle::invalid(),
         argument,
         type_reference,
         reference_values::declared_value_matches_reference,
@@ -160,6 +163,7 @@ pub(crate) fn argument_matches_type_reference_with_substitutions(
 
 pub(crate) fn argument_matches_carrier(
     program: &dyn crate::CheckingInput,
+    scope: SymbolHandle,
     argument: ExpressionHandle,
     type_reference: TypeReferenceHandle,
     required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
@@ -182,6 +186,7 @@ pub(crate) fn argument_matches_carrier(
     {
         return argument_matches_type_reference_using(
             program,
+            scope,
             borrow.target,
             *referee,
             reference_values::value_carrier_matches_reference,
@@ -190,6 +195,7 @@ pub(crate) fn argument_matches_carrier(
     }
     argument_matches_type_reference_using(
         program,
+        scope,
         argument,
         type_reference,
         reference_values::value_carrier_matches_reference,
@@ -199,6 +205,7 @@ pub(crate) fn argument_matches_carrier(
 
 fn argument_matches_type_reference_using(
     program: &dyn crate::CheckingInput,
+    scope: SymbolHandle,
     argument: ExpressionHandle,
     type_reference: TypeReferenceHandle,
     correspondence: reference_values::ReferenceCorrespondence,
@@ -222,6 +229,7 @@ fn argument_matches_type_reference_using(
                 .match_arms_all(dispatch.arms, |_, value| {
                     argument_matches_type_reference_using(
                         program,
+                        scope,
                         value,
                         type_reference,
                         correspondence,
@@ -286,6 +294,7 @@ fn argument_matches_type_reference_using(
         }
         return argument_matches_type_reference_using(
             program,
+            scope,
             inner_expression.target,
             *referee,
             correspondence,
@@ -381,6 +390,21 @@ fn argument_matches_type_reference_using(
         return correspondence(program, actual, type_reference, &[], required_substitutions);
     }
 
+    // A value delivered with a complete type keeps it. A type parameter of
+    // the machine making the call is rigid there and equal only to itself;
+    // the formal has already taken the call's simultaneous application.
+    if let Some(actual) = delivered_types::delivered_value_type(program, argument)
+        && delivered_types::rigid_carrier_conflict(
+            program,
+            scope,
+            actual,
+            type_reference,
+            required_substitutions,
+        )
+    {
+        return false;
+    }
+
     let argument_node = program.expression_table.expression(argument);
 
     // A subslice `collection[a..b]` produces a fresh view over the
@@ -414,6 +438,7 @@ fn argument_matches_type_reference_using(
             *access == language_semantics::ReferenceAccess::Shared
                 && argument_matches_type_reference_using(
                     program,
+                    scope,
                     argument,
                     *referee,
                     correspondence,
@@ -432,6 +457,7 @@ fn argument_matches_type_reference_using(
                     .is_some_and(|capacity| literal.len() <= capacity))
                 || argument_matches_type_reference_using(
                     program,
+                    scope,
                     argument,
                     *base_type,
                     correspondence,
@@ -460,6 +486,7 @@ fn argument_matches_type_reference_using(
                     && elements.iter().all(|element| {
                         argument_matches_type_reference_using(
                             program,
+                            scope,
                             *element,
                             *element_type,
                             correspondence,
@@ -920,6 +947,7 @@ fn fixed_byte_array_capacity(
 
 pub(crate) fn validate_expression_type_handle(
     program: &dyn crate::CheckingInput,
+    scope: SymbolHandle,
     expression: ExpressionHandle,
     type_reference: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
@@ -936,80 +964,20 @@ pub(crate) fn validate_expression_type_handle(
         )));
         return;
     }
-    if !argument_matches_type_reference_handle(program, expression, type_reference) {
+    if !argument_matches_type_reference_using(
+        program,
+        scope,
+        expression,
+        type_reference,
+        reference_values::declared_value_matches_reference,
+        &[],
+    ) {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} expects `{}`, got `{}`",
             program.display_type_reference_with_constraints(type_reference),
             expression_type_name_handle(program, expression)
         )));
     }
-}
-
-/// A reference received into storage the program names -- a local, a
-/// transition's returned value -- keeps the type it was delivered with. A
-/// call occurrence's applied result and a named binding's declared reference
-/// are complete types; they owe the declared destination the same carrier
-/// correspondence a call argument owes its formal: referent and element
-/// identities, nested access, nominal owners and extents. A destination
-/// annotation, including the result context a compiler capture is typed from,
-/// never becomes the value's type merely by being written.
-///
-/// A reference formed at the store -- a borrow, a recast, a range window, a
-/// literal -- takes its carrier from that formation, which reference access,
-/// recast and domain-weakening validation judge. A call with no applied
-/// result keeps only its declaration's own binders, which cannot be compared
-/// with the caller's. Neither is judged here.
-pub(crate) fn report_reference_carrier_mismatch(
-    program: &dyn crate::CheckingInput,
-    value: ExpressionHandle,
-    destination: TypeReferenceHandle,
-    owner: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if crate::value_custody::reference_access::is_reference_destination(program, destination)
-        && delivered_reference_mismatch(program, value, destination)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "{owner} expects `{}`, got `{}`",
-            program.display_type_reference_with_constraints(destination),
-            expression_type_name_handle(program, value)
-        )));
-    }
-}
-
-fn delivered_reference_mismatch(
-    program: &dyn crate::CheckingInput,
-    value: ExpressionHandle,
-    destination: TypeReferenceHandle,
-) -> bool {
-    if let Some(dispatch) = program.expression_table.match_node(value) {
-        return program
-            .expression_table
-            .match_arms(dispatch.arms)
-            .iter()
-            .any(|arm| delivered_reference_mismatch(program, arm.value, destination));
-    }
-    let delivered = match program.expression_table.expression(value) {
-        ExpressionNode::Call(_) => program
-            .expression_table
-            .constructed_value_type_reference(value),
-        ExpressionNode::Name(path) => {
-            named_value_type_reference(program, path).unwrap_or_else(TypeReferenceHandle::invalid)
-        }
-        _ => return false,
-    };
-    delivered.is_valid()
-        && matches!(
-            program.type_reference_table.type_reference(delivered),
-            TypeReferenceNode::Reference { .. }
-        )
-        && !reference_values::value_carrier_matches_reference(
-            program,
-            delivered,
-            destination,
-            &[],
-            &[],
-        )
 }
 
 pub(crate) fn expression_type_name_handle(

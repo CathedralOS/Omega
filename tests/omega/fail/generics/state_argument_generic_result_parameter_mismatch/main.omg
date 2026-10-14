@@ -1,0 +1,8 @@
+// A jump to a named state supplies its parameters in the machine's own
+// type parameters; an `Input` result cannot arrive as an `Output`.
+machine same<T>(item: T) -> T { item }
+machine wrong<Input, Output>(item: Input) -> u8 {
+    transition { _ -> finish(same<Input>(item)) }
+    state finish(value: Output) -> u8 { 0u8 }
+}
+machine main() {}

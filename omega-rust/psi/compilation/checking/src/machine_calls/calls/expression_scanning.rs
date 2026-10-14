@@ -466,6 +466,7 @@ fn validate_expression_call_bounds(
             |argument, required| {
                 crate::value_custody::expression_types::argument_matches_carrier(
                     program,
+                    current_machine.symbol,
                     argument,
                     required,
                     &[],
@@ -573,6 +574,7 @@ fn validate_expression_call_bounds(
             |argument, required| {
                 crate::value_custody::expression_types::argument_matches_carrier(
                     program,
+                    current_machine.symbol,
                     argument,
                     required,
                     &[],

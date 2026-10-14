@@ -1,0 +1,7 @@
+// A named binding's declared type is the value's type: a parameter of type
+// `Input` is not an `Output`, in a terminal expression or a later state.
+machine wrong<Input, Output>(item: Input) -> Output {
+    transition { _ -> finish(item) }
+    state finish(item: Input) -> Output { item }
+}
+machine main() {}

@@ -1339,6 +1339,7 @@ pass/generics/foreign_case_payload_reads_exit built 1056ms exit:70 @3119e8d23b09
 pass/generics/forwarded_slice_result_local_receipt checked 1721ms @82646dcce47b+wt
 pass/generics/generic_callback_schema checked 9883ms @5041ef1af684+wt
 pass/generics/generic_data_instantiation checked 153ms
+pass/generics/generic_result_parameter_receipt checked 2268ms @6ef08ceefee0+wt
 pass/generics/generic_seq_consuming_map_filter checked 3001ms @fcc053dc7014+wt
 pass/generics/generic_seq_map_filter checked 9944ms @fcc053dc7014+wt
 pass/generics/higher_order_schema checked 9641ms @5041ef1af684+wt

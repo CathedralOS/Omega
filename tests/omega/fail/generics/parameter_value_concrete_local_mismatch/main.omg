@@ -1,0 +1,7 @@
+// A rigid type parameter names one unknown type, not any concrete carrier:
+// an `Input` value is not a `u8`.
+machine wrong<Input>(item: Input) -> u8 {
+    let count: u8 = item;
+    count
+}
+machine main() {}

@@ -124,6 +124,7 @@ pub(super) fn validate(
     );
     validate_expression_type_handle(
         program,
+        machine.symbol,
         *expression,
         state.return_type,
         diagnostics,

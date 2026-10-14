@@ -148,6 +148,14 @@ pub(super) fn validate<'a, 'p>(
                 "place",
                 diagnostics,
             );
+            expression_types::report_delivered_type_mismatch(
+                program,
+                machine.symbol,
+                value,
+                target_type,
+                &owner,
+                diagnostics,
+            );
             // Shape guard: `self.scalar = self.xs` (array into a scalar place) --
             // caught by the backend today (a crude `NeedsMachineOwnedWrite`); this
             // gives a clear frontend message and covers the mirror.

@@ -711,7 +711,15 @@ fn validate_value_call_arguments(
         prior_statements,
         selected_float_operation_retains_argument_policy(program, callee_machine.symbol),
         &[],
-        |argument, required| argument_matches_carrier(program, argument, required, &type_bindings),
+        |argument, required| {
+            argument_matches_carrier(
+                program,
+                current_machine.symbol,
+                argument,
+                required,
+                &type_bindings,
+            )
+        },
         diagnostics,
     );
 }

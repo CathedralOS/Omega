@@ -1,1 +1,1 @@
-return value expects `&[Output]`, got `named value`
+return value expects `&[Output]`, but the value is delivered as `&[Input]`

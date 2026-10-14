@@ -1,0 +1,10 @@
+// A transition's returned value answers the declared result exactly as a
+// terminal expression does, in every selected arm.
+machine same<T>(item: T) -> T { item }
+machine wrong<Input, Output>(item: Input, flag: bool) -> Output {
+    transition flag {
+        true -> (same<Input>(item))
+        false -> (same<Input>(item))
+    }
+}
+machine main() {}

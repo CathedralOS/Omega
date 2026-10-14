@@ -1,0 +1,9 @@
+// Applied data arguments are part of the delivered type: a `Box<Input>`
+// result cannot be received as a `Box<Output>`.
+data Box<Value> { value: Value; }
+machine same<T>(item: T) -> T { item }
+machine wrong<Input, Output>(item: Box<Input>) -> u8 {
+    let held: Box<Output> = same<Box<Input>>(item);
+    0u8
+}
+machine main() {}

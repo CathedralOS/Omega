@@ -1,0 +1,6 @@
+// An inferred call result keeps the selected application's substituted
+// result: `same<Input>` delivers an `Input`, which a machine returning its
+// distinct parameter `Output` cannot return.
+machine same<T>(item: T) -> T { item }
+machine wrong<Input, Output>(item: Input) -> Output { same<Input>(item) }
+machine main() {}

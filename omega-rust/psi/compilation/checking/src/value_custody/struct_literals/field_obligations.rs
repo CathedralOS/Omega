@@ -116,6 +116,7 @@ pub(super) fn enforce_construction_field_obligations(
             }
             if !crate::value_custody::expression_types::argument_matches_carrier(
                 program,
+                machine.symbol,
                 field.value,
                 field_type,
                 &[],

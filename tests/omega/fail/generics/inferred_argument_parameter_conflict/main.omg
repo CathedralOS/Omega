@@ -1,0 +1,8 @@
+// Inference closes `T` from the first argument; the second argument then
+// owes that closed slot its own delivered type. Two distinct parameters of
+// the calling machine cannot both close it.
+machine pair<T>(left: T, right: T) -> u8 { 0u8 }
+machine wrong<Input, Output>(item: Input, other: Output) -> u8 {
+    pair(item, other)
+}
+machine main() {}

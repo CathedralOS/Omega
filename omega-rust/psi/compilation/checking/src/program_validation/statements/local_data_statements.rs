@@ -109,6 +109,7 @@ pub(super) fn validate(
     // Nominal guard: `let f: Foo = self.bar` binds a `Bar` value to a `Foo`
     // local -- wrong data type. Only an initialized `let` has a value.
     if local_data.initial_value.is_valid() {
+        let mut access_refused = false;
         if crate::value_custody::reference_access::is_reference_destination(
             program,
             local_data.type_reference,
@@ -159,17 +160,20 @@ pub(super) fn validate(
                     }
                 };
                 diagnostics.push(Diagnostic::error(format!("{owner} {reason}")));
-            } else {
-                // One refused store reports one reason: an access refusal
-                // already explains a delivered reference of the wrong access.
-                expression_types::report_reference_carrier_mismatch(
-                    program,
-                    local_data.initial_value,
-                    local_data.type_reference,
-                    &owner,
-                    diagnostics,
-                );
+                access_refused = true;
             }
+        }
+        // One refused store reports one reason: an access refusal already
+        // explains a delivered reference of the wrong access.
+        if !access_refused {
+            expression_types::report_delivered_type_mismatch(
+                program,
+                machine.symbol,
+                local_data.initial_value,
+                local_data.type_reference,
+                &owner,
+                diagnostics,
+            );
         }
         expression_types::report_data_type_conflict(
             program,

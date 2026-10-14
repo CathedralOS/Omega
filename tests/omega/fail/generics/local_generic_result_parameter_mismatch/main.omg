@@ -1,0 +1,8 @@
+// An authored local annotation is an independent store obligation, not the
+// value's type: an `Input` result cannot be received as an `Output`.
+machine same<T>(item: T) -> T { item }
+machine wrong<Input, Output>(item: Input) -> u8 {
+    let received: Output = same<Input>(item);
+    0u8
+}
+machine main() {}

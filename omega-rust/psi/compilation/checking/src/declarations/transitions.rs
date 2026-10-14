@@ -175,6 +175,7 @@ pub(crate) fn validate_transition_target_node(
             |argument, required| {
                 crate::value_custody::expression_types::argument_matches_carrier(
                     program,
+                    current_machine.symbol,
                     argument,
                     required,
                     &[],
@@ -289,6 +290,7 @@ fn validate_transition_arguments_handles(
         |argument, required| {
             crate::value_custody::expression_types::argument_matches_carrier(
                 program,
+                current_machine.symbol,
                 argument,
                 required,
                 &[],
