@@ -84,7 +84,9 @@ impl emission::Emission<'_, '_, '_> {
         Ok(place)
     }
 
-    /// Establish the current carrier's whole zero as a fresh owned place.
+    /// Establish the current carrier's whole zero as a fresh owned place. The
+    /// image owns storage only, so a linear carrier's zero is presented as
+    /// affine (`zeroed_image`).
     pub(super) fn establish_zeroed(&mut self) -> Result<PlaceId, LoweringError> {
         let place = place_id(allocate_dense(self.next_place)?);
         let operation = self.operations.allocate();
@@ -92,7 +94,11 @@ impl emission::Emission<'_, '_, '_> {
             static_reach_binding: None,
             suspension_crossing: None,
             id: operation,
-            result: structural_result_declaration(place, self.structural_type, self.multiplicity),
+            result: structural_result_declaration(
+                place,
+                self.structural_type,
+                crate::emission::borrowed_window::zeroed_image(self.multiplicity),
+            ),
             kind: OperationKind::EstablishZeroedStructural {},
         });
         self.temporary_places.push(StructuralPlaceDeclaration {

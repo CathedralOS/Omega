@@ -1627,6 +1627,7 @@ pass/ownership/runtime_borrowed_window_crash_exit built 1852ms exit:signal signa
 pass/ownership/runtime_captured_construction_selector_exit built 1790ms exit:0 @441e8f33f8c7+wt
 pass/ownership/runtime_captured_replacement_selector_exit built 1790ms exit:0 @441e8f33f8c7+wt
 pass/ownership/runtime_captured_selector_call_exit built 1790ms exit:0 @441e8f33f8c7+wt
+pass/ownership/runtime_declared_linear_local_assignment_exit built 8317ms exit:70 @761f5fae99a7+wt
 pass/ownership/runtime_first_match_linear_consumption_exit built 4295ms exit:0 @dd6871ed0476
 pass/ownership/runtime_generic_borrowed_case_restore_exit built 4474ms exit:0 @af6b0f221559+wt
 pass/ownership/runtime_generic_linear_case_restore_exit built 3656ms exit:0 @7364581ccb3d

@@ -673,8 +673,11 @@ impl Preparation<'_> {
             }
             // A declared-only local establishes a zeroed whole shape: mint the
             // fresh home with no field operands, mirroring the Unit path's
-            // EstablishZeroedStructural emission.
-            let multiplicity = terminal_multiplicity(self.checked.type_multiplicity(reference));
+            // EstablishZeroedStructural emission. The image owns storage only,
+            // so a linear carrier's zero is presented as affine.
+            let multiplicity = crate::emission::borrowed_window::zeroed_image_multiplicity(
+                self.checked.type_multiplicity(reference),
+            );
             let place = self.reserved.place(value)?;
             self.steps.push(Step::Zeroed {
                 place,

@@ -58,12 +58,15 @@ pub(crate) fn written_linear_targets(
                 if validation::type_requires_establishment(program, local.type_reference) {
                     return Vec::new();
                 }
+                // An affine or linear local's zero image is a debt-free value
+                // its first assignment replaces; the write below records no
+                // obligation and, for a linear place, no establishment.
                 return places
                     .iter()
                     .enumerate()
                     .filter(|(_, tracked)| {
                         tracked.root == facts::PlaceRoot::Symbol(local.symbol)
-                            && tracked.multiplicity == Multiplicity::Affine
+                            && tracked.multiplicity != Multiplicity::Unrestricted
                             && tracked.path.is_empty()
                     })
                     .map(|(place_index, _)| WrittenLinearTarget {

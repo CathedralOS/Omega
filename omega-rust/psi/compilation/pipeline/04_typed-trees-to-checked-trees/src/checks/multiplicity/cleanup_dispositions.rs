@@ -22,6 +22,11 @@ pub(crate) struct RemainingCustody {
         PlaceRoot,
         super::construction_frontier::ConstructionFrontier,
     )>,
+    // Linear locals whose whole storage is currently a zero image: present
+    // zero-filled bits that established no value and owe no obligation
+    // (ownership.md, "Establishment and erasure"). The first assignment
+    // retires the image as a hook-free whole discard.
+    zero_images: Vec<PlaceRoot>,
 }
 
 /// A receiving write's storage extent, paired with its first claim event in
@@ -39,6 +44,8 @@ impl RemainingCustody {
         for (root, path) in &sibling.excluded {
             self.remove(*root, path);
         }
+        self.zero_images
+            .retain(|root| sibling.zero_images.contains(root));
         for (root, frontier) in &mut self.constructing {
             if let Some((_, other)) = sibling
                 .constructing
@@ -339,16 +346,25 @@ impl RemainingCustody {
                             && matches!(event.source, PermissionEventSource::Statement { .. })))
                     && self.is_present(event.root, path))
             {
-                let mut exclusions = self
-                    .excluded
-                    .iter()
-                    .filter(|(root, _)| *root == event.root)
-                    .map(|(root, path)| Place {
-                        root: *root,
-                        segments: output.segments.insert_many(path.iter().copied()),
-                    })
-                    .collect::<Vec<_>>();
-                if path.is_empty() && self.needs_empty_retirement(program, event.root) {
+                // A zero image dies whole and hook-free; it has no moved or
+                // absent subtree to exclude and no empty-home retirement.
+                let zero_image = path.is_empty() && self.zero_images.contains(&event.root);
+                let mut exclusions = if zero_image {
+                    Vec::new()
+                } else {
+                    self.excluded
+                        .iter()
+                        .filter(|(root, _)| *root == event.root)
+                        .map(|(root, path)| Place {
+                            root: *root,
+                            segments: output.segments.insert_many(path.iter().copied()),
+                        })
+                        .collect::<Vec<_>>()
+                };
+                if !zero_image
+                    && path.is_empty()
+                    && self.needs_empty_retirement(program, event.root)
+                {
                     exclusions.clear();
                     exclusions.push(Place {
                         root: event.root,
@@ -369,6 +385,7 @@ impl RemainingCustody {
                     path: event.segments,
                     exclusions: output.exclusions.insert_many(exclusions),
                     establishment_ordered,
+                    zero_image,
                 });
                 if selected {
                     output.selected_dispositions.append(disposition);
@@ -390,9 +407,20 @@ impl RemainingCustody {
                 self.excluded
                     .retain(|(root, removed)| *root != event.root || !removed.starts_with(path));
                 // A conditional claim with no live establishment denotes an
-                // absent payload, not a dead value available for cleanup.
+                // absent payload, not a dead value available for cleanup. The
+                // whole root is different: a linear local's obligation-free
+                // whole write is its zero image, present storage that the
+                // first assignment retires (`permission_production`).
                 if event.multiplicity == Multiplicity::Linear && !event.obligation_live {
-                    self.remove(event.root, path);
+                    if path.is_empty() {
+                        if !self.zero_images.contains(&event.root) {
+                            self.zero_images.push(event.root);
+                        }
+                    } else {
+                        self.remove(event.root, path);
+                    }
+                } else if path.is_empty() {
+                    self.zero_images.retain(|root| *root != event.root);
                 }
                 if !self
                     .excluded
@@ -409,6 +437,9 @@ impl RemainingCustody {
             PermissionEventKind::Transfer
             | PermissionEventKind::Consume
             | PermissionEventKind::AffineDrop => {
+                if path.is_empty() {
+                    self.zero_images.retain(|root| *root != event.root);
+                }
                 if let Some((_, frontier)) = self
                     .constructing
                     .iter_mut()

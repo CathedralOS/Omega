@@ -70,6 +70,12 @@ pub struct ContextualCleanupDisposition {
     /// completed aggregate or an ordinary root dies in declared cleanup
     /// order instead (ownership.md, construction and disposal order).
     pub establishment_ordered: bool,
+    /// The dying storage is a linear local's zero image: zero-filled bits
+    /// that established no value and owe no obligation (ownership.md,
+    /// "Establishment and erasure"). Its retirement is the whole structural
+    /// discard; no hook is selected and a hook-less linear type is not an
+    /// undisposable value here.
+    pub zero_image: bool,
 }
 
 /// The same lexical death edge in a retained template and one exact instance.

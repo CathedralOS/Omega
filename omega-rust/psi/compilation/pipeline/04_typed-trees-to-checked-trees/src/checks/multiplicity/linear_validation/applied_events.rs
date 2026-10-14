@@ -144,7 +144,16 @@ pub(crate) fn apply_recorded_statement_events(
                 }
                 place.live = event.obligation_live || place.multiplicity == Multiplicity::Affine;
                 place.case_excluded = place.conditional && !event.obligation_live;
-                place.ever_established = true;
+                // A linear local's obligation-free whole write is its zero
+                // image: the place holds affine storage but no established
+                // value. Only the unconditional root qualifies; an inactive
+                // case payload is established debt-free by the enclosing
+                // literal and must stay movable through its sum.
+                place.zero_image = place.multiplicity == Multiplicity::Linear
+                    && !event.obligation_live
+                    && place.path.is_empty()
+                    && !place.conditional;
+                place.ever_established |= !place.zero_image;
                 place.claim_identity = Some(event.claim_identity);
                 place.provenance = Some(event.provenance);
             }

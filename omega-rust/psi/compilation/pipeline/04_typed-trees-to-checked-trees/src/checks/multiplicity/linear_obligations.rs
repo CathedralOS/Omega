@@ -36,6 +36,12 @@ pub(crate) struct LinearPlace {
     /// Parameters are established on entry. A local is established only by an
     /// explicit initializer/assignment; implicit zero-fill creates no debt.
     pub(crate) ever_established: bool,
+    /// A linear local declared without an initializer holds its zero image:
+    /// affine storage of its type with no obligation (ownership.md,
+    /// "Establishment and erasure"). The image dies when the first assignment
+    /// replaces it, exactly as an affine local's zero does, while the place
+    /// stays unestablished for moves until that assignment.
+    pub(crate) zero_image: bool,
     /// An affine sum can carry a linear payload only in selected cases. When
     /// false, `live` is unconditional for every established value; when true,
     /// `live` follows the active case.
@@ -553,6 +559,7 @@ pub(super) fn prepare_storage_deaths(
             .dispositions
             .append(checked_trees::ContextualCleanupDisposition {
                 establishment_ordered: false,
+                zero_image: false,
                 machine,
                 state,
                 source: PermissionEventSource::Statement { statement_index },

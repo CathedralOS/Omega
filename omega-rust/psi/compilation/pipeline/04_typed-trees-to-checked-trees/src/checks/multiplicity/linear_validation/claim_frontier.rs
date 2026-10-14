@@ -94,6 +94,7 @@ pub(crate) fn initial_linear_places(
                 )),
                 live: true,
                 ever_established: true,
+                zero_image: false,
                 conditional: false,
                 case_excluded: false,
             });
@@ -112,6 +113,7 @@ pub(crate) fn initial_linear_places(
                 )),
                 live: true,
                 ever_established: true,
+                zero_image: false,
                 conditional: claim.conditional,
                 case_excluded: false,
             });
@@ -132,6 +134,7 @@ pub(crate) fn initial_linear_places(
                 provenance: None,
                 live: false,
                 ever_established: false,
+                zero_image: false,
                 conditional: claim.conditional,
                 case_excluded: false,
             });
@@ -182,6 +185,7 @@ pub(crate) fn initial_linear_places(
                 provenance: None,
                 live: false,
                 ever_established: false,
+                zero_image: false,
                 conditional: false,
                 case_excluded: false,
             });
@@ -236,6 +240,7 @@ pub(crate) fn reserve_owner_places(
             provenance: None,
             live: false,
             ever_established: false,
+            zero_image: false,
             conditional: false,
             case_excluded: false,
         });
@@ -250,6 +255,7 @@ pub(crate) fn reserve_owner_places(
                 provenance: None,
                 live: false,
                 ever_established: false,
+                zero_image: false,
                 conditional: claim.conditional,
                 case_excluded: false,
             });

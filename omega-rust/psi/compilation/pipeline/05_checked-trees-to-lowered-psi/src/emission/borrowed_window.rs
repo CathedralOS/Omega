@@ -656,6 +656,30 @@ pub(crate) fn terminal_multiplicity(multiplicity: Multiplicity) -> StructuralMul
     }
 }
 
+/// The multiplicity a declared-only local's zeroed whole shape carries. A
+/// `[linear]` type's zero image owns only storage: implicit zero-filling
+/// establishes no linear obligation (wiki/spec/language/ownership.md,
+/// "Establishment and erasure"); the later assignment establishes the owed
+/// value and its consumer discharges it. Terminal's zeroed establishment
+/// therefore admits only non-linear results, and the zero image of a linear
+/// carrier is presented as affine: disposable storage with no debt, exactly
+/// as an affine carrier's zero image.
+pub(crate) fn zeroed_image_multiplicity(multiplicity: Multiplicity) -> StructuralMultiplicity {
+    zeroed_image(terminal_multiplicity(multiplicity))
+}
+
+/// The same rule over a carrier already lowered to its Terminal multiplicity:
+/// both lanes mint a declared-only local's zero image through this one
+/// mapping.
+pub(crate) fn zeroed_image(multiplicity: StructuralMultiplicity) -> StructuralMultiplicity {
+    match multiplicity {
+        StructuralMultiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+        StructuralMultiplicity::Affine | StructuralMultiplicity::Linear => {
+            StructuralMultiplicity::Affine
+        }
+    }
+}
+
 /// Two exact places beneath one root overlap when either names the other or
 /// an ancestor of it. The comparison runs on the checked route: distinct
 /// runtime selectors keep the authority the source checker admitted — a

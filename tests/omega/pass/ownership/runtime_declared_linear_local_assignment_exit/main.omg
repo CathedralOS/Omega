@@ -1,0 +1,28 @@
+// `let mut receipt: Receipt;` on a `[linear]` type owns only zeroed storage:
+// implicit zero-filling establishes no linear obligation, the assignment
+// establishes the owed value, and `drop` discharges it. The lowered zero
+// image carried the declared linear multiplicity, which Terminal's zeroed
+// establishment admits only as a non-linear result, so the check-only
+// fixtures `pass/ownership/linear_{assignment_establishes,bare_establish}`
+// checked while native production refused the same program.
+use omega_language_std::console;
+use omega::language::core::binding;
+use omega::language::core::drop;
+
+data Receipt [linear] { code: i32; }
+machine Receipt::drop(receipt: &mut Receipt) {}
+
+machine observe(receipt: &Receipt) -> i32 { receipt.code }
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let mut receipt: Receipt;
+    receipt = Receipt { code: 70 };
+    let observed: i32 = observe(&receipt);
+    drop(receipt);
+    transition observed == 70 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

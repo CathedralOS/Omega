@@ -80,6 +80,11 @@ pub(crate) fn selected_cleanup_leaves(
     if removed.iter().any(|removed| path.starts_with(removed)) {
         return Some(Vec::new());
     }
+    // A zero image established no value: nothing selects a hook, and the
+    // linear-owner refusal below guards values, not zero-filled storage.
+    if disposition.zero_image {
+        return Some(Vec::new());
+    }
     let remaining = removed
         .iter()
         .filter_map(|removed| removed.strip_prefix(path))

@@ -557,9 +557,14 @@ fn establish_targets(
         debug_assert_eq!(place.root, target.root);
         // Replacement settles the old affine value before establishing the
         // new one. A source transferred into the replacement call is already
-        // dead here and must not also receive a caller-side drop.
-        if place.multiplicity == Multiplicity::Affine
-            && (place.live || replacement_custody.is_reserved(target.root))
+        // dead here and must not also receive a caller-side drop. A linear
+        // local's zero image is such an affine value: its first assignment
+        // retires the image the same way, and only then establishes debt.
+        let replaces_zero_image =
+            place.multiplicity == Multiplicity::Linear && place.zero_image && place.path.is_empty();
+        if (place.multiplicity == Multiplicity::Affine
+            && (place.live || replacement_custody.is_reserved(target.root)))
+            || replaces_zero_image
         {
             for path in replacement_custody.disposal_paths(target.root, &place.path) {
                 let discarded = validation::CanonicalPlace {
@@ -573,7 +578,9 @@ fn establish_targets(
                     &discarded,
                 )
                 .is_none_or(|reference| {
-                    crate::checks::type_multiplicity(program, reference) != Multiplicity::Affine
+                    let multiplicity = crate::checks::type_multiplicity(program, reference);
+                    multiplicity != Multiplicity::Affine
+                        && !(replaces_zero_image && multiplicity == Multiplicity::Linear)
                 }) {
                     continue;
                 }
@@ -623,7 +630,13 @@ fn establish_targets(
         }
         place.live = obligation_live || place.multiplicity == Multiplicity::Affine;
         place.case_excluded = place.conditional && !obligation_live;
-        place.ever_established = true;
+        // A linear local's obligation-free whole write is its zero image:
+        // affine storage, not an established value (mirrors `applied_events`).
+        place.zero_image = place.multiplicity == Multiplicity::Linear
+            && !obligation_live
+            && place.path.is_empty()
+            && !place.conditional;
+        place.ever_established |= !place.zero_image;
         place.claim_identity = Some(claim_identity);
         place.provenance = Some(
             provenance

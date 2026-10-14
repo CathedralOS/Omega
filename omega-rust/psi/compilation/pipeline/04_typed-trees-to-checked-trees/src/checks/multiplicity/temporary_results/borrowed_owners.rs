@@ -51,6 +51,7 @@ pub(in crate::checks::multiplicity) fn append_borrow(
             // the borrowed callee, authorizes disposal of every remaining claim.
             dispositions.dispositions.append(checked_trees::ContextualCleanupDisposition {
                 establishment_ordered: false,
+                zero_image: false,
                 machine, state, source: owner.consumer,
                 exit: checked_trees::FlowClaimJoinExit::default(),
                 root, disposed_type: owner.type_reference,
