@@ -178,7 +178,7 @@ crashes Trap
         let bound: Value = Checker::range_end(end, successor, inclusive);
         transition checking && !valid {
             true -> out_of_bounds(checker, handle, expression, row)
-            _ -> viewed(checker, typing, handle, row, base, start, bound)
+            _ -> range_viewed(checker, typing, handle, row, base, start, bound)
         }
     }
 
@@ -186,7 +186,7 @@ crashes Trap
     // below the collection, whose live length is the range's extent
     // (wiki/spec/terminal-psi/byte_views.md). A write through it forgets
     // the collection's contents (`Checker::forget_backing`).
-    state viewed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, row: TypeRow, base: Value, start: Value, bound: Value) {
+    state range_viewed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, row: TypeRow, base: Value, start: Value, bound: Value) {
         transition base.place > 0 {
             true -> view_place(checker, typing, handle, base.place, start, bound)
             _ -> typed(checker, handle, row)
