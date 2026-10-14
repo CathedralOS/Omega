@@ -39,5 +39,5 @@ machine Main::run(main: &mut Main) -> i32 {
 
 machine Main::main(main: &mut Main) {
     main.choose_first = true;
-    main.hits = Main::run(main) == 70;
+    main.hits = (Main::run(main) == 70) as i32 in Wrapping;
 }

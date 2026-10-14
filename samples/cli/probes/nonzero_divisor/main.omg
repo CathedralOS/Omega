@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) {
         Divisor::Unset -> Main::wrong(main)
     }
     state quotient(main: &mut Main, value: i32) {
-        main.hits = value == 70;
+        main.hits = (value == 70) as i32 in Wrapping;
     }
     state wrong(main: &mut Main) { main.hits = -1; }
 }

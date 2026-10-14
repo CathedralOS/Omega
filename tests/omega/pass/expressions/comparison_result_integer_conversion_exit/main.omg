@@ -1,0 +1,26 @@
+// RUN CANARY (exit 70). A comparison produces `bool`; storing it in an integer
+// place, local or parameter spells the conversion with `as`, which lands the
+// condition as 0 or 1. fail/expressions/comparison_result_integer_store_rejected
+// pins the implicit store.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    hits: i32 in Wrapping;
+}
+
+machine count(flag: u8) -> u8 { flag }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let value: i32 = 70;
+    main.hits = (value == 70) as i32 in Wrapping;
+    let local: i64 = (value < 3 || value > 60) as i64;
+    let argument: u8 = count((value != 70) as u8);
+    transition main.hits == 1 && local == 1 && argument == 0 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

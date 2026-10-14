@@ -1,0 +1,10 @@
+// A comparison produces `bool`, and a store adds no conversion: an integer
+// place receives it only through `as`.
+// pass/expressions/comparison_result_integer_conversion_exit is the admitted
+// spelling.
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::record(main: &mut Main, value: i32) {
+    main.hits = value == 70;
+}

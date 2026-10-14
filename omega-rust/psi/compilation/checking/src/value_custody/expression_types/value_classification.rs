@@ -66,14 +66,28 @@ pub(super) fn value_class(
         return Some(class);
     }
     // Classify a computed binary so that storing an out-of-range result into a
-    // `bool` (or a number into text) is caught. Comparison / logical binaries stay
-    // unclassified (None -> blanket-accepted): a raw comparison / logical result IS
-    // an intended 0/1 coercion into a numeric slot -- runtime_comparison_value_signedness
-    // stores `a > b` straight into an `i32` -- so it must NOT be flagged. (The narrow
-    // cost: an arithmetic/bitwise op OVER raw comparison results, `(a == 1) + (a == 1)`,
-    // stored into a bool is not caught -- its comparison operands classify as None.)
+    // `bool` (or a number into text) is caught.
     if let Some(binary) = program.expression_table.binary_node(value) {
         use typed_trees::expression::BinaryOperator;
+        // Comparisons and logical connectives produce their checked result
+        // type: `bool` for every builtin relation (numeric_values.md, "Integer
+        // equality and order": they "return `bool`" and add no "conversion at
+        // assignments, arguments, or returns"). Storing one into a numeric
+        // slot spells the conversion with `as`. A selected operator keeps its
+        // own declared result, so the class reads the checked type.
+        if binary.operator.is_comparison()
+            || matches!(
+                binary.operator,
+                BinaryOperator::And | BinaryOperator::Or | BinaryOperator::CaseMembership
+            )
+        {
+            let (machine, state) = (machine?, state?);
+            let primitive = super::result_type::expression_result_type_reference(
+                program, machine, state, value,
+            )
+            .and_then(|handle| program.primitive_type_reference(handle))?;
+            return Some(ValueClass::of_primitive(primitive));
+        }
         let left = value_class(program, machine, state, binary.left);
         let right = value_class(program, machine, state, binary.right);
         if crate::proof_contracts::arithmetic_domains::is_arithmetic(binary.operator) {

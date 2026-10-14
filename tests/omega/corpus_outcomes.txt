@@ -2195,6 +2195,8 @@ fail/expressions/cast_result_range rejected 880ms expected @a9ae30e1c334+wt
 	cast target range in machine `main` state `entry` cast expression is not proven from the source value; all target predicates must hold before policy qualification (unknown numeric bounds or unsupported non-integer membership require an explicit proof)
 fail/expressions/cast_struct_to_number_rejected rejected 2820ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` casts a `P` value to `i32`, but `as` converts between scalar types only
+fail/expressions/comparison_result_integer_store_rejected rejected 216ms expected @eaa1da764404+wt
+	machine `Main::record` state `record` assignment stores a boolean into a `i32` place, which holds a numeric value
 fail/expressions/cross_enum_case_membership_rejected rejected 2781ms expected @a9ae30e1c334+wt
 	case membership must test a value of the exact declaring data type
 fail/expressions/cross_type_equality_rejected rejected 1774ms expected @a9ae30e1c334+wt
@@ -5860,6 +5862,7 @@ pass/expressions/borrowed_join_match_exclusive_read checked 5513ms check-target:
 pass/expressions/borrowed_join_match_exclusive_store checked 5305ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/expressions/borrowed_join_match_local_origin checked 5498ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/expressions/borrowed_join_match_whole_store checked 5756ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/expressions/comparison_result_integer_conversion_exit checked 9961ms check-target:macos_arm64 @eaa1da764404+wt
 pass/expressions/dead_trapping_let_traps checked 11339ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/declared_operator_match_result checked 11471ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/deep_paren_nesting checked 9876ms @5041ef1af684+wt
