@@ -535,8 +535,9 @@ fn source_contract(
 /// Borrow storage through its published contract, regardless of whether it
 /// arrived as a parameter or was constructed in this activation. Lending
 /// storage does not move it or discharge the owner's claims: multiplicity
-/// constrains disposal, not this type lookup. Qualifications and access still
-/// constrain physical representation. A reference crossing resolves the
+/// constrains disposal, not this type lookup. Qualifications retain semantic
+/// obligations but do not change storage geometry or disqualify its borrow.
+/// Access still limits the projection. A reference crossing resolves the
 /// actual carrier type instead of treating its pointee as owned storage.
 fn direct_storage_type(
     function: &AbstractFunction,
@@ -555,37 +556,18 @@ fn direct_storage_type(
     }) {
         return None;
     }
-    let (structural_type, access, unqualified) = if let Some(parameter) =
-        function.arrival_parameter(source.place)
-    {
-        (
-            parameter.structural_type,
-            parameter.access,
-            parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty(),
-        )
-    } else if let Some(home) = live.structural_homes.get(&source.place) {
-        (
-            home.structural_type(),
-            home.access(),
-            home.qualifications().is_empty()
-                && home.projected_qualifications().is_empty()
-                && home
-                    .operation_result()
-                    .is_none_or(|(_, result)| result.qualification_establishments.is_empty()),
-        )
-    } else {
-        // A shared view keeps no home, but its producer published the same
-        // operation-result contract a home retains, with the same authority.
-        let result = live.view_result(function, source.place)?;
-        (
-            result.structural_type,
-            StructuralAccess::Owned,
-            result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && result.qualification_establishments.is_empty(),
-        )
-    };
-    if !source.access.admits(access) || !unqualified {
+    let (structural_type, access) =
+        if let Some(parameter) = function.arrival_parameter(source.place) {
+            (parameter.structural_type, parameter.access)
+        } else if let Some(home) = live.structural_homes.get(&source.place) {
+            (home.structural_type(), home.access())
+        } else {
+            // A shared view keeps no home, but its producer published the same
+            // operation-result contract a home retains, with the same authority.
+            let result = live.view_result(function, source.place)?;
+            (result.structural_type, StructuralAccess::Owned)
+        };
+    if !source.access.admits(access) {
         return None;
     }
     if source.access == StructuralAccess::SharedBorrow
@@ -1171,7 +1153,10 @@ pub(super) fn call_results(
                         && endpoint != expected
                 })
             {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
+                return Err(LoweringError::InvalidReferenceResult {
+                    machine: function.machine,
+                    reason: "returned reference origin does not resolve to its declared referent storage type",
+                });
             }
             let leaf = if binding.transfers_existing {
                 // An owned-carrier ingress mapping relocates one of the leaves the

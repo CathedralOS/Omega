@@ -11,8 +11,8 @@
 use super::{LoweringError, unsupported};
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
-    Block, StructuralAccess, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, Terminator,
+    Block, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, Terminator,
 };
 
 struct Arrival {
@@ -168,6 +168,11 @@ fn descriptor_type(types: &[StructuralTypeDeclaration], identity: StructuralType
         ) || declaration.shape.is_borrowed_byte_view())
 }
 
+/// Identify owned affine storage, not permission to discard it. Qualification
+/// changes neither multiplicity nor whether a whole move ends this home.
+/// Inheritance separately requires anchored disposal authority; the enclosing
+/// planner uses this query only to withdraw an already selected death after a
+/// move, without extending its disposal capability roster.
 pub(super) fn owned_affine_type(
     parameters: &[StructuralParameterDeclaration],
     local_places: &[StructuralPlaceDeclaration],
@@ -179,8 +184,8 @@ pub(super) fn owned_affine_type(
         .chain(blocks.iter().flat_map(|block| &block.structural_parameters))
         .filter(|parameter| parameter.place == place)
         .map(|parameter| {
-            parameter
-                .is_unqualified_owned_affine()
+            (parameter.access == StructuralAccess::Owned
+                && parameter.multiplicity == StructuralMultiplicity::Affine)
                 .then_some(parameter.structural_type)
         });
     let results = blocks
@@ -189,7 +194,7 @@ pub(super) fn owned_affine_type(
         .filter_map(|operation| operation.result.structural())
         .filter(|result| result.place == place)
         .map(|result| {
-            (result.is_affine_plain() && result.qualification_establishments.is_empty())
+            (result.multiplicity == StructuralMultiplicity::Affine)
                 .then_some(result.structural_type)
         });
     let locals = local_places

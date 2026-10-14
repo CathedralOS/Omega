@@ -2009,6 +2009,12 @@ fail/domains/qualified_scalar_field_invalid_store rejected 642ms expected @8d3a0
 	cannot prove assignment value `0` satisfies bounded target `observation.count` in `main.entry`; expected 1..=2147483647
 fail/domains/qualified_scalar_record_call_unestablished rejected 1496ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call make_gauge from invalid: 5 in i32::NotFive
+fail/domains/qualified_view_live_owner_consumed rejected 592ms expected @5797c45a64c3+wt
+	state `close` receives an owned value while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/domains/qualified_view_unissued rejected 592ms expected @5797c45a64c3+wt
+	cannot prove requires contract for call observe from check: HandleView in HandleView::OpenView in state `entry`
+fail/domains/qualified_view_wrong_issuer_argument rejected 588ms expected @5797c45a64c3+wt
+	cannot prove requires contract for call forward from check: wrong as View in View::OpenView in state `entry`
 fail/domains/record_child_membership_requires_issuance rejected 1651ms expected @a9ae30e1c334+wt
 	cannot prove default-domain field requirement for call observe from literal::entry: parameter value.ticket requires Ticket::Issued
 	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
@@ -7570,6 +7576,7 @@ run/borrows/indexed_loan_element_write checked 11734ms check-target:macos_arm64 
 run/borrows/local_mut_borrow checked 11276ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/mut_record_loan_member_access checked 11486ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/probe_shared_len checked 11488ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/borrows/qualified_owner_views checked 5319ms check-target:macos_arm64 @5797c45a64c3+wt
 run/borrows/recast_mut_borrow checked 11805ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/reference_local_binding_routes checked 11261ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/reference_result_call_binding checked 11177ms check-target:macos_arm64 @a9ae30e1c334+wt

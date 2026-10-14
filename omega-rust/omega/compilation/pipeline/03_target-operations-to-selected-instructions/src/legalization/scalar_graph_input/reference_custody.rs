@@ -675,8 +675,9 @@ fn source_contract(
 /// that the owner originated in the machine's input telescope. Reference
 /// crossings still require the separately reconstructed live loan.
 /// Lending direct storage retains the owner's disposal claims. The source's
-/// multiplicity does not constrain a loan's referent type; qualifications and
-/// access do. normalized_source separately retains exact live-loan custody.
+/// multiplicity and qualifications do not change a loan's referent geometry.
+/// Access still constrains the projection; normalized_source separately
+/// retains exact live-loan custody. Source checking owns domain obligations.
 fn direct_storage_type(
     function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
@@ -693,25 +694,14 @@ fn direct_storage_type(
     }) {
         return None;
     }
-    let (structural_type, access, unqualified) = if let Some(parameter) =
-        function.arrival_parameter(source.place)
-    {
-        (
-            parameter.structural_type,
-            parameter.access,
-            parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty(),
-        )
-    } else {
-        let (_, result) = super::structural_case::source_result(function, source.place).ok()?;
-        (
-            result.structural_type,
-            StructuralAccess::Owned,
-            result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && result.qualification_establishments.is_empty(),
-        )
-    };
-    if !source.access.admits(access) || !unqualified {
+    let (structural_type, access) =
+        if let Some(parameter) = function.arrival_parameter(source.place) {
+            (parameter.structural_type, parameter.access)
+        } else {
+            let (_, result) = super::structural_case::source_result(function, source.place).ok()?;
+            (result.structural_type, StructuralAccess::Owned)
+        };
+    if !source.access.admits(access) {
         return None;
     }
     if source.access == StructuralAccess::SharedBorrow

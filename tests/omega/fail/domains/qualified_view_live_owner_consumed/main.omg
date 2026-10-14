@@ -1,0 +1,16 @@
+data Handle { value: u64; }
+domain Handle::Open established by issue_handle;
+machine issue_handle() -> Handle in Open { Handle { value: 41 } }
+data HandleView<'owner> { value: &'owner u64; }
+domain HandleView::OpenView established by borrow_handle;
+machine borrow_handle<'owner>(handle: &'owner Handle in Open) -> HandleView<'owner> in OpenView {
+    HandleView { value: &handle.value }
+}
+machine observe(view: HandleView in OpenView) -> u64 { view.value }
+machine close(handle: Handle in Open) {}
+machine check() -> u64 {
+    let handle: Handle in Open = issue_handle();
+    let view: HandleView in OpenView = borrow_handle(&handle);
+    close(handle);
+    observe(view)
+}

@@ -1,0 +1,22 @@
+// Expected exit: 0.
+data Handle { value: u64; }
+domain Handle::Open(handle) requires handle.value != 0 established by issue_handle;
+machine issue_handle(value: u64) -> Handle in Open requires value != 0 {
+    Handle { value: value }
+}
+data HandleView<'owner> { value: &'owner u64; }
+domain HandleView::OpenView established by borrow_handle;
+machine borrow_handle<'owner>(handle: &'owner Handle in Open) -> HandleView<'owner> in OpenView {
+    HandleView { value: &handle.value }
+}
+machine observe(view: HandleView in OpenView) -> u64 { view.value }
+machine close(handle: Handle in Open) {}
+machine main() crashes Trap {
+    let handle: Handle in Open = issue_handle(41);
+    let view: HandleView in OpenView = borrow_handle(&handle);
+    let observed: u64 = observe(view);
+    close(handle);
+    transition observed == 41 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -1,0 +1,45 @@
+// Expected exit: 0.
+// Local, projected, parameter and state-arrival owners lend their original
+// storage without erasing the owner's qualification or creating another owner.
+data Handle { value: u64; }
+domain Handle::Open(handle) requires handle.value != 0 established by issue;
+machine issue(value: u64) -> Handle in Open requires value != 0 {
+    Handle { value: value }
+}
+data View<'owner> { value: &'owner u64; }
+domain View::OpenView established by borrow;
+machine borrow<'owner>(handle: &'owner Handle in Open) -> View<'owner> in OpenView {
+    View { value: &handle.value }
+}
+machine forward<'owner>(view: View<'owner> in OpenView) -> View<'owner> in OpenView { view }
+machine observe(view: View in OpenView) -> u64 { view.value }
+machine close(handle: Handle in Open) {}
+machine read_parameter(handle: &Handle in Open) -> u64 {
+    let view: View in OpenView = borrow(handle);
+    observe(forward(view))
+}
+machine read_state(handle: &Handle in Open) -> u64 {
+    transition { _ -> read(handle) }
+    state read(handle: &Handle in Open) -> u64 {
+        let view: View in OpenView = borrow(handle);
+        observe(view)
+    }
+}
+data Envelope { handle: Handle in Open; sibling: u64; }
+machine main() crashes Trap {
+    let handle: Handle in Open = issue(41);
+    let first: u64 = read_parameter(&handle);
+    let second: u64 = read_state(&handle);
+    close(handle);
+    let envelope: Envelope = Envelope { handle: issue(73), sibling: 19 };
+    let view: View in OpenView = borrow(&envelope.handle);
+    let third: u64 = observe(forward(view));
+    let sibling: u64 = envelope.sibling;
+    close(envelope.handle);
+    transition first == 41 && second == 41 && third == 73 && sibling == 19 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

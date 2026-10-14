@@ -2257,11 +2257,20 @@ pub fn transient_call_record_loans(
                     // values. Source admission owns its lifetime obligations;
                     // requiring a bare-name local here replayed only one
                     // producer family and rejected ordinary composition.
+                    // Actuals name structural storage, not the qualified
+                    // source type. Use the same identity rule as their
+                    // producer; source admission retains domain evidence
+                    // independently, without changing this descriptor home.
                     arguments
                         .get(parameter_index as usize)
                         .is_some_and(|actual| {
                             actual.type_identity
-                                == program.normalized_type_identity(parameter.type_reference)
+                                == crate::structural_type_identity(
+                                    program,
+                                    parameter.type_reference,
+                                    &[],
+                                    &[],
+                                )
                         })
                 }
             })

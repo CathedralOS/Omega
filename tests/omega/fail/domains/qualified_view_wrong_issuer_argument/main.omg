@@ -1,0 +1,15 @@
+data View<'owner> { value: &'owner u64; }
+domain View::OpenView established by issue;
+domain View::OtherView established by other;
+machine issue<'owner>(value: &'owner u64) -> View<'owner> in OpenView {
+    View { value: value }
+}
+machine other<'owner>(value: &'owner u64) -> View<'owner> in OtherView {
+    View { value: value }
+}
+machine forward<'owner>(view: View<'owner> in OpenView) -> View<'owner> in OpenView { view }
+machine observe(view: View in OpenView) -> u64 { view.value }
+machine check(value: &u64) -> u64 {
+    let wrong: View in OtherView = other(value);
+    observe(forward(wrong as View))
+}
