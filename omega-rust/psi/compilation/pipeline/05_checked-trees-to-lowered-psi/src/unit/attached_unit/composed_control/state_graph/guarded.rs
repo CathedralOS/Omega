@@ -112,7 +112,7 @@ pub(super) fn emit(
             checked,
             plan,
             state,
-            super::cleanup::destination(state, &guard.destination)?,
+            super::cleanup::destination(catalogs.cleanup_control, state, &guard.destination)?,
             &return_values[position],
             catalogs,
             parameters,
@@ -149,6 +149,7 @@ pub(super) fn emit(
         operations.length_observations.clear();
     }
     let fallback_exit = super::cleanup::destination(
+        catalogs.cleanup_control,
         state,
         fallback.as_ref().ok_or(LoweringError::Unsupported(
             "ordered return lost its fallback destination",

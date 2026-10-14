@@ -515,7 +515,7 @@ pub(super) fn build_traced(
             trace,
         )?;
         planned.push(CheckedComposedUnitControlStatePlan {
-            normal_exit_cleanups: Vec::new(),
+            normal_exit_cleanups: Default::default(),
             state: state.symbol,
             structural_parameters: structural.clone(),
             scalar_parameters: scalar.clone(),

@@ -94,6 +94,20 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
     if formation >= retirement.statement_index {
         return Some(Vec::new());
     }
+    let (_, local) = retirement
+        .program
+        .state_local_declaration(retirement.state, owner)?;
+    // Installed fields keep the receiving owner's disposition contract. A
+    // replacement does not turn a nominal/linear owner into cleanup-free
+    // descriptor storage; its selected cleanup still borrows those fields.
+    if !validation::has_contents(
+        retirement.program,
+        local.type_reference,
+        &[],
+        validation::ContentsRequirement::DescriptorCleanup,
+    ) {
+        return Some(Vec::new());
+    }
     let Some(groups) = loans(retirement, operation) else {
         return Some(Vec::new());
     };

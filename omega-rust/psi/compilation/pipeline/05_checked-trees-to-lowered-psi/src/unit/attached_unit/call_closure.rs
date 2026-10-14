@@ -92,29 +92,31 @@ pub(crate) fn checked_unit_call_closure_including(
                 closure.push(cleanup.cleanup_machine);
             }
         }
-        // A nominal consuming machine's return edge invokes its exact
-        // owner-attached `::drop` hook; the hook is roster work, not an
-        // operation in the synthetic body, so it enters the closure here.
-        if let Some(nominal) = checked
-            .facts
-            .flow
-            .terminal_nominal_affine_unit_cleanups
-            .machines
-            .iter()
-            .find(|nominal| nominal.machine.machine == machine_symbol)
         {
-            for cleanup in &nominal.cleanups {
-                if !closure.contains(&cleanup.cleanup_machine) {
-                    closure.push(cleanup.cleanup_machine);
-                }
-            }
-        }
-        if let Some(composed) = plans.composed_for_machine(machine_symbol) {
-            for cleanup in composed
-                .states
-                .iter()
-                .flat_map(|state| &state.normal_exit_cleanups)
-                .flat_map(|exit| &exit.actions)
+            let rows = plans
+                .for_machine(machine_symbol)
+                .map(|machine| machine.normal_exit_cleanups)
+                .into_iter()
+                .chain(
+                    plans
+                        .composed_for_machine(machine_symbol)
+                        .into_iter()
+                        .flat_map(|machine| {
+                            machine
+                                .states
+                                .iter()
+                                .map(|state| state.normal_exit_cleanups)
+                        }),
+                );
+            for cleanup in rows
+                .flat_map(|rows| {
+                    checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .cleanup_control
+                        .normal_actions(rows)
+                })
                 .filter_map(|action| match action {
                     checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
                         Some(cleanup)

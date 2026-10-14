@@ -1,0 +1,23 @@
+// The cycle moves the claim field out of its carried owner, then reenters
+// expecting whole custody again: the backedge must be rejected.
+use omega::language::core::drop;
+
+data Token [linear] { value: u32; }
+machine Token::drop(token: &mut Token) {}
+data Holder { token: Token; rest: i32; }
+
+machine main() {
+    let holder: Holder = Holder { token: Token { value: 9 }, rest: 1 };
+    transition { _ -> spin(holder, 2) }
+
+    state spin(holder: Holder, remaining: i32) {
+        let taken: Token = holder.token;
+        drop(taken);
+        transition remaining > 0 {
+            true -> spin(holder, remaining - 1)
+            _ -> done()
+        }
+    }
+
+    state done() {}
+}

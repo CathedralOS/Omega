@@ -91,14 +91,6 @@ impl<'a> UnitPlans<'a> {
     ) -> impl Iterator<Item = &'a checked_trees::CheckedUnitStructuralTypePlan> {
         self.checked.structural_types.iter()
     }
-
-    pub(crate) fn structural_type(
-        self,
-        identity: typed_trees::type_identity::TypeIdentityId,
-    ) -> Option<&'a checked_trees::CheckedUnitStructuralTypePlan> {
-        self.structural_types()
-            .find(|shape| shape.identity == identity)
-    }
 }
 
 #[derive(Clone, Copy)]

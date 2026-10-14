@@ -91,9 +91,7 @@ pub(crate) fn prepare_signature(
         .flow
         .terminal_nominal_affine_unit_cleanups
         .machines;
-    let mut owners = plans
-        .iter()
-        .filter(|nominal| nominal.machine.machine == source);
+    let mut owners = plans.iter().filter(|nominal| nominal.machine == source);
     let nominal = owners.next();
     if owners.next().is_some() {
         return unsupported("nominal cleanup callable has duplicate checked plans");
@@ -102,17 +100,9 @@ pub(crate) fn prepare_signature(
     if let Some(nominal) = nominal {
         validate_unconditional_contextual_requirements(checked, source)?;
         for requirement in &nominal.caller_requirements {
-            let checked_parameter = nominal
-                .machine
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.position == requirement.source_parameter_index)
-                .ok_or(LoweringError::Unsupported(
-                    "nominal cleanup caller parameter is absent",
-                ))?;
             let parameter = predicate_parameters
                 .iter()
-                .find(|parameter| parameter.position == checked_parameter.position)
+                .find(|parameter| parameter.position == requirement.source_parameter_index)
                 .ok_or(LoweringError::Unsupported(
                     "nominal cleanup caller predicate parameter is absent",
                 ))?;

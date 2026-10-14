@@ -26,6 +26,9 @@ pass/collections/runtime_maze_pathfind_exit built 27238ms exit:70 interpreter-ex
 pass/collections/runtime_nested_fixed_array_projected_write_exit built 2775ms exit:70 interpreter-exit:70 interpreter:agrees @3ff24ec6504a+wt
 pass/control_flow/element_view_enum_equality_exit built 9147ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit built 4434ms exit:70 interpreter-exit:70 interpreter:agrees @76e6a2caeab4+wt
+pass/control_flow/runtime_cyclic_owned_result_local_arrival_exit built 7622ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @37781ae2455d
+pass/control_flow/runtime_cyclic_reference_and_claim_rotation_exit built 8660ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @e12a9f3ff2a3
+pass/control_flow/runtime_selected_copy_repeated_call_exit built 7460ms exit:0 interpreter-exit:0 interpreter:agrees @f97025e774d5
 pass/core/extent_root_provider_adapter built 2986ms exit:0 interpreter-exit:0 interpreter:agrees @b429d3348cac+wt
 pass/core/numeric_cross_signed_conversion_surface built 84799ms exit:70 interpreter-exit:70 interpreter:agrees @619f89e4fed6
 pass/core/numeric_signed_narrowing_policies built 76981ms exit:0 interpreter-exit:0 interpreter:agrees @619f89e4fed6
@@ -46,6 +49,7 @@ pass/core/numeric_widening_published_ranges built 69879ms exit:0 interpreter-exi
 pass/data/opaque_copy_selected built 3871ms exit:0 interpreter-exit:0 interpreter:agrees @9daaa9bd9280+wt
 pass/domains/named_const_subject_binding built 5457ms exit:3 interpreter-exit:3 interpreter:agrees @9ed8b7d0772d
 pass/domains/named_subject_capacity_identity_exit built 5855ms exit:70 interpreter-exit:70 interpreter:agrees @9ed8b7d0772d
+pass/drops/runtime_case_selected_cleanup_continuations_exit built 8244ms exit:0 interpreter-exit:0 interpreter:agrees @37781ae2455d
 pass/float/runtime_total_order_satisfiers_exit built 74829ms exit:70 interpreter-exit:70 interpreter:agrees @6d9868469d56+wt
 pass/generics/runtime_const_container_methods_exit built 6084ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt
 pass/generics/runtime_container_setter_matrix_exit built 5872ms exit:1 interpreter-exit:1 interpreter:agrees @506354b3cca3+wt

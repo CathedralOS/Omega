@@ -1821,8 +1821,9 @@ defines the complete product bar.
   execution. Owners: stage 04
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/`,
   stage 05 `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/`
-  and expression preparation. The optimizer board's same-name task owns native
-  receiving.
+  and expression preparation; runtime arrivals are in
+  `omega-rust/psi/interpreter/terminal-interpreter/src/terminators/`.
+  The optimizer board's same-name task owns native receiving.
 
   Executing controls: `pass/text/runtime_number_to_decimal_exit` and
   `pass/text/runtime_bounded_carrier_write_read_exit` (exit 70);
@@ -1834,11 +1835,20 @@ defines the complete product bar.
 
   Reproduce the current frontier for remaining cycle shapes after deletion of
   the old Terminal-verifier fences: broader qualified/partial
-  ownership, reference-bearing or claim-carrying structural call results,
-  moving claims, content reshuffles/partitions, broader structural-result
-  custody, boundary completion receipts, and claim transfers through Unit/scalar
-  calls. Each needs stage 04 to check the arrival/custody relation and stage
+  ownership, content reshuffles/partitions, broader structural-result custody,
+  boundary completion receipts, and claim transfers through Unit/scalar calls.
+  Each needs stage 04 to check the arrival/custody relation and stage
   05 to lower it; deleting the fence alone is not the repair.
+  Keep `pass/control_flow/runtime_cyclic_reference_and_claim_rotation_exit`
+  (changing projected references and call-returned root/nested linear claims,
+  affine residuals and borrowed backing across ranked backedges, including
+  zero, odd and even counts, component/owner checks at scalar-returning exits,
+  and selected affine-local call consumption versus cleanup),
+  `fail/borrows/cyclic_arrival_duplicates_exclusive_reference`,
+  `fail/ownership/cyclic_arrival_restores_consumed_field` and
+  `fail/ownership/conditional_scalar_return_preserves_live_claim`. The hosted native
+  matrix and unchanged public samples remain qualification requirements;
+  portable Terminal installations do not establish native execution.
   Current control: `pass/slices/runtime_guarded_view_copy_cycle_exit` checks
   and runs with exit 70 on macOS ARM64. The loop transports the shared input,
   mutable fixed-buffer owner, index and limit through a four-conjunct arrival

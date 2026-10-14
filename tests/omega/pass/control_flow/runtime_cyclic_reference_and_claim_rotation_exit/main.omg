@@ -1,0 +1,141 @@
+// Changing reference bindings and call-returned linear claims both rotate on
+// backedges. Referent writes and final claim contents expose stale bindings or
+// overwritten custody; zero and odd/even iteration counts expose the exits.
+use omega::language::core::drop;
+use omega::language::core::binding;
+
+data Cell { value: u32; }
+data Pair { left: Cell; right: Cell; }
+pub data Token [linear] { value: u32; }
+machine Token::drop(token: &mut Token) {}
+data Plain { value: u32; }
+data Marker {}
+data Envelope { token: Token; spare: Plain; borrowed: &Cell; }
+
+machine relay(token: Token) -> Token { token }
+machine consume(token: Token) -> u32 {
+    let value: u32 = token.value;
+    drop(token);
+    value
+}
+
+machine consume_then_select(token: Token, choose: bool) -> u32 {
+    let value: u32 = consume(token);
+    transition choose {
+        true -> value
+        false -> 0
+    }
+}
+
+machine take_marker(marker: Marker, value: u32) -> u32 { value }
+
+// A bodied boundary adapter keeps the sequence consumer under the same exit rule.
+pub boundary trait Selection {
+    machine select(token: Token, choose: bool) -> u32;
+}
+Selector satisfies Selection {
+    Selection::select = select_adapter;
+}
+machine select_adapter(token: Token, choose: bool) -> u32
+satisfies Selection::select
+{
+    let marker: Marker = Marker {};
+    let value: u32 = consume(token);
+    transition choose {
+        true -> (take_marker(marker, value))
+        false -> 0
+    }
+}
+
+machine rotate_references(first: &mut Cell, second: &mut Cell, remaining: u32)
+terminates by remaining -> Nat::Descending;
+{
+    transition remaining > 0 {
+        true -> step(first, second, remaining)
+        false -> done()
+    }
+    state step(current: &mut Cell, other: &mut Cell, left: u32) {
+        current.value = left;
+        transition left > 0 {
+            true -> rotate_references(other, current, left - 1)
+            false -> done()
+        }
+    }
+    state done() {}
+}
+
+machine rotate_claims(first: Token, second: Token, remaining: u32) -> u32
+terminates by remaining -> Nat::Descending;
+{
+    let returned: Token = relay(first);
+    transition remaining > 0 {
+        true -> rotate_claims(second, returned, remaining - 1)
+        false -> done(returned, second)
+    }
+    state done(current: Token, other: Token) -> u32 {
+        let value: u32 = consume(current);
+        let ignored: u32 = consume(other);
+        value
+    }
+}
+
+machine relay_envelope(envelope: Envelope) -> Envelope { envelope }
+
+// This result also carries an affine residual and a reference to caller
+// backing. Ending its old result home must preserve all three at arrival.
+machine rotate_envelopes(first: Envelope, second: Envelope, remaining: u32) -> u32
+terminates by remaining -> Nat::Descending;
+{
+    let returned: Envelope = relay_envelope(first);
+    transition remaining > 0 {
+        true -> rotate_envelopes(second, returned, remaining - 1)
+        false -> done(returned, second)
+    }
+    state done(current: Envelope, other: Envelope) -> u32 {
+        let borrowed: u32 = current.borrowed.value;
+        let spare: u32 = current.spare.value;
+        let value: u32 = consume(current.token);
+        let ignored: u32 = consume(other.token);
+        transition (value == 9 && spare == 10 && borrowed == 1)
+            || (value == 8 && spare == 20 && borrowed == 2) {
+            true -> (((value as u32 in Wrapping) + (spare as u32 in Wrapping)) + (borrowed as u32 in Wrapping)) as u32
+            false -> 0
+        }
+    }
+}
+
+data Main { selection: Binding<Selection>; }
+
+machine Main::main(context: &mut Main) reaches Selection crashes Trap {
+    let mut pair: Pair = Pair { left: Cell { value: 9 }, right: Cell { value: 8 } };
+    rotate_references(&mut pair.left, &mut pair.right, 0);
+    let untouched: bool = pair.left.value == 9 && pair.right.value == 8;
+    rotate_references(&mut pair.left, &mut pair.right, 3);
+    let changed: bool = pair.left.value == 1 && pair.right.value == 2;
+    let selected_true: u32 = consume_then_select(Token { value: 7 }, true);
+    let selected_false: u32 = consume_then_select(Token { value: 7 }, false);
+    let adapter_true: u32 = Selection::select(&context.selection, Token { value: 6 }, true);
+    let adapter_false: u32 = Selection::select(&context.selection, Token { value: 6 }, false);
+    let zero: u32 = rotate_claims(Token { value: 9 }, Token { value: 8 }, 0);
+    let odd: u32 = rotate_claims(Token { value: 9 }, Token { value: 8 }, 3);
+    let even: u32 = rotate_claims(Token { value: 9 }, Token { value: 8 }, 4);
+    let nested_odd: u32 = rotate_envelopes(
+        Envelope { token: Token { value: 9 }, spare: Plain { value: 10 }, borrowed: &pair.left },
+        Envelope { token: Token { value: 8 }, spare: Plain { value: 20 }, borrowed: &pair.right },
+        1
+    );
+    let nested_even: u32 = rotate_envelopes(
+        Envelope { token: Token { value: 9 }, spare: Plain { value: 10 }, borrowed: &pair.left },
+        Envelope { token: Token { value: 8 }, spare: Plain { value: 20 }, borrowed: &pair.right },
+        2
+    );
+    transition untouched && changed && zero == 9 && odd == 8 && even == 9
+        && nested_odd == 30 && nested_even == 20
+        && selected_true == 7 && selected_false == 0
+        && adapter_true == 6 && adapter_false == 0 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

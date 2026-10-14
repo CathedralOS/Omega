@@ -34,49 +34,27 @@ impl<'program> Evaluator<'program> {
             if plan.state != state.symbol {
                 return unsupported("normal cleanup plan names another return state");
             }
-            for operation in &plan.operations {
-                let checked_trees::CheckedUnitEffectOperationPlan::Complete {
-                    normal_cleanup_actions,
-                    selected_normal_cleanup_regions,
-                    ..
-                } = operation
-                else {
+            let control = &flow.terminal_unit_effects.cleanup_control;
+            if control
+                .normal_exits(plan.normal_exit_cleanups)
+                .iter()
+                .any(|row| !row.selected_regions.is_empty())
+            {
+                return unsupported(
+                    "unimplemented: checked-tree interpreter selected owner cleanup",
+                );
+            }
+            for action in control.normal_actions(plan.normal_exit_cleanups) {
+                let CheckedNormalCleanupAction::InvokeNominal(action) = action else {
                     continue;
                 };
-                if !selected_normal_cleanup_regions.is_empty() {
-                    return unsupported(
-                        "unimplemented: checked-tree interpreter selected owner cleanup",
-                    );
-                }
-                for action in normal_cleanup_actions {
-                    let CheckedNormalCleanupAction::InvokeNominal(action) = action else {
-                        continue;
-                    };
-                    let owner = self.normal_cleanup_owner(
-                        state,
-                        action,
-                        &plan.structural_parameters,
-                        &plan.operations,
-                    )?;
-                    actions.push((action, owner));
-                }
-            }
-        }
-        if let Some(plan) = flow
-            .terminal_nominal_affine_unit_cleanups
-            .for_machine(machine.symbol)
-        {
-            if plan.machine.state != state.symbol {
-                return unsupported("nominal cleanup plan names another return state");
-            }
-            for cleanup in &plan.cleanups {
                 let owner = self.normal_cleanup_owner(
                     state,
-                    cleanup,
-                    &plan.machine.structural_parameters,
-                    &plan.machine.operations,
+                    action,
+                    &plan.structural_parameters,
+                    &plan.operations,
                 )?;
-                actions.push((cleanup, owner));
+                actions.push((action, owner));
             }
         }
         Ok(actions)
@@ -159,7 +137,7 @@ impl<'program> Evaluator<'program> {
         // This retiring comparison interpreter has no occurrence custody
         // ledger. Refuse candidate deaths before execution rather than run an
         // absent owner's hook; native and Terminal use the selected CFG.
-        if composed.is_some_and(|state| state.normal_exit_cleanups.iter().any(|row| !row.selected_regions.is_empty()))
+        if composed.is_some_and(|state| checked.facts.flow.terminal_unit_effects.cleanup_control.normal_exits(state.normal_exit_cleanups).iter().any(|row| !row.selected_regions.is_empty()))
             || self.cleanup_operations(machine.symbol, state.symbol).iter().any(|operation| {
                 matches!(operation, checked_trees::CheckedUnitEffectOperationPlan::ContinuationCleanup { selected_regions, .. } if !selected_regions.is_empty())
             })
@@ -174,10 +152,12 @@ impl<'program> Evaluator<'program> {
                         && action.cleanup_state == dependency.target_state
                 })
                 && !composed.is_some_and(|state| {
-                    state
-                        .normal_exit_cleanups
-                        .iter()
-                        .flat_map(|row| &row.actions)
+                    checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .cleanup_control
+                        .normal_actions(state.normal_exit_cleanups)
                         .any(|action| {
                             matches!(action,
                         CheckedNormalCleanupAction::InvokeNominal(action)
@@ -215,19 +195,36 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
         exit: checked_trees::FlowClaimJoinExit,
     ) -> EvalResult<()> {
-        if let Some(plan) = self
-            .checked
-            .and_then(|checked| {
-                checked
-                    .facts
-                    .flow
-                    .terminal_unit_effects
-                    .composed_for_machine(machine.symbol)
+        if let Some((control, rows, parameters, operations)) = self.checked.and_then(|checked| {
+            let plans = &checked.facts.flow.terminal_unit_effects;
+            let body = plans
+                .for_machine(machine.symbol)
+                .filter(|plan| plan.state == state.symbol)
+                .map(|plan| {
+                    (
+                        plan.normal_exit_cleanups,
+                        plan.structural_parameters.as_slice(),
+                        plan.operations.as_slice(),
+                    )
+                })
+                .or_else(|| {
+                    plans
+                        .composed_for_machine(machine.symbol)
+                        .and_then(|machine| machine.state(state.symbol))
+                        .map(|state| {
+                            (
+                                state.normal_exit_cleanups,
+                                state.structural_parameters.as_slice(),
+                                state.operations.as_slice(),
+                            )
+                        })
+                });
+            body.map(|(rows, parameters, operations)| {
+                (&plans.cleanup_control, rows, parameters, operations)
             })
-            .and_then(|plan| plan.state(state.symbol))
-        {
-            let row = plan
-                .normal_exit_cleanups
+        }) {
+            let row = control
+                .normal_exits(rows)
                 .iter()
                 .find(|row| row.exit == exit)
                 .ok_or_else(|| {
@@ -238,16 +235,11 @@ impl<'program> Evaluator<'program> {
                     "unimplemented: checked-tree interpreter selected owner cleanup",
                 );
             }
-            for action in &row.actions {
+            for action in control.normal_exit_actions.span_or_empty(row.actions) {
                 let CheckedNormalCleanupAction::InvokeNominal(action) = action else {
                     continue;
                 };
-                let symbol = self.normal_cleanup_owner(
-                    state,
-                    action,
-                    &plan.structural_parameters,
-                    &plan.operations,
-                )?;
+                let symbol = self.normal_cleanup_owner(state, action, parameters, operations)?;
                 let source = frame.local_cell(symbol).ok_or_else(|| {
                     Halt::Unsupported("normal cleanup source binding is absent".into())
                 })?;

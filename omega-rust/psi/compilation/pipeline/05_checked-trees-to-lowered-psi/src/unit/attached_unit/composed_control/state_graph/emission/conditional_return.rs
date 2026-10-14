@@ -86,6 +86,7 @@ impl StateGraphEmission<'_, '_> {
                     plan,
                     state,
                     super::super::cleanup::coordinate(
+                        self.catalogs.cleanup_control,
                         state,
                         return_arm
                             .statement_ordinal()
@@ -154,6 +155,7 @@ impl StateGraphEmission<'_, '_> {
                                 self.checked,
                                 state,
                                 super::super::cleanup::coordinate(
+                                    self.catalogs.cleanup_control,
                                     state,
                                     return_arm.statement_ordinal().ok_or(
                                         LoweringError::Unsupported(
@@ -258,7 +260,12 @@ impl StateGraphEmission<'_, '_> {
                     .ok_or(LoweringError::Unsupported(
                         "return arm lost its source coordinate",
                     ))?;
-            let exit = super::super::cleanup::coordinate(state, statement_ordinal as usize, false)?;
+            let exit = super::super::cleanup::coordinate(
+                self.catalogs.cleanup_control,
+                state,
+                statement_ordinal as usize,
+                false,
+            )?;
             let mut regions = super::super::cleanup::for_exit_regions(
                 identities,
                 self.claims.published(),

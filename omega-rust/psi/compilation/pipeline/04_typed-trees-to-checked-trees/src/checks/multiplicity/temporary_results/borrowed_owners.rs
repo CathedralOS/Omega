@@ -6,7 +6,6 @@ use super::{
     CheckFacts, FlowPermissionEventFact, HandleSpan, Multiplicity, PermissionAccess,
     PermissionClaimIdentity, PermissionEventKind, PermissionProvenance,
 };
-use crate::checks::type_carries_linear_obligation;
 use diagnostics::Diagnostic;
 use language_semantics::PermissionEventSource;
 
@@ -38,7 +37,6 @@ pub(in crate::checks::multiplicity) fn append_borrow(
         .filter(|(owner, _, _)| owner.consumer == consumer && owner.evaluation == evaluation)
     {
         let root = facts::PlaceRoot::Expression(owner.expression);
-        let carries_claims = type_carries_linear_obligation(program, owner.type_reference);
         if super::super::owned_cleanup::claim_receipts(
             program,
             owner.type_reference,
@@ -69,24 +67,24 @@ pub(in crate::checks::multiplicity) fn append_borrow(
         {
             continue;
         }
-        if carries_claims {
-            // The death owns the complete value. Its selected hook plan, not
-            // the borrowed callee, authorizes disposal of every remaining claim.
-            dispositions
-                .dispositions
-                .append(checked_trees::ContextualCleanupDisposition {
-                    establishment_ordered: false,
-                    zero_image: false,
-                    machine,
-                    state,
-                    source: owner.consumer,
-                    exit: checked_trees::FlowClaimJoinExit::default(),
-                    root,
-                    disposed_type: owner.type_reference,
-                    path: HandleSpan::empty(),
-                    exclusions: HandleSpan::empty(),
-                });
-        }
+        // Every owned temporary needs its exact normal disposition, including
+        // claim-free affine owners whose selected payload invokes a hook.
+        // The borrow lends access; it cannot retire the backing owner. The
+        // admitted claim receipts above retain every Linear authorization.
+        dispositions
+            .dispositions
+            .append(checked_trees::ContextualCleanupDisposition {
+                establishment_ordered: false,
+                zero_image: false,
+                machine,
+                state,
+                source: owner.consumer,
+                exit: checked_trees::FlowClaimJoinExit::default(),
+                root,
+                disposed_type: owner.type_reference,
+                path: HandleSpan::empty(),
+                exclusions: HandleSpan::empty(),
+            });
         permissions.push(FlowPermissionEventFact {
             expression: Default::default(),
             evaluation,

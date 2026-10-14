@@ -1,0 +1,18 @@
+// Initial arrival lends disjoint fields. The backedge tries to lend the same
+// exclusive reference twice; the cyclic arrival must not duplicate its loan.
+data Pair { left: i32; right: i32; }
+
+machine main() {
+    let mut pair: Pair = Pair { left: 1, right: 2 };
+    transition { _ -> spin(&mut pair.left, &mut pair.right, 3) }
+
+    state spin(view: &mut i32, sibling: &mut i32, remaining: i32) {
+        view = remaining;
+        transition remaining > 0 {
+            true -> spin(sibling, sibling, remaining - 1)
+            _ -> done()
+        }
+    }
+
+    state done() {}
+}

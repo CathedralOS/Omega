@@ -17,6 +17,9 @@
 //! typed path. Capture all sources first, then check the complete bijection;
 //! rebinding a name never creates an obligation. Internal continuation blocks
 //! without binding rows simply relocate the identities they received.
+//! Reentry retires old operation homes only after outgoing owned sources leave
+//! custody, and before destinations are installed. Otherwise a captured call
+//! result appears to leak its claim, or retirement removes a fresh binding.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -77,8 +80,11 @@ impl BlockBindings {
             .commit_cursor(self.identity_cursor);
     }
 
-    pub(crate) fn commit(self, execution: &mut TerminalExecution) {
-        self.aggregate_payload.publish(execution);
+    pub(crate) fn commit(
+        self,
+        execution: &mut TerminalExecution,
+        target: BlockId,
+    ) -> Result<(), TerminalInterpretError> {
         for source in self.owned_sources {
             execution
                 .live_claims
@@ -93,6 +99,11 @@ impl BlockBindings {
                 .live_affine_frontier
                 .retain(|entry| entry.place != source);
         }
+        // Captured values retain backing after their source homes end. Check
+        // remaining old results before publishing any destination: unrelated
+        // surviving custody still refuses reentry rather than being erased.
+        execution.retire_reentered_results(target)?;
+        self.aggregate_payload.publish(execution);
         for destination in self.structural.keys() {
             execution.aggregate_argument_backings.remove(destination);
             execution.scalar_array_values.remove(destination);
@@ -117,6 +128,7 @@ impl BlockBindings {
         execution
             .live_affine_frontier
             .extend(self.affine_destinations);
+        Ok(())
     }
 
     pub(crate) fn validate_cleanup_actions(

@@ -834,8 +834,12 @@ impl StateGraphEmission<'_, '_> {
         // Operand evaluation establishes the outgoing values before the exact
         // selected source exit determines the remaining owned dispositions.
         // Keep action kinds and their checked order through private staging.
-        let exit =
-            super::super::cleanup::coordinate(state, edge.statement_ordinal as usize, false)?;
+        let exit = super::super::cleanup::coordinate(
+            self.catalogs.cleanup_control,
+            state,
+            edge.statement_ordinal as usize,
+            false,
+        )?;
         let mut cleanup_regions = super::super::cleanup::for_exit_regions(
             identities,
             self.claims.published(),

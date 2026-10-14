@@ -1,0 +1,1 @@
+A call-produced copyable record is supplied twice to a selected scalar-return call after consuming an incoming linear token. The opposite arm returns zero. Explicit boundary authority is carried by the admitted entry context. The program exits 0 only when both selected results are exact. This pins unrestricted observations beside affine and linear per-exit custody accounting.

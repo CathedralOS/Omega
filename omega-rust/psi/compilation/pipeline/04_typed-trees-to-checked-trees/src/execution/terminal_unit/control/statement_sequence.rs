@@ -263,22 +263,15 @@ pub(in crate::execution::terminal_unit) fn build(
                     )
                 })
     };
-    // A scalar-control tail does not change affine disposal eligibility.
-    // The ordinary completion producer authenticates no-code cleanup from
-    // the source exit rows; lowering schedules those owners against the
-    // emitted selected transfers, including owners moved by an arm's call.
-    // Live claims and qualified-carrier contracts remain separate from that
-    // no-code frontier and cannot be discharged by a scalar result join. A
-    // shared loan owes none: it cannot change its referent, so the
-    // qualifications it arrived with still hold at every exit.
+    // Completion uses the actual checked exit after this prefix, not entry
+    // claims: calls may already have consumed them. Qualified mutable carriers
+    // still need their separate result contract; a scalar join cannot supply it.
     if scalar_control.is_some()
-        && (!entry_claims.is_empty()
-            || structural_parameters.iter().any(|parameter| {
-                parameter.multiplicity == Multiplicity::Linear
-                    || (!parameter.qualifications.is_empty()
-                        && parameter.access != CheckedStructuralAccess::SharedBorrow
-                        && !bounded_owner(parameter))
-            }))
+        && structural_parameters.iter().any(|parameter| {
+            !parameter.qualifications.is_empty()
+                && parameter.access != CheckedStructuralAccess::SharedBorrow
+                && !bounded_owner(parameter)
+        })
     {
         return None;
     }

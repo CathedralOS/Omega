@@ -1,0 +1,90 @@
+// Expected exit: 0.
+// Rotate two owned jobs through a round-robin dispatcher. Each job retains its
+// ticket, affine label and assigned worker. Completing either job consumes both
+// tickets and checks their contents and worker association before returning its
+// checksum. Zero, odd and even rounds select the corresponding job.
+use omega::language::core::drop;
+
+data Worker { identifier: u32; last_round: u32; }
+data Workers { first: Worker; second: Worker; }
+pub data Ticket [linear] { number: u32; }
+machine Ticket::drop(ticket: &mut Ticket) {}
+data Label { number: u32; }
+data Job { ticket: Ticket; label: Label; worker: &Worker; }
+
+machine hand_over(job: Job) -> Job { job }
+machine complete_ticket(ticket: Ticket) -> u32 {
+    let number: u32 = ticket.number;
+    drop(ticket);
+    number
+}
+
+machine complete_jobs(selected: Job, waiting: Job) -> u32 {
+    let worker: u32 = selected.worker.identifier;
+    let label: u32 = selected.label.number;
+    let number: u32 = complete_ticket(selected.ticket);
+    let unused: u32 = complete_ticket(waiting.ticket);
+    transition (number == 9 && label == 10 && worker == 1)
+        || (number == 8 && label == 20 && worker == 2) {
+        true -> (((number as u32 in Wrapping) + (label as u32 in Wrapping))
+            + (worker as u32 in Wrapping)) as u32
+        false -> 0
+    }
+}
+
+machine dispatch(first: Job, second: Job, remaining: u32) -> u32
+terminates by remaining;
+requires remaining <= 5
+{
+    transition { _ -> cycle(first, second, remaining) }
+    state cycle(current: Job, waiting: Job, left: u32) -> u32
+    requires left <= 5
+    {
+        let returned: Job = hand_over(current);
+        transition left > 0 {
+            true -> cycle(waiting, returned, left - 1)
+            false -> (complete_jobs(returned, waiting))
+        }
+    }
+}
+
+machine rotate_workers(first: &mut Worker, second: &mut Worker, remaining: u32)
+terminates by remaining;
+requires remaining > 0 && remaining <= 5
+{
+    transition { _ -> cycle(first, second, remaining) }
+    state cycle(current: &mut Worker, waiting: &mut Worker, left: u32)
+    requires left > 0 && left <= 5
+    {
+        current.last_round = left;
+        transition left > 1 {
+            true -> cycle(waiting, current, left - 1)
+            false -> done()
+        }
+    }
+    state done() {}
+}
+
+machine main() crashes Trap {
+    let mut workers: Workers = Workers {
+        first: Worker { identifier: 1, last_round: 0 },
+        second: Worker { identifier: 2, last_round: 0 }
+    };
+    rotate_workers(&mut workers.first, &mut workers.second, 3);
+    let zero: u32 = dispatch(
+        Job { ticket: Ticket { number: 9 }, label: Label { number: 10 }, worker: &workers.first },
+        Job { ticket: Ticket { number: 8 }, label: Label { number: 20 }, worker: &workers.second }, 0);
+    let odd: u32 = dispatch(
+        Job { ticket: Ticket { number: 9 }, label: Label { number: 10 }, worker: &workers.first },
+        Job { ticket: Ticket { number: 8 }, label: Label { number: 20 }, worker: &workers.second }, 3);
+    let even: u32 = dispatch(
+        Job { ticket: Ticket { number: 9 }, label: Label { number: 10 }, worker: &workers.first },
+        Job { ticket: Ticket { number: 8 }, label: Label { number: 20 }, worker: &workers.second }, 4);
+    transition zero == 20 && odd == 30 && even == 20
+        && workers.first.last_round == 1 && workers.second.last_round == 2 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

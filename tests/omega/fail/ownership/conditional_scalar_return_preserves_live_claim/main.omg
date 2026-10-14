@@ -1,0 +1,9 @@
+// A primitive conditional return cannot silently dispose an unconsumed claim.
+data Token [linear] { value: u32; }
+machine choose(token: Token, select: bool) -> u32 {
+    transition select {
+        true -> 1
+        false -> 0
+    }
+}
+machine main() { let result: u32 = choose(Token { value: 7 }, true); }

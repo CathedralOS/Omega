@@ -219,6 +219,7 @@ pub(super) fn retain_available(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     boundary_symbols: &[SymbolHandle],
+    cleanup_control: &checked_trees::CheckedCleanupControlPlans,
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed_machines: &mut Vec<CheckedComposedUnitControlMachinePlan>,
     partial_affine_machines: &mut Vec<CheckedPartialAffineUnitCleanupMachinePlan>,
@@ -317,12 +318,9 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::Scalar { .. },
                 ) => {}
-                CheckedUnitEffectOperationPlan::Complete {
-                    normal_cleanup_actions,
-                    ..
-                } => {
-                    for cleanup in normal_cleanup_actions
-                        .iter()
+                CheckedUnitEffectOperationPlan::Complete { .. } => {
+                    for cleanup in cleanup_control
+                        .normal_actions(plan.normal_exit_cleanups)
                         .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
                     {
                         closure.require_entry(
@@ -365,11 +363,7 @@ pub(super) fn retain_available(
             continue;
         }
         for state in &plan.states {
-            for action in state
-                .normal_exit_cleanups
-                .iter()
-                .flat_map(|row| &row.actions)
-            {
+            for action in cleanup_control.normal_actions(state.normal_exit_cleanups) {
                 if let checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) = action {
                     closure.require_entry(
                         caller_index,

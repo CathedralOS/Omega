@@ -1,0 +1,6 @@
+use omega::language::core::binding;
+pub boundary trait Service { machine send(value: i32) reaches Service; }
+pub boundary trait Other { machine send(value: i32) reaches Other; }
+data Context { service: Binding<Service>; other: Binding<Other>; }
+data Loan { service: &Binding<Service>; }
+machine main(context: &Context) reaches Service { let loan: Loan = Loan { service: &context.other }; Service::send(loan.service, 1); }

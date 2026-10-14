@@ -576,6 +576,8 @@ fail/borrows/copied_computed_backing_retains_nested_loan rejected 1615ms expecte
 fail/borrows/copied_reference_cohort_live_source_write rejected 1704ms expected @a9ae30e1c334+wt
 	statement 4 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
 	statement 4 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
+fail/borrows/cyclic_arrival_duplicates_exclusive_reference rejected 789ms expected @e12a9f3ff2a3
+	state `spin` receives `sibling` as mutable more than once
 fail/borrows/direct_mutable_reference_from_immutable_bytes rejected 871ms expected @a9ae30e1c334+wt
 	argument `bytes` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/direct_reference_array_duplicate_mutable rejected 5779ms expected @a9ae30e1c334+wt
@@ -1189,6 +1191,10 @@ fail/calls/affine_constructor_result_reuse rejected 1183ms expected @a9ae30e1c33
 	cannot use `item` in machine `Worker::check` state `check` (statement 2) after `item` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `item` first
 fail/calls/authored_numeric_name_requires rejected 1601ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call abs from main: 100 >= -3 && 100 <= 3 (needs fact `value >= -3 && value <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/borrowed_service_field_literal_authority rejected 266ms expected @a87ecf7b03bf
+	construction of `Loan` field `service` expects reference `&Binding<Service>`, but the source does not supply its carrier and access
+fail/calls/borrowed_service_field_wrong_contract rejected 258ms expected @a87ecf7b03bf
+	construction of `Loan` field `service` expects reference `&Binding<Service>`, but the source does not supply its carrier and access
 fail/calls/boundary_computed_selector_out_of_bounds rejected 1609ms expected @a9ae30e1c334+wt
 	cannot prove index `choose()` is within length 4 in main::entry
 fail/calls/boundary_nested_argument_conflicting_loan rejected 1504ms expected @a9ae30e1c334+wt
@@ -2257,6 +2263,8 @@ fail/drops/parent_cleanup_wrong_child_guarantee rejected 1559ms expected @a9ae30
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Owner.first does not establish Receipt::drop clause `receipt.value == 9`
 fail/drops/partial_move_inside_nominal_child rejected 1231ms expected @a9ae30e1c334+wt
 	cannot partially move a value of `Token` because `Token::drop` requires the whole value
+fail/drops/partial_store_preserves_moved_ancestor rejected 368ms expected @a87ecf7b03bf
+	cannot store into `pair.first.value` in machine `main` state `entry` (statement 2) after `pair.first` was transferred or consumed at statement 1: assign a whole value to `pair.first` to re-establish it
 fail/drops/read_after_conditional_call_move rejected 3363ms expected @a9ae30e1c334+wt
 	cannot use `owner.value` in machine `invalid` state `entry` (statement 2) after `owner` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `owner` first
 fail/drops/reserved_call_result_cleanup_mutated rejected 1607ms expected @a9ae30e1c334+wt
@@ -3255,8 +3263,12 @@ fail/ownership/computed_window_selector_keeps_snapshot rejected 1147ms expected 
 fail/ownership/computed_window_selector_requires_builtin_meaning rejected 1260ms expected @a9ae30e1c334+wt
 	cannot store `tokens[index]` while `tokens[index]` is absent: the value moved out of borrowed storage at statement 2 must be restored as a whole
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `misplaced`, state `entry` (statement 2): `tokens[index]` must hold a value again before this state's exits consume the borrow
+fail/ownership/conditional_scalar_return_preserves_live_claim rejected 669ms expected @e12a9f3ff2a3
+	linear value `token` reaches scope exit without being consumed or transferred
 fail/ownership/copy_linear_conflict rejected 3ms expected @a9ae30e1c334+wt
 	tests/omega/fail/ownership/copy_linear_conflict/main.omg:3:30: type properties `[copy]` and `[linear]` are mutually exclusive; `copy` was already declared
+fail/ownership/cyclic_arrival_restores_consumed_field rejected 914ms expected @e12a9f3ff2a3
+	linear value `holder.token` was already transferred or consumed; it cannot be moved here
 fail/ownership/duplicate_constructor_payload rejected 3699ms expected @8b4b5df96897+wt
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "duplicate", reason: "projected custody overlaps an earlier transfer or release", gap: None })
 fail/ownership/first_match_linear_frontier_mismatch rejected 250ms expected @dd6871ed0476
@@ -5804,6 +5816,8 @@ pass/control_flow/runtime_computed_case_subject_single_evaluation_exit checked 1
 pass/control_flow/runtime_computed_index_state_loan_exit checked 5642ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/control_flow/runtime_conditional_index_state_loan_exit checked 5665ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/control_flow/runtime_copy_result_conditional_successor_reuse_exit checked 5296ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/control_flow/runtime_cyclic_owned_result_local_arrival_exit checked 8420ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @99db110609d1
+pass/control_flow/runtime_cyclic_reference_and_claim_rotation_exit checked 6688ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @e12a9f3ff2a3
 pass/control_flow/runtime_diamond_join_borrowed_record_exit checked 11521ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_diamond_join_owned_record_exit checked 11412ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_dispatch_boundary_total_exit checked 9274ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @58a5ed816ae5

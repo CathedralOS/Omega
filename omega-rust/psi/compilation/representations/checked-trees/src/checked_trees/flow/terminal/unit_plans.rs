@@ -1,8 +1,8 @@
 //! The one Unit-bodied plan a checked machine carries.
 //!
-//! The affine cleanup rosters remain separate machine tables because the
-//! cleanup kinds must never be reread as a trivial discard by another
-//! producer; every shape any of them names lives in the ordinary
+//! Partial residual bodies and nominal caller metadata retain their semantic
+//! distinctions. Nominal bodies and selected actions use the ordinary roster;
+//! every shape any plan names lives in the ordinary
 //! `CheckedUnitEffectPlans` type namespace, which stage 04 fills once with a
 //! conflict check. This view names the family once, so a consumer asks which Unit
 //! plan a machine lowers instead of walking three rosters and repeating the
@@ -18,11 +18,9 @@ use crate::checked_trees::flow::terminal::{
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedTerminalSignatureEligibility,
 };
 
-/// The Unit-bodied plan one machine lowers. Each variant borrows the row of
-/// the roster that admitted it. The rosters are filled by independent
-/// recognizers over the same machines, so a machine admitted by more than one
-/// resolves in this declaration order, which is the order terminal lowering
-/// has always dispatched in.
+/// The selected entry family one machine lowers. Nominal metadata roots its
+/// already-published body; partial cleanup retains a residual body and composed
+/// control retains its graph. The declaration order preserves entry dispatch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedUnitPlan<'a> {
     /// One return edge disposing whole affine parameters through their exact
@@ -56,7 +54,7 @@ impl<'a> CheckedUnitPlan<'a> {
     /// The selected machine this plan lowers.
     pub fn machine(self) -> SymbolHandle {
         match self {
-            Self::NominalAffineCleanup(plan) => plan.machine.machine,
+            Self::NominalAffineCleanup(plan) => plan.machine,
             Self::PartialAffineCleanup(plan) => plan.machine.machine,
             Self::ComposedControl(plan) => plan.machine,
         }
@@ -65,7 +63,7 @@ impl<'a> CheckedUnitPlan<'a> {
     /// The exact attached data carrier, or `None` for a free machine.
     pub fn attachment_type_identity(self) -> Option<TypeIdentityId> {
         match self {
-            Self::NominalAffineCleanup(plan) => plan.machine.attachment_type_identity,
+            Self::NominalAffineCleanup(plan) => plan.attachment_type_identity,
             Self::PartialAffineCleanup(plan) => plan.machine.attachment_type_identity,
             Self::ComposedControl(plan) => plan.attachment_type_identity,
         }
@@ -91,7 +89,7 @@ impl<'a> CheckedUnitPlan<'a> {
                 .terminal_nominal_affine_unit_cleanups
                 .machines
                 .iter()
-                .filter(|plan| plan.machine.machine == machine)
+                .filter(|plan| plan.machine == machine)
                 .count(),
             Self::PartialAffineCleanup(_) => flow
                 .terminal_partial_affine_unit_cleanups

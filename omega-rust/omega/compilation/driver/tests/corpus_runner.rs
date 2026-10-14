@@ -877,6 +877,20 @@ fn interpret_checked_fixture(
     observation
 }
 
+/// Both native product classes retain the source-free canonical artifact.
+fn retained_native_terminal(
+    report: &compilation_products::CompileReport,
+) -> Option<&terminal_codec::CanonicalTerminalArtifact> {
+    report
+        .retained_native_artifact()
+        .map(|native| native.psi_artifact())
+        .or_else(|| {
+            report
+                .retained_dynamic_elf_artifact()
+                .map(|native| native.psi_artifact())
+        })
+}
+
 /// Observe the native report's own immutable Terminal product before publication
 /// consumes it. Both native image classes retain that exact artifact and profile;
 /// this route never recompiles source or reconstructs package permission policy.
@@ -884,15 +898,9 @@ fn interpret_native_report(
     report: &compilation_products::CompileReport,
     fixture_dir: &Path,
     target: &str,
+    roots: &[&compilation_products::TerminalRuntimeProvisions],
 ) -> terminal_execution::Observation {
-    let artifact = report
-        .retained_native_artifact()
-        .map(|artifact| artifact.psi_artifact())
-        .or_else(|| {
-            report
-                .retained_dynamic_elf_artifact()
-                .map(|artifact| artifact.psi_artifact())
-        });
+    let artifact = retained_native_terminal(report);
     let Some(artifact) = artifact else {
         return terminal_execution::Observation::failure(
             "native report retained no Terminal artifact",
@@ -906,6 +914,7 @@ fn interpret_native_report(
             .map_or(&[], |provisions| provisions.target_provider_proposals()),
         Some(target),
         fixture_dir,
+        roots,
     )
 }
 
@@ -917,6 +926,7 @@ fn observe_retained_terminal(
     proposals: &[backend_plan::TerminalTargetProviderProposal],
     target: Option<&str>,
     fixture_dir: &Path,
+    roots: &[&compilation_products::TerminalRuntimeProvisions],
 ) -> terminal_execution::Observation {
     let mut observation = if interpreter_leg() && !checked_interpreter_leg() {
         match fixture_input(fixture_dir) {
@@ -934,8 +944,13 @@ fn observe_retained_terminal(
         terminal_execution::Observation::default()
     };
     if fixture_dir.join(terminal_execution::TARGET_ORACLE).exists() {
-        let installations =
-            terminal_execution::target_installations(artifact, proposals, fixture_dir, 1_000_000);
+        let installations = terminal_execution::target_installations(
+            artifact,
+            proposals,
+            roots,
+            fixture_dir,
+            1_000_000,
+        );
         observation.facts.extend(installations.facts);
         observation.diagnostics.extend(installations.diagnostics);
     }
@@ -975,17 +990,39 @@ fn build_native_fixture(
     rollback: Option<&OptimizationRollback>,
     interpretation: Option<(&Path, &mut Option<terminal_execution::Observation>)>,
 ) -> Result<(PathBuf, Option<String>), Vec<diagnostics::Diagnostic>> {
+    let target_profile = target::TargetProfile::from_omega_target_name(Some(target))
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let compiled_roots = interpretation
+        .as_ref()
+        .map(|(fixture_dir, _)| terminal_execution::compiled_target_provisions(fixture_dir))
+        .transpose()
+        .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?
+        .unwrap_or(false);
+    let mut targets = vec![Some(target_profile)];
+    if compiled_roots {
+        let fixture_dir = interpretation
+            .as_ref()
+            .map(|(directory, _)| *directory)
+            .ok_or_else(|| {
+                vec![diagnostics::Diagnostic::error(
+                    "compiled target cohort lost its fixture",
+                )]
+            })?;
+        for name in terminal_execution::requested_target_names(fixture_dir)
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?
+        {
+            let profile = target::TargetProfile::from_omega_target_name(Some(&name))
+                .map_err(|diagnostic| vec![diagnostic])?;
+            if !targets.contains(&Some(profile)) {
+                targets.push(Some(profile));
+            }
+        }
+    }
     let prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
     let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
-    let mut request = CompileRequest::for_targets(
-        prepared.root_path,
-        build_dir.to_path_buf(),
-        vec![Some(
-            target::TargetProfile::from_omega_target_name(Some(target))
-                .map_err(|diagnostic| vec![diagnostic])?,
-        )],
-    )
-    .with_requested_product(RequestedCompileProduct::NativeArtifact);
+    let mut request =
+        CompileRequest::for_targets(prepared.root_path, build_dir.to_path_buf(), targets)
+            .with_requested_product(RequestedCompileProduct::NativeArtifact);
     if let Some(rollback) = rollback {
         request = request.with_optimization_rollback(rollback.clone());
     }
@@ -995,8 +1032,28 @@ fn build_native_fixture(
     if let Some(snapshot) = build_snapshot {
         request = request.with_build_snapshot(snapshot);
     }
-    let report =
-        compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
+    let outcomes = compiler::compile(request)?;
+    let mut reports = Vec::new();
+    let mut failures = Vec::new();
+    for outcome in outcomes.into_outcomes().into_vec() {
+        let profile = outcome.target_profile();
+        match outcome.into_result() {
+            Ok(report) => reports.push((profile, report)),
+            Err(diagnostics) => failures.extend(diagnostics),
+        }
+    }
+    if !failures.is_empty() {
+        return Err(failures);
+    }
+    let primary = reports
+        .iter()
+        .position(|(profile, _)| *profile == Some(target_profile))
+        .ok_or_else(|| {
+            vec![diagnostics::Diagnostic::error(
+                "native cohort lost its requested host product",
+            )]
+        })?;
+    let report = &reports[primary].1;
     if let Some(artifact) = report.retained_native_artifact() {
         image_emission::verify_retained_target_operations(artifact.object())
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -1007,11 +1064,40 @@ fn build_native_fixture(
             .map_err(|diagnostic| vec![diagnostic])?;
     }
     if let Some((fixture_dir, observation)) = interpretation {
-        *observation = Some(interpret_native_report(&report, fixture_dir, target));
+        let roots = if compiled_roots {
+            let artifact = retained_native_terminal(report).ok_or_else(|| {
+                vec![diagnostics::Diagnostic::error(
+                    "target cohort lost its canonical Terminal artifact",
+                )]
+            })?;
+            let mut roots = Vec::new();
+            for (_, sibling) in &reports {
+                let sibling_artifact = retained_native_terminal(sibling).ok_or_else(|| {
+                    vec![diagnostics::Diagnostic::error(
+                        "target cohort lost a retained Terminal product",
+                    )]
+                })?;
+                if !std::ptr::eq(artifact, sibling_artifact) {
+                    return Err(vec![diagnostics::Diagnostic::error(
+                        "target cohort did not retain one shared canonical Terminal artifact",
+                    )]);
+                }
+                roots.push(sibling.runtime_provisions().ok_or_else(|| {
+                    vec![diagnostics::Diagnostic::error(
+                        "target cohort lost its exact admitted runtime root",
+                    )]
+                })?);
+            }
+            roots
+        } else {
+            Vec::new()
+        };
+        *observation = Some(interpret_native_report(report, fixture_dir, target, &roots));
     }
     let receipt = report
         .optimization_rollback_receipt()
         .map(std::string::ToString::to_string);
+    let (_, report) = reports.swap_remove(primary);
     let published = compilation_products::publication::publish_compilation(report, build_dir)
         .map_err(|error| vec![diagnostics::Diagnostic::error(error)])?;
     published
@@ -1388,6 +1474,7 @@ fn realize_fixture(
                     &report,
                     fixture_dir,
                     runtime_target,
+                    &[],
                 ));
             }
         });
@@ -1674,6 +1761,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                             .map_or(&[], |proposal| proposal.target_provider_proposals()),
                         interpreter_target.as_deref(),
                         &fixture_dir,
+                        &[],
                     ));
                     Ok(())
                 }

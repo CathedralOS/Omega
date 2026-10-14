@@ -1,0 +1,11 @@
+data Token { value: u64; }
+data Pair { first: Token; second: Token; }
+machine Token::drop(token: &mut Token) {}
+
+machine main() {
+    let mut pair: Pair = Pair {
+        first: Token { value: 7 }, second: Token { value: 8 }
+    };
+    let removed: Token = move pair.first;
+    pair.first.value = 9;
+}

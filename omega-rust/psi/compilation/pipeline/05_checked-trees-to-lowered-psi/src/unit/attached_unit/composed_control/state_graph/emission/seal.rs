@@ -63,7 +63,12 @@ impl StateGraphEmission<'_, '_> {
             let statement_index = (state.statement_count as usize).checked_sub(1).ok_or(
                 LoweringError::Unsupported("structural return has no source statement"),
             )?;
-            let exit = super::super::cleanup::coordinate(state, statement_index, false)?;
+            let exit = super::super::cleanup::coordinate(
+                self.catalogs.cleanup_control,
+                state,
+                statement_index,
+                false,
+            )?;
             let mut regions = super::super::cleanup::for_exit_regions(
                 identities,
                 self.claims.published(),

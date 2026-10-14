@@ -189,7 +189,10 @@ impl TypeReferenceOwner<'_> {
     fn allows_borrowed_routed_service_carrier(&self) -> bool {
         matches!(
             self,
-            Self::StateParameter {
+            Self::DataField {
+                generic_depth: 0,
+                ..
+            } | Self::StateParameter {
                 owner: StateSignatureOwner::Machine(_),
                 generic_depth: 0,
                 ..
@@ -501,8 +504,8 @@ pub(crate) fn validate_type_reference_handle(
 /// Find routed Binding carriers recursively rather than relying on the outer
 /// type shell. Concrete-machine parameters may own or borrow one exact
 /// carrier. Borrowing preserves its identity; it does not establish another
-/// binding. Borrowed locals retain the same existing loan. Aggregate/generic
-/// nesting, reference fields, owned locals, owned returns,
+/// binding. Borrowed locals and fields retain the same existing loan. Aggregate/generic
+/// nesting, owned locals, owned returns,
 /// traits, requirements, and operators retain their implementation fences.
 fn validate_routed_service_carrier_placement(
     program: &dyn crate::CheckingInput,

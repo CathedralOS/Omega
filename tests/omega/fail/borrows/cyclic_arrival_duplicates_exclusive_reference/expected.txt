@@ -1,0 +1,1 @@
+state `spin` receives `sibling` as mutable more than once

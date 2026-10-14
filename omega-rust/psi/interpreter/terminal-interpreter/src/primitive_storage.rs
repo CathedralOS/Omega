@@ -1854,7 +1854,9 @@ impl TerminalExecution<'_> {
     /// its activation-local backing is reclaimed here, just as a return
     /// reclaims plain locals. A result still in the affine frontier or named
     /// by a live claim would leak its obligation, so that arrival fails
-    /// closed rather than overwriting it.
+    /// closed rather than overwriting it. The selected edge has already
+    /// removed outgoing owned homes: their captured backing belongs to the
+    /// destination and must not be reclaimed through the retired source name.
     pub(crate) fn retire_reentered_results(
         &mut self,
         target: semantic_vocabulary::BlockId,

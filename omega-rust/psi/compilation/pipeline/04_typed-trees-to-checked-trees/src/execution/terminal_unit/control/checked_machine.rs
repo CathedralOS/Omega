@@ -346,8 +346,6 @@ pub(crate) fn build_checked_machine_residual_parts(
         )?;
     operations.push(CheckedUnitEffectOperationPlan::Complete {
         statement_index: u32::try_from(statements.len()).ok()?,
-        normal_cleanup_actions: Vec::new(),
-        selected_normal_cleanup_regions: Vec::new(),
         trivial_affine_local_discard_ordinals: (0..trivial_affine_locals.len())
             .rev()
             .map(|ordinal| u32::try_from(ordinal).ok())
@@ -385,6 +383,7 @@ pub(crate) fn build_checked_machine_residual_parts(
         crate::execution::terminal_unit::types::erased_proof_parameter_plans(program, state)?;
     Some((
         CheckedUnitEffectMachinePlan {
+            normal_exit_cleanups: Default::default(),
             scalar_result,
             scalar_control,
             structural_result,

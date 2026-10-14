@@ -173,6 +173,52 @@ pub(crate) fn argument_matches_carrier(
         type_reference,
         required_substitutions,
     );
+    // The opaque service shell does not erase its requirement identity. Normal
+    // generic carrier matching may defer an open data argument, but a Binding
+    // value must carry the same closed requirement identity.
+    // This only compares denotation: borrowing and establishment remain with
+    // their independent source custody checks.
+    let required_service = match typed_trees::service::classify_exact_service_parameter_carrier(
+        program,
+        typed_trees::service::ServiceCarrierOccurrence {
+            type_reference,
+            lexical_owner: scope,
+            enclosing_data_applications: &[],
+        },
+    ) {
+        Ok(service) => service,
+        Err(_) => return false,
+    };
+    if let Some(required) = required_service {
+        let source = program
+            .expression_table
+            .borrow_expression(argument)
+            .map_or(argument, |borrow| borrow.target);
+        let mut substitutions = Vec::new();
+        let Some(actual) =
+            reference_values::declared_value_type(program, source, &mut substitutions)
+                .and_then(|reference| {
+                    reference_values::substituted_reference(program, reference, &substitutions)
+                })
+                .and_then(|reference| {
+                    typed_trees::service::classify_exact_service_parameter_carrier(
+                        program,
+                        typed_trees::service::ServiceCarrierOccurrence {
+                            type_reference: reference,
+                            lexical_owner: scope,
+                            enclosing_data_applications: &[],
+                        },
+                    )
+                    .ok()
+                    .flatten()
+                })
+        else {
+            return false;
+        };
+        if actual.carrier != required.carrier {
+            return false;
+        }
+    }
     // A call may attenuate an explicit mutable borrow to shared access. The
     // referent still passes through ordinary carrier matching; the caller
     // separately proves required domains and validates loan exclusivity.

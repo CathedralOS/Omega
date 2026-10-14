@@ -113,6 +113,27 @@ struct CallTransfers<'facts> {
 }
 
 impl CheckedScalarReturnPlan {
+    /// Construction scratch describing each selected normal path's whole
+    /// transfers. A caller may join its exact cleanup coordinate to these
+    /// counts; a minimum alone loses mixed transfer/disposal partitions.
+    pub fn selected_exit_call_transfers(
+        &self,
+        values: &CheckedValueFacts,
+        exits: &CheckedGuardedExitPlans,
+        state: SymbolHandle,
+        producer: &CheckedUnitEffectOperationPlan,
+        local: SymbolHandle,
+    ) -> Option<Vec<(CheckedScalarBranchDestination, usize)>> {
+        let Self::Exits(completion) = self else {
+            return None;
+        };
+        CallTransfers::for_producer(values, producer, local)?.scalar_exit_paths(
+            state,
+            exits,
+            &completion.terminator,
+        )
+    }
+
     /// A scalar exit evaluates its retained guard and selected returned value.
     /// Those computations can consume structural owners even though the
     /// completed result is scalar. A returned binding was evaluated earlier
@@ -218,57 +239,64 @@ impl<'facts> CallTransfers<'facts> {
         exits: &CheckedGuardedExitPlans,
         terminator: &CheckedScalarStateTerminator,
     ) -> usize {
+        self.scalar_exit_paths(state, exits, terminator)
+            .and_then(|paths| paths.into_iter().map(|(_, count)| count).min())
+            .unwrap_or(0)
+    }
+
+    fn scalar_exit_paths(
+        &self,
+        state: SymbolHandle,
+        exits: &CheckedGuardedExitPlans,
+        terminator: &CheckedScalarStateTerminator,
+    ) -> Option<Vec<(CheckedScalarBranchDestination, usize)>> {
+        let mut paths = Vec::new();
+        let mut append = |destination: &CheckedScalarBranchDestination, prefix: usize| {
+            if let Some(transfers) = self.scalar_destination(state, destination) {
+                paths.push((destination.clone(), prefix + transfers));
+            }
+        };
         match terminator {
-            CheckedScalarStateTerminator::Return { statement_ordinal } => self.scalar_at(
-                state,
-                *statement_ordinal,
-                CheckedScalarExpressionRole::Return,
+            CheckedScalarStateTerminator::Return { statement_ordinal } => append(
+                &CheckedScalarBranchDestination::Return {
+                    statement_ordinal: *statement_ordinal,
+                    is_continuation: false,
+                },
+                0,
             ),
             CheckedScalarStateTerminator::Conditional {
                 guard_statement_ordinal,
                 when_true,
                 when_false,
-            } => [
-                self.scalar_destination(state, when_true),
-                self.scalar_destination(state, when_false),
-            ]
-            .into_iter()
-            .flatten()
-            .min()
-            .map_or(0, |selected| {
-                self.scalar_at(
+            } => {
+                let prefix = self.scalar_at(
                     state,
                     *guard_statement_ordinal,
                     CheckedScalarExpressionRole::Guard,
-                ) + selected
-            }),
+                );
+                append(when_true, prefix);
+                append(when_false, prefix);
+            }
             CheckedScalarStateTerminator::Guarded { arms, fallback } => {
                 let mut prefix = 0;
-                let mut minimum = None;
-                for arm in exits.exits.span_or_empty(*arms) {
+                for arm in exits.exits.span(*arms)? {
                     prefix += self.scalar_at(
                         state,
                         arm.guard_statement_ordinal,
                         CheckedScalarExpressionRole::Guard,
                     );
-                    if let Some(transfers) = self.scalar_destination(state, &arm.destination) {
-                        let transfers = prefix + transfers;
-                        minimum = Some(
-                            minimum.map_or(transfers, |previous: usize| previous.min(transfers)),
-                        );
-                    }
+                    append(&arm.destination, prefix);
                 }
-                if let Some(transfers) = fallback
-                    .as_ref()
-                    .and_then(|fallback| self.scalar_destination(state, fallback))
-                {
-                    let transfers = prefix + transfers;
-                    minimum = Some(minimum.map_or(transfers, |previous| previous.min(transfers)));
+                if let Some(fallback) = fallback {
+                    append(fallback, prefix);
                 }
-                minimum.unwrap_or(0)
             }
-            CheckedScalarStateTerminator::Jump(_) | CheckedScalarStateTerminator::Crash { .. } => 0,
+            CheckedScalarStateTerminator::Jump(edge) => {
+                append(&CheckedScalarBranchDestination::Jump(edge.clone()), 0);
+            }
+            CheckedScalarStateTerminator::Crash { .. } => {}
         }
+        Some(paths)
     }
 
     fn for_producer(

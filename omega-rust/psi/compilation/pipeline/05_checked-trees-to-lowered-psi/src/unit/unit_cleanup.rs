@@ -1,8 +1,8 @@
 //! Structural Unit cleanup lowering.
 //!
 //! Nominal cleanup contracts are prepared with ordinary callable signatures
-//! (`contexts`), then one finalizer installs the checked actions for entries
-//! and called members alike. `ordered` only admits and roots a selected nominal
+//! (`contexts`); the shared completion owner lowers their source-owned actions
+//! for entries and called members alike. `ordered` only roots a selected nominal
 //! entry. Partial-affine cleanup is a return-edge property of an ordinary
 //! body: `finalize_partial_affine_residuals` installs the residual complement
 //! on every emitted machine the partial roster publishes.
@@ -13,10 +13,10 @@
 
 use super::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralTypeShape, LoweringError, MachineId, NominalAffineCleanup, PlaceId,
-    Proposition, ScalarTerm, StructuralAffineDiscard, StructuralTypeId, StructuralTypeShape,
-    TerminalMachine, Terminator, lookup_machine_id, lookup_type_id, lower_structural_path,
-    lower_unit_closure, obligation_id, unsupported,
+    LoweringError, MachineId, NominalAffineCleanup, PlaceId, Proposition, ScalarTerm,
+    StructuralAffineDiscard, StructuralTypeId, StructuralTypeShape, TerminalMachine, Terminator,
+    lookup_machine_id, lookup_type_id, lower_structural_path, lower_unit_closure, obligation_id,
+    unsupported,
 };
 use checked_trees::{CheckedUnitNominalAffineCleanupPlan, CheckedUnitStructuralArgumentSourcePlan};
 use symbols::SymbolHandle;
@@ -148,10 +148,6 @@ pub(crate) fn continuation_cleanups<'a>(
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 cleanup_actions, ..
             } => Some(cleanup_actions),
-            CheckedUnitEffectOperationPlan::Complete {
-                normal_cleanup_actions,
-                ..
-            } => Some(normal_cleanup_actions),
             _ => None,
         })
         .flatten()
@@ -306,52 +302,35 @@ pub(crate) fn computation_cleanups(
 pub(crate) fn selected_cleanups(
     checked: &CheckedTrees,
 ) -> impl Iterator<Item = &CheckedUnitNominalAffineCleanupPlan> {
+    let plans = &checked.facts.flow.terminal_unit_effects;
     let composed_states = || {
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
+        plans
             .composed_machines
             .iter()
             .flat_map(|machine| &machine.states)
     };
     checked
         .facts
-        .flow
-        .terminal_nominal_affine_unit_cleanups
-        .machines
+        .values
+        .scalar_computations
+        .temporary_cleanup_actions
         .iter()
-        .flat_map(|nominal| &nominal.cleanups)
+        .filter_map(|(_, action)| action.nominal())
         .chain(
-            checked
-                .facts
-                .values
-                .scalar_computations
-                .temporary_cleanup_actions
-                .iter()
-                .filter_map(|(_, action)| action.nominal()),
-        )
-        .chain(
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
+            plans
                 .machines
                 .iter()
                 .flat_map(|machine| continuation_cleanups(&machine.operations)),
         )
         .chain(composed_states().flat_map(|state| continuation_cleanups(&state.operations)))
         .chain(
-            composed_states()
-                .flat_map(|state| &state.normal_exit_cleanups)
-                .flat_map(|exit| &exit.actions)
-                .filter_map(|action| match action {
-                    checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
-                        Some(cleanup)
-                    }
-                    checked_trees::CheckedNormalCleanupAction::Discard(_)
-                    | checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => None,
-                }),
+            plans
+                .machines
+                .iter()
+                .map(|machine| machine.normal_exit_cleanups)
+                .chain(composed_states().map(|state| state.normal_exit_cleanups))
+                .flat_map(move |rows| plans.cleanup_control.normal_actions(rows))
+                .filter_map(checked_trees::CheckedNormalCleanupAction::nominal),
         )
 }
 
@@ -533,21 +512,14 @@ pub(crate) fn emit_prepared_cleanup_regions(
     Ok(regions)
 }
 
-/// A nominal consuming member (a seeded `drop<T>` specialization) emitted the
-/// ordinary complete-only body; its return edge still invokes the exact
-/// owner-attached `::drop` hook the roster selected for each parameter. A hook
-/// that keeps a borrowed subject declares an ordinary structural parameter;
-/// its authored parameter name does not select the operand. Retain the
-/// selected hook's nominal owner independently of implicit attachment storage,
-/// then collect its exact receiver place for the edge's loan.
-pub(super) fn finalize_nominal_cleanup_actions(
+/// Retain each selected hook's semantic owner independently of attachment
+/// storage. Its ordinary structural parameter carries the borrowed subject;
+/// this binding neither schedules disposal nor changes captured receiver places.
+pub(super) fn bind_nominal_cleanup_subjects(
     checked: &CheckedTrees,
     machines: &mut [TerminalMachine],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     machine_ids: &[(SymbolHandle, MachineId)],
-    receivers: &[(SymbolHandle, PlaceId)],
-    requirement_counts: &[(SymbolHandle, usize)],
-    next_obligation: &mut u64,
 ) -> Result<(), LoweringError> {
     for cleanup in selected_cleanups(checked) {
         let Ok(target_id) = lookup_machine_id(machine_ids, cleanup.cleanup_machine) else {
@@ -570,122 +542,7 @@ pub(super) fn finalize_nominal_cleanup_actions(
             type_ids,
         )?;
     }
-    for nominal in &checked
-        .facts
-        .flow
-        .terminal_nominal_affine_unit_cleanups
-        .machines
-    {
-        let Ok(terminal_member) = lookup_machine_id(machine_ids, nominal.machine.machine) else {
-            continue;
-        };
-        let member = machines
-            .iter_mut()
-            .find(|member| member.id == terminal_member)
-            .ok_or(LoweringError::Unsupported(
-                "nominal cleanup member was not emitted in the terminal closure",
-            ))?;
-        finalize_nominal_cleanup_machine(
-            nominal,
-            member,
-            type_ids,
-            machine_ids,
-            receivers,
-            requirement_counts,
-            next_obligation,
-        )?;
-    }
     Ok(())
-}
-
-fn finalize_nominal_cleanup_machine(
-    nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
-    machine: &mut TerminalMachine,
-    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
-    machine_ids: &[(SymbolHandle, MachineId)],
-    receivers: &[(SymbolHandle, PlaceId)],
-    requirement_counts: &[(SymbolHandle, usize)],
-    next_obligation: &mut u64,
-) -> Result<(), LoweringError> {
-    let plan = &nominal.machine;
-    if let Some(identity) = plan.attachment_type_identity {
-        lookup_type_id(type_ids, &identity)?;
-    }
-    // Every Unit return of the dispatcher disposes of each parameter through
-    // its selected hook; each edge's actions own their obligation identities.
-    let TerminalMachine {
-        structural_parameters,
-        entry_claims,
-        blocks,
-        ..
-    } = machine;
-    for block in blocks.iter_mut() {
-        let Terminator::ReturnUnit { edge, .. } = block.terminator else {
-            continue;
-        };
-        let cleanups = nominal_cleanup_return_actions(
-            nominal,
-            structural_parameters,
-            entry_claims,
-            machine_ids,
-            receivers,
-            requirement_counts,
-            next_obligation,
-        )?;
-        block.terminator = Terminator::ReturnUnit {
-            edge,
-            cleanup_actions: cleanups
-                .into_iter()
-                .map(terminal_psi::TerminalAffineCleanupAction::InvokeNominal)
-                .collect(),
-        };
-    }
-    Ok(())
-}
-
-/// One return edge's hook invocations, one per cleanup row, each consuming
-/// the entry claims its parameter carries.
-fn nominal_cleanup_return_actions(
-    nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
-    structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
-    entry_claims: &[terminal_psi::EntryClaim],
-    machine_ids: &[(SymbolHandle, MachineId)],
-    receivers: &[(SymbolHandle, PlaceId)],
-    requirement_counts: &[(SymbolHandle, usize)],
-    next_obligation: &mut u64,
-) -> Result<Vec<NominalAffineCleanup>, LoweringError> {
-    let mut cleanups = Vec::with_capacity(nominal.cleanups.len());
-    for cleanup in &nominal.cleanups {
-        let parameter = structural_parameters
-            .get(
-                cleanup
-                    .source_parameter_index()
-                    .ok_or(LoweringError::Unsupported(
-                        "nominal parameter cleanup acquired another source",
-                    ))? as usize,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "nominal cleanup member parameter is absent from its terminal signature",
-            ))?;
-        let mut action = lower_nominal_cleanup_action(
-            cleanup,
-            parameter.place,
-            parameter.structural_type,
-            Vec::new(),
-            machine_ids,
-            receivers,
-            requirement_counts,
-            next_obligation,
-        )?;
-        action.consumed_claims = entry_claims
-            .iter()
-            .filter(|claim| claim.input == parameter.place)
-            .map(|claim| claim.claim)
-            .collect();
-        action.consumed_claims.sort_unstable();
-        cleanups.push(action);
-    }
-    Ok(cleanups)
 }
 
 /// Install the residual complement a partial-affine return edge owes on every

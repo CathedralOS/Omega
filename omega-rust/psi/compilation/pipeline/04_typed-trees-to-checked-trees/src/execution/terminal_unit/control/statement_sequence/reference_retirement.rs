@@ -126,6 +126,17 @@ impl Retirement<'_> {
                     segments: Vec::new(),
                 },
             )?;
+            // A computed owner may contain references without being a
+            // descriptor. Its nominal/linear disposal remains authoritative;
+            // lexical leaf expiry cannot retire a hook's receiver contents.
+            if !validation::has_contents(
+                self.program,
+                reference,
+                &[],
+                validation::ContentsRequirement::DescriptorCleanup,
+            ) {
+                continue;
+            }
             for (source, loans) in validation::reference_result_custody::storage_place_loans(
                 self.program,
                 self.facts,

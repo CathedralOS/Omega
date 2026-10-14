@@ -4,8 +4,10 @@
 // inline construction, a named local, a construction holding a moved local
 // beside a fresh member, and a nested call's anonymous linear result.
 use omega::language::core::drop;
+use omega::language::core::binding;
+data Main { settlement: Binding<BoundarySettlement>; }
 
-data Receipt [linear] { code: i32; }
+pub data Receipt [linear] { code: i32; }
 
 machine Receipt::drop(receipt: &mut Receipt) {}
 
@@ -19,55 +21,61 @@ trait Settlement<T> {
     machine settle(prefix: i32, value: T, suffix: i32) -> i32;
 }
 
-boundary trait BoundarySettlement {
+pub boundary trait BoundarySettlement {
     machine settle(prefix: i32, value: Receipt, suffix: i32) -> i32;
 }
 
-BoundarySettler satisfies BoundarySettlement {
-    machine settle(prefix: i32, value: Receipt, suffix: i32) -> i32 {
-        let code: i32 = consume(value);
+BoundarySettler satisfies BoundarySettlement { BoundarySettlement::settle = settle_boundary_settler; }
+machine settle_boundary_settler(prefix: i32, value: Receipt, suffix: i32) -> i32
+satisfies BoundarySettlement::settle
+{
+    let code: i32 = consume(value);
         (((prefix as i32 in Wrapping) + (code as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
-    }
 }
 
-Observed satisfies Settlement<Receipt> {
-    machine settle(prefix: i32, value: Receipt, suffix: i32) -> i32 {
-        let code: i32 = value.code;
+Observed satisfies Settlement<Receipt> { Settlement::settle = settle_observed; }
+machine settle_observed(prefix: i32, value: Receipt, suffix: i32) -> i32
+satisfies Settlement<Receipt>::settle
+{
+    let code: i32 = value.code;
         drop(value);
         (((prefix as i32 in Wrapping) + (code as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
-    }
 }
 
-Scaled satisfies Settlement<Receipt> {
-    machine settle(prefix: i32, value: Receipt, suffix: i32) -> i32 {
-        let code: i32 = value.code;
+Scaled satisfies Settlement<Receipt> { Settlement::settle = settle_scaled; }
+machine settle_scaled(prefix: i32, value: Receipt, suffix: i32) -> i32
+satisfies Settlement<Receipt>::settle
+{
+    let code: i32 = value.code;
         drop(value);
         (((prefix as i32 in Wrapping) + ((code as i32 in Wrapping) * (10 as i32 in Wrapping))) + (suffix as i32 in Wrapping)) as i32
-    }
 }
 
-Paired satisfies Settlement<Pair> {
-    machine settle(prefix: i32, value: Pair, suffix: i32) -> i32 {
-        let left: Receipt = value.left;
+Paired satisfies Settlement<Pair> { Settlement::settle = settle_paired; }
+machine settle_paired(prefix: i32, value: Pair, suffix: i32) -> i32
+satisfies Settlement<Pair>::settle
+{
+    let left: Receipt = value.left;
         let right: Receipt = value.right;
         let total: i32 = ((left.code as i32 in Wrapping) + (right.code as i32 in Wrapping)) as i32;
         drop(left);
         drop(right);
         (((prefix as i32 in Wrapping) + (total as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
-    }
 }
 
-Chosen satisfies Settlement<Choice> {
-    machine settle(prefix: i32, value: Choice, suffix: i32) -> i32 {
-        let code: i32 = consume_choice(value);
+Chosen satisfies Settlement<Choice> { Settlement::settle = settle_chosen; }
+machine settle_chosen(prefix: i32, value: Choice, suffix: i32) -> i32
+satisfies Settlement<Choice>::settle
+{
+    let code: i32 = consume_choice(value);
         (((prefix as i32 in Wrapping) + (code as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
-    }
 }
 
-Copied satisfies Settlement<Sample> {
-    machine settle(prefix: i32, value: Sample, suffix: i32) -> i32 {
-        (((prefix as i32 in Wrapping) + (value.code as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
-    }
+Copied satisfies Settlement<Sample> { Settlement::settle = settle_copied; }
+machine settle_copied(prefix: i32, value: Sample, suffix: i32) -> i32
+satisfies Settlement<Sample>::settle
+{
+    (((prefix as i32 in Wrapping) + (value.code as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
 }
 
 machine replace_sample(sample: &mut Sample) -> i32 {
@@ -86,8 +94,8 @@ machine dispatch(selected: dyn Settlement<Receipt>, receipt: Receipt) -> i32 {
     ((Settlement::settle(selected, 2, receipt, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32
 }
 
-machine boundary_dispatch(receipt: Receipt) -> i32 reaches BoundarySettlement {
-    ((BoundarySettlement::settle(2, receipt, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32
+machine boundary_dispatch(authority: &Binding<BoundarySettlement>, receipt: Receipt) -> i32 reaches BoundarySettlement {
+    ((BoundarySettlement::settle(authority, 2, receipt, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32
 }
 
 machine make(code: i32) -> Receipt {
@@ -128,7 +136,7 @@ machine settle_array(receipts: [Receipt; 2]) -> i32 {
     total
 }
 
-machine main() reaches BoundarySettlement crashes Trap {
+machine Main::main(main: &mut Main) reaches BoundarySettlement crashes Trap {
     let inline: i32 = ((consume(Receipt { code: 5 }) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
     let local: Receipt = Receipt { code: 4 };
     let named: i32 = ((consume(local) as i32 in Wrapping) + (2 as i32 in Wrapping)) as i32;
@@ -158,12 +166,12 @@ machine main() reaches BoundarySettlement crashes Trap {
     verify(Settlement::settle(selected, 2, make(1), 3) == 15);
     // Boundary calls bind the same caller claims as completion receipts, even
     // inside another call's argument or a retained scalar helper's body.
-    let boundary_inline: i32 = ((BoundarySettlement::settle(2, Receipt { code: 7 }, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
+    let boundary_inline: i32 = ((BoundarySettlement::settle(&main.settlement, 2, Receipt { code: 7 }, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
     let boundary_named_owner: Receipt = make(8);
-    let boundary_named: i32 = ((BoundarySettlement::settle(2, boundary_named_owner, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
-    let boundary_forwarded: i32 = boundary_dispatch(make(9));
+    let boundary_named: i32 = ((BoundarySettlement::settle(&main.settlement, 2, boundary_named_owner, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
+    let boundary_forwarded: i32 = boundary_dispatch(&main.settlement, make(9));
     let boundary_pair: Pair = Pair { left: make(10), right: make(11) };
-    verify(BoundarySettlement::settle(2, boundary_pair.left, 3) == 15);
+    verify(BoundarySettlement::settle(&main.settlement, 2, boundary_pair.left, 3) == 15);
     let boundary_sibling: i32 = consume(boundary_pair.right);
     verify(inline == 6 && named == 6 && paired == 16 && nested == 8 && produced == 20 && array == 15
         && observed == 13 && scaled == 76 && multi_claim == 15 && projection == 66 && sibling == 8

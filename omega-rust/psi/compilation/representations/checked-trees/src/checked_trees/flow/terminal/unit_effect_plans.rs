@@ -336,12 +336,6 @@ pub enum CheckedUnitEffectOperationPlan {
     /// binding or scalar control result when present, and Unit otherwise.
     Complete {
         statement_index: u32,
-        /// Checked normal-edge storage dispositions, including nominal hooks
-        /// and linear claims. These retain the owner's selected action order.
-        normal_cleanup_actions: Vec<crate::CheckedNormalCleanupAction>,
-        /// Exact candidate owners whose cleanup follows the selected live
-        /// frontier, with the same meaning as normal-edge `selected_regions`.
-        selected_normal_cleanup_regions: Vec<CheckedUnitStructuralArgumentPlan>,
         /// Exact local declaration coordinates cleaned before parameters, in
         /// reverse declaration order.
         trivial_affine_local_discard_ordinals: Vec<u32>,
@@ -547,8 +541,6 @@ impl Default for CheckedStructuralValueCall {
             operands: CheckedOperandSequence::default(),
             operation: CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 0,
-                normal_cleanup_actions: Vec::new(),
-                selected_normal_cleanup_regions: Vec::new(),
                 trivial_affine_local_discard_ordinals: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
@@ -856,6 +848,8 @@ pub struct CheckedUnitParameterStoragePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitEffectMachinePlan {
+    /// Source-owned normal exits, selected individually by scalar control completion.
+    pub normal_exit_cleanups: arena::HandleSpan<super::CheckedNormalExitCleanupPlan>,
     /// Final ordinary scalar binding, mutually exclusive with the other completions.
     pub scalar_result: Option<CheckedUnitScalarResultBindingPlan>,
     /// Scalar control completion, mutually exclusive with either result binding.

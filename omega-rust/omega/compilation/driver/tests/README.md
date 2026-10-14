@@ -59,6 +59,15 @@ publication. A same-target native refusal records unchecked without running Buil
 again. The check golden's canonical target and a different runtime target are
 distinct program inputs and each owns one production.
 
+For target installations whose entry carries hosted context or service bindings,
+`terminal_target_provisions.txt` may contain `compiled-application`. This trusted
+fixture configuration requests one ordinary compilation cohort for the host and
+the authored target roster. Each target supplies only its own actual admitted
+runtime provisions, and every report must retain the same canonical Terminal
+artifact. No foreign image is executed by this option; the observations are
+Terminal executions. It grants no domain exit, clock or input authority. Without
+this option target installations remain artifact-only and refuse missing roots.
+
 An optional `expected_terminal_targets.txt` requests exact target installations
 against one retained Terminal artifact. Each nonempty line contains one unique
 target tag followed by a decimal i32 exit or `trap`, for example:

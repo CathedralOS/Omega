@@ -64,32 +64,32 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
     via exit_process_binding();
 
-data Token { ready: bool; byte: i32; }
+data Token { console: &Binding<Console>; ready: bool; byte: i32; }
 
 machine Token::drop(token: &mut Token)
 requires token.ready
 reaches Console
 {
-    Console::write_byte(token.byte);
+    Console::write_byte(token.console, token.byte);
     token.ready = false;
 }
 
-machine outgoing(byte: i32) -> i32 reaches Console {
-    Console::write_byte(88);
+machine outgoing(console: &Binding<Console>, byte: i32) -> i32 reaches Console {
+    Console::write_byte(console, 88);
     byte
 }
 
 // The selected return evaluates its result before disposing locals. The caller
 // observes that captured result only after both hooks complete.
-machine choose(first_path: bool) -> i32 reaches Console {
-    transition { _ -> finish(first_path) }
+machine choose(console: &Binding<Console>, first_path: bool) -> i32 reaches Console {
+    transition { _ -> finish(console, first_path) }
 
-    state finish(first_path: bool) {
-        let first: Token = Token { ready: true, byte: 65 };
-        let second: Token = Token { ready: true, byte: 66 };
+    state finish(console: &Binding<Console>, first_path: bool) {
+        let first: Token = Token { console: console, ready: true, byte: 65 };
+        let second: Token = Token { console: console, ready: true, byte: 66 };
         transition first_path {
-            true -> (outgoing(67))
-            _ -> (outgoing(68))
+            true -> (outgoing(console, 67))
+            _ -> (outgoing(console, 68))
         }
     }
 }
@@ -100,19 +100,19 @@ machine consume(token: Token, byte: i32) -> i32
 requires token.ready
 reaches Console
 {
-    Console::write_byte(88);
+    Console::write_byte(token.console, 88);
     byte
 }
 
-machine choose_consuming(first_path: bool) -> i32 reaches Console {
-    transition { _ -> finish(first_path) }
+machine choose_consuming(console: &Binding<Console>, first_path: bool) -> i32 reaches Console {
+    transition { _ -> finish(console, first_path) }
 
-    state finish(first_path: bool) {
-        let first: Token = Token { ready: true, byte: 65 };
-        let second: Token = Token { ready: true, byte: 66 };
+    state finish(console: &Binding<Console>, first_path: bool) {
+        let first: Token = Token { console: console, ready: true, byte: 65 };
+        let second: Token = Token { console: console, ready: true, byte: 66 };
         transition first_path {
             true -> (consume(second, 67))
-            _ -> (outgoing(68))
+            _ -> (outgoing(console, 68))
         }
     }
 }
@@ -121,12 +121,12 @@ data Choice { case Empty; case Some(value: i32); }
 
 // The marker is established between the candidate owners. Selection transports
 // its home, while only one scalar return consumes it as an operand.
-machine choose_selected(first_path: bool) -> i32 reaches Console {
-    transition { _ -> finish(first_path) }
+machine choose_selected(console: &Binding<Console>, first_path: bool) -> i32 reaches Console {
+    transition { _ -> finish(console, first_path) }
 
-    state finish(first_path: bool) {
+    state finish(console: &Binding<Console>, first_path: bool) {
         let left: Choice = Choice::Some { value: 67 };
-        let marker: Token = Token { ready: true, byte: 65 };
+        let marker: Token = Token { console: console, ready: true, byte: 65 };
         let right: Choice = Choice::Empty;
         let selected: Choice = match first_path {
             true -> left,
@@ -134,7 +134,7 @@ machine choose_selected(first_path: bool) -> i32 reaches Console {
         };
         transition selected in Choice::Some {
             true -> (consume(marker, 67))
-            _ -> (outgoing(68))
+            _ -> (outgoing(console, 68))
         }
     }
 }
@@ -142,11 +142,11 @@ machine choose_selected(first_path: bool) -> i32 reaches Console {
 data Payload { case First(value: i32); case Second(value: i32); }
 
 // The result is bound by the chosen case, then kept across nominal cleanup.
-machine choose_payload(payload: &Payload) -> i32 reaches Console {
-    transition { _ -> finish(payload) }
+machine choose_payload(console: &Binding<Console>, payload: &Payload) -> i32 reaches Console {
+    transition { _ -> finish(console, payload) }
 
-    state finish(payload: &Payload) {
-        let marker: Token = Token { ready: true, byte: 65 };
+    state finish(console: &Binding<Console>, payload: &Payload) {
+        let marker: Token = Token { console: console, ready: true, byte: 65 };
         transition payload {
             Payload::First { value } -> (value)
             Payload::Second { value } -> (value)
@@ -155,23 +155,23 @@ machine choose_payload(payload: &Payload) -> i32 reaches Console {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let first: i32 = choose(true);
-    main.console.write_byte(first);
-    let second: i32 = choose(false);
-    main.console.write_byte(second);
-    let consumed: i32 = choose_consuming(true);
-    main.console.write_byte(consumed);
-    let retained: i32 = choose_consuming(false);
-    main.console.write_byte(retained);
-    let selected: i32 = choose_selected(true);
-    main.console.write_byte(selected);
-    let unselected: i32 = choose_selected(false);
-    main.console.write_byte(unselected);
+    let first: i32 = choose(&main.console, true);
+    Console::write_byte(&main.console, first);
+    let second: i32 = choose(&main.console, false);
+    Console::write_byte(&main.console, second);
+    let consumed: i32 = choose_consuming(&main.console, true);
+    Console::write_byte(&main.console, consumed);
+    let retained: i32 = choose_consuming(&main.console, false);
+    Console::write_byte(&main.console, retained);
+    let selected: i32 = choose_selected(&main.console, true);
+    Console::write_byte(&main.console, selected);
+    let unselected: i32 = choose_selected(&main.console, false);
+    Console::write_byte(&main.console, unselected);
     let left: Payload = Payload::First { value: 69 };
-    let left_value: i32 = choose_payload(&left);
-    main.console.write_byte(left_value);
+    let left_value: i32 = choose_payload(&main.console, &left);
+    Console::write_byte(&main.console, left_value);
     let right: Payload = Payload::Second { value: 70 };
-    let right_value: i32 = choose_payload(&right);
-    main.console.write_byte(right_value);
-    main.console.write_byte(10);
+    let right_value: i32 = choose_payload(&main.console, &right);
+    Console::write_byte(&main.console, right_value);
+    Console::write_byte(&main.console, 10);
 }

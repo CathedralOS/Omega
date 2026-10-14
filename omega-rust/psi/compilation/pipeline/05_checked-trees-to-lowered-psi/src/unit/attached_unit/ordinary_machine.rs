@@ -459,7 +459,7 @@ pub(super) fn emit(
         mut evaluation,
         mut scalar_result_values,
         primitive_local_places,
-        mut structural_result_places,
+        structural_result_places,
         local_places,
         mut private_places,
         next_literal_argument,
@@ -549,33 +549,100 @@ pub(super) fn emit(
         });
         next_value = next_value_identity;
         (None, None)
-    } else {
-        let controlled_result = if let Some(control) = &plan.scalar_control {
-            // Prefix values and structural locals are already established. The
-            // completion adds only the selected guard/arm evaluation and join.
-            scalar_calls.next_obligation_identity = next_call_obligation;
-            let result = evaluation.scalar_control_result(
-                identities,
-                checked,
-                plan.machine,
-                plan.state,
-                control,
-                &[],
-                &mut scalar_result_values,
-                &mut next_value_identity,
-                &mut next_block,
-                &mut next_edge,
-                &mut operations,
-                &mut scalar_calls,
-            )?;
-            next_call_obligation = scalar_calls.next_obligation_identity;
-            Some(result)
-        } else {
-            None
-        };
+    } else if let Some(control) = &plan.scalar_control {
+        // Each selected return owns its checked exit transaction. No cleanup
+        // is reconstructed from entry multiplicity or repeated at the join.
+        scalar_calls.next_obligation_identity = next_call_obligation;
         let Some(CheckedUnitEffectOperationPlan::Complete {
-            normal_cleanup_actions,
-            selected_normal_cleanup_regions,
+            trivial_affine_local_discard_ordinals,
+            ..
+        }) = plan.operations.last()
+        else {
+            return unsupported("scalar control sequence has no checked completion plan");
+        };
+        let trivial_affine_discards = trivial_affine_local_discard_ordinals
+            .iter()
+            .map(|ordinal| {
+                local_places
+                    .get(*ordinal as usize)
+                    .map(|local| local.id)
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar control local cleanup ordinal is not dense",
+                    ))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let claim_bindings = scalar_calls.claims.bindings().to_vec();
+        let mut cleanup_catalog = super::completion_cleanup::CompletionCleanupCatalog {
+            control: &checked.facts.flow.terminal_unit_effects.cleanup_control,
+            types: structural_types,
+            type_ids,
+            calls: &mut scalar_calls,
+        };
+        let cleanups = super::completion_cleanup::scalar_returns(
+            identities,
+            &claim_bindings,
+            checked,
+            super::completion_cleanup::NormalExitSource {
+                cleanups: checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .cleanup_control
+                    .normal_exits(plan.normal_exit_cleanups),
+                trivial_affine_discards: &trivial_affine_discards,
+                operations: &plan.operations,
+                parameters: &plan.structural_parameters,
+            },
+            control,
+            &mut cleanup_catalog,
+            parameters,
+            &evaluation,
+            &operations,
+        )?;
+        let source = evaluation.scalar_control_result(
+            identities,
+            checked,
+            plan.machine,
+            plan.state,
+            control,
+            &cleanups,
+            &mut scalar_result_values,
+            &mut next_value_identity,
+            &mut next_block,
+            &mut next_edge,
+            &mut operations,
+            &mut scalar_calls,
+        )?;
+        next_call_obligation = scalar_calls.next_obligation_identity;
+        let declaration = ValueDeclaration {
+            qualifications: super::parameters::unit_scalar_result_type(
+                checked,
+                plan.state,
+                source.scalar_type,
+                prepared_scalar_qualifications,
+            )?
+            .qualifications,
+            id: value_id(allocate_dense(&mut next_value_identity)?),
+            scalar_type: source.scalar_type,
+        };
+        next_value = next_value_identity;
+        evaluation.remap_transported_call_operands(&mut operations);
+        evaluation.blocks.push(Block {
+            id: evaluation.current,
+            parameters: evaluation.parameters,
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: evaluation.block_structural_parameters,
+            operations: operations[evaluation.operation_start..].to_vec(),
+            terminator: Terminator::Return {
+                edge: edge_id(allocate_dense(&mut next_edge)?),
+                value: source.id,
+                cleanup_actions: Vec::new(),
+            },
+        });
+        (Some((source.id, declaration)), None)
+    } else {
+        let Some(CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
             ..
@@ -584,6 +651,10 @@ pub(super) fn emit(
             return Err(LoweringError::Unsupported(
                 "returning Unit sequence has no checked completion plan",
             ));
+        };
+        let cleanup_control = &checked.facts.flow.terminal_unit_effects.cleanup_control;
+        let [normal_exit] = cleanup_control.normal_exits(plan.normal_exit_cleanups) else {
+            return unsupported("ordinary sequence return has no unique source cleanup coordinate");
         };
         let local_discards = trivial_affine_local_discard_ordinals.iter().map(|ordinal| {
             local_places
@@ -631,57 +702,30 @@ pub(super) fn emit(
         // authority: reference descriptors can owe affine retirement without
         // an owned-storage StateExit row. Only an actual contextual action
         // replaces their independently recorded production cleanup.
-        let results = StructuralResults::Dense(&mut structural_result_places);
-        let normal_regions = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
-            identities,
-            checked,
-            crate::unit::unit_cleanup::outstanding_actions(
-                normal_cleanup_actions,
-                &plan.operations,
-                &plan.structural_parameters,
-            ),
-            selected_normal_cleanup_regions,
-            &checked.facts.flow.terminal_unit_effects.cleanup_control,
-            structural_types,
+        let claim_bindings = scalar_calls.claims.bindings().to_vec();
+        let mut cleanup_catalog = super::completion_cleanup::CompletionCleanupCatalog {
+            control: cleanup_control,
+            types: structural_types,
             type_ids,
-            |identities, source, path| {
-                let mut storage = evaluation.cleanup_storage(source, parameters, |binding| {
-                    results.cleanup_value(binding, &operations)
-                })?;
-                storage.path.extend(crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                    identities, path, storage.selected_type, structural_types, None, &mut std::iter::empty(), None,
-                )?);
-                Ok((storage.place, storage.path))
-            },
-            |cleanup, place, structural_type, path| {
-                let mut action = crate::unit::unit_cleanup::lower_nominal_cleanup_action(
-                    cleanup,
-                    place,
-                    structural_type,
-                    path,
-                    scalar_calls.machine_ids,
-                    scalar_calls.cleanup_receivers,
-                    scalar_calls.requirement_counts,
-                    &mut scalar_calls.next_obligation_identity,
-                )?;
-                crate::unit::unit_cleanup::bind_consumed_claims(
-                    &mut action,
-                    &cleanup.consumed_claims,
-                    scalar_calls.claims.bindings(),
-                )?;
-                Ok(action)
-            },
-        )?;
-        // A projected owned alias row owns no place: its storage is the root's,
-        // which keeps its own row and its own residual schedule.
-        let normal_regions = crate::unit::unit_cleanup::lower_reference_completion_regions(
+            calls: &mut scalar_calls,
+        };
+        let normal_regions = super::completion_cleanup::for_exit_regions(
             identities,
-            &plan.operations,
-            normal_regions,
+            &claim_bindings,
+            checked,
+            super::completion_cleanup::NormalExitSource {
+                cleanups: cleanup_control.normal_exits(plan.normal_exit_cleanups),
+                // Existing local eligibility keeps its establishment order
+                // in the ordinary completion roster below.
+                trivial_affine_discards: &[],
+                operations: &plan.operations,
+                parameters: &plan.structural_parameters,
+            },
+            normal_exit.exit,
+            &mut cleanup_catalog,
             parameters,
             &evaluation,
             &operations,
-            |binding| results.cleanup_value(binding, &operations),
         )?;
         let mut selection_roster = structural_result_places
             .iter()
@@ -768,22 +812,6 @@ pub(super) fn emit(
                 ))
             })
             .transpose()?;
-        if let Some(source) = controlled_result {
-            scalar_return = Some((
-                source.id,
-                ValueDeclaration {
-                    qualifications: super::parameters::unit_scalar_result_type(
-                        checked,
-                        plan.state,
-                        source.scalar_type,
-                        prepared_scalar_qualifications,
-                    )?
-                    .qualifications,
-                    id: value_id(allocate_dense(&mut next_value_identity)?),
-                    scalar_type: source.scalar_type,
-                },
-            ));
-        }
         // Completion reserves its own scalar result identity after the body.
         // Include it before the next helper borrows the shared value allocator.
         next_value = next_value_identity;
@@ -868,13 +896,6 @@ pub(super) fn emit(
             // again. Structural completion accepts whole owned sources only;
             // projected aliases were rejected above, and the checked partition
             // excludes the returned owner from disposal.
-            if let Some(value) = controlled_result
-                && !scalar_result_values
-                    .iter()
-                    .any(|candidate| candidate.id == value.id)
-            {
-                scalar_result_values.push(value);
-            }
             let return_position = scalar_return
                 .as_ref()
                 .map(|(source, _)| {

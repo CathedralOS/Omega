@@ -6,6 +6,8 @@
 // return 65.
 
 use omega_language_std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
 
 machine pair_sum(numbers: &[i32; 6], first: u64, second: u64) -> i32
 requires first < 6
@@ -27,19 +29,19 @@ requires second < 6 {
     }
 }
 
-machine main() reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let numbers: [i32; 6] = [4, 15, 8, 42, 16, 23];
     let total: i32 = pair_sum(&numbers, 3, 5);
     transition total == 65 {
-        true -> done()
-        _ -> refused(71)
+        true -> done(&main.console)
+        _ -> refused(&main.console, 71)
     }
 
-    state done() {
-        Console::exit_process(70);
+    state done(console: &Binding<Console>) {
+        Console::exit_process(console, 70);
     }
 
-    state refused(code: i32) {
-        Console::exit_process(code);
+    state refused(console: &Binding<Console>, code: i32) {
+        Console::exit_process(console, code);
     }
 }

@@ -239,9 +239,24 @@ pub fn discard_staged_snapshots(still_live: usize) {
 /// Where a fixture sits inside the repository: the path both a snapshot and a
 /// staging directory are keyed by, so one fixture's two private directories
 /// are named the same way and a concurrent worker can never collide with it.
-fn relative_fixture_path<'root>(repository_root: &Path, authored_root: &'root Path) -> &'root Path {
+fn relative_fixture_path(repository_root: &Path, authored_root: &Path) -> PathBuf {
+    // Dependency acquisition canonicalizes its roots. Compare both physical
+    // roots in that same namespace, including Windows verbatim prefixes and
+    // symlink resolution, before deriving a private staging location.
+    let repository_root = fs::canonicalize(repository_root).unwrap_or_else(|error| {
+        panic!(
+            "repository root {} cannot be resolved: {error}",
+            repository_root.display()
+        )
+    });
+    let authored_root = fs::canonicalize(authored_root).unwrap_or_else(|error| {
+        panic!(
+            "fixture root {} cannot be resolved: {error}",
+            authored_root.display()
+        )
+    });
     authored_root
-        .strip_prefix(repository_root)
+        .strip_prefix(&repository_root)
         .unwrap_or_else(|_| {
             panic!(
                 "fixture root {} is not inside the repository at {}",
@@ -249,6 +264,7 @@ fn relative_fixture_path<'root>(repository_root: &Path, authored_root: &'root Pa
                 repository_root.display()
             )
         })
+        .to_path_buf()
 }
 
 fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {

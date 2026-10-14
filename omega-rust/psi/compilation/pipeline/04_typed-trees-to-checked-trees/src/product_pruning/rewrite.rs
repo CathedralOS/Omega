@@ -224,7 +224,7 @@ fn apply_fact_pruning(
         .flow
         .terminal_nominal_affine_unit_cleanups
         .machines
-        .retain(|row| retained.contains(&row.machine.machine));
+        .retain(|row| retained.contains(&row.machine));
     facts
         .flow
         .terminal_structural_control_cleanups

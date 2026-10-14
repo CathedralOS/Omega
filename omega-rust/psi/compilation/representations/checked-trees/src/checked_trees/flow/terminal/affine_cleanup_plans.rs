@@ -17,6 +17,28 @@ use typed_trees::type_identity::TypeIdentityId;
 pub struct CheckedCleanupControlPlans {
     pub conditions: arena::Arena<CheckedCleanupCaseCondition>,
     pub paths: arena::Arena<CheckedUnitStructuralPathSegment>,
+    /// One durable owner for sequence and graph normal completion transactions.
+    pub normal_exit_rows: arena::Arena<CheckedNormalExitCleanupPlan>,
+    pub normal_exit_actions: arena::Arena<CheckedNormalCleanupAction>,
+    pub normal_exit_regions: arena::Arena<super::CheckedUnitStructuralArgumentPlan>,
+}
+
+impl CheckedCleanupControlPlans {
+    pub fn normal_exits(
+        &self,
+        rows: arena::HandleSpan<CheckedNormalExitCleanupPlan>,
+    ) -> &[CheckedNormalExitCleanupPlan] {
+        self.normal_exit_rows.span_or_empty(rows)
+    }
+
+    pub fn normal_actions(
+        &self,
+        rows: arena::HandleSpan<CheckedNormalExitCleanupPlan>,
+    ) -> impl Iterator<Item = &CheckedNormalCleanupAction> {
+        self.normal_exits(rows)
+            .iter()
+            .flat_map(|row| self.normal_exit_actions.span_or_empty(row.actions))
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -88,11 +110,9 @@ pub struct CheckedPartialAffineUnitCleanupMachinePlan {
     pub residual_affine_discards: Vec<CheckedUnitPartialAffineDiscardPlan>,
 }
 
-/// Checked-only carrier for the first whole-root nominal-cleanup slice. Its
-/// machines are intentionally separate from `CheckedUnitEffectPlans`: a
-/// nominal cleanup is executable edge work and must never be reinterpreted as
-/// a trivial affine discard by an older terminal producer. The shapes they
-/// name live in that roster's one structural type namespace.
+/// Declaration metadata for nominal cleanup callers. Executable actions and
+/// their source exit coordinates belong to `CheckedUnitEffectPlans`' shared
+/// cleanup owner; this catalogue never owns a competing body or action stream.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedNominalAffineUnitCleanupPlans {
     pub machines: Vec<CheckedNominalAffineUnitCleanupMachinePlan>,
@@ -103,23 +123,19 @@ impl CheckedNominalAffineUnitCleanupPlans {
         &self,
         machine: SymbolHandle,
     ) -> Option<&CheckedNominalAffineUnitCleanupMachinePlan> {
-        self.machines
-            .iter()
-            .find(|plan| plan.machine.machine == machine)
+        self.machines.iter().find(|plan| plan.machine == machine)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedNominalAffineUnitCleanupMachinePlan {
-    /// Exact ordinary Unit signature and return edge. Both trivial-discard
-    /// lists are empty; `cleanups` is the complete reverse-parameter-order
-    /// disposal list committed by the edge.
-    pub machine: CheckedUnitEffectMachinePlan,
-    /// Complete canonical direct-Boolean caller requirement set at the sole
-    /// return edge. Cleanup-local requirements select subsets of this set by
-    /// `source_parameter_index`.
+    /// Declaration metadata only. The published body and its normal-exit spans
+    /// stay in CheckedUnitEffectPlans; this catalogue owns no disposal stream.
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub attachment_type_identity: Option<TypeIdentityId>,
+    /// Direct source caller prerequisites consumed by ordinary signature lowering.
     pub caller_requirements: Vec<CheckedUnitNominalAffineCallerRequirementPlan>,
-    pub cleanups: Vec<CheckedUnitNominalAffineCleanupPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -284,12 +300,12 @@ impl CheckedUnitNominalAffineCleanupPlan {
 
 /// Exact source outgoing coordinate, including the selected continuation arm.
 /// These actions consume retained custody; they never establish entry premises.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedNormalExitCleanupPlan {
     /// Candidate owners retained by source checking across selected transfers.
     /// Their ordered actions run only where the exact emitted occurrence remains
     /// live at this death edge; this roster grants no transfer or birth authority.
-    pub selected_regions: Vec<super::CheckedUnitStructuralArgumentPlan>,
+    pub selected_regions: arena::HandleSpan<super::CheckedUnitStructuralArgumentPlan>,
     pub exit: crate::FlowClaimJoinExit,
-    pub actions: Vec<CheckedNormalCleanupAction>,
+    pub actions: arena::HandleSpan<CheckedNormalCleanupAction>,
 }

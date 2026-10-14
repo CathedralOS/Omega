@@ -2,10 +2,10 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "linear_computed_call_claim_transfers_exit");
     Build::select_provider<BoundarySettlement, BoundarySettler>(builder);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
     // Keep the independent optimizer contract and live-frontier checks in
     // the regression, in addition to native and Terminal execution.
     Optimizations::enable(&mut builder.optimizations, Optimization::CopyPropagation);

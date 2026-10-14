@@ -122,7 +122,12 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   natural-ranked and unranked graphs keep their custody, and cyclic
   components stay frozen under optimization. No countdown-only fallback.
   Changing-reference transfers additionally need represented loans/aliasing and
-  ranking substitution; a fixed-referent witness does not close them.
+  ranking substitution. Keep
+  `pass/control_flow/runtime_cyclic_reference_and_claim_rotation_exit` for
+  changing projected references, call-returned linear claims, affine residuals
+  and borrowed backing, with selected scalar-return cleanup after claim
+  consumption. Its portable Terminal target roster does not replace
+  the native host or resource qualification below.
   Acceptance: a corpus fixture executes the composed ranked call natively on
   linux_x86_64 and linux_arm64 with the correct projection, referent,
   arguments, return and cleanup; iterations add no frames (the outer call may

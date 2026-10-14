@@ -48,7 +48,6 @@ pub(super) fn lower(
                             Multiplicity::Affine | Multiplicity::Linear
                         )
                 )
-                || parameter.binding_carrier.is_some()
             {
                 return unsupported("computed borrow disagrees with its callee referent custody");
             }

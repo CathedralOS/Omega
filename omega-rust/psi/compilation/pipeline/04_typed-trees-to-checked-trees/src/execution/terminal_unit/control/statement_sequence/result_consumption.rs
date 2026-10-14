@@ -148,17 +148,13 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
         _ => operation.call().and_then(|call| {
             let custody = call.structural_custody()?;
             let result = call.structural_result()?;
-            (!custody.reference_loans.is_empty()
-                || program
-                    .state_by_symbol(call.target.state)
-                    .is_some_and(|target| {
-                        validation::reference_result_custody::stored_loan_parts(
-                            program,
-                            target.return_type,
-                        )
-                        .is_some()
-                    }))
-            .then_some((result, custody.reference_loans))
+            // Reference inputs retained below an owned result do not make
+            // that owner a descriptor. Its ordinary disposition still owns
+            // hooks and descendants; only a reference-shaped result has one
+            // whole descriptor release.
+            validation::call_target_return_type(program, call.target.state)
+                .is_some_and(|returned| validation::reference_shell(program, returned).is_some())
+                .then_some((result, custody.reference_loans))
         }),
     }
 }
@@ -340,6 +336,17 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 && loan.statement_index != result.statement_index as usize
                 && loan.statement_index < statement_index as usize
         }) {
+            continue;
+        }
+        // Early descriptor expiry may retire only cleanup-free contents.
+        // A nominal owner or descendant keeps its references for the checked
+        // normal-disposal transaction, including the hook's receiver borrow.
+        if !validation::has_contents(
+            program,
+            local.type_reference,
+            &[],
+            validation::ContentsRequirement::DescriptorCleanup,
+        ) {
             continue;
         }
         let Some(boundary) = validation::reference_result_custody::whole_local_release_boundary(

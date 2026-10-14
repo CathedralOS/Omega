@@ -968,7 +968,11 @@ impl StateGraphEmission<'_, '_> {
             } => Some(Vec::new()),
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
             | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
-                let [cleanup] = state.normal_exit_cleanups.as_slice() else {
+                let [cleanup] = self
+                    .catalogs
+                    .cleanup_control
+                    .normal_exits(state.normal_exit_cleanups)
+                else {
                     return unsupported("ordinary return has no unique source cleanup coordinate");
                 };
                 let mut regions = super::super::cleanup::for_exit_regions(

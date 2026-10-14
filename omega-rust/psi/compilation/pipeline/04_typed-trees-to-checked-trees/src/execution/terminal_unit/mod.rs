@@ -10,8 +10,9 @@
 //! test-only form without call frames). It also publishes the partial-affine
 //! roster: an ordinary body whose return edge owes a projected owned
 //! parameter's residual complement is the same candidate kept beside those
-//! rows, and a callee like any other. The nominal cleanup roster is built
-//! separately by `build_checked_nominal_affine_unit_cleanup_plans`. We first collect boundary
+//! rows, and a callee like any other. Nominal caller metadata is built after
+//! body publication; it cannot replace that body's cleanup coordinates.
+//! We first collect boundary
 //! signatures and ordinary single-state candidates through control.rs. A
 //! single-state body has one producer: control/statement_sequence.rs walks the
 //! authored statements in order and emits each one's operations — stores,
@@ -44,8 +45,9 @@
 //! builders still return `Option`; the construction trace names the phase
 //! and statement where they stopped.
 //!
-//! Partial and nominal cleanup retain separate plan owners because their
-//! residual fields and destructor obligations cannot become trivial root discards.
+//! Partial cleanup retains its residual body owner. Nominal actions remain
+//! distinct from trivial discards in the shared normal-exit transaction;
+//! their caller metadata owns no second executable body or disposal schedule.
 //! Replacement joins those same selected dispositions into the statement's
 //! operation stream: evaluate the RHS, dispose the old occurrence, then store
 //! or rebind. `cleanup/replacements.rs` completes the death marker from source
@@ -120,15 +122,15 @@ use checked_trees::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate, CheckedUnitCallResult,
     CheckedUnitCallRoute, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
-    CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
-    CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitPlanGapReason, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
-    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner,
+    CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlanGapReason,
+    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralDomainPlan,
+    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
+    ContractProofFactOwner,
 };
 use diagnostics::Diagnostic;
 use language_semantics::{
@@ -185,8 +187,6 @@ pub(crate) fn build_checked_unit_effect_plans(
     boundary_signature_reaches: &[(symbols::SymbolHandle, language_semantics::ServiceReachRowId)],
     scalar_callees: ScalarCalleeClosure,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-    free_nominal_cleanups: &mut Vec<CheckedNominalAffineUnitCleanupMachinePlan>,
-    diagnostics: &mut Vec<Diagnostic>,
 ) -> (CheckedUnitEffectPlans, CheckedPartialAffineUnitCleanupPlans) {
     let mut shapes = ShapeCollector::new(program);
     let mut boundary_machines = program
@@ -288,25 +288,6 @@ pub(crate) fn build_checked_unit_effect_plans(
                 .filter_map(CheckedComposedUnitControlMachinePlan::callable_entry),
         )
         .collect::<Vec<_>>();
-    // Free `drop<T>` consumers assemble their complete nominal cleanup plan
-    // once, here against the shared shape namespace and the live candidate
-    // entries; the published roster below keeps each plan's `.machine` as the
-    // consumer's own row rather than a second dispatcher. Attached callers
-    // assemble later in `build_checked_nominal_affine_unit_cleanup_plans`.
-    for machine in program.machines().iter().filter(|machine| {
-        machine.supply_mode == MachineSupplyMode::CheckedBody && machine.attached_data.is_none()
-    }) {
-        if let Some(plan) = build_nominal_affine_unit_cleanup_machine(
-            program,
-            facts,
-            &targets,
-            &mut shapes,
-            machine,
-            diagnostics,
-        ) {
-            free_nominal_cleanups.push(plan);
-        }
-    }
     let mut temporary_selections = candidates
         .iter()
         .map(|plan| {
@@ -327,13 +308,15 @@ pub(crate) fn build_checked_unit_effect_plans(
                 &mut shapes,
                 plan,
             )?;
-            let [normal] = normal.as_slice() else {
-                return None;
-            };
-            if normal.exit.kind != checked_trees::FlowClaimJoinExitKind::FinalExpression {
-                return None;
+            if plan.scalar_control.is_none() {
+                let [row] = shapes.cleanup_control.normal_exits(normal) else {
+                    return None;
+                };
+                if row.exit.kind != checked_trees::FlowClaimJoinExitKind::FinalExpression {
+                    return None;
+                }
             }
-            Some((temporary, normal.clone()))
+            Some((temporary, normal))
         })
         .collect::<Vec<_>>()
         .into_iter();
@@ -399,16 +382,14 @@ pub(crate) fn build_checked_unit_effect_plans(
         Some(Some((selected, normal))) => {
             cleanup::temporary_actions::install(&mut plan.operations, selected);
             let Some(CheckedUnitEffectOperationPlan::Complete {
-                normal_cleanup_actions,
-                selected_normal_cleanup_regions,
                 trivial_affine_discards,
                 ..
             }) = plan.operations.last_mut()
             else {
                 return false;
             };
-            *normal_cleanup_actions = normal.actions;
-            *selected_normal_cleanup_regions = normal.selected_regions;
+
+            plan.normal_exit_cleanups = normal;
             // Parameter dispositions now have one authority and one schedule.
             // The former affine-only reconstruction must not dispose them again.
             trivial_affine_discards.clear();
@@ -440,6 +421,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         program,
         facts,
         &boundary_symbols,
+        &shapes.cleanup_control,
         &mut candidates,
         &mut composed_machines,
         &mut partial_affine_machines,
@@ -485,10 +467,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                         .map(|storage| storage.type_identity),
                 )
                 .chain(
-                    plan.operations.iter().filter_map(|operation| match operation {
-                        CheckedUnitEffectOperationPlan::Complete { normal_cleanup_actions, .. } => Some(normal_cleanup_actions),
-                        _ => None,
-                    }).flatten().map(|action| action.type_identity()),
+                    shapes.cleanup_control.normal_actions(plan.normal_exit_cleanups).map(|action| action.type_identity()),
                 )
                 .chain(
                     plan.trivial_affine_locals
@@ -531,8 +510,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                         .flat_map(|state| &state.parameter_storage)
                         .map(|storage| storage.type_identity),
                 )
-                .chain(plan.states.iter().flat_map(|state| &state.normal_exit_cleanups)
-                    .flat_map(|row| &row.actions).map(|action| match action {
+                .chain(plan.states.iter().flat_map(|state| shapes.cleanup_control.normal_actions(state.normal_exit_cleanups)).map(|action| match action {
                         checked_trees::CheckedNormalCleanupAction::Discard(discard) => discard.type_identity,
                         checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => cleanup.type_identity,
                         checked_trees::CheckedNormalCleanupAction::RetireHome { type_identity, .. } => *type_identity,
@@ -986,15 +964,11 @@ fn body_route(
     }
 }
 
-/// Build the checked front of the first executable nominal-cleanup slice.
+/// Retain direct nominal caller prerequisites for admitted declarations.
 ///
-/// The admitted caller is deliberately tiny: one state, one whole claim-free
-/// unqualified affine parameter of a finite flat record whose fields are all
-/// relevant terminal-supported primitive scalars, an empty Unit body, and one
-/// exact checked empty `Type::drop(&mut self)` attached to that type. Nested,
-/// erased, floating-point, and aggregate fields are omitted atomically. In
-/// particular, the return operation publishes no trivial discard for the
-/// parameter; the separate cleanup row is the only disposal authority.
+/// The executable body and its source-selected normal-exit transactions have
+/// already been published. This metadata catalogue supplies signature
+/// requirements and entry identity; it cannot replace or reconstruct that body.
 pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -1021,12 +995,6 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
         .iter()
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
         .filter_map(|machine| {
-            // Free consuming bodies keep their complete nominal plan from the
-            // Unit candidates pass, which published its `.machine` as the
-            // consumer's ordinary row; only attached callers assemble here.
-            if machine.attached_data.is_none() {
-                return None;
-            }
             let plan = build_nominal_affine_unit_cleanup_machine(
                 program,
                 facts,
@@ -1038,14 +1006,6 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
             Some(plan)
         })
         .collect::<Vec<_>>();
-    let retained = machines
-        .iter()
-        .flat_map(|plan| {
-            machine_owned_type_identities(&plan.machine)
-                .chain(plan.cleanups.iter().map(|cleanup| cleanup.type_identity))
-        })
-        .collect::<BTreeSet<_>>();
-    shapes.retain_transitive(&retained);
     (
         CheckedNominalAffineUnitCleanupPlans { machines },
         shapes.types.into_values().collect(),
@@ -1157,17 +1117,4 @@ fn value_leaf_type_identities(
         }
     }
     identities
-}
-
-/// The machine-owned type identities both affine cleanup plans retain: the
-/// attachment identity plus every structural-parameter identity.
-fn machine_owned_type_identities(
-    machine: &CheckedUnitEffectMachinePlan,
-) -> impl Iterator<Item = typed_trees::type_identity::TypeIdentityId> + '_ {
-    machine.attachment_type_identity.iter().copied().chain(
-        machine
-            .structural_parameters
-            .iter()
-            .map(|parameter| parameter.type_identity),
-    )
 }

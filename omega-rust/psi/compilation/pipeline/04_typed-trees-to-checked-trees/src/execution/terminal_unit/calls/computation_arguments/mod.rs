@@ -6,7 +6,6 @@
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
-use crate::execution::terminal_unit::CheckedUnitStructuralTypeShape;
 use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::PrimitiveType;
@@ -469,39 +468,18 @@ pub(crate) fn borrowed_storage_argument(
     // on which field families appeared together. This grants no copy, provider
     // establishment or extended backing lifetime; exact source/type/access and
     // call-occurrence replay still own those obligations.
-    let structural_root = shapes.types.get(&identity).is_some_and(|shape| {
-        matches!(
-            shape.shape,
-            CheckedUnitStructuralTypeShape::Sum { .. }
-                | CheckedUnitStructuralTypeShape::Mixed { .. }
-                | CheckedUnitStructuralTypeShape::Record { .. }
-                | CheckedUnitStructuralTypeShape::FixedArray { .. }
-                | CheckedUnitStructuralTypeShape::ByteSequence(
-                    checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-                )
-        )
-    });
     // A projected receiver still loans the complete selected referent. Its
     // transitive field closure is identical to a whole parameter's; the exact
     // root/path checks above retain custody of the enclosing storage.
     // Lending neither copies nor transfers the owner's linear custody. The
     // same exact loan applies to whole and projected established referents.
-    let structural_referent = structural_root
+    let borrowed_referent = shapes.types.contains_key(&identity)
         && validation::has_contents(
             program,
             reference,
             &[],
             validation::ContentsRequirement::BorrowedStorage,
         );
-    // Primitive and aggregate endpoints borrow their established home using
-    // the same exact root/path/access join. No scalar snapshot is constructed.
-    let primitive_scalar = program.type_multiplicity(reference) == Multiplicity::Unrestricted
-        && shapes.types.get(&identity).is_some_and(|shape| {
-            matches!(
-                shape.shape,
-                CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
-            )
-        });
     // Constraints qualify the established endpoint without changing its loan.
     // Only represented value constraints enter this route; the formal retains
     // its qualifications and Terminal independently proves them from the exact
@@ -534,7 +512,7 @@ pub(crate) fn borrowed_storage_argument(
                 &[],
                 validation::ContentsRequirement::RepresentedOwned,
             ))
-        || (!structural_referent && !primitive_scalar)
+        || !borrowed_referent
     {
         return None;
     }

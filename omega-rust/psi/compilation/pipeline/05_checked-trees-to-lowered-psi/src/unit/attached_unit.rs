@@ -64,6 +64,7 @@ pub(crate) mod call_parameters;
 pub(crate) mod call_results;
 pub(crate) mod catalog;
 mod claims;
+pub(crate) mod completion_cleanup;
 mod entry_requirements;
 mod providers;
 pub(crate) mod signatures;
@@ -516,21 +517,11 @@ pub(crate) fn lower_unit_closure(
             .source_checked_obligations
             .extend(emitted.source_checked_obligations);
     }
-    super::unit_cleanup::finalize_nominal_cleanup_actions(
+    super::unit_cleanup::bind_nominal_cleanup_subjects(
         checked,
         &mut machines,
         &type_ids,
         &machine_ids,
-        &machine_signatures
-            .iter()
-            .filter_map(|signature| {
-                signature
-                    .cleanup_receiver
-                    .map(|receiver| (signature.source, receiver))
-            })
-            .collect::<Vec<_>>(),
-        &scalar_requirement_counts,
-        &mut next_call_obligation,
     )?;
     super::unit_cleanup::finalize_partial_affine_residuals(
         identities,

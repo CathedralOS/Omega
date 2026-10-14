@@ -418,6 +418,39 @@ pub(super) fn account(
             // the same lexical state-exit disposal whatever the result kind:
             // an affine owner through the exit permit, an unrestricted value
             // through dominance. The returned binding itself is the return's.
+            CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+                completion: completion @ checked_trees::CheckedScalarReturnPlan::Exits(_),
+            } => {
+                // Scalar completion keeps its selected computations outside
+                // the flat operation roster. Each normal path owns either
+                // its actual whole transfer or its exact cleanup receipt;
+                // the minimum transfer count cannot describe mixed arms.
+                let exits = completion.selected_exit_call_transfers(
+                    &facts.values,
+                    &facts.flow.guarded_exits,
+                    state.symbol,
+                    operation,
+                    result_local,
+                )?;
+                !exits.is_empty()
+                    && exits.iter().all(|(destination, transfers)| {
+                        let checked_trees::CheckedScalarBranchDestination::Return {
+                            statement_ordinal,
+                            is_continuation,
+                        } = destination
+                        else {
+                            return false;
+                        };
+                        // Repeated unrestricted observations create no
+                        // additional custody owner. Affine and linear
+                        // transfers remain exact-one; zero still requires
+                        // the selected exit's real cleanup receipt.
+                        (result.multiplicity == Multiplicity::Unrestricted && *transfers > 0)
+                            || *transfers == 1
+                            || (*transfers == 0
+                                && permits_disposal(Some(*statement_ordinal), *is_continuation))
+                    })
+            }
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
             | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
                 permits_disposal(None, false)
@@ -545,22 +578,11 @@ pub(super) fn account(
                     let guard_transfers = entry_guard.as_ref().map_or(0, |guard| {
                         guard.definite_call_transfers(&facts.values, operation, result_local)
                     });
-                    // Scalar completion retains an entire exit computation,
-                    // not an operation dependency. Count its selected path
-                    // once, using the same query as operands and guards.
+                    // Scalar exit computations are accounted per selected
+                    // path above, together with that path's cleanup receipt.
+                    // Counting their minimum here would book a second owner
+                    // when every arm transfers the same result.
                     guard_transfers
-                        + match terminator {
-                            CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
-                                completion,
-                            } => completion.definite_call_transfers(
-                                &facts.values,
-                                &facts.flow.guarded_exits,
-                                state.symbol,
-                                operation,
-                                result_local,
-                            ),
-                            _ => 0,
-                        }
                 } else {
                     0
                 }

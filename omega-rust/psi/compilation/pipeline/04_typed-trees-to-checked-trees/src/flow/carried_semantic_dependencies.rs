@@ -109,15 +109,25 @@ pub(crate) fn derive_checked_semantic_dependencies(
         );
     }
 
-    for plan in &facts.flow.terminal_nominal_affine_unit_cleanups.machines {
-        let exposure = machine_signature_exposure(program, plan.machine.machine);
-        for cleanup in &plan.cleanups {
-            push_cleanup_machine(
-                &mut rows,
-                plan.machine.machine,
-                cleanup.cleanup_machine,
-                exposure,
-            );
+    let plans = &facts.flow.terminal_unit_effects;
+    let normal_exits = plans
+        .machines
+        .iter()
+        .map(|plan| (plan.machine, plan.normal_exit_cleanups))
+        .chain(plans.composed_machines.iter().flat_map(|machine| {
+            machine
+                .states
+                .iter()
+                .map(move |state| (machine.machine, state.normal_exit_cleanups))
+        }));
+    for (machine, exits) in normal_exits {
+        let exposure = machine_signature_exposure(program, machine);
+        for cleanup in plans
+            .cleanup_control
+            .normal_actions(exits)
+            .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
+        {
+            push_cleanup_machine(&mut rows, machine, cleanup.cleanup_machine, exposure);
         }
     }
 

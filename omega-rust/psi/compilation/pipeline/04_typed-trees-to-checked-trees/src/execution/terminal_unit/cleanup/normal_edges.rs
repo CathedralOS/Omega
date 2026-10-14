@@ -3,12 +3,35 @@
 //! hook requirements remain obligations at that edge, never new unconditional facts.
 use crate::execution::terminal_unit::types::ShapeCollector;
 use checked_trees::{
-    CheckFacts, CheckedComposedUnitControlStatePlan, CheckedNormalExitCleanupPlan,
-    CheckedUnitCallableEntry, CheckedUnitStructuralArgumentSourcePlan,
+    CheckFacts, CheckedComposedUnitControlStatePlan, CheckedUnitCallableEntry,
+    CheckedUnitStructuralArgumentSourcePlan,
 };
 use facts::PlaceRoot;
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
+
+/// Mutable construction scratch; only the shared cleanup arena is published.
+struct NormalExitConstruction {
+    exit: checked_trees::FlowClaimJoinExit,
+    selected_regions: Vec<checked_trees::CheckedUnitStructuralArgumentPlan>,
+    actions: Vec<checked_trees::CheckedNormalCleanupAction>,
+}
+
+fn retain_normal_exits(
+    shapes: &mut ShapeCollector<'_>,
+    rows: Vec<NormalExitConstruction>,
+) -> arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan> {
+    let owner = &mut shapes.cleanup_control;
+    let retained = rows
+        .into_iter()
+        .map(|row| checked_trees::CheckedNormalExitCleanupPlan {
+            exit: row.exit,
+            selected_regions: owner.normal_exit_regions.insert_many(row.selected_regions),
+            actions: owner.normal_exit_actions.insert_many(row.actions),
+        })
+        .collect::<Vec<_>>();
+    owner.normal_exit_rows.insert_many(retained)
+}
 
 pub(in crate::execution::terminal_unit) fn state_cleanups(
     program: &dyn ::validation::CheckingInput,
@@ -16,13 +39,13 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     state_plan: &CheckedComposedUnitControlStatePlan,
-) -> Option<Vec<CheckedNormalExitCleanupPlan>> {
+) -> Option<arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan>> {
     let (machine, state) = program.machines().iter().find_map(|machine| {
         program
             .state_in_machine(machine, state_plan.state)
             .map(|state| (machine, state))
     })?;
-    cleanup_rows(
+    let rows = cleanup_rows(
         program,
         facts,
         targets,
@@ -30,7 +53,8 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
         machine.symbol,
         state,
         |root| owner_source(program, facts, state, state_plan, root).map(Some),
-    )
+    )?;
+    Some(retain_normal_exits(shapes, rows))
 }
 
 /// Sequence completion disposes current named storage through the same checked
@@ -42,10 +66,10 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     plan: &checked_trees::CheckedUnitEffectMachinePlan,
-) -> Option<Vec<CheckedNormalExitCleanupPlan>> {
+) -> Option<arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan>> {
     let machine = program.machine_by_symbol(plan.machine)?;
     let state = program.state_in_machine(machine, plan.state)?;
-    cleanup_rows(
+    let rows = cleanup_rows(
         program,
         facts,
         targets,
@@ -79,7 +103,8 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
                 parameter_index: u32::try_from(index).ok()?,
             }))
         },
-    )
+    )?;
+    Some(retain_normal_exits(shapes, rows))
 }
 
 fn cleanup_rows(
@@ -92,14 +117,14 @@ fn cleanup_rows(
     mut source_for_owner: impl FnMut(
         PlaceRoot,
     ) -> Option<Option<CheckedUnitStructuralArgumentSourcePlan>>,
-) -> Option<Vec<CheckedNormalExitCleanupPlan>> {
+) -> Option<Vec<NormalExitConstruction>> {
     let flow_state = facts
         .flow
         .control
         .states
         .iter()
         .find_map(|(_, row)| (row.state_symbol == state.symbol).then_some(row))?;
-    let mut rows = Vec::<CheckedNormalExitCleanupPlan>::new();
+    let mut rows = Vec::<NormalExitConstruction>::new();
     for outgoing in facts
         .flow
         .control
@@ -127,7 +152,7 @@ fn cleanup_rows(
             kind,
         };
         if !rows.iter().any(|row| row.exit == exit) {
-            rows.push(CheckedNormalExitCleanupPlan {
+            rows.push(NormalExitConstruction {
                 exit,
                 selected_regions: Vec::new(),
                 actions: Vec::new(),

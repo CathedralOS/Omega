@@ -424,7 +424,10 @@ fn restore_path(frontier: &mut Frontier, place: PlaceId, path: &[StructuralPathS
         return;
     }
     let root = &mut frontier[position];
-    root.paths.remove(path);
+    // The establishing store replaces this entire region. Dispositions below
+    // it describe the old occurrence, while a moved ancestor and outside
+    // siblings still belong to the containing owner's outstanding frontier.
+    root.paths.retain(|removed| !removed.starts_with(path));
     if root.paths.is_empty() {
         frontier.remove(position);
     }

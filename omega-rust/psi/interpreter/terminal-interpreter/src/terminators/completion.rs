@@ -41,8 +41,7 @@ impl TerminalExecution<'_> {
                 self.finish_return(result)
             }
             CleanupContinuation::Successor { target, bindings } => {
-                self.retire_reentered_results(target)?;
-                bindings.commit(self);
+                bindings.commit(self, target)?;
                 self.current = target;
                 self.next_operation = 0;
                 Ok(TerminatorFlow::Continue)

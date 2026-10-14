@@ -70,15 +70,36 @@ fn target_expectations(
     Ok(expectations)
 }
 
+/// Trusted fixture configuration requests product-root capture, not authority.
+/// Every supplied root still comes from the exact target's normal admission.
+/// Absence retains the independent artifact-only installation route.
+pub(super) fn compiled_target_provisions(fixture_dir: &std::path::Path) -> Result<bool, String> {
+    match std::fs::read_to_string(fixture_dir.join("terminal_target_provisions.txt")) {
+        Ok(text) if text.trim() == "compiled-application" => Ok(true),
+        Ok(_) => Err("terminal_target_provisions.txt: expected compiled-application".to_owned()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!(
+            "cannot read terminal_target_provisions.txt: {error}"
+        )),
+    }
+}
+
+pub(super) fn requested_target_names(fixture_dir: &std::path::Path) -> Result<Vec<String>, String> {
+    target_expectations(fixture_dir)
+        .map(|rows| rows.into_iter().map(|(target, _)| target).collect())
+}
+
 /// Install every authored target against one exact retained artifact. The
 /// receiving runtime admits the retained whole-provider proposal for that
-/// exact target, but supplies no receiver, clock, input, or domain authority;
-/// fixtures needing those provisions refuse rather than fabricate them.
+/// exact target. An explicitly requested compiled application cohort supplies
+/// only that target's actual admitted root; artifact-only observations supply
+/// none. Clock, input and domain authority remain absent and cannot be inferred.
 /// Each install observes the artifact's unchanged semantic bytes,
 /// identity, and canonical module storage, not a newly compiled target cohort.
 pub(super) fn target_installations(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     proposals: &[backend_plan::TerminalTargetProviderProposal],
+    root_provisions: &[&compilation_products::TerminalRuntimeProvisions],
     fixture_dir: &std::path::Path,
     fuel_allowance: u64,
 ) -> Observation {
@@ -108,10 +129,22 @@ pub(super) fn target_installations(
             matched = false;
             continue;
         }
+        let mut supplied = root_provisions
+            .iter()
+            .copied()
+            .filter(|provisions| provisions.target_slot().owner.target_name() == target);
+        let provisions = supplied.next();
+        if supplied.next().is_some() {
+            observation.diagnostics.push(format!(
+                "Terminal target {target}: duplicate admitted root provisions"
+            ));
+            matched = false;
+            continue;
+        }
         let result = compiler::runtime::execute(TerminalRuntimeRequest {
             artifact,
             target: Some(&target),
-            provisions: None,
+            provisions,
             provider_proposal,
             fuel_allowance,
             domain_exit: TerminalDomainExitDelegation::Unprovided,
