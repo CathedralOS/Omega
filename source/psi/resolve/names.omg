@@ -1082,6 +1082,14 @@ crashes Trap
     }
 
     state primitive(sources: &SourceSet, name: SourceSpan) -> ValueBinding {
+        let layout: ValueBinding = Resolver::layout_query(sources, name);
+        transition layout {
+            ValueBinding::Unresolved -> byte(sources, name)
+            _ -> found(layout)
+        }
+    }
+
+    state byte(sources: &SourceSet, name: SourceSpan) -> ValueBinding {
         let binding: ValueBinding = Resolver::byte_predicate(sources, name);
         binding
     }
@@ -1095,6 +1103,34 @@ crashes Trap
 
     state found(binding: ValueBinding) -> ValueBinding {
         binding
+    }
+}
+
+// The primitive layout query `name` spells (`size_of`, `align_of`:
+// wiki/spec/language/counts_and_addresses.md), else unresolved.
+machine Resolver::layout_query(sources: &SourceSet, name: SourceSpan) -> ValueBinding
+crashes Trap
+{
+    let size: bool = SourceSet::span_spells(sources, name, "size_of");
+    let align: bool = SourceSet::span_spells(sources, name, "align_of");
+    transition size {
+        true -> found(LayoutQuery::Size)
+        _ -> align_spelled(align)
+    }
+
+    state align_spelled(align: bool) -> ValueBinding {
+        transition align {
+            true -> found(LayoutQuery::Align)
+            _ -> unresolved()
+        }
+    }
+
+    state found(query: LayoutQuery) -> ValueBinding {
+        ValueBinding::LayoutQuery { query: query }
+    }
+
+    state unresolved() -> ValueBinding {
+        ValueBinding::Unresolved
     }
 }
 

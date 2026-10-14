@@ -109,6 +109,9 @@ pub data ValueBinding [copy] {
     case DomainSubject(domain: u64 in Trapping);
     // A compiler-known primitive byte predicate applied to a byte view.
     case BytePredicate(predicate: BytePredicate);
+    // `size_of` or `align_of`, the primitive layout queries
+    // (wiki/spec/language/counts_and_addresses.md).
+    case LayoutQuery(query: LayoutQuery);
 }
 
 // The primitive byte predicates over a byte view
@@ -120,6 +123,11 @@ pub data BytePredicate [copy] {
     case NoNul;
     case AsciiOnly;
     case NonEmpty;
+}
+
+pub data LayoutQuery [copy] {
+    case Size;
+    case Align;
 }
 
 // What a `::` name path denotes, indexed like `SyntaxTrees::name_paths`: a

@@ -1511,6 +1511,9 @@ def main() -> None:
         b"machine walk(items: &[u8], i: u64) -> u64\nterminates by (i, items.len) -> Nat::BoundedDistance in 0..=items.len;\n{\n"
         b"    transition i < items.len {\n        true -> walk(items, i + 1)\n        _ -> (i)\n    }\n}",
     )
+    # A layout query is known only by its `u64` type
+    # (wiki/spec/language/counts_and_addresses.md).
+    accepted(program, "a-layout-query-is-a-u64-value", b"data Pair { a: u64; b: u8; }\nmachine f() -> u64 { size_of<Pair>() }\nmachine g() -> u64 { align_of<Pair>() }")
     # A declared measure ranks its subject by its body, or lexicographically
     # by the subject's named fields (wiki/spec/language/termination.md#ranking).
     measured = (

@@ -598,6 +598,15 @@ crashes Trap
             ValueBinding::PayloadField { field } -> value_tag(resolver_harness, output, index, 15, field, 0)
             ValueBinding::DomainSubject { domain } -> value_tag(resolver_harness, output, index, 16, domain, 0)
             ValueBinding::BytePredicate { predicate } -> predicate_row(resolver_harness, output, index, predicate)
+            ValueBinding::LayoutQuery { query } -> layout_row(resolver_harness, output, index, query)
+        }
+    }
+
+    // A layout query: 1 `size_of`, 2 `align_of`.
+    state layout_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, query: LayoutQuery) {
+        transition query {
+            LayoutQuery::Size -> value_tag(resolver_harness, output, index, 18, 1, 0)
+            LayoutQuery::Align -> value_tag(resolver_harness, output, index, 18, 2, 0)
         }
     }
 

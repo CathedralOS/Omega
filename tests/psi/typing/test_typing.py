@@ -999,6 +999,17 @@ def main() -> None:
         "UncoveredDispatch",
         b"transition t { T::A -> s(0) T::B { v } if v == 1 -> s(v) }",
     )
+    # `size_of<T>()` and `align_of<T>()` take one type argument and no
+    # values, and produce a `u64`
+    # (wiki/spec/language/counts_and_addresses.md).
+    accepted(
+        program,
+        "layout-queries-are-u64",
+        b"data Pair { a: u64; b: u8; }\nmachine f() -> u64 { size_of<Pair>() + align_of<u64>() }",
+        ((b"size_of<Pair>()", "u64"), (b"align_of<u64>()", "u64")),
+    )
+    rejected(program, "a-layout-query-needs-its-type", b"machine f() -> u64 { size_of() }", "GenericArgumentCount", b"size_of()")
+    rejected(program, "a-layout-query-takes-no-values", b"machine f() -> u64 { size_of<u64>(1) }", "NoMatchingMachine", b"size_of<u64>(1)")
     rejected(
         program,
         "match-literal-ladder-needs-a-wildcard",

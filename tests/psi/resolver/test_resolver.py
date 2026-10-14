@@ -125,6 +125,11 @@ def byte_predicate(tag: int) -> tuple[int, int, int]:
     return (17, tag, 0)
 
 
+def layout_query(tag: int) -> tuple[int, int, int]:
+    """A primitive layout query: 1 `size_of`, 2 `align_of`."""
+    return (18, tag, 0)
+
+
 def payload_field_name(handle: int) -> tuple[int, int, int]:
     """A payload field a case's own `where` fact names bare."""
     return (15, handle, 0)
@@ -958,6 +963,16 @@ def main() -> None:
         UNKNOWN_NAME,
         b"v == 1",
         length=1,
+    )
+    # `size_of<T>()` and `align_of<T>()` are primitive layout queries
+    # (wiki/spec/language/counts_and_addresses.md), bound like the byte
+    # predicates when no machine spells their name.
+    accepted(
+        program,
+        "layout-queries-bind-as-primitives",
+        b"machine f() -> u64 { size_of<u64>() + align_of<u64>() }",
+        (builtin("u64"), builtin("u64"), builtin("u64")),
+        (layout_query(1), NOT_A_NAME, NOT_A_NAME, layout_query(2), NOT_A_NAME, NOT_A_NAME, NOT_A_NAME),
     )
     accepted(
         program,
