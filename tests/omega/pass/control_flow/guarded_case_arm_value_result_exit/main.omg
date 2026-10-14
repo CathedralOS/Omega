@@ -1,0 +1,64 @@
+// RUN CANARY (exit 70). A value-returning case transition whose guarded arms
+// (`Case { .. } if extra -> value`) sit before, between or after the
+// unguarded arms. A guarded arm covers nothing: when its guard fails the run
+// continues, and the unguarded arms of every case still make the run
+// exhaustive, so no `_` arm is needed. Each value is checked at run time.
+// fail/control_flow/single_case_guarded_arm_nonexhaustive pins that guarded
+// arms alone never cover their case.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain i32::Step(value) requires 0 <= value && value <= 60;
+
+data Signal {
+    case Hop(dx: i32 in Step, dy: i32 in Step);
+    case Stop(code: i32);
+}
+
+machine Signal::leading(signal: Signal) -> i32 {
+    transition signal {
+        Signal::Hop { dx as step, .. } if step == 30 -> step
+        Signal::Hop { dx, dy } -> (dx + dy)
+        Signal::Stop { code } -> code
+    }
+}
+
+machine Signal::interleaved(signal: Signal) -> i32 {
+    transition signal {
+        Signal::Stop { code } if code == 9 -> 1
+        Signal::Hop { dx, .. } if dx == 30 -> 2
+        Signal::Hop { dx, dy } -> dy
+        Signal::Stop { code } -> code
+    }
+}
+
+machine Signal::trailing(signal: Signal) -> i32 {
+    transition signal {
+        Signal::Hop { dx, dy } if dx < dy -> dy
+        Signal::Hop { dx, dy } -> dx
+        Signal::Stop { code } if code == 7 -> 100
+        Signal::Stop { code } -> code
+    }
+}
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let leading: bool = Signal::leading(Signal::Hop { dx: 30, dy: 40 }) == 30
+        && Signal::leading(Signal::Hop { dx: 12, dy: 40 }) == 52
+        && Signal::leading(Signal::Stop { code: 7 }) == 7;
+    let interleaved: bool = Signal::interleaved(Signal::Stop { code: 9 }) == 1
+        && Signal::interleaved(Signal::Hop { dx: 30, dy: 4 }) == 2
+        && Signal::interleaved(Signal::Hop { dx: 12, dy: 40 }) == 40
+        && Signal::interleaved(Signal::Stop { code: 7 }) == 7;
+    let trailing: bool = Signal::trailing(Signal::Hop { dx: 12, dy: 40 }) == 40
+        && Signal::trailing(Signal::Hop { dx: 50, dy: 40 }) == 50
+        && Signal::trailing(Signal::Stop { code: 7 }) == 100
+        && Signal::trailing(Signal::Stop { code: 9 }) == 9;
+    transition leading && interleaved && trailing {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

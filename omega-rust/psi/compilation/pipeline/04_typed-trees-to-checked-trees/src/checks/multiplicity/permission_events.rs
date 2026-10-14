@@ -823,7 +823,25 @@ pub(crate) fn case_transition_run_is_exhaustive(
             return false;
         };
         let Some((subject, variant)) = exact_positive_case_test(program, guard) else {
-            return false;
+            // A guarded arm (`Case { .. } if extra -> ...`) tests its case and
+            // more, so it covers nothing: a later arm must still cover that
+            // case. It continues the run rather than ending it.
+            let mut tests = Vec::new();
+            collect_positive_case_tests(program, guard, &mut tests);
+            if tests.is_empty() {
+                return false;
+            }
+            for (subject, _) in tests {
+                let label = program.expression_table.display_name(subject);
+                if subject_label
+                    .as_ref()
+                    .is_some_and(|expected| *expected != label)
+                {
+                    return false;
+                }
+                subject_label = Some(label);
+            }
+            continue;
         };
         let label = program.expression_table.display_name(subject);
         if subject_label

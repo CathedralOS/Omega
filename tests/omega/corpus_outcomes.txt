@@ -5406,6 +5406,7 @@ pass/control_flow/field_subject_named_arm_chain checked 11339ms check-target:mac
 pass/control_flow/field_view_transfer_exit checked 11225ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/float_literal_dispatch_compile checked 1605ms @a9ae30e1c334+wt
 pass/control_flow/float_relational_subject_compile checked 1613ms @a9ae30e1c334+wt
+pass/control_flow/guarded_case_arm_value_result_exit checked 8773ms check-target:macos_arm64 @70a1b2216e74+wt
 pass/control_flow/guarded_jump_field_view_forward checked 10784ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/guarded_leaf_branch_expansion checked 1614ms @a9ae30e1c334+wt
 pass/control_flow/guarded_mid_arm_return checked 11347ms check-target:macos_arm64 @a9ae30e1c334+wt

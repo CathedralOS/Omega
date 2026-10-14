@@ -45,6 +45,7 @@ fn completion_target(
 /// A guarded-exit arm that dispatches on its case's scalar payloads: the
 /// selected case's payload fields bind as the arm continuation's block
 /// parameters, in declaration order.
+#[derive(Clone)]
 struct PayloadCaseDispatchArm {
     destination: CheckedScalarBranchDestination,
     source: semantic_vocabulary::PlaceId,
@@ -838,6 +839,63 @@ impl Evaluation {
                         &completions,
                     )?
                 } else {
+                    // Without a fallback, the trailing run of case-membership
+                    // arms closes the chain as one total split. A guarded arm
+                    // (`Case { .. } if extra`) covers nothing; an unguarded
+                    // case arm earlier in the chain already took every value
+                    // of its case, so the split routes that case to the same
+                    // arm. Together they must arm every case.
+                    let mut dispatches = dispatches;
+                    let trailing = if fallback.is_none() {
+                        dispatches
+                            .iter()
+                            .rev()
+                            .take_while(|dispatch| dispatch.is_some())
+                            .count()
+                    } else {
+                        0
+                    };
+                    let trailing = dispatches.split_off(dispatches.len() - trailing);
+                    let mut closing = Vec::<PayloadCaseDispatchArm>::new();
+                    if !trailing.is_empty() {
+                        for dispatch in trailing
+                            .into_iter()
+                            .flatten()
+                            .chain(dispatches.iter().flatten().cloned())
+                        {
+                            if !closing
+                                .iter()
+                                .any(|armed| armed.selected == dispatch.selected)
+                            {
+                                closing.push(dispatch);
+                            }
+                        }
+                    }
+                    let closing = if closing.is_empty() {
+                        None
+                    } else {
+                        let terminator = self.case_dispatch_split(
+                            identities,
+                            &mut expansion,
+                            checked,
+                            state,
+                            &bindings,
+                            &source_types,
+                            result_type,
+                            closing,
+                            None,
+                            &completions,
+                        )?;
+                        Some(expansion.push(LoweredScalarBranchState {
+                            structural_parameters: Vec::new(),
+                            structural_effects: Vec::new(),
+                            parameter_types: source_types.clone(),
+                            erased_formal_types: Vec::new(),
+                            erased_proof_formals: Vec::new(),
+                            bindings: Vec::new(),
+                            terminator,
+                        }))
+                    };
                     let mut entries = Vec::with_capacity(arms.len());
                     for (guard, dispatch) in arms.iter().zip(dispatches) {
                         let target = match &dispatch {
@@ -861,7 +919,9 @@ impl Evaluation {
                         };
                         entries.push((guard.guard_statement_ordinal, target, dispatch));
                     }
-                    let mut next = if let Some(fallback) = fallback {
+                    let mut next = if let Some(closing) = closing {
+                        closing
+                    } else if let Some(fallback) = fallback {
                         push_arm_target(
                             identities,
                             &mut expansion,
@@ -879,9 +939,10 @@ impl Evaluation {
                             .map(|(_, target, dispatch)| (*target, dispatch))
                         {
                             Some((target, None)) => target,
+                            // A trailing dispatch closes through the split above.
                             Some((_, Some(_))) => {
                                 return unsupported(
-                                    "case payload dispatch cannot close a mixed guard chain",
+                                    "a trailing case dispatch lost its closing split",
                                 );
                             }
                             None => {

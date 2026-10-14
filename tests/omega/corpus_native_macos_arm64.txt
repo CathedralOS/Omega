@@ -810,6 +810,7 @@ pass/control_flow/element_view_enum_equality_exit built 1951ms exit:70 @27950676
 pass/control_flow/explicit_state_value_frontier checked 196ms @21cec730b99e+wt
 pass/control_flow/field_subject_named_arm_chain built 1498ms exit:70 @bed5f45e9185+wt
 pass/control_flow/field_view_transfer_exit built 582ms exit:0
+pass/control_flow/guarded_case_arm_value_result_exit built 10248ms exit:70 @70a1b2216e74+wt
 pass/control_flow/guarded_jump_field_view_forward built 5605ms @4ffed225fc45+wt
 pass/control_flow/guarded_leaf_branch_expansion checked 206ms
 pass/control_flow/guarded_mid_arm_return built 1546ms exit:70 @bed5f45e9185+wt
