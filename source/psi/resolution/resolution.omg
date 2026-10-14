@@ -570,6 +570,25 @@ crashes Trap
     }
 }
 
+// The binding of expression `handle` while resolution runs: every
+// expression below the table's capacity, bound or not yet.
+pub machine NameResolution::value_binding_at(resolution: &NameResolution, handle: u64 in Trapping) -> ValueBinding
+crashes Trap
+{
+    transition handle < 131072 {
+        true -> read(resolution, handle)
+        _ -> invalid()
+    }
+
+    state read(resolution: &NameResolution, handle: u64 in Trapping) -> ValueBinding {
+        resolution.value_bindings[handle]
+    }
+
+    state invalid() -> ValueBinding {
+        crash Trap;
+    }
+}
+
 // The well-founded order a `terminates by` witness ranks its subjects in
 // (wiki/spec/language/termination.md#ranking): a closed vocabulary the
 // compiler owns. `Default` is a witness without `-> View`, which the

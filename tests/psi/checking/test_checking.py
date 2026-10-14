@@ -1610,6 +1610,25 @@ def main() -> None:
         b"    transition remaining > 0 {\n        true -> walk(remaining - 1)\n        false -> remaining\n    }\n}",
     )
     rejected(program, "an-ordinary-body-owes-its-carrier", b"machine shift(value: u8) -> u8 { value + 1 }", "ArithmeticOverflow", b"value + 1")
+    # A state formal carries the entry subject every arrival passes it,
+    # whatever its spelling (wiki/spec/language/termination.md#subject-preservation);
+    # a formal receiving another parameter carries no subject.
+    carried = (
+        b"data Countdown { remaining: u64; }\n"
+        b"machine walk(countdown: Countdown, other: Countdown)\nterminates by countdown.remaining;\n-> u64 {\n"
+        b"    transition { _ -> iterate(ARRIVAL) }\n"
+        b"    state iterate(pending: Countdown) {\n        transition pending.remaining > 0 {\n"
+        b"            true -> iterate(Countdown { remaining: pending.remaining - 1 })\n            false -> pending.remaining\n        }\n    }\n}"
+    )
+    accepted(program, "a-state-formal-carries-the-subject-it-receives", carried.replace(b"ARRIVAL", b"countdown"))
+    rejected(program, "a-state-formal-receiving-another-parameter-ranks-nothing", carried.replace(b"ARRIVAL", b"other"), "RankUnproven", b"iterate(Countdown { remaining: pending.remaining - 1 })")
+    accepted(
+        program,
+        "a-formal-carries-through-another-formal",
+        b"machine walk(count: u64)\nterminates by count;\n-> u64 {\n    transition { _ -> first(count) }\n"
+        b"    state first(pending: u64) {\n        transition { _ -> second(pending) }\n    }\n"
+        b"    state second(left: u64) {\n        transition left > 0 {\n            true -> second(left - 1)\n            false -> left\n        }\n    }\n}",
+    )
     # A declared measure ranks its subject by its body, or lexicographically
     # by the subject's named fields (wiki/spec/language/termination.md#ranking).
     measured = (

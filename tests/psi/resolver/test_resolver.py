@@ -1395,6 +1395,16 @@ def main() -> None:
         (parameter(0), NOT_A_NAME, NOT_A_NAME, parameter(0)),
     )
     rejected(program, "terminates-unknown-subject", b"machine f(n: u64) terminates by m; {}", UNKNOWN_NAME, b"m;", length=1)
+    # A state formal carries the entry subject its arrivals pass it, read
+    # from the body bindings while resolution runs (clauses.omg).
+    accepted(
+        program,
+        "ranked-state-arrivals-bind-carriers",
+        b"machine count(n: u64) -> u64\nterminates by n;\n{\n    transition n > 0 {\n        true -> step(n - 1)\n        _ -> done()\n    }\n"
+        b"    state step(left: u64) -> u64 {\n        transition left > 0 {\n            true -> step(left - 1)\n            _ -> done()\n        }\n    }\n"
+        b"    state done() -> u64 { 0 }\n}",
+        (builtin("u64"),) * 5,
+    )
     # A view names the compiler's ranking vocabulary by spelling, not a
     # declaration; only `Nat::IncreasingTo`'s limit binds a name.
     accepted(

@@ -436,14 +436,168 @@ crashes Trap
         }
     }
 
+    // A formal spelled as an entry subject carries it; otherwise it carries
+    // the entry subject every arrival at its state passes it, directly or
+    // through another formal already known to carry one
+    // (wiki/spec/language/termination.md#subject-preservation: state
+    // arrivals retain their entry subjects' lineage). Arrivals passing
+    // different subjects leave the formal uncarried.
     state parameter(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping, body: StateItem, index: u64 in Trapping) {
         let handle: u64 in Trapping = body.first_parameter + index;
-        let carried: u64 in Trapping = Resolver::same_spelled_parameter(sources, syntax, handle, item.first_parameter, item.parameter_count);
+        let spelled: u64 in Trapping = Resolver::same_spelled_parameter(sources, syntax, handle, item.first_parameter, item.parameter_count);
+        let received: u64 in Trapping = Resolver::received_parameter(resolver, syntax, item, item.first_state + offset, index);
+        transition spelled > 0 {
+            true -> carried(resolver, sources, syntax, item, offset, body, index, handle, spelled)
+            _ -> carried(resolver, sources, syntax, item, offset, body, index, handle, received)
+        }
+    }
+
+    state carried(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping, body: StateItem, index: u64 in Trapping, handle: u64 in Trapping, carried: u64 in Trapping) {
         NameResolution::set_rank_carrier(&mut resolver.output, handle, carried);
         transition { _ -> next_parameter(resolver, sources, syntax, item, offset, body, index + 1) }
     }
 
     state done() {}
+}
+
+// The entry parameter (offset plus one) that every arrival at state `state`
+// passes to its formal at `position`: an argument naming an entry
+// parameter, or a state formal already carrying one; zero when no arrival
+// passes one or two arrivals disagree. Arrivals are the transition arms of
+// the entry body and of every state body whose target calls `state`.
+machine Resolver::received_parameter(resolver: &Resolver, syntax: &SyntaxTrees, item: MachineItem, state: u64 in Trapping, position: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> statement(resolver, syntax, item, state, position, item.first_statement, item.first_statement + item.statement_count, 0, 0, false) }
+
+    // Walk the entry statements, then each state's, `found` holding the
+    // agreed carrier so far (zero before any) and `disagreed` a conflict.
+    state statement(resolver: &Resolver, syntax: &SyntaxTrees, item: MachineItem, state: u64 in Trapping, position: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, next_state: u64 in Trapping, found: u64 in Trapping, disagreed: bool) -> u64 in Trapping {
+        transition index < end {
+            true -> transition_arms(resolver, syntax, item, state, position, index, end, next_state, found, disagreed)
+            _ -> more_states(resolver, syntax, item, state, position, next_state, found, disagreed)
+        }
+    }
+
+    state transition_arms(resolver: &Resolver, syntax: &SyntaxTrees, item: MachineItem, state: u64 in Trapping, position: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, next_state: u64 in Trapping, found: u64 in Trapping, disagreed: bool) -> u64 in Trapping {
+        let written: Statement = SyntaxTrees::statement(syntax, index);
+        transition written.kind == StatementKind::Transition {
+            true -> arm(resolver, syntax, item, state, position, index, end, next_state, found, disagreed, written.first_arm, written.first_arm + written.arm_count)
+            _ -> statement(resolver, syntax, item, state, position, index + 1, end, next_state, found, disagreed)
+        }
+    }
+
+    state arm(resolver: &Resolver, syntax: &SyntaxTrees, item: MachineItem, state: u64 in Trapping, position: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, next_state: u64 in Trapping, found: u64 in Trapping, disagreed: bool, arm_index: u64 in Trapping, arm_end: u64 in Trapping) -> u64 in Trapping {
+        transition arm_index < arm_end {
+            true -> target(resolver, syntax, item, state, position, index, end, next_state, found, disagreed, arm_index, arm_end)
+            _ -> statement(resolver, syntax, item, state, position, index + 1, end, next_state, found, disagreed)
+        }
+    }
+
+    state target(resolver: &Resolver, syntax: &SyntaxTrees, item: MachineItem, state: u64 in Trapping, position: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, next_state: u64 in Trapping, found: u64 in Trapping, disagreed: bool, arm_index: u64 in Trapping, arm_end: u64 in Trapping) -> u64 in Trapping {
+        let written: TransitionArm = SyntaxTrees::arm(syntax, arm_index);
+        let passed: u64 in Trapping = Resolver::passed_subject(resolver, syntax, item, state, position, written);
+        transition passed > 0 {
+            true -> agree(resolver, syntax, item, state, position, index, end, next_state, found, disagreed, arm_index, arm_end, passed)
+            _ -> arm(resolver, syntax, item, state, position, index, end, next_state, found, disagreed, arm_index + 1, arm_end)
+        }
+    }
+
+    state agree(resolver: &Resolver, syntax: &SyntaxTrees, item: MachineItem, state: u64 in Trapping, position: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, next_state: u64 in Trapping, found: u64 in Trapping, disagreed: bool, arm_index: u64 in Trapping, arm_end: u64 in Trapping, passed: u64 in Trapping) -> u64 in Trapping {
+        let conflict: bool = found > 0 && found != passed;
+        transition { _ -> arm(resolver, syntax, item, state, position, index, end, next_state, passed, disagreed || conflict, arm_index + 1, arm_end) }
+    }
+
+    state more_states(resolver: &Resolver, syntax: &SyntaxTrees, item: MachineItem, state: u64 in Trapping, position: u64 in Trapping, next_state: u64 in Trapping, found: u64 in Trapping, disagreed: bool) -> u64 in Trapping {
+        transition next_state < item.state_count {
+            true -> state_body(resolver, syntax, item, state, position, next_state, found, disagreed)
+            _ -> answer(found, disagreed)
+        }
+    }
+
+    state state_body(resolver: &Resolver, syntax: &SyntaxTrees, item: MachineItem, state: u64 in Trapping, position: u64 in Trapping, next_state: u64 in Trapping, found: u64 in Trapping, disagreed: bool) -> u64 in Trapping {
+        let body: StateItem = SyntaxTrees::state_item(syntax, item.first_state + next_state);
+        transition { _ -> statement(resolver, syntax, item, state, position, body.first_statement, body.first_statement + body.statement_count, next_state + 1, found, disagreed) }
+    }
+
+    state answer(found: u64 in Trapping, disagreed: bool) -> u64 in Trapping {
+        transition disagreed {
+            true -> none()
+            _ -> some(found)
+        }
+    }
+
+    state some(found: u64 in Trapping) -> u64 in Trapping {
+        found
+    }
+
+    state none() -> u64 in Trapping {
+        0
+    }
+}
+
+// The entry subject (offset plus one) arm `written` passes to formal
+// `position` of state `state`: zero unless its target calls that state
+// with, at `position`, a name of an entry parameter or of a formal
+// already carrying one.
+machine Resolver::passed_subject(resolver: &Resolver, syntax: &SyntaxTrees, item: MachineItem, state: u64 in Trapping, position: u64 in Trapping, written: TransitionArm) -> u64 in Trapping
+crashes Trap
+{
+    transition written.target_kind == ArmTargetKind::Call {
+        true -> call(resolver, syntax, item, state, position, written.target)
+        _ -> none()
+    }
+
+    state call(resolver: &Resolver, syntax: &SyntaxTrees, item: MachineItem, state: u64 in Trapping, position: u64 in Trapping, target: u64 in Trapping) -> u64 in Trapping {
+        let expression: Expression = SyntaxTrees::expression(syntax, target);
+        let callee: ValueBinding = NameResolution::value_binding_at(&resolver.output, expression.left);
+        transition callee {
+            ValueBinding::State { handle } -> this_state(resolver, syntax, item, state, position, expression, handle)
+            _ -> none()
+        }
+    }
+
+    state this_state(resolver: &Resolver, syntax: &SyntaxTrees, item: MachineItem, state: u64 in Trapping, position: u64 in Trapping, expression: Expression, handle: u64 in Trapping) -> u64 in Trapping {
+        transition handle == state && position < expression.count {
+            true -> argument(resolver, syntax, item, expression, position)
+            _ -> none()
+        }
+    }
+
+    state argument(resolver: &Resolver, syntax: &SyntaxTrees, item: MachineItem, expression: Expression, position: u64 in Trapping) -> u64 in Trapping {
+        let node: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + position);
+        let written: Expression = SyntaxTrees::expression(syntax, node);
+        let binding: ValueBinding = NameResolution::value_binding_at(&resolver.output, node);
+        transition written.kind == ExpressionKind::Name {
+            true -> named(resolver, item, binding)
+            _ -> none()
+        }
+    }
+
+    state named(resolver: &Resolver, item: MachineItem, binding: ValueBinding) -> u64 in Trapping {
+        transition binding {
+            ValueBinding::Parameter { parameter } -> parameter_of(resolver, item, parameter)
+            _ -> none()
+        }
+    }
+
+    // An entry parameter is its own subject; a state formal carries what it
+    // was bound to carry, zero while unknown.
+    state parameter_of(resolver: &Resolver, item: MachineItem, parameter: u64 in Trapping) -> u64 in Trapping {
+        let entry: bool = parameter >= item.first_parameter && parameter - item.first_parameter < item.parameter_count;
+        transition entry {
+            true -> some(parameter - item.first_parameter + 1)
+            _ -> some(NameResolution::rank_carrier(&resolver.output, parameter))
+        }
+    }
+
+    state some(found: u64 in Trapping) -> u64 in Trapping {
+        found
+    }
+
+    state none() -> u64 in Trapping {
+        0
+    }
 }
 
 // The offset plus one of the parameter in `first .. first + count` spelled
