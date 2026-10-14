@@ -1,0 +1,60 @@
+// Expected exit: 0.
+// A value that moves one field out of an anonymous call result receives that
+// subtree; the result's untouched sibling dies when the moving statement
+// completes. A local initializer, a returned value, a constructor operand, a
+// later-state handoff and a call argument consume the same projection.
+data Payload { left: u64; right: u64; }
+data Pair { first: Payload; second: Payload; }
+data Wrapper { inner: Payload; tag: u64; }
+
+machine supply(first: u64, second: u64) -> Pair {
+    Pair {
+        first: Payload { left: first, right: second },
+        second: Payload { left: second, right: first }
+    }
+}
+
+machine take(payload: Payload) -> u64 { payload.left }
+
+machine initialized(first: u64, second: u64) -> u64 {
+    let result: Payload = supply(first, second).second;
+    result.left
+}
+
+machine projected(first: u64, second: u64) -> Payload {
+    supply(first, second).second
+}
+
+machine returned(first: u64, second: u64) -> u64 {
+    let result: Payload = projected(first, second);
+    result.right
+}
+
+machine constructed(first: u64, second: u64) -> u64 {
+    let wrapped: Wrapper = Wrapper { inner: supply(first, second).first, tag: 3 };
+    wrapped.inner.left
+}
+
+machine handed_off(first: u64, second: u64) -> u64 {
+    let result: Payload = supply(first, second).first;
+    transition { _ -> after(result) }
+    state after(result: Payload) -> u64 { result.right }
+}
+
+machine argument(first: u64, second: u64) -> u64 {
+    take(supply(first, second).second)
+}
+
+machine main() crashes Trap {
+    let a: u64 = initialized(251, 249);
+    let b: u64 = returned(251, 249);
+    let c: u64 = constructed(251, 249);
+    let d: u64 = handed_off(251, 249);
+    let e: u64 = argument(7, 5);
+    transition a == 249 && b == 251 && c == 251 && d == 249 && e == 5 {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -1,0 +1,13 @@
+// Moving one field out of an anonymous call result discards the rest at the
+// moving statement. A linear sibling cannot be discarded there.
+data Ticket [linear] { id: u64; }
+data Payload { left: u64; right: u64; }
+data Pair { ticket: Ticket; payload: Payload; }
+
+machine supply(id: u64) -> Pair {
+    Pair { ticket: Ticket { id: id }, payload: Payload { left: id, right: id } }
+}
+
+machine main() {
+    let payload: Payload = supply(3).payload;
+}

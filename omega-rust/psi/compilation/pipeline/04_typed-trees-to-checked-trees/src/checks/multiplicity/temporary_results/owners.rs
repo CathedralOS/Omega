@@ -347,16 +347,29 @@ fn owned_projection(
     {
         return None;
     }
+    let reference = projectable_owner(program, state, consumer.statement_index, expression)?;
+    Some((expression, reference, place.segments))
+}
+
+/// The type of an anonymous owner whose untouched complement may die with
+/// ordinary affine disposal once one subtree moves out. A linear claim in
+/// that complement must instead be transferred through a named local.
+pub(in crate::checks::multiplicity) fn projectable_owner(
+    program: &dyn validation::CheckingInput,
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
     let reference = validation::canonical_place_type_reference(
         program,
         state,
-        consumer.statement_index,
+        statement_index,
         &validation::CanonicalPlace {
-            root: place.root,
+            root: facts::PlaceRoot::Expression(expression),
             segments: Vec::new(),
         },
     )?;
     (program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine
         && !type_carries_linear_obligation(program, reference))
-    .then_some((expression, reference, place.segments))
+    .then_some(reference)
 }

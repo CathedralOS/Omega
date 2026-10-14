@@ -1277,6 +1277,10 @@ impl Emission<'_, '_, '_> {
         let first_new_place = *self.next_place;
         let first_new_operation = self.operations.next_identity;
         let node = self.structural_value_node(value);
+        // A projection of existing storage moves its child in place; the
+        // owner keeps its residual. An anonymous call result has no owner to
+        // keep it, so it completes as an ordinary value whose continuation
+        // discards that residual.
         if let CheckedStructuralValueKind::Projection {
             source,
             path,
@@ -1285,7 +1289,7 @@ impl Emission<'_, '_, '_> {
             && !path.is_empty()
             && matches!(
                 structural_values(self.checked).nodes.get(source).kind,
-                CheckedStructuralValueKind::Place(_) | CheckedStructuralValueKind::Call { .. }
+                CheckedStructuralValueKind::Place(_)
             )
         {
             let projected = self.projected_root(identities, source, path, type_identity)?;

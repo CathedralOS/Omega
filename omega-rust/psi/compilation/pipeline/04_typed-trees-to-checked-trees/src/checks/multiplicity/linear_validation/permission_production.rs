@@ -164,6 +164,7 @@ pub(crate) fn apply_statement_permission_production(
     let mut checked_through = event_start;
     let mut custody = (places.to_vec(), remaining.clone());
     let mut selected = SelectedEvaluation::new();
+    let mut projected_temporaries = Vec::new();
     let join = |current: &mut (
         Vec<LinearPlace>,
         super::super::cleanup_dispositions::RemainingCustody,
@@ -188,6 +189,23 @@ pub(crate) fn apply_statement_permission_production(
                 }
                 selected.enter(&occurrence.route, &mut custody, join)?;
                 let (places, remaining) = &mut custody;
+                // Moving a subtree out of an anonymous owner is that owner's
+                // last use. A call that receives the subtree directly retires
+                // the owner at its own continuation (temporary owners); any
+                // other consumer leaves it to this statement's completion.
+                if let facts::PlaceRoot::Expression(expression) = event.root
+                    && !event.segments.is_empty()
+                {
+                    projected_temporaries.push((
+                        expression,
+                        facts
+                            .flow
+                            .ownership
+                            .segments
+                            .span_or_empty(event.segments)
+                            .to_vec(),
+                    ));
+                }
                 if matches!(event.root, facts::PlaceRoot::Expression(_))
                     && !places.iter().any(|place| place.root == event.root)
                 {
@@ -435,6 +453,79 @@ pub(crate) fn apply_statement_permission_production(
     selected.enter(&[], &mut custody, join)?;
     places.clone_from_slice(&custody.0);
     *remaining = custody.1;
+    // An anonymous owner's untouched complement dies when the statement that
+    // moved its selected subtree completes: nothing can name the owner again.
+    // A transition completes only at its selected exit, which retains that
+    // owner's residual as an ordinary exit disposition.
+    if !matches!(statement, StatementNode::Transition(_)) {
+        for (expression, path) in projected_temporaries {
+            let root = facts::PlaceRoot::Expression(expression);
+            // Call-consumed owners and whole moves keep their own disposition;
+            // only a transferred subtree of a still-held owner leaves one here.
+            // A linear complement is refused by the partial-move check.
+            if temporary_owners
+                .iter()
+                .any(|owner| owner.expression == expression)
+                || remaining.is_present(root, &path)
+                || !remaining.is_present(root, &[])
+                || temporary_results::projectable_owner(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    expression,
+                )
+                .is_none()
+            {
+                continue;
+            }
+            let Some(producer) = permission_events
+                .iter()
+                .rev()
+                .find(|event| {
+                    event.kind == PermissionEventKind::Establish
+                        && event.machine_symbol == machine_symbol
+                        && event.state_symbol == state_symbol
+                        && event.root == root
+                })
+                .map(|event| event.provenance)
+            else {
+                continue;
+            };
+            let retirement_start = permission_events.len();
+            temporary_results::retire_owner(
+                program,
+                facts,
+                machine_symbol,
+                state_symbol,
+                temporary_results::ProjectedConsumer {
+                    source: statement_source,
+                    evaluation,
+                    producer,
+                },
+                expression,
+                &path,
+                places,
+                remaining,
+                permission_events,
+            )?;
+            remaining.observe_ordinary(
+                program,
+                &permission_events[retirement_start..],
+                &facts.flow.ownership.segments,
+                cleanup_dispositions,
+                checked_trees::FlowClaimJoinExit::default(),
+                &[],
+                false,
+            );
+            remaining.retire_storage(
+                root,
+                machine_symbol,
+                state_symbol,
+                statement_source,
+                cleanup_dispositions,
+            );
+        }
+    }
     let evaluated_events = permission_events.len() - event_start;
     // Calls have already joined their branch-local custody. Replaying their
     // flattened event roster here would import transfers from sibling arms.

@@ -31,62 +31,113 @@ pub(in crate::checks::multiplicity) fn append_cleanup(
         let TemporaryConsumption::OwnedProjection { path } = &owner.consumption else {
             continue;
         };
-        let root = facts::PlaceRoot::Expression(owner.expression);
-        let statement = match consumer {
-            PermissionEventSource::Call {
-                statement_index, ..
-            } => statement_index,
-            _ => continue,
-        };
-        let mut residuals = Vec::new();
-        if remaining.is_present(root, path)
-            || complement(
-                program,
-                state,
-                statement,
-                &validation::CanonicalPlace {
-                    root,
-                    segments: Vec::new(),
-                },
-                path,
-                &mut residuals,
-            )
-            .is_none()
-        {
-            return Err(diagnostics::Diagnostic::error(
-                "projected temporary cleanup lacks its exact completed transfer and residual partition",
-            ));
+        if !matches!(consumer, PermissionEventSource::Call { .. }) {
+            continue;
         }
-        for path in residuals {
-            if !remaining.is_present(root, &path) {
-                continue;
-            }
-            permissions.push(FlowPermissionEventFact {
-                expression: owner.expression,
-                evaluation,
-                machine_symbol: machine,
-                state_symbol: state,
+        retired.push(retire_owner(
+            program,
+            facts,
+            machine,
+            state,
+            ProjectedConsumer {
                 source: consumer,
-                kind: PermissionEventKind::AffineDrop,
-                multiplicity: Multiplicity::Affine,
-                access: PermissionAccess::Owned,
-                claim_identity: PermissionClaimIdentity::Unknown,
-                provenance: PermissionProvenance::Established {
+                evaluation,
+                producer: PermissionProvenance::Established {
                     machine_symbol: machine,
                     state_symbol: state,
                     source: owner.producer,
                 },
-                root,
-                segments: facts.flow.ownership.segments.insert_many(path),
-                obligation_live: false,
-            });
-        }
-        for place in places.iter_mut().filter(|place| place.root == root) {
-            place.live = false;
-        }
-        retired.push(root);
+            },
+            owner.expression,
+            path,
+            places,
+            remaining,
+            permissions,
+        )?);
     }
     Ok(retired)
+}
+
+/// The completed consumer of one projected move out of an anonymous owner.
+pub(in crate::checks::multiplicity) struct ProjectedConsumer {
+    pub(in crate::checks::multiplicity) source: PermissionEventSource,
+    pub(in crate::checks::multiplicity) evaluation: checked_trees::FlowPermissionEvaluation,
+    /// The establishment of the anonymous owner whose complement dies here.
+    pub(in crate::checks::multiplicity) producer: PermissionProvenance,
+}
+
+/// Retire an anonymous owner whose selected subtree has already transferred:
+/// its untouched complement dies at the consumer that completed the move,
+/// whether that consumer is a call continuation or the statement whose value
+/// received the subtree. Nothing can name the owner afterwards.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::checks::multiplicity) fn retire_owner(
+    program: &dyn validation::CheckingInput,
+    facts: &mut CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    consumer: ProjectedConsumer,
+    expression: typed_trees::expression::ExpressionHandle,
+    path: &[facts::PlaceSegment],
+    places: &mut [super::super::linear_obligations::LinearPlace],
+    remaining: &super::super::cleanup_dispositions::RemainingCustody,
+    permissions: &mut Vec<FlowPermissionEventFact>,
+) -> Result<facts::PlaceRoot, diagnostics::Diagnostic> {
+    let root = facts::PlaceRoot::Expression(expression);
+    let statement = match consumer.source {
+        PermissionEventSource::Call {
+            statement_index, ..
+        }
+        | PermissionEventSource::Statement { statement_index } => statement_index,
+        _ => {
+            return Err(diagnostics::Diagnostic::error(
+                "projected temporary cleanup has no completing call or statement",
+            ));
+        }
+    };
+    let mut residuals = Vec::new();
+    if remaining.is_present(root, path)
+        || complement(
+            program,
+            state,
+            statement,
+            &validation::CanonicalPlace {
+                root,
+                segments: Vec::new(),
+            },
+            path,
+            &mut residuals,
+        )
+        .is_none()
+    {
+        return Err(diagnostics::Diagnostic::error(
+            "projected temporary cleanup lacks its exact completed transfer and residual partition",
+        ));
+    }
+    for path in residuals {
+        if !remaining.is_present(root, &path) {
+            continue;
+        }
+        permissions.push(FlowPermissionEventFact {
+            expression,
+            evaluation: consumer.evaluation,
+            machine_symbol: machine,
+            state_symbol: state,
+            source: consumer.source,
+            kind: PermissionEventKind::AffineDrop,
+            multiplicity: Multiplicity::Affine,
+            access: PermissionAccess::Owned,
+            claim_identity: PermissionClaimIdentity::Unknown,
+            provenance: consumer.producer,
+            root,
+            segments: facts.flow.ownership.segments.insert_many(path),
+            obligation_live: false,
+        });
+    }
+    for place in places.iter_mut().filter(|place| place.root == root) {
+        place.live = false;
+    }
+    Ok(root)
 }
 
 // Only traverse the selected branch. Untouched siblings are maximal residuals,

@@ -3553,6 +3553,8 @@ fail/ownership/selective_constructed_owner_reuse rejected 1174ms expected @a9ae3
 	cannot use `token.value` in machine `choose` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/ownership/stored_view_element_missing_repair rejected 270ms expected @f329f97f57f7+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `refill`, state `entry` (statement 0): `window.tokens[0]` must hold a value again before this state's exits consume the borrow
+fail/ownership/temporary_projected_linear_residual_rejected rejected 515ms expected @93ba1f664f65+wt
+	cannot partially move a temporary call result while an unselected linear claim remains; bind the result to a local and transfer or consume every claim
 fail/ownership/view_element_window_live_borrow rejected 1605ms expected @a9ae30e1c334+wt
 	statement 1 mutates `tokens[0]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/ownership/view_element_window_missing_repair rejected 1349ms expected @a9ae30e1c334+wt
@@ -8133,6 +8135,7 @@ run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 
 run/ownership/declared_record_selected_exit_disposal checked 11660ms check-target:macos_arm64 @93ba1f664f65+wt
 run/ownership/temporary_case_observation checked 5301ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/ownership/temporary_projected_copy_argument checked 5449ms check-target:macos_arm64 @0e81fb3e4cce+wt
+run/ownership/temporary_projected_value_residual checked 11846ms check-target:macos_arm64 @93ba1f664f65+wt
 run/proofs/quotient_copy_paths checked 19698ms check-target:macos_arm64 @73e466d6222f+wt
 run/providers/module_named_float_conversion_family_exit checked 16353ms check-target:macos_arm64 @77cde1c51efd+wt
 run/stores/runtime_float_indexed_call_result_exit checked 16446ms check-target:macos_arm64 @77cde1c51efd+wt

@@ -29,7 +29,8 @@ mod projected;
 
 pub(super) use owned_transfers::append_owned_transfer;
 pub(crate) use owners::owned_temporary_type;
-pub(super) use owners::{TemporaryOwner, temporary_owners};
+pub(super) use owners::{TemporaryOwner, projectable_owner, temporary_owners};
+pub(super) use projected::{ProjectedConsumer, retire_owner};
 
 /// One call completion disposes temporary owners in reverse establishment
 /// order. Usage selects the exact whole or residual plan, not a separate
