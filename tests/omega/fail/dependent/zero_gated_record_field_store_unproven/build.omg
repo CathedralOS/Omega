@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "zero_gated_record_field_store_unproven");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+}

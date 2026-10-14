@@ -987,6 +987,7 @@ pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 184
 pass/dependent/valuation_order_cycle checked 205ms
 pass/dependent/where_field_shadows_module_const_exit built 2332ms exit:7 @efcffba14022+wt
 pass/dependent/zero_case_absorbs_nested_gate_compile built 1431ms exit:70 @bed5f45e9185+wt
+pass/dependent/zero_gated_record_field_store_exit built 16990ms exit:70 @896172b5d9d8+wt
 pass/dependent/zeroed_record_member_sum_elision built 1546ms exit:70 @bed5f45e9185+wt
 pass/domains/bodyless_owner_establishment checked 181ms
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 146ms

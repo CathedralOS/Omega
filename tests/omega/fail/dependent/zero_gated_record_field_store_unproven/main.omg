@@ -1,0 +1,27 @@
+// A zero-gated record's field replacement still binds the replacement value
+// to the declaration requirement: without a dominating `health > 30` guard,
+// `health - 30` is not proven `>= 1` and the store is refused.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Player
+where
+    health >= 1,
+    health <= 100,
+{
+    health: i32;
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine wound(player: &mut Player) {
+    player.health = player.health - 30;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let mut champion: Player = Player { health: 50 };
+    wound(&mut champion);
+    main.console.exit_process(champion.health);
+}

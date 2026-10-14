@@ -1,0 +1,73 @@
+// RUN CANARY (exit 70). A record whose `where` facts exclude zero
+// (`health >= 1`) is zero-gated: it cannot be zero-provisioned, but a
+// scalar-field replacement binds only the replacement value to the field's
+// declaration requirement, so the gate does not refuse the store. The same
+// store is written through an exclusive parameter, a nested record field,
+// an owned local, and a state of the attached machine.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Player
+where
+    health >= 1,
+    health <= 100,
+{
+    health: i32;
+}
+
+data Team {
+    lead: Player;
+    spare: i32;
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+// Parameter root: the dominating guard proves the replacement stays >= 1.
+machine wound(player: &mut Player) {
+    transition player.health > 30 {
+        true -> subtracted(player)
+        _ -> done()
+    }
+    state subtracted(player: &mut Player) {
+        player.health = player.health - 30;
+    }
+    state done() {}
+}
+
+// Nested carrier: the gated record sits below a field of the parameter.
+machine heal_lead(team: &mut Team) {
+    team.lead.health = 25;
+}
+
+// A later state of another machine writes the nested field.
+machine rally(team: &mut Team, bonus: i32) {
+    transition bonus > 0 {
+        true -> raised(team)
+        _ -> done()
+    }
+    state raised(team: &mut Team) {
+        team.lead.health = 30;
+    }
+    state done() {}
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    // Owned local root.
+    let mut champion: Player = Player { health: 50 };
+    champion.health = 45;
+    wound(&mut champion);
+    let mut team: Team = Team { lead: Player { health: 90 }, spare: 0 };
+    heal_lead(&mut team);
+    let healed: i32 = team.lead.health;
+    rally(&mut team, 1);
+    let total: i32 = champion.health + healed + team.lead.health;
+    transition total == 70 {
+        true -> finish(main, 70)
+        _ -> finish(main, 71)
+    }
+    state finish(main: &mut Main, code: i32) {
+        main.console.exit_process(code);
+    }
+}

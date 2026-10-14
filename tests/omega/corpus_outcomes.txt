@@ -1958,6 +1958,8 @@ fail/dependent/state_arrival_byte_predicate_unproven_rejected rejected 1587ms ex
 	cannot prove requires contract for call checked from Main::main: valid_utf8(view) (needs fact `valid_utf8(view)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/dependent/transitive_call_frame_invalidates_written_fact_rejected rejected 838ms expected @a9ae30e1c334+wt
 	exact arithmetic in machine `Main::main` state `main` assignment may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/dependent/zero_gated_record_field_store_unproven rejected 1169ms expected @896172b5d9d8+wt
+	machine `wound` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/domains/bitwise_membership_authored_operand rejected 4044ms expected @d1fa4738e67a+wt
 	`as ... in Clear` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
 fail/domains/bitwise_membership_false_arrival rejected 6458ms expected @d1fa4738e67a+wt
@@ -5825,6 +5827,7 @@ pass/dependent/valuation_order_cycle checked 2373ms @a9ae30e1c334+wt
 pass/dependent/where_field_shadows_module_const_exit checked 12591ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/dependent/zero_case_absorbs_nested_gate_compile checked 12060ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/dependent/zero_case_predicate_entry_exit checked 5863ms check-target:macos_arm64 @2b888a3f0e32
+pass/dependent/zero_gated_record_field_store_exit checked 18242ms check-target:macos_arm64 @896172b5d9d8+wt
 pass/dependent/zero_valid_qualified_storage checked 1689ms @a9ae30e1c334+wt
 pass/dependent/zeroed_record_member_sum_elision checked 12554ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/bitwise_live_membership_exit checked 18873ms check-target:macos_arm64 @d1fa4738e67a+wt

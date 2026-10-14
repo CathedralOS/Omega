@@ -704,9 +704,12 @@ fn plain_checked_shape(
         // exactly by the declaration predicate roster, whose rows a call
         // proves before entry and a published guarantee proves at return. A
         // machine without rows relies on none. Zero validity alone proves
-        // nothing per store.
+        // nothing per store: a zero gate restricts zero provisioning, not
+        // replacement, which binds the replacement value to the field's
+        // retained declaration requirement (structural_access.md, Complete
+        // record construction). A record whose zero is not a member, such as
+        // one with `health >= 1`, is therefore written like any other.
         && validation::declaration_facts_carried(program, operators, data)
-        && (!data.zero_gated || validation::data_predicates_admit_zero(program, data))
 }
 
 fn retained_record_owner_application(
