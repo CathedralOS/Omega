@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // Target-owned UEFI x86-64 OS-loader handoff.
 //
 // An OS-loader profile binds a ProgramEntry machine that calls
@@ -151,21 +150,16 @@ pub boundary trait UefiOsHandoffTermination {
 }
 
 // The generated edges the authored cycle's terminal stages resolve to. The
-// adapter-established provider carries only the termination carrier: the
-// protocol above it is authored code, and the edges stay compiler-owned.
-pub data UefiOsHandoffNativeProvider {
-    termination: Binding<UefiOsHandoffTermination>;
-}
+// protocol above them is authored code, and the edges stay compiler-owned.
+pub data UefiOsHandoffNativeProvider { }
 
 uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::transfer_to_entry()
     satisfies UefiOsHandoffTermination::transfer;
 uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::firmware_return(status: u64)
     satisfies UefiOsHandoffTermination::firmware_return;
 
-// The cycle's Boot Services carrier and custody storage. A record's attached
-// machines are admitted only while the record holds a single provider-backed
-// field, so the termination carrier is a sibling record rather than a second
-// `Service` here. `table`/`image` are the adapter-established Boot Services
+// The cycle's Boot Services custody storage; its legs call `UefiBootServices`
+// directly. `table`/`image` are the adapter-established Boot Services
 // table base and image handle (carried as `u64` addresses, the leaf ABI
 // width); `map`, `map_capacity`, and `map_pages` are the retained map-buffer
 // allocation; `next_map`/`pages` stage a grown buffer until its adoption is
@@ -173,7 +167,6 @@ uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::firmware_return(status
 // carry the freshest firmware snapshot evidence; and `status` is the last
 // status each leg's firmware call produced.
 pub data UefiOsHandoffLegs {
-    boot_services: Binding<UefiBootServices>;
     table: u64;
     image: u64;
     map: u64;
@@ -200,7 +193,7 @@ boundary machine UefiOsHandoffLegs::acquire(uefi_os_handoff_legs: &mut UefiOsHan
     uefi_os_handoff_legs.map_size = uefi_os_handoff_legs.map_capacity;
     let table_in: u64 = uefi_os_handoff_legs.table;
     let map_in: u64 = uefi_os_handoff_legs.map;
-    let status_out: u64 = uefi_os_handoff_legs.boot_services.get_memory_map(
+    let status_out: u64 = UefiBootServices::get_memory_map(
         table_in,
         &mut uefi_os_handoff_legs.map_size,
         map_in,
@@ -219,7 +212,7 @@ boundary machine UefiOsHandoffLegs::grow(uefi_os_handoff_legs: &mut UefiOsHandof
 {
     let table_in: u64 = uefi_os_handoff_legs.table;
     let pages_in: u64 = uefi_os_handoff_legs.pages;
-    let status_out: u64 = uefi_os_handoff_legs.boot_services.allocate_pages(
+    let status_out: u64 = UefiBootServices::allocate_pages(
         table_in,
         EFI_ALLOCATE_ANY_PAGES,
         EFI_LOADER_DATA,
@@ -237,7 +230,7 @@ boundary machine UefiOsHandoffLegs::free_map(uefi_os_handoff_legs: &mut UefiOsHa
     let table_in: u64 = uefi_os_handoff_legs.table;
     let map_in: u64 = uefi_os_handoff_legs.map;
     let map_pages_in: u64 = uefi_os_handoff_legs.map_pages;
-    let status_out: u64 = uefi_os_handoff_legs.boot_services.free_pages(table_in, map_in, map_pages_in);
+    let status_out: u64 = UefiBootServices::free_pages(table_in, map_in, map_pages_in);
     uefi_os_handoff_legs.status = status_out;
 }
 
@@ -250,28 +243,26 @@ boundary machine UefiOsHandoffLegs::attempt_exit(uefi_os_handoff_legs: &mut Uefi
     let table_in: u64 = uefi_os_handoff_legs.table;
     let image_in: u64 = uefi_os_handoff_legs.image;
     let key_in: u64 = uefi_os_handoff_legs.key;
-    let status_out: u64 = uefi_os_handoff_legs.boot_services.exit_boot_services(table_in, image_in, key_in);
+    let status_out: u64 = UefiBootServices::exit_boot_services(table_in, image_in, key_in);
     uefi_os_handoff_legs.status = status_out;
 }
 
-// The authored cycle's terminal-stage carrier: one provider per record keeps
-// each machine inside the single-carrier admission shape.
-pub data UefiOsHandoffTerminal {
-    termination: Binding<UefiOsHandoffTermination>;
-}
+// The authored cycle's terminal stages, which call the compiler-owned
+// `UefiOsHandoffTermination` edges directly.
+pub data UefiOsHandoffTerminal { }
 
 pub machine UefiOsHandoffTerminal::firmware_return(uefi_os_handoff_terminal: &mut UefiOsHandoffTerminal, status: u64)
     reaches UefiOsHandoffTermination
     invokes UefiOsHandoffTermination;
 {
-    uefi_os_handoff_terminal.termination.firmware_return(status);
+    UefiOsHandoffTermination::firmware_return(status);
 }
 
 pub machine UefiOsHandoffTerminal::transfer(uefi_os_handoff_terminal: &mut UefiOsHandoffTerminal)
     reaches UefiOsHandoffTermination
     invokes UefiOsHandoffTermination;
 {
-    uefi_os_handoff_terminal.termination.transfer();
+    UefiOsHandoffTermination::transfer();
 }
 
 // The bound handoff cycle: the legs record performs every scalar-returning

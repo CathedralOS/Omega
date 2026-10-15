@@ -31,8 +31,7 @@
 //     wake-many boundary the spec names as the shared wait direction.
 //   * Provider selection — `executor.omg` declares the package's own
 //     `WorkerProvider` boundary trait (the executor is a package, not a
-//     task-runtime mode) and `Executor` holds the selected slot as a
-//     `Binding<WorkerProvider>` routed capability; applications
+//     task-runtime mode), workers call it directly, and applications
 //     pick the provider with `Build::select_provider`. Core's
 //     `TaskRuntime` is deliberately not named here: it is not public
 //     outside the bundled library, and the executor does not widen it.

@@ -1,6 +1,5 @@
 use omega::language::core::extent;
 use omega::language::core::content;
-use omega::language::core::binding;
 
 // Exact partition of one qualified vacant range into two adjacent qualified
 // vacant ranges.
@@ -51,12 +50,12 @@ pub data Attempt {
 }
 
 // Failure returns the unchanged strategy; success returns its exact partition.
-pub machine try_allocate(partition: &Binding<ExtentPartition>, strategy: Bump, length: u64) -> Attempt
+pub machine try_allocate(strategy: Bump, length: u64) -> Attempt
 reaches ExtentPartition
-    invokes partition;
+    invokes ExtentPartition;
 {
     transition length <= strategy.remaining {
-        true -> Attempt::Allocated { issued: allocate(partition, strategy, length) }
+        true -> Attempt::Allocated { issued: allocate(strategy, length) }
         _ -> Attempt::Exhausted { strategy: strategy }
     }
 }
@@ -65,7 +64,7 @@ reaches ExtentPartition
 // `length <= strategy.remaining` (allocation.md), and the body decrements
 // the residual by the same length the requires bounds — the requires
 // ordering is what licenses the subtraction.
-pub machine allocate(partition: &Binding<ExtentPartition>, strategy: Bump, length: u64) -> Issued
+pub machine allocate(strategy: Bump, length: u64) -> Issued
 requires
     length <= strategy.remaining
 ensures
@@ -73,10 +72,10 @@ ensures
     result.allocation.length == length;
     embed(result.strategy.tail.length) + embed(result.allocation.length) == embed(strategy.tail.length)
 reaches ExtentPartition
-    invokes partition;
+    invokes ExtentPartition;
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
-    let parts: Split = partition.split(tail, length);
+    let parts: Split = ExtentPartition::split(tail, length);
     check_extent_length(&parts.taken, length);
     Issued {
         strategy: Bump {
@@ -107,7 +106,6 @@ requires extent.length == expected
 // both must still be vacant: a region whose resident has not been retired
 // does not type as `Vacant` and cannot reach recomposition.
 pub machine reset(
-    partition: &Binding<ExtentPartition>,
     strategy: Bump,
     lower: Extent in Granted & Vacant,
     upper: Extent in Granted & Vacant
@@ -115,14 +113,14 @@ pub machine reset(
 ensures
     embed(result.remaining) == embed(lower.length) + embed(upper.length) + embed(strategy.tail.length)
 reaches ExtentPartition
-    invokes partition;
+    invokes ExtentPartition;
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
-    let upper_and_tail: Extent in Granted & Vacant = partition.merge(Split {
+    let upper_and_tail: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: upper,
         rest: tail,
     });
-    let whole: Extent in Granted & Vacant = partition.merge(Split {
+    let whole: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: lower,
         rest: upper_and_tail,
     });
@@ -135,19 +133,15 @@ reaches ExtentPartition
 // resident does not satisfy the parameter. The recomposed tail's own
 // geometry restores the residual; the strategy's custody is conserved by
 // the same merge law `reset` composes.
-pub machine release(
-    partition: &Binding<ExtentPartition>,
-    strategy: Bump,
-    returned: Extent in Granted & Vacant
-) -> Bump
+pub machine release(strategy: Bump, returned: Extent in Granted & Vacant) -> Bump
 ensures
     embed(result.tail.length) == embed(returned.length) + embed(strategy.tail.length);
     embed(result.remaining) == embed(returned.length) + embed(strategy.tail.length)
 reaches ExtentPartition
-    invokes partition;
+    invokes ExtentPartition;
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
-    let grown: Extent in Granted & Vacant = partition.merge(Split {
+    let grown: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: returned,
         rest: tail,
     });
@@ -168,25 +162,16 @@ pub data BumpVec {
 // Open a reservation of `capacity` bytes. `residual` is the caller's stated
 // capacity premise for the backing, tied to its geometry by the second
 // requires clause. Later allocations consume `allocate`'s returned residual.
-pub machine open(
-    partition: &Binding<ExtentPartition>,
-    whole: Extent in Granted & Vacant,
-    capacity: u64,
-    residual: u64
-) -> BumpVec
+pub machine open(whole: Extent in Granted & Vacant, capacity: u64, residual: u64) -> BumpVec
 requires
     capacity <= residual;
     residual == whole.length
 ensures
     result.buffer.length == capacity
 reaches ExtentPartition
-    invokes partition;
+    invokes ExtentPartition;
 {
-    let issued: Issued = allocate(
-        partition,
-        Bump { tail: whole, remaining: residual },
-        capacity,
-    );
+    let issued: Issued = allocate(Bump { tail: whole, remaining: residual }, capacity);
     let strategy: Bump = issued.strategy;
     let remaining: u64 = strategy.remaining;
     let tail: Extent in Granted & Vacant = strategy.tail;
@@ -211,20 +196,19 @@ pub data Recomposed {
 // The buffer
 // must still be `Vacant` — closing a container whose elements were never
 // retired does not type. Both slot cases must return the entire held backing.
-pub machine close(partition: &Binding<ExtentPartition>, vec: BumpVec) -> Recomposed
+pub machine close(vec: BumpVec) -> Recomposed
 reaches ExtentPartition
-    invokes partition;
+    invokes ExtentPartition;
 {
     let strategy: Bump = vec.strategy;
     let tail: Extent in Granted & Vacant = strategy.tail;
     let buffer: Extent in Granted & Vacant = vec.buffer;
-    let whole: Extent in Granted & Vacant = partition.merge(Split {
+    let whole: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: buffer,
         rest: tail,
     });
     let remaining: u64 = whole.length;
     let restored: Bump = reset_retired(
-        partition,
         Bump { tail: whole, remaining: remaining },
         vec.retained_buffer,
     );
@@ -239,14 +223,14 @@ pub data Growth {
     case Rejected(vec: BumpVec);
 }
 
-pub machine grow(partition: &Binding<ExtentPartition>, vec: BumpVec, capacity: u64) -> Growth
+pub machine grow(vec: BumpVec, capacity: u64) -> Growth
 reaches ExtentPartition
-    invokes partition;
+    invokes ExtentPartition;
 {
     let strategy: Bump = vec.strategy;
     let buffer: Extent in Granted & Vacant = vec.buffer;
     transition vec.retained_buffer {
-        RetiredSlot::Empty -> reserve(partition, strategy, buffer, capacity)
+        RetiredSlot::Empty -> reserve(strategy, buffer, capacity)
         RetiredSlot::Held { storage } -> Growth::Rejected {
             vec: BumpVec {
                 strategy: strategy,
@@ -256,13 +240,8 @@ reaches ExtentPartition
         }
     }
 
-    state reserve(
-        partition: &Binding<ExtentPartition>,
-        strategy: Bump,
-        buffer: Extent in Granted & Vacant,
-        capacity: u64
-    ) -> Growth {
-        let attempt: Attempt = try_allocate(partition, strategy, capacity);
+    state reserve(strategy: Bump, buffer: Extent in Granted & Vacant, capacity: u64) -> Growth {
+        let attempt: Attempt = try_allocate(strategy, capacity);
         transition attempt {
             Attempt::Allocated { issued } -> Growth::Grown {
                 vec: BumpVec {
@@ -287,7 +266,7 @@ reaches ExtentPartition
 // live buffer is always the newest allocation, so it folds straight into the
 // strategy tail and the residual restores from the recomposed geometry. The
 // retained slot keeps its own custody through the move.
-pub machine shrink(partition: &Binding<ExtentPartition>, vec: BumpVec, kept: u64) -> BumpVec
+pub machine shrink(vec: BumpVec, kept: u64) -> BumpVec
 requires
     kept <= vec.buffer.length
 ensures
@@ -295,12 +274,12 @@ ensures
     embed(result.strategy.tail.length) + embed(kept)
         == embed(vec.strategy.tail.length) + embed(vec.buffer.length)
 reaches ExtentPartition
-    invokes partition;
+    invokes ExtentPartition;
 {
-    let parts: Split = partition.split(vec.buffer, kept);
+    let parts: Split = ExtentPartition::split(vec.buffer, kept);
     let shrunk: Extent in Granted & Vacant = parts.taken;
     let freed: Extent in Granted & Vacant = parts.rest;
-    let grown_tail: Extent in Granted & Vacant = partition.merge(Split {
+    let grown_tail: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: freed,
         rest: vec.strategy.tail,
     });
@@ -335,25 +314,17 @@ pub machine retain_buffer(storage: Extent in Granted & Vacant) -> RetiredSlot {
     RetiredSlot::Held { storage: storage }
 }
 
-pub machine reset_retired(
-    partition: &Binding<ExtentPartition>,
-    strategy: Bump,
-    retired: RetiredSlot
-) -> Bump
+pub machine reset_retired(strategy: Bump, retired: RetiredSlot) -> Bump
 reaches ExtentPartition
-    invokes partition;
+    invokes ExtentPartition;
 {
     transition retired {
         RetiredSlot::Empty -> strategy
-        RetiredSlot::Held { storage } -> restore(partition, strategy, storage)
+        RetiredSlot::Held { storage } -> restore(strategy, storage)
     }
 
-    state restore(
-        partition: &Binding<ExtentPartition>,
-        strategy: Bump,
-        storage: Extent in Granted & Vacant
-    ) -> Bump {
-        let whole: Extent in Granted & Vacant = partition.merge(Split {
+    state restore(strategy: Bump, storage: Extent in Granted & Vacant) -> Bump {
+        let whole: Extent in Granted & Vacant = ExtentPartition::merge(Split {
             taken: storage,
             rest: strategy.tail,
         });

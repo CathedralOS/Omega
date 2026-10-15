@@ -11,7 +11,6 @@
 // boundary trait — satisfy-able contract slots that carry their
 // `suspends`/`blocks` effect declarations. The satisfying machine bodies are
 // behind the generic-machine frontier recorded in queue.omg's header.
-use omega::language::core::binding;
 use queue;
 
 // Worker execution provider — the executor's own selected-provider
@@ -100,12 +99,11 @@ pub data SubmitOutcome<T, Arguments> {
 }
 
 // One executor instance: its bounded submission queue, the wait word
-// producers and workers park on, the routed worker-provider service worker
-// activations run under, and the count of vended claims not yet settled.
-// `Binding<WorkerProvider>` is the held selected capability — established
-// by build composition, never package-authored (service.omg), matching the
-// spec rule that selection grants no ambient authority: the executor must
-// hold the capability. `outstanding` is the outstanding-claim ledger:
+// producers and workers park on, and the count of vended claims not yet
+// settled. Worker activations call the selected `WorkerProvider` directly;
+// its provider is established by build composition, never package-authored
+// (service.omg), and selection grants no ambient authority: each call still
+// declares its reach. `outstanding` is the outstanding-claim ledger:
 // every `Accepted` vends one `Ticket` claim against this executor, and
 // `settle` retires exactly one — an executor must not die while claims it
 // vended are still live, because a `Ticket` can only be settled against
@@ -113,7 +111,6 @@ pub data SubmitOutcome<T, Arguments> {
 pub data Executor<T, Arguments, const N: u64> [linear] {
     queue: BoundedQueue<Submission<T, Arguments>, N>;
     wait_word: u64;
-    runtime: Binding<WorkerProvider>;
     open: bool;
     outstanding: u64;
 }

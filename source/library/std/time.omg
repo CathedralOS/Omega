@@ -32,7 +32,6 @@
 use time_host;
 use math;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 pub data Ordering [copy] {
     case Less;
@@ -908,9 +907,7 @@ pub machine SystemTime::saturating_subtract(time: &SystemTime, duration: Duratio
 // The clock-read CAPABILITY (D9): reads live here, never ambiently on the
 // value types -- Rust's `Instant::now()`/`Instant::elapsed()` intentionally
 // have no equivalent (the Cathedral no-ambient-authority stance).
-pub data Time {
-    host: Binding<TimeHost>;
-}
+pub data Time { }
 
 // Read the monotonic clock and normalize ONCE (D6): raw ticks + calibration
 // in, (seconds, subsecond_nanoseconds) out. All conversion math lives here,
@@ -929,8 +926,8 @@ reaches
 invokes
     TimeHost;
 {
-    let ticks: u64 = time.host.monotonic_ticks();
-    let frequency_raw: u64 = time.host.monotonic_ticks_per_second();
+    let ticks: u64 = TimeHost::monotonic_ticks();
+    let frequency_raw: u64 = TimeHost::monotonic_ticks_per_second();
     let frequency: u64 = clamp_u64(frequency_raw, 1, 18446744073);
     let whole_seconds: u64 = ticks / frequency;
     let remainder: u64 = ticks % frequency;
@@ -958,9 +955,9 @@ reaches
 invokes
     TimeHost;
 {
-    let raw: u64 = time.host.wall_clock_raw();
-    let units_raw: u64 = time.host.wall_clock_units_per_second();
-    let offset: u64 = time.host.wall_clock_epoch_offset_seconds();
+    let raw: u64 = TimeHost::wall_clock_raw();
+    let units_raw: u64 = TimeHost::wall_clock_units_per_second();
+    let offset: u64 = TimeHost::wall_clock_epoch_offset_seconds();
     // The same clamp-as-calibration-guard as `now()` (D5 proof bound).
     let units: u64 = clamp_u64(units_raw, 1, 18446744073);
     let platform_seconds: u64 = raw / units;
@@ -1004,8 +1001,8 @@ reaches
 invokes
     TimeHost;
 {
-    let ticks: u64 = time.host.monotonic_ticks();
-    let frequency_raw: u64 = time.host.monotonic_ticks_per_second();
+    let ticks: u64 = TimeHost::monotonic_ticks();
+    let frequency_raw: u64 = TimeHost::monotonic_ticks_per_second();
     let frequency: u64 = clamp_u64(frequency_raw, 1, 18446744073);
     let now_seconds: u64 = ticks / frequency;
     let remainder: u64 = ticks % frequency;
@@ -1075,6 +1072,6 @@ blocks;
     let total: u64 = total_wide as u64;
     let capped: u64 = clamp_u64(total, 0, 4294967295);
     let milliseconds: u32 = narrow_u64_to_u32_exact(capped);
-    block time.host.sleep(milliseconds);
+    block TimeHost::sleep(milliseconds);
     milliseconds
 }

@@ -176,27 +176,17 @@
 //   semantics are settled.
 use omega::language::core::extent;
 use omega::language::core::content;
-use omega::language::core::binding;
 use alloc::bump;
-machine exercise(
-    partition: &Binding<ExtentPartition>,
-    whole: Extent in Granted & Vacant,
-    capacity: u64
-) -> Extent
+machine exercise(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
     48 <= capacity;
     capacity == whole.length
 reaches ExtentPartition
 {
-    let issued_first: Issued = allocate(
-        partition,
-        Bump { tail: whole, remaining: capacity },
-        16,
-    );
+    let issued_first: Issued = allocate(Bump { tail: whole, remaining: capacity }, 16);
     let first_tail: Extent in Granted & Vacant = issued_first.strategy.tail;
     check_remaining(issued_first.strategy.remaining, capacity, 16);
     let issued_second: Issued = allocate(
-        partition,
         Bump { tail: first_tail, remaining: issued_first.strategy.remaining },
         32,
     );
@@ -206,13 +196,12 @@ reaches ExtentPartition
     let second_allocation: Extent in Granted & Vacant = issued_second.allocation;
     let first_allocation: Extent in Granted & Vacant = issued_first.allocation;
     let restored: Bump = reset(
-        partition,
         Bump { tail: second_tail, remaining: second_residual },
         first_allocation,
         second_allocation,
     );
-    let reused: Issued = allocate(partition, restored, capacity);
-    let recomposed: Extent in Granted & Vacant = partition.merge(Split {
+    let reused: Issued = allocate(restored, capacity);
+    let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: reused.allocation,
         rest: reused.strategy.tail,
     });
@@ -223,25 +212,15 @@ reaches ExtentPartition
 // unrelated to the original capacity, so both returned outcomes must work:
 // success recomposes its allocation and tail; rejection returns the strategy's
 // unchanged tail. No caller-side guard substitutes for the returned custody.
-machine exercise_fallible(
-    partition: &Binding<ExtentPartition>,
-    whole: Extent in Granted & Vacant,
-    capacity: u64,
-    demand: u64
-) -> Extent
+machine exercise_fallible(whole: Extent in Granted & Vacant, capacity: u64, demand: u64) -> Extent
 requires
     48 <= capacity;
     capacity == whole.length
 reaches ExtentPartition
 {
-    let issued_first: Issued = allocate(
-        partition,
-        Bump { tail: whole, remaining: capacity },
-        16,
-    );
+    let issued_first: Issued = allocate(Bump { tail: whole, remaining: capacity }, 16);
     let first_tail: Extent in Granted & Vacant = issued_first.strategy.tail;
     let issued_second: Issued = allocate(
-        partition,
         Bump { tail: first_tail, remaining: issued_first.strategy.remaining },
         32,
     );
@@ -250,28 +229,24 @@ reaches ExtentPartition
     let second_allocation: Extent in Granted & Vacant = issued_second.allocation;
     let first_allocation: Extent in Granted & Vacant = issued_first.allocation;
     let restored: Bump = reset(
-        partition,
         Bump { tail: second_tail, remaining: second_residual },
         first_allocation,
         second_allocation,
     );
-    let attempt: Attempt = try_allocate(partition, restored, demand);
+    let attempt: Attempt = try_allocate(restored, demand);
     transition attempt {
-        Attempt::Allocated { issued } -> reuse(partition, issued)
+        Attempt::Allocated { issued } -> reuse(issued)
         Attempt::Exhausted { strategy } -> rejected(strategy)
     }
 
     // Allocation already happened inside the request. This arm returns both
     // selected claims to the partition boundary for exact recomposition.
-    state reuse(
-        partition: &Binding<ExtentPartition>,
-        issued: Issued
-    ) -> Extent
+    state reuse(issued: Issued) -> Extent
     {
         let strategy: Bump = issued.strategy;
         let new_tail: Extent in Granted & Vacant = strategy.tail;
         let allocation: Extent in Granted & Vacant = issued.allocation;
-        let recomposed: Extent in Granted & Vacant = partition.merge(Split {
+        let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
             taken: allocation,
             rest: new_tail,
         });
@@ -293,23 +268,14 @@ reaches ExtentPartition
 // residual `release` restored, not a caller-invented floor — the same
 // rule `exercise`'s second request follows — and the closing reset
 // restores the full original capacity for one unguarded reuse.
-machine exercise_release(
-    partition: &Binding<ExtentPartition>,
-    whole: Extent in Granted & Vacant,
-    capacity: u64
-) -> Extent
+machine exercise_release(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
     48 <= capacity;
     capacity == whole.length
 reaches ExtentPartition
 {
-    let issued_first: Issued = allocate(
-        partition,
-        Bump { tail: whole, remaining: capacity },
-        16,
-    );
+    let issued_first: Issued = allocate(Bump { tail: whole, remaining: capacity }, 16);
     let issued_second: Issued = allocate(
-        partition,
         Bump {
             tail: issued_first.strategy.tail,
             remaining: issued_first.strategy.remaining,
@@ -317,22 +283,13 @@ reaches ExtentPartition
         32,
     );
     // `issued_first.allocation` stays live while the second region returns.
-    let grown: Bump = release(
-        partition,
-        issued_second.strategy,
-        issued_second.allocation,
-    );
-    let issued_third: Issued = allocate(partition, grown, 24);
+    let grown: Bump = release(issued_second.strategy, issued_second.allocation);
+    let issued_third: Issued = allocate(grown, 24);
     let first_allocation: Extent in Granted & Vacant = issued_first.allocation;
     let third_allocation: Extent in Granted & Vacant = issued_third.allocation;
-    let restored: Bump = reset(
-        partition,
-        issued_third.strategy,
-        first_allocation,
-        third_allocation,
-    );
-    let reused: Issued = allocate(partition, restored, capacity);
-    let recomposed: Extent in Granted & Vacant = partition.merge(Split {
+    let restored: Bump = reset(issued_third.strategy, first_allocation, third_allocation);
+    let reused: Issued = allocate(restored, capacity);
+    let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: reused.allocation,
         rest: reused.strategy.tail,
     });
@@ -343,23 +300,18 @@ reaches ExtentPartition
 // close — the live buffer and the tail recompose into the backing's suffix.
 // The record fields retain their existing qualifications while this exercise
 // explicitly rebuilds the container before returning its backing.
-machine exercise_vec(
-    partition: &Binding<ExtentPartition>,
-    whole: Extent in Granted & Vacant,
-    capacity: u64
-) -> Extent
+machine exercise_vec(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
     48 <= capacity;
     capacity == whole.length
 reaches ExtentPartition
 {
-    let vec: BumpVec = open(partition, whole, 16, capacity);
+    let vec: BumpVec = open(whole, 16, capacity);
     let strategy: Bump = vec.strategy;
     let remaining: u64 = strategy.remaining;
     let tail: Extent in Granted & Vacant = strategy.tail;
     let buffer: Extent in Granted & Vacant = vec.buffer;
     let recomposed: Recomposed = close(
-        partition,
         BumpVec {
             strategy: Bump { tail: tail, remaining: remaining },
             buffer: buffer,
@@ -373,23 +325,18 @@ reaches ExtentPartition
 // Reserve 16 bytes, request 32 more while retaining the old buffer, then
 // request another growth and close either returned outcome. The second
 // request exercises full-slot rejection without dropping retained custody.
-machine exercise_grow(
-    partition: &Binding<ExtentPartition>,
-    whole: Extent in Granted & Vacant,
-    capacity: u64
-) -> Extent
+machine exercise_grow(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
     48 <= capacity;
     capacity == whole.length
 reaches ExtentPartition
 {
-    let vec: BumpVec = open(partition, whole, 16, capacity);
+    let vec: BumpVec = open(whole, 16, capacity);
     let strategy: Bump = vec.strategy;
     let remaining: u64 = strategy.remaining;
     let tail: Extent in Granted & Vacant = strategy.tail;
     let buffer: Extent in Granted & Vacant = vec.buffer;
     let growth: Growth = grow(
-        partition,
         BumpVec {
             strategy: Bump { tail: tail, remaining: remaining },
             buffer: buffer,
@@ -398,20 +345,20 @@ reaches ExtentPartition
         32,
     );
     transition growth {
-        Growth::Grown { vec } -> retry(partition, vec)
-        Growth::Rejected { vec } -> finish(partition, vec)
+        Growth::Grown { vec } -> retry(vec)
+        Growth::Rejected { vec } -> finish(vec)
     }
 
-    state retry(partition: &Binding<ExtentPartition>, vec: BumpVec) -> Extent {
-        let second: Growth = grow(partition, vec, 1);
+    state retry(vec: BumpVec) -> Extent {
+        let second: Growth = grow(vec, 1);
         transition second {
-            Growth::Grown { vec } -> finish(partition, vec)
-            Growth::Rejected { vec } -> finish(partition, vec)
+            Growth::Grown { vec } -> finish(vec)
+            Growth::Rejected { vec } -> finish(vec)
         }
     }
 
-    state finish(partition: &Binding<ExtentPartition>, vec: BumpVec) -> Extent {
-        let recomposed: Recomposed = close(partition, vec);
+    state finish(vec: BumpVec) -> Extent {
+        let recomposed: Recomposed = close(vec);
         recomposed.backing as Extent
     }
 }
@@ -422,23 +369,18 @@ reaches ExtentPartition
 // arm from `exercise_grow`'s full-slot rejection. The rejection preserves the
 // live buffer's custody and the container stays usable: a later request that
 // fits the residual still grows, and `close` folds every region back.
-machine exercise_grow_exhausted(
-    partition: &Binding<ExtentPartition>,
-    whole: Extent in Granted & Vacant,
-    capacity: u64
-) -> Extent
+machine exercise_grow_exhausted(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
     48 <= capacity;
     capacity == whole.length
 reaches ExtentPartition
 {
-    let vec: BumpVec = open(partition, whole, 16, capacity);
+    let vec: BumpVec = open(whole, 16, capacity);
     let strategy: Bump = vec.strategy;
     let remaining: u64 = strategy.remaining;
     let tail: Extent in Granted & Vacant = strategy.tail;
     let buffer: Extent in Granted & Vacant = vec.buffer;
     let growth: Growth = grow(
-        partition,
         BumpVec {
             strategy: Bump { tail: tail, remaining: remaining },
             buffer: buffer,
@@ -447,22 +389,22 @@ reaches ExtentPartition
         capacity,
     );
     transition growth {
-        Growth::Grown { vec } -> finish(partition, vec)
-        Growth::Rejected { vec } -> retry_within(partition, vec)
+        Growth::Grown { vec } -> finish(vec)
+        Growth::Rejected { vec } -> retry_within(vec)
     }
 
     // The rejected container kept its live buffer and its empty retained
     // slot; a demand that fits the residual still grows it.
-    state retry_within(partition: &Binding<ExtentPartition>, vec: BumpVec) -> Extent {
-        let second: Growth = grow(partition, vec, 8);
+    state retry_within(vec: BumpVec) -> Extent {
+        let second: Growth = grow(vec, 8);
         transition second {
-            Growth::Grown { vec } -> finish(partition, vec)
-            Growth::Rejected { vec } -> finish(partition, vec)
+            Growth::Grown { vec } -> finish(vec)
+            Growth::Rejected { vec } -> finish(vec)
         }
     }
 
-    state finish(partition: &Binding<ExtentPartition>, vec: BumpVec) -> Extent {
-        let recomposed: Recomposed = close(partition, vec);
+    state finish(vec: BumpVec) -> Extent {
+        let recomposed: Recomposed = close(vec);
         recomposed.backing as Extent
     }
 }
@@ -472,26 +414,22 @@ reaches ExtentPartition
 // the shrunk one moves to the retained slot, and `close` folds every region
 // back. The grown leg proves the restored residual is spendable, not just
 // recorded — the same residual law `release` established.
-machine exercise_shrink(
-    partition: &Binding<ExtentPartition>,
-    whole: Extent in Granted & Vacant,
-    capacity: u64
-) -> Extent
+machine exercise_shrink(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
     48 <= capacity;
     capacity == whole.length
 reaches ExtentPartition
 {
-    let vec: BumpVec = open(partition, whole, 32, capacity);
-    let shrunk: BumpVec = shrink(partition, vec, 16);
-    let growth: Growth = grow(partition, shrunk, 8);
+    let vec: BumpVec = open(whole, 32, capacity);
+    let shrunk: BumpVec = shrink(vec, 16);
+    let growth: Growth = grow(shrunk, 8);
     transition growth {
-        Growth::Grown { vec } -> finish(partition, vec)
-        Growth::Rejected { vec } -> finish(partition, vec)
+        Growth::Grown { vec } -> finish(vec)
+        Growth::Rejected { vec } -> finish(vec)
     }
 
-    state finish(partition: &Binding<ExtentPartition>, vec: BumpVec) -> Extent {
-        let recomposed: Recomposed = close(partition, vec);
+    state finish(vec: BumpVec) -> Extent {
+        let recomposed: Recomposed = close(vec);
         recomposed.backing as Extent
     }
 }
@@ -499,23 +437,20 @@ reaches ExtentPartition
 // The same two-allocation plan spelled directly over the partition boundary,
 // kept as the control surface for restating `Split` fields from a boundary
 // result.
-machine exercise_boundary(
-    partition: &Binding<ExtentPartition>,
-    whole: Extent in Granted & Vacant
-) -> Extent
+machine exercise_boundary(whole: Extent in Granted & Vacant) -> Extent
 reaches ExtentPartition
 {
-    let first: Split = partition.split(whole, 16);
+    let first: Split = ExtentPartition::split(whole, 16);
     let first_allocation: Extent in Granted & Vacant = first.taken;
     let after_first: Extent in Granted & Vacant = first.rest;
-    let second: Split = partition.split(after_first, 32);
+    let second: Split = ExtentPartition::split(after_first, 32);
     let second_allocation: Extent in Granted & Vacant = second.taken;
     let tail: Extent in Granted & Vacant = second.rest;
-    let upper_and_tail: Extent in Granted & Vacant = partition.merge(Split {
+    let upper_and_tail: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: second_allocation,
         rest: tail,
     });
-    let restored: Extent in Granted & Vacant = partition.merge(Split {
+    let restored: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: first_allocation,
         rest: upper_and_tail,
     });
@@ -568,29 +503,20 @@ pub boundary trait ResidentStorage {
 }
 
 // One allocation, established, read, retired, and recomposed with the tail.
-machine exercise_resident(
-    partition: &Binding<ExtentPartition>,
-    storage: &Binding<ResidentStorage>,
-    whole: Extent in Granted & Vacant,
-    capacity: u64
-) -> Extent
+machine exercise_resident(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
     16 <= capacity;
     capacity == whole.length
 reaches ExtentPartition, ResidentStorage
 {
-    let issued: Issued = allocate(
-        partition,
-        Bump { tail: whole, remaining: capacity },
-        16,
-    );
+    let issued: Issued = allocate(Bump { tail: whole, remaining: capacity }, 16);
     let tail: Extent in Granted & Vacant = issued.strategy.tail;
     let vacant: Extent in Granted & Vacant = issued.allocation;
-    let placed: Occupied = storage.place(vacant, Slot { value: 7 });
-    let observed: Slot = storage.read(&placed);
-    let retired: Retired = storage.retire(placed);
+    let placed: Occupied = ResidentStorage::place(vacant, Slot { value: 7 });
+    let observed: Slot = ResidentStorage::read(&placed);
+    let retired: Retired = ResidentStorage::retire(placed);
     let released: Extent in Granted & Vacant = retired.storage;
-    let recomposed: Extent in Granted & Vacant = partition.merge(Split {
+    let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: released,
         rest: tail,
     });
@@ -600,49 +526,36 @@ reaches ExtentPartition, ResidentStorage
 // The restated-local variant: `Occupied.storage` is restated through an
 // exactly typed `let` and the qualified extent itself crosses the view and
 // retirement calls.
-machine exercise_resident_restated(
-    partition: &Binding<ExtentPartition>,
-    storage: &Binding<ResidentStorage>,
-    whole: Extent in Granted & Vacant,
-    capacity: u64
-) -> Extent
+machine exercise_resident_restated(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
     16 <= capacity;
     capacity == whole.length
 reaches ExtentPartition, ResidentStorage
 {
-    let issued: Issued = allocate(
-        partition,
-        Bump { tail: whole, remaining: capacity },
-        16,
-    );
+    let issued: Issued = allocate(Bump { tail: whole, remaining: capacity }, 16);
     let tail: Extent in Granted & Vacant = issued.strategy.tail;
     let vacant: Extent in Granted & Vacant = issued.allocation;
-    let placed: Occupied = storage.place(vacant, Slot { value: 7 });
+    let placed: Occupied = ResidentStorage::place(vacant, Slot { value: 7 });
     let resident: Extent in Granted & Resident<SlotPlacement, Slot> = placed.storage;
-    let observed: Slot = storage.view(&resident);
-    let retired: Retired = storage.retire_view(resident);
+    let observed: Slot = ResidentStorage::view(&resident);
+    let retired: Retired = ResidentStorage::retire_view(resident);
     let released: Extent in Granted & Vacant = retired.storage;
-    let recomposed: Extent in Granted & Vacant = partition.merge(Split {
+    let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: released,
         rest: tail,
     });
     recomposed as Extent
 }
-machine exercise_retained(
-    partition: &Binding<ExtentPartition>,
-    whole: Extent in Granted & Vacant,
-    capacity: u64
-) -> Extent
+machine exercise_retained(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
     16 <= capacity;
     capacity == whole.length
 reaches ExtentPartition
 {
-    let issued: Issued = allocate(partition, Bump { tail: whole, remaining: capacity }, 16);
+    let issued: Issued = allocate(Bump { tail: whole, remaining: capacity }, 16);
     let retired: RetiredSlot = retain_buffer(issued.allocation);
-    let restored: Bump = reset_retired(partition, issued.strategy, retired);
-    let unchanged: Bump = reset_retired(partition, restored, RetiredSlot::Empty);
+    let restored: Bump = reset_retired(issued.strategy, retired);
+    let unchanged: Bump = reset_retired(restored, RetiredSlot::Empty);
     unchanged.tail as Extent
 }
 
