@@ -4,13 +4,10 @@
 // and exits with the outcome's tag.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 use request::outcome;
 use request::request;
 
-data Main {
-    console: Binding<Console>;
-}
+data Main { }
 
 machine Main::main(context: &mut Main)
 reaches Console
@@ -22,7 +19,7 @@ blocks;
     transition { _ -> read(context, &mut request) }
 
     state read(context: &mut Main, request: &mut Request) {
-        let input: ByteRead = block context.console.read_byte();
+        let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value } -> stage(context, request, value)
             _ -> envelope(context, request)
@@ -50,7 +47,7 @@ blocks;
     state publish(context: &mut Main, outcome: Outcome) {
         Main::write_frame(context, outcome);
         let tag: u8 = OutcomeTag::value(outcome.tag);
-        context.console.exit_process(tag as i32);
+        Console::exit_process(tag as i32);
     }
 }
 
@@ -71,7 +68,7 @@ crashes Trap
 
     state write(context: &mut Main, outcome: Outcome, index: u64 in Trapping) {
         let value: u8 = Outcome::frame_byte(outcome, index);
-        context.console.write_byte(value as i32);
+        Console::write_byte(value as i32);
         transition { _ -> next(context, outcome, index + 1) }
     }
 
