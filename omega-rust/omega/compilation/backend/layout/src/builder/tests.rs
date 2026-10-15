@@ -55,6 +55,7 @@ fn private_callback_layout(offset: u64, size: usize) -> typed_trees::typed_trees
                     typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
                         [0x92; 32],
                     ),
+                ..Default::default()
             },
             slot_identity: "package::WndClassWindowProcedureSlot#exact".to_owned(),
             layout_subject_identity: "package::Spread".to_owned(),

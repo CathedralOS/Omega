@@ -990,6 +990,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         TargetUnitOperation::Call {
             origin: target_operations::NativeCallOrigin::Authored,
             psi_operation: call_operation,
+            placed_bindings: Vec::new(),
             target: target_operations::NativeCallTarget::Machine(MachineId::new(2).unwrap()),
             call_plan,
             result: TargetCallResult::Structural {

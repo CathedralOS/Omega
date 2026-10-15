@@ -1190,6 +1190,7 @@ fn hosted_receiver_binding(
         checked_entry,
         physical,
         services: Vec::new(),
+        private_entry_ram: Vec::new(),
         determined_evidence: Vec::new(),
         demand: crate::StackDemand {
             psi: terminal_psi::TerminalPsiIdentity {
