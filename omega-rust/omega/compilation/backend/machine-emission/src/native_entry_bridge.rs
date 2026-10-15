@@ -756,7 +756,11 @@ pub fn emit_native_entry_bridge(
         || internal.entry_control != EntryControl::CallReturn
         || inbound.entry_control != EntryControl::CallReturn
         || internal.stack_alignment != 16
-        || inbound.stack_alignment != 16
+        // A stronger incoming alignment still guarantees the bridge's
+        // 16-byte frame base. Incoming stack offsets are entry-relative;
+        // over-aligned owned homes are aligned independently below.
+        || inbound.stack_alignment < 16
+        || !inbound.stack_alignment.is_power_of_two()
         || !internal.callback_materializations.is_empty()
         || !inbound.callback_materializations.is_empty()
         || internal.parameters.len() != inbound.parameters.len()
