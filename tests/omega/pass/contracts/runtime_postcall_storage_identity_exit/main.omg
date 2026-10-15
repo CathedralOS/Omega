@@ -1,0 +1,35 @@
+// Written referents have normal-return values; untouched siblings keep their
+// entry values. Separate clauses about one return share its exact identity.
+// Expected exit: 0.
+data Holder { amount: i32; spare: i32; }
+
+machine replace(holder: &mut Holder, replacement: i32) -> i32
+ensures result == holder.amount, holder.amount == replacement {
+    holder.amount = replacement;
+    holder.amount
+}
+
+machine replace_and_read_spare(holder: &mut Holder, replacement: i32) -> i32
+ensures result == holder.spare {
+    holder.amount = replacement;
+    holder.spare
+}
+
+machine observe(value: i32, expected: i32)
+requires value == expected crashes Trap {
+    transition value == expected { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine exercise(initial: i32, replacement: i32) crashes Trap {
+    let mut holder: Holder = Holder { amount: initial, spare: initial };
+    let value: i32 = replace(&mut holder, replacement);
+    observe(value, replacement);
+    observe(holder.amount, replacement);
+    observe(holder.spare, initial);
+    let spare: i32 = replace_and_read_spare(&mut holder, initial);
+    observe(spare, initial);
+}
+
+machine main() crashes Trap { exercise(41, 9); }

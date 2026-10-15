@@ -1,0 +1,4 @@
+cannot prove requires contract for call observe from exercise
+cannot prove requires contract for call equal from scalar_inputs
+cannot prove ensures contract for exit from scalar_exit
+cannot prove requires contract for call equal from forwarded_inputs

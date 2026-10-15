@@ -1,0 +1,50 @@
+// The completed copy keeps its old value only until this destination is written.
+// The source's surviving normal guarantee cannot justify the replacement value.
+data Saved [copy] { amount: i32; }
+data Holder { amount: i32; }
+
+machine replace(holder: &mut Holder, replacement: i32)
+ensures holder.amount == replacement {
+    holder.amount = replacement;
+}
+
+machine observe(saved: Saved, expected: i32)
+requires saved.amount == expected {}
+
+machine equal(left: i32, right: i32) requires left == right {}
+
+// Neither a later call requirement nor an exit contract may import the
+// normal-return guarantee as equality of the call's old inputs.
+machine scalar_inputs(initial: i32, replacement: i32) {
+    let mut holder: Holder = Holder { amount: initial };
+    replace(&mut holder, replacement);
+    equal(initial, replacement);
+}
+
+machine scalar_exit(initial: i32, replacement: i32)
+ensures initial == replacement {
+    let mut holder: Holder = Holder { amount: initial };
+    replace(&mut holder, replacement);
+}
+
+machine forwarded_inputs(initial: i32, replacement: i32) {
+    let mut holder: Holder = Holder { amount: initial };
+    let alias: &mut Holder = &mut holder;
+    replace(alias, replacement);
+    equal(initial, replacement);
+}
+
+machine exercise(initial: i32, replacement: i32) {
+    let mut holder: Holder = Holder { amount: initial };
+    replace(&mut holder, replacement);
+    let mut saved: Saved = Saved { amount: holder.amount };
+    saved.amount = initial;
+    observe(saved, replacement);
+}
+
+machine main() {
+    exercise(41, 9);
+    scalar_inputs(41, 9);
+    scalar_exit(41, 9);
+    forwarded_inputs(41, 9);
+}

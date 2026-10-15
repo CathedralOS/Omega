@@ -20,6 +20,8 @@ pub(in crate::checks) struct AvailableGuarantee<'program> {
     pub(in crate::checks) expression: ExpressionHandle,
     pub(in crate::checks) fact: arena::Handle<typed_trees::domain::ProofFact>,
     pub(super) invocation: Invocation<'program>,
+    /// These subjects describe normal-return storage, not invocation inputs.
+    pub(super) post_return_writes: Option<Vec<CanonicalPlace>>,
 }
 
 impl AvailableGuarantee<'_> {
@@ -202,6 +204,28 @@ pub(in crate::checks) fn available<'program>(
         {
             continue;
         }
+        // Other consumers retain their existing availability law. Only an
+        // arithmetic import needs the produced return-version footprint.
+        let post_return_writes = super::invocation_fact(facts, caller, &supplied)
+            .filter(|call| call.normal_return_writes_complete)
+            .map(|call| {
+                facts
+                    .flow
+                    .control
+                    .operand_origin_writes
+                    .span_or_empty(call.normal_return_writes)
+                    .iter()
+                    .map(|write| CanonicalPlace {
+                        root: write.root,
+                        segments: facts
+                            .flow
+                            .control
+                            .operand_referent_segments
+                            .span_or_empty(write.segments)
+                            .to_vec(),
+                    })
+                    .collect()
+            });
         if guarantees.iter().any(|prior: &AvailableGuarantee<'_>| {
             prior.fact == source && prior.coordinates() == (statement_index, call_ordinal)
         }) {
@@ -211,6 +235,7 @@ pub(in crate::checks) fn available<'program>(
             expression,
             fact: source,
             invocation: supplied,
+            post_return_writes,
         });
     }
     guarantees

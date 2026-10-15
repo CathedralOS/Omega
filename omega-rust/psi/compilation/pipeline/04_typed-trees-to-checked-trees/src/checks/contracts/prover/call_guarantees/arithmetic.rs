@@ -19,7 +19,7 @@
 //! interchanged when an earlier sibling operand mutates storage.
 
 use super::callable::Callable;
-use super::{Invocation, actual_projection, bound_place, direct_place};
+use super::{Invocation, actual_projection, bound_place, direct_place, invocation_fact};
 use crate::checks::unsigned;
 use checked_trees::{CheckFacts, FlowStateFact};
 use facts::{ContractFactKind, FactContextHandle, FactOrigin, FactPayload};
@@ -41,7 +41,7 @@ pub(super) fn proves(
     hypotheses: Vec<ScopedArithmeticHypothesis>,
     frames: &validation::CallFrameResolver<'_>,
 ) -> bool {
-    let Some(goal) = at_call(program, facts, caller, required, goal, frames) else {
+    let Some(goal) = at_invocation(program, facts, caller, required, goal, &[], frames) else {
         return false;
     };
     let Some(call) = invocation_fact(facts, caller, required) else {
@@ -79,12 +79,13 @@ pub(in crate::checks) fn proves_at_exit(
     )
     .into_iter()
     .filter_map(|guarantee| {
-        at_call(
+        at_invocation(
             program,
             facts,
             caller,
             &guarantee.invocation,
             guarantee.expression,
+            guarantee.post_return_writes.as_deref()?,
             frames,
         )
         .map(|proposition| ScopedArithmeticHypothesis {
@@ -179,12 +180,16 @@ fn proves_bound(
         == StrictArithmeticImplicationJudgment::Proven
 }
 
-pub(super) fn at_call(
+/// Inputs use their operand frontier; a normal guarantee additionally carries
+/// the writes accepted by availability. Those observations have a new value
+/// identity at return and must never trace through the invocation's old stores.
+pub(super) fn at_invocation(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller: &FlowStateFact,
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
+    post_return_writes: &[validation::CanonicalPlace],
     frames: &validation::CallFrameResolver<'_>,
 ) -> Option<ScopedArithmeticExpression> {
     proposition(
@@ -207,6 +212,37 @@ pub(super) fn at_call(
                 }));
             }
             let place = bound_place(program, invocation, occurrence)?;
+            if !post_return_writes.is_empty() && matches!(place.root, facts::PlaceRoot::Symbol(_)) {
+                let storage = crate::flow::rebase_exact_local_place(
+                    program,
+                    invocation.caller_state,
+                    invocation.statement,
+                    place.clone(),
+                    Some(frames),
+                )?;
+                if post_return_writes.iter().any(|write| {
+                    write.root == storage.root
+                        && crate::flow::canonical_place_segments_may_overlap(
+                            program,
+                            &write.segments,
+                            &storage.segments,
+                        )
+                }) {
+                    // Availability established this post-call proposition, not
+                    // equality to the entry value of the same storage. Keep an
+                    // opaque version until a consumer has exact return custody.
+                    return Some(ScopedArithmeticValue::Atom {
+                        identity: format!(
+                            "\0call-guarantee:return:{:?}:{}:{}:{primitive:?}:{storage:?}",
+                            invocation.caller_state, invocation.statement, invocation.ordinal,
+                        ),
+                        unsigned: matches!(
+                            primitive,
+                            typed_trees::unsigned_integer_primitive_pattern!()
+                        ),
+                    });
+                }
+            }
             let place = if matches!(place.root, facts::PlaceRoot::Expression(_)) {
                 place
             } else {
@@ -228,24 +264,6 @@ pub(super) fn at_call(
             Some(atom(place, primitive))
         },
     )
-}
-
-fn invocation_fact<'facts>(
-    facts: &'facts CheckFacts,
-    caller: &FlowStateFact,
-    invocation: &Invocation<'_>,
-) -> Option<&'facts checked_trees::FlowCallFact> {
-    let mut calls = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(caller.calls)
-        .iter()
-        .filter(|call| {
-            call.statement_index == invocation.statement && call.call_ordinal == invocation.ordinal
-        });
-    let call = calls.next()?;
-    calls.next().is_none().then_some(call)
 }
 
 pub(in crate::checks) fn value_origin(

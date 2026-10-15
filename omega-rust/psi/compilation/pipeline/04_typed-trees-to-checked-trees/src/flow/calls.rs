@@ -143,6 +143,23 @@ pub(super) fn build_call_flow_fact<'plans>(
     *active_constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, exit.constraints);
 
+    // Publish the same complete-or-unknown footprint used to retire facts.
+    // Contract consumers must distinguish normal-return storage from copied
+    // invocation inputs without rebuilding a wider signature-only write set.
+    let mut normal_return_writes = HandleSpan::empty();
+    for place in storage_writes.into_iter().flatten() {
+        let segments = build
+            .control
+            .operand_referent_segments
+            .insert_many(place.segments.iter().copied());
+        build.control.operand_origin_writes.append_to_span(
+            &mut normal_return_writes,
+            checked_trees::FlowOperandReferent {
+                root: place.root,
+                segments,
+            },
+        );
+    }
     FlowCallFact {
         statement_index: borrow_call.statement_index,
         call_ordinal: borrow_call.call_ordinal,
@@ -168,6 +185,8 @@ pub(super) fn build_call_flow_fact<'plans>(
         exit_semantic_contexts: exit.contexts,
         exit_constraints: exit.constraints,
         invalidations: invalidation.invalidations,
+        normal_return_writes,
+        normal_return_writes_complete: storage_writes.is_some(),
         boundary_edges,
         requires: contract_call
             .map(|call| call.requires)

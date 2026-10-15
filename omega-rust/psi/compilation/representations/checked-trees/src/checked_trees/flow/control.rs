@@ -78,6 +78,11 @@ pub struct FlowCallFact {
     pub exit_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
     pub exit_constraints: HandleSpan<FlowConstraintRef>,
     pub invalidations: HandleSpan<FlowInvalidationFact>,
+    /// The invocation's produced storage footprint, shared with flow invalidation.
+    /// Rows live in `FlowControlFacts::operand_origin_writes`. Empty complete
+    /// writes preserve values; unavailable writes establish no preservation.
+    pub normal_return_writes: HandleSpan<super::FlowOperandReferent>,
+    pub normal_return_writes_complete: bool,
     pub boundary_edges: HandleSpan<FlowBoundaryEdgeFact>,
     pub requires: HandleSpan<ContractProofFactRef>,
     pub ensures: HandleSpan<ContractProofFactRef>,

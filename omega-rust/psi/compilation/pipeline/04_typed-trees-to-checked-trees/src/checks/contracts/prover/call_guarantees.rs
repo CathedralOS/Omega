@@ -39,6 +39,24 @@ struct Invocation<'program> {
     ordinal: usize,
 }
 
+fn invocation_fact<'facts>(
+    facts: &'facts checked_trees::CheckFacts,
+    caller: &FlowStateFact,
+    invocation: &Invocation<'_>,
+) -> Option<&'facts checked_trees::FlowCallFact> {
+    let mut calls = facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(caller.calls)
+        .iter()
+        .filter(|call| {
+            call.statement_index == invocation.statement && call.call_ordinal == invocation.ordinal
+        });
+    let call = calls.next()?;
+    calls.next().is_none().then_some(call)
+}
+
 /// Declaration meaning and observation custody are independent. Invocation
 /// and exit consumers supply exact value bindings to the same matcher.
 struct PredicateScope<'program, 'bindings> {
@@ -292,14 +310,17 @@ pub(super) fn proves(
     )
     .into_iter()
     .any(|guarantee| {
-        if let Some(proposition) = arithmetic::at_call(
-            program,
-            facts,
-            caller,
-            &guarantee.invocation,
-            guarantee.expression,
-            frames,
-        ) {
+        if let Some(post_return_writes) = guarantee.post_return_writes.as_deref()
+            && let Some(proposition) = arithmetic::at_invocation(
+                program,
+                facts,
+                caller,
+                &guarantee.invocation,
+                guarantee.expression,
+                post_return_writes,
+                frames,
+            )
+        {
             arithmetic_hypotheses.push(validation::ScopedArithmeticHypothesis {
                 proposition,
                 holds: true,
