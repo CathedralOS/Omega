@@ -105,13 +105,7 @@ pub fn find_machine_by_entry_state(
     program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
 ) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
-    program.machines().iter().find_map(|machine| {
-        program
-            .machine_states(machine)
-            .first()
-            .filter(|entry| entry.symbol == state_symbol)
-            .map(|entry| (machine, entry))
-    })
+    program.machine_by_entry_state_symbol(state_symbol)
 }
 
 /// The machine `symbol` names, either directly or through its retained
@@ -185,15 +179,9 @@ pub fn call_target_type_parameters(
     program: &dyn crate::CheckingInput,
     target_state_symbol: SymbolHandle,
 ) -> &[typed_trees::data::TypeParameter] {
-    if let Some(machine) = program.machines().iter().find(|machine| {
-        target_state_symbol.is_valid()
-            && (machine.symbol == target_state_symbol
-                || typed_trees::state::state_by_symbol(
-                    program.machine_states(machine),
-                    target_state_symbol,
-                )
-                .is_some())
-    }) {
+    if target_state_symbol.is_valid()
+        && let Some(machine) = program.machine_by_own_or_state_symbol(target_state_symbol)
+    {
         return program.machine_type_parameters(machine);
     }
 

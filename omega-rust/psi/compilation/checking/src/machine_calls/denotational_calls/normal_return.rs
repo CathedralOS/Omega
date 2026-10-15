@@ -54,13 +54,7 @@ pub(crate) fn plain_value_call_target<'program>(
     {
         return None;
     }
-    let mut targets = program.machines().iter().flat_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .filter(|state| state.symbol == call.target_symbol)
-            .map(move |state| (machine, state))
-    });
+    let mut targets = program.machine_states_named(call.target_symbol);
     let (machine, state) = targets.next()?;
     if targets.next().is_some()
         || program.machine_states(machine).first()?.symbol != state.symbol

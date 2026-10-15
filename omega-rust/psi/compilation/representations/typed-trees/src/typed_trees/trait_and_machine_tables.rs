@@ -179,12 +179,15 @@ impl TypedTrees {
         &self,
         symbol: SymbolHandle,
     ) -> impl Iterator<Item = (&machine::Machine, &crate::state::State)> + '_ {
-        self.machines().iter().flat_map(move |machine| {
-            self.machine_states(machine)
-                .iter()
-                .filter(move |state| state.symbol == symbol)
-                .map(move |state| (machine, state))
-        })
+        self.state_positions_for_symbol(symbol).into_iter().map(
+            |(machine_position, state_position)| {
+                let machine = &self.machines()[machine_position as usize];
+                (
+                    machine,
+                    &self.machine_states(machine)[state_position as usize],
+                )
+            },
+        )
     }
 
     /// Whether `symbol` is `machine` itself or one of its states.
@@ -990,7 +993,149 @@ mod tests {
     use crate::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
     use crate::machine::Machine;
     use crate::signature::StateSignature;
+    use crate::state::State;
+    use arena::HandleSpan;
     use symbols::SymbolHandle;
+
+    fn assert_state_lookups_match_roster(program: &TypedTrees, symbols: &[SymbolHandle]) {
+        for &symbol in symbols {
+            let expected: Vec<_> = program
+                .machines()
+                .iter()
+                .flat_map(|machine| {
+                    program
+                        .machine_states(machine)
+                        .iter()
+                        .filter(move |state| state.symbol == symbol)
+                        .map(move |state| (machine, state))
+                })
+                .collect();
+            let actual: Vec<_> = program.machine_states_named(symbol).collect();
+            assert_eq!(actual.len(), expected.len());
+            for ((actual_machine, actual_state), (expected_machine, expected_state)) in
+                actual.iter().zip(&expected)
+            {
+                assert!(std::ptr::eq(*actual_machine, *expected_machine));
+                assert!(std::ptr::eq(*actual_state, *expected_state));
+            }
+            let expected_owner = program
+                .machines()
+                .iter()
+                .find(|machine| program.machine_or_state_symbol(machine, symbol));
+            assert_eq!(
+                program
+                    .machine_by_own_or_state_symbol(symbol)
+                    .map(std::ptr::from_ref),
+                expected_owner.map(std::ptr::from_ref)
+            );
+            let expected_entry = program.machines().iter().find_map(|machine| {
+                program
+                    .machine_states(machine)
+                    .first()
+                    .filter(|entry| entry.symbol == symbol)
+                    .map(|entry| (machine, entry))
+            });
+            assert_eq!(
+                program
+                    .machine_by_entry_state_symbol(symbol)
+                    .map(|(machine, state)| (
+                        std::ptr::from_ref(machine),
+                        std::ptr::from_ref(state)
+                    )),
+                expected_entry.map(|(machine, state)| (
+                    std::ptr::from_ref(machine),
+                    std::ptr::from_ref(state)
+                ))
+            );
+            for &machine_symbol in symbols {
+                let expected_position = (machine_symbol.is_valid() && symbol.is_valid())
+                    .then(|| {
+                        program
+                            .machines()
+                            .iter()
+                            .filter(|machine| machine.symbol == machine_symbol)
+                            .find_map(|machine| {
+                                program
+                                    .machine_states(machine)
+                                    .iter()
+                                    .position(|state| state.symbol == symbol)
+                            })
+                    })
+                    .flatten();
+                assert_eq!(
+                    program.state_position_by_symbol(machine_symbol, symbol),
+                    expected_position
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn state_lookup_preserves_roster_order_duplicates_and_mutation() {
+        let first = SymbolHandle::from_parts(1, 1);
+        let second = SymbolHandle::from_parts(2, 1);
+        let shared = SymbolHandle::from_parts(3, 1);
+        let replaced = SymbolHandle::from_parts(3, 2);
+        let symbols = [first, second, shared, replaced, SymbolHandle::invalid()];
+        let mut program = TypedTrees::default();
+        assert_state_lookups_match_roster(&program, &symbols);
+        // A later machine head is also an earlier machine's internal state.
+        // A duplicate state first appears internally, then as another entry.
+        for (machine_symbol, states) in [
+            (first, vec![first, shared, second]),
+            (second, vec![shared, shared]),
+            (first, vec![replaced]),
+            (SymbolHandle::invalid(), vec![SymbolHandle::invalid()]),
+        ] {
+            let mut machine = Machine {
+                symbol: machine_symbol,
+                ..Machine::default()
+            };
+            for symbol in states {
+                program.push_machine_state(
+                    &mut machine,
+                    State {
+                        symbol,
+                        ..State::default()
+                    },
+                );
+            }
+            program.push_machine(machine);
+            assert_state_lookups_match_roster(&program, &symbols);
+        }
+        let snapshot = program.clone();
+        let machine = program.machines()[0].clone();
+        program.machine_states_mut(&machine)[1].symbol = replaced;
+        assert_state_lookups_match_roster(&program, &symbols);
+        assert_state_lookups_match_roster(&snapshot, &symbols);
+
+        // Change the visible roster without an arena write, first by count,
+        // then by start with the same count. Hidden declarations must disappear.
+        let original = program.roots.machines;
+        // One arena mutation and a one-row shrink cancel in an additive
+        // freshness key. Exact source identities must still invalidate.
+        program.machines_mut()[0].symbol = replaced;
+        program.roots.machines = HandleSpan::from_parts(original.start(), original.count() - 1);
+        assert_state_lookups_match_roster(&program, &symbols);
+        program.roots.machines = HandleSpan::from_parts(original.start(), 2);
+        assert_state_lookups_match_roster(&program, &symbols);
+        program.roots.machines = HandleSpan::from_parts(original.handle_at(1), 2);
+        assert_state_lookups_match_roster(&program, &symbols);
+        program.roots.machines = original;
+        program.machines_mut()[0].symbol = replaced;
+        assert_state_lookups_match_roster(&program, &symbols);
+        program.roots.machines = HandleSpan::from_parts(
+            arena::Handle::from_parts(
+                original.start().arena_index(),
+                original.start().generation() + 1,
+            ),
+            original.count(),
+        );
+        assert!(program.machines().is_empty());
+        assert_state_lookups_match_roster(&program, &symbols);
+        program.roots.machines = original;
+        assert_state_lookups_match_roster(&program, &symbols);
+    }
 
     #[test]
     fn machine_parameter_lookup_refreshes_misses_without_selecting_index_duplicates() {

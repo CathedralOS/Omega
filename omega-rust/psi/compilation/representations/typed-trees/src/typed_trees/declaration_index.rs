@@ -109,13 +109,12 @@ struct MachinePositionIndex {
     rows: Vec<(SymbolHandle, u32)>,
 }
 
-/// State-symbol lookup: `(machine symbol, state symbol)` to the state's
-/// position inside its machine, plus the flat `state symbol -> (machine
-/// position, state position)` view some callers want. Built in one pass
-/// over every machine's states.
+/// Stored states in full-symbol order, retaining their machine and local
+/// positions. Stable sorting preserves authored order, including duplicates;
+/// first-match, entry-only and ambiguity readers use the same relationship.
 #[derive(Clone, Default)]
 struct StatePositionIndex {
-    in_machine: HashMap<(SymbolHandle, SymbolHandle), usize>,
+    rows: Vec<(SymbolHandle, (u32, u32))>,
 }
 
 /// Data-definition roster: every position carrying a symbol, and every
@@ -226,13 +225,13 @@ pub struct DomainCandidateIndex {
 }
 
 /// The program-owned declaration indexes. One `Mutex` per index keeps
-/// unrelated lookups from contending; each slot's revision guard is exactly
-/// the sum of the arena revisions the index reads, so an index rebuilds
-/// precisely when one of its source tables changed.
+/// unrelated lookups from contending. Machine/state topology keys retain the
+/// arena revisions and full visible root span separately: shortening a roster
+/// must not cancel an arena mutation or hide a root generation change.
 #[derive(Clone, Default)]
 pub struct DeclarationIndexes {
-    machines: OwnedIndex<MachinePositionIndex>,
-    states: OwnedIndex<StatePositionIndex>,
+    machines: OwnedIndex<MachinePositionIndex, (u64, HandleSpan<machine::Machine>)>,
+    states: OwnedIndex<StatePositionIndex, (u64, u64, HandleSpan<machine::Machine>)>,
     state_declarations: OwnedIndex<StateDeclarationIndex>,
     data_members: OwnedIndex<DataMemberIndex>,
     data_definitions: OwnedIndex<DataDefinitionIndex>,
@@ -320,10 +319,7 @@ impl super::TypedTrees {
 
     fn with_machine_position_index<R>(&self, run: impl FnOnce(&MachinePositionIndex) -> R) -> R {
         self.declaration_indexes.machines.with(
-            self.tables
-                .machines
-                .revision()
-                .wrapping_add(roster_marker(self.roots.machines)),
+            (self.tables.machines.revision(), self.roots.machines),
             || {
                 let mut rows = self
                     .machines()
@@ -354,30 +350,87 @@ impl super::TypedTrees {
         if !machine.is_valid() || !state.is_valid() {
             return None;
         }
+        self.with_state_position_index(|index| {
+            relationships::symbol_rows(&index.rows, state)
+                .iter()
+                .find(|(_, (machine_position, _))| {
+                    self.machines()[*machine_position as usize].symbol == machine
+                })
+                .map(|(_, (_, state_position))| *state_position as usize)
+        })
+    }
+
+    fn with_state_position_index<R>(&self, run: impl FnOnce(&StatePositionIndex) -> R) -> R {
         self.declaration_indexes.states.with(
-            self.tables
-                .machines
-                .revision()
-                .wrapping_add(self.tables.machine_states.revision())
-                .wrapping_add(roster_marker(self.roots.machines)),
+            (
+                self.tables.machines.revision(),
+                self.tables.machine_states.revision(),
+                self.roots.machines,
+            ),
             || self.build_state_positions(),
-            |index| index.in_machine.get(&(machine, state)).copied(),
+            run,
         )
+    }
+
+    /// All stored occurrences, in authored traversal order. Copy only matching
+    /// coordinates so consumers can query declarations without retaining an
+    /// index lock. Symbol-table parent edges are not storage membership.
+    pub(crate) fn state_positions_for_symbol(&self, symbol: SymbolHandle) -> Vec<(u32, u32)> {
+        self.with_state_position_index(|index| {
+            relationships::symbol_rows(&index.rows, symbol)
+                .iter()
+                .map(|(_, position)| *position)
+                .collect()
+        })
+    }
+
+    /// First machine whose own symbol or stored state names `symbol`, matching
+    /// a declaration-order roster search even for duplicate declarations.
+    pub fn machine_by_own_or_state_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<&machine::Machine> {
+        let direct = self.with_machine_position_index(|index| {
+            relationships::first_symbol_row(&index.rows, symbol).map(|(_, position)| *position)
+        });
+        let containing = self.with_state_position_index(|index| {
+            relationships::first_symbol_row(&index.rows, symbol)
+                .map(|(_, (machine_position, _))| *machine_position)
+        });
+        let position = match (direct, containing) {
+            (Some(direct), Some(containing)) => direct.min(containing),
+            (direct, containing) => direct.or(containing)?,
+        };
+        Some(&self.machines()[position as usize])
+    }
+
+    /// First stored entry carrying this symbol, not a machine head or an
+    /// internal state. Duplicate non-entry states do not hide a later entry.
+    pub fn machine_by_entry_state_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<(&machine::Machine, &crate::state::State)> {
+        let machine_position = self.with_state_position_index(|index| {
+            relationships::symbol_rows(&index.rows, symbol)
+                .iter()
+                .find(|(_, (_, state_position))| *state_position == 0)
+                .map(|(_, (machine_position, _))| *machine_position)
+        })?;
+        let machine = &self.machines()[machine_position as usize];
+        Some((machine, &self.machine_states(machine)[0]))
     }
 
     fn build_state_positions(&self) -> StatePositionIndex {
         let mut index = StatePositionIndex::default();
-        for machine in self.machines().iter() {
-            for (state_index, state) in self.machine_states(machine).iter().enumerate() {
-                // First match wins, like the roster `position` scans the
-                // indexes replace: malformed duplicate rows cannot
-                // supplement the first exact owner.
-                index
-                    .in_machine
-                    .entry((machine.symbol, state.symbol))
-                    .or_insert(state_index);
+        for (machine_position, machine) in self.machines().iter().enumerate() {
+            for (state_position, state) in self.machine_states(machine).iter().enumerate() {
+                index.rows.push((
+                    state.symbol,
+                    (machine_position as u32, state_position as u32),
+                ));
             }
         }
+        relationships::sort_symbol_rows(&mut index.rows);
         index
     }
 

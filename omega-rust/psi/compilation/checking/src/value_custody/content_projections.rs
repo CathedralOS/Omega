@@ -571,10 +571,7 @@ fn runtime_scalar_can_embed(
 }
 
 fn compiler_owned_symbol(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
-    let owning_machine = program
-        .machines()
-        .iter()
-        .find(|machine| program.machine_or_state_symbol(machine, symbol));
+    let owning_machine = program.machine_by_own_or_state_symbol(symbol);
     let declaration = owning_machine.map_or(symbol, |machine| machine.symbol);
     let authored = program
         .machine_specialization(declaration)
