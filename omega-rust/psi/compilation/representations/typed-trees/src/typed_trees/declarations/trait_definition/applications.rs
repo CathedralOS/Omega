@@ -68,7 +68,46 @@ impl TypedTrees {
                     .filter_map(|(_, _, _, application)| application.trait_scope.scope(self)),
             )
             .chain(source_fields::service_application_roots(self))
+            .chain(
+                crate::references::collect_program_call_requirement_applications(self)
+                    .into_iter()
+                    .filter_map(|occurrence| {
+                        self.applied_requirement_scope(
+                            occurrence.lexical_owner,
+                            occurrence.reference,
+                        )
+                    }),
+            )
             .collect()
+    }
+
+    /// The trait application `Requirement<Arguments>` written before `::` in
+    /// an applied requirement call, supplied by the call's lexical owner. A
+    /// qualifier that is not a complete application of a trait has no scope.
+    pub fn applied_requirement_scope(
+        &self,
+        lexical_owner: SymbolHandle,
+        application: TypeReferenceHandle,
+    ) -> Option<AppliedTraitScope<'_>> {
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            lifetime_arguments,
+            arguments,
+            ..
+        } = self.type_reference_table.type_reference(application)
+        else {
+            return None;
+        };
+        AppliedTraitScope::new(
+            self,
+            self.trait_definition_by_symbol(*base_symbol)?,
+            TraitApplicationArguments {
+                lexical_owner,
+                enclosing_data_applications: &[],
+                arguments: self.type_reference_table.type_reference_handles(*arguments),
+                lifetimes: lifetime_arguments,
+            },
+        )
     }
 }
 

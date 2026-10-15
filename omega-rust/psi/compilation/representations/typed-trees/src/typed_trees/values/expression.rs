@@ -1430,6 +1430,7 @@ pub struct TableMemberExpression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallExpression {
     pub exact_coercion_target: crate::types::TypeReferenceHandle,
+    pub requirement_application: crate::types::TypeReferenceHandle,
     pub receiver: Option<Box<Expression>>,
     pub target_symbol: SymbolHandle,
     pub target: Identifier,
@@ -1447,6 +1448,11 @@ pub struct TableCallExpression {
     /// target until checking discharges unchanged denotation from this
     /// occurrence's live facts; the selected named conversion alone may round.
     pub exact_coercion_target: crate::types::TypeReferenceHandle,
+    /// The exact applied trait of `Requirement<Arguments>::operation(...)`,
+    /// such as `Parent<u64>`. Specialization resolves the call against this
+    /// application's closed requirement instead of the open template. The
+    /// zero handle denotes a target with no applied owner.
+    pub requirement_application: crate::types::TypeReferenceHandle,
     pub receiver: ExpressionHandle,
     pub target_symbol: SymbolHandle,
     /// Original static binder contract, retained separately from execution.

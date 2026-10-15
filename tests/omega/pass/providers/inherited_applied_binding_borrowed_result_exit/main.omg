@@ -1,6 +1,5 @@
 // Expected exit: 0. Invocation lifetimes come from the explicit source loan,
 // independently of the applied ancestor's ordinary outer type argument.
-use omega::language::core::binding;
 
 pub boundary trait Parent<Value> {
     machine borrow<'source>(value: &'source Value) -> &'source Value;
@@ -24,22 +23,22 @@ linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetPro
     TargetProviders::select_provider<Child, ChildMap>(defaults);
 }
 
-machine observed<'source>(parent: &Binding<Parent<i32>>, value: &'source i32)
+machine observed<'source>(value: &'source i32)
     -> &'source i32 reaches Parent {
-    parent.borrow(value)
+    Parent<i32>::borrow(value)
 }
-machine observed_mut<'source>(parent: &Binding<Parent<i32>>, value: &'source mut i32)
+machine observed_mut<'source>(value: &'source mut i32)
     -> &'source mut i32 reaches Parent {
-    parent.borrow_mut(value)
+    Parent<i32>::borrow_mut(value)
 }
 
-data Main { parent: Binding<Parent<i32>>; value: i32; child: Binding<Child>; }
+data Main { value: i32; }
 machine Main::main(main: &mut Main) reaches Parent + Child crashes Trap {
     main.value = 37;
-    let chosen: i32 = Child::choose(&main.child);
-    let borrowed: &i32 = observed(&main.parent, &main.value);
+    let chosen: i32 = Child::choose();
+    let borrowed: &i32 = observed(&main.value);
     let result: i32 = borrowed as i32;
-    let mutable: &mut i32 = observed_mut(&main.parent, &mut main.value);
+    let mutable: &mut i32 = observed_mut(&mut main.value);
     mutable = 43;
     let changed: i32 = mutable as i32;
     let stored: i32 = main.value;

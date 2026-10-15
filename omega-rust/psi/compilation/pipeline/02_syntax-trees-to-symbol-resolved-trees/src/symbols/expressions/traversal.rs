@@ -210,6 +210,9 @@ impl ExpressionSymbolContext<'_, '_> {
                 for argument in &call.machine_arguments {
                     self.assign_static_argument_type_symbols(argument);
                 }
+                if call.requirement_application.is_valid() {
+                    self.reassign_type_reference(call.requirement_application);
+                }
                 if call.receiver.is_valid() {
                     self.assign_expression_table_symbols(call.receiver);
                 }

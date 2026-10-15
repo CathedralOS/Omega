@@ -1,0 +1,51 @@
+// `Parent<u64>::operation(...)` calls a requirement of one exact applied
+// trait. The selected `Child` provider covers `Parent<u64>` through its
+// inherited edge. The applied call returns a value in the entry state,
+// mutates a caller local as a statement, runs inside a helper machine and in
+// a later state. Exits 0 only when every call reached the provider.
+pub boundary trait Parent<Value> {
+    machine read() -> i32;
+    machine note(value: &mut i32);
+}
+pub boundary trait Child: Parent<u64> { machine choose() -> i32; }
+
+ChildMap satisfies Child {
+    Parent::read = read;
+    Parent::note = note;
+    Child::choose = choose;
+}
+machine read() -> i32 { 37 }
+machine note(value: &mut i32) { value = 5; }
+machine choose() -> i32 { 19 }
+
+data TargetProviders {}
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Child, ChildMap>(defaults);
+}
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Child, ChildMap>(defaults);
+}
+
+machine observe() -> i32 reaches Parent {
+    Parent<u64>::read()
+}
+
+data Main { }
+machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
+    let mut cell: i32 = 0;
+    Parent<u64>::note(&mut cell);
+    let observed: i32 = observe();
+    transition cell == 5 && observed == 37 {
+        true -> later(cell)
+        _ -> bad()
+    }
+    state later(cell: i32) {
+        let again: i32 = Parent<u64>::read();
+        transition again == 37 && cell == 5 {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

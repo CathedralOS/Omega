@@ -101,3 +101,46 @@ fn structural_static_argument_probe_preserves_indexed_comparisons() {
         assert!(!syntax.expressions.iter_expressions().any(|(_, expression)| matches!(expression, ExpressionNode::Call(call) if !call.machine_arguments.is_empty())));
     }
 }
+
+#[test]
+fn applied_requirement_call_keeps_its_trait_application_as_static_receiver() {
+    let text = "const READ: i32 = Parent<u64>::read(); const NOTED: i32 = Sink<u8, bool>::note<Handler>(value); const COMPARED: bool = left < right;";
+    let tokens = Lexer::new(text).tokenize().expect("tokens");
+    let syntax = crate::parse_syntax_trees(&tokens).expect("syntax");
+    let values = syntax
+        .root_items()
+        .filter_map(|item| match item {
+            syntax_trees::item::Item::Const(definition) => Some(definition.value),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let applied = |expression, trait_name: &str, arity: u32, member: &str, static_arguments| {
+        let ExpressionNode::Call(call) = syntax.expressions.expression(expression) else {
+            panic!("applied requirement call");
+        };
+        assert!(call.target_is_static);
+        assert_eq!(call.target.as_str(), member);
+        assert_eq!(call.machine_arguments.len(), static_arguments);
+        let ExpressionNode::TypeExpression(application) =
+            syntax.expressions.expression(call.receiver)
+        else {
+            panic!("the applied trait is the static receiver");
+        };
+        let syntax_trees::types::TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } = syntax.type_references.type_reference(*application)
+        else {
+            panic!("generic trait application");
+        };
+        assert_eq!(base_name.as_str(), trait_name);
+        assert_eq!(arguments.count(), arity);
+    };
+    applied(values[0], "Parent", 1, "read", 0);
+    applied(values[1], "Sink", 2, "note", 1);
+    assert!(matches!(
+        syntax.expressions.expression(values[2]),
+        ExpressionNode::Binary(_)
+    ));
+}

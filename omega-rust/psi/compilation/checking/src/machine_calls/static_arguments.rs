@@ -144,6 +144,25 @@ fn validate_call(
     }
     let arguments = call.arguments(program);
     requirement_predicates::validate(program, call, context, arguments, diagnostics);
+    // `Requirement<Arguments>::operation(...)` forms a trait application at
+    // the call site. It owes the same argument kinds, const ranges and
+    // property bounds as any authored type application of that trait.
+    if let StaticArgumentCall::Expression(_, applied) = call
+        && applied.requirement_application.is_valid()
+    {
+        match context {
+            Some((machine, _)) => crate::validate_static_type_argument(
+                program,
+                crate::StaticTypeArgumentOwner::Machine(machine),
+                applied.requirement_application,
+                symbols,
+                diagnostics,
+            ),
+            None => diagnostics.push(Diagnostic::error(
+                "applied requirement call has no retained caller machine",
+            )),
+        }
+    }
     if arguments.is_empty() {
         return;
     }

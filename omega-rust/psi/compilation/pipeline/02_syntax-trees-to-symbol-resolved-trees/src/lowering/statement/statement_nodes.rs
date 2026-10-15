@@ -555,6 +555,7 @@ fn retain_build_declaration_call_expression(lowerer: &mut Lowerer, call: Call) -
         receiver,
         target_symbol: call.target_symbol,
         target: call.target,
+        requirement_application: arena::Handle::invalid(),
         machine_arguments: call.storage.machine_arguments,
         arguments: call.storage.arguments,
         evidence_arguments: call.storage.evidence_arguments,

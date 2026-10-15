@@ -172,6 +172,7 @@ impl ExpressionTable {
                 let arguments = self.insert_expression_handle_span_from_trees(&call.arguments);
                 self.insert(ExpressionNode::Call(TableCallExpression {
                     authored_machine_application: Default::default(),
+                    requirement_application: call.requirement_application,
                     exact_coercion_target: call.exact_coercion_target,
                     receiver,
                     target_symbol: call.target_symbol,
@@ -317,6 +318,7 @@ impl ExpressionTable {
                 form: cast.form,
             })),
             ExpressionNode::Call(call) => Expression::Call(Box::new(CallExpression {
+                requirement_application: call.requirement_application,
                 exact_coercion_target: call.exact_coercion_target,
                 receiver: call
                     .receiver

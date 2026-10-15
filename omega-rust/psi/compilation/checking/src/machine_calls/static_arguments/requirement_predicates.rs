@@ -22,12 +22,24 @@ impl<'program> CallScopes<'program> {
         // Both applied trait telescopes and runtime value-family membership
         // need the call's exact state. A nongeneric trait can still declare a
         // generic method whose where clause relies on state Requires facts.
+        // An applied requirement call's trait application is admitted under
+        // its caller's telescope, so it needs the same exact context.
         if !program.traits().iter().any(|owner| {
             program
                 .trait_machine_signatures(owner)
                 .iter()
                 .any(|signature| !signature.where_facts.is_empty())
-        }) {
+        }) && !program
+            .expression_table
+            .iter_expressions()
+            .any(|(_, expression)| {
+                matches!(
+                    expression,
+                    typed_trees::expression::ExpressionNode::Call(call)
+                        if call.requirement_application.is_valid()
+                )
+            })
+        {
             return Self {
                 entries: Vec::new(),
             };

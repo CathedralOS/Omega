@@ -552,7 +552,7 @@ fn validate_atomic_call_orderings(
 /// stealing ordinary comparison expressions (`a < b`). The paths remain
 /// static declaration arguments; value arguments are parsed separately after
 /// the opening parenthesis.
-fn try_parse_static_machine_arguments<'tokens, 'source>(
+pub(super) fn try_parse_static_machine_arguments<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Result<Option<(Box<[StaticMachineArgument]>, Input<'tokens, 'source>)>, ParseError> {

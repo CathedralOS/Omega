@@ -98,6 +98,7 @@ pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Ve
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
                     authored_machine_application: Default::default(),
+                    requirement_application: Default::default(),
                     exact_coercion_target: binding.exact_coercion_target,
                     receiver: ExpressionHandle::invalid(),
                     target_symbol: binding.requirement,

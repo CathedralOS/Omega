@@ -295,6 +295,9 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
 
     if input.at_name_like() {
         let start = input;
+        if starts_applied_requirement_call(start) {
+            return parse_applied_requirement_call(syntax_trees, start);
+        }
         let (path, input) = parse_path_handle_span(input, |member| {
             syntax_trees
                 .expressions
@@ -338,6 +341,78 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     }
 
     Err(input.error_here("expected expression"))
+}
+
+/// `Requirement<Arguments>::operation(...)` calls a requirement of one exact
+/// applied trait, as `Drawable<Player>::draw` names it in a `satisfies`
+/// clause. Only a generic type path followed by `::member` then `(` or a
+/// static argument list takes this form; a comparison never continues with
+/// `::`, so the speculation cannot steal an ordinary expression.
+fn starts_applied_requirement_call(input: Input<'_, '_>) -> bool {
+    let mut scratch = SyntaxTrees::new(input.source_id);
+    let Ok((reference, rest)) = parse_type_reference_handle(&mut scratch, input) else {
+        return false;
+    };
+    if !matches!(
+        scratch.type_references.type_reference(reference),
+        syntax_trees::types::TypeReferenceNode::Generic { .. }
+    ) || !rest.at_punctuation(PunctuationKind::ColonColon)
+    {
+        return false;
+    }
+    let Ok(rest) = rest.take_punctuation(PunctuationKind::ColonColon, "::") else {
+        return false;
+    };
+    let Ok((_, rest)) = rest.take_identifier() else {
+        return false;
+    };
+    rest.at_punctuation(PunctuationKind::LeftParen) || rest.at_punctuation(PunctuationKind::Less)
+}
+
+/// The applied trait is the call's static receiver, so later stages resolve
+/// `operation` against that exact application rather than the bare trait.
+fn parse_applied_requirement_call<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    let start = input;
+    let (application, rest) = parse_type_reference_handle(syntax_trees, input)?;
+    let receiver = syntax_trees
+        .expressions
+        .insert(ExpressionNode::TypeExpression(application));
+    syntax_trees
+        .expressions
+        .set_source_span(receiver, start.source_span_until(rest));
+    let rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+    let (target, rest) = rest.take_identifier()?;
+    let (machine_arguments, rest) =
+        match crate::expressions::parse_postfix::try_parse_static_machine_arguments(
+            syntax_trees,
+            rest,
+        )? {
+            Some((machine_arguments, rest)) => (machine_arguments, rest),
+            None => (Box::default(), rest),
+        };
+    let rest = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
+    let ((arguments, evidence_arguments), rest) =
+        crate::expressions::parse_postfix::parse_argument_list_after_open_paren_handle(
+            syntax_trees,
+            rest,
+        )?;
+    let source = target.source_span();
+    let call = syntax_trees.expressions.insert(ExpressionNode::Call(
+        syntax_trees::expression::TableCallExpression {
+            receiver,
+            target,
+            target_is_static: true,
+            machine_arguments,
+            arguments,
+            evidence_arguments,
+            operational_acknowledgement: Default::default(),
+        },
+    ));
+    syntax_trees.expressions.set_source_span(call, source);
+    Ok((call, rest))
 }
 
 /// A generic type operand ends before a fact delimiter or Boolean/equality

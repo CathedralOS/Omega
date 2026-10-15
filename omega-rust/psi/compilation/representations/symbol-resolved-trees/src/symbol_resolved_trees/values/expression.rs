@@ -743,6 +743,10 @@ pub struct TableCallExpression {
     pub receiver: ExpressionHandle,
     pub target_symbol: SymbolHandle,
     pub target: DiagnosticName,
+    /// The exact applied trait of `Requirement<Arguments>::operation(...)`,
+    /// a child type reference such as `Parent<u64>`. The zero handle denotes
+    /// a target path with no applied owner.
+    pub requirement_application: arena::Handle<crate::types::TypeReference>,
     pub machine_arguments: Box<[StaticMachineArgument]>,
     pub arguments: HandleSpan<ExpressionHandle>,
     /// Erased evidence-term spellings remain outside runtime name resolution.

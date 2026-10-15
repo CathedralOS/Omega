@@ -464,6 +464,7 @@ impl ExpressionTable {
                     );
                 self.insert(ExpressionNode::Call(TableCallExpression {
                     authored_machine_application,
+                    requirement_application: call.requirement_application,
                     exact_coercion_target: call.exact_coercion_target,
                     receiver,
                     target_symbol: call.target_symbol,

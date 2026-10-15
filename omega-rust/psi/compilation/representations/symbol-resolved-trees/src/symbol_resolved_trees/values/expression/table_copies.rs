@@ -146,6 +146,7 @@ impl ExpressionTable {
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target,
+                    requirement_application: call.requirement_application,
                     machine_arguments: call.machine_arguments,
                     arguments,
                     evidence_arguments: call.evidence_arguments,

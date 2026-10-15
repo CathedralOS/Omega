@@ -62,6 +62,7 @@ pub(super) fn zero_argument_invocation_discharges(
 
     let call = TableCallExpression {
         authored_machine_application: Default::default(),
+        requirement_application: Default::default(),
         exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
         receiver: ExpressionHandle::invalid(),
         target_symbol: entry_symbol,

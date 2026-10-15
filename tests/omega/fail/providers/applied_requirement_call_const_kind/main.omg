@@ -1,0 +1,8 @@
+// An applied requirement call forms its trait application at the call site.
+// `Parent<bool>` supplies a type where `Count` declares a `u8` const, so the
+// call is refused before any provider is considered.
+pub boundary trait Parent<const Count: u8> { machine read() -> i32; }
+
+machine main() reaches Parent {
+    let read: i32 = Parent<bool>::read();
+}

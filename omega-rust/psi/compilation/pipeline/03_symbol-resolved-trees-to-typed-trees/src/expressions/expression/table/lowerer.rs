@@ -454,12 +454,28 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         .collect::<Result<Vec<_>, Diagnostic>>()?
                         .into_boxed_slice()
                 };
+                let requirement_application = if call.requirement_application.is_valid() {
+                    let program = self.program.ok_or_else(|| {
+                        Diagnostic::error(
+                            "an applied requirement call requires its resolved program",
+                        )
+                    })?;
+                    crate::type_reference::lower_type_reference_into_trees_with_exposure(
+                        program,
+                        self.target_trees,
+                        program.child_type_reference(call.requirement_application),
+                        self.source.authored_expression_exposure(expression),
+                    )?
+                } else {
+                    typed::types::TypeReferenceHandle::invalid()
+                };
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::Call(
                         typed::expression::TableCallExpression {
                             authored_machine_application: Default::default(),
                             exact_coercion_target: typed::types::TypeReferenceHandle::invalid(),
+                            requirement_application,
                             receiver,
                             target_symbol,
                             target: lower_name(&call.target),

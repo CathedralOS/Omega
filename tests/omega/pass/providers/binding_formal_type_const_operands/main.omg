@@ -1,8 +1,7 @@
 // Formal contract checking retains the declaration's exact static telescope.
 // This does not choose a provider or admit an executable closed application.
-use omega::language::core::binding;
 
 pub boundary trait Indexed<Value, const Count: u64> { machine read() -> i32; }
-data Session<Value, const Count: u64> { binding: Binding<Indexed<Value, Count>>; }
-machine declared<Value, const Count: u64>(binding: &Binding<Indexed<Value, Count>>)
+data Session<Value, const Count: u64> { }
+machine declared<Value, const Count: u64>()
 reaches Indexed {}

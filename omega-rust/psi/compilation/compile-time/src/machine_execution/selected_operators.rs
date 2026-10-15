@@ -177,6 +177,7 @@ pub(crate) fn prepare_selected_execution(
         *program.expression_table.expression_mut(row.expression) =
             ExpressionNode::Call(typed_trees::expression::TableCallExpression {
                 authored_machine_application: Default::default(),
+                requirement_application: Default::default(),
                 exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
                 receiver: ExpressionHandle::invalid(),
                 target_symbol: row.provider_state,

@@ -48,9 +48,12 @@ fn instance(
     lexical_owner: SymbolHandle,
     target: SymbolHandle,
     receiver: Option<TypeReferenceHandle>,
+    application: TypeReferenceHandle,
     invocation: &InvocationTuple,
 ) -> Result<SymbolHandle, Vec<Diagnostic>> {
-    let Some((template, scope)) = source_scope(program, lexical_owner, target, receiver)? else {
+    let Some((template, scope)) =
+        source_scope(program, lexical_owner, target, receiver, application)?
+    else {
         return Ok(SymbolHandle::invalid());
     };
     Ok(instance_in_scope(program, template, &scope, invocation))
@@ -61,6 +64,7 @@ fn source_scope<'p>(
     lexical_owner: SymbolHandle,
     target: SymbolHandle,
     receiver: Option<TypeReferenceHandle>,
+    application: TypeReferenceHandle,
 ) -> Result<
     Option<(
         SymbolHandle,
@@ -78,6 +82,17 @@ fn source_scope<'p>(
                     "applied public call lost its retained source scope",
                 )]
             });
+    }
+    // `Requirement<Arguments>::operation(...)` names its exact application;
+    // an inherited operation resolves in that application's declaring scope.
+    if application.is_valid() {
+        let Some((owner, _)) = program.trait_machine_signature(target) else {
+            return Ok(None);
+        };
+        return Ok(program
+            .applied_requirement_scope(lexical_owner, application)
+            .and_then(|scope| scope.declaring_scope(program, owner.symbol))
+            .map(|scope| (target, scope)));
     }
     if program.trait_machine_signature(target).is_none()
         && let Some(machine) = program.machine_by_symbol(lexical_owner)
@@ -199,6 +214,7 @@ pub(super) fn invocation_tuples(
     let mut add = |owner,
                    target,
                    receiver,
+                   application: TypeReferenceHandle,
                    dispatch: Option<&typed_trees::typed_trees::StaticRequirementDispatch>,
                    invocation: InvocationTuple|
      -> Result<(), Vec<Diagnostic>> {
@@ -223,7 +239,7 @@ pub(super) fn invocation_tuples(
                 .scope(program)
                 .map(|scope| (template, scope))
         } else {
-            source_scope(program, owner, target, receiver)?
+            source_scope(program, owner, target, receiver, application)?
         };
         let Some((template, selected)) = selected else {
             return Ok(());
@@ -249,6 +265,7 @@ pub(super) fn invocation_tuples(
                         validation::projected_statement_receiver_type_reference(
                             program, state, position, call,
                         ),
+                        TypeReferenceHandle::invalid(),
                         call.static_requirement_dispatch.as_ref(),
                         occurrence(
                             program,
@@ -275,6 +292,7 @@ pub(super) fn invocation_tuples(
                                 position,
                                 call.receiver,
                             ),
+                            call.requirement_application,
                             call.static_requirement_dispatch.as_ref(),
                             occurrence(
                                 program,
@@ -357,6 +375,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                         machine.symbol,
                         call.target_symbol,
                         receiver,
+                        TypeReferenceHandle::invalid(),
                         &occurrence(
                             program,
                             machine.symbol,
@@ -415,6 +434,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                         machine.symbol,
                         call.target_symbol,
                         receiver,
+                        call.requirement_application,
                         &occurrence(
                             program,
                             machine.symbol,

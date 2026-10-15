@@ -263,10 +263,25 @@ fn lower_nonbinary_expression_node_into_table(
             )
         }
         syntax::expression::ExpressionNode::Call(call) => {
-            let receiver = if call.receiver.is_valid() {
-                lower_expression_into_table(lowerer, syntax_trees, call.receiver)?
-            } else {
-                ExpressionHandle::invalid()
+            // `Requirement<Arguments>::operation(...)`: the applied trait is a
+            // static qualifier, not a runtime receiver. The call keeps the
+            // trait path as its qualifier and the application as a child type
+            // reference for typing to resolve the exact applied requirement.
+            let (receiver, requirement_application) = match call
+                .receiver
+                .is_valid()
+                .then(|| syntax_trees.expressions.expression(call.receiver))
+            {
+                Some(syntax::expression::ExpressionNode::TypeExpression(application))
+                    if call.target_is_static =>
+                {
+                    lower_applied_requirement_qualifier(lowerer, syntax_trees, *application)?
+                }
+                Some(_) => (
+                    lower_expression_into_table(lowerer, syntax_trees, call.receiver)?,
+                    arena::Handle::invalid(),
+                ),
+                None => (ExpressionHandle::invalid(), arena::Handle::invalid()),
             };
             let arguments =
                 expression_table(lowerer).reserve_expression_handles(call.arguments.count());
@@ -296,6 +311,7 @@ fn lower_nonbinary_expression_node_into_table(
                     receiver,
                     target_symbol: SymbolHandle::invalid(),
                     target: lower_name(&call.target),
+                    requirement_application,
                     machine_arguments,
                     arguments,
                     evidence_arguments: call
@@ -475,6 +491,55 @@ fn lower_nonbinary_expression_node_into_table(
             )
         }
     }
+}
+
+/// Lower an applied requirement qualifier into the trait path a static call
+/// names and the exact application kept beside it. Only a generic trait path
+/// qualifies; any other type expression stays an invalid runtime receiver.
+fn lower_applied_requirement_qualifier(
+    lowerer: &mut Lowerer,
+    syntax_trees: &syntax::SyntaxTrees,
+    application: syntax::types::TypeReferenceHandle,
+) -> Result<
+    (
+        ExpressionHandle,
+        arena::Handle<symbol_resolved_trees::types::TypeReference>,
+    ),
+    Diagnostic,
+> {
+    let syntax::types::TypeReferenceNode::Generic { base_name, .. } =
+        syntax_trees.type_references.type_reference(application)
+    else {
+        return Err(Diagnostic::error(
+            "an applied requirement call names a generic trait application before `::`",
+        ));
+    };
+    let mut path = Default::default();
+    for member in base_name.as_str().split("::") {
+        expression_table(lowerer).push_name_path_member(
+            &mut path,
+            symbol_resolved_trees::name::DiagnosticName::from_str(member, base_name.source_span()),
+        );
+    }
+    let receiver = expression_table(lowerer).insert(ExpressionNode::Name(
+        symbol_resolved_trees::expression::TableNamePath {
+            members: path,
+            ..Default::default()
+        },
+    ));
+    expression_table(lowerer).set_source_span(receiver, base_name.source_span());
+    let reference = crate::lowering::type_reference::lower_type_reference_handle(
+        lowerer,
+        syntax_trees,
+        application,
+    )?;
+    let application = lowerer
+        .symbol_resolved_trees
+        .tables
+        .declarations
+        .child_type_references
+        .append(reference);
+    Ok((receiver, application))
 }
 
 pub(crate) fn lower_static_machine_argument(

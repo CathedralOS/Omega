@@ -261,11 +261,22 @@ pub fn collect_program_conformance_occurrences(
         .collect()
 }
 
+/// Applied trait qualifiers of `Requirement<Arguments>::operation(...)`
+/// calls reached from retained roots, each with its lexical owner. They are
+/// trait application roots in their own right: no field or bound need name
+/// the same application for its closed requirements to exist.
+pub fn collect_program_call_requirement_applications(program: &TypedTrees) -> Vec<TypeOccurrence> {
+    let mut occurrences = TypeOccurrences::default();
+    visit_program(program, &mut occurrences);
+    occurrences.requirement_applications
+}
+
 #[derive(Default)]
 struct TypeOccurrences {
     owner: SymbolHandle,
     outer_owners: Vec<SymbolHandle>,
     types: Vec<TypeOccurrence>,
+    requirement_applications: Vec<TypeOccurrence>,
     applications: HashSet<crate::static_applications::StaticMachineApplicationHandle>,
     seen_types: Vec<Vec<(SymbolHandle, TypeReferenceHandle)>>,
     seen_expressions: Vec<Vec<(SymbolHandle, ExpressionHandle)>>,
@@ -298,6 +309,17 @@ impl Extend<SymbolHandle> for TypeOccurrences {
 
 impl TypedReferences for TypeOccurrences {
     fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
+        if let StaticArgumentCall::Expression(_, call) = call
+            && call.requirement_application.is_valid()
+        {
+            let occurrence = TypeOccurrence {
+                lexical_owner: self.owner,
+                reference: call.requirement_application,
+            };
+            if !self.requirement_applications.contains(&occurrence) {
+                self.requirement_applications.push(occurrence);
+            }
+        }
         for handle in [call.application(), call.selection_application()] {
             if handle.is_valid() {
                 let source = program.expression_table.static_machine_application(handle);
@@ -1399,6 +1421,11 @@ fn visit_call_expression(
         );
     }
     visit_expression(program, retained, call.receiver);
+    // An applied requirement call depends on its exact trait application
+    // (`Parent<u64>`), including the trait and every argument type.
+    if call.requirement_application.is_valid() {
+        visit_type_reference(program, retained, call.requirement_application);
+    }
     if let Some(dispatch) = &call.static_requirement_dispatch {
         visit_static_requirement_dispatch(
             program,
@@ -1746,6 +1773,7 @@ mod conformance_occurrence_tests {
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
                     authored_machine_application: application,
+                    requirement_application: Default::default(),
                     exact_coercion_target: Default::default(),
                     receiver: Default::default(),
                     target_symbol: Default::default(),

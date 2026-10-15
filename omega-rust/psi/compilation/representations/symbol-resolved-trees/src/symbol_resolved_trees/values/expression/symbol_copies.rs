@@ -679,6 +679,7 @@ mod tests {
                 receiver: ExpressionHandle::invalid(),
                 target_symbol: original,
                 target: DiagnosticName::generated("run"),
+                requirement_application: arena::Handle::invalid(),
                 machine_arguments: vec![StaticMachineArgument {
                     application: Some(Box::new(StaticSymbolApplication {
                         lifetime_arguments: Box::new([]),

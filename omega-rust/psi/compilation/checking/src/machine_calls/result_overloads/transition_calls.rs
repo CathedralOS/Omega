@@ -113,6 +113,7 @@ pub(super) fn normalize_boundary_transition_calls(program: &mut TypedTrees) {
             .expression_table
             .insert(ExpressionNode::Call(TableCallExpression {
                 authored_machine_application: Default::default(),
+                requirement_application: Default::default(),
                 exact_coercion_target: Default::default(),
                 receiver,
                 target_symbol: path.symbol,
