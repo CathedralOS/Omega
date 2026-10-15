@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use effects::{
-    TerminalAuthorityClosureLeaf, TerminalMechanismIdentity,
+    TerminalAuthorityClosureLeaf, TerminalAuthorityClosureLeafOrigin, TerminalMechanismIdentity,
     provider_plan::{ProviderBinding, ProviderPlanDigest, ServiceSchemaDigest},
 };
 use semantic_vocabulary::BoundaryMachineId;
@@ -14,6 +14,7 @@ type LeafKey = (
     effects::provider_plan::ServiceSchemaDigest,
     String,
     effects::provider_plan::ProviderPlanDigest,
+    TerminalAuthorityClosureLeafOrigin,
 );
 
 pub(super) struct Reviewer<'a> {
@@ -117,7 +118,13 @@ impl<'a> Reviewer<'a> {
                     .graph
                     .reachable_authority_edges(candidate.candidate)?;
                 for mechanism in nested.checked_physical {
-                    self.admit_leaf(schema, requirement, provider_plan, mechanism)?;
+                    self.admit_leaf(
+                        schema,
+                        requirement,
+                        provider_plan,
+                        mechanism.mechanism,
+                        mechanism.origin,
+                    )?;
                 }
                 for nested_boundary in nested.boundaries {
                     self.expand_boundary(nested_boundary)?;
@@ -137,6 +144,7 @@ impl<'a> Reviewer<'a> {
                         .text(selected_row.requirement_identity),
                     selected_plan.identity_digest(),
                     mechanism,
+                    TerminalAuthorityClosureLeafOrigin::SelectedBoundary,
                 )?;
             }
             ProviderBinding::VtableSlot { .. } => {
@@ -164,6 +172,7 @@ impl<'a> Reviewer<'a> {
         requirement: &str,
         provider_plan: ProviderPlanDigest,
         mechanism: TerminalMechanismIdentity,
+        origin: TerminalAuthorityClosureLeafOrigin,
     ) -> Result<(), String> {
         let exercised = match self.context.physical_policy.classify(mechanism) {
             Ok(exercised) => Some(exercised),
@@ -194,6 +203,7 @@ impl<'a> Reviewer<'a> {
             self.identities.intern(requirement),
             provider_plan,
             mechanism,
+            origin,
             exercised,
             permitted,
         )
@@ -202,7 +212,7 @@ impl<'a> Reviewer<'a> {
                 "terminal mechanism for `{requirement}` exceeds its exact service permission: {error:?}"
             )
         })?;
-        let key = (schema, requirement.to_owned(), provider_plan);
+        let key = (schema, requirement.to_owned(), provider_plan, origin);
         if let Some(previous) = self.leaves.insert(key, leaf.clone())
             && previous != leaf
         {

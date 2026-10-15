@@ -74,6 +74,7 @@ pub(super) fn validate_declaration(
                 | MachineSemanticKind::RestoreFloatingControl
                 | MachineSemanticKind::HostedWriteByteI32
                 | MachineSemanticKind::HostedExitProcessI32
+                | MachineSemanticKind::PortWrite
                 | MachineSemanticKind::AtomicFence
                 | MachineSemanticKind::AtomicAccess(_)
                 | MachineSemanticKind::PlacedScalarAccess(_)
@@ -121,6 +122,16 @@ pub(super) fn validate_declaration(
     // have, fails admission instead of reaching canonical replay.
     let temporary_stack = architecture == target::Architecture::X86_64
         && matches!(semantic, MachineSemanticKind::NearestIeeeFloatArithmetic(form) if form.operation.rounding_direction().is_some());
+    if semantic == MachineSemanticKind::PortWrite
+        && (architecture != target::Architecture::X86_64
+            || !constraint.operands.is_empty()
+            || !constraint.implicit_uses.is_empty()
+            || !constraint.implicit_defs.is_empty())
+    {
+        return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
+            semantic,
+        ));
+    }
     if semantic == MachineSemanticKind::AtomicFence
         && (!constraint.operands.is_empty()
             || !constraint.implicit_uses.is_empty()
@@ -182,7 +193,9 @@ pub(super) fn validate_declaration(
     }
     let expected_trap = match semantic {
         _ if temporary_stack => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
-        MachineSemanticKind::AtomicAccess(_) | MachineSemanticKind::PlacedScalarAccess(_) => {
+        MachineSemanticKind::PortWrite
+        | MachineSemanticKind::AtomicAccess(_)
+        | MachineSemanticKind::PlacedScalarAccess(_) => {
             crate::MachineTrapBehavior::MayArchitecturalFaultV1
         }
         MachineSemanticKind::Crash => crate::MachineTrapBehavior::ExplicitCrashV1,
@@ -750,6 +763,7 @@ fn validate_encoded_effects(
                 declaration.semantic,
                 MachineSemanticKind::SaveFloatingControl
                     | MachineSemanticKind::RestoreFloatingControl
+                    | MachineSemanticKind::PortWrite
                     | MachineSemanticKind::AtomicFence
                     | MachineSemanticKind::AtomicAccess(_)
                     | MachineSemanticKind::PlacedScalarAccess(_)

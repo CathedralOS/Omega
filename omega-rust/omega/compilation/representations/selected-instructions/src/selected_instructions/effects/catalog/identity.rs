@@ -47,6 +47,7 @@ pub fn machine_effect_catalog_identity(
     bytes.extend_from_slice(&catalog.target.identity_bytes());
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
+        catalog.selected_keys.port_write,
         catalog.selected_keys.atomic_fence,
         catalog.selected_keys.atomic_load,
         catalog.selected_keys.placed_read,
@@ -593,6 +594,7 @@ macro_rules! effect_tag_arms {
                 saturating_family_tag(SaturatingOperation::Multiply, carrier)
             }
             $enum::TrappingInteger(form) => trapping_family_tag(form),
+            $enum::PortWrite => 239,
             $enum::AtomicFence => 238,
             $enum::AtomicAccess(form) => form.machine_tag(),
             $enum::PlacedScalarAccess(form) => form.machine_tag(),

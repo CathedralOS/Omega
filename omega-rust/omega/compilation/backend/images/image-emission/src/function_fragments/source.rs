@@ -252,6 +252,13 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
         for (operation_ordinal, operation) in abstracted.operations.iter().enumerate() {
             let admitted = match operation {
+                AbstractOperation::PortWrite { psi_operation, port, value, .. } => {
+                    selected.instructions().any(|instruction| {
+                        instruction.kind == selected_instructions::SelectedInstructionKind::PortWrite { port: *port, value: *value }
+                            && instruction.provenance.operations.as_slice() == [*psi_operation]
+                    })
+                }
+
                 AbstractOperation::AtomicEvent {
                     event: AbstractAtomicEvent::Load { .. }
                         | AbstractAtomicEvent::Store { .. }

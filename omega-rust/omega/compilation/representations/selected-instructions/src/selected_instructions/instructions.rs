@@ -106,6 +106,12 @@ impl SelectedImageAddressReference {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
+    /// Exact x86 OUT DX, AL envelope with immediate semantic operands.
+    /// RAX, RDX, R10 and R11 are clobbered; no RAM or flags are changed.
+    PortWrite {
+        port: u16,
+        value: u8,
+    },
     /// One sealed external event with exact-width transfer and retained contract.
     PlacedScalarAccess {
         form: super::PlacedScalarForm,

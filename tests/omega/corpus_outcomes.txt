@@ -6933,12 +6933,12 @@ pass/inline_asm/asm_memory_transfer_compile checked 10675ms check-target:macos_a
 pass/inline_asm/asm_msr_multi checked 9781ms @5041ef1af684+wt
 pass/inline_asm/asm_port_contract checked 9849ms @5041ef1af684+wt
 pass/inline_asm/asm_port_immediate checked 9264ms @5041ef1af684+wt
-pass/inline_asm/asm_port_out_final_validation rejected 7659ms check-target:linux_x86_64 @73488f3b9a96
-	native artifact terminal-authority closure review failed: root-reachable checked physical operation has no selected provider requirement custody
+pass/inline_asm/asm_port_out_final_validation checked 6029ms check-target:linux_x86_64 @b66ca92ce32e+wt
 pass/inline_asm/asm_reach_inherit checked 9759ms @5041ef1af684+wt
 pass/inline_asm/asm_reach_wrapper checked 9566ms @5041ef1af684+wt
 pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 11132ms check-target:linux_x86_64 @a9ae30e1c334+wt
 	`Main::main` has no executable body: this compiler does not lower a call of it yet (call operation: call site)
+pass/inline_asm/asm_selected_port_write_compositions_compile checked 6030ms check-target:linux_x86_64 @b66ca92ce32e+wt
 pass/inline_asm/asm_state_jmp checked 9651ms @5041ef1af684+wt
 pass/inline_asm/asm_sysreg_rw checked 9351ms @5041ef1af684+wt
 pass/inline_asm/asm_sysregs checked 9535ms @5041ef1af684+wt

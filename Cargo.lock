@@ -914,6 +914,7 @@ dependencies = [
  "target-operations",
  "task-plans",
  "terminal-psi",
+ "x86-encoding",
 ]
 
 [[package]]

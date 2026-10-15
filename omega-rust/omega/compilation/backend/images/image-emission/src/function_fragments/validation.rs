@@ -84,7 +84,7 @@ fn validate(
         || artifact.x86_scalar_fma_provider.is_some()
         || artifact.private_functions.len()
             != private_functions.map_or(artifact.private_functions.len(), |roster| roster.len())
-        || !artifact.port_effects.is_empty()
+        || artifact.port_effects != super::port_effects::produce(source)?
         || layout.function_symbols.len() != callback_reference_count(artifact)
         || layout.sections.len() != 1 + usize::from(table_count != 0)
         || layout.symbols.len()

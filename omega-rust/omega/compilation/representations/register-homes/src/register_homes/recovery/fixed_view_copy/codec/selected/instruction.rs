@@ -84,6 +84,7 @@ pub(super) fn decode_instruction(
 
 fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     let tag = match kind {
+        SelectedInstructionKind::PortWrite { .. } => 239,
         SelectedInstructionKind::AtomicFence => 238,
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => form.machine_tag(),
@@ -192,6 +193,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     };
     bytes.push(tag);
     match kind {
+        SelectedInstructionKind::PortWrite { port, value } => {
+            bytes.extend_from_slice(&port.to_le_bytes());
+            bytes.push(value);
+        }
         // Every float form shares one tag; its dense ordinal follows.
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
             bytes.push(form.machine_payload())
@@ -548,6 +553,10 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
         234 => SelectedInstructionKind::CompareByteSequences,
         236 => SelectedInstructionKind::LoadEncodedScalar,
         237 => SelectedInstructionKind::StoreEncodedScalar,
+        239 => SelectedInstructionKind::PortWrite {
+            port: cursor.u16()?,
+            value: cursor.byte()?,
+        },
         238 => SelectedInstructionKind::AtomicFence,
         235 => SelectedInstructionKind::ZeroBytes,
         14 => SelectedInstructionKind::Jump,

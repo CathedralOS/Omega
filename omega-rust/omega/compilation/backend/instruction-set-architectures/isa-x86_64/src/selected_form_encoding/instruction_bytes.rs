@@ -493,6 +493,9 @@ pub(crate) fn encode_unchecked(
         | SelectedInstructionKind::FloatResultPolicy { .. } => {
             return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
         }
+        SelectedInstructionKind::PortWrite { port, value } => {
+            bytes.extend_from_slice(&x86_encoding::encode_immediate_port_write(port, value))
+        }
         SelectedInstructionKind::AtomicFence => bytes.extend_from_slice(&[0x0f, 0xae, 0xf0]),
         SelectedInstructionKind::Crash => bytes.extend_from_slice(&[0x0f, 0x0b]),
         SelectedInstructionKind::MaterializeI64 { value } if alternative.variant == 1 => {

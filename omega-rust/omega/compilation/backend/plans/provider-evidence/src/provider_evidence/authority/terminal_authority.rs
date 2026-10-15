@@ -845,6 +845,17 @@ impl TerminalAuthorityPermissionPolicyIdentity {
 /// records that this leaf makes no receiver-admission claim: it is neither an
 /// allow-all nor a deny-all row, and it cannot be replayed as admission
 /// evidence.
+/// Exact origin of a reviewed leaf. Distinct physical instructions may use
+/// different mechanisms; one instruction may never claim two mechanisms.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TerminalAuthorityClosureLeafOrigin {
+    SelectedBoundary,
+    CheckedPhysical {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAuthorityClosureLeaf {
     service_schema: crate::provider_plan::ServiceSchemaDigest,
@@ -852,6 +863,7 @@ pub struct TerminalAuthorityClosureLeaf {
     requirement_identity: terminal_psi::TerminalIdentityIndex,
     provider_plan: crate::provider_plan::ProviderPlanDigest,
     mechanism: TerminalMechanismIdentity,
+    origin: TerminalAuthorityClosureLeafOrigin,
     exercised: Option<TerminalAuthorityDisposition>,
     permitted: Option<TerminalAuthorityDisposition>,
 }
@@ -862,6 +874,7 @@ impl TerminalAuthorityClosureLeaf {
         requirement_identity: terminal_psi::TerminalIdentityIndex,
         provider_plan: crate::provider_plan::ProviderPlanDigest,
         mechanism: TerminalMechanismIdentity,
+        origin: TerminalAuthorityClosureLeafOrigin,
         exercised: Option<TerminalAuthorityDisposition>,
         permitted: Option<TerminalAuthorityDisposition>,
     ) -> Result<Self, TerminalAuthorityClosureReviewBuildError> {
@@ -870,6 +883,7 @@ impl TerminalAuthorityClosureLeaf {
             requirement_identity,
             provider_plan,
             mechanism,
+            origin,
             exercised,
             permitted,
         };
@@ -878,6 +892,15 @@ impl TerminalAuthorityClosureLeaf {
     }
 
     fn validate(&self) -> Result<(), TerminalAuthorityClosureReviewBuildError> {
+        if matches!(
+            self.mechanism,
+            TerminalMechanismIdentity::CheckedPhysical(_)
+        ) != matches!(
+            self.origin,
+            TerminalAuthorityClosureLeafOrigin::CheckedPhysical { .. }
+        ) {
+            return Err(TerminalAuthorityClosureReviewBuildError::MechanismOriginMismatch);
+        }
         if self.requirement_identity.is_absent() {
             return Err(TerminalAuthorityClosureReviewBuildError::EmptyRequirement);
         }
@@ -905,6 +928,10 @@ impl TerminalAuthorityClosureLeaf {
 
     pub const fn provider_plan(&self) -> crate::provider_plan::ProviderPlanDigest {
         self.provider_plan
+    }
+
+    pub const fn origin(&self) -> TerminalAuthorityClosureLeafOrigin {
+        self.origin
     }
 
     pub const fn mechanism(&self) -> TerminalMechanismIdentity {
@@ -1043,6 +1070,7 @@ impl TerminalAuthorityClosureReviewReceipt {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalAuthorityClosureReviewBuildError {
+    MechanismOriginMismatch,
     EmptyRequirement,
     DuplicateRequirementLeaf,
     /// A receipt mixing a present permission-policy identity with
@@ -1071,6 +1099,7 @@ fn compare_closure_leaves(
                 .as_bytes()
                 .cmp(right.provider_plan.as_bytes())
         })
+        .then_with(|| left.origin.cmp(&right.origin))
         .then_with(|| {
             terminal_mechanism_identity_bytes(left.mechanism)
                 .cmp(&terminal_mechanism_identity_bytes(right.mechanism))
@@ -1086,6 +1115,7 @@ fn same_closure_leaf_key(
     left.service_schema == right.service_schema
         && left.requirement_identity == right.requirement_identity
         && left.provider_plan == right.provider_plan
+        && left.origin == right.origin
 }
 
 fn terminal_authority_closure_review_identity(
@@ -1098,7 +1128,7 @@ fn terminal_authority_closure_review_identity(
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> [u8; 32] {
     let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
-        b"omega.terminal-authority.closure-review.v3\0",
+        b"omega.terminal-authority.closure-review.v4\0",
     );
     digest.raw(&terminal_artifact_identity);
     digest.byte(match target.architecture {
@@ -1134,6 +1164,14 @@ fn terminal_authority_closure_review_identity(
         digest.raw(&(requirement.len() as u64).to_be_bytes());
         digest.raw(requirement.as_bytes());
         digest.raw(leaf.provider_plan.as_bytes());
+        match leaf.origin {
+            TerminalAuthorityClosureLeafOrigin::SelectedBoundary => digest.byte(0),
+            TerminalAuthorityClosureLeafOrigin::CheckedPhysical { machine, operation } => {
+                digest.byte(1);
+                digest.raw(&machine.get().to_be_bytes());
+                digest.raw(&operation.get().to_be_bytes());
+            }
+        }
         let mechanism = terminal_mechanism_identity_bytes(leaf.mechanism);
         digest.raw(&(mechanism.len() as u64).to_be_bytes());
         digest.raw(&mechanism);
@@ -1162,5 +1200,70 @@ fn encode_authority_classes(
     digest.raw(&(disposition.classes().len() as u64).to_be_bytes());
     for class in disposition.classes() {
         digest.byte(class.canonical_tag());
+    }
+}
+
+#[cfg(test)]
+mod physical_leaf_tests {
+    use super::*;
+
+    #[test]
+    fn physical_sites_distinguish_events_without_allowing_mechanism_substitution() {
+        let mut identities = terminal_psi::TerminalIdentityTable::default().into_builder();
+        let requirement = identities.intern("PortSequence::emit");
+        let identities = identities.build();
+        let machine = semantic_vocabulary::MachineId::new(1).unwrap();
+        let operation = semantic_vocabulary::OperationId::new(2).unwrap();
+        let schema = crate::provider_plan::ServiceSchemaDigest::from_digest([1; 32]);
+        let plan = crate::provider_plan::ProviderPlanDigest::from_digest([2; 32]);
+        let profile = target::TargetProfile::LinuxX64;
+        let leaf = |operation, port| {
+            TerminalAuthorityClosureLeaf::new(
+                schema,
+                requirement,
+                plan,
+                CheckedPhysicalTerminalMechanismIdentity::port_write(profile, port).into(),
+                TerminalAuthorityClosureLeafOrigin::CheckedPhysical { machine, operation },
+                None,
+                None,
+            )
+            .unwrap()
+        };
+        let receipt = |leaves| {
+            TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
+                [3; 32],
+                profile.native_target(),
+                crate::SelectedProviderClosureDigest::from_digest([4; 32]),
+                TerminalAuthorityPolicyIdentity::from_parts(1, [5; 32]),
+                None,
+                leaves,
+                &identities,
+            )
+        };
+        let first = leaf(operation, 0x3f8);
+        let next_operation = semantic_vocabulary::OperationId::new(3).unwrap();
+        let second = leaf(next_operation, 0x2f8);
+        let ordered = receipt(vec![first.clone(), second.clone()]).unwrap();
+        assert_eq!(ordered, receipt(vec![second, first.clone()]).unwrap());
+        assert_ne!(
+            ordered.identity(),
+            receipt(vec![first.clone()]).unwrap().identity()
+        );
+        assert_eq!(
+            receipt(vec![first, leaf(operation, 0x2f8)]),
+            Err(TerminalAuthorityClosureReviewBuildError::DuplicateRequirementLeaf)
+        );
+        assert_eq!(
+            TerminalAuthorityClosureLeaf::new(
+                schema,
+                requirement,
+                plan,
+                CheckedPhysicalTerminalMechanismIdentity::port_write(profile, 0x3f8).into(),
+                TerminalAuthorityClosureLeafOrigin::SelectedBoundary,
+                None,
+                None,
+            ),
+            Err(TerminalAuthorityClosureReviewBuildError::MechanismOriginMismatch)
+        );
     }
 }

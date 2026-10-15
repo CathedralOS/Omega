@@ -6,9 +6,15 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 pub(super) enum AuthorityEdge {
     None,
     Internal(MachineId),
-    Dynamic { interface: u32, slot: u32 },
+    Dynamic {
+        interface: u32,
+        slot: u32,
+    },
     Boundary(BoundaryMachineId),
-    CheckedPortWrite { port: u16 },
+    CheckedPortWrite {
+        port: u16,
+        operation: semantic_vocabulary::OperationId,
+    },
 }
 
 /// Exhaustive match: adding an abstract operation forces an explicit D45
@@ -22,8 +28,8 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         AbstractOperation::Call { callee, .. } => AuthorityEdge::Internal(*callee),
         AbstractOperation::BoundaryCall { boundary, .. }
         | AbstractOperation::ExternalCompletion { boundary, .. } => AuthorityEdge::Boundary(*boundary),
-        AbstractOperation::PortWrite { port, .. } => {
-            AuthorityEdge::CheckedPortWrite { port: *port }
+        AbstractOperation::PortWrite { port, psi_operation, .. } => {
+            AuthorityEdge::CheckedPortWrite { port: *port, operation: *psi_operation }
         }
         // An atomic event carries no call or boundary edge; its ordering and
         // custody evidence stay on the operation itself.

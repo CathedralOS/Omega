@@ -1894,12 +1894,12 @@ pass/inline_asm/asm_memory_transfer_compile built 17385ms @6c49683ce714
 pass/inline_asm/asm_msr_multi checked 17724ms @6c49683ce714
 pass/inline_asm/asm_port_contract checked 17763ms @6c49683ce714
 pass/inline_asm/asm_port_immediate checked 17458ms @6c49683ce714
-pass/inline_asm/asm_port_out_final_validation rejected 5483ms @8665e38f912c
-	native artifact terminal-authority closure review failed: root-reachable checked physical operation has no selected provider requirement custody
+pass/inline_asm/asm_port_out_final_validation built 7283ms @b66ca92ce32e+wt
 pass/inline_asm/asm_reach_inherit checked 17500ms @6c49683ce714
 pass/inline_asm/asm_reach_wrapper checked 17632ms @6c49683ce714
 pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 5516ms @8665e38f912c
 	`Main::main` has no executable body: this compiler does not lower a call of it yet (call operation: call site); in state `Main::main::main`, statement 0
+pass/inline_asm/asm_selected_port_write_compositions_compile built 7314ms @b66ca92ce32e+wt
 pass/inline_asm/asm_state_jmp checked 17631ms @6c49683ce714
 pass/inline_asm/asm_sysreg_rw checked 17523ms @6c49683ce714
 pass/inline_asm/asm_sysregs checked 17522ms @6c49683ce714

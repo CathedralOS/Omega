@@ -62,6 +62,7 @@ pub(in crate::legalization) fn admit(
         return Ok((*psi_operation, result.map(|result| result.value)));
     }
     if let abstract_operations::establish_or_subslice_set_pattern!(psi_operation, ..)
+    | AbstractOperation::PortWrite { psi_operation, .. }
     | AbstractOperation::EstablishRecord { psi_operation, .. }
     | AbstractOperation::EstablishReference { psi_operation, .. }
     | AbstractOperation::EstablishPlacedReference { psi_operation, .. }
@@ -743,6 +744,12 @@ pub(super) fn validate(
                 }
                 continue;
             }
+        }
+        if matches!(node.operation, AbstractOperation::PortWrite { .. }) {
+            if result.is_some() || !node.definitions.is_empty() {
+                return Err(LegalizationError::custody());
+            }
+            continue;
         }
         if let AbstractOperation::AtomicEvent { event, .. } = &node.operation {
             if matches!(

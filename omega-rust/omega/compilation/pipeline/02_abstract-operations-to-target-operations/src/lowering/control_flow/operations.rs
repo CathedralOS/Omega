@@ -66,6 +66,21 @@ pub(super) fn lower_operation(
     }
     let first_output = operations.len();
     match operation {
+        AbstractOperation::PortWrite {
+            psi_operation,
+            service,
+            port,
+            value,
+        } => {
+            operations.push(TargetUnitOperation::PortWrite {
+                psi_operation: *psi_operation,
+                service: *service,
+                port: *port,
+                value: *value,
+            });
+            provenance.operations.push(*psi_operation);
+            Ok(())
+        }
         AbstractOperation::AtomicEvent {
             psi_operation,
             event,

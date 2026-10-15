@@ -111,6 +111,7 @@ fn terminal_selected_keys(
     keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        port_write: keys.port_write,
         atomic_fence: keys.atomic_fence,
         placed_read: keys.placed_read,
         placed_write: keys.placed_write,
@@ -304,6 +305,7 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
             MachineSemanticKind::PlacedScalarAccess(form)
         }
+        SelectedInstructionKind::PortWrite { .. } => MachineSemanticKind::PortWrite,
         SelectedInstructionKind::AtomicFence => MachineSemanticKind::AtomicFence,
         SelectedInstructionKind::AtomicAccess { form } => MachineSemanticKind::AtomicAccess(form),
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {

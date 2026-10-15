@@ -73,6 +73,25 @@ pub(super) fn project(
         }
     } else {
         match &node.operation {
+            AbstractOperation::PortWrite {
+                psi_operation,
+                service,
+                port,
+                value,
+            } => {
+                if !matches!(targeted, target_operations::TargetUnitOperation::PortWrite {
+                    psi_operation: target_operation, service: target_service, port: target_port, value: target_value,
+                } if target_operation == psi_operation && target_service == service && target_port == port && target_value == value)
+                {
+                    return Err(Error::custody());
+                }
+                LegalizedScalarInstructionKind::PortWrite {
+                    service: *service,
+                    port: *port,
+                    value: *value,
+                }
+            }
+
             AbstractOperation::SelectImplementation { table, .. } => {
                 LegalizedScalarInstructionKind::SelectImplementation { table: *table }
             }

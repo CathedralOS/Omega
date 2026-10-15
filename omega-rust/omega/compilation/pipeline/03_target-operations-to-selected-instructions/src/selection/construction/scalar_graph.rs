@@ -292,6 +292,23 @@ fn select_function(
             {
                 continue;
             }
+            if let LegalizedScalarInstructionKind::PortWrite { port, value, .. } = operation.kind {
+                if operation.result.is_some() {
+                    return Err(invalid());
+                }
+                let key = builder.constraints.keys.port_write.ok_or_else(invalid)?;
+                builder.emit(
+                    SelectedInstructionKind::PortWrite { port, value },
+                    key,
+                    &[],
+                    SelectedInstructionProvenance {
+                        operations: vec![operation.operation],
+                        fuel: operation.fuel.clone(),
+                        ..Default::default()
+                    },
+                )?;
+                continue;
+            }
             if let LegalizedScalarInstructionKind::AtomicFence { .. } = operation.kind {
                 if operation.result.is_some() {
                     return Err(invalid());
@@ -365,7 +382,8 @@ fn select_function(
                         )?;
                         output
                     }
-                    LegalizedScalarInstructionKind::AtomicFence { .. }
+                    LegalizedScalarInstructionKind::PortWrite { .. }
+                    | LegalizedScalarInstructionKind::AtomicFence { .. }
                     | LegalizedScalarInstructionKind::AtomicAccess { .. }
                     | LegalizedScalarInstructionKind::PlacedScalarAccess { .. } => {
                         return Err(invalid());

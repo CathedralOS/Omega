@@ -166,7 +166,18 @@ pub fn x86_64_register_constraint_catalog(
             .chain(view("rflags").units.iter().copied()),
     );
 
+    let mut port_write = instruction_row(
+        RegisterConstraintId(0),
+        crate::X86_64_PORT_WRITE,
+        Vec::new(),
+    );
+    port_write.clobbers = sorted_units(
+        ["rax", "rdx", "r10", "r11"]
+            .into_iter()
+            .flat_map(|name| view(name).units.iter().copied()),
+    );
     let mut constraints = vec![
+        port_write,
         instruction_row(
             RegisterConstraintId(0),
             crate::X86_64_ATOMIC_FENCE,

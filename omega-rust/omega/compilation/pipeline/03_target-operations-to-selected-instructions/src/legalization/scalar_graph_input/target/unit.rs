@@ -235,6 +235,23 @@ pub(super) fn validate_operation(
             sources.push((result.value, Source::Home(*result_home)));
         }
         (
+            TargetUnitOperation::PortWrite {
+                psi_operation,
+                service,
+                port,
+                value,
+            },
+            AbstractOperation::PortWrite {
+                psi_operation: expected_operation,
+                service: expected_service,
+                port: expected_port,
+                value: expected_value,
+            },
+        ) if psi_operation == expected_operation
+            && service == expected_service
+            && port == expected_port
+            && value == expected_value => {}
+        (
             TargetUnitOperation::AtomicFence {
                 psi_operation,
                 ordering,

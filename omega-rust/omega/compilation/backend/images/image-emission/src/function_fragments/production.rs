@@ -223,9 +223,7 @@ pub fn build_function_fragment_object_artifact(
         functions,
         private_functions: Vec::new(),
         semantic_code_attribution,
-        // No selected instruction emits port effects yet; downstream custody
-        // only replays records (wiki/drafts/designs/evaluated_foreign_bindings.md).
-        port_effects: Vec::new(),
+        port_effects: super::port_effects::produce(source)?,
         boundary_settlements: super::structural::settlements(source)?,
         foreign_calls,
         byte_literal_pool,

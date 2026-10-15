@@ -63,6 +63,7 @@ pub(super) fn selected_environment_keys(
     keys: SelectedConstraintKeys,
 ) -> TargetRegisterEnvironmentConstraintKeys {
     TargetRegisterEnvironmentConstraintKeys {
+        port_write: keys.port_write,
         atomic_fence: keys.atomic_fence,
         placed_read: keys.placed_read,
         placed_write: keys.placed_write,
@@ -187,6 +188,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         // the hosted syscall encodings differ, and those select by exact target.
         (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::MachO) => {
             Some(SelectedConstraintKeys {
+                port_write: Some(isa_x86_64::X86_64_PORT_WRITE),
                 atomic_fence: Some(isa_x86_64::X86_64_ATOMIC_FENCE),
                 placed_read: Some(isa_x86_64::X86_64_PLACED_READ),
                 placed_write: Some(isa_x86_64::X86_64_PLACED_WRITE),
@@ -291,6 +293,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             })
         }
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
+            port_write: Some(isa_x86_64::X86_64_PORT_WRITE),
             atomic_fence: Some(isa_x86_64::X86_64_ATOMIC_FENCE),
             placed_read: Some(isa_x86_64::X86_64_PLACED_READ),
             placed_write: Some(isa_x86_64::X86_64_PLACED_WRITE),
@@ -398,6 +401,7 @@ fn aarch64_selected_constraint_keys(target: NativeTarget) -> SelectedConstraintK
             NativeTarget::linux_arm64()
         };
     SelectedConstraintKeys {
+        port_write: None,
         atomic_fence: Some(isa_aarch64::AARCH64_ATOMIC_FENCE),
         placed_read: Some(isa_aarch64::AARCH64_PLACED_READ),
         placed_write: Some(isa_aarch64::AARCH64_PLACED_WRITE),

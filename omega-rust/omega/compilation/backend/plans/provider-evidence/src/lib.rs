@@ -31,11 +31,12 @@ pub use provider_evidence::authority::terminal_authority::{
     CompilerPrimitiveIntegerComparisonOperation, NormalizedForeignArgumentContract,
     NormalizedForeignTerminalMechanismIdentity, PortableFilesystemAuthorityFacet,
     SyscallTerminalMechanismIdentity, TerminalAuthorityClass, TerminalAuthorityClosureLeaf,
-    TerminalAuthorityClosureReviewReceipt, TerminalAuthorityDisposition,
-    TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
-    TerminalMechanismIdentity, compiler_intrinsic_execution_identity_bytes,
-    compiler_placed_scalar_contract_identity, numeric_type_tag, primitive_float_operation_tag,
-    primitive_integer_comparison_operation_tag, terminal_mechanism_identity_bytes,
+    TerminalAuthorityClosureLeafOrigin, TerminalAuthorityClosureReviewReceipt,
+    TerminalAuthorityDisposition, TerminalAuthorityPermissionPolicyIdentity,
+    TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity,
+    compiler_intrinsic_execution_identity_bytes, compiler_placed_scalar_contract_identity,
+    numeric_type_tag, primitive_float_operation_tag, primitive_integer_comparison_operation_tag,
+    terminal_mechanism_identity_bytes,
 };
 pub use provider_evidence::component_eras::component_era_entry_ledger::{
     EraEntryError, EraQuiescenceError, EraRetirementError,

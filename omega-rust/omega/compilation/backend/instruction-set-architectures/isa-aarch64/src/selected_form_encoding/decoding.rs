@@ -682,6 +682,7 @@ pub(crate) fn validate_decoded(
     decoded: &[DecodedWord],
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     let valid = match kind {
+        SelectedInstructionKind::PortWrite { .. } => false,
         SelectedInstructionKind::PlacedScalarAccess {
             form, byte_offset, ..
         } => {
@@ -1058,6 +1059,9 @@ pub(crate) fn footprint(
         }
         SelectedInstructionKind::FloatResultPolicy { form } => {
             return super::float_result_policy::footprint(form, operands);
+        }
+        SelectedInstructionKind::PortWrite { .. } => {
+            unreachable!("x86 port I/O cannot form an AArch64 request")
         }
         SelectedInstructionKind::AtomicFence | SelectedInstructionKind::Crash => {
             (Vec::new(), Vec::new(), false)

@@ -916,6 +916,9 @@ pub(crate) fn validate_decoded(
     decoded: &[DecodedInstruction],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
     let valid = match kind {
+        SelectedInstructionKind::PortWrite { .. } => {
+            unreachable!("port envelopes use the dedicated exact decoder")
+        }
         SelectedInstructionKind::PlacedScalarAccess {
             form, byte_offset, ..
         } => {
@@ -2063,9 +2066,9 @@ pub(crate) fn footprint(
         SelectedInstructionKind::AtomicAccess { .. } => {
             unreachable!("atomic footprint returned above")
         }
-        SelectedInstructionKind::AtomicFence | SelectedInstructionKind::Crash => {
-            (Vec::new(), Vec::new(), false)
-        }
+        SelectedInstructionKind::PortWrite { .. }
+        | SelectedInstructionKind::AtomicFence
+        | SelectedInstructionKind::Crash => (Vec::new(), Vec::new(), false),
         SelectedInstructionKind::MaterializeBooleanEqual
         | SelectedInstructionKind::MaterializeBooleanU64LessThan
         | SelectedInstructionKind::MaterializeBooleanI64LessThan
@@ -2155,7 +2158,9 @@ pub(crate) fn footprint(
     };
     let physical = crate::x86_64_physical_register_model_ref();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
-    let encoded = if kind == SelectedInstructionKind::AtomicFence {
+    let encoded = if matches!(kind, SelectedInstructionKind::PortWrite { .. }) {
+        super::port_write::effects()
+    } else if kind == SelectedInstructionKind::AtomicFence {
         MachineEncodedEffects::atomic_fence_v1()
     } else if kind == SelectedInstructionKind::Crash {
         selected_instructions::MachineEncodedEffects::crash_v1(&units("rip"))

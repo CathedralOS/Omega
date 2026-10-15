@@ -46,6 +46,7 @@ fn crash_identity_tags_do_not_alias_other_instruction_families() {
 
 fn keys() -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        port_write: Some(instruction(803)),
         atomic_fence: Some(instruction(800)),
         placed_read: None,
         placed_write: None,
@@ -785,7 +786,8 @@ fn identity_distinguishes_narrow_load_keys_and_semantics() {
 /// [`MachineSemanticKind::ALL`]. These bytes are the identity of an
 /// alternative in every catalog, program, physical-instruction and
 /// machine-code artifact, so this table changing is always a defect.
-const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 124] = [
+const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 125] = [
+    (MachineAlternativeFamily::PortWrite, 239),
     (MachineAlternativeFamily::AtomicFence, 238),
     (MachineAlternativeFamily::Crash, 111),
     (MachineAlternativeFamily::CopyBytes, 59),

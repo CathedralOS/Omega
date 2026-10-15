@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "asm_selected_port_write_compositions_compile");
+    builder.freestanding = true;
+    Build::select_provider<PortSequence, PortSequenceNative>(builder);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

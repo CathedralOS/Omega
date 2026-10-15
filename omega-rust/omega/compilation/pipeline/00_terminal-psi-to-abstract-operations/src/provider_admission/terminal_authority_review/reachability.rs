@@ -10,16 +10,21 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::AbstractFunction;
 use effects::{
-    CheckedPhysicalTerminalMechanismIdentity, TerminalMechanismIdentity,
-    terminal_mechanism_identity_bytes,
+    CheckedPhysicalTerminalMechanismIdentity, TerminalAuthorityClosureLeafOrigin,
+    TerminalMechanismIdentity,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 
 use super::operations::{AuthorityEdge, authority_edge};
 
+pub(crate) struct ReachableCheckedPhysical {
+    pub(crate) origin: TerminalAuthorityClosureLeafOrigin,
+    pub(crate) mechanism: TerminalMechanismIdentity,
+}
+
 pub(crate) struct ReachableAuthorityEdges {
     pub(crate) boundaries: BTreeSet<BoundaryMachineId>,
-    pub(crate) checked_physical: Vec<TerminalMechanismIdentity>,
+    pub(crate) checked_physical: Vec<ReachableCheckedPhysical>,
 }
 
 /// The realized plan's functions keyed by machine, with the dynamic dispatch
@@ -118,7 +123,7 @@ impl<'a> AuthorityGraph<'a> {
                             boundaries.insert(boundary);
                         }
                     }
-                    AuthorityEdge::CheckedPortWrite { port } => {
+                    AuthorityEdge::CheckedPortWrite { port, operation } => {
                         // Psi's `validate_port_write` already proved the write's
                         // service sits inside the machine's published ceiling;
                         // re-asking it here would replay the same fact.
@@ -136,9 +141,13 @@ impl<'a> AuthorityGraph<'a> {
                                 port,
                             )
                             .into();
+                        let origin = TerminalAuthorityClosureLeafOrigin::CheckedPhysical {
+                            machine,
+                            operation,
+                        };
                         checked_physical
-                            .entry(terminal_mechanism_identity_bytes(mechanism))
-                            .or_insert(mechanism);
+                            .entry(origin)
+                            .or_insert(ReachableCheckedPhysical { origin, mechanism });
                     }
                 }
             }

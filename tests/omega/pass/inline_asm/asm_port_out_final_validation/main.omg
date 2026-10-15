@@ -1,11 +1,19 @@
 // COMPILE CANARY (linux_x86_64 freestanding): an immediate port identity survives
 // checked-assembly lowering into the independent final-byte validation record.
-// The transferred byte is ordinary data; the validator binds the privileged
-// destination and closed DX/AL/out envelope.
+// The selected boundary provider owns the privileged physical operation.
 use omega::language::core::assembly;
 
-machine main() reaches PortIo {
+pub boundary trait PortOutput {
+    machine emit() reaches PortIo;
+}
+PortOutputNative satisfies PortOutput {
+    PortOutput::emit = emit_port;
+}
+machine emit_port() reaches PortIo {
     asm where clobbers r10, r11, r15, rax, rdx {
         out 0x3F8, 0x41
     }
+}
+machine main() reaches PortOutput + PortIo {
+    PortOutput::emit();
 }

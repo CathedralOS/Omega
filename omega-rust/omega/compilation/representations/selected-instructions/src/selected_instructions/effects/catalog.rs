@@ -116,8 +116,8 @@ macro_rules! machine_semantic_kinds {
 
         impl MachineSemanticKind {
             #[allow(unused_assignments)]
-            const FIXED: [Self; 124] = {
-                let mut fixed = [Self::Crash; 124];
+            const FIXED: [Self; 125] = {
+                let mut fixed = [Self::Crash; 125];
                 let mut index = 0usize;
                 $( machine_semantic_kinds!(@entry (fixed, index) $kind $variant $(($payload))?); )*
                 fixed
@@ -230,6 +230,7 @@ machine_semantic_kinds! {
         /// cursor scratch is the only defined operand.
         fixed ZeroBytes
     },
+    { fixed PortWrite },
     { fixed AtomicFence },
     {
         /// One `Trapping` primitive at one carrier: the exact result, or an
@@ -306,6 +307,7 @@ impl MachineSemanticKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineAlternativeFamily {
+    PortWrite,
     AtomicFence,
     AtomicAccess(AtomicForm),
     PlacedScalarAccess(PlacedScalarForm),
@@ -503,6 +505,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ExactRemainderI64 => Self::ExactRemainderI64,
             MachineSemanticKind::SaturatingMultiply(carrier) => Self::SaturatingMultiply(carrier),
             MachineSemanticKind::TrappingInteger(form) => Self::TrappingInteger(form),
+            MachineSemanticKind::PortWrite => Self::PortWrite,
             MachineSemanticKind::AtomicFence => Self::AtomicFence,
             MachineSemanticKind::AtomicAccess(form) => Self::AtomicAccess(form),
             MachineSemanticKind::PlacedScalarAccess(form) => Self::PlacedScalarAccess(form),

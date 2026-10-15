@@ -6,6 +6,7 @@ mod byte_literals;
 pub(crate) mod implementation_tables;
 mod imports;
 mod mixed_scalar_abi;
+mod port_effects;
 mod production;
 pub(crate) mod replay;
 pub(crate) mod reporting;

@@ -229,6 +229,7 @@ fn selected_keys(
         Aarch64SelectedAbi::Darwin => AARCH64_DARWIN_RETURN_UNIT,
     };
     Ok(SelectedConstraintKeys {
+        port_write: None,
         atomic_fence: Some(crate::AARCH64_ATOMIC_FENCE),
         // Apple's arm64 macOS baseline is Apple Silicon (M1 or later),
         // which includes FEAT_LSE. Generic AArch64/ELF does not promise it.
@@ -493,6 +494,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
                 (vec![0], vec![1])
             }
         }
+        MachineSemanticKind::PortWrite => unreachable!("x86 port I/O has no AArch64 constraint"),
         MachineSemanticKind::AtomicFence => return MachineEncodedEffects::atomic_fence_v1(),
         MachineSemanticKind::LoadEncodedScalar => (vec![0, 1], vec![2, 3, 4, 5]),
         MachineSemanticKind::StoreEncodedScalar => (vec![0, 1, 2], vec![3, 4, 5]),

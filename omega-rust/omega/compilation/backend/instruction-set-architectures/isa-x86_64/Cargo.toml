@@ -9,6 +9,7 @@ name = "isa_x86_64"
 path = "src/lib.rs"
 
 [dependencies]
+x86-encoding = { path = "../x86-encoding" }
 calling-conventions = { path = "../../calling-conventions" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
 register-model = { path = "../../register-model" }

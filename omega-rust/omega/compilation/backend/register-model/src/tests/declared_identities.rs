@@ -131,6 +131,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
     )
     .unwrap();
     let keys = TargetRegisterEnvironmentConstraintKeys {
+        port_write: None,
         atomic_fence: None,
         placed_read: None,
         placed_write: None,
@@ -308,6 +309,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
 
     for changed_keys in [
         TargetRegisterEnvironmentConstraintKeys {
+            port_write: None,
             atomic_fence: None,
             placed_read: None,
             placed_write: None,

@@ -560,8 +560,10 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
             | MachineSemanticKind::HostedWriteByteI32
             | MachineSemanticKind::HostedExitProcessI32
             | MachineSemanticKind::TrappingInteger(_)
+            | MachineSemanticKind::PortWrite
             | MachineSemanticKind::AtomicFence
-            | MachineSemanticKind::AtomicAccess(_) => MachineBarrier::ExternalEffect,
+            | MachineSemanticKind::AtomicAccess(_)
+            | MachineSemanticKind::PlacedScalarAccess(_) => MachineBarrier::ExternalEffect,
             // A checked float-to-integer conversion and a float result policy
             // that can trap are ordered like a trapping integer; saturating
             // and exact forms only compute their result.
@@ -578,12 +580,14 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
             }
             _ => MachineBarrier::None,
         };
-        assert!(
-            catalog
-                .declarations
-                .iter()
-                .all(|row| row.barrier == expected_barrier(row.semantic))
-        );
+        for row in &catalog.declarations {
+            assert_eq!(
+                row.barrier,
+                expected_barrier(row.semantic),
+                "{:?}",
+                row.semantic
+            );
+        }
         assert!(catalog.declarations.iter().any(|row| matches!(
             row.semantic,
             MachineSemanticKind::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm {

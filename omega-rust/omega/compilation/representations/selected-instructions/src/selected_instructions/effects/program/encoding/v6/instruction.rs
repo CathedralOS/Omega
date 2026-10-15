@@ -163,6 +163,10 @@ fn decode_kind(
         234 => SelectedInstructionKind::CompareByteSequences,
         236 => SelectedInstructionKind::LoadEncodedScalar,
         237 => SelectedInstructionKind::StoreEncodedScalar,
+        239 => SelectedInstructionKind::PortWrite {
+            port: cursor.u16()?,
+            value: cursor.byte()?,
+        },
         238 => SelectedInstructionKind::AtomicFence,
         235 => SelectedInstructionKind::ZeroBytes,
         2 => SelectedInstructionKind::CopyI64,
@@ -549,6 +553,7 @@ fn decode_alternative_for_version(
         234 => MachineAlternativeFamily::CompareByteSequences,
         236 => MachineAlternativeFamily::LoadEncodedScalar,
         237 => MachineAlternativeFamily::StoreEncodedScalar,
+        239 => MachineAlternativeFamily::PortWrite,
         238 => MachineAlternativeFamily::AtomicFence,
         235 => MachineAlternativeFamily::ZeroBytes,
         2 => MachineAlternativeFamily::CopyI64,
@@ -1094,4 +1099,25 @@ fn decode_call_target(
         },
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     })
+}
+
+#[cfg(test)]
+mod port_write_tests {
+    use super::*;
+    #[test]
+    fn port_write_decoder_retains_extreme_operands_and_rejects_truncation() {
+        for (port, value) in [(0_u16, 0_u8), (0x3f8, 0x41), (u16::MAX, u8::MAX)] {
+            let [low, high] = port.to_le_bytes();
+            let bytes = [239, low, high, value];
+            let mut cursor = Cursor::new(&bytes);
+            assert_eq!(
+                decode_kind(&mut cursor, true, true, true).unwrap(),
+                SelectedInstructionKind::PortWrite { port, value }
+            );
+            assert_eq!(cursor.remaining(), 0);
+            for length in 0..bytes.len() {
+                assert!(decode_kind(&mut Cursor::new(&bytes[..length]), true, true, true).is_err());
+            }
+        }
+    }
 }

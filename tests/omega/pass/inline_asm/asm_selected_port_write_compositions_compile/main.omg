@@ -1,0 +1,26 @@
+// Compile only: selected-provider custody retains every physical port write
+// through a sequence, an ordinary helper call and a selected state.
+use omega::language::core::assembly;
+pub data Device { marker: u64; }
+pub boundary trait PortSequence {
+    machine emit(device: &mut Device, enabled: bool) reaches PortIo;
+}
+PortSequenceNative satisfies PortSequence { PortSequence::emit = emit; }
+machine second(device: &mut Device) reaches PortIo {
+    asm where clobbers r10, r11, r15, rax, rdx { out 0x2F8, 0x42 }
+    device.marker = 2;
+}
+machine emit(device: &mut Device, enabled: bool) reaches PortIo {
+    asm where clobbers r10, r11, r15, rax, rdx { out 0x3F8, 0x41 }
+    second(device);
+    transition enabled { true -> selected(device) false -> done() }
+    state selected(device: &mut Device) {
+        asm where clobbers r10, r11, r15, rax, rdx { out 0x3F8, 0x43 }
+        device.marker = 3;
+    }
+    state done() {}
+}
+machine main() reaches PortSequence + PortIo {
+    let mut device: Device = Device { marker: 0 };
+    PortSequence::emit(&mut device, true);
+}

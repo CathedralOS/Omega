@@ -144,6 +144,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             saturating_family_tag(SaturatingOperation::Multiply, carrier)
         }
         SelectedInstructionKind::TrappingInteger { form } => trapping_family_tag(form),
+        SelectedInstructionKind::PortWrite { .. } => 239,
         SelectedInstructionKind::AtomicFence => 238,
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => form.machine_tag(),
@@ -215,6 +216,11 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ImmutableImageAddress { .. } => 232,
     });
     match kind {
+        SelectedInstructionKind::PortWrite { port, value } => {
+            crate::codec_bytes::push_encoded(bytes, port.to_le_bytes());
+            bytes.push(value);
+        }
+
         SelectedInstructionKind::LoadPacked { byte_offset, width }
         | SelectedInstructionKind::StorePacked { byte_offset, width } => {
             crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
@@ -493,6 +499,23 @@ mod float_result_policy_tests {
                 SelectedInstructionKind::FloatResultPolicy { form },
             );
             assert_eq!(bytes, [231, form.ordinal()]);
+        }
+    }
+}
+
+#[cfg(test)]
+mod port_write_tests {
+    use super::*;
+    #[test]
+    fn port_write_identity_retains_both_operands_and_an_append_only_tag() {
+        for (port, value) in [(0, 0), (0x3f8, 0x41), (u16::MAX, u8::MAX)] {
+            let mut bytes = Vec::new();
+            encode_kind(
+                &mut bytes,
+                SelectedInstructionKind::PortWrite { port, value },
+            );
+            let [low, high] = port.to_le_bytes();
+            assert_eq!(bytes, [239, low, high, value]);
         }
     }
 }

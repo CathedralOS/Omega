@@ -9,6 +9,7 @@ impl SelectedConstraintKeys {
         [
             self.placed_read,
             self.placed_write,
+            self.port_write,
             self.atomic_fence,
             self.atomic_load,
             self.atomic_store,
@@ -125,6 +126,7 @@ impl SelectedConstraintKeys {
                     self.placed_read
                 };
             }
+            MachineSemanticKind::PortWrite => return self.port_write,
             MachineSemanticKind::AtomicFence => return self.atomic_fence,
             MachineSemanticKind::AtomicAccess(form) => {
                 return match form.operation {

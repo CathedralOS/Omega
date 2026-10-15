@@ -71,6 +71,17 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::PortWrite {
+                    service,
+                    port,
+                    value,
+                } => {
+                    bytes.push(246);
+                    crate::codec_bytes::push_encoded(bytes, service.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, port.to_le_bytes());
+                    bytes.push(*value);
+                }
+
                 LegalizedScalarInstructionKind::SelectImplementation { table } => {
                     bytes.push(172);
                     crate::codec_bytes::push_encoded(bytes, table.to_le_bytes());
