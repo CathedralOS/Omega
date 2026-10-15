@@ -24,6 +24,7 @@ pass/build/sibling_module_service_exclusion_exit built 6935ms exit:0 interpreter
 pass/calls/nested_call_footprints_follow_occurrences built 3186ms exit:0 interpreter-exit:0 interpreter:agrees @94a66e05d152+wt
 pass/calls/runtime_terminal_call_state_machine_call_operand_exit built 4841ms exit:70 interpreter-exit:70 interpreter:agrees @e9d32814a23f+wt
 pass/cases/runtime_refuted_generic_case_dispatch_exit built 7462ms exit:70 interpreter-exit:70 interpreter:agrees @c083b963e5ba
+pass/contracts/current_computed_scalar_guard_exit built 5270ms exit:70 interpreter-exit:70 interpreter:agrees @635eb3f2e180+wt
 pass/contracts/float_guard_disjoint_operand_write built 6882ms exit:0 interpreter-exit:0 interpreter:agrees @9a1008d23dee+wt
 pass/contracts/runtime_literal_view_extent_calls_exit built 5611ms exit:0 interpreter-exit:0 interpreter:agrees @81a0434130f9bfb47b3bec8ac9b47181a4ae96d2+wt
 # context: {"cpus": 10, "jobs": "2", "load1_end": 8.75, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}

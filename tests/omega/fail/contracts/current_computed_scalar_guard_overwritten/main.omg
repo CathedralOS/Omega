@@ -1,0 +1,15 @@
+data Buffer { bytes: [u8; 256]; }
+data Width { value: u64; }
+
+machine replace_width(width: &mut Width) -> u64 { width.value = 256; 0 }
+machine consume(ignored: u64, width: u64, offset: u64) -> u64
+requires offset <= 256, width <= 256 - offset { width }
+
+machine check(buffer: &Buffer, point: u32, offset: u64) -> u64 {
+    let mut width: Width;
+    width.value = (match point < 128 { true -> 1, false -> 4 });
+    transition offset < buffer.bytes.len && width.value <= buffer.bytes.len - offset {
+        true -> consume(replace_width(&mut width), width.value, offset)
+        false -> 0
+    }
+}

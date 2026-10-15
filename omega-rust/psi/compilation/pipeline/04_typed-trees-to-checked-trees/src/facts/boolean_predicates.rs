@@ -4,6 +4,7 @@
 
 use validation::CanonicalPlace;
 
+mod normalization;
 mod paths;
 use arena::HandleSpan;
 use checked_trees::{CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar};
@@ -11,6 +12,7 @@ use facts::{
     Fact, FactContextHandle, FactOrigin, FactPayload, FactPlace, FactPlan, Place, ProgramPoint,
     ScalarValue,
 };
+use normalization::normalize;
 pub(crate) use paths::{
     EntryPaths, capture_entry_guard, conjunction, entry_path_condition, seed_entry_paths,
 };
@@ -486,36 +488,6 @@ pub(crate) fn inferred_booleans(
 }
 
 type Observation = (CanonicalPlace, PrimitiveType);
-
-fn normalize(predicates: &[BoundPredicate]) -> Option<(Vec<Boolean>, Vec<Observation>)> {
-    let mut observations = Vec::new();
-    let expressions = predicates
-        .iter()
-        .map(|predicate| {
-            let mut expression = predicate.expression.clone();
-            map_observations(&mut expression, &mut |operand| {
-                let binding = predicate.binding(&operand)?;
-                let primitive_type = operand.primitive_type()?;
-                let key = (binding.place.clone(), primitive_type);
-                let position = observations
-                    .iter()
-                    .position(|known| known == &key)
-                    .unwrap_or_else(|| {
-                        let position = observations.len();
-                        observations.push(key);
-                        position
-                    });
-                *operand = Scalar::Parameter {
-                    position,
-                    primitive_type,
-                };
-                Some(())
-            })?;
-            Some(expression)
-        })
-        .collect::<Option<Vec<_>>>()?;
-    Some((expressions, observations))
-}
 
 fn formula_closure(
     assertions: &[Boolean],

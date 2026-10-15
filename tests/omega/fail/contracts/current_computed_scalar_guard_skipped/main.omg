@@ -1,0 +1,13 @@
+data Buffer { bytes: [u8; 256]; }
+
+machine check(buffer: &Buffer, point: u32, offset: u64) -> u64
+requires offset <= 256 {
+    let width: u64 = (match point < 128 { true -> 1, false -> 4 });
+    // The first disjunct can select the arm without testing the width bound.
+    transition offset <= buffer.bytes.len || width <= buffer.bytes.len - offset {
+        true -> selected(width, offset)
+        false -> 0
+    }
+    state selected(width: u64, offset: u64) -> u64
+    requires offset <= 256, width <= 256 - offset { width }
+}

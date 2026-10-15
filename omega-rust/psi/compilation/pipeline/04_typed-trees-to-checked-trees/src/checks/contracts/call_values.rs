@@ -473,8 +473,8 @@ fn current_actual(
 ) -> Option<CheckedScalarExpression> {
     let (machine, body) =
         validation::machine_state_by_symbols(program, state.machine_symbol, state.state_symbol)?;
-    let expression = captured.projection.expression;
-    if captured.projection.remaining.is_empty() {
+    let expression = captured.observation_projection.expression;
+    if captured.observation_projection.remaining.is_empty() {
         if !validation::has_builtin_bound_expression_meaning(
             program,
             machine,
@@ -487,7 +487,7 @@ fn current_actual(
             program,
             &facts.operators,
             body,
-            captured.operand.statement_index,
+            captured.observation.statement_index,
             expression,
             primitive,
             |place, primitive| {
@@ -506,17 +506,17 @@ fn current_actual(
             return Some(value);
         }
     }
-    // Unknown copied values retain the same selected source projection as
-    // membership facts. Binding the constructor's destination here would lose
-    // equality between child captures of one local field. The caller checks
-    // capture epochs before joining these exact source places.
+    // Facts established on stored values belong to the observed storage, not
+    // its earlier producer. A reaching match/call may explain the value but
+    // cannot replace the local's later guard namespace. Constructed children
+    // already carry their own exact observation and completion epoch.
     let mut place = validation::canonical_place_from_expression_in_state(
         program,
-        captured.operand.state_symbol,
-        captured.operand.statement_index,
+        captured.observation.state_symbol,
+        captured.observation.statement_index,
         expression,
     )?;
-    place.extend_segments(&captured.projection.remaining);
+    place.extend_segments(&captured.observation_projection.remaining);
     bind_current(
         program, facts, state, call, place, primitive, contexts, bindings,
     )
@@ -659,13 +659,13 @@ pub(crate) fn proves_bound_predicate<'program>(
         let observation = predicate.binding(&operand)?;
         let actual = actual(observation)?;
         let captured = captured_value(program, facts, state, call, &actual)?;
-        let capture = captured.operand;
+        let capture = captured.observation;
         let operand_contexts = crate::flow::operand_contexts(
             program,
             &facts.flow,
             &facts.semantic,
             capture,
-            captured.type_reference,
+            captured.observation_type,
             call.entry_constraints,
         );
         if let Some(selected) = &mut selected_contexts {
@@ -673,7 +673,7 @@ pub(crate) fn proves_bound_predicate<'program>(
         } else {
             selected_contexts = Some(operand_contexts.clone());
         }
-        let epoch = if crate::flow::operand_binds_live_view(program, captured.type_reference) {
+        let epoch = if crate::flow::operand_binds_live_view(program, captured.observation_type) {
             facts.flow.control.operands.span(call.operands)?.last()?
         } else {
             capture

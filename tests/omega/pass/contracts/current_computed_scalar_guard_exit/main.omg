@@ -1,0 +1,82 @@
+// A guard constrains the observed local or field, not a replay of its producer.
+// The fixed-array extent and its literal denote the same exact capacity.
+// Expected exit: 70.
+use omega_language_std::console;
+
+data Buffer { bytes: [u8; 256]; }
+data Width { value: u64; }
+data Main { buffer: Buffer; }
+
+machine computed_width(point: u32) -> u64 {
+    (match point < 128 { true -> 1, false -> 4 })
+}
+
+machine local_width(buffer: &Buffer, point: u32, offset: u64) -> u64 {
+    let width: u64 = (match point < 128 { true -> 1, false -> 4 });
+    transition offset <= buffer.bytes.len && width <= buffer.bytes.len - offset {
+        true -> selected(width, offset)
+        false -> 0
+    }
+    state selected(width: u64, offset: u64) -> u64
+    requires offset <= 256, width <= 256 - offset { width }
+}
+
+machine field_width(buffer: &Buffer, point: u32, offset: u64) -> u64 {
+    let mut width: Width;
+    width.value = (match point < 128 { true -> 1, false -> 4 });
+    transition offset <= buffer.bytes.len && width.value <= buffer.bytes.len - offset {
+        true -> selected(width.value, offset)
+        false -> 0
+    }
+    state selected(width: u64, offset: u64) -> u64
+    requires offset <= 256, width <= 256 - offset { width }
+}
+
+machine returned_width(buffer: &Buffer, point: u32, offset: u64) -> u64 {
+    let width: u64 = computed_width(point);
+    transition offset <= buffer.bytes.len && width <= buffer.bytes.len - offset {
+        true -> selected(width, offset)
+        false -> 0
+    }
+    state selected(width: u64, offset: u64) -> u64
+    requires offset <= 256, width <= 256 - offset { width }
+}
+
+machine copied_width(buffer: &Buffer, point: u32, offset: u64) -> u64 {
+    let mut source: Width;
+    source.value = (match point < 128 { true -> 1, false -> 4 });
+    let width: u64 = source.value;
+    source.value = 256;
+    transition offset <= buffer.bytes.len && width <= buffer.bytes.len - offset {
+        true -> selected(width, offset)
+        false -> 0
+    }
+    state selected(width: u64, offset: u64) -> u64
+    requires offset <= 256, width <= 256 - offset { width }
+}
+
+machine replace_width(width: &mut Width) -> u64 { width.value = 256; 0 }
+machine consume_snapshot(width: u64, ignored: u64) -> u64
+requires width <= 4 { width }
+machine captured_width(point: u32) -> u64 {
+    let mut width: Width;
+    width.value = (match point < 128 { true -> 1, false -> 4 });
+    transition width.value <= 4 {
+        true -> consume_snapshot(width.value, replace_width(&mut width))
+        false -> 0
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let local: u64 = local_width(&main.buffer, 4096, 252);
+    let field: u64 = field_width(&main.buffer, 65, 255);
+    let returned: u64 = returned_width(&main.buffer, 4096, 253);
+    let copied: u64 = copied_width(&main.buffer, 4096, 252);
+    let captured: u64 = captured_width(4096);
+    transition local == 4 && field == 1 && returned == 0 && copied == 4 && captured == 4 {
+        true -> good()
+        false -> bad()
+    }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(71); }
+}

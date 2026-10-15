@@ -785,6 +785,7 @@ pass/contracts/arith_ensures_selection checked 9593ms @5041ef1af684+wt
 pass/contracts/borrowed_field_ensures checked 9767ms @5041ef1af684+wt
 pass/contracts/call_write_keeps_disjoint_guard_exit built 5953ms exit:24 @a036414cf2c9
 pass/contracts/carry_contract_decl checked 9711ms @5041ef1af684+wt
+pass/contracts/current_computed_scalar_guard_exit built 5277ms exit:70 @635eb3f2e180+wt
 pass/contracts/disequality_disjoin checked 9663ms @5041ef1af684+wt
 pass/contracts/disjunctive_ensures checked 9493ms @5041ef1af684+wt
 pass/contracts/distance_conjunction checked 9396ms @5041ef1af684+wt

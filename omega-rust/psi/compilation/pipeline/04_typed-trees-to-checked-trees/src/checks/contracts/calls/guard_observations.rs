@@ -279,16 +279,14 @@ impl Comparison<'_> {
             }
             return self.equivalent(guard, argument, Namespace::Caller, depth + 1);
         }
-        if let Some(source) = self.copied_source(guard) {
-            return self.equivalent(source, required, namespace, depth + 1);
-        }
-        if namespace == Namespace::Caller
-            && let Some(source) = self.copied_source(required)
-        {
-            return self.equivalent(guard, source, namespace, depth + 1);
+        if let (Some(left), Some(right)) = (
+            self.closed_integer(guard, Namespace::Caller),
+            self.closed_integer(required, namespace),
+        ) {
+            return left == right;
         }
         let recurse = |left, right| self.equivalent(left, right, namespace, depth + 1);
-        match (
+        let same_observation = match (
             self.program.expression_table.expression(guard),
             self.program.expression_table.expression(required),
         ) {
@@ -351,7 +349,80 @@ impl Comparison<'_> {
             // A new structural form needs its own identity judgment. Never
             // replace an unsupported observation with an equal printed label.
             _ => false,
+        };
+        // Current observations exist independently of their producers. Keep
+        // their direct identity before expanding retained copy equations;
+        // match/call-produced locals need not be expressible by this algebra.
+        same_observation
+            || self
+                .copied_source(guard)
+                .is_some_and(|source| self.equivalent(source, required, namespace, depth + 1))
+            || (namespace == Namespace::Caller
+                && self
+                    .copied_source(required)
+                    .is_some_and(|source| self.equivalent(guard, source, namespace, depth + 1)))
+    }
+
+    /// Fold selected closed integer values, including fixed extents. No live
+    /// inputs are supplied, so a stored value or dynamic count stays unknown.
+    fn closed_integer(
+        &self,
+        expression: ExpressionHandle,
+        namespace: Namespace,
+    ) -> Option<numerics::bignum::BigInt> {
+        if let ExpressionNode::Integer(literal) =
+            self.program.expression_table.expression(expression)
+        {
+            return literal.value_bignum();
         }
+        let (machine, state) = match namespace {
+            Namespace::Caller => validation::machine_state_by_symbols(
+                self.program,
+                self.state.machine_symbol,
+                self.state.state_symbol,
+            )?,
+            Namespace::Callee => validation::find_state(self.program, self.call.target_symbol)
+                .or_else(|| validation::find_machine_head(self.program, self.call.target_symbol))?,
+        };
+        let primitive = if validation::collection_length_receiver(
+            self.program,
+            machine,
+            Some(state),
+            expression,
+        )
+        .is_some()
+        {
+            typed_trees::types::PrimitiveType::U64
+        } else {
+            let reference = validation::expression_result_type_reference(
+                self.program,
+                machine,
+                state,
+                expression,
+            )?;
+            self.program.primitive_type_reference(reference)?
+        };
+        if !primitive.is_fixed_integer() {
+            return None;
+        }
+        let value = crate::values::lower_unit_scalar_argument(
+            self.program,
+            &self.facts.operators,
+            state,
+            if namespace == Namespace::Caller {
+                self.call.statement_index
+            } else {
+                0
+            },
+            expression,
+            primitive,
+        )?;
+        let facts::ScalarValue::Integer(value) =
+            crate::values::evaluate_checked_scalar(&value, &mut |_| None)?
+        else {
+            return None;
+        };
+        Some(value)
     }
 }
 

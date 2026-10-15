@@ -1652,6 +1652,14 @@ fail/contracts/case_requirement_selector_changed rejected 384ms expected @6c0183
 	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/case_requires_other_case_payload_read rejected 5075ms expected @a9ae30e1c334+wt
 	cannot prove selected case for payload access
+fail/contracts/current_computed_scalar_guard_false_arm rejected 510ms expected @635eb3f2e180+wt
+	cannot prove requires contract for call selected from check: offset <= 256 (needs fact `offset <= 256` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call selected from check: width <= 256 - offset (needs fact `width <= 256 - offset` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/current_computed_scalar_guard_overwritten rejected 502ms expected @635eb3f2e180+wt
+	cannot prove requires contract for call consume from check: offset <= 256 (needs fact `offset <= 256` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume from check: width.value <= 256 - offset (needs fact `width <= 256 - offset` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/current_computed_scalar_guard_skipped rejected 524ms expected @635eb3f2e180+wt
+	cannot prove requires contract for call selected from check: width <= 256 - offset (needs fact `width <= 256 - offset` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/ensures_named_parameter_arithmetic_wrong rejected 1674ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from Countdown::arm at statement 2: timer.remaining > 0
 	cannot prove ensures contract for exit from Countdown::arm at statement 2: timer.remaining - 1 < 8
@@ -5878,6 +5886,7 @@ pass/contracts/call_write_keeps_disjoint_guard_assert_exit checked 2820ms check-
 pass/contracts/call_write_keeps_disjoint_guard_exit checked 5761ms check-target:macos_arm64 @a036414cf2c9
 pass/contracts/carry_contract_decl checked 9441ms @5041ef1af684+wt
 pass/contracts/case_requires_payload_field_read_exit checked 13093ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/contracts/current_computed_scalar_guard_exit checked 5137ms check-target:macos_arm64 @635eb3f2e180+wt
 pass/contracts/disequality_disjoin checked 9565ms @5041ef1af684+wt
 pass/contracts/disjunctive_ensures checked 9250ms @5041ef1af684+wt
 pass/contracts/distance_conjunction checked 9742ms @5041ef1af684+wt
