@@ -176,7 +176,17 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                     let referenced_occurrences =
                         crate::facts::contract_occurrences::fact_referenced_occurrences(
                             program, row.fact,
-                        );
+                        )
+                        .into_iter()
+                        .map(|occurrence| checked_trees::OutcomeReferencedOccurrence {
+                            occurrence,
+                            root: if program.expression_table.names_reserved_result(occurrence) {
+                                checked_trees::OutcomeOccurrenceRoot::CalleeResult
+                            } else {
+                                checked_trees::OutcomeOccurrenceRoot::Other
+                            },
+                        })
+                        .collect::<Vec<_>>();
                     let validity = checked_trees::OutcomeSpecificValidityFact {
                         result_occurrence: result_expression,
                         evidence_interface_scope: instantiated_proposition.as_ref().and_then(
@@ -241,7 +251,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
 fn outcome_evidence_interface_scope(
     program: &dyn ::validation::CheckingInput,
     proposition: &checked_trees::CheckedPropositionApplication,
-    retained_occurrences: &[typed_trees::expression::ExpressionHandle],
+    retained_occurrences: &[checked_trees::OutcomeReferencedOccurrence],
 ) -> Option<checked_trees::OutcomeSpecificEvidenceInterfaceScopeFact> {
     let interface = proposition.evidence_interface.clone()?;
     let definition = program.proposition_definition_by_symbol(proposition.declaration)?;

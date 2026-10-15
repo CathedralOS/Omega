@@ -102,6 +102,7 @@ pub(crate) fn outcome_specific_fact_dependency_places(
         .referenced_occurrences
         .iter()
         .chain(interface_occurrences)
+        .map(|occurrence| &occurrence.occurrence)
     {
         if let Some(place) = crate::semantic::places::instantiate_outcome_contract_expression_place(
             program,

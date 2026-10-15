@@ -136,7 +136,7 @@ pub struct OutcomeSpecificArmRowFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OutcomeSpecificValidityFact {
     pub result_occurrence: ExpressionHandle,
-    pub referenced_occurrences: Vec<ExpressionHandle>,
+    pub referenced_occurrences: Vec<OutcomeReferencedOccurrence>,
     pub evidence_interface_scope: Option<OutcomeSpecificEvidenceInterfaceScopeFact>,
 }
 
@@ -149,7 +149,27 @@ pub struct OutcomeSpecificEvidenceInterfaceScopeFact {
     pub interface: crate::CheckedEvidenceInterfaceIdentity,
     pub evidence_type: typed_trees::types::TypeReferenceHandle,
     pub reference_regions: Vec<typed_trees::types::TypeReferenceHandle>,
-    pub retained_occurrences: Vec<ExpressionHandle>,
+    pub retained_occurrences: Vec<OutcomeReferencedOccurrence>,
+}
+
+/// One expression of the guaranteeing contract that the caller arm's
+/// validity depends on, classified by the root the caller re-anchors it to.
+/// Lowering publishes the root's place as a validity dependency; it never
+/// reads the occurrence itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OutcomeReferencedOccurrence {
+    pub occurrence: ExpressionHandle,
+    pub root: OutcomeOccurrenceRoot,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutcomeOccurrenceRoot {
+    /// The callee's reserved `result`, which the caller's call result
+    /// replaces under contract import.
+    CalleeResult,
+    /// Any other occurrence (an input of the callee or a projection); no
+    /// Terminal lane re-anchors it at the caller yet.
+    Other,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

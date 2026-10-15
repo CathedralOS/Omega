@@ -1,0 +1,72 @@
+// A caller arm selects an output of the callee's outcome-specific guarantee
+// whose proposition names the callee's `result`. The caller's instantiated
+// application substitutes its own call result for `result`, so the selected
+// evidence row carries a result substitution between the callee's result
+// place and the call's result place, in the entry machine and in a helper
+// whose own result is scalar. Exit 0 means both selected arms ran.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Outcome [copy] {
+    case Success;
+    case Failure;
+}
+
+trait Evidence {
+}
+
+proposition succeeded(value: Outcome) evidence Evidence;
+
+Fresh satisfies Evidence {
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine pick(threshold: u32) -> Outcome
+ensures Outcome::Success -> { selected: succeeded(result); }
+{
+    transition threshold > 3 {
+        true -> succeed()
+        false -> fail()
+    }
+
+    state succeed() {
+        selected = Fresh;
+        Outcome::Success
+    }
+
+    state fail() {
+        Outcome::Failure
+    }
+}
+
+machine check(threshold: u32) -> bool {
+    transition pick(threshold) {
+        Outcome::Success { ; selected: proof } -> (true)
+        _ -> (false)
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    transition pick(5) {
+        Outcome::Success { ; selected: proof } -> helper(main, check(7))
+        _ -> bad(main)
+    }
+
+    state helper(main: &mut Main, valid: bool) {
+        transition valid {
+            true -> ok(main)
+            false -> bad(main)
+        }
+    }
+
+    state ok(main: &mut Main) {
+        main.console.exit_process(0);
+    }
+
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
+    }
+}

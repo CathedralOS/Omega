@@ -781,6 +781,7 @@ run/calls/nested_range_call_operands built 6127ms exit:0 interpreter-exit:0 inte
 run/calls/ordered_literal_call_operands built 6121ms exit:0 interpreter-exit:0 interpreter:agrees @0553d60b9b91+wt
 run/calls/outcome_specific_selected_guarantee_inputs_exit built 13341ms exit:0 interpreter-exit:0 interpreter:agrees @d9bcab492255+wt
 run/calls/outcome_specific_selected_guarantee_nested_exit built 9966ms exit:0 interpreter-exit:0 interpreter:agrees @9f9aac0513f8+wt
+run/calls/outcome_specific_selected_guarantee_result_exit built 9330ms exit:0 interpreter-exit:0 interpreter:agrees @5668f8fa8ee4+wt
 run/calls/owned_literal_call_operands built 6121ms exit:0 interpreter-exit:0 interpreter:agrees @0553d60b9b91+wt
 run/calls/qualified_atomic_operation_names built 5597ms exit:0 interpreter-exit:0 interpreter:agrees @c043a6de8fe3+wt
 run/calls/selected_provider_range_arguments built 11365ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @a68c584655e1+wt

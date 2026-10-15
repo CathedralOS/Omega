@@ -3273,14 +3273,17 @@ code and preserve check/native behavior for the named customer slices.
   payloadless case exits (`run/calls/outcome_specific_selected_guarantee_inputs_exit`,
   exit 0 natively and interpreted on macOS arm64; the control
   `fail/calls/outcome_specific_witness_on_nonmatching_exit` pins the checker's
-  refusal of a witness assigned on a nonmatching exit). Frontier: a selected
-  proposition that names a callee input, a callee with structural inputs,
-  entry claims, other contract rows or crash routes, and proposition or
-  interface dependencies are refused ("outcome-specific result substitution
-  is unimplemented", "... with structural inputs or other contracts is
-  unimplemented"); those need result substitution and dependency places in
-  the Terminal evidence term. Coordinate operator returns with
-  **OPERATOR-BOUNDARY-CALLS**.
+  refusal of a witness assigned on a nonmatching exit). A selected
+  proposition that names the callee's `result` carries the row's result
+  substitution and the call result as its validity dependency
+  (`run/calls/outcome_specific_selected_guarantee_result_exit`, exit 0 in
+  both engines). Frontier: a proposition that names a callee input, a callee
+  with structural inputs, entry claims, other contract rows or crash routes,
+  and dependencies on any occurrence other than the callee's `result` are
+  refused by name ("... beyond the call result are unimplemented", "... with
+  structural inputs or other contracts is unimplemented"); inputs need an
+  argument lane in the Terminal evidence row. Coordinate operator returns
+  with **OPERATOR-BOUNDARY-CALLS**.
 
 ## Checker simplification
 
