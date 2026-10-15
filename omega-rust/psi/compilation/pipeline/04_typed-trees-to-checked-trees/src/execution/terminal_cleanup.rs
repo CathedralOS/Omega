@@ -51,16 +51,6 @@ fn build_state_plan(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) -> Option<CheckedStructuralControlStateCleanupPlan> {
-    let parameters = program.state_parameters(state);
-    let result_locals = state_exit_result_locals(program, facts, machine, state)?;
-    let discard_parameters = checked_whole_affine_discard_parameters_excluding_results(
-        program,
-        facts,
-        machine.symbol,
-        state,
-        &result_locals,
-    )?;
-
     let statements = program.statement_table.statements(state.statement_nodes);
     let has_structural_control = statements.iter().any(|statement| {
         let Some(transition) = statement.as_transition() else {
@@ -83,6 +73,19 @@ fn build_state_plan(
     if !has_structural_control {
         return None;
     }
+
+    // Only a state with a represented edge can publish this plan. The ledger
+    // queries below are read-only and can reject a plan, not create an edge;
+    // avoid scanning their whole-program inputs for states with no consumer.
+    let parameters = program.state_parameters(state);
+    let result_locals = state_exit_result_locals(program, facts, machine, state)?;
+    let discard_parameters = checked_whole_affine_discard_parameters_excluding_results(
+        program,
+        facts,
+        machine.symbol,
+        state,
+        &result_locals,
+    )?;
 
     let mut segments = facts.flow.ownership.segments.clone();
     let moves = crate::flow::discover_state_move_events(

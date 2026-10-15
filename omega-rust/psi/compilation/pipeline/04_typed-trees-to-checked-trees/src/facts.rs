@@ -333,6 +333,7 @@ pub(crate) fn build_check_facts(
         program,
         &flow,
         &semantic,
+        &operational.cleanup_dependencies,
         &validation_facts,
         call_frames.as_ref(),
     )?;

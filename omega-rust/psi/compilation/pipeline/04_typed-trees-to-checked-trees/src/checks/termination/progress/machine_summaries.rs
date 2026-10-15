@@ -18,6 +18,7 @@ pub(crate) fn derive_machine_summary(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
+    cleanup_dependencies: &arena::Arena<flow_effects::CleanupDependency>,
     machine: &typed_trees::machine::Machine,
     summaries: &[CheckedProgressSummary],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -131,9 +132,7 @@ pub(crate) fn derive_machine_summary(
     // Compiler-selected calls have no authored call ordinal. Use the same
     // prepared dependency graph as effect admission, and do not invent a
     // subject substitution for a premise-bearing cleanup contract.
-    let operational = validation::infer_operational_may(program);
-    for (_, dependency) in operational
-        .cleanup_dependencies
+    for (_, dependency) in cleanup_dependencies
         .iter()
         .filter(|(_, dependency)| dependency.caller_machine == machine.symbol)
     {

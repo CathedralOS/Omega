@@ -1,0 +1,16 @@
+// The selected hook uses the boundary's published termination promise. The
+// caller can terminate through that cleanup, including a nested owned field.
+pub boundary trait Wait {
+    machine wait() terminates reaches Wait;
+}
+data Token { value: u8; }
+data Wrapped { token: Token; }
+machine Token::drop(token: &mut Token) reaches Wait {
+    Wait::wait();
+}
+machine finish() terminates reaches Wait {
+    let token: Token = Token { value: 1 };
+}
+machine finish_nested() terminates reaches Wait {
+    let wrapped: Wrapped = Wrapped { token: Token { value: 2 } };
+}

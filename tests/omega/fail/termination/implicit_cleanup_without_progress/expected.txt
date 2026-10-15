@@ -1,0 +1,2 @@
+cannot prove published termination for machine `finish`
+its checked body reaches an operation without a usable termination guarantee

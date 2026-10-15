@@ -2,6 +2,9 @@
 //!
 //! Runtime and erased proof components retain their own checked call-edge
 //! authority. State-cycle ranking alone does not authorize a recursive call.
+//! Cleanup dependencies are fixed by custody before this analysis. Borrow
+//! that exact graph throughout both fixed points; only progress summaries
+//! change between rounds, not the selected cleanup calls.
 
 use super::CheckedProgressSummary;
 use crate::checks::termination::progress::machine_summaries::{
@@ -17,6 +20,7 @@ pub(super) fn derive_summaries(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
+    cleanup_dependencies: &arena::Arena<flow_effects::CleanupDependency>,
     proof_components: &[validation::ValidatedProofRecursiveComponent],
     self_call_descents: &[validation::ValidatedSelfCallDescent],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -73,6 +77,7 @@ pub(super) fn derive_summaries(
                     program,
                     flow,
                     semantic,
+                    cleanup_dependencies,
                     machine,
                     &previous,
                     call_frames,
@@ -86,6 +91,7 @@ pub(super) fn derive_summaries(
                 program,
                 flow,
                 semantic,
+                cleanup_dependencies,
                 component,
                 &previous,
                 maximum_fact_projection_length,
@@ -110,6 +116,7 @@ fn derive_component(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
+    cleanup_dependencies: &arena::Arena<flow_effects::CleanupDependency>,
     component: &[SymbolHandle],
     external: &[CheckedProgressSummary],
     maximum_fact_projection_length: usize,
@@ -147,6 +154,7 @@ fn derive_component(
                     program,
                     flow,
                     semantic,
+                    cleanup_dependencies,
                     machine,
                     &previous,
                     call_frames,

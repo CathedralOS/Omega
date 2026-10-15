@@ -4529,6 +4529,8 @@ fail/termination/forwarding_state_in_ranked_loop rejected 1682ms expected @a9ae3
 	terminating machine argmax: cannot prove strict rank decrease on a recurrent arrival: the transition from `argmax` to `step` is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 fail/termination/identity_measure_call_component_mixed_view rejected 1555ms expected @a9ae30e1c334+wt
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- members do not share the same ranking order; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/implicit_cleanup_without_progress rejected 355ms expected @48173da96776+wt
+	cannot prove published termination for machine `finish`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/increasing_unbounded_rejected rejected 1602ms expected @a9ae30e1c334+wt
 	terminating machine Main::climb: unbounded `Nat::Increasing` is not a well-founded ranking -- the bound is part of the view: name it with `-> Nat::IncreasingTo(limit)`
 fail/termination/joint_machine_call_cycle_stalled rejected 1581ms expected @a9ae30e1c334+wt
@@ -7821,6 +7823,7 @@ pass/termination/distance_constant_bound_exit checked 12986ms check-target:macos
 pass/termination/external_result_ranked_arrival_compile checked 2460ms @a9ae30e1c334+wt
 pass/termination/identity_measure_rank_range checked 1770ms @a9ae30e1c334+wt
 pass/termination/identity_measure_widths checked 10061ms @5041ef1af684+wt
+pass/termination/implicit_cleanup_with_progress checked 573ms @48173da96776+wt
 pass/termination/increasing_to_range checked 9620ms @5041ef1af684+wt
 pass/termination/increasing_to_rank_range_compile checked 1589ms @a9ae30e1c334+wt
 pass/termination/inherited_acyclic_requirement_guarantee_compile checked 1613ms @a9ae30e1c334+wt

@@ -6,6 +6,7 @@ pub(crate) fn build_termination_facts(
     program: &dyn ::validation::CheckingInput,
     flow: &checked_trees::FlowFacts,
     semantic: &facts::FactPlan,
+    cleanup_dependencies: &arena::Arena<flow_effects::CleanupDependency>,
     validation: &validation::ProgramValidationFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<checked_trees::TerminationFacts, Vec<diagnostics::Diagnostic>> {
@@ -14,6 +15,7 @@ pub(crate) fn build_termination_facts(
         program,
         flow,
         semantic,
+        cleanup_dependencies,
         &validation.proof_recursive_components,
         &validation.self_call_descents,
         call_frames,

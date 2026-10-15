@@ -1,0 +1,12 @@
+// Authored calls are absent from finish, but its selected owner cleanup calls
+// a boundary with no termination promise. Cleanup is a progress dependency.
+pub boundary trait Wait {
+    machine wait() reaches Wait;
+}
+data Token { value: u8; }
+machine Token::drop(token: &mut Token) reaches Wait {
+    Wait::wait();
+}
+machine finish() terminates reaches Wait {
+    let token: Token = Token { value: 1 };
+}
