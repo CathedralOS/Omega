@@ -281,6 +281,7 @@ fn expression_places_resolve_attached_data_members() {
         target: None,
         supply_mode: Default::default(),
         target_family_interface: false,
+        interface_exposure: Default::default(),
         purpose: Default::default(),
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
