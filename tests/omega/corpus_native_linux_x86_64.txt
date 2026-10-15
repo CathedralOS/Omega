@@ -1618,10 +1618,8 @@ pass/float/admitted_float_lower_boundary_crash built 23141ms exit:signal signal:
 pass/float/admitted_numeric_imports_preserve_semantics built 237830ms exit:70 @909c94d50bd2
 pass/float/authored_heterogeneous_float_operator checked 3474ms @6c49683ce714
 pass/float/boundary_call_guard_result built 32855ms exit:0 @6c49683ce714
-pass/float/build_runtime_semantics_twins_windows_x64 rejected 514924ms @6c49683ce714
-	shared function MachineId(14) contains an unaccounted operation at ordinal 0: BoundaryCall { psi_operation: OperationId(317), result: Structural(StructuralOperationResult { place: PlaceId(51), structural_type: StructuralTypeId(26), multiplicity: Unrestricted, qualifications: [], projected_qualifications: [], qualification_establishments: [], claims: [] }), boundary: BoundaryMachineId(201), arguments: [ValueId(4)], structural_arguments: [], completion_claim_sources: [], completion_receipts: [] }
-pass/float/build_runtime_semantics_twins_x86_baseline rejected 529991ms @6c49683ce714
-	shared function MachineId(14) contains an unaccounted operation at ordinal 0: BoundaryCall { psi_operation: OperationId(317), result: Structural(StructuralOperationResult { place: PlaceId(51), structural_type: StructuralTypeId(26), multiplicity: Unrestricted, qualifications: [], projected_qualifications: [], qualification_establishments: [], claims: [] }), boundary: BoundaryMachineId(201), arguments: [ValueId(4)], structural_arguments: [], completion_claim_sources: [], completion_receipts: [] }
+pass/float/build_runtime_semantics_twins_windows_x64 built 243189ms @c13f2d316716+wt
+pass/float/build_runtime_semantics_twins_x86_baseline built 249003ms @c13f2d316716+wt
 pass/float/builtin_extrema_field_store_exit built 35066ms exit:70 @6c49683ce714
 pass/float/closed_integer_conversion_predicate_proof_exit built 34622ms exit:0 @6c49683ce714
 pass/float/closed_integer_conversion_trapping_source_no_normal_result built 34760ms exit:signal signal:4 @6c49683ce714
@@ -1678,8 +1676,7 @@ pass/float/owned_local_computed_float_store_exit built 32707ms exit:70 @6c49683c
 pass/float/public_boolean_result_contract_import_exit built 34951ms exit:0 @6c49683ce714
 pass/float/public_boolean_result_contract_match_import_exit built 34126ms exit:0 @6c49683ce714
 pass/float/public_boolean_result_contract_short_circuit_import_exit built 34178ms exit:0 @6c49683ce714
-pass/float/public_class_result_contract_import_exit rejected 33811ms @6c49683ce714
-	shared function MachineId(2) contains an unaccounted operation at ordinal 0: BoundaryCall { psi_operation: OperationId(8), result: Structural(StructuralOperationResult { place: PlaceId(3), structural_type: StructuralTypeId(1), multiplicity: Unrestricted, qualifications: [], projected_qualifications: [], qualification_establishments: [], claims: [] }), boundary: BoundaryMachineId(181), arguments: [ValueId(1)], structural_arguments: [], completion_claim_sources: [], completion_receipts: [] }
+pass/float/public_class_result_contract_import_exit built 13079ms exit:0 @c13f2d316716+wt
 pass/float/public_integer_input_contract_guarded_import_exit built 34382ms exit:0 @6c49683ce714
 pass/float/public_integer_input_contract_import_exit built 34257ms exit:0 @6c49683ce714
 pass/float/public_integer_input_contract_state_import_exit built 34192ms exit:0 @6c49683ce714
@@ -1692,6 +1689,7 @@ pass/float/runtime_absolute_shared_call_operands_exit built 34650ms exit:70 @6c4
 pass/float/runtime_authored_max_selection_exit built 34926ms exit:70 @6c49683ce714
 pass/float/runtime_builtin_guard_application_exit built 35759ms exit:70 @6c49683ce714
 pass/float/runtime_builtin_ieee_order_exit built 35556ms exit:70 @6c49683ce714
+pass/float/runtime_classification_result_categories_exit built 14594ms exit:0 @c13f2d316716+wt
 pass/float/runtime_coercion_future_policy_exit built 34667ms exit:0 @6c49683ce714
 pass/float/runtime_exact_format_narrowing_exit built 34037ms exit:0 @6c49683ce714
 pass/float/runtime_exact_integer_coercion_exit built 33727ms exit:0 @6c49683ce714

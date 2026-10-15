@@ -6606,6 +6606,7 @@ pass/float/runtime_absolute_shared_call_operands_exit checked 13965ms check-targ
 pass/float/runtime_authored_max_selection_exit checked 13963ms check-target:macos_arm64 @1f63ee648905+wt
 pass/float/runtime_builtin_guard_application_exit checked 13675ms check-target:macos_arm64 @1f63ee648905+wt
 pass/float/runtime_builtin_ieee_order_exit checked 14273ms check-target:macos_arm64 @1f63ee648905+wt
+pass/float/runtime_classification_result_categories_exit checked 14062ms check-target:macos_arm64 @c13f2d316716+wt
 pass/float/runtime_coercion_future_policy_exit checked 26161ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_exact_format_narrowing_exit checked 15375ms check-target:macos_arm64 @1b12798e27f4
 pass/float/runtime_exact_integer_coercion_exit checked 25427ms check-target:macos_arm64 @9c4d1c444502

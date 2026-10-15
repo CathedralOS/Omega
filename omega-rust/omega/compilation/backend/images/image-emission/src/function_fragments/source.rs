@@ -457,7 +457,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     ..
                 } => selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && call_target_matches(*callee,row.call.target) && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
                 AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.invocation_site() == (*psi_operation).into())
-                    || ieee_float_arithmetic_retained(operation, targeted, selected)
+                    || ieee_float_builtin_retained(operation, targeted, selected)
                     || placed_scalar_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. }))
                     || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::BoundaryInvocationSite::Operation(*psi_operation)),
@@ -571,11 +571,12 @@ fn byte_concatenation_retained<'operation>(
         && matching.next().is_none()
 }
 
-/// Account for one exact typed literal; mandatory source replay validates its realization.
-/// A boundary call realized inline as compiler float arithmetic retains one
-/// target row for its operation and boundary, and one selected arithmetic
-/// form of that row's operation and format attributed to it alone.
-fn ieee_float_arithmetic_retained(
+/// Account for inline float builtins, including structural classification.
+/// Scalar arithmetic and classification retain distinct typed target rows and
+/// share an exact selected computation form. Mandatory source replay validates
+/// operands and result homes; publication joins that operation and boundary to
+/// the single selected form attributed to it alone.
+fn ieee_float_builtin_retained(
     operation: &AbstractOperation,
     targeted: &target_operations::TargetFunction,
     selected: &selected_instructions::SelectedFunction,
@@ -590,6 +591,12 @@ fn ieee_float_arithmetic_retained(
     };
     let mut rows = targeted.graph.operations().filter_map(|row| match row {
         target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {
+            psi_operation: retained,
+            boundary: row_boundary,
+            realization,
+            ..
+        }
+        | target_operations::TargetUnitOperation::IeeeFloatClassify {
             psi_operation: retained,
             boundary: row_boundary,
             realization,

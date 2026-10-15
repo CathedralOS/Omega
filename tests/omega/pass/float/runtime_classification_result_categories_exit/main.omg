@@ -1,0 +1,39 @@
+// Expected exit: 0. Structural classification survives a call result and a
+// later match, with signs retained for both IEEE interchange formats.
+use omega::language::core::float_operations;
+
+machine classify32(value: f32) -> FloatClass { F32::classify(value) }
+machine classify64(value: f64) -> FloatClass { F64::classify(value) }
+machine check_case(expected: u64, category: u64, negative: bool, sign: bool) -> bool {
+    expected == category && negative == sign
+}
+machine matches(class: FloatClass, expected: u64, sign: bool) -> bool {
+    transition class {
+        FloatClass::Zero { negative } -> check_case(expected, 0, negative, sign)
+        FloatClass::Subnormal { negative } -> check_case(expected, 1, negative, sign)
+        FloatClass::Normal { negative } -> check_case(expected, 2, negative, sign)
+        FloatClass::Infinity { negative } -> check_case(expected, 3, negative, sign)
+        FloatClass::NaN -> check_case(expected, 4, false, false)
+    }
+}
+machine main() crashes Trap {
+    let zero32: f32 = 0.0f32;
+    let zero64: f64 = 0.0f64;
+    transition matches(classify32(zero32), 0, false)
+        && matches(classify32(F32::negate(zero32)), 0, true)
+        && matches(classify32(1.401298464324817070923729583289916131280e-45f32), 1, false)
+        && matches(classify32(-1.0f32), 2, true)
+        && matches(classify32(1.0f32 / zero32), 3, false)
+        && matches(classify32(zero32 / zero32), 4, false)
+        && matches(classify64(zero64), 0, false)
+        && matches(classify64(F64::negate(zero64)), 0, true)
+        && matches(classify64(5e-324f64), 1, false)
+        && matches(classify64(-1.0f64), 2, true)
+        && matches(classify64(-1.0f64 / zero64), 3, true)
+        && matches(classify64(zero64 / zero64), 4, false) {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
