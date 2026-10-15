@@ -89,7 +89,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
         let path = vec![
             StructuralPathSegment::FixedIndex(1),
             StructuralPathSegment::Case(present),
-            StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(6)),
+            StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(2)),
         ];
         assert_eq!(
             replay_structural_value_shape(root, &types),
@@ -117,17 +117,17 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
             vec![
                 StructuralPathSegment::FixedIndex(2),
                 StructuralPathSegment::Case(present),
-                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(6)),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(2)),
             ],
             vec![
                 StructuralPathSegment::FixedIndex(1),
                 StructuralPathSegment::Case(absent),
-                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(6)),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(2)),
             ],
             vec![
                 StructuralPathSegment::FixedIndex(1),
                 StructuralPathSegment::Case(StructuralCaseId::new(99).unwrap()),
-                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(6)),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(2)),
             ],
             vec![
                 StructuralPathSegment::FixedIndex(1),

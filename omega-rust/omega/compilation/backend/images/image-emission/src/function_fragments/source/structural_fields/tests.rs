@@ -481,9 +481,10 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
             )
             .is_none()
         );
-        // The same home can receive a whole-field replacement only for an
-        // unrestricted record. This remains distinct from whole-byte-owner
-        // replacement and from indexed writes through borrowed formals.
+        // The same owned record home receives a whole-field replacement
+        // whether it is unrestricted or affine. This remains distinct from
+        // whole-byte-owner replacement and from indexed writes through
+        // borrowed formals.
         let mut stored_function = function.clone();
         let mut stored_target = target.clone();
         stored_target.graph.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
@@ -533,15 +534,12 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
                 },
                 obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
             };
-        assert_eq!(
-            replacement_retained(
-                &stored_function,
-                &stored_function.operations[1],
-                &stored_target
-            ),
-            multiplicity == StructuralMultiplicity::Unrestricted
-        );
-        if multiplicity == StructuralMultiplicity::Unrestricted {
+        assert!(replacement_retained(
+            &stored_function,
+            &stored_function.operations[1],
+            &stored_target
+        ));
+        {
             for corruption in 0..4 {
                 let mut changed = stored_target.clone();
                 match corruption {
@@ -1268,11 +1266,13 @@ fn assert_reference_field_read_retains_carrier(
         field,
     };
     assert!(retained(&function, &function.operations[1], &target));
+    // A read rejoins the producing call and its declaration, not the call's
+    // aggregate home: the establishment audit owns the home, and the store
+    // controls above corrupt it.
     for corruption in [
         "missing crossing",
         "static origin",
         "invented attenuation",
-        "producer",
         "write-only",
     ] {
         let mut changed = target.clone();
@@ -1289,20 +1289,6 @@ fn assert_reference_field_read_retains_carrier(
                         terminal_psi::TerminalIdentityIndex(13),
                     )];
                 }
-            }
-            "producer" => {
-                let result_home = structural_call_result_home_mut(&mut changed.graph, 0);
-                let Some(home) = result_home.as_mut() else {
-                    panic!("reference result home");
-                };
-                let target_operations::TargetStructuralHomeOrigin::OperationResult {
-                    operation,
-                    ..
-                } = &mut home.origin
-                else {
-                    panic!("operation result");
-                };
-                *operation = OperationId::new(99).unwrap();
             }
             _ => {
                 let reference = changed
@@ -1484,12 +1470,15 @@ fn returned_and_parameter_bounded_owners_use_inline_payload_offset() {
         &descriptor_offset,
         &structural_types,
     ));
+    // A borrowed formal points at an owner with the same length word and
+    // inline payload, so its footprint uses the same offset; whether the
+    // source access may be read is admitted separately.
     for access in [
         StructuralAccess::MutableBorrow,
         StructuralAccess::WriteOnlyBorrow,
     ] {
         function.structural_parameters[1].access = access;
-        assert!(!replacement_footprints_retained(
+        assert!(replacement_footprints_retained(
             &function,
             &function.operations[0],
             Some(&target),
