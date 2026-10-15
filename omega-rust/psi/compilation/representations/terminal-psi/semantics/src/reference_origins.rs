@@ -93,7 +93,7 @@ pub fn bind_reference_origin<'types, 'origin>(
 /// pointee merely because its descriptor is stored inside that region.
 /// This compares admitted provenance coordinates, not runtime footprints:
 /// formation and completion still authenticate bounds, codecs and lineage.
-pub fn reference_origin_refines<'types>(
+fn reference_origin_refines<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     actual: &terminal_psi::ReferenceOriginSource,
@@ -176,6 +176,63 @@ pub fn reference_origin_refines<'types>(
     }
 }
 
+/// Check one captured origin against the union of the declared alternatives.
+/// An element family of a fixed array can be covered by its complete indexed
+/// roster even when no single alternative covers the family. Split only on
+/// indices already present in that roster; never enumerate storage to form an
+/// address or infer permission from an equal physical footprint.
+pub fn reference_origin_is_covered<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    actual: &terminal_psi::ReferenceOriginSource,
+    allowed: &[terminal_psi::ReferenceOriginSource],
+) -> bool {
+    if allowed
+        .iter()
+        .any(|source| reference_origin_refines(types.clone(), root, actual, source))
+    {
+        return true;
+    }
+    for (position, projection) in actual.path.iter().enumerate() {
+        if *projection != ReferenceOriginProjection::Element {
+            continue;
+        }
+        let Some(collection) = reference_origin_type(types.clone(), root, &actual.path[..position])
+            .and_then(|identity| types.clone().find(|declaration| declaration.id == identity))
+        else {
+            return false;
+        };
+        let StructuralTypeShape::FixedArray { length, .. } = collection.shape else {
+            continue;
+        };
+        if length == 0 {
+            return false;
+        }
+        let mut indices = allowed
+            .iter()
+            .filter(|source| source.place == actual.place && source.access == actual.access)
+            .filter_map(|source| match source.path.get(position) {
+                Some(ReferenceOriginProjection::Exact(StructuralPathSegment::FixedIndex(
+                    index,
+                ))) if *index < length => Some(*index),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        indices.sort_unstable();
+        indices.dedup();
+        if u64::try_from(indices.len()).ok() != Some(length) {
+            continue;
+        }
+        let mut selected = actual.clone();
+        return indices.into_iter().all(|index| {
+            selected.path[position] =
+                ReferenceOriginProjection::Exact(StructuralPathSegment::FixedIndex(index));
+            reference_origin_is_covered(types.clone(), root, &selected, allowed)
+        });
+    }
+    false
+}
+
 fn descriptor_region(shape: &StructuralTypeShape) -> bool {
     matches!(
         shape,
@@ -206,26 +263,30 @@ pub fn reference_result_refines_regions<'types>(
                 else {
                     return false;
                 };
-                regions.iter().any(|region| {
-                    region.argument_index as usize == argument_index
-                        && region.path == mapping.path
-                        && reference_origin_refines(
-                            types.clone(),
-                            parameter.structural_type,
-                            source,
-                            &terminal_psi::ReferenceOriginSource {
-                                place: parameter.place,
-                                path: region
-                                    .source_path
-                                    .iter()
-                                    .cloned()
-                                    .map(ReferenceOriginProjection::Exact)
-                                    .collect(),
-                                extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
-                                access: region.access,
-                            },
-                        )
-                })
+                let allowed = regions
+                    .iter()
+                    .filter(|region| {
+                        region.argument_index as usize == argument_index
+                            && region.path == mapping.path
+                    })
+                    .map(|region| terminal_psi::ReferenceOriginSource {
+                        place: parameter.place,
+                        path: region
+                            .source_path
+                            .iter()
+                            .cloned()
+                            .map(ReferenceOriginProjection::Exact)
+                            .collect(),
+                        extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
+                        access: region.access,
+                    })
+                    .collect::<Vec<_>>();
+                reference_origin_is_covered(
+                    types.clone(),
+                    parameter.structural_type,
+                    source,
+                    &allowed,
+                )
             })
     })
 }

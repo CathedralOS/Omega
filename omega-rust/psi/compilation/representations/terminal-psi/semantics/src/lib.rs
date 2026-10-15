@@ -57,7 +57,7 @@ pub use reference_origins::{
     ReferenceCallContract, ReferenceCallResult, ReferenceCallSource, ReferenceLeaf,
     ReferenceOriginBinding, bind_reference_call_results, bind_reference_origin,
     captured_reference_origin_type, collection_element_type, reference_leaves,
-    reference_origin_paths_may_overlap, reference_origin_refines, reference_origin_type,
+    reference_origin_is_covered, reference_origin_paths_may_overlap, reference_origin_type,
     reference_result_refines_regions, validate_dynamic_reference_regions,
 };
 pub use reference_storage_geometry::{

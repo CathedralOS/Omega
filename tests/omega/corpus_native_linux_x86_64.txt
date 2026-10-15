@@ -205,8 +205,7 @@ pass/borrows/disjoint_branch_closure_with_grandchild built 18020ms exit:0 @6c496
 pass/borrows/enum_selected_view_reference_exit built 15078ms exit:70 @6c49683ce714
 pass/borrows/exclusive_array_parameter_shared_lend_exit built 15090ms exit:70 @6c49683ce714
 pass/borrows/explicit_lifetime_select checked 17255ms @6c49683ce714
-pass/borrows/fixed_array_reference_results_exit rejected 19454ms @6c49683ce714
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(3)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/borrows/fixed_array_reference_results_exit built 7770ms exit:0 @635eb3f2e180+wt
 pass/borrows/indexed_record_field_replacement_exit built 15047ms exit:70 @6c49683ce714
 pass/borrows/interleaved_parameter_field_replacement_exit built 14983ms exit:70 @6c49683ce714
 pass/borrows/lifetime_return_borrow checked 18012ms @6c49683ce714
@@ -284,8 +283,7 @@ pass/borrows/runtime_discarded_reference_release_exit built 15108ms exit:70 @6c4
 pass/borrows/runtime_disjoint_child_loans_restore_parent_exit built 18234ms exit:0 @6c49683ce714
 pass/borrows/runtime_fixed_array_reference_slot_replacement_exit built 17800ms exit:0 @6c49683ce714
 pass/borrows/runtime_fixed_byte_view_forwarding_exit built 17502ms exit:0 @6c49683ce714
-pass/borrows/runtime_forwarded_indexed_reference_exit rejected 17910ms @6c49683ce714
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(3)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/borrows/runtime_forwarded_indexed_reference_exit built 7224ms exit:0 @635eb3f2e180+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit built 15061ms exit:70 @6c49683ce714
 pass/borrows/runtime_forwarded_reference_array_bounded_read_exit built 14943ms exit:70 @6c49683ce714
 pass/borrows/runtime_forwarded_view_field_domain_exit built 10996ms exit:70 @f137abafccda+wt
@@ -354,8 +352,7 @@ pass/borrows/runtime_scalar_field_local_loan_handback_exit built 17766ms exit:0 
 pass/borrows/runtime_selected_byte_descriptor_store built 17997ms exit:0 @6c49683ce714
 pass/borrows/runtime_selected_descriptor_after_fixed_store built 17953ms exit:0 @6c49683ce714
 pass/borrows/runtime_selected_exclusive_descriptor_store built 17803ms exit:0 @6c49683ce714
-pass/borrows/runtime_selected_indexed_reference_exit rejected 17777ms @6c49683ce714
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(5)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/borrows/runtime_selected_indexed_reference_exit built 6986ms exit:0 @635eb3f2e180+wt
 pass/borrows/runtime_selected_reference_child_retirement_exit built 14805ms exit:0 @6c49683ce714
 pass/borrows/runtime_selected_reference_nested_restoration_exit built 17628ms exit:0 @6c49683ce714
 pass/borrows/runtime_selected_reference_record_helper_exit built 103186ms exit:0 @909c94d50bd2

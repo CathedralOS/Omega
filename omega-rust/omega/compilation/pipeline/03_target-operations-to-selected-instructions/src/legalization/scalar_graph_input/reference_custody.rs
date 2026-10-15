@@ -2364,9 +2364,9 @@ fn transfer_return_custody(
                     place: origin.root, path, access,
                     extent: origin.extent,
                 };
-                mapping.sources.iter().any(|allowed| terminal_semantics::reference_origin_refines(
-                    types.iter(), parameter.structural_type, &actual, allowed,
-                ))
+                terminal_semantics::reference_origin_is_covered(
+                    types.iter(), parameter.structural_type, &actual, &mapping.sources,
+                )
             })
         };
         let admitted = declared(&leaf.root);

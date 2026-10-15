@@ -2369,9 +2369,9 @@ pub(super) fn transfer_return(
             let Some(parameter) = function.structural_parameter(source.place) else {
                 return true;
             };
-            !mapping.sources.iter().any(|allowed| terminal_semantics::reference_origin_refines(
-                structural_types.values().copied(), parameter.structural_type, source, allowed,
-            ))
+            !terminal_semantics::reference_origin_is_covered(
+                structural_types.values().copied(), parameter.structural_type, source, &mapping.sources,
+            )
         })
             || matches!(&reference.parent, ReferenceParent::Root(root) if *root != reference.root)
             || live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity))
