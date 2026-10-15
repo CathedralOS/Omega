@@ -1,0 +1,46 @@
+// Expected exit: 0. Rebinding a descriptor does not dispose its old pointee.
+data Token { value: u64; }
+data Slot<'storage> { token: &'storage mut Token; }
+data Main {}
+
+machine Token::drop(token: &mut Token)
+requires token.value == 0 {}
+
+machine replace<'storage>(slot: &mut Slot<'storage>, replacement: &'storage mut Token) {
+    slot.token = replacement;
+}
+
+machine copy_scalar(destination: &mut u64, source: &u64) {
+    destination = source;
+}
+
+machine replace_local<'storage>(first: &'storage mut Token, second: &'storage mut Token) -> u64 {
+    let mut current: &'storage mut Token = first;
+    current = second;
+    current.value
+}
+
+machine Main::main(main: &mut Main) crashes Trap {
+    let mut destination: u64 = 1;
+    let source: u64 = 9;
+    copy_scalar(&mut destination, &source);
+    let copied: u64 = destination;
+    let mut first: Token = Token { value: 7 };
+    let mut second: Token = Token { value: 11 };
+    let local_after: u64 = replace_local(&mut first, &mut second);
+    let mut slot: Slot = Slot { token: &mut first };
+    replace(&mut slot, &mut second);
+    let before: u64 = first.value;
+    let after: u64 = slot.token.value;
+    // Only the actual owners owe cleanup. Restore them after observing that
+    // descriptor replacement left both pointees intact.
+    first.value = 0;
+    second.value = 0;
+    transition before == 7 && after == 11 && local_after == 11
+        && copied == 9 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

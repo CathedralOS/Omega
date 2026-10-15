@@ -98,13 +98,14 @@ pub(super) fn replaces_binding(
         machine,
         state,
         reference,
+        assignment.target,
         assignment.value,
     ))
 }
 
-/// Reference-valued assignment replaces the selected carrier; value-shaped
-/// assignment writes through it. This query classifies the actual typed place,
-/// including a projected slot, without changing bare-local alias transfer.
+/// Reference-valued assignment can replace a local or field descriptor home.
+/// A bare borrowed parameter instead writes its referent. The same destination
+/// ownership decision supplies receiving types and loan retirement below.
 pub(super) fn replaces_reference_binding(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -129,6 +130,7 @@ pub(super) fn replaces_reference_binding(
         machine,
         state,
         reference,
+        assignment.target,
         assignment.value,
     ))
 }
@@ -152,20 +154,48 @@ pub fn assignment_stored_value_type(
         Some(state),
         assignment.target,
     )?;
-    if reference_value_replaces_binding(program, machine, state, reference, assignment.value) {
+    if reference_value_replaces_binding(
+        program,
+        machine,
+        state,
+        reference,
+        assignment.target,
+        assignment.value,
+    ) {
         Some(reference)
     } else {
         Some(crate::reference_shell(program, reference).map_or(reference, |shell| shell.referee))
     }
 }
 
-fn reference_value_replaces_binding(
+pub(super) fn reference_value_replaces_binding(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     reference: TypeReferenceHandle,
+    target: ExpressionHandle,
     value: ExpressionHandle,
 ) -> bool {
+    // A borrowed parameter grants access to its referent, not a mutable home
+    // for its incoming descriptor. A local or projected field can instead
+    // own descriptor storage. This also keeps `&mut &mut T` assignment on the
+    // inner descriptor without rebinding the outer loan. Access and receiving
+    // validity remain separate checks; this query grants neither permission.
+    if crate::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        state.statement_nodes.count() as usize,
+        target,
+    )
+    .is_some_and(|place| {
+        place.segments.is_empty()
+            && place
+                .root
+                .as_symbol()
+                .is_some_and(|symbol| program.state_parameter_by_symbol(state, symbol).is_some())
+    }) {
+        return false;
+    }
     crate::reference_shell(program, reference).is_some_and(|shell| {
         // Shared permission cannot write its referent. Assignment to that
         // reference-valued slot replaces its descriptor, including implicit

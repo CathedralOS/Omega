@@ -1080,6 +1080,7 @@ pass/drops/drop_owner_hooks checked 9664ms @5041ef1af684+wt
 pass/drops/drop_requires_hook checked 9614ms @5041ef1af684+wt
 pass/drops/erased_record_initializer_exit built 2783ms exit:70 @9beb2be72f2d+wt
 pass/drops/projected_case_subject_root_cleanup_exit built 4118ms exit:0 stdout:match @e06e59f77bec+wt
+pass/drops/reference_rebinding_preserves_pointee_exit built 2447ms exit:0 @c1d3bd9711c2+wt
 pass/drops/runtime_abandoned_record_construction_prefix_exit built 1629ms exit:0 @f53544b209b2+wt
 pass/drops/runtime_borrowed_nominal_replacement_exit built 3630ms exit:0 @693920652f41
 pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit built 1859ms exit:0 @fc0dd94dcf25

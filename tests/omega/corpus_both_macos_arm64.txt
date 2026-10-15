@@ -386,6 +386,7 @@ pass/drops/core_drop_owner_hook built 622ms exit:0 interpreter-exit:0 interprete
 pass/drops/core_drop_owner_hook_body built 831ms exit:0 interpreter-exit:0 interpreter:agrees @302faee005ee
 pass/drops/erased_record_initializer_exit built 1121ms exit:70 interpreter-exit:70 interpreter:agrees @302faee005ee
 pass/drops/projected_case_subject_root_cleanup_exit built 1570ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @e06e59f77bec+wt
+pass/drops/reference_rebinding_preserves_pointee_exit built 2513ms exit:0 interpreter-exit:0 interpreter:agrees @c1d3bd9711c2+wt
 pass/drops/runtime_abandoned_record_construction_prefix_exit built 1669ms exit:0 interpreter-exit:0 interpreter:agrees @f53544b209b2+wt
 pass/drops/runtime_borrowed_nominal_replacement_exit built 3505ms exit:0 interpreter-exit:0 interpreter:agrees @b4e03c503cb3+wt
 pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit built 1843ms exit:0 interpreter-exit:0 interpreter:agrees @fc0dd94dcf25

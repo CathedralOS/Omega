@@ -14,76 +14,12 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableAssignment};
-use typed_trees::types::TypeReferenceNode;
-
-/// A primitive parameter assignment observes the RHS referent as a value;
-/// it cannot replace the destination's reference carrier. Explicit reference
-/// construction and reference-valued calls retain their separate opacity rules.
-fn assignment_copies_primitive_referent(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    assignment: &TableAssignment,
-) -> bool {
-    let Some(target) = program.expression_table.name_path_node(assignment.target) else {
-        return false;
-    };
-    if target.symbol != target.head_symbol
-        || program
-            .expression_table
-            .name_path_members(target.members)
-            .len()
-            != 1
-        || !matches!(
-            program.expression_table.expression(assignment.value),
-            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
-        )
-    {
-        return false;
-    }
-    let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == target.symbol && !parameter.is_const)
-    else {
-        return false;
-    };
-    let TypeReferenceNode::Reference {
-        access, referee, ..
-    } = program
-        .type_reference_table
-        .type_reference(parameter.type_reference)
-    else {
-        return false;
-    };
-    if !matches!(
-        access,
-        language_semantics::ReferenceAccess::Mutable
-            | language_semantics::ReferenceAccess::WriteOnly
-    ) {
-        return false;
-    }
-    let Some(primitive) = program.primitive_type_reference(*referee) else {
-        return false;
-    };
-    let Some(source) = crate::value_custody::places::declared_place_type_raw(
-        program,
-        machine,
-        Some(state),
-        assignment.value,
-    ) else {
-        return false;
-    };
-    matches!(program.type_reference_table.type_reference(source),
-        TypeReferenceNode::Reference { access, referee, .. }
-            if access.is_readable() && program.primitive_type_reference(*referee) == Some(primitive))
-}
 
 /// Whole-reference transport across a named edge requires the original input
 /// binding, not merely a source expression with the same parameter symbol.
 pub fn state_reference_parameter_binding_is_stable(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
+    _machine: &Machine,
     state: &State,
     parameter: symbols::SymbolHandle,
 ) -> bool {
@@ -95,8 +31,8 @@ pub fn state_reference_parameter_binding_is_stable(
     };
     // A scalar reborrow exposes the referent, not the descriptor slot.
     // Writes through it retire value facts but cannot change this invocation's
-    // storage identity. Explicit reference-valued replacement below still
-    // loses that identity; nested reference storage retains the exposure fence.
+    // storage identity. Nested reference storage retains the independent
+    // operand-exposure fence below.
     let scalar_referent = crate::reference_shell(program, declaration.type_reference)
         .and_then(|shell| program.primitive_type_reference(shell.referee));
     let is_binding = |expression| {
@@ -110,13 +46,6 @@ pub fn state_reference_parameter_binding_is_stable(
         .all(|statement| {
             if statement_returns_reference_without_effects(program, state, statement) {
                 return true;
-            }
-            if let Some(assignment) = statement.as_assignment()
-                && is_binding(assignment.target)
-                && !assignment_copies_primitive_referent(program, machine, state, assignment)
-                && expression_may_rebind_mutable_alias(program, machine, state, assignment.value)
-            {
-                return false;
             }
             if let Some(call) = statement.as_call() {
                 let contract = super::super::callee_entry_contract(program, call.target_symbol);
@@ -253,9 +182,6 @@ pub(super) fn assignment_replaces_untracked_reference(
     assignment: &TableAssignment,
     aliases: &[(String, FramePlaceOrigin)],
 ) -> bool {
-    if assignment_copies_primitive_referent(program, machine, state, assignment) {
-        return false;
-    }
     // A reference-typed or write-carrying receiver field writes under its own
     // path: every later write through the stored borrow already composes
     // beneath `self.<field>`, so no local-binding splice is needed for the
@@ -295,7 +221,14 @@ pub(super) fn assignment_replaces_untracked_reference(
         {
             return false;
         }
-        expression_may_rebind_mutable_alias(program, machine, state, assignment.value)
+        super::reference_subjects::reference_value_replaces_binding(
+            program,
+            machine,
+            state,
+            reference,
+            assignment.target,
+            assignment.value,
+        )
     } else {
         type_may_carry_write(program, reference)
             && !type_is_caller_isolated_local(program, reference)

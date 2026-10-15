@@ -6342,6 +6342,7 @@ pass/drops/erased_record_initializer_exit checked 13281ms check-target:macos_arm
 pass/drops/lifetime_owner_drop_hook checked 1710ms @a9ae30e1c334+wt
 pass/drops/ordered_teardown_body checked 1787ms @a9ae30e1c334+wt
 pass/drops/projected_case_subject_root_cleanup_exit checked 12228ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/reference_rebinding_preserves_pointee_exit checked 2294ms check-target:macos_arm64 @c1d3bd9711c2+wt
 pass/drops/runtime_abandoned_record_construction_prefix_exit checked 12772ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_borrowed_nominal_replacement_exit checked 13039ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit checked 12207ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -92,16 +92,14 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         {
             return None;
         }
-        let destination_type = validation::canonical_place_type_reference(
-            program,
-            state.symbol,
-            statement_index,
-            &target,
-        )?;
         // Death belongs to the old stored type, including its declared
         // refinements and generic substitutions. The RHS proves a new value;
         // it cannot redefine the old value's disposal obligations.
-        let value_type = validation::assignment_value_type(program, destination_type);
+        // Rebinding retires the descriptor, whereas a write through it retires
+        // its old contents. Peeling every reference would manufacture owned
+        // disposal of a surviving pointee from a descriptor replacement.
+        let value_type =
+            validation::assignment_stored_value_type(program, machine, state, assignment)?;
         if program.type_multiplicity(value_type) != language_semantics::Multiplicity::Affine {
             return None;
         }
