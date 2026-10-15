@@ -366,12 +366,28 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
     if !trait_definition.is_boundary {
         return None;
     }
+    // `Requirement<Arguments>::operation(..)` names its exact application in
+    // the call's qualifier; a bare declaration namespace is the trait's
+    // abstract scope. Typing retargeted the call to the closed application
+    // of that qualifier, so the scope must come from the same qualifier or
+    // the closed target matches nothing and the call escapes its argument
+    // checks.
+    let applied = match site {
+        CallerWriteSite::Expression(expression) => program
+            .expression_table
+            .call_node(expression)
+            .map(|call| call.requirement_application)
+            .filter(|application| application.is_valid()),
+        _ => None,
+    };
     let receiver_scope = if has_runtime_receiver {
         crate::declarations::traits::receiver_trait_scope(
             program,
             receiver_reference,
             current_machine.symbol,
         )?
+    } else if let Some(application) = applied {
+        program.applied_requirement_scope(current_machine.symbol, application)?
     } else {
         typed_trees::trait_definition::AppliedTraitScope::abstract_scope(trait_definition)
     };
@@ -406,6 +422,12 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         && !program
             .closed_requirement_application(signature.symbol)
             .is_some_and(|application| {
+                if applied.is_some() {
+                    return program.requirement_application_matches_scope(
+                        application.signature.symbol,
+                        &receiver_scope,
+                    );
+                }
                 typed_trees::service::inspect_service_parameter_contract(
                     program,
                     receiver_reference,

@@ -1,0 +1,6 @@
+// An applied requirement call owes its selected signature's arity, like any
+// other requirement call; the qualifier's application does not relax it.
+pub boundary trait Parent<Value> { machine mutate(value: &mut Value); }
+machine invalid(value: &mut i32) reaches Parent {
+    Parent<i32>::mutate(value, 3);
+}

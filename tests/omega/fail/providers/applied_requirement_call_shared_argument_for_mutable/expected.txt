@@ -1,0 +1,1 @@
+but the caller lends only immutable access
