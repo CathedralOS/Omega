@@ -2,11 +2,10 @@ use omega_language_std::math;
 
 module numeric_once;
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 
 pub data Counter { calls: u32 in Wrapping; }
-pub data Main { console: Binding<Console>; counter: Counter; }
+pub data Main { counter: Counter; }
 
 machine step(counter: &mut Counter, value: i32) -> f64 {
     counter.calls = counter.calls + 1u32;
@@ -18,7 +17,7 @@ invokes Console;
 blocks;
 crashes Trap
 {
-    transition block application.console.read_byte() {
+    transition block Console::read_byte() {
         ByteRead::Byte { value } -> observe(application, value)
         _ -> bad(application)
     }
@@ -31,8 +30,8 @@ crashes Trap
         }
     }
     state done(application: &mut Main) {
-        application.console.write_line("magnitude=15 calls=1");
-        application.console.exit_process(0);
+        Console::write_line("magnitude=15 calls=1");
+        Console::exit_process(0);
     }
-    state bad(application: &mut Main) { application.console.exit_process(3); }
+    state bad(application: &mut Main) { Console::exit_process(3); }
 }

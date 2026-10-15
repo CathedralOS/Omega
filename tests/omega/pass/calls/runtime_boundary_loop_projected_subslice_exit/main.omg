@@ -1,7 +1,6 @@
 // Each iteration creates and completes its own mutable descriptor loan.
 // The next iteration must not inherit its predecessor's expired loan.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub boundary trait Fill { machine fill(bytes: &mut [u8], value: u8); }
 FillProvider satisfies Fill { Fill::fill = fill; }
@@ -10,27 +9,27 @@ machine fill(bytes: &mut [u8], value: u8) {
     state write(bytes: &mut [u8], value: u8) { bytes[0] = value; }
     state done() { }
 }
-data Main { provider: Binding<Fill>; bytes: [u8; 8]; start: u64 [0..=7]; console: Binding<Console>; }
+data Main { bytes: [u8; 8]; start: u64 [0..=7]; }
 machine Main::main(main: &mut Main) reaches Fill + Console {
     main.bytes[0] = 11;
     main.bytes[7] = 13;
     main.start = 2;
-    transition { _ -> again(&main.console, main) }
-    state again(console: &Binding<Console>, main: &mut Main) {
-        transition main.start < 5 { true -> write(console, main) _ -> verify(console, main) }
+    transition { _ -> again(main) }
+    state again(main: &mut Main) {
+        transition main.start < 5 { true -> write(main) _ -> verify(main) }
     }
-    state write(console: &Binding<Console>, main: &mut Main) {
-        main.provider.fill(&mut main.bytes[main.start..7], 29);
+    state write(main: &mut Main) {
+        Fill::fill(&mut main.bytes[main.start..7], 29);
         main.start = main.start + 1;
-        transition { _ -> again(console, main) }
+        transition { _ -> again(main) }
     }
-    state verify(console: &Binding<Console>, main: &mut Main) {
+    state verify(main: &mut Main) {
         transition main.bytes[0] == 11 && main.bytes[2] == 29
             && main.bytes[3] == 29 && main.bytes[4] == 29 && main.bytes[7] == 13 {
-            true -> good(console)
-            _ -> bad(console)
+            true -> good()
+            _ -> bad()
         }
     }
-    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state bad(console: &Binding<Console>) { Console::exit_process(console, 71); }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(71); }
 }

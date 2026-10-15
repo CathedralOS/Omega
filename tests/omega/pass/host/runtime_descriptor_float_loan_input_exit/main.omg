@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 
@@ -7,7 +6,7 @@ pub boundary trait FloatIo {
     machine write(descriptor: i32, value: &f32, count: u64) -> i64;
 }
 pub data FloatImports {}
-data Main { io: Binding<FloatIo>; }
+data Main { }
 
 pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -42,21 +41,21 @@ macos_arm64 boundary machine FloatImports::write(descriptor: i32, value: &f32, c
 linux_x86_64 boundary machine FloatImports::write(descriptor: i32, value: &f32, count: u64) -> i64
     satisfies FloatIo::write via linux_x86_64_write_binding();
 
-machine receive(io: &Binding<FloatIo>, value: &mut f32) -> i64 reaches FloatIo blocks; {
-    transition { _ -> read(io, value) }
-    state read(io: &Binding<FloatIo>, value: &mut f32) {
-        block io.read(0, value, 4)
+machine receive(value: &mut f32) -> i64 reaches FloatIo blocks; {
+    transition { _ -> read(value) }
+    state read(value: &mut f32) {
+        block FloatIo::read(0, value, 4)
     }
 }
 
 machine Main::main(main: &mut Main) reaches FloatIo blocks; crashes Trap {
     let mut value: f32 = 100.0f32;
-    let no_bytes: i64 = block main.io.read(0, &mut value, 0);
+    let no_bytes: i64 = block FloatIo::read(0, &mut value, 0);
     let unchanged: bool = value == 100.0f32;
-    let moved: i64 = block receive(&main.io, &mut value);
+    let moved: i64 = block receive(&mut value);
     let saved: f32 = value;
-    let at_end: i64 = block main.io.read(0, &mut value, 4);
-    let written: i64 = main.io.write(1, &value, 4);
+    let at_end: i64 = block FloatIo::read(0, &mut value, 4);
+    let written: i64 = FloatIo::write(1, &value, 4);
     transition no_bytes == 0 && unchanged && moved == 4 && at_end == 0 && written == 4
         && value == saved && value > 0.0f32 && value < 1.0f32 {
         true -> done()

@@ -8,7 +8,6 @@
 // compiler-owned `ForeignBinding::DllImport` value carrying one exact Mach-O
 // dylib-symbol import, so raw foreign bytes stay data.
 use omega::language::core::external_binding;
-use omega::language::core::binding;
 
 pub boundary trait Leaf {
     machine exit(code: i32) -> i32;
@@ -25,10 +24,10 @@ macos_arm64 machine leaf_binding() -> ForeignBinding<17, 5, 0> {
 
 macos_arm64 machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via leaf_binding();
 
-data Main { p: Binding<Leaf>; }
+data Main { }
 machine Main::main(main: &mut Main)
 reaches Leaf
 {
-    let rc: i32 = main.p.exit(70);
+    let rc: i32 = Leaf::exit(70);
     let keep: i32 = rc;
 }

@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 
@@ -9,7 +8,7 @@ pub boundary trait ScalarIo {
     machine byte(descriptor: i32, value: &u8, count: u64) -> i64;
 }
 pub data ScalarImports {}
-data Main { io: Binding<ScalarIo>; }
+data Main { }
 
 pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -64,10 +63,10 @@ machine selected_element() -> bool {
     select(&mut coordinate);
     coordinate < 2 && elements[coordinate] == 22
 }
-machine receive(io: &Binding<ScalarIo>, value: &mut f32) -> i64 reaches ScalarIo blocks; {
-    transition { _ -> read(io, value) }
-    state read(io: &Binding<ScalarIo>, value: &mut f32) {
-        block io.read(0, value, 4)
+machine receive(value: &mut f32) -> i64 reaches ScalarIo blocks; {
+    transition { _ -> read(value) }
+    state read(value: &mut f32) {
+        block ScalarIo::read(0, value, 4)
     }
 }
 machine Main::main(main: &mut Main) reaches ScalarIo blocks; crashes Trap {
@@ -82,14 +81,14 @@ machine Main::main(main: &mut Main) reaches ScalarIo blocks; crashes Trap {
     let indexed: bool = selected_element();
     let value: f32 = 100.0f32;
     let before: f32 = value;
-    let empty: i64 = block main.io.read(0, &mut value, 0);
-    let moved: i64 = block receive(&main.io, &mut value);
+    let empty: i64 = block ScalarIo::read(0, &mut value, 0);
+    let moved: i64 = block receive(&mut value);
     let saved: f32 = value;
-    let at_end: i64 = block main.io.read(0, &mut value, 4);
-    let written: i64 = main.io.write(1, &value, 4);
-    let marked: i64 = main.io.flag(1, &flag, 1);
+    let at_end: i64 = block ScalarIo::read(0, &mut value, 4);
+    let written: i64 = ScalarIo::write(1, &value, 4);
+    let marked: i64 = ScalarIo::flag(1, &flag, 1);
     let newline: u8 = 10;
-    let ended: i64 = main.io.byte(1, &newline, 1);
+    let ended: i64 = ScalarIo::byte(1, &newline, 1);
     transition flag && !original && observed && cleared && indexed
         && before == 100.0f32 && value == saved
         && value > 0.0f32 && value < 1.0f32

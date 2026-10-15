@@ -1,18 +1,17 @@
 // Table projections and four carried arguments survive repeated native calls.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Row { cost: u64 in Wrapping; score: u64 in Wrapping;
     feasible: u64 in Wrapping; code: u64 in Wrapping; }
 data Table { rows: [Row; 8]; }
 data Budget { minimum: u64 in Wrapping; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut table: Table;
     Table::load(&mut table);
     let mut budget: Budget;
     budget.minimum = 12;
     Main::report(main, &table, &budget);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }
 machine Table::load(table: &mut Table) {
     transition { _ -> row(table, 0) }
@@ -31,10 +30,10 @@ machine Table::load(table: &mut Table) {
     }
 }
 machine Main::number(main: &mut Main, value: u64 in Wrapping) reaches Console {
-    main.console.write_byte(((value / 1000) % 10) as i32 + 48);
-    main.console.write_byte(((value / 100) % 10) as i32 + 48);
-    main.console.write_byte(((value / 10) % 10) as i32 + 48);
-    main.console.write_byte((value % 10) as i32 + 48);
+    Console::write_byte(((value / 1000) % 10) as i32 + 48);
+    Console::write_byte(((value / 100) % 10) as i32 + 48);
+    Console::write_byte(((value / 10) % 10) as i32 + 48);
+    Console::write_byte((value % 10) as i32 + 48);
 }
 machine Main::report(main: &mut Main, table: &Table, budget: &Budget) reaches Console {
     transition { _ -> row(main, table, budget, 0) }
@@ -45,16 +44,16 @@ machine Main::report(main: &mut Main, table: &Table, budget: &Budget) reaches Co
         }
     }
     state emit(main: &mut Main, table: &Table, budget: &Budget, position: u64 in Wrapping) {
-        main.console.write("row="); Main::number(main, position);
-        main.console.write(" cost="); Main::number(main, table.rows[position].cost);
-        main.console.write(" score="); Main::number(main, table.rows[position].score);
-        main.console.write(" feasible="); Main::number(main, table.rows[position].feasible);
-        main.console.write(" code="); Main::number(main, table.rows[position].code);
-        main.console.write_byte(10);
+        Console::write("row="); Main::number(main, position);
+        Console::write(" cost="); Main::number(main, table.rows[position].cost);
+        Console::write(" score="); Main::number(main, table.rows[position].score);
+        Console::write(" feasible="); Main::number(main, table.rows[position].feasible);
+        Console::write(" code="); Main::number(main, table.rows[position].code);
+        Console::write_byte(10);
         transition { _ -> row(main, table, budget, position + 1) }
     }
     state finish(main: &mut Main, budget: &Budget) {
-        main.console.write("minimum="); Main::number(main, budget.minimum);
-        main.console.write_byte(10);
+        Console::write("minimum="); Main::number(main, budget.minimum);
+        Console::write_byte(10);
     }
 }

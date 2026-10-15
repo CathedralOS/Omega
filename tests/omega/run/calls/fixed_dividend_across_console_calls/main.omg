@@ -1,28 +1,27 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 // Regression: the block parameter has repeated fixed-register uses across calls.
-machine number(console: &mut Binding<Console>, value: i32 in Saturating) reaches Console
+machine number(value: i32 in Saturating) reaches Console
 {
-    transition value < 0 { true -> negative(console, value) false -> positive(console, value) }
-    state negative(console: &mut Binding<Console>, value: i32 in Saturating) {
-        console.write("-");
-        transition { _ -> positive(console, 0 - value) }
+    transition value < 0 { true -> negative(value) false -> positive(value) }
+    state negative(value: i32 in Saturating) {
+        Console::write("-");
+        transition { _ -> positive(0 - value) }
     }
-    state positive(console: &mut Binding<Console>, value: i32 in Saturating) {
-        console.write_byte(((value / 1000000 % 10) + 48) as i32);
-        console.write_byte(((value / 100000 % 10) + 48) as i32);
-        console.write_byte(((value / 10000 % 10) + 48) as i32);
-        console.write_byte(((value / 1000 % 10) + 48) as i32);
-        console.write_byte(((value / 100 % 10) + 48) as i32);
-        console.write_byte(((value / 10 % 10) + 48) as i32);
-        console.write_byte(((value / 1 % 10) + 48) as i32);
-        console.write_line("");
+    state positive(value: i32 in Saturating) {
+        Console::write_byte(((value / 1000000 % 10) + 48) as i32);
+        Console::write_byte(((value / 100000 % 10) + 48) as i32);
+        Console::write_byte(((value / 10000 % 10) + 48) as i32);
+        Console::write_byte(((value / 1000 % 10) + 48) as i32);
+        Console::write_byte(((value / 100 % 10) + 48) as i32);
+        Console::write_byte(((value / 10 % 10) + 48) as i32);
+        Console::write_byte(((value / 1 % 10) + 48) as i32);
+        Console::write_line("");
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    number(&mut main.console, 1234567);
-    number(&mut main.console, 0 - 2345678);
-    main.console.exit_process(0);
+    number(1234567);
+    number(0 - 2345678);
+    Console::exit_process(0);
 }

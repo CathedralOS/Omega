@@ -2,20 +2,19 @@
 // used by remainder on the next state edge. Each point admits homes, while
 // the original interval has no single call-surviving physical home.
 use omega_language_std::console;
-use omega::language::core::binding;
 use decimal;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    let observed: ByteRead = block main.console.read_byte();
+    let observed: ByteRead = block Console::read_byte();
     transition observed {
         ByteRead::Byte { value } -> emit(main, value)
         _ -> missing(main)
     }
     state emit(main: &mut Main, value: i32) {
         let amount: i32 in Wrapping = (value as i32 in Wrapping) + 10000;
-        number(&mut main.console, amount as i32);
-        main.console.write_byte(10);
-        main.console.exit_process(0);
+        number(amount as i32);
+        Console::write_byte(10);
+        Console::exit_process(0);
     }
-    state missing(main: &mut Main) { main.console.exit_process(70); }
+    state missing(main: &mut Main) { Console::exit_process(70); }
 }

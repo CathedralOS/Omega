@@ -3,42 +3,41 @@ use io::input;
 use io::output;
 use domain::settings;
 use domain::adc;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console crashes Trap {
     let mut configuration: Settings;
-    let accepted: bool = block settings(&main.console, &mut configuration);
-    transition accepted { true -> header(&main.console, &configuration) _ -> invalid(&main.console) }
-    state header(console: &Binding<Console>, configuration: &Settings) {
-        Console::write_line(console, "raw,code,reconstructed_num,reconstructed_den,clip,error_num,error_den,bound_num,bound_den");
-        transition { _ -> sample(console, configuration, 0) }
+    let accepted: bool = block settings(&mut configuration);
+    transition accepted { true -> header(&configuration) _ -> invalid() }
+    state header(configuration: &Settings) {
+        Console::write_line("raw,code,reconstructed_num,reconstructed_den,clip,error_num,error_den,bound_num,bound_den");
+        transition { _ -> sample(configuration, 0) }
     }
-    state sample(console: &Binding<Console>, configuration: &Settings, index: i64 in Wrapping) {
-        transition index < configuration.count { true -> read(console, configuration, index) _ -> trailing(console) }
+    state sample(configuration: &Settings, index: i64 in Wrapping) {
+        transition index < configuration.count { true -> read(configuration, index) _ -> trailing() }
     }
-    state read(console: &Binding<Console>, configuration: &Settings, index: i64 in Wrapping) {
-        let raw: i64 in Wrapping = block number(console);
-        transition raw >= -1000 && raw <= 1000 { true -> convert(console, configuration, index, raw) _ -> invalid(console) }
+    state read(configuration: &Settings, index: i64 in Wrapping) {
+        let raw: i64 in Wrapping = block number();
+        transition raw >= -1000 && raw <= 1000 { true -> convert(configuration, index, raw) _ -> invalid() }
     }
-    state convert(console: &Binding<Console>, configuration: &Settings, index: i64 in Wrapping, raw: i64 in Wrapping) {
+    state convert(configuration: &Settings, index: i64 in Wrapping, raw: i64 in Wrapping) {
         let mut result: Conversion;
         quantize(configuration, raw, &mut result);
-        integer(console, raw); Console::write(console, ",");
-        integer(console, result.code); Console::write(console, ",");
-        integer(console, result.reconstruction_numerator); Console::write(console, ",");
-        integer(console, result.reconstruction_denominator); Console::write(console, ",");
-        integer(console, result.clipped); Console::write(console, ",");
-        integer(console, result.error_numerator); Console::write(console, ",");
-        integer(console, result.error_denominator); Console::write(console, ",");
-        integer(console, result.bound_numerator); Console::write(console, ",");
-        integer(console, result.bound_denominator); Console::write_line(console, "");
-        transition { _ -> sample(console, configuration, index + 1) }
+        integer(raw); Console::write(",");
+        integer(result.code); Console::write(",");
+        integer(result.reconstruction_numerator); Console::write(",");
+        integer(result.reconstruction_denominator); Console::write(",");
+        integer(result.clipped); Console::write(",");
+        integer(result.error_numerator); Console::write(",");
+        integer(result.error_denominator); Console::write(",");
+        integer(result.bound_numerator); Console::write(",");
+        integer(result.bound_denominator); Console::write_line("");
+        transition { _ -> sample(configuration, index + 1) }
     }
-    state trailing(console: &Binding<Console>) {
-        let extra: i64 in Wrapping = block number(console);
-        transition extra == 2002 { true -> done(console) _ -> invalid(console) }
+    state trailing() {
+        let extra: i64 in Wrapping = block number();
+        transition extra == 2002 { true -> done() _ -> invalid() }
     }
-    state done(console: &Binding<Console>) { Console::exit_process(console, 0); }
-    state invalid(console: &Binding<Console>) { Console::write_line(console, "ERROR: malformed ADC settings or readings"); Console::exit_process(console, 64); }
+    state done() { Console::exit_process(0); }
+    state invalid() { Console::write_line("ERROR: malformed ADC settings or readings"); Console::exit_process(64); }
 }

@@ -4,7 +4,6 @@
 // exits: 0 = the write reached the element; 1 = it did not.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine stamp(buffer: &mut [u8; 48], offset: u32) {
     transition offset < 48 {
@@ -20,17 +19,17 @@ machine stamp(buffer: &mut [u8; 48], offset: u32) {
     state done() {}
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut buffer: [u8; 48];
     stamp(&mut buffer, 0);
     stamp(&mut buffer, 47);
     stamp(&mut buffer, 48);
     transition buffer[0] == 9 && buffer[47] == 9 && buffer[1] == 0 {
-        true -> done(&main.console)
-        false -> bad(&main.console)
+        true -> done()
+        false -> bad()
     }
 
-    state done(console: &Binding<Console>) { Console::exit_process(console, 0); }
-    state bad(console: &Binding<Console>) { Console::exit_process(console, 1); }
+    state done() { Console::exit_process(0); }
+    state bad() { Console::exit_process(1); }
 }
