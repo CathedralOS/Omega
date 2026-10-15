@@ -1030,17 +1030,17 @@ fn append_entry_path_context(
         build.operators,
         semantic,
         state,
-        statement_index,
         expression,
         value,
         point,
-        &|place| {
-            crate::flow::entry_origin_is_stable(
+        &mut |leaf| {
+            build.entry_subject_at(
                 program,
-                &build.control,
+                state,
+                statement_index,
+                leaf,
                 entry_writes,
                 entry_unknown_write,
-                place,
             )
         },
     ) else {

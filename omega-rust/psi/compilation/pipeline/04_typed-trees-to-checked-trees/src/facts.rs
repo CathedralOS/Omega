@@ -21,9 +21,7 @@ pub(crate) use contract_plan_facts::build_callable_scalar_value_contract_plan;
 mod crash_calls;
 mod crash_entry_values;
 mod expression_children;
-pub(crate) use crash_entry_values::{
-    entry_boolean_predicate, entry_parameter_place_before_statement,
-};
+pub(crate) use crash_entry_values::entry_parameter_place_before_statement;
 mod crash_plan_facts;
 mod dynamic_conformance;
 pub(crate) use expression_children::{

@@ -227,28 +227,22 @@ pub(crate) fn capture_entry_guard(
     program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     semantic: &mut FactPlan,
-    state: SymbolHandle,
-    statement_index: usize,
+    state_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
     value: bool,
     point: ProgramPoint,
-    admit_subject: &impl Fn(&validation::CanonicalPlace) -> bool,
+    subjects: &mut impl FnMut(
+        typed_trees::expression::ExpressionHandle,
+    ) -> Option<(
+        u32,
+        Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+    )>,
 ) -> Option<FactContextHandle> {
-    let (machine, _) = validation::find_state(program, state)?;
-    let entry_index = validation::activation_target_state_index(
-        program,
-        machine,
-        machine.symbol,
-    )?;
+    let (machine, state) = validation::find_state(program, state_symbol)?;
+    let entry_index = validation::activation_target_state_index(program, machine, machine.symbol)?;
     let entry = program.machine_states(machine).get(entry_index)?;
-    let paths = crate::facts::entry_boolean_predicate(
-        program,
-        operators,
-        machine.symbol,
-        state,
-        statement_index,
-        expression,
-        admit_subject,
+    let paths = crate::values::lower_entry_predicate(
+        program, operators, machine, state, expression, subjects,
     )
     .map(|expression| EntryPaths::from_expression(&expression, !value))
     .unwrap_or_else(EntryPaths::unknown);

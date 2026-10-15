@@ -23,6 +23,35 @@ pub(super) struct CallPreparation<'program> {
     pub(super) storage_writes: Option<Option<Rc<Vec<validation::CanonicalPlace>>>>,
 }
 
+/// Source-only answers for one place occurrence. The outer option records
+/// whether entry provenance was queried; its inner absence is an unproved
+/// origin. Neither result says whether the current evaluated prefix wrote it.
+struct PlacePreparation {
+    place: Option<validation::CanonicalPlace>,
+    entry_subject: Option<
+        Option<(
+            u32,
+            Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+        )>,
+    >,
+}
+
+impl PlacePreparation {
+    fn new(
+        program: &dyn validation::CheckingInput,
+        state: SymbolHandle,
+        statement: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Self {
+        Self {
+            place: validation::canonical_place_from_expression_in_state(
+                program, state, statement, expression,
+            ),
+            entry_subject: None,
+        }
+    }
+}
+
 /// Program shape lookups indexed once per context: every machine, state, and
 /// their in-machine positions. All values are table positions, so the map is
 /// lifetime-free and rebuilds lazily on the first query of a fresh context.
@@ -153,7 +182,7 @@ pub(super) struct FlowBuildContext<'plans> {
             usize,
             typed_trees::expression::ExpressionHandle,
         ),
-        Option<validation::CanonicalPlace>,
+        PlacePreparation,
     >,
     expression_result_types: HashMap<
         (
@@ -376,11 +405,52 @@ impl<'plans> FlowBuildContext<'plans> {
         self.canonical_places
             .entry((state_symbol, statement_index, expression))
             .or_insert_with(|| {
-                validation::canonical_place_from_expression_in_state(
+                PlacePreparation::new(program, state_symbol, statement_index, expression)
+            })
+            .place
+            .clone()
+    }
+
+    /// Reuse the source provenance, never a previous prefix's admission. The
+    /// predicate reader may query a leaf speculatively while distinguishing
+    /// integer from float meaning, so keep each callback and its live check.
+    /// Its own path validation and work budget still run after this returns.
+    pub(super) fn entry_subject_at(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        state: SymbolHandle,
+        statement: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+        entry_writes: arena::HandleSpan<checked_trees::FlowOperandReferent>,
+        entry_unknown_write: bool,
+    ) -> Option<(
+        u32,
+        Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+    )> {
+        let prepared = self
+            .canonical_places
+            .entry((state, statement, expression))
+            .or_insert_with(|| PlacePreparation::new(program, state, statement, expression));
+        let place = prepared.place.as_ref()?;
+        if !super::entry_origin_is_stable(
+            program,
+            &self.control,
+            entry_writes,
+            entry_unknown_write,
+            place,
+        ) {
+            return None;
+        }
+        prepared
+            .entry_subject
+            .get_or_insert_with(|| {
+                let (machine, _) = validation::find_state(program, state)?;
+                crate::facts::entry_parameter_place_before_statement(
                     program,
-                    state_symbol,
-                    statement_index,
-                    expression,
+                    machine.symbol,
+                    state,
+                    statement,
+                    place,
                 )
             })
             .clone()

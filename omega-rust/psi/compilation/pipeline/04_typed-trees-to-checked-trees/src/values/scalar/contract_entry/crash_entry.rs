@@ -41,7 +41,7 @@ pub(crate) fn lower_machine_entry_crash_contract_expression(
     .then_some(predicate)
 }
 
-type EntrySubjectResolver<'program> = dyn Fn(ExpressionHandle) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)>
+type EntrySubjectResolver<'program> = dyn FnMut(ExpressionHandle) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)>
     + 'program;
 
 /// Read the same predicate algebra while the caller supplies authenticated
@@ -52,7 +52,7 @@ pub(crate) fn lower_entry_predicate(
     machine: &Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
-    subjects: &EntrySubjectResolver<'_>,
+    subjects: &mut EntrySubjectResolver<'_>,
 ) -> Option<CheckedBooleanExpression> {
     let parameters = super::authored_entry_parameters(program, machine)?;
     let predicate = Reader {
@@ -85,15 +85,22 @@ pub(crate) fn lower_entry_scalar(
     ) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)>,
 ) -> Option<CheckedScalarExpression> {
     if primitive_type == PrimitiveType::Bool {
-        return lower_entry_predicate(program, operators, machine, state, expression, &|leaf| {
-            let place = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                before_statement,
-                leaf,
-            )?;
-            subjects(&place)
-        })
+        return lower_entry_predicate(
+            program,
+            operators,
+            machine,
+            state,
+            expression,
+            &mut |leaf| {
+                let place = validation::canonical_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    before_statement,
+                    leaf,
+                )?;
+                subjects(&place)
+            },
+        )
         .map(|value| CheckedScalarExpression::Boolean(Box::new(value)));
     }
     if !validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
@@ -161,7 +168,7 @@ struct Reader<'program> {
     owner: symbols::SymbolHandle,
     parameters: &'program [StateParameter],
     remaining: usize,
-    subjects: Option<&'program EntrySubjectResolver<'program>>,
+    subjects: Option<&'program mut EntrySubjectResolver<'program>>,
 }
 
 /// Bodyless requirements have an exact signature namespace, not a synthetic
@@ -582,7 +589,7 @@ impl<'program> Reader<'program> {
     }
 
     fn subject(&mut self, expression: ExpressionHandle, depth: usize) -> Option<FieldPath> {
-        if let Some(resolve) = self.subjects {
+        if let Some(resolve) = self.subjects.as_deref_mut() {
             let (position, path) = resolve(expression)?;
             let parameter = self.parameters.get(usize::try_from(position).ok()?)?;
             if parameter.is_const {

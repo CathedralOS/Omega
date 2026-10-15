@@ -1665,6 +1665,8 @@ fail/contracts/float_field_crash_wrong_field rejected 1014ms expected @c29465709
 	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/contracts/float_field_crash_wrong_order rejected 1015ms expected @c294657097ec+wt
 	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/contracts/float_guard_overlapping_operand_write rejected 1395ms expected @9a1008d23dee+wt
+	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/contracts/float_indexed_crash_wrong_element rejected 1028ms expected @c294657097ec+wt
 	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/contracts/indexed_element_requirement_after_write rejected 447ms expected @6d847e2a233e
@@ -5885,6 +5887,7 @@ pass/contracts/ensures_saturating_field_arithmetic_exit checked 13670ms check-ta
 pass/contracts/ensures_tail_forward checked 9704ms @5041ef1af684+wt
 pass/contracts/ensures_wrapping_field_arithmetic_exit checked 12892ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/contracts/entry_case_replaced_before_call checked 1805ms @6c0183cab07b
+pass/contracts/float_guard_disjoint_operand_write checked 6892ms check-target:macos_arm64 @9a1008d23dee+wt
 pass/contracts/folded_actual_requires checked 9704ms @5041ef1af684+wt
 pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit checked 2927ms check-target:linux_x86_64 @fce0c29a3681+wt
 pass/contracts/guard_conjunct_survives_disjoint_state_write_exit checked 5761ms check-target:macos_arm64 @a036414cf2c9

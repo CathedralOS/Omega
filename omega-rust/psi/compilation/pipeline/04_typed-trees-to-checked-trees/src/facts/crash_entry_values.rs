@@ -52,43 +52,6 @@ use mutable::{PlaceSegment, fixed_index_segment, storage_holds_bound_value};
 /// provenance, never an affirmed origin.
 const MAX_ENTRY_PROVENANCE_DEPTH: u32 = 64;
 
-/// Lower a body's current Boolean observation in the invocation namespace.
-/// The predicate reader owns the algebra; this owner only rejoins each exact
-/// place to the entry operand whose storage still survives at this point.
-/// Add the already-evaluated operand prefix to the ordinary statement-level
-/// entry provenance check. The caller supplies the retained evaluation point;
-/// later writes must not invalidate an earlier observation.
-pub(crate) fn entry_boolean_predicate(
-    program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    before_statement: usize,
-    expression: ExpressionHandle,
-    admit_subject: &impl Fn(&validation::CanonicalPlace) -> bool,
-) -> Option<checked_trees::CheckedBooleanExpression> {
-    let (machine, state) =
-        validation::machine_state_by_symbols(program, machine_symbol, state_symbol)?;
-    crate::values::lower_entry_predicate(program, operators, machine, state, expression, &|leaf| {
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            state_symbol,
-            before_statement,
-            leaf,
-        )?;
-        if !admit_subject(&place) {
-            return None;
-        }
-        entry_parameter_place_before_statement(
-            program,
-            machine_symbol,
-            state_symbol,
-            before_statement,
-            &place,
-        )
-    })
-}
-
 pub(super) fn entry_operand(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
@@ -1002,11 +965,7 @@ fn state_parameter_entry_operand(
         .iter()
         .enumerate()
         .find(|(_, parameter)| parameter.symbol == parameter_symbol)?;
-    let entry_index = validation::activation_target_state_index(
-        program,
-        machine,
-        machine.symbol,
-    )?;
+    let entry_index = validation::activation_target_state_index(program, machine, machine.symbol)?;
 
     let mutable_storage =
         observation_requires_write_scan(program, parameter.type_reference, field_path)?;
@@ -1119,11 +1078,8 @@ fn named_transition_arguments(
                 else {
                     continue;
                 };
-                if validation::activation_target_state_index(
-                    program,
-                    machine,
-                    path.symbol,
-                ) != Some(state_index)
+                if validation::activation_target_state_index(program, machine, path.symbol)
+                    != Some(state_index)
                 {
                     continue;
                 }
