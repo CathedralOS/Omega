@@ -33,7 +33,7 @@ pub data ReferenceAccess [copy] {
 // One row per type form. A whole type fills a contiguous run of rows that
 // ends at its root: every row follows its children, and `first_row` is where
 // its own run begins. `Named` carries its `name`; an application
-// (`Binding<Console>`) also carries `argument_count` argument rows listed in
+// (`Pair<i32, u8>`) also carries `argument_count` argument rows listed in
 // `SyntaxTrees::type_arguments` from `first_argument`. `Reference` (`&T`,
 // `&mut T`, `&write T`) carries its `access`. `Reference`, `Array` (`[T; N]`) and
 // `Slice` (`[T]`) name their referee or element in `inner`, and `Array` names

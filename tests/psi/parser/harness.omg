@@ -5,7 +5,6 @@
 // output and lock included, so a nested gate could never hold a stable lock.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 use psi::lex::lexer;
 use psi::parse::parser;
 use psi::source::source;
@@ -13,7 +12,6 @@ use psi::syntax::syntax;
 use psi::tokens::tokens;
 
 pub data ParserHarness {
-    console: Binding<Console>;
 }
 
 pub machine ParserHarness::main(parser_harness: &mut ParserHarness)
@@ -27,7 +25,7 @@ blocks;
     transition { _ -> read(parser_harness, &mut lexer) }
 
     state read(parser_harness: &mut ParserHarness, lexer: &mut Lexer) {
-        let input: ByteRead = block parser_harness.console.read_byte();
+        let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value } -> retain(parser_harness, lexer, value)
             _ -> tokenize(parser_harness, lexer)
@@ -49,7 +47,7 @@ blocks;
             length as u64 in Trapping,
             length as u64 in Trapping
         );
-        parser_harness.console.exit_process(252);
+        Console::exit_process(252);
     }
 
     state tokenize(parser_harness: &mut ParserHarness, lexer: &mut Lexer) {
@@ -78,18 +76,18 @@ blocks;
         ParserHarness::write_parse_observation(parser_harness, output);
         ParserHarness::write_machine_tables(parser_harness, output);
         ParserHarness::write_declaration_tables(parser_harness, output);
-        parser_harness.console.exit_process(0);
+        Console::exit_process(0);
     }
 
     state parse_rejected(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_parse_observation(parser_harness, output);
         ParserHarness::write_machine_tables(parser_harness, output);
         ParserHarness::write_declaration_tables(parser_harness, output);
-        parser_harness.console.exit_process(250);
+        Console::exit_process(250);
     }
 
     state rejected(parser_harness: &mut ParserHarness) {
-        parser_harness.console.exit_process(251);
+        Console::exit_process(251);
     }
 }
 
@@ -1886,7 +1884,7 @@ machine ParserHarness::write_u64(parser_harness: &mut ParserHarness, value: u64 
 
 machine ParserHarness::write_byte(parser_harness: &mut ParserHarness, value: u8) reaches Console {
     let mut output: u8 = value;
-    parser_harness.console.write_byte(output as i32);
+    Console::write_byte(output as i32);
 }
 
 // One byte for a flag.

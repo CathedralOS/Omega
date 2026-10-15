@@ -5,7 +5,6 @@
 // since the earlier gates own those phases' observations.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 use psi::lex::lexer;
 use psi::parse::parser;
 use psi::resolution::resolution;
@@ -18,7 +17,6 @@ use psi::checks::checks;
 use psi::typing::typer;
 
 pub data CheckingHarness {
-    console: Binding<Console>;
 }
 
 // A little-endian `u32` read from the gate's input, or the input ending
@@ -220,7 +218,7 @@ blocks;
         lexer: &mut Lexer,
         left: u64 in Trapping
     ) {
-        let input: ByteRead = block checking_harness.console.read_byte();
+        let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value } -> source_store(checking_harness, sources, parser, remaining, unit_package, module_path, lexer, left, value)
             _ -> malformed(checking_harness)
@@ -346,35 +344,35 @@ blocks;
     }
 
     state accepted(checking_harness: &mut CheckingHarness) {
-        checking_harness.console.exit_process(0);
+        Console::exit_process(0);
     }
 
     state check_rejected(checking_harness: &mut CheckingHarness) {
-        checking_harness.console.exit_process(247);
+        Console::exit_process(247);
     }
 
     state type_rejected(checking_harness: &mut CheckingHarness) {
-        checking_harness.console.exit_process(249);
+        Console::exit_process(249);
     }
 
     state resolve_rejected(checking_harness: &mut CheckingHarness) {
-        checking_harness.console.exit_process(248);
+        Console::exit_process(248);
     }
 
     state parse_rejected(checking_harness: &mut CheckingHarness) {
-        checking_harness.console.exit_process(250);
+        Console::exit_process(250);
     }
 
     state lex_rejected(checking_harness: &mut CheckingHarness) {
-        checking_harness.console.exit_process(251);
+        Console::exit_process(251);
     }
 
     state source_full(checking_harness: &mut CheckingHarness) {
-        checking_harness.console.exit_process(252);
+        Console::exit_process(252);
     }
 
     state malformed(checking_harness: &mut CheckingHarness) {
-        checking_harness.console.exit_process(253);
+        Console::exit_process(253);
     }
 }
 
@@ -393,7 +391,7 @@ blocks;
     }
 
     state byte(checking_harness: &mut CheckingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
-        let input: ByteRead = block checking_harness.console.read_byte();
+        let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value as byte } -> next(checking_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256)
             _ -> ended()
@@ -430,7 +428,7 @@ blocks;
     }
 
     state read(checking_harness: &mut CheckingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
-        let input: ByteRead = block checking_harness.console.read_byte();
+        let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value } -> store(checking_harness, path, left, value)
             _ -> failed()
@@ -589,5 +587,5 @@ machine CheckingHarness::write_u64(checking_harness: &mut CheckingHarness, value
 
 machine CheckingHarness::write_byte(checking_harness: &mut CheckingHarness, value: u8) reaches Console {
     let mut output: u8 = value;
-    checking_harness.console.write_byte(output as i32);
+    Console::write_byte(output as i32);
 }
