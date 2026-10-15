@@ -86,9 +86,12 @@ fn verify_value_equality_selection(root: &Path, evidence: &Path) {
     request.package_inputs = prepared.package_inputs;
     request.build_snapshot = snapshot;
     request.build_dir = Some(evidence.join("selection_check"));
-    let checked = compiler::compile_to_checked(request)
-        .unwrap_or_else(|errors| panic!("identity checked product: {errors:?}"));
-    let program = &checked.execution().program;
+    let checked = compiler::CompilationSession::default()
+        .check(request)
+        .result
+        .unwrap_or_else(|failure| panic!("identity checked product: {failure:?}"))
+        .into_program();
+    let program = &checked.typed;
     let machines = program
         .machines()
         .iter()
@@ -180,8 +183,8 @@ fn verify_value_equality_selection(root: &Path, evidence: &Path) {
             .expect("same right parameter");
         assert_eq!(left.symbol, parameters[0].symbol);
         assert_eq!(right.symbol, parameters[1].symbol);
-        for occurrence in program.authored_selection_occurrences(expression) {
-            let selection = program
+        for occurrence in checked.authored_selection_occurrences(expression) {
+            let selection = checked
                 .authored_declaration_selections()
                 .get(occurrence)
                 .expect("retained exact authored occurrence");
