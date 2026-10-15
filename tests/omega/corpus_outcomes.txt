@@ -5421,6 +5421,7 @@ pass/borrows/runtime_shared_reference_array_cohort_restoration_exit checked 1130
 pass/borrows/runtime_shared_reference_record_direct_payload_restoration_exit checked 11044ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_shared_scalar_local_capture_exit checked 11024ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_shared_temporary_call_exit checked 11052ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_shared_view_record_presentation_exit checked 6328ms check-target:macos_arm64 @6355da1b3395+wt
 pass/borrows/runtime_slice_reference_result_exit checked 5013ms check-target:macos_arm64 @82749ba0e736
 pass/borrows/runtime_state_boolean_reference_exit checked 11101ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_state_fixed_element_reference_exit checked 11125ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7409,7 +7410,7 @@ pass/proofs/post_mutation_guard_alias checked 6166ms check-target:linux_x86_64 @
 pass/proofs/post_mutation_guard_bound checked 33886ms check-target:macos_arm64 @5b35eda9b8d6
 pass/proofs/post_mutation_guard_nested_field checked 36088ms check-target:linux_x86_64 @5b35eda9b8d6
 pass/proofs/proof_addition_commutativity checked 1971ms @a9ae30e1c334+wt
-pass/proofs/proof_bag_view_reflexivity checked 3714ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/proofs/proof_bag_view_reflexivity checked 6687ms check-target:macos_arm64 @6355da1b3395+wt
 pass/proofs/proof_bignum_constant_fold checked 1802ms @a9ae30e1c334+wt
 pass/proofs/proof_congruence_add_constant checked 1615ms @a9ae30e1c334+wt
 pass/proofs/proof_constant_arithmetic_identity checked 1602ms @a9ae30e1c334+wt

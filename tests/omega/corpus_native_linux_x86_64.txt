@@ -370,6 +370,7 @@ pass/borrows/runtime_shared_reference_array_cohort_restoration_exit built 15079m
 pass/borrows/runtime_shared_reference_record_direct_payload_restoration_exit built 14923ms exit:70 @6c49683ce714
 pass/borrows/runtime_shared_scalar_local_capture_exit built 14759ms exit:70 @6c49683ce714
 pass/borrows/runtime_shared_temporary_call_exit built 14773ms exit:42 @6c49683ce714
+pass/borrows/runtime_shared_view_record_presentation_exit built 6306ms exit:0 @6355da1b3395+wt
 pass/borrows/runtime_slice_reference_result_exit built 18847ms exit:0 @6c49683ce714
 pass/borrows/runtime_state_boolean_reference_exit built 14882ms exit:70 @6c49683ce714
 pass/borrows/runtime_state_fixed_element_reference_exit built 14962ms exit:70 @6c49683ce714
@@ -2340,7 +2341,7 @@ pass/proofs/post_mutation_guard_alias built 5890ms exit:0 @f6dc6c67924e+wt
 pass/proofs/post_mutation_guard_bound built 17853ms @6c49683ce714
 pass/proofs/post_mutation_guard_nested_field built 17504ms @6c49683ce714
 pass/proofs/proof_addition_commutativity checked 3442ms @6c49683ce714
-pass/proofs/proof_bag_view_reflexivity built 18462ms exit:0 @6c49683ce714
+pass/proofs/proof_bag_view_reflexivity built 6703ms exit:0 @6355da1b3395+wt
 pass/proofs/proof_bignum_constant_fold checked 3441ms @6c49683ce714
 pass/proofs/proof_congruence_add_constant checked 3467ms @6c49683ce714
 pass/proofs/proof_constant_arithmetic_identity checked 3520ms @6c49683ce714

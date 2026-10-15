@@ -26,6 +26,23 @@ pub(in crate::selection) fn view_access(
     view_access_with_budget(function, place, budget)
 }
 
+// A stored descriptor may retain an explicit access ceiling while the incoming
+// view uses its canonical carrier. Compare the unchanged physical presentation;
+// the source chain below independently supplies the requested backing access.
+fn same_descriptor_presentation(
+    function: &LegalizedScalarFunction,
+    actual: semantic_vocabulary::StructuralTypeId,
+    expected: semantic_vocabulary::StructuralTypeId,
+) -> bool {
+    function.structural.as_ref().is_some_and(|signature| {
+        terminal_semantics::borrowed_referent_presentation(
+            signature.structural_types.iter(),
+            actual,
+            expected,
+        ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+    })
+}
+
 fn view_access_with_budget(
     function: &LegalizedScalarFunction,
     mut place: PlaceId,
@@ -50,7 +67,9 @@ fn view_access_with_budget(
             )?;
             return (supplies(access, required)
                 && (!copied_whole || access == A::SharedBorrow)
-                && expected_type.is_none_or(|identity| identity == result.structural_type))
+                && expected_type.is_none_or(|identity| {
+                    same_descriptor_presentation(function, result.structural_type, identity)
+                }))
             .then_some(initial.unwrap_or(access));
         }
         let mut declarations = signature
@@ -84,7 +103,9 @@ fn view_access_with_budget(
             );
             if parameters.next().is_some()
                 || declaration.kind != expected_kind
-                || expected_type.is_some_and(|identity| identity != parameter.structural_type)
+                || expected_type.is_some_and(|identity| {
+                    !same_descriptor_presentation(function, parameter.structural_type, identity)
+                })
                 || !terminal_semantics::view_descriptor_parameter(
                     parameter,
                     signature.structural_types.iter(),
@@ -107,7 +128,7 @@ fn view_access_with_budget(
         } = declaration.kind
         {
             if required != A::SharedBorrow
-                || expected_type.is_some_and(|expected| expected != structural_type)
+                || expected_type.is_some_and(|expected| !same_descriptor_presentation(function, structural_type, expected))
                 || !signature.structural_types.iter().any(|row|
                     row.id == structural_type && row.shape.is_borrowed_byte_view())
                 || !function.instructions().any(|row|
@@ -118,13 +139,13 @@ fn view_access_with_budget(
             return Some(initial.unwrap_or(A::SharedBorrow));
         }
         let (producer, structural_type) = declaration.kind.as_operation_result()?;
-        if expected_type.is_some_and(|identity| identity != structural_type)
-            || !signature.structural_types.iter().any(|row| {
-                row.id == structural_type
-                    && (matches!(row.shape, StructuralTypeShape::ElementView { .. })
-                        || row.shape.is_borrowed_byte_carrier())
-            })
-        {
+        if expected_type.is_some_and(|identity| {
+            !same_descriptor_presentation(function, structural_type, identity)
+        }) || !signature.structural_types.iter().any(|row| {
+            row.id == structural_type
+                && (matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                    || row.shape.is_borrowed_byte_carrier())
+        }) {
             return None;
         }
         let mut producers = function

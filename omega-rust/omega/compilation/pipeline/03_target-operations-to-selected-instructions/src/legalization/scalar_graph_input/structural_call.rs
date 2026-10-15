@@ -290,26 +290,16 @@ fn view_argument(
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use target_operations::TargetStructuralArgumentSource;
-    let completed = super::byte_views::descriptor_result(caller, semantic.place, structural_types)
-        .filter(|(producer, _)| {
-            caller.block_nodes().any(|node| {
-                matches!(&node.operation,
-                AbstractOperation::CallStructural { psi_operation, .. }
-                    if psi_operation == producer)
-            })
-        });
-    let access = if completed.is_some() {
-        let (_, result) = super::structural_case::source_result(caller, semantic.place)?;
-        terminal_semantics::descriptor_results::descriptor_value_access(
-            structural_types.iter(),
-            result.structural_type,
-            result.multiplicity,
-        )
-        .ok_or_else(LegalizationError::custody)?
-    } else {
-        optimization_unit_semantics::structural_place_access(caller, semantic.place)
-            .ok_or(LegalizationError::custody())?
-    };
+    let completed = super::byte_views::descriptor_result(caller, semantic.place, structural_types);
+    // Descriptor storage ownership does not grant its referent's access.
+    // Reconstruct the backing ceiling through the same source-chain query
+    // used by ordinary byte and element operations.
+    let access = optimization_unit_semantics::structural_place_backing_access(
+        caller,
+        semantic.place,
+        structural_types.iter(),
+    )
+    .ok_or_else(LegalizationError::custody)?;
     // A descriptor view carries pointer and extent; a bounded view over a
     // fixed array (`&[u8; N]`) carries only the pointer, its extent static.
     let carrier = find_structural_type(structural_types, destination_parameter.structural_type)
@@ -325,7 +315,10 @@ fn view_argument(
         terminal_psi::reading_borrow_pair_pattern!()
     ) || !semantic.path.is_empty()
         || destination_parameter.access != semantic.access
-        || destination_parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !terminal_semantics::view_descriptor_parameter(
+            destination_parameter,
+            structural_types.iter(),
+        )
         || !(access == semantic.access
             || access == StructuralAccess::MutableBorrow
                 && semantic.access == StructuralAccess::SharedBorrow)
@@ -367,7 +360,7 @@ fn view_argument(
     }) {
         if block.id == caller.entry
             || parameter.access != access
-            || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            || !terminal_semantics::view_descriptor_parameter(parameter, structural_types.iter())
             || !parameter.projected_qualifications.is_empty()
         {
             return Err(LegalizationError::custody());
@@ -394,7 +387,7 @@ fn view_argument(
             .ok_or(LegalizationError::custody())?;
         if semantic.place != source.place
             || source.access != access
-            || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            || !terminal_semantics::view_descriptor_parameter(source, structural_types.iter())
             || !source.projected_qualifications.is_empty()
             || parameter.place != source.place
             || parameter.structural_type != source.structural_type

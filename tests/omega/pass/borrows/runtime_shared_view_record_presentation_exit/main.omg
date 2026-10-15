@@ -1,0 +1,44 @@
+// Expected exit: 0. Stored and canonical shared views keep one backing pair.
+data Window<'items> { items: &'items [u64]; }
+data Outer<'items> { window: Window<'items>; }
+machine wrap<'items>(items: &'items [u64]) -> Window<'items> { Window { items: items } }
+machine from_field<'outer, 'items>(outer: &'outer Outer<'items>) -> Window<'items> { wrap(outer.window.items) }
+machine forward<'items>(items: &'items [u64]) -> Window<'items> {
+    let local: &[u64] = items;
+    wrap(local)
+}
+machine selected(items: &[u64], keep: bool) -> bool {
+    let window: Window = wrap(items);
+    transition keep {
+        true -> retained(window)
+        false -> done()
+    }
+    state retained(window: Window) -> bool {
+        transition window.items.len == 3 {
+            true -> (window.items[1] == 25)
+            false -> false
+        }
+    }
+    state done() -> bool { true }
+}
+machine main() crashes Trap {
+    let values: [u64; 3] = [17, 25, 31];
+    let first: Window = wrap(&values);
+    let outer: Outer = Outer { window: forward(&values) };
+    let returned: Window = from_field(&outer);
+    transition first.items.len == 3 && returned.items.len == 3
+        && selected(&values, true) && selected(&values, false) {
+        true -> inspect(first, returned)
+        false -> bad()
+    }
+    state inspect(first: Window, returned: Window)
+    requires first.items.len == 3; returned.items.len == 3
+    {
+        transition first.items[0] == 17 && returned.items[2] == 31 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
