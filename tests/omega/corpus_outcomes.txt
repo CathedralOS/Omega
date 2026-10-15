@@ -5296,6 +5296,7 @@ pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit checked 10923ms ch
 pass/borrows/reference_parameter_field_store_exit checked 15020ms check-target:macos_arm64 @8df1d091a810
 pass/borrows/retained_envelope_refs checked 9757ms @5041ef1af684+wt
 pass/borrows/returned_owned_byte_field_snapshot_exit checked 10942ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/returned_primitive_reference_assignment_capture_exit checked 3004ms check-target:macos_arm64 @c69e20ea61aa+wt
 pass/borrows/returned_record_byte_field_store_exit checked 11135ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_record_case_field_store_exit checked 11260ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_record_field_read_exit checked 11204ms check-target:macos_arm64 @a9ae30e1c334+wt

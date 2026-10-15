@@ -87,6 +87,30 @@ fn assignment_path(
     .map(|(_, path)| path)
 }
 
+/// Stored references retain their physical crossing in both destination
+/// capture and displacement. A structural local contains the descriptor;
+/// borrowed ingress already names its referent. Views have their own carrier
+/// geometry and never gain a pointer crossing merely from reference syntax.
+fn retain_assignment_referent(
+    program: &dyn validation::CheckingInput,
+    source: &CheckedUnitStructuralArgumentSourcePlan,
+    path: &mut Vec<CheckedUnitStructuralPathSegment>,
+    declared: typed_trees::types::TypeReferenceHandle,
+    receiving: typed_trees::type_identity::TypeIdentityId,
+) {
+    let stored_descriptor = !path.is_empty()
+        || matches!(
+            source,
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+        );
+    if stored_descriptor
+        && validation::stores_reference_shape(program, declared, &[])
+        && validation::stored_structural_type_identity(program, declared, &[], &[]) != receiving
+    {
+        path.push(CheckedUnitStructuralPathSegment::Referent);
+    }
+}
+
 /// Owned storage has no borrowed restoration debt. A formal and a
 /// local have different physical coordinates, but replacing either retires
 /// only the old custody selected by source checking. A whole reference-valued
@@ -251,12 +275,13 @@ pub(super) fn capture_assignment_destination(
     } else {
         validation::assignment_stored_value_type(program, machine, state, assignment)?
     };
-    if !path.is_empty()
-        && validation::reference_shell(program, declared).is_some()
-        && stored != declared
-    {
-        path.push(CheckedUnitStructuralPathSegment::Referent);
-    }
+    retain_assignment_referent(
+        program,
+        &source,
+        &mut path,
+        declared,
+        validation::stored_structural_type_identity(program, stored, &[], &[]),
+    );
     let declared = stored;
     Some(
         CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
@@ -984,13 +1009,13 @@ impl OpenWindows {
             index,
             &access_place,
         )?;
-        if !path.is_empty()
-            && validation::reference_shell(program, declared).is_some()
-            && validation::stored_structural_type_identity(program, declared, &[], &[])
-                != produced.type_identity
-        {
-            path.push(CheckedUnitStructuralPathSegment::Referent);
-        }
+        retain_assignment_referent(
+            program,
+            &source,
+            &mut path,
+            declared,
+            produced.type_identity,
+        );
         // An owned old value dies through its checked contextual disposition,
         // including an owner-authorized linear hook. A borrowed displacement
         // still needs a separate exact linear restoration contract.

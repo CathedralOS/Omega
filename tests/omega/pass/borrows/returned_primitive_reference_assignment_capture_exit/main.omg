@@ -1,0 +1,20 @@
+// A returned pointer captures its primitive destination once, before the RHS.
+// Expected exit: 0.
+data Pair { first: i64; second: i64; }
+machine pick<'storage>(ignored: bool, selected: &'storage mut i64) -> &'storage mut i64 {
+    selected
+}
+machine exercise(pair: &mut Pair) {
+    let selected: &mut i64 = pick(false, &mut pair.first);
+    selected = 300;
+}
+machine main() crashes Trap {
+    let mut pair: Pair = Pair { first: 17, second: 23 };
+    exercise(&mut pair);
+    transition pair.first == 300 && pair.second == 23 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
