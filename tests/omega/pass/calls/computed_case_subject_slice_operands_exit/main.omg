@@ -1,0 +1,83 @@
+// A transition can dispatch on the sum result of a call that borrows a byte
+// view of an array. The view is a temporary operand of that one call: it
+// retires at the call's continuation, before any case arm runs, exactly as a
+// statement call's operand does. A shared view of a field in the entry
+// state, a mutable view of a local in a later state, and a direct Console
+// read each select their expected case; the mutable view's write lands in
+// the caller's local. Exits 70 only when every dispatch selected that case.
+
+use omega_language_std::console;
+
+pub data Scan {
+    case Marked(position: u64);
+    case Clear;
+}
+
+machine find(bytes: &[u8], wanted: u8) -> Scan {
+    transition bytes.len > 1 {
+        true -> probe(bytes, wanted)
+        _ -> (Scan::Clear)
+    }
+    state probe(bytes: &[u8], wanted: u8) -> Scan {
+        transition bytes[1] == wanted {
+            true -> (Scan::Marked { position: 1 })
+            _ -> (Scan::Clear)
+        }
+    }
+}
+
+machine mark(bytes: &mut [u8]) -> Scan {
+    transition bytes.len > 2 {
+        true -> write(bytes)
+        _ -> (Scan::Clear)
+    }
+    state write(bytes: &mut [u8]) -> Scan {
+        bytes[2] = 9;
+        transition { _ -> (Scan::Marked { position: 2 }) }
+    }
+}
+
+data Main { text: [u8; 4]; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.text[0] = 3;
+    main.text[1] = 7;
+    transition find(&main.text, 7) {
+        Scan::Marked { position } -> local(position)
+        _ -> refused(71)
+    }
+
+    state local(found: u64) {
+        let mut scratch: [u8; 4];
+        transition mark(&mut scratch) {
+            Scan::Marked { position } -> verify(found, position, scratch[2])
+            _ -> refused(72)
+        }
+    }
+
+    state verify(found: u64, marked: u64, written: u8) {
+        transition found == 1 && marked == 2 && written == 9 {
+            true -> read()
+            _ -> refused(73)
+        }
+    }
+
+    state read() {
+        let mut line: [u8; 8];
+        transition block Console::read_line(&mut line) {
+            LineReadResult::LineComplete { count } -> finish(count)
+            LineReadResult::EndOfInput { count } -> finish(count)
+            _ -> refused(74)
+        }
+    }
+
+    state finish(count: u64) {
+        transition count == 3 {
+            true -> done()
+            _ -> refused(75)
+        }
+    }
+
+    state done() { Console::exit_process(70); }
+    state refused(code: i32) { Console::exit_process(code); }
+}

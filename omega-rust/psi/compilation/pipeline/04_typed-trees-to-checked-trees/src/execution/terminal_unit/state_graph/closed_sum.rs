@@ -859,10 +859,24 @@ fn subject_call(
     {
         return None;
     }
+    let coordinate = planned.coordinate;
     crate::execution::terminal_unit::control::statement_sequence::consume_results(
         operations, &operation,
     )?;
     operations.push(operation);
+    // Operand temporaries formed for this call, such as a slice descriptor
+    // over a borrowed array, die at its normal continuation before the
+    // dispatch inspects the result, exactly as a statement call's do.
+    crate::execution::terminal_unit::cleanup::anonymous::append_continuation(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        coordinate,
+        &structural_results,
+        operations,
+    )?;
     Some((result, return_type))
 }
 
