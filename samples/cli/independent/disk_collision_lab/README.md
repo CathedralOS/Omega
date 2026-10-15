@@ -51,9 +51,9 @@ rational reference calculations and tolerances before Omega execution.
 `validate.py` checks output against those frozen values; it is not the program
 or the delivered simulation. `data/expectations.omg` also tests the final
 computed state against the frozen oracle before success, so Terminal exit
-comparison checks the scientific results. The CLI forwards native stdout and
-compares exits; it does not expose a Terminal stdout comparison. Fixtures are
-actual stdin byte files.
+comparison checks the scientific results. Batch execution also retains each
+engine's actual stdout and stderr, so the same frozen output oracle can check
+both. Fixtures are actual stdin byte files.
 
 From the repository root, with a current compiler `OMEGA`:
 
@@ -77,6 +77,15 @@ Build metadata binds exact `Main::main` entry contracts for Linux x86-64,
 Windows x86-64 and macOS arm64. Execution evidence here is host-specific;
 other hosts require their own provider/package preparation and validation.
 See `VALIDATION.md` for exact measured commands, revisions and remaining limits.
-Run the complete serial harness with `python3 -B run_validation.py /absolute/omega`.
+For a host-local replay of all fifteen frozen inputs with one compilation:
+
+```sh
+omega run --both --inputs samples/cli/independent/disk_collision_lab/data --outputs build/disk-collision-results samples/cli/independent/disk_collision_lab/main.omg
+```
+
+`results.tsv` records each engine's exit; `validate.py` checks every scientific
+case's native and `.terminal.stdout` files against the same frozen physics.
+Malformed-input cases must return 2 with the exact invalid-input message.
+The historical Linux serial harness remains `python3 -B run_validation.py /absolute/omega`.
 Generated child builds and Python bytecode are excluded from accepted source;
 retained ledgers and exact commands are in `evidence/qualified/`.

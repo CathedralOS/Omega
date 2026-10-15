@@ -149,46 +149,8 @@ pub(super) fn scalar_type(
         })
 }
 
-/// The scalar type of one runtime selector a primitive read carries.
-///
-/// A selector declared in the read's own block (a block parameter or an
-/// earlier result) or as a machine parameter keeps the in-block rule: it must
-/// precede the read. A selector declared in another block is the common
-/// shape of a state's scalar parameter read inside a conditional arm: the
-/// arm's successor block reads `self.a[k]` while `k` is the state block's
-/// parameter. Terminal verification already required that value to be
-/// defined before this use (`require_defined` over the dominating
-/// definitions), so its machine-wide SSA declaration is its type here; this
-/// lowering checks only that the selector is an integer the address model
-/// scales, never where it was defined.
-fn read_selector_type(
-    machine: &TerminalMachine,
-    block: &terminal_psi::Block,
-    operation: semantic_vocabulary::OperationId,
-    index: ValueId,
-    values: &BTreeMap<ValueId, ScalarType>,
-) -> Option<ScalarType> {
-    let declared_here = machine
-        .parameters
-        .iter()
-        .chain(block.parameters.iter())
-        .any(|declaration| declaration.id == index)
-        || block
-            .operations
-            .iter()
-            .filter_map(|candidate| candidate.result.scalar())
-            .any(|result| result.id == index);
-    if declared_here {
-        return super::structural_scalar_fields::dominating_scalar_type(
-            machine, block, operation, index,
-        );
-    }
-    values.get(&index).copied()
-}
-
 pub(super) fn lower(
     operation: &Operation,
-    block: &terminal_psi::Block,
     machine: &TerminalMachine,
     types: &[StructuralTypeDeclaration],
     values: &BTreeMap<ValueId, ScalarType>,
@@ -243,7 +205,7 @@ pub(super) fn lower(
                 })
                 .ok_or_else(invalid)?;
             if super::primitive_projection::read_leaf_type(types, identity, path, |index| {
-                read_selector_type(machine, block, operation.id, index, values)
+                values.get(&index).copied()
             }) != Some(result.scalar_type)
             {
                 return Err(invalid());

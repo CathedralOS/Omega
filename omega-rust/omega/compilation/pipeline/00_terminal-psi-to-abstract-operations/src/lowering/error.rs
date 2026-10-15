@@ -72,7 +72,11 @@ pub enum LoweringError {
     InvalidWriteOnlyPrimitiveStore(semantic_vocabulary::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// parameter root, structural path and field, or typed scalar value.
-    InvalidStructuralScalarFieldStore(semantic_vocabulary::OperationId),
+    InvalidStructuralScalarFieldStore {
+        machine: MachineId,
+        operation: semantic_vocabulary::OperationId,
+        reason: &'static str,
+    },
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// shared parameter root, integer field, and typed scalar result.
     InvalidScalarStructuralField(semantic_vocabulary::OperationId),

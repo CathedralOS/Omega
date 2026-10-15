@@ -95,13 +95,9 @@ pub(super) fn lower(
             })
         }
         OperationKind::EstablishPrimitiveLocal { .. }
-        | OperationKind::PrimitiveScalarRead { .. } => super::primitive_storage::lower(
-            operation,
-            block,
-            machine,
-            structural_types,
-            value_types,
-        ),
+        | OperationKind::PrimitiveScalarRead { .. } => {
+            super::primitive_storage::lower(operation, machine, structural_types, value_types)
+        }
         OperationKind::StructuralByteSequenceFieldLength {
             source,
             path,
@@ -495,7 +491,7 @@ pub(super) fn lower(
         }
         OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::ScalarStructuralField { .. } => {
-            structural_scalar_fields::lower(operation, block, machine, structural_types)
+            structural_scalar_fields::lower(operation, machine, structural_types, value_types)
         }
         terminal_psi::move_or_store_structural_field_pattern!() => {
             borrowed_windows::lower(operation, machine, structural_types)

@@ -1,4 +1,11 @@
-//! Exact structural scalar-field preservation after independent Terminal verification.
+//! Exact structural scalar-field preservation from admitted Terminal declarations.
+//!
+//! Scalar definitions belong to the machine's SSA roster, not just the block
+//! containing a store. RHS evaluation may introduce continuations after a
+//! destination selector was captured. Its dominating definition remains the
+//! same value; requiring a local declaration would reject that ordinary flow.
+//! This projection consumes producer-established SSA. The shared roster supplies
+//! types, not dominance evidence; it does not impose a second, block-local rule.
 //! Refined reads use the declared scalar carrier after constructor/entry predicate
 //! proof reconstruction. A read captures a value; it does not relax the declared
 //! invariant, so stores without their own establishment proof remain rejected.
@@ -6,12 +13,14 @@
 //! payload field of that declared case; the payload overlays the sum's own
 //! place, and the carrier and leaf are rebuilt from declarations here.
 
+use std::collections::BTreeMap;
+
 use abstract_operations::{AbstractOperation, AbstractResult, StructuralScalarStoreDestination};
 use semantic_vocabulary::{
     PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
 };
 use terminal_psi::{
-    BindingRelevance, Block, Operation, OperationKind, OperationResult, StructuralAccess,
+    BindingRelevance, Operation, OperationKind, OperationResult, StructuralAccess,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
     find_structural_type,
@@ -21,9 +30,9 @@ use crate::lowering::LoweringError;
 
 pub(super) fn lower(
     operation: &Operation,
-    block: &Block,
     machine: &TerminalMachine,
     structural_types: &[StructuralTypeDeclaration],
+    value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
         OperationKind::StructuralScalarFieldStore {
@@ -34,9 +43,9 @@ pub(super) fn lower(
             range_obligation,
         } => lower_store(
             operation,
-            block,
             machine,
             structural_types,
+            value_types,
             *destination,
             path,
             *field,
@@ -116,22 +125,29 @@ pub(super) fn store_destination(
 #[allow(clippy::too_many_arguments)]
 fn lower_store(
     operation: &Operation,
-    block: &Block,
     machine: &TerminalMachine,
     structural_types: &[StructuralTypeDeclaration],
+    value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
     destination: PlaceId,
     path: &[StructuralPathSegment],
     field: StructuralFieldId,
     value: semantic_vocabulary::ValueId,
     range_obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<AbstractOperation, LoweringError> {
-    let invalid = || LoweringError::InvalidStructuralScalarFieldStore(operation.id);
+    let invalid = |reason| LoweringError::InvalidStructuralScalarFieldStore {
+        machine: machine.id,
+        operation: operation.id,
+        reason,
+    };
     // A state arrival is a declared loan of the same backing storage, not an
     // entry ABI parameter. Preserve its own declaration whether transport uses
     // an address or a view descriptor; edge verification checked exclusivity.
-    let destination = store_destination(machine, destination).ok_or_else(invalid)?;
-    let scalar_type =
-        dominating_scalar_type(machine, block, operation.id, value).ok_or_else(invalid)?;
+    let destination = store_destination(machine, destination)
+        .ok_or_else(|| invalid("destination has no exact writable storage declaration"))?;
+    let scalar_type = value_types
+        .get(&value)
+        .copied()
+        .ok_or_else(|| invalid("stored value has no scalar declaration"))?;
     // A returned reference is a permission carrier, not a new record home.
     // Resolve the final explicit crossing for geometry; preserve the root and
     // full path below for independent ownership and native custody replay.
@@ -153,7 +169,9 @@ fn lower_store(
             .and_then(|descriptor| find_structural_type(structural_types, descriptor))
             .map(|declaration| &declaration.shape)
         else {
-            return Err(invalid());
+            return Err(invalid(
+                "referent crossing has no exclusive reference carrier",
+            ));
         };
         if find_structural_type(structural_types, *referent).is_none()
             || !terminal_semantics::reference_source_projection_accessible(
@@ -167,7 +185,7 @@ fn lower_store(
                 StructuralAccess::WriteOnlyBorrow,
             )
         {
-            return Err(invalid());
+            return Err(invalid("referent projection has no write authority"));
         }
         (*referent, suffix)
     } else {
@@ -187,15 +205,12 @@ fn lower_store(
             .iter()
             .filter_map(StructuralPathSegment::runtime_index)
             .all(|(index, _)| {
-                super::primitive_projection::runtime_selector(dominating_scalar_type(
-                    machine,
-                    block,
-                    operation.id,
-                    index,
-                ))
+                super::primitive_projection::runtime_selector(value_types.get(&index).copied())
             })
     {
-        return Err(invalid());
+        return Err(invalid(
+            "store result, access, path or selector type is incompatible",
+        ));
     }
     let declaration = terminal_semantics::projected_field_declaration(
         structural_types.iter(),
@@ -203,12 +218,14 @@ fn lower_store(
         storage_path,
         field,
     )
-    .ok_or_else(invalid)?;
+    .ok_or_else(|| invalid("selected path has no exact field declaration"))?;
     if terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
         != range_obligation.is_some()
         || declaration.field_type.scalar_type() != Some(scalar_type)
     {
-        return Err(invalid());
+        return Err(invalid(
+            "stored scalar type or receiving obligation differs from the field",
+        ));
     }
     Ok(AbstractOperation::StructuralScalarFieldStore {
         psi_operation: operation.id,
@@ -397,47 +414,6 @@ pub(super) fn exact_parameter(
         return None;
     }
     Some(parameter.clone())
-}
-
-pub(super) fn dominating_scalar_type(
-    machine: &TerminalMachine,
-    block: &Block,
-    operation: semantic_vocabulary::OperationId,
-    value: semantic_vocabulary::ValueId,
-) -> Option<ScalarType> {
-    let entry_declarations = machine
-        .parameters
-        .iter()
-        .chain(block.parameters.iter())
-        .filter(|declaration| declaration.id == value)
-        .map(|declaration| declaration.scalar_type)
-        .collect::<Vec<_>>();
-    if let [scalar_type] = entry_declarations.as_slice() {
-        return Some(*scalar_type);
-    }
-    if !entry_declarations.is_empty() {
-        return None;
-    }
-
-    let mut definition = None;
-    let mut found_operation = false;
-    for candidate in &block.operations {
-        if candidate.id == operation {
-            if found_operation {
-                return None;
-            }
-            found_operation = true;
-            continue;
-        }
-        if !found_operation
-            && let Some(result) = candidate.result.scalar()
-            && result.id == value
-            && definition.replace(result.scalar_type).is_some()
-        {
-            return None;
-        }
-    }
-    found_operation.then_some(definition).flatten()
 }
 
 pub(super) fn has_empty_structural_custody(machine: &TerminalMachine, place: PlaceId) -> bool {

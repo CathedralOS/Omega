@@ -5862,6 +5862,7 @@ pass/collections/runtime_shared_array_polynomial_exit checked 13074ms check-targ
 pass/collections/runtime_shared_fixed_array_cycle_exit checked 11537ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_signed_element_offset_read_exit checked 11307ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_slice_record_copy_exit checked 11197ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/runtime_state_indexed_scalar_field_store_exit checked 5565ms check-target:macos_arm64 @fd59b9d3fe3a
 pass/collections/runtime_three_indexed_record_float_read_exit checked 10892ms check-target:macos_arm64 @9462eda24d9e+wt
 pass/collections/runtime_vec_u32_growth_exit checked 14108ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_view_element_structural_replacement_exit checked 10470ms check-target:macos_arm64 @a9ae30e1c334+wt
