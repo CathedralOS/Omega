@@ -525,10 +525,26 @@ impl TerminalExecution<'_> {
         };
         let source = &backing_source;
         let root_type = self.live_structural_type(source.place)?;
+        // Execution has replaced runtime selectors with captured fixed indices.
+        // Those coordinates select live storage, but a dynamic view's type
+        // cannot prove a fixed bound. Retain the declared path for type geometry
+        // and use the selected path only when resolving the actual descriptor.
+        let declared_source = match &machine.operation(operation.id).ok_or_else(malformed)?.kind {
+            OperationKind::EstablishElementView { source, .. }
+            | OperationKind::EstablishMutableElementView { source, .. } => source,
+            _ => return Err(malformed()),
+        };
+        if declared_source.place != source.place {
+            return Err(malformed());
+        }
+        let declared_backing_path = match declared_source.path.split_last() {
+            Some((StructuralPathSegment::FixedByteRange { .. }, prefix)) => prefix,
+            _ => declared_source.path.as_slice(),
+        };
         let collection_shape = crate::custody::resolve_structural_path_shape(
             &self.program.structural_types(),
             root_type,
-            &source.path,
+            declared_backing_path,
         )?;
         let collection = terminal_semantics::element_view_shape_region_geometry(
             self.program.structural_types().values(),
@@ -591,6 +607,9 @@ impl TerminalExecution<'_> {
                     // capacity: a byte window may not reach past the
                     // declared storage even before the live-length read.
                     terminal_semantics::CollectionExtent::LiveLength { capacity } => capacity,
+                    // Dynamic descriptor backing is not fixed representation
+                    // bytes and cannot supply this region's static bound.
+                    terminal_semantics::CollectionExtent::StoredLength => return Err(malformed()),
                 };
                 if start > end || u64::try_from(end).map_err(|_| malformed())? > bound {
                     return Err(malformed());
@@ -691,11 +710,27 @@ impl TerminalExecution<'_> {
         let collection = collection.ok_or_else(malformed)?;
         if collection.storage == terminal_semantics::CollectionStorage::Borrowed
             && !descriptor.is_borrowed_byte_carrier()
+            && collection.extent != terminal_semantics::CollectionExtent::StoredLength
         {
             return Err(malformed());
         }
+        // A whole-view reborrow captures the existing descriptor, including a
+        // stored field's window. Its carrier home is not the collection backing.
+        let borrowed_view =
+            if collection.extent == terminal_semantics::CollectionExtent::StoredLength {
+                let resolved =
+                    self.resolve_live_projection(source.place, &source.path, source.access)?;
+                let view = self.element_view_argument(source, &resolved)?;
+                Some(view.subslice(0, view.len(), access).ok_or_else(malformed)?)
+            } else {
+                None
+            };
         let collection_length = match collection.extent {
             terminal_semantics::CollectionExtent::Fixed(length) => length,
+            terminal_semantics::CollectionExtent::StoredLength => {
+                u64::try_from(borrowed_view.as_ref().ok_or_else(malformed)?.len())
+                    .map_err(|_| malformed())?
+            }
             // An owned byte carrier's live count is dynamic; its byte-view
             // establishment enters the byte-array channel, which reads that
             // store's own live extent. Element snapshots of one cannot read
@@ -777,7 +812,9 @@ impl TerminalExecution<'_> {
                 // home. Forming a descriptor from that binding must retain the
                 // loan, rather than pinning the callee's temporary formal.
                 let mut cursor = self.local_structural_identities.cursor();
-                let view = if source.path.is_empty()
+                let view = if let Some(view) = borrowed_view {
+                    view.with_descriptor_home(descriptor_value.clone())
+                } else if source.path.is_empty()
                     && let Some(loan) = self.element_view_values.get(&source.place)
                 {
                     let referent = self

@@ -13,9 +13,9 @@
 //! unchanged. Indexed moves and stores resolve the same typed queries against
 //! the pre-operation snapshot. Exhaustive singleton destinations replace their
 //! payload; larger finite sets retain both old and incoming origins per slot.
+//! Symbolic incoming families retain the same weak update in call summaries.
 //! This overapproximation supplies provenance, never custody or vacant-storage
-//! access. Until an indirect replacement has a complete stored-effect
-//! summary, refusing its later contents is required, not entry-value recovery.
+//! access. Unknown writes still invalidate subsequent contents queries.
 use super::*;
 use crate::descriptor_lifetimes::{DescriptorPathSegment, descriptor_path};
 
@@ -55,11 +55,23 @@ pub enum DescriptorStoredOrigin {
 #[derive(Clone)]
 pub struct DescriptorStoredEffect {
     pub parameter: usize,
-    pub path: Vec<DescriptorPathSegment>,
+    pub steps: Vec<DescriptorContentsStep>,
     pub origins: Vec<DescriptorStoredOrigin>,
 }
+impl DescriptorStoredEffect {
+    /// Pointer custody consumers require an exact destination, not a family.
+    pub fn exact_path(&self) -> Option<Vec<DescriptorPathSegment>> {
+        self.steps
+            .iter()
+            .map(|step| match step {
+                DescriptorContentsStep::Address(segment) => Some(segment.clone()),
+                DescriptorContentsStep::AnyElement { .. } => None,
+            })
+            .collect()
+    }
+}
 pub struct DescriptorStoredCallEffect<Origin = DescriptorCallOrigin> {
-    pub destination: DescriptorLocation,
+    pub destination: DescriptorContentsQuery,
     /// All possible post-call origins, including the pre-call slot when preserved.
     pub origins: Vec<Origin>,
     pub preserves_incoming: bool,

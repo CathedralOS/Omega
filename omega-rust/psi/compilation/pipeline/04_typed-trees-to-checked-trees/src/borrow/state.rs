@@ -358,24 +358,21 @@ fn append_incoming_reference_trackers(
         ) else {
             continue;
         };
-        let Some(sources) = validation::reference_result_custody::record_carrier_sources(
-            program,
-            carrier,
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                symbol: parameter.symbol,
-            },
-        ) else {
+        let Some(sources) =
+            validation::reference_result_custody::declared_carrier_references(program, carrier)
+        else {
             continue;
         };
         for source in sources {
-            let Some(owner_path) = validation::reference_result_custody::loan_owner_path(
+            let Some(segments) = validation::reference_result_custody::origin_place_segments(
                 program,
                 carrier,
-                &source.path,
+                source.path.iter().cloned(),
             ) else {
                 continue;
             };
-            let Some(kind) = source.source.access.borrow_access_kind() else {
+            let owner_path = super::owner_path_from_place_segments(program, &segments);
+            let Some(kind) = source.access.borrow_access_kind() else {
                 continue;
             };
             let path = arenas

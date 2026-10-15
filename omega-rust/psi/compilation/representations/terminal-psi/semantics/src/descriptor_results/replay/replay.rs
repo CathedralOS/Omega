@@ -12,6 +12,9 @@ pub(super) type Slots = BTreeMap<DescriptorLocation, Value>;
 #[derive(Clone, Default, PartialEq, Eq)]
 pub(super) struct State {
     pub(super) slots: Slots,
+    // Keys name incoming backing families, not addresses in local carriers.
+    // Values are captured origins; reading them never replays a later write.
+    pub(super) contents: BTreeMap<DescriptorContentsQuery, Value>,
     // Captured values remain valid; only later reads of untracked backing
     // contents become unavailable. The flag joins monotonically across edges.
     pub(super) contents_invalidated: bool,
@@ -490,26 +493,45 @@ impl<'a> Replay<'a> {
             {
                 let summary = self.summary(call.callee, depth + 1)?;
                 after.contents_invalidated |= summary.invalidates_contents;
-                let mut replacements = Slots::new();
+                let mut replacements = BTreeMap::new();
+                let mut destinations = Vec::new();
                 for effect in &summary.effects {
-                    let destination = self.canonical_storage(
-                        machine,
-                        &before,
-                        &self.actual_slot(call, effect.parameter, &effect.path)?,
-                    )?;
+                    let destination =
+                        self.actual_contents(call, effect.parameter, &effect.steps)?;
+                    let targets = self.contents_targets(machine, &before, &destination)?;
+                    let strong = targets.len() == 1
+                        && matches!(
+                            targets.first(),
+                            Some(super::contents_queries::ContentsTarget::Storage(_))
+                        );
+                    for target in targets {
+                        // Simultaneous effects do not define an order between
+                        // aliased definite writes. Preserve the exact-slot
+                        // refusal; only may-target effects can weakly union.
+                        if let super::contents_queries::ContentsTarget::Storage(location) = target {
+                            if destinations.iter().any(
+                                |(previous, definite): &(DescriptorLocation, bool)| {
+                                    (strong || *definite)
+                                        && (location.contains(previous)
+                                            || previous.contains(&location))
+                                },
+                            ) {
+                                return None;
+                            }
+                            destinations.push((location, strong));
+                        }
+                    }
                     let mut origins = BTreeSet::new();
                     for origin in &effect.origins {
                         origins.extend(self.substitute(machine, &before, call, origin)?);
                     }
-                    // Aliased outputs are not an order in which to replay
-                    // writes. Until disjointness is proved, refuse ambiguity.
-                    if replacements
-                        .keys()
-                        .any(|other| destination.contains(other) || other.contains(&destination))
-                    {
-                        return None;
-                    }
-                    replacements.insert(destination, Some(origins));
+                    self.contents_replacements(
+                        machine,
+                        &before,
+                        &destination,
+                        Some(origins),
+                        &mut replacements,
+                    )?;
                 }
                 if let Some(result) = &call.result {
                     for slot in summary.result.as_ref()? {
@@ -524,15 +546,13 @@ impl<'a> Replay<'a> {
                         for origin in &slot.origins {
                             origins.extend(self.substitute(machine, &before, call, origin)?);
                         }
-                        replacements.insert(destination, Some(origins));
+                        replacements.insert(
+                            super::contents_queries::ContentsTarget::Storage(destination),
+                            Some(origins),
+                        );
                     }
                 }
-                for (destination, value) in replacements {
-                    after.slots.retain(|location, _| {
-                        location == &destination || !destination.contains(location)
-                    });
-                    after.slots.insert(destination, value);
-                }
+                Self::install_contents(&mut after, replacements);
             }
             for edge in &step.successors {
                 if !machine.flow.contains_key(&edge.target) {
@@ -781,13 +801,41 @@ impl<'a> Replay<'a> {
                 }
                 effects.push(DescriptorStoredEffect {
                     parameter,
-                    path: slot.path,
+                    steps: slot
+                        .path
+                        .into_iter()
+                        .map(DescriptorContentsStep::Address)
+                        .collect(),
                     origins: origins
                         .iter()
                         .map(|origin| self.exported(machine, origin))
                         .collect::<Option<_>>()?,
                 });
             }
+        }
+        let contents = machine
+            .normal_exits
+            .iter()
+            .filter_map(|position| states.get(position))
+            .flat_map(|state| state.contents.keys().cloned())
+            .collect::<BTreeSet<_>>();
+        for query in contents {
+            let (parameter, _, root_type) = self.parameter(machine, query.root)?;
+            query.validate(self.types, root_type)?;
+            let mut origins = BTreeSet::new();
+            for exit in &machine.normal_exits {
+                if let Some(state) = states.get(exit) {
+                    origins.extend(state.incoming_contents(&query)?);
+                }
+            }
+            effects.push(DescriptorStoredEffect {
+                parameter,
+                steps: query.steps,
+                origins: origins
+                    .iter()
+                    .map(|origin| self.exported(machine, origin))
+                    .collect::<Option<_>>()?,
+            });
         }
         let invalidates_contents = machine.normal_exits.iter().any(|position| {
             states
@@ -874,6 +922,25 @@ pub(super) fn merge_value(state: &mut Slots, location: DescriptorLocation, value
 fn merge_state(existing: &mut State, incoming: &State) -> bool {
     let before = existing.clone();
     existing.contents_invalidated |= incoming.contents_invalidated;
+    for query in before
+        .contents
+        .keys()
+        .chain(incoming.contents.keys())
+        .cloned()
+        .collect::<BTreeSet<_>>()
+    {
+        let value = match (
+            before.incoming_contents(&query),
+            incoming.incoming_contents(&query),
+        ) {
+            (Some(mut left), Some(right)) => {
+                left.extend(right);
+                Some(left)
+            }
+            _ => None,
+        };
+        existing.contents.insert(query, value);
+    }
     for location in before
         .slots
         .keys()
@@ -891,4 +958,39 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
         existing.slots.insert(location, value);
     }
     *existing != before
+}
+
+impl State {
+    pub(super) fn incoming_contents(&self, query: &DescriptorContentsQuery) -> Value {
+        let mut origins = BTreeSet::from([Origin::IncomingContents(query.clone())]);
+        for (written, value) in &self.contents {
+            if written.root != query.root {
+                continue;
+            }
+            let overlaps = written.steps.iter().zip(&query.steps).all(|(left, right)| {
+                left == right
+                    || matches!(
+                        (left, right),
+                        (
+                            DescriptorContentsStep::AnyElement { .. },
+                            DescriptorContentsStep::Address(DescriptorPathSegment::FixedIndex(_))
+                        ) | (
+                            DescriptorContentsStep::Address(DescriptorPathSegment::FixedIndex(_)),
+                            DescriptorContentsStep::AnyElement { .. }
+                        )
+                    )
+            });
+            if !overlaps {
+                continue;
+            }
+            // A changed descriptor on the route is not the queried leaf's
+            // payload. Without reconstructed intermediate backing, entry-only
+            // contents would omit that replacement; do not invent provenance.
+            if written.steps.len() != query.steps.len() {
+                return None;
+            }
+            origins.extend(value.as_ref()?.iter().cloned());
+        }
+        Some(origins)
+    }
 }

@@ -52,6 +52,7 @@ impl DescriptorLoans {
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
         let mut births = Vec::new();
+        let mut escaped_births = BTreeSet::new();
         for block in &function.blocks {
             for (index, node) in block.nodes.iter().enumerate() {
                 let position = (
@@ -90,8 +91,12 @@ impl DescriptorLoans {
                     .into_iter()
                     .flatten()
                 {
+                    let destination = effect.destination.observation();
+                    if effect.destination.exact_location().is_none() {
+                        escaped_births.insert((position, destination.clone()));
+                    }
                     births.extend(effect.origins.iter().filter_map(|origin| match origin {
-                        terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, projection } => Some((position, effect.destination.clone(), *source, projection.clone(), StructuralAccess::SharedBorrow)),
+                        terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, projection } => Some((position, destination.clone(), *source, projection.clone(), StructuralAccess::SharedBorrow)),
                         _ => None,
                     }));
                 }
@@ -175,11 +180,32 @@ impl DescriptorLoans {
         let flow = descriptor_flow(function, types, borrowed_regions);
         let mut loans = Vec::with_capacity(births.len());
         for (birth, descriptor, source, projection, access) in births {
-            let lifetime = terminal_semantics::descriptor_lifetimes::descriptor_location_lifetime(
-                &flow,
-                birth,
-                &descriptor,
-            );
+            let mut lifetime =
+                terminal_semantics::descriptor_lifetimes::descriptor_location_lifetime(
+                    &flow,
+                    birth,
+                    &descriptor,
+                );
+            if escaped_births.contains(&(birth, descriptor.clone())) {
+                // No exact cohort name can retire a value installed into an
+                // unresolved backing family. Retain interference after the
+                // call, without granting access to its enclosing carrier.
+                lifetime.authorized.clear();
+                let mut pending = flow
+                    .get(&birth)
+                    .into_iter()
+                    .flat_map(|step| step.successors.iter().map(|edge| edge.target))
+                    .collect::<Vec<_>>();
+                let mut visited = BTreeSet::new();
+                while let Some(position) = pending.pop() {
+                    if visited.insert(position) {
+                        lifetime.live.insert(position);
+                        if let Some(step) = flow.get(&position) {
+                            pending.extend(step.successors.iter().map(|edge| edge.target));
+                        }
+                    }
+                }
+            }
             loans.push(DescriptorLoan {
                 incoming: borrowed_regions.incoming_origin_at(
                     (birth.0, birth.1 + 1),

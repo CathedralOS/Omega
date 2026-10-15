@@ -45,40 +45,10 @@ pub(super) fn call_result_origins(
     let (machine, state) = machine_state_by_symbol(program, call.target_symbol)?;
     let parameters = program.state_parameters(state);
     let arguments = program.expression_table.expression_handles(call.arguments);
-    if include_shared
-        && arguments
-            .iter()
-            .copied()
-            .chain(call.receiver.is_valid().then_some(call.receiver))
-            .any(|expression| {
-                super::local_aliases::expression_has_exclusive_borrow(
-                    program,
-                    expression,
-                    &|target| {
-                        let Some((state, _, _)) = super::caller_aliases::caller_statement_at_site(
-                            program,
-                            caller_machine,
-                            symbols,
-                            super::caller_aliases::CallerWriteSite::Expression(target),
-                        ) else {
-                            return true;
-                        };
-                        crate::value_custody::places::declared_place_type_raw(
-                            program,
-                            caller_machine,
-                            Some(state),
-                            target,
-                        )
-                        .is_none_or(|reference| {
-                            super::type_reference_is_reference(program, reference)
-                        })
-                    },
-                )
-            })
-    {
-        // A proven returned leaf cannot excuse exposure in another operand.
-        return None;
-    }
+    // Operand exposure and writes belong to the chronological call transfer.
+    // Reference-shaped operands include ordinary borrowed collection windows;
+    // their type alone cannot decide whether a descriptor binding was exposed.
+    // Instantiate the returned leaves against that same captured caller prefix.
     if inference.active_states.contains(&state.symbol)
         || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !machine.body_is_present

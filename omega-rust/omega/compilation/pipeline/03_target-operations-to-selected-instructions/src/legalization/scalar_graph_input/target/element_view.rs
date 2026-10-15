@@ -529,6 +529,11 @@ impl Checker<'_> {
                     return false;
                 }
             }
+            (None, terminal_semantics::CollectionExtent::StoredLength) => {
+                if extent != target_operations::TargetViewExtent::StoredLength {
+                    return false;
+                }
+            }
         }
         let Some(stride) =
             crate::structural_inputs::structural_reference_input::shape(element, self.types)
@@ -546,7 +551,8 @@ impl Checker<'_> {
         // elements; a fixed collection names its first element directly.
         let leading: u64 = match backing.extent {
             terminal_semantics::CollectionExtent::LiveLength { .. } => 8,
-            terminal_semantics::CollectionExtent::Fixed(_) => 0,
+            terminal_semantics::CollectionExtent::Fixed(_)
+            | terminal_semantics::CollectionExtent::StoredLength => 0,
         };
         stride != 0
             && stride == element_stride

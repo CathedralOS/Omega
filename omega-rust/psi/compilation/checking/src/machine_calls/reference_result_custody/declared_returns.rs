@@ -4,7 +4,9 @@
 //! still supplies its concrete descriptor; these rows cannot form an address.
 
 use super::{is_mutable_structural_parameter, loan_owner_path, record_carrier_sources};
-use crate::borrow_contracts::{ViewReturnSource, resolve_signature_view_return_source};
+use crate::borrow_contracts::{
+    ViewReturnInputSource, ViewReturnSource, resolve_signature_view_return_source,
+};
 use checked_trees::{
     CheckedReferenceOriginProjection, CheckedReferenceOriginSourcePlan,
     CheckedReturnedReferencePlan, CheckedUnitStructuralArgumentSourcePlan,
@@ -39,6 +41,7 @@ pub fn returned_sources(
                 owner_path: loan_owner_path(program, return_type, &leaf.path)
                     .ok_or("public result leaf has no loan owner path")?,
                 source_path: Vec::new(),
+                source: crate::borrow_contracts::ViewReturnInputSource::Referent,
                 source_type: parameters
                     .get(parameter_index)
                     .ok_or("public result lifetime names no parameter")?
@@ -74,16 +77,19 @@ pub fn returned_sources(
                 .count(),
         )
         .map_err(|_| "public result structural parameter ordinal overflows")?;
-        let input_leaves = record_carrier_sources(
-            program,
-            parameter.type_reference,
-            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
-        )
-        .ok_or("public input has no complete reference carrier roster")?;
+        let input_carrier = match field.source {
+            ViewReturnInputSource::Referent => parameter.type_reference,
+            ViewReturnInputSource::Stored => {
+                super::input_carrier_type(program, parameter.type_reference)
+                    .ok_or("public input cannot expose stored descriptors")?
+            }
+        };
+        let input_leaves = super::declared_carrier_references(program, input_carrier)
+            .ok_or("public input has no complete reference carrier roster")?;
         let input = input_leaves
             .iter()
             .find(|leaf| {
-                loan_owner_path(program, parameter.type_reference, &leaf.path).as_ref()
+                super::origin_owner_path(program, input_carrier, leaf.path.iter().cloned()).as_ref()
                     == Some(&field.source_path)
             })
             .ok_or("public input lifetime path has no matching carrier leaf")?;
@@ -95,27 +101,32 @@ pub fn returned_sources(
                     && leaf.source.access.borrow_access_kind().as_ref() == Some(&field.kind)
             })
             .ok_or("public output lifetime path has no matching carrier leaf")?;
-        if !super::reference_access_can_supply(input.source.access, result.source.access) {
+        if !super::reference_access_can_supply(input.access, result.source.access) {
             return Err("public input access does not supply returned access");
         }
-        let mut path = input.source.path.clone();
-        // A borrowed formal already denotes external backing. A reference
-        // stored inside an owned formal instead retains its descriptor crossing.
-        if crate::reference_shell(program, parameter.type_reference).is_some()
-            && path.first() == Some(&CheckedUnitStructuralPathSegment::Referent)
-        {
-            path.remove(0);
+        let mut path = Vec::new();
+        if field.source == ViewReturnInputSource::Stored {
+            // Borrowed container access and its stored descriptor are distinct
+            // crossings. Slice inputs expose elements without a pointer step.
+            if super::stored_loan_parts(program, parameter.type_reference).is_some() {
+                path.push(CheckedReferenceOriginProjection::Exact(
+                    CheckedUnitStructuralPathSegment::Referent,
+                ));
+            }
+            path.extend(input.path.iter().cloned());
+            if input.crosses_reference {
+                path.push(CheckedReferenceOriginProjection::Exact(
+                    CheckedUnitStructuralPathSegment::Referent,
+                ));
+            }
         }
         let origin = CheckedReturnedReferencePlan {
             path: result.path.clone(),
             source: CheckedReferenceOriginSourcePlan {
                 parameter_index,
-                path: path
-                    .into_iter()
-                    .map(CheckedReferenceOriginProjection::Exact)
-                    .collect(),
+                path,
                 extent: ReferenceOriginExtent::WithinRegion,
-                type_identity: input.source.type_identity,
+                type_identity: input.type_identity,
                 access: result.source.access,
             },
         };

@@ -3,7 +3,9 @@
 //! spellings in a caller and a callback never imply equal region identities.
 //! Opaque types remain under the preceding complete formation proof.
 
-use super::carried_lifetimes::{CarriedLifetime, RegionIdentity, scoped_carried_lifetimes};
+use super::carried_lifetimes::{
+    CarriedLifetime, LifetimeFrontier, RegionIdentity, scoped_carried_lifetimes,
+};
 use super::{ViewReturnSource, structural_frontier_return_source};
 use checked_trees::BorrowLoanOwnerSegment;
 use symbols::SymbolHandle;
@@ -180,7 +182,12 @@ pub fn validate_callable_borrow_refinement(
     {
         for required_leaf in required_leaves {
             let Some(actual_leaf) = actual_leaves.iter().find(|leaf| {
-                contract_paths_correspond(program, &required_leaf.owner_path, &leaf.owner_path)
+                required_leaf.source == leaf.source
+                    && contract_paths_correspond(
+                        program,
+                        &required_leaf.owner_path,
+                        &leaf.owner_path,
+                    )
             }) else {
                 return Err("callable input has a different carried region frontier");
             };
@@ -238,7 +245,7 @@ fn contract_frontier(
     scope_starts: &[usize],
 ) -> Result<ContractFrontier, &'static str> {
     let regions = super::callable_regions::resolve(program, contract)?;
-    let collect = |reference| {
+    let collect = |reference, frontier| {
         let leaves = scoped_carried_lifetimes(
             program,
             reference,
@@ -250,6 +257,7 @@ fn contract_frontier(
             &regions.applications,
             contract.lexical_owner,
             true,
+            frontier,
         )
         .ok_or("unimplemented: callable input region frontier is incomplete")?;
         if leaves
@@ -263,9 +271,9 @@ fn contract_frontier(
     let inputs = contract
         .parameters
         .iter()
-        .map(|parameter| collect(parameter.type_reference))
+        .map(|parameter| collect(parameter.type_reference, LifetimeFrontier::Input))
         .collect::<Result<Vec<_>, &'static str>>()?;
-    let outputs = collect(contract.return_type)?;
+    let outputs = collect(contract.return_type, LifetimeFrontier::Value)?;
     let sources = frontier_sources(&inputs, &outputs, contract.parameters);
     Ok(ContractFrontier {
         regions,
@@ -294,6 +302,7 @@ fn frontier_sources(
                         owner_path: leaf.owner_path.clone(),
                         lifetime: leaf.lifetime.clone(),
                         access: leaf.access,
+                        source: leaf.source,
                     },
                 )
             })
@@ -472,6 +481,7 @@ fn sources_refine(
                         &actual.source_path,
                     )
                     && actual.parameter_index == required.parameter_index
+                    && actual.source == required.source
                     && actual.kind == required.kind
             })
         }) =>

@@ -159,6 +159,10 @@ pub(crate) fn lower_reference_source(
 /// Normalize exact caller-relative origins under each returned reference leaf.
 /// Multiple completion alternatives share one output path without losing their
 /// distinct source places, projections, or access permissions.
+/// Checked custody also includes sequence descriptors. Terminal reconstructs
+/// their returned contents through descriptor replay, including stored input
+/// snapshots and runtime-selected element families. They must not enter this
+/// pointer-only table: a descriptor's backing is not its container's referent.
 pub(crate) fn lower_reference_result_sources(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
@@ -167,36 +171,83 @@ pub(crate) fn lower_reference_result_sources(
     structural_types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
 ) -> Result<Vec<terminal_psi::StructuralReferenceResultSource>, LoweringError> {
-    let mut references = references
-        .iter()
-        .map(|reference| {
-            if reference.source.access == CheckedStructuralAccess::Owned {
-                return unsupported("returned origin cannot transfer owned storage");
-            }
-            let parameter_index = reference.source.parameter_index;
-            let parameter = parameters.get(parameter_index as usize).ok_or(
-                LoweringError::Unsupported("returned origin lost its input parameter"),
-            )?;
-            let path = crate::expression_preparation::bindings::structural_paths::lower_reference_origin_path(
-                identities, checked, &reference.source.path, parameter.structural_type, structural_types,
-            )?;
-            let source = terminal_psi::ReferenceOriginSource {
-                place: parameter.place,
-                extent: reference.source.extent,
-                path,
-                access: crate::expression_preparation::bindings::structural_paths::terminal_access(reference.source.access),
-            };
-            Ok(
-            terminal_psi::StructuralReferenceResultSource {
-                path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(identities, &reference.path, result_type, structural_types)?,
-                sources: vec![source],
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    references.sort_by(|left, right| left.path.cmp(&right.path));
-    let mut grouped: Vec<terminal_psi::StructuralReferenceResultSource> =
-        Vec::with_capacity(references.len());
+    let mut lowered = Vec::new();
     for reference in references {
+        if reference.source.access == CheckedStructuralAccess::Owned {
+            return unsupported("returned origin cannot transfer owned storage");
+        }
+        let result_path =
+            crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                identities,
+                &reference.path,
+                result_type,
+                structural_types,
+            )?;
+        let field_carrier = terminal_semantics::runtime_structural_field(
+            structural_types.iter(),
+            result_type,
+            &result_path,
+        )
+        .and_then(|field| field.field_type.byte_sequence_carrier());
+        let leaf = terminal_semantics::runtime_structural_path_tip(
+            structural_types.iter(),
+            result_type,
+            &result_path,
+        );
+        if matches!(
+            field_carrier,
+            Some(terminal_psi::byte_sequence_view_carrier_pattern!())
+        ) || leaf.is_some_and(|leaf| {
+            matches!(
+                leaf.shape,
+                terminal_psi::StructuralTypeShape::ElementView { .. }
+                    | terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::byte_sequence_view_carrier_pattern!()
+                    )
+            )
+        }) {
+            continue;
+        }
+        if !leaf.is_some_and(|leaf| {
+            matches!(
+                leaf.shape,
+                terminal_psi::StructuralTypeShape::Reference { .. }
+            )
+        }) {
+            return unsupported("returned origin has no borrowed carrier leaf");
+        }
+        let parameter_index = reference.source.parameter_index;
+        let parameter =
+            parameters
+                .get(parameter_index as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "returned origin lost its input parameter",
+                ))?;
+        let path =
+            crate::expression_preparation::bindings::structural_paths::lower_reference_origin_path(
+                identities,
+                checked,
+                &reference.source.path,
+                parameter.structural_type,
+                structural_types,
+            )?;
+        let source = terminal_psi::ReferenceOriginSource {
+            place: parameter.place,
+            extent: reference.source.extent,
+            path,
+            access: crate::expression_preparation::bindings::structural_paths::terminal_access(
+                reference.source.access,
+            ),
+        };
+        lowered.push(terminal_psi::StructuralReferenceResultSource {
+            path: result_path,
+            sources: vec![source],
+        });
+    }
+    lowered.sort_by(|left, right| left.path.cmp(&right.path));
+    let mut grouped: Vec<terminal_psi::StructuralReferenceResultSource> =
+        Vec::with_capacity(lowered.len());
+    for reference in lowered {
         if let Some(group) = grouped.last_mut()
             && group.path == reference.path
         {

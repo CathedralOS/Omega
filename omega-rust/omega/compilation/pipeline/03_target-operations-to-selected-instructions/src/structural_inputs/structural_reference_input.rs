@@ -1117,7 +1117,10 @@ pub(crate) fn collection_view_region_geometry(
         }
     };
     if backing.storage == terminal_semantics::CollectionStorage::Borrowed
-        && (byte_window.is_some() || (view_element.is_some() && representation.is_none()))
+        && (byte_window.is_some()
+            || (view_element.is_some()
+                && representation.is_none()
+                && backing.extent != terminal_semantics::CollectionExtent::StoredLength))
     {
         return None;
     }
@@ -1171,6 +1174,11 @@ pub(crate) fn collection_view_region_geometry(
             length,
             terminal_semantics::CollectionExtent::Fixed(length),
         ),
+        // This count is loaded at runtime. Only descriptor storage contributes
+        // to the finite footprint below, never a fabricated capacity.
+        (None, terminal_semantics::CollectionExtent::StoredLength) => {
+            (0, 0, terminal_semantics::CollectionExtent::StoredLength)
+        }
     };
     let offset = offset.checked_add(window_offset)?;
     let storage_size = match backing.storage {
@@ -1181,10 +1189,22 @@ pub(crate) fn collection_view_region_geometry(
                 element_count.checked_mul(u64::from(element_stride))?
             }
         }
-        terminal_semantics::CollectionStorage::Borrowed => 8,
+        terminal_semantics::CollectionStorage::Borrowed => {
+            if extent == terminal_semantics::CollectionExtent::StoredLength {
+                16
+            } else {
+                8
+            }
+        }
     };
-    let end = u64::from(offset).checked_add(storage_size)?;
-    if end > u64::from(shape(source.structural_type, declarations)?.byte_size) {
+    // The selected collection owns this finite footprint. After indexing a
+    // view, `offset` is in its element storage, not in the root descriptor's
+    // two words. Projection already validates the containing field layout.
+    let (selected_storage, _, _) =
+        runtime_storage_projection(source.structural_type, field_path, declarations)?;
+    let selected_size = field_shape(&selected_storage, declarations, &mut Vec::new())?.byte_size;
+    let end = u64::from(window_offset).checked_add(storage_size)?;
+    if end > u64::from(selected_size) {
         return None;
     }
     Some(CollectionViewGeometry {

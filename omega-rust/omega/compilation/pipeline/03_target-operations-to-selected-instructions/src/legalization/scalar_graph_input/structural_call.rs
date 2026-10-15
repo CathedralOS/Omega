@@ -32,18 +32,6 @@ pub(in crate::legalization) fn argument_at(
         .scalar_parameter_count()
         .checked_add(position)
         .ok_or(LegalizationError::custody())?;
-    if let Some(argument) = byte_views::argument(
-        semantic,
-        call_operation,
-        caller,
-        destination_parameter,
-        call,
-        parameter_ordinal,
-        native,
-        plan,
-    )? {
-        return Ok(argument);
-    }
     // A reference crossing retains the exact carrier that stores its address.
     if semantic
         .path
@@ -102,10 +90,10 @@ pub(in crate::legalization) fn argument_at(
         );
     }
     // A typed subtree borrows its root's retained storage, whether the root
-    // arrived or was established here. This includes declared byte owners,
-    // not only scalar leaves. Inline byte fields unresolved by the typed query
-    // retain their field adapter; descriptor endpoints keep their presentation
-    // route. Selecting through a descriptor root still uses its actual backing.
+    // arrived or was established here. This includes stored descriptors and
+    // declared byte owners, not only scalar leaves. A descriptor endpoint
+    // forwards its existing payload in every admitted access mode; only a
+    // different owner-to-view presentation needs the adapter below.
     let root_type = caller
         .arrival_parameter(semantic.place)
         .map(|parameter| parameter.structural_type)
@@ -115,17 +103,6 @@ pub(in crate::legalization) fn argument_at(
                 .and_then(|place| place.kind.produced_structural_type())
         });
     if !semantic.path.is_empty()
-        && find_structural_type(
-            &plan.structural_types,
-            destination_parameter.structural_type,
-        )
-        .is_some_and(|declaration| {
-            !declaration.shape.is_borrowed_byte_carrier()
-                && !matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::ElementView { .. }
-                )
-        })
         && root_type.is_some_and(|root| {
             crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
                 root,
@@ -147,6 +124,18 @@ pub(in crate::legalization) fn argument_at(
             native,
             plan,
         );
+    }
+    if let Some(argument) = byte_views::argument(
+        semantic,
+        call_operation,
+        caller,
+        destination_parameter,
+        call,
+        parameter_ordinal,
+        native,
+        plan,
+    )? {
+        return Ok(argument);
     }
     // A dominating local array lends its producing home through a
     // borrowed byte or element view: the same presentation an incoming

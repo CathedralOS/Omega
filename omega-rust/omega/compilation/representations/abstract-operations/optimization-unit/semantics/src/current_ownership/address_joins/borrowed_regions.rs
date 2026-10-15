@@ -234,7 +234,7 @@ impl BorrowedRegions {
                                 .extend(
                                     actual_effects
                                         .iter()
-                                        .map(|effect| effect.destination.clone()),
+                                        .filter_map(|effect| effect.destination.exact_location()),
                                 );
                             effects.insert(position, actual_effects);
                         }

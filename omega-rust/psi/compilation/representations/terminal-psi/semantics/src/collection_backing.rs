@@ -28,6 +28,9 @@ pub enum CollectionExtent {
     /// The carrier's live element count fills the descriptor's extent word,
     /// loaded from the u64 header preceding `capacity` inline bytes.
     LiveLength { capacity: u64 },
+    /// A borrowed descriptor stores its captured count after its backing
+    /// pointer. This is not an inline owner's live-length header.
+    StoredLength,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,6 +106,12 @@ fn collection_shape_backing<'types>(
     element: StructuralTypeId,
 ) -> Option<CollectionBacking> {
     match *shape {
+        StructuralTypeShape::ElementView { element: actual } if actual == element => {
+            Some(CollectionBacking {
+                extent: CollectionExtent::StoredLength,
+                storage: CollectionStorage::Borrowed,
+            })
+        }
         StructuralTypeShape::FixedArray {
             element: actual,
             length,

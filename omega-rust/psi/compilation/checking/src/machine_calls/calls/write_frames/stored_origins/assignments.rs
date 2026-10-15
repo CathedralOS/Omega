@@ -31,6 +31,9 @@ pub(in crate::machine_calls::calls::write_frames) struct AssignmentOrigins {
     local: StoredLocalOrigins,
     segments: Vec<PlaceSegment>,
     may_select: bool,
+    /// Declared reference leaves in the replaced subtree. Inline fields do not
+    /// cross a pointer; only paths strictly below these leaves do.
+    reference_paths: Vec<Vec<PlaceSegment>>,
     /// An untracked indexed carrier still has declared sibling inventory.
     /// Missing runtime origins cannot turn those siblings into absent leaves.
     declared_inventory: Option<StoredLocalOrigins>,
@@ -58,8 +61,10 @@ impl AssignmentOrigins {
                     .map(|leaf| {
                         let mut retained = leaf.clone();
                         if self.may_select
-                            && self.segments.len() < leaf.local_segments.len()
-                            && prefix_matches(&self.segments, &leaf.local_segments)
+                            && self.reference_paths.iter().any(|reference| {
+                                reference.len() < leaf.local_segments.len()
+                                    && prefix_matches(reference, &leaf.local_segments)
+                            })
                         {
                             // The old descendant was reached through the old
                             // pointer. It cannot identify contents of a newly
@@ -224,6 +229,24 @@ fn assigned_stored_origins(
             *expression = Default::default();
         }
     }
+    // An aggregate's inline reference fields remain incoming alternatives for
+    // unselected elements. Only descendants reached through those pointers
+    // lose their old pointee correspondence. Use the declared frontier, not the
+    // replacement value's active case, so changing cases cannot hide an old
+    // pointer boundary from invalidation.
+    let reference_paths = if may_select {
+        super::declared_origins_for_query(program, source.root, "", target_type, true)?
+            .references
+            .into_iter()
+            .map(|reference| {
+                let mut path = source.segments.clone();
+                path.extend(reference.local_segments);
+                path
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
     // A move row owns its whole subtree. A replacement strictly inside that
     // subtree cannot split the transport it describes. Neither an exact nor
     // a possible member write can preserve a moved ancestor's whole-value
@@ -320,6 +343,7 @@ fn assigned_stored_origins(
         local: replaced,
         segments: source.segments,
         may_select,
+        reference_paths,
         declared_inventory,
     })
 }

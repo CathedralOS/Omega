@@ -278,6 +278,8 @@ pub(super) fn returned_value_loans(
                                 return Vec::new();
                             };
                             vec![ViewReturnFieldSource {
+                                source:
+                                    validation::borrow_contracts::ViewReturnInputSource::Referent,
                                 owner_path: Vec::new(),
                                 source_path: Vec::new(),
                                 source_type: parameter.type_reference,

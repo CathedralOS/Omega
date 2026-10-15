@@ -56,7 +56,7 @@ impl ReferenceCallEffects {
                             let path = descriptor_path(
                                 &declarations,
                                 parameter.structural_type,
-                                &effect.path,
+                                &effect.exact_path()?,
                             )?;
                             let access = if let Some(crossing) = path
                                 .iter()

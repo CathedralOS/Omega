@@ -18,6 +18,7 @@ use super::types::is_reference_type;
 use crate::borrow::view_link::{ViewReturnFieldSource, is_mutably_borrow_carrying_data};
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
+use validation::borrow_contracts::ViewReturnInputSource;
 
 /// The loan created by constructing a borrow-carrying `data` value in a `let`:
 /// the value borrows the source its reference field is initialized from.
@@ -282,7 +283,12 @@ pub(super) fn result_source_loans(
             let Some(argument) = arguments.get(field.parameter_index).copied() else {
                 return Vec::new();
             };
-            if !is_reference_type(program, field.source_type) {
+            let source_type = CallViewReturnContract::carrier_reference(
+                program,
+                field.source_type,
+                substitutions,
+            );
+            if !is_reference_type(program, source_type) {
                 return super::returned_carriers::argument_loans(
                     program,
                     state_symbol,
@@ -297,15 +303,17 @@ pub(super) fn result_source_loans(
                     &mut carried_arguments,
                 );
             }
-            if let Some(mut loans) = super::returned_carriers::relative_result_loans(
-                program,
-                state_symbol,
-                statement_index,
-                machine_symbol,
-                local_data,
-                argument,
-                loan_trackers,
-            ) {
+            if field.source == ViewReturnInputSource::Referent
+                && let Some(mut loans) = super::returned_carriers::relative_result_loans(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    machine_symbol,
+                    local_data,
+                    argument,
+                    loan_trackers,
+                )
+            {
                 super::returned_carriers::attenuate(&mut loans, &field.kind);
                 for loan in &mut loans {
                     loan.owner_path = owner_path.clone();
@@ -318,7 +326,7 @@ pub(super) fn result_source_loans(
                 }
                 return loans;
             }
-            let Some(place) = argument_borrow_loan_place(
+            let Some(mut place) = argument_borrow_loan_place(
                 program,
                 state_symbol,
                 statement_index,
@@ -327,12 +335,26 @@ pub(super) fn result_source_loans(
             ) else {
                 return Vec::new();
             };
+            // A stored descriptor supplies its backing loan, not a new loan of
+            // its container home. Select it before rebasing through captured
+            // storage; a referent result instead projects after that rebase.
+            if field.source == ViewReturnInputSource::Stored {
+                if projection.is_empty() {
+                    place
+                        .segments
+                        .extend(super::returned_carriers::place_segments(&field.source_path));
+                } else {
+                    place.segments.extend_from_slice(&projection);
+                }
+            }
             let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
             rebased
                 .iter()
                 .map(|source| {
                     let mut place = source.place.clone();
-                    place.segments.extend_from_slice(&projection);
+                    if field.source == ViewReturnInputSource::Referent {
+                        place.segments.extend_from_slice(&projection);
+                    }
                     StatementBorrowLoan {
                         formation_expression: argument,
                         owner_symbol: local_data.symbol,
@@ -347,7 +369,13 @@ pub(super) fn result_source_loans(
                             },
                         )),
                         source_owner_symbol: source.source_owner_symbol,
-                        supplying_loans: Vec::new(),
+                        supplying_loans: if field.source == ViewReturnInputSource::Stored
+                            && source.parent_loan.is_valid()
+                        {
+                            vec![source.parent_loan]
+                        } else {
+                            Vec::new()
+                        },
                         lineage: retained_reference_lineage(program, argument, source, &rebased),
                         kind: field.kind.clone(),
                         call_result: false,

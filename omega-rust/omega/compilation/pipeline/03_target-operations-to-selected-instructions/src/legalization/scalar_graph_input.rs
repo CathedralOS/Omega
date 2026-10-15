@@ -494,7 +494,8 @@ pub(super) fn match_input(
                     native,
                     plan,
                     &reference_custody::Custody::default(),
-                )?;
+                )
+                .map_err(|error| error.attributed(optimized.machine, Some(*psi_operation)))?;
             }
         }
     }

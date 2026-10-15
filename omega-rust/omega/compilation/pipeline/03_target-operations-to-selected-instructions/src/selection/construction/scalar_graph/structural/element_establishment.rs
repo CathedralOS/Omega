@@ -290,6 +290,21 @@ pub(super) fn establish(
                     builder.emit_load64(header, base, pointer, provenance(row))?;
                     pointer
                 }
+                terminal_semantics::CollectionExtent::StoredLength => {
+                    let count_offset = field_offset.checked_add(8).ok_or(invalid())?;
+                    let count = transport_register(builder, *destination, 8)?;
+                    super::runtime_address::footprint(
+                        builder,
+                        row,
+                        source.place,
+                        count_offset,
+                        8,
+                        indices,
+                        super::runtime_address::Written::None,
+                    )?;
+                    builder.emit_load64(count_offset, base, count, provenance(row))?;
+                    count
+                }
             };
             (backing, length)
         }

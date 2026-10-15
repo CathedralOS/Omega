@@ -380,13 +380,44 @@ impl<'a> DescriptorAnalysis<'a> {
         if summary.invalidates_contents {
             return None;
         }
-        summary.effects.iter().map(|effect| {
-            let destination = self.replay.canonical_storage(machine, before, &self.replay.actual_slot(call, effect.parameter, &effect.path)?)?;
-            let preserves_incoming = effect.origins.iter().any(|origin| matches!(origin, DescriptorStoredOrigin::IncomingSlot { position, path } if *position == effect.parameter && *path == effect.path));
+        let mut replacements = BTreeMap::new();
+        for effect in &summary.effects {
+            let destination = self
+                .replay
+                .actual_contents(call, effect.parameter, &effect.steps)?;
             let mut origins = BTreeSet::new();
-            for origin in &effect.origins { origins.extend(self.replay.substitute(machine, before, call, origin)?); }
-            Some(DescriptorStoredCallEffect { destination, origins: self.replay.symbolic(machine, origins)?, preserves_incoming })
-        }).collect()
+            for origin in &effect.origins {
+                origins.extend(self.replay.substitute(machine, before, call, origin)?);
+            }
+            self.replay.contents_replacements(
+                machine,
+                before,
+                &destination,
+                Some(origins),
+                &mut replacements,
+            )?;
+        }
+        replacements
+            .into_iter()
+            .map(|(target, value)| {
+                let destination = match target {
+                    super::contents_queries::ContentsTarget::Storage(location) => {
+                        DescriptorContentsQuery::from_location(&location)
+                    }
+                    super::contents_queries::ContentsTarget::Incoming(query) => query,
+                };
+                let origins = value?;
+                let preserves_incoming = self
+                    .replay
+                    .read_contents(machine, before, &destination)
+                    .is_some_and(|previous| previous.is_subset(&origins));
+                Some(DescriptorStoredCallEffect {
+                    destination,
+                    origins: self.replay.symbolic(machine, origins)?,
+                    preserves_incoming,
+                })
+            })
+            .collect()
     }
     /// Materialize exactly the same replacements and call substitutions used
     /// by origin replay into the shared cohort graph. Consumers may attach
@@ -464,34 +495,72 @@ impl<'a> DescriptorAnalysis<'a> {
             };
             let summary = self.replay.summaries.get(&call.callee)?.as_ref()?;
             step.may_escape |= summary.invalidates_contents;
-            let mut outputs = summary
-                .effects
-                .iter()
-                .map(|effect| {
-                    Some((
-                        self.replay
-                            .actual_slot(call, effect.parameter, &effect.path)?,
-                        effect.origins.as_slice(),
-                    ))
-                })
-                .collect::<Option<Vec<_>>>()?;
+            let mut outputs = Vec::new();
+            for effect in &summary.effects {
+                let query = self
+                    .replay
+                    .actual_contents(call, effect.parameter, &effect.steps)?;
+                let targets = self.replay.contents_targets(machine, before, &query)?;
+                let strong = targets.len() == 1
+                    && matches!(
+                        targets.first(),
+                        Some(super::contents_queries::ContentsTarget::Storage(_))
+                    );
+                for target in targets {
+                    match target {
+                        super::contents_queries::ContentsTarget::Storage(destination) => {
+                            outputs.push((destination, effect.origins.as_slice(), strong));
+                        }
+                        super::contents_queries::ContentsTarget::Incoming(query) => {
+                            // The cohort graph contains exact carrier addresses.
+                            // An unresolved family may retain values externally;
+                            // observe its carrier, never define/kill that carrier.
+                            step.inputs.push(query.observation());
+                            step.may_escape = true;
+                            for origin in &effect.origins {
+                                match origin {
+                                    DescriptorStoredOrigin::IncomingSlot { position, path } => step
+                                        .inputs
+                                        .push(self.replay.actual_slot(call, *position, path)?),
+                                    DescriptorStoredOrigin::IncomingContents {
+                                        position,
+                                        steps,
+                                    } => step.inputs.push(
+                                        self.replay
+                                            .actual_contents(call, *position, steps)?
+                                            .observation(),
+                                    ),
+                                    DescriptorStoredOrigin::Parameter { position, .. } => step
+                                        .inputs
+                                        .push(call.arguments.get(*position)?.as_ref()?.clone()),
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             if let Some(result) = &call.result {
                 for slot in summary.result.as_ref()? {
                     let mut destination = result.clone();
                     destination.path.extend_from_slice(&slot.path);
-                    outputs.push((destination, slot.origins.as_slice()));
+                    outputs.push((destination, slot.origins.as_slice(), true));
                 }
             }
-            for (destination, origins) in outputs {
+            for (destination, origins, strong) in outputs {
                 let destination = self
                     .replay
                     .canonical_storage(machine, before, &destination)?;
-                if !step.definitions.contains(&destination) {
+                // Materializing possible indexed destinations does not prove
+                // which slot was written. Weak updates retain old cohorts and
+                // add possible value flow, never exact permission derivation.
+                if strong && !step.definitions.contains(&destination) {
                     step.definitions.push(destination.clone());
                 }
                 for location in before.slots.keys() {
-                    if let Some(canonical) =
-                        self.replay.canonical_storage(machine, before, location)
+                    if strong
+                        && let Some(canonical) =
+                            self.replay.canonical_storage(machine, before, location)
                         && destination.contains(&canonical)
                         && !step.definitions.contains(location)
                     {
@@ -542,7 +611,9 @@ impl<'a> DescriptorAnalysis<'a> {
                         destination.clone(),
                     );
                     step.derivations.push(pair.clone());
-                    step.authority_derivations.push(pair);
+                    if strong {
+                        step.authority_derivations.push(pair);
+                    }
                 }
             }
         }

@@ -950,13 +950,21 @@ fn established_source(
                                 .checked_mul(capacity)
                                 .and_then(|span| span.checked_add(8))
                         }
+                        terminal_semantics::CollectionExtent::StoredLength => None,
                     }
                 }) != Some(u64::from(projected_shape.byte_size))
             }
             // The carrier contains one pointer, not capacity bytes. Dynamic
             // narrowing is a following subslice over the established descriptor.
             terminal_semantics::CollectionStorage::Borrowed => {
-                projected_shape.byte_size != 8 || byte_window.is_some()
+                let carrier_size = match extent_kind {
+                    terminal_semantics::CollectionExtent::StoredLength => 16,
+                    terminal_semantics::CollectionExtent::Fixed(_) => 8,
+                    terminal_semantics::CollectionExtent::LiveLength { .. } => {
+                        return Err(invalid());
+                    }
+                };
+                projected_shape.byte_size != carrier_size || byte_window.is_some()
             }
         }
     {
@@ -998,6 +1006,9 @@ fn established_source(
         // storage, after the live-length word.
         (None, terminal_semantics::CollectionExtent::LiveLength { .. }) => {
             (8, target_operations::TargetViewExtent::LiveLength)
+        }
+        (None, terminal_semantics::CollectionExtent::StoredLength) => {
+            (0, target_operations::TargetViewExtent::StoredLength)
         }
     };
     let source_byte_offset = source_byte_offset

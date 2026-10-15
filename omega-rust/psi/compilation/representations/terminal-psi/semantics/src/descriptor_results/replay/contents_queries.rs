@@ -5,8 +5,8 @@
 use super::replay::{Origin, State, Value};
 use super::*;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
-enum ContentsTarget {
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum ContentsTarget {
     Storage(DescriptorLocation),
     Incoming(DescriptorContentsQuery),
 }
@@ -25,14 +25,14 @@ impl Replay<'_> {
                     origins.extend(self.read(machine, state, &location)?);
                 }
                 ContentsTarget::Incoming(query) => {
-                    origins.insert(Origin::IncomingContents(query));
+                    origins.extend(state.incoming_contents(&query)?);
                 }
             }
         }
         Some(origins)
     }
 
-    fn contents_targets(
+    pub(super) fn contents_targets(
         &self,
         machine: &DescriptorMachine,
         state: &State,
@@ -210,54 +210,102 @@ impl Replay<'_> {
         for transfer in transfers {
             if transfer.removes_source
                 && self
-                    .materialized_targets(machine, before, &transfer.source)
+                    .contents_targets(machine, before, &transfer.source)
                     .is_none()
             {
                 after.contents_invalidated = true;
             }
-            let Some(targets) = self.materialized_targets(machine, before, &transfer.destination)
-            else {
-                after.contents_invalidated = true;
-                continue;
-            };
             let incoming = self.read_contents(machine, before, &transfer.source);
-            let strong = targets.len() == 1;
-            for target in targets {
-                let value = if strong {
-                    incoming.clone()
-                } else {
-                    // Unknown prior contents remain unknown: a possibly
-                    // selected write cannot initialize every candidate.
-                    match (self.read(machine, before, &target), incoming.as_ref()) {
-                        (Some(mut previous), Some(incoming)) => {
-                            previous.extend(incoming.iter().cloned());
-                            Some(previous)
-                        }
-                        _ => None,
-                    }
-                };
-                super::replay::merge_value(&mut replacements, target, value);
+            if self
+                .contents_replacements(
+                    machine,
+                    before,
+                    &transfer.destination,
+                    incoming,
+                    &mut replacements,
+                )
+                .is_none()
+            {
+                after.contents_invalidated = true;
             }
         }
-        after.slots.extend(replacements);
+        Self::install_contents(after, replacements);
     }
 
-    fn materialized_targets(
+    /// A singleton symbolic family still contains an unknown number of slots.
+    /// Only an exhaustively resolved single storage location permits replacement.
+    /// All right-hand sides and previous alternatives come from the same snapshot.
+    pub(super) fn contents_replacements(
         &self,
         machine: &DescriptorMachine,
-        state: &State,
+        before: &State,
         query: &DescriptorContentsQuery,
-    ) -> Option<BTreeSet<DescriptorLocation>> {
-        let targets = self.contents_targets(machine, state, query)?;
+        incoming: Value,
+        replacements: &mut BTreeMap<ContentsTarget, Value>,
+    ) -> Option<()> {
+        let targets = self.contents_targets(machine, before, query)?;
         if targets.is_empty() {
             return None;
         }
-        targets
-            .into_iter()
-            .map(|target| match target {
-                ContentsTarget::Storage(location) => Some(location),
-                ContentsTarget::Incoming(_) => None,
-            })
-            .collect()
+        let strong =
+            targets.len() == 1 && matches!(targets.first(), Some(ContentsTarget::Storage(_)));
+        for target in targets {
+            let value = if strong {
+                incoming.clone()
+            } else {
+                let previous = match &target {
+                    ContentsTarget::Storage(location) => self.read(machine, before, location),
+                    ContentsTarget::Incoming(query) => before.incoming_contents(query),
+                };
+                match (previous, incoming.as_ref()) {
+                    (Some(mut previous), Some(incoming)) => {
+                        previous.extend(incoming.iter().cloned());
+                        Some(previous)
+                    }
+                    _ => None,
+                }
+            };
+            match replacements.get_mut(&target) {
+                None => {
+                    replacements.insert(target, value);
+                }
+                Some(existing) => match (existing.as_mut(), value) {
+                    (Some(existing), Some(value)) => existing.extend(value),
+                    _ => *existing = None,
+                },
+            }
+        }
+        Some(())
+    }
+
+    pub(super) fn install_contents(
+        state: &mut State,
+        replacements: BTreeMap<ContentsTarget, Value>,
+    ) {
+        for (target, value) in replacements {
+            match target {
+                ContentsTarget::Storage(location) => {
+                    state
+                        .slots
+                        .retain(|stored, _| stored == &location || !location.contains(stored));
+                    state.slots.insert(location, value);
+                }
+                ContentsTarget::Incoming(query) => {
+                    state.contents.insert(query, value);
+                }
+            }
+        }
+    }
+
+    pub(super) fn actual_contents(
+        &self,
+        call: &DescriptorInvocation,
+        parameter: usize,
+        steps: &[DescriptorContentsStep],
+    ) -> Option<DescriptorContentsQuery> {
+        let mut query =
+            DescriptorContentsQuery::from_location(call.arguments.get(parameter)?.as_ref()?);
+        query.steps.extend_from_slice(steps);
+        Some(query)
     }
 }

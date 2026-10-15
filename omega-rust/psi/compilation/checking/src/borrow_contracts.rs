@@ -57,9 +57,18 @@ pub enum ViewReturnSource {
 pub struct ViewReturnFieldSource {
     pub owner_path: Vec<BorrowOwnerSegment>,
     pub source_path: Vec<BorrowOwnerSegment>,
+    pub source: ViewReturnInputSource,
     pub source_type: TypeReferenceHandle,
     pub parameter_index: usize,
     pub kind: checked_trees::BorrowAccessKind,
+}
+
+/// Borrowing the parameter's referent and transferring a descriptor stored in
+/// it have different lifetimes, even when both have an empty structural path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewReturnInputSource {
+    Referent,
+    Stored,
 }
 
 /// Why a view-returning signature could not be resolved to a single input.
@@ -87,54 +96,6 @@ pub fn resolve_view_return_source(
     )
 }
 
-/// Map a declared return lifetime onto the reference inputs carrying it:
-/// no match is ambiguous, one match names the source parameter, several
-/// fold into the structural union; a lifetime-free return falls back to
-/// the unlabeled input count. A single direct source must pass the same
-/// complete-frontier/access judgment as a union before retaining the compact
-/// Parameter relation; lifetime agreement alone cannot escalate source access.
-fn lifetime_return_source(
-    ref_parameters: &[(usize, &str, Option<&str>)],
-    output_lifetime: Option<&str>,
-    union: impl FnOnce() -> ViewReturnSource,
-) -> ViewReturnSource {
-    match output_lifetime {
-        Some(output_lifetime) => {
-            let matching: Vec<&(usize, &str, Option<&str>)> = ref_parameters
-                .iter()
-                .filter(|(_, _, lifetime)| *lifetime == Some(output_lifetime))
-                .collect();
-            match matching.as_slice() {
-                [] => ViewReturnSource::Ambiguous(ViewReturnAmbiguity::LifetimeMatchesNoInput {
-                    lifetime: output_lifetime.to_owned(),
-                }),
-                [single] => match union() {
-                    ViewReturnSource::Ambiguous(reason) => ViewReturnSource::Ambiguous(reason),
-                    _ => ViewReturnSource::Parameter {
-                        parameter_index: single.0,
-                    },
-                },
-                _ => union(),
-            }
-        }
-        None => match ref_parameters {
-            [] => ViewReturnSource::NotApplicable,
-            [single] => match union() {
-                ViewReturnSource::Ambiguous(reason) => ViewReturnSource::Ambiguous(reason),
-                _ => ViewReturnSource::Parameter {
-                    parameter_index: single.0,
-                },
-            },
-            _ => ViewReturnSource::Ambiguous(ViewReturnAmbiguity::ElidedMultipleInputs {
-                candidates: ref_parameters
-                    .iter()
-                    .map(|(_, name, _)| (*name).to_owned())
-                    .collect(),
-            }),
-        },
-    }
-}
-
 /// Resolve the same lifetime/source relation for a bodyless callable
 /// signature. Boundary-trait requirements and compile-time machine parameters
 /// have no `State`, but their returned views create the same caller-side loans.
@@ -147,38 +108,9 @@ pub fn resolve_signature_view_return_source(
         return ViewReturnSource::NotApplicable;
     }
 
-    // Reference parameters paired with their argument ordinal and lifetime.
-    let mut ref_parameters: Vec<(usize, &str, Option<&str>)> = Vec::new();
-    let mut parameter_index = 0usize;
-    for parameter in parameters {
-        let index = parameter_index;
-        parameter_index = parameter_index.saturating_add(1);
-        if is_reference_type(program, parameter.type_reference) {
-            ref_parameters.push((
-                index,
-                parameter.name.as_str(),
-                reference_lifetime(program, parameter.type_reference),
-            ));
-        }
-    }
-
-    if !is_reference_type(program, return_type)
-        || parameters.iter().any(|parameter| {
-            !is_reference_type(program, parameter.type_reference)
-                && returns_borrow(program, parameter.type_reference)
-        })
-    {
-        // A direct result can forward a reference carried by an owned input.
-        // It has an empty output path but the same structural input lifetime
-        // frontier as a reference returned inside another carrier.
-        return structural_view_return_source(program, parameters, return_type, &[], &[], &[]);
-    }
-
-    lifetime_return_source(
-        &ref_parameters,
-        reference_lifetime(program, return_type),
-        || structural_view_return_source(program, parameters, return_type, &[], &[], &[]),
-    )
+    // Direct and aggregate results select the same input sources. Looking only
+    // at outer reference lifetimes would erase descriptors inside a borrow.
+    structural_view_return_source(program, parameters, return_type, &[], &[], &[])
 }
 
 /// The same lifetime/source relation decided after one call's exact
@@ -199,79 +131,14 @@ pub fn resolve_substituted_view_return_source(
     if !substituted_returns_borrow(program, return_type, substitutions, scope_starts) {
         return ViewReturnSource::NotApplicable;
     }
-    if !substituted_is_reference_type(program, return_type, substitutions)
-        || parameters.iter().any(|parameter| {
-            !substituted_is_reference_type(program, parameter.type_reference, substitutions)
-                && substituted_returns_borrow(
-                    program,
-                    parameter.type_reference,
-                    substitutions,
-                    scope_starts,
-                )
-        })
-    {
-        // Carrier results — and direct references possibly forwarded from an
-        // owned borrow-carrying input — resolve leaf by leaf on the
-        // instantiated frontier.
-        return structural_view_return_source(
-            program,
-            parameters,
-            return_type,
-            substitutions,
-            scope_starts,
-            &[],
-        );
-    }
-
-    let mut ref_parameters: Vec<(usize, &str, Option<&str>)> = Vec::new();
-    let mut parameter_index = 0usize;
-    for parameter in parameters {
-        let index = parameter_index;
-        parameter_index = parameter_index.saturating_add(1);
-        if substituted_is_reference_type(program, parameter.type_reference, substitutions) {
-            ref_parameters.push((
-                index,
-                parameter.name.as_str(),
-                substituted_reference_lifetime(program, parameter.type_reference, substitutions),
-            ));
-        }
-    }
-
-    lifetime_return_source(
-        &ref_parameters,
-        substituted_reference_lifetime(program, return_type, substitutions),
-        || {
-            structural_view_return_source(
-                program,
-                parameters,
-                return_type,
-                substitutions,
-                scope_starts,
-                &[],
-            )
-        },
+    structural_view_return_source(
+        program,
+        parameters,
+        return_type,
+        substitutions,
+        scope_starts,
+        &[],
     )
-}
-
-fn substituted_is_reference_type(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { .. } => true,
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            substituted_is_reference_type(program, *base_type, substitutions)
-        }
-        TypeReferenceNode::Named { symbol, .. } => substitutions
-            .iter()
-            .rev()
-            .find(|(parameter, _)| parameter == symbol)
-            .is_some_and(|(_, concrete)| {
-                substituted_is_reference_type(program, *concrete, substitutions)
-            }),
-        _ => false,
-    }
 }
 
 pub fn substituted_returns_borrow(
@@ -282,45 +149,6 @@ pub fn substituted_returns_borrow(
 ) -> bool {
     substituted_carried_lifetimes(program, type_reference, substitutions, scope_starts)
         .is_none_or(|leaves| !leaves.is_empty())
-}
-
-fn substituted_reference_lifetime<'p>(
-    program: &'p dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-) -> Option<&'p str> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { lifetime, .. } => {
-            lifetime.as_ref().map(|name| name.as_str())
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            substituted_reference_lifetime(program, *base_type, substitutions)
-        }
-        TypeReferenceNode::Named { symbol, .. } => substitutions
-            .iter()
-            .rev()
-            .find(|(parameter, _)| parameter == symbol)
-            .and_then(|(_, concrete)| {
-                substituted_reference_lifetime(program, *concrete, substitutions)
-            }),
-        _ => None,
-    }
-}
-
-/// The explicit lifetime name on a reference type, seeing through a
-/// `Constrained` wrapper (e.g. `&'buf string[a..=b]`). `None` for an elided
-/// reference or a non-reference type.
-fn reference_lifetime(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<&str> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { lifetime, .. } => {
-            lifetime.as_ref().map(|name| name.as_str())
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => reference_lifetime(program, *base_type),
-        _ => None,
-    }
 }
 
 mod callable_refinement;
@@ -413,7 +241,7 @@ fn structural_view_return_source(
         ) {
             continue;
         }
-        let Some(leaves) = carried_lifetimes::symbolic_carried_lifetimes(
+        let Some(leaves) = carried_lifetimes::symbolic_input_lifetimes(
             program,
             parameter.type_reference,
             substitutions,
@@ -485,6 +313,7 @@ fn structural_frontier_return_source(
             fields.push(ViewReturnFieldSource {
                 owner_path: output.owner_path.clone(),
                 source_path: input.owner_path.clone(),
+                source: input.source,
                 source_type: parameter.type_reference,
                 parameter_index: *index,
                 kind: match output.access {

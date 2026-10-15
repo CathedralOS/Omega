@@ -286,6 +286,7 @@ pass/borrows/runtime_shared_temporary_call_exit built 945ms exit:42 @48008365d83
 pass/borrows/runtime_state_boolean_reference_exit built 2357ms exit:70 @9beb2be72f2d+wt
 pass/borrows/runtime_state_fixed_element_reference_exit built 2346ms exit:70 @9beb2be72f2d+wt
 pass/borrows/runtime_state_mut_formal_borrow_exit built 15290ms exit:70 @8df1d091a810
+pass/borrows/runtime_stored_carrier_exchange_exit built 2676ms exit:0 @802a5f738107+wt
 pass/borrows/runtime_stored_reference_array_constructor_transfer_exit built 1225ms exit:70 @104c2da31081
 pass/borrows/runtime_stored_reference_array_leaf_retirement_exit built 1185ms exit:70 @104c2da31081
 pass/borrows/runtime_stored_reference_case_residual_retirement_exit built 2462ms exit:70 @9beb2be72f2d+wt
@@ -297,6 +298,7 @@ pass/borrows/runtime_stored_reference_leaf_field_retirement_exit built 1161ms ex
 pass/borrows/runtime_stored_reference_leaf_match_join_retirement_exit built 1299ms exit:70 @104c2da31081
 pass/borrows/runtime_stored_reference_leaf_residual_retirement_exit built 2497ms exit:70 @9beb2be72f2d+wt
 pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit built 1190ms exit:70 @104c2da31081
+pass/borrows/runtime_stored_view_reborrow_extent_exit built 2637ms exit:0 @802a5f738107+wt
 pass/borrows/runtime_tail_expression_views_exit built 1792ms exit:0 @3b35bf426740+wt
 pass/borrows/runtime_unit_call_mutable_view_local_exit built 2400ms exit:70 @c5248fcf82a0+wt
 pass/borrows/runtime_whole_referent_case_store_exit built 1291ms exit:70 @6ec9ff444c14+wt

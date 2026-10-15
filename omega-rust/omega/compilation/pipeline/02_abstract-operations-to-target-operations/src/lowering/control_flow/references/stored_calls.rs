@@ -113,7 +113,7 @@ pub(in crate::lowering) fn catalog(
                         path: descriptor_path(
                             types.catalog(),
                             parameter.structural_type,
-                            &row.path,
+                            &row.exact_path()?,
                         )?,
                         access: parameter.access,
                     };

@@ -166,10 +166,15 @@ impl Emission<'_, '_, '_> {
                 argument
             }
         };
-        // A borrowed join names the referent itself, even when that referent
-        // happens to contain another reference. Test the relationship before
-        // classifying the destination's outer shape.
-        if self.structural_type == referent_type {
+        // Destination access distinguishes an alias from a stored descriptor.
+        // A slice descriptor can have the same shape as the collection it
+        // reborrows; shape equality alone cannot turn its owned field into an
+        // alias of the supplying descriptor. Conversely a borrowed join keeps
+        // the referent itself even when that referent contains references.
+        if self.result_access != terminal_psi::StructuralAccess::Owned {
+            if self.structural_type != referent_type {
+                return unsupported("reference alias changes its referent carrier");
+            }
             let loan = match argument.access {
                 terminal_psi::StructuralAccess::SharedBorrow => LoanAccess::Shared,
                 terminal_psi::StructuralAccess::MutableBorrow => LoanAccess::Mutable,

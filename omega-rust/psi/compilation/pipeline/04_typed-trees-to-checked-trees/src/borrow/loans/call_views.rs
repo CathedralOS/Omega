@@ -116,6 +116,7 @@ impl CallViewReturnContract<'_> {
         match self.source(program) {
             ViewReturnSource::Fields { fields } => Some(fields),
             ViewReturnSource::Parameter { parameter_index } => Some(vec![ViewReturnFieldSource {
+                source: validation::borrow_contracts::ViewReturnInputSource::Referent,
                 owner_path: Vec::new(),
                 source_path: Vec::new(),
                 source_type: self.parameter_type_reference(program, parameter_index),

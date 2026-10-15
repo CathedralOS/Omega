@@ -5321,6 +5321,7 @@ pass/borrows/runtime_state_boolean_reference_exit checked 11101ms check-target:m
 pass/borrows/runtime_state_fixed_element_reference_exit checked 11125ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_state_mut_formal_borrow_exit checked 11173ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_stored_boolean_reference_exit checked 10333ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_stored_carrier_exchange_exit checked 2676ms check-target:macos_arm64 @802a5f738107+wt
 pass/borrows/runtime_stored_reference_array_constructor_transfer_exit checked 11077ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_stored_reference_array_leaf_retirement_exit checked 11284ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_stored_reference_case_residual_retirement_exit checked 11123ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5332,6 +5333,7 @@ pass/borrows/runtime_stored_reference_leaf_field_retirement_exit checked 11063ms
 pass/borrows/runtime_stored_reference_leaf_match_join_retirement_exit checked 10901ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_stored_reference_leaf_residual_retirement_exit checked 11260ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit checked 11123ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_stored_view_reborrow_extent_exit checked 2633ms check-target:macos_arm64 @802a5f738107+wt
 pass/borrows/runtime_tail_expression_views_exit checked 11242ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_tail_recursive_disjoint_field_fact_exit checked 27956ms check-target:macos_arm64 @0a951af3f8e9+wt
 pass/borrows/runtime_tail_recursive_nested_field_frame_exit checked 32157ms check-target:macos_arm64 @0a951af3f8e9+wt

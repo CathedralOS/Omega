@@ -1241,6 +1241,10 @@ impl Emission<'_, '_, '_> {
     ) -> Result<super::operand_claims::CompletedOperand, LoweringError> {
         let parent_type = self.structural_type;
         let parent_multiplicity = self.multiplicity;
+        // A constructor owns each stored operand, including a loan descriptor.
+        // The enclosing result may instead be a borrowed alias; that access
+        // describes its destination, not the custody of its contained values.
+        let parent_access = std::mem::replace(&mut self.result_access, StructuralAccess::Owned);
         let child_claims = self
             .completion_claims
             .iter()
@@ -1261,6 +1265,7 @@ impl Emission<'_, '_, '_> {
         let argument = self.constructor_operand(identities, value, reference);
         self.structural_type = parent_type;
         self.multiplicity = parent_multiplicity;
+        self.result_access = parent_access;
         self.completion_claims = parent_claims;
         argument
     }

@@ -121,7 +121,8 @@ pub(super) fn prepare(
             rows.into_iter()
                 .map(|row| {
                     let parameter = function.structural_parameters.get(row.parameter)?;
-                    let path = descriptor_path(types, parameter.structural_type, &row.path)?;
+                    let path =
+                        descriptor_path(types, parameter.structural_type, &row.exact_path()?)?;
                     let destination = StructuralArgument {
                         place: parameter.place,
                         path,

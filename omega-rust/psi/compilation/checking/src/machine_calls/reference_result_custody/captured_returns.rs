@@ -493,41 +493,37 @@ impl Captures<'_> {
                 return None;
             }
             let owner = self.facts.borrow.owner_segments.span(incoming.owner_path)?;
-            let incoming_leaf = record_carrier_sources(
-                self.program,
-                carrier,
-                CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index: u32::try_from(parameter_index).ok()?,
-                },
-            )?
-            .into_iter()
-            .find(|source| {
-                loan_owner_path(self.program, carrier, &source.path).as_deref() == Some(owner)
-            })?;
-            if !reference_access_can_supply(incoming_leaf.source.access, leaf.source.access) {
+            let incoming_leaf = super::declared_carrier_references(self.program, carrier)?
+                .into_iter()
+                .find(|source| {
+                    super::origin_owner_path(self.program, carrier, source.path.iter().cloned())
+                        .as_deref()
+                        == Some(owner)
+                })?;
+            if !reference_access_can_supply(incoming_leaf.access, leaf.source.access) {
                 return None;
             }
-            if crate::reference_shell(self.program, parameter.type_reference).is_some() {
+            if stored_loan_parts(self.program, parameter.type_reference).is_some() {
                 path.push(CheckedReferenceOriginProjection::Exact(
                     CheckedUnitStructuralPathSegment::Referent,
                 ));
             }
-            let incoming_path = loan_place_segments(self.program, carrier, &incoming_leaf.path)?;
+            let incoming_path = super::origin_place_segments(
+                self.program,
+                carrier,
+                incoming_leaf.path.iter().cloned(),
+            )?;
             selected =
                 crate::project_type_reference_from_segments(self.program, carrier, &incoming_path)?;
-            if matches!(
-                incoming_leaf.source.path.last(),
-                Some(CheckedUnitStructuralPathSegment::Referent)
-            ) {
+            if incoming_leaf.crosses_reference {
                 selected = stored_loan_parts(self.program, selected)?.0;
             }
-            path.extend(
-                incoming_leaf
-                    .source
-                    .path
-                    .into_iter()
-                    .map(CheckedReferenceOriginProjection::Exact),
-            );
+            path.extend(incoming_leaf.path);
+            if incoming_leaf.crosses_reference {
+                path.push(CheckedReferenceOriginProjection::Exact(
+                    CheckedUnitStructuralPathSegment::Referent,
+                ));
+            }
             incoming_segments = incoming_path;
         } else {
             // Incoming borrow authority is independent of its descriptor ABI:

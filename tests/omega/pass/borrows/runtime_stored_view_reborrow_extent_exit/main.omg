@@ -1,0 +1,35 @@
+// Expected exit: 0
+data Cell [copy] { value: u64; }
+data Padded<'backing> { before: u64; values: &'backing mut [Cell]; after: u64; }
+
+machine inspect(values: &[Cell]) -> bool {
+    transition values.len == 2 {
+        true -> read(values)
+        false -> false
+    }
+    state read(values: &[Cell]) -> bool requires values.len == 2 {
+        values[0].value == 42 && values[1].value == 19
+    }
+}
+
+machine borrow(windows: &mut [Padded], position: u64) -> bool
+requires position < windows.len {
+    let selected: Padded = Padded {
+        before: 7,
+        values: windows[position].values,
+        after: 9
+    };
+    inspect(selected.values)
+}
+
+machine main() crashes Trap {
+    let mut cells: [Cell; 3] = [Cell { value: 99 }, Cell { value: 42 }, Cell { value: 19 }];
+    let mut windows: [Padded; 1] = [Padded { before: 11, values: &mut cells[1..3], after: 13 }];
+    let correct: bool = borrow(&mut windows[..], 0);
+    transition correct && windows[0].before == 11 && windows[0].after == 13 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

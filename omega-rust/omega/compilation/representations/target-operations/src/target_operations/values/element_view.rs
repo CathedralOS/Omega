@@ -69,6 +69,9 @@ pub enum TargetViewExtent {
     /// The descriptor's extent word is the carrier's live element count,
     /// read from the u64 header eight bytes before `source_byte_offset`.
     LiveLength,
+    /// The source descriptor retains its count eight bytes after its backing
+    /// pointer at `source_byte_offset`.
+    StoredLength,
 }
 
 /// Exact retained region operands; geometry does not authorize their bounds.

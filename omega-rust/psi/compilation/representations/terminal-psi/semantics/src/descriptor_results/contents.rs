@@ -79,6 +79,21 @@ pub fn descriptor_contents_transfers(
 }
 
 impl DescriptorContentsQuery {
+    /// A family is not an executable address, even when it has one typed root.
+    pub fn exact_location(&self) -> Option<DescriptorLocation> {
+        Some(DescriptorLocation {
+            root: self.root,
+            path: self
+                .steps
+                .iter()
+                .map(|step| match step {
+                    DescriptorContentsStep::Address(segment) => Some(segment.clone()),
+                    DescriptorContentsStep::AnyElement { .. } => None,
+                })
+                .collect::<Option<_>>()?,
+        })
+    }
+
     pub fn from_location(location: &DescriptorLocation) -> Self {
         Self {
             root: location.root,

@@ -13,6 +13,18 @@ pub(super) struct CarriedLifetime {
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
     pub(super) lifetime: Option<RegionIdentity>,
     pub(super) access: language_semantics::ReferenceAccess,
+    pub(super) source: super::ViewReturnInputSource,
+}
+
+/// Value frontiers stop at the physical descriptor. An input additionally
+/// exposes the stored descriptors in its borrowed referent; their regions do
+/// not become the lifetime of the container borrow.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub(super) enum LifetimeFrontier {
+    #[default]
+    Value,
+    Input,
+    BorrowedStorage,
 }
 
 /// Ordinary flow queries retain declaration spellings. Callable refinement
@@ -36,6 +48,7 @@ struct TemplateFrontier<'a> {
     parameters: &'a [SymbolHandle],
     dependent: bool,
     scoped_regions: bool,
+    frontier: LifetimeFrontier,
 }
 
 /// Each generic telescope binds simultaneously. Its actual operands belong
@@ -66,6 +79,7 @@ pub fn declaration_lifetime_frontier(
         parameters,
         dependent: false,
         scoped_regions: false,
+        frontier: LifetimeFrontier::Value,
     };
     let mut leaves = Vec::new();
     let complete = collect_type(
@@ -220,6 +234,29 @@ pub(super) fn symbolic_carried_lifetimes(
         &[],
         SymbolHandle::invalid(),
         false,
+        LifetimeFrontier::Value,
+    )
+}
+
+pub(super) fn symbolic_input_lifetimes(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
+    symbolic_parameters: &[SymbolHandle],
+) -> Option<Vec<CarriedLifetime>> {
+    scoped_carried_lifetimes(
+        program,
+        reference,
+        substitutions,
+        scope_starts,
+        symbolic_parameters,
+        &[],
+        &[],
+        &[],
+        SymbolHandle::invalid(),
+        false,
+        LifetimeFrontier::Input,
     )
 }
 
@@ -235,6 +272,7 @@ pub(super) fn scoped_carried_lifetimes(
     application_lifetimes: &[Vec<(String, RegionIdentity)>],
     declaration: SymbolHandle,
     scoped_regions: bool,
+    frontier: LifetimeFrontier,
 ) -> Option<Vec<CarriedLifetime>> {
     let mut output = Vec::new();
     collect_type(
@@ -257,6 +295,7 @@ pub(super) fn scoped_carried_lifetimes(
             parameters: symbolic_parameters,
             dependent: false,
             scoped_regions,
+            frontier,
         },
     )
     .then_some(output)
@@ -339,7 +378,9 @@ fn collect_type(
     }
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Reference {
-            access, lifetime, ..
+            access,
+            lifetime,
+            referee,
         } => {
             if whole_elided_contract && lifetime.is_some() {
                 return false;
@@ -357,8 +398,48 @@ fn collect_type(
                         .unwrap_or_else(|| RegionIdentity::Declared(lifetime.as_str().to_owned()))
                 }),
                 access: *access,
+                source: if template.frontier == LifetimeFrontier::Input {
+                    super::ViewReturnInputSource::Referent
+                } else {
+                    super::ViewReturnInputSource::Stored
+                },
             });
-            true
+            if template.frontier != LifetimeFrontier::Input || !access.is_readable() {
+                return true;
+            }
+            let first_stored = output.len();
+            template.frontier = LifetimeFrontier::BorrowedStorage;
+            let complete = collect_type(
+                program,
+                *referee,
+                lifetimes,
+                types,
+                owner_path,
+                visiting,
+                output,
+                whole_elided_contract,
+                template,
+            );
+            template.frontier = LifetimeFrontier::Input;
+            if *access == language_semantics::ReferenceAccess::Shared {
+                // Shared access cannot load a write-only descriptor or lend
+                // its exclusive permission; neither read nor write is gained.
+                let mut retained = first_stored;
+                for position in first_stored..output.len() {
+                    if output[position].access == language_semantics::ReferenceAccess::WriteOnly {
+                        continue;
+                    }
+                    output.swap(retained, position);
+                    retained += 1;
+                }
+                output.truncate(retained);
+                for leaf in &mut output[first_stored..] {
+                    if leaf.access == language_semantics::ReferenceAccess::Mutable {
+                        leaf.access = language_semantics::ReferenceAccess::Shared;
+                    }
+                }
+            }
+            complete
         }
         TypeReferenceNode::Constrained { base_type, .. } => collect_type(
             program,
@@ -383,7 +464,11 @@ fn collect_type(
             // prefix its complete relative leaves. Incompleteness must not
             // become an empty (view-free) frontier.
             let mut element_frontier = Vec::new();
-            if !collect_type(
+            let frontier = template.frontier;
+            if frontier == LifetimeFrontier::Input {
+                template.frontier = LifetimeFrontier::Value;
+            }
+            let complete = collect_type(
                 program,
                 *element_type,
                 lifetimes,
@@ -393,7 +478,9 @@ fn collect_type(
                 &mut element_frontier,
                 whole_elided_contract,
                 template,
-            ) {
+            );
+            template.frontier = frontier;
+            if !complete {
                 return false;
             }
             if element_frontier.is_empty() {
@@ -415,10 +502,28 @@ fn collect_type(
                         owner_path: path,
                         lifetime: leaf.lifetime.clone(),
                         access: leaf.access,
+                        source: leaf.source,
                     });
                 }
             }
             true
+        }
+        TypeReferenceNode::Slice { element_type }
+            if template.frontier == LifetimeFrontier::BorrowedStorage =>
+        {
+            let mut path = owner_path.to_vec();
+            path.push(BorrowOwnerSegment::DynamicIndex);
+            collect_type(
+                program,
+                *element_type,
+                lifetimes,
+                types,
+                &path,
+                visiting,
+                output,
+                whole_elided_contract,
+                template,
+            )
         }
         TypeReferenceNode::Generic {
             base_symbol,
@@ -559,7 +664,15 @@ fn collect_type(
                 scope = frame.outer;
             }
             let Some(definition) = data_definition(program, *symbol) else {
-                if template.parameters.contains(symbol) {
+                if template.parameters.contains(symbol)
+                    || (template.frontier == LifetimeFrontier::BorrowedStorage
+                        && program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter)
+                {
+                    // The input reference still lends its declared region
+                    // when its referee is abstract. This supplies no stored
+                    // descriptor source: those require the instantiated
+                    // carrier. Value/output queries remain incomplete, never
+                    // classifying an opaque owned value as reference-free.
                     template.dependent = true;
                     return true;
                 }
@@ -627,6 +740,7 @@ fn collect_family(
         parameters: &comparison_parameters,
         dependent: false,
         scoped_regions: template.scoped_regions,
+        frontier: template.frontier,
     };
     let complete = collect_data(
         program,
@@ -673,6 +787,10 @@ fn collect_data(
         return true;
     }
     let first_leaf = output.len();
+    let frontier = template.frontier;
+    if frontier == LifetimeFrontier::Input {
+        template.frontier = LifetimeFrontier::Value;
+    }
     visiting.push(DataVisit {
         reference,
         cyclic: false,
@@ -698,5 +816,6 @@ fn collect_data(
             )
         });
     let cyclic = visiting.pop().is_some_and(|visit| visit.cyclic);
+    template.frontier = frontier;
     complete && (whole_elided_contract || !cyclic || output.len() == first_leaf)
 }

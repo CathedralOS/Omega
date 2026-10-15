@@ -24,7 +24,7 @@ use checked_trees::{
 };
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -172,6 +172,9 @@ fn reference_origin_expansion_is_bounded(
 /// Arrays and guarded case fields recurse through the same stored-value tree; the
 /// owned aggregate holds each loan descriptor, never the referent's bytes.
 /// This classifier grants neither an initializer origin nor a loan lifetime.
+/// Reference leaves include slice descriptors as well as stored pointers;
+/// their different geometry belongs to shape collection and loan transport,
+/// not to whether the enclosing owned value carries borrowed storage.
 /// Linear settlement and nominal cleanup belong to the carrier's owned custody,
 /// not its stored descriptors. Excluding those carriers here loses their input
 /// referent identities and makes descriptor copies appear to borrow the home.
@@ -190,7 +193,7 @@ pub fn is_reference_record(
         scope: usize,
     ) -> Option<bool> {
         let (reference, scope) = scopes.head(program, reference, scope);
-        if stored_loan_parts(program, reference).is_some() {
+        if crate::reference_shell(program, reference).is_some() {
             return Some(true);
         }
         if crate::has_contents(
@@ -229,17 +232,14 @@ pub fn is_reference_record(
         seen.pop();
         Some(contains_reference)
     }
-    // A bare exclusive pointer leaf — mutable or write-only — is
-    // its own custody family, not a record, so the classifier stays out.
-    // A shared `&T` borrow has no such family: it has always counted as
-    // reference-bearing here, and the discarded-result and admission gates
-    // rely on that classification.
-    !stored_loan_parts(program, reference).is_some_and(|(_, access)| {
-        matches!(
-            access,
-            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
-        )
-    }) && visit(
+    // A standalone view descriptor or exclusive pointer has its own custody
+    // route. Finding those leaves inside an owned aggregate does not turn the
+    // standalone value into a record. Shared stored pointers still participate
+    // in record-result custody, including discarded-result admission.
+    if crate::reference_shell(program, reference).is_some() {
+        return shared_borrowed_parts(program, reference).is_some();
+    }
+    visit(
         program,
         reference,
         &mut Vec::new(),
@@ -898,12 +898,57 @@ pub fn record_carrier_sources(
     reference: TypeReferenceHandle,
     carrier: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
+    declared_carrier_references(program, reference)?
+        .into_iter()
+        .map(|leaf| {
+            let path = leaf
+                .path
+                .iter()
+                .map(|projection| match projection {
+                    checked_trees::CheckedReferenceOriginProjection::Exact(segment) => {
+                        Some(segment.clone())
+                    }
+                    checked_trees::CheckedReferenceOriginProjection::Element => None,
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let mut source_path = path.clone();
+            if leaf.crosses_reference {
+                source_path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+            }
+            Some(checked_trees::CheckedReferenceResultSourcePlan {
+                path,
+                source: checked_trees::CheckedUnitStructuralArgumentPlan {
+                    source: carrier.clone(),
+                    path: source_path,
+                    type_identity: leaf.type_identity,
+                    access: leaf.access,
+                },
+            })
+        })
+        .collect()
+}
+
+/// Declaration-relative descriptor frontier. An unsized collection contributes
+/// one element family, not an invented executable selector or an enumeration of
+/// runtime storage. Ingress loan identities can retain that family; executable
+/// stored-value rosters above still require concrete slots.
+pub struct DeclaredCarrierReference {
+    pub path: Vec<checked_trees::CheckedReferenceOriginProjection>,
+    pub type_identity: typed_trees::type_identity::TypeIdentityId,
+    pub access: CheckedStructuralAccess,
+    pub crosses_reference: bool,
+}
+
+pub fn declared_carrier_references(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<Vec<DeclaredCarrierReference>> {
+    use checked_trees::CheckedReferenceOriginProjection::{Element, Exact};
     fn visit(
         program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
-        carrier: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
-        path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-        output: &mut Vec<checked_trees::CheckedReferenceResultSourcePlan>,
+        path: &mut Vec<checked_trees::CheckedReferenceOriginProjection>,
+        output: &mut Vec<DeclaredCarrierReference>,
         scopes: &mut DeclarationScopes,
         scope: usize,
     ) -> Option<()> {
@@ -919,28 +964,20 @@ pub fn record_carrier_sources(
                 TypeReferenceNode::Slice { .. }
             )
         {
-            output.push(checked_trees::CheckedReferenceResultSourcePlan {
+            output.push(DeclaredCarrierReference {
                 path: path.clone(),
-                source: checked_trees::CheckedUnitStructuralArgumentPlan {
-                    source: carrier.clone(),
-                    path: path.clone(),
-                    type_identity: scopes.type_identity(program, reference, scope),
-                    access: shell.access.into(),
-                },
+                type_identity: scopes.type_identity(program, reference, scope),
+                access: shell.access.into(),
+                crosses_reference: false,
             });
             return Some(());
         }
         if let Some((referent, access)) = stored_loan_parts(program, reference) {
-            let mut source_path = path.clone();
-            source_path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
-            output.push(checked_trees::CheckedReferenceResultSourcePlan {
+            output.push(DeclaredCarrierReference {
                 path: path.clone(),
-                source: checked_trees::CheckedUnitStructuralArgumentPlan {
-                    source: carrier.clone(),
-                    path: source_path,
-                    type_identity: scopes.type_identity(program, referent, scope),
-                    access,
-                },
+                type_identity: scopes.type_identity(program, referent, scope),
+                access,
+                crosses_reference: true,
             });
             return Some(());
         }
@@ -958,18 +995,28 @@ pub fn record_carrier_sources(
         } = program.type_reference_table.type_reference(reference)
         {
             for element_index in 0..*length {
-                path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
-                    u64::try_from(element_index).ok()?,
+                path.push(Exact(
+                    checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                        u64::try_from(element_index).ok()?,
+                    ),
                 ));
-                visit(program, *element_type, carrier, path, output, scopes, scope)?;
+                visit(program, *element_type, path, output, scopes, scope)?;
                 path.pop();
             }
+            return Some(());
+        }
+        if let TypeReferenceNode::Slice { element_type } =
+            program.type_reference_table.type_reference(reference)
+        {
+            path.push(Element);
+            visit(program, *element_type, path, output, scopes, scope)?;
+            path.pop();
             return Some(());
         }
         if let TypeReferenceNode::Constrained { base_type, .. } =
             program.type_reference_table.type_reference(reference)
         {
-            return visit(program, *base_type, carrier, path, output, scopes, scope);
+            return visit(program, *base_type, path, output, scopes, scope);
         }
         let (data, scope) = scopes.definition(program, reference, scope)?;
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
@@ -979,10 +1026,12 @@ pub fn record_carrier_sources(
             let fields = match member {
                 typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
                 typed_trees::data::DataMember::Variant(case) => {
-                    path.push(checked_trees::CheckedUnitStructuralPathSegment::Case(
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            case.identity,
-                            case.name.clone(),
+                    path.push(Exact(
+                        checked_trees::CheckedUnitStructuralPathSegment::Case(
+                            checked_trees::CheckedMemberIdentity::of_member(
+                                case.identity,
+                                case.name.clone(),
+                            ),
                         ),
                     ));
                     program.data_payload_fields(case)
@@ -992,21 +1041,15 @@ pub fn record_carrier_sources(
                 if field.relevance.is_erased() {
                     continue;
                 }
-                path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        field.identity,
-                        field.name.clone(),
+                path.push(Exact(
+                    checked_trees::CheckedUnitStructuralPathSegment::Field(
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            field.identity,
+                            field.name.clone(),
+                        ),
                     ),
                 ));
-                visit(
-                    program,
-                    field.type_reference,
-                    carrier,
-                    path,
-                    output,
-                    scopes,
-                    scope,
-                )?;
+                visit(program, field.type_reference, path, output, scopes, scope)?;
                 path.pop();
             }
             if matches!(member, typed_trees::data::DataMember::Variant(_)) {
@@ -1025,7 +1068,6 @@ pub fn record_carrier_sources(
     visit(
         program,
         reference,
-        &carrier,
         &mut Vec::new(),
         &mut output,
         &mut DeclarationScopes::default(),
@@ -1397,12 +1439,28 @@ pub fn loan_place_segments(
     root: TypeReferenceHandle,
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<Vec<facts::PlaceSegment>> {
+    origin_place_segments(
+        program,
+        root,
+        path.iter()
+            .cloned()
+            .map(checked_trees::CheckedReferenceOriginProjection::Exact),
+    )
+}
+
+/// Translate a declaration frontier into semantic owner coordinates. Element
+/// families remain unknown selectors; they never become executable indices.
+pub fn origin_place_segments(
+    program: &dyn crate::CheckingInput,
+    root: TypeReferenceHandle,
+    path: impl IntoIterator<Item = checked_trees::CheckedReferenceOriginProjection>,
+) -> Option<Vec<facts::PlaceSegment>> {
     let mut selected = root;
     let mut payload = None;
-    let mut segments = Vec::with_capacity(path.len());
+    let mut segments = Vec::new();
     let mut scopes = DeclarationScopes::default();
     let mut scope = 0;
-    for segment in path {
+    for projection in path {
         (selected, scope) = scopes.head(program, selected, scope);
         while let TypeReferenceNode::Constrained { base_type, .. }
         | TypeReferenceNode::Reference {
@@ -1411,6 +1469,23 @@ pub fn loan_place_segments(
         {
             (selected, scope) = scopes.head(program, *base_type, scope);
         }
+        let checked_trees::CheckedReferenceOriginProjection::Exact(segment) = projection else {
+            if payload.is_some() {
+                return None;
+            }
+            let (TypeReferenceNode::Slice { element_type }
+            | TypeReferenceNode::FixedArray { element_type, .. }) =
+                program.type_reference_table.type_reference(selected)
+            else {
+                return None;
+            };
+            selected = *element_type;
+            segments.push(facts::PlaceSegment::Index {
+                expression: ExpressionHandle::invalid(),
+            });
+            continue;
+        };
+        let segment = &segment;
         match segment {
             checked_trees::CheckedUnitStructuralPathSegment::Case(identity) => {
                 if payload.is_some() {
@@ -1499,7 +1574,21 @@ pub fn loan_owner_path(
     root: TypeReferenceHandle,
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<Vec<checked_trees::BorrowLoanOwnerSegment>> {
-    loan_place_segments(program, root, path)?
+    origin_owner_path(
+        program,
+        root,
+        path.iter()
+            .cloned()
+            .map(checked_trees::CheckedReferenceOriginProjection::Exact),
+    )
+}
+
+pub fn origin_owner_path(
+    program: &dyn crate::CheckingInput,
+    root: TypeReferenceHandle,
+    path: impl IntoIterator<Item = checked_trees::CheckedReferenceOriginProjection>,
+) -> Option<Vec<checked_trees::BorrowLoanOwnerSegment>> {
+    origin_place_segments(program, root, path)?
         .into_iter()
         .map(|segment| match segment {
             facts::PlaceSegment::Field { symbol } => {
@@ -1510,6 +1599,9 @@ pub fn loan_owner_path(
             }
             facts::PlaceSegment::Case { variant } => {
                 Some(checked_trees::BorrowLoanOwnerSegment::Case(variant))
+            }
+            facts::PlaceSegment::Index { expression } if !expression.is_valid() => {
+                Some(checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
             }
             _ => None,
         })
@@ -1713,7 +1805,14 @@ pub fn record_argument(
     result: &CheckedUnitStructuralResultBindingPlan,
     destination: TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
-    let (referent, access) = stored_loan_parts(program, destination)?;
+    let destination_leaves = declared_carrier_references(program, destination)?;
+    let [destination_leaf] = destination_leaves.as_slice() else {
+        return None;
+    };
+    if !destination_leaf.path.is_empty() || crate::reference_shell(program, destination).is_none() {
+        return None;
+    }
+    let access = destination_leaf.access;
     let local = program
         .statement_table
         .statements(state.statement_nodes)
@@ -1751,16 +1850,23 @@ pub fn record_argument(
         result.statement_index,
     )?;
     let (source, _) = loans.iter().find(|(source, _)| source.path == path)?;
-    if source.source.type_identity != program.normalized_type_identity(referent) {
+    if source.source.type_identity != destination_leaf.type_identity
+        || !reference_access_can_supply(source.source.access, access)
+    {
         return None;
     }
-    path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+    // A pointer descriptor selects its referent through an explicit crossing.
+    // A sequence descriptor already carries the backing and extent; forwarding
+    // it must retain that descriptor rather than invent a pointer-shaped hop.
+    if destination_leaf.crosses_reference {
+        path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+    }
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
         source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },
         path,
-        type_identity: source.source.type_identity.clone(),
+        type_identity: crate::structural_type_identity(program, destination, &[], &[]),
         access,
     })
 }

@@ -146,20 +146,6 @@ pub(super) fn argument(
             .is_some_and(|(_, identity)| identity == formal.structural_type)
     {
         (0, None, Vec::new())
-    } else if !actual.path.is_empty()
-        && let Some((selected, offset, elements)) =
-            crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
-                root.structural_type,
-                &actual.path,
-                actual.access,
-                Some(formal.structural_type),
-                &plan.structural_types,
-            )
-        && selected == formal.structural_type
-    {
-        // A stored descriptor lends its existing payload. Its source may be
-        // an arrival or a dominating local owner; neither synthesizes a view.
-        (offset, None, elements)
     } else if let Some((offset, length)) =
         crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
             &root,

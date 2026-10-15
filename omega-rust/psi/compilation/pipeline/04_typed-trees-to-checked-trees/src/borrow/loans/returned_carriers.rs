@@ -16,6 +16,7 @@ use crate::borrow::tracker::StateLoanTracker;
 use crate::borrow::view_link::ViewReturnFieldSource;
 use crate::borrow::view_link::ViewReturnSource;
 use crate::borrow::view_link::resolve_view_return_source;
+use validation::borrow_contracts::ViewReturnInputSource;
 
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
@@ -62,6 +63,7 @@ pub(crate) fn returned_body_source_mismatch(
     let fields = match resolve_view_return_source(program, state) {
         ViewReturnSource::Fields { fields } => fields,
         ViewReturnSource::Parameter { parameter_index } => vec![ViewReturnFieldSource {
+            source: validation::borrow_contracts::ViewReturnInputSource::Referent,
             owner_path: Vec::new(),
             source_path: Vec::new(),
             source_type: program
@@ -113,25 +115,17 @@ pub(crate) fn returned_body_source_mismatch(
             program,
             facts.borrow.owner_segments.span(returned.owner_path)?,
         )?;
-        // A borrowed formal's lifetime frontier names its whole external
-        // region. Captured descriptors beneath it refine that region; their
-        // owner paths are not extra declaration-level lifetime sources. Owned
-        // carriers instead declare each stored leaf separately, so those paths
-        // must match exactly. Keep the captured identity untouched for custody
-        // and alias checking, as completed_field_sources keeps its projection.
-        let source_path = if is_reference_type(
-            program,
-            program.state_parameters(state)[parameter_index].type_reference,
-        ) {
-            Vec::new()
+        let source = if returned.incoming_reference.is_valid() {
+            ViewReturnInputSource::Stored
         } else {
-            structural_owner_path(program, source_path)?
+            ViewReturnInputSource::Referent
         };
         if !fields.iter().any(|field| {
             field.parameter_index == parameter_index
+                && field.source == source
                 && field.kind == returned.kind
                 && structural_owner_path(program, &field.owner_path).as_ref() == Some(&owner_path)
-                && structural_owner_path(program, &field.source_path).as_ref() == Some(&source_path)
+                && source_path_covers(program, &field.source_path, source_path)
         }) {
             return Some(parameter_index);
         }
@@ -170,12 +164,7 @@ fn completed_field_sources(
     let parameters = program.state_parameters(state);
     let declared_paths = fields
         .iter()
-        .map(|field| {
-            Some((
-                structural_owner_path(program, &field.owner_path)?,
-                structural_owner_path(program, &field.source_path)?,
-            ))
-        })
+        .map(|field| structural_owner_path(program, &field.owner_path))
         .collect::<Option<Vec<_>>>()?;
     let mut output = Vec::with_capacity(sources.len());
     let mut covered = vec![false; fields.len()];
@@ -200,61 +189,59 @@ fn completed_field_sources(
             &source.result_path,
         )?;
         let kind = reference_borrow_access_kind(program, result_leaf)?;
-        let (source_path, projection) = if is_reference_type(program, parameter.type_reference) {
+        let projection = if is_reference_type(program, parameter.type_reference) {
             // A dynamic selector describes one element family below borrowed
             // storage, not one loan per possible array slot. Its expression
             // belongs to the callee, so erase that coordinate before transport:
             // only the actual invocation supplies an evaluated selector.
-            (
-                Vec::new(),
-                source
-                    .source
-                    .segments
-                    .iter()
-                    .map(|segment| match segment {
-                        facts::PlaceSegment::Index { expression }
-                            if program.expression_table.expression_is_valid(*expression)
-                                && program.expression_table.range_node(*expression).is_none() =>
-                        {
-                            facts::PlaceSegment::Index {
-                                expression: ExpressionHandle::invalid(),
-                            }
+            source
+                .source
+                .segments
+                .iter()
+                .map(|segment| match segment {
+                    facts::PlaceSegment::Index { expression }
+                        if program.expression_table.expression_is_valid(*expression)
+                            && program.expression_table.range_node(*expression).is_none() =>
+                    {
+                        facts::PlaceSegment::Index {
+                            expression: ExpressionHandle::invalid(),
                         }
-                        // A window is not one element. Keep its kind visible
-                        // to conservative origin reconstruction rather than
-                        // laundering it through an erased element coordinate.
-                        segment => *segment,
-                    })
-                    .collect(),
-            )
+                    }
+                    // A window is not one element. Keep its kind visible
+                    // to conservative origin reconstruction rather than
+                    // laundering it through an erased element coordinate.
+                    segment => *segment,
+                })
+                .collect()
         } else {
             // An owned input lends an existing descriptor, whose exact owner
             // path is its identity. An unknown element cannot stand in for it.
-            (
-                structural_owner_path(
-                    program,
-                    &super::owner_paths::owner_path_from_place_segments(
-                        program,
-                        &source.source.segments,
-                    ),
-                )?,
-                Vec::new(),
-            )
+            Vec::new()
         };
         // Join paths under the same declared input and result by schema identity:
         // generic preparation and declaration traversal can own distinct field
         // symbols. Body precision still cannot invent a lifetime source or
         // amplify the declaration's checked access relation.
-        let Some((index, field)) = fields.iter().enumerate().find(|(index, field)| {
-            declared_paths[*index].0 == owner_path
-                && declared_paths[*index].1 == source_path
+        let mut matched = false;
+        for (index, field) in fields.iter().enumerate().filter(|(index, field)| {
+            declared_paths[*index] == owner_path
+                && (field.source == ViewReturnInputSource::Referent
+                    || stored_source_covers(
+                        program,
+                        parameter.type_reference,
+                        &field.source_path,
+                        &source.source.segments,
+                    ))
                 && field.parameter_index == parameter_index
                 && field.kind == kind
-        }) else {
+        }) {
+            matched = true;
+            covered[index] = true;
+            output.push((field.clone(), projection.clone()));
+        }
+        if !matched {
             return Some(Err(parameter_index));
-        };
-        covered[index] = true;
-        output.push((field.clone(), projection));
+        }
     }
     // An explicit lifetime shared by several inputs keeps every declared
     // candidate live, even if this body's normal returns select only one.
@@ -266,6 +253,52 @@ fn completed_field_sources(
         }
     }
     Some(Ok(output))
+}
+
+/// Declaration element families conservatively cover possible input sources.
+/// This comparison grants no equality, disjointness or restoration of runtime
+/// places; those retain their evaluated selector identities in captured loans.
+fn source_path_covers(
+    program: &dyn validation::CheckingInput,
+    declared: &[BorrowOwnerSegment],
+    captured: &[BorrowOwnerSegment],
+) -> bool {
+    declared.len() == captured.len()
+        && owner_path_matches(program, declared, &place_segments(captured))
+}
+
+/// A stored descriptor may supply a projection of its backing. The source
+/// path identifies that descriptor, not the complete returned address. Only
+/// its first crossing is supplied here; another stored reference needs its
+/// own captured descriptor identity rather than authority from a prefix.
+fn stored_source_covers(
+    program: &dyn validation::CheckingInput,
+    parameter: typed_trees::types::TypeReferenceHandle,
+    declared: &[BorrowOwnerSegment],
+    selected: &[facts::PlaceSegment],
+) -> bool {
+    if !owner_path_matches(program, declared, selected) {
+        return false;
+    }
+    let Some(carrier) =
+        validation::reference_result_custody::input_carrier_type(program, parameter)
+    else {
+        return false;
+    };
+    let Some(descriptor) = validation::project_type_reference_from_segments(
+        program,
+        carrier,
+        &selected[..declared.len()],
+    ) else {
+        return false;
+    };
+    if validation::reference_shell(program, descriptor).is_none() {
+        return false;
+    }
+    (declared.len() + 1..selected.len()).all(|prefix| {
+        validation::project_type_reference_from_segments(program, carrier, &selected[..prefix])
+            .is_some_and(|reference| validation::reference_shell(program, reference).is_none())
+    })
 }
 
 fn structural_owner_path(
@@ -646,7 +679,7 @@ pub(super) fn argument_loans(
         .collect()
 }
 
-fn place_segments(path: &[BorrowOwnerSegment]) -> Vec<facts::PlaceSegment> {
+pub(super) fn place_segments(path: &[BorrowOwnerSegment]) -> Vec<facts::PlaceSegment> {
     path.iter()
         .map(|segment| match segment {
             BorrowOwnerSegment::Field(symbol) => facts::PlaceSegment::Field { symbol: *symbol },
