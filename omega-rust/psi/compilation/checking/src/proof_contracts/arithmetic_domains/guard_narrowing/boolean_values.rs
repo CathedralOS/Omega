@@ -57,7 +57,6 @@ pub(crate) fn record_boolean_local(
         environment,
         Operand::Place {
             root: local.symbol,
-            fields: Vec::new(),
             path: local.name.as_str().to_owned(),
         },
         program.primitive_type_reference(local.type_reference),

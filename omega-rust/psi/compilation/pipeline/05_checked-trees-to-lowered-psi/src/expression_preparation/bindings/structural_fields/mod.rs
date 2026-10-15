@@ -886,7 +886,7 @@ pub(crate) fn sequence_length(
 pub(crate) struct IndexedElementObservation {
     pub(crate) source: PlaceId,
     pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
-    pub(crate) element_path: Vec<CheckedUnitStructuralPathSegment>,
+    pub(crate) element_path: Vec<super::structural_paths::PreparedStructuralPathSegment>,
     pub(crate) scalar_type: ScalarType,
     pub(crate) extent: Option<Box<LoweredDirectExpression>>,
 }
@@ -924,7 +924,12 @@ pub(crate) fn resolve_indexed_element(
                 fields.declarations(),
             )?;
             (
-                element_projection.segments,
+                super::structural_paths::prepare_argument_path(
+                    identities,
+                    &element_projection.segments,
+                    *element,
+                    fields.declarations(),
+                )?,
                 scalar_type,
                 super::view_locals::ViewCarrier::of(declaration.id, fields.declarations()),
             )
@@ -951,23 +956,6 @@ pub(crate) fn resolve_indexed_element(
     })
     .collect::<Result<Vec<_>, _>>()?;
     let path = home.path.iter().cloned().chain(path).collect::<Vec<_>>();
-    let selectors = path
-        .iter()
-        .filter(|step| {
-            matches!(
-                step,
-                terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
-            )
-        })
-        .count()
-        + element_path
-            .iter()
-            .filter(|step| matches!(step, CheckedUnitStructuralPathSegment::RuntimeIndex(_)))
-            .count();
-    if selectors > crate::emission::operation_emission::expressions::TERMINAL_NESTED_SELECTOR_LIMIT
-    {
-        return unsupported("indexed read exceeds its selector namespace");
-    }
     // The bound and read name the same descriptor, including every alias prefix
     // and readable reference crossing. Capacity never substitutes for live count.
     let extent = carrier

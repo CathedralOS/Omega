@@ -1,0 +1,49 @@
+data Cell [copy] { value: i32; sentinel: u64; }
+data Window<'storage> { cells: &'storage mut [Cell]; count: u64; }
+data Group<'storage> { windows: &'storage mut [Window<'storage>]; }
+machine store<'storage>(groups: &mut [Group<'storage>], group: u64, window: u64, replacement: i32)
+{
+    transition group < groups.len {
+        true -> select_window(groups, group, window, replacement)
+        false -> done()
+    }
+    state select_window(groups: &mut [Group<'storage>], group: u64, window: u64, replacement: i32)
+    requires group < groups.len {
+        transition window < groups[group].windows.len {
+            true -> select_cell(groups, group, window, replacement)
+            false -> done()
+        }
+    }
+    state select_cell(groups: &mut [Group<'storage>], group: u64, window: u64, replacement: i32)
+    requires group < groups.len && window < groups[group].windows.len {
+        transition groups[group].windows[window].count < groups[group].windows[window].cells.len {
+            true -> write(groups, group, window, replacement)
+            false -> done()
+        }
+    }
+    state write(groups: &mut [Group<'storage>], group: u64, window: u64, replacement: i32)
+    requires group < groups.len && window < groups[group].windows.len
+        && groups[group].windows[window].count < groups[group].windows[window].cells.len {
+        let position: u64 = groups[group].windows[window].count;
+        groups[group].windows[window].cells[position].value = replacement;
+        groups[group].windows[window].count = groups[group].windows[window].count + 1;
+    }
+    state done() {}
+}
+machine main() crashes Trap {
+    let mut cells: [Cell; 3] = [
+        Cell { value: -1, sentinel: 19 }, Cell { value: 3, sentinel: 23 },
+        Cell { value: -2, sentinel: 29 }
+    ];
+    let mut windows: [Window; 1] = [Window { cells: &mut cells[1..2], count: 0 }];
+    let mut groups: [Group; 1] = [Group { windows: &mut windows[..] }];
+    store(&mut groups[..], 0, 0, 71);
+    transition windows[0].count == 1 && cells[0].value == -1 && cells[2].value == -2
+        && cells[1].value == 71 && cells[0].sentinel == 19
+        && cells[1].sentinel == 23 && cells[2].sentinel == 29 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

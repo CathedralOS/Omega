@@ -314,15 +314,12 @@ fn contradicts(
         // storage through declaration handles, not its diagnostic path. Exact
         // arithmetic was expanded above and cannot assume its result fits.
         let primitive = match operand {
-            Operand::Place { root, fields, .. } => {
-                crate::value_custody::places::declaration_type_reference(
-                    program,
-                    fields.last().copied().unwrap_or(*root),
-                )
-                .and_then(|reference| program.primitive_type_reference(reference))
+            Operand::Place { root, .. } => {
+                crate::value_custody::places::declaration_type_reference(program, *root)
+                    .and_then(|reference| program.primitive_type_reference(reference))
             }
             Operand::CollectionLength(_) => Some(typed_trees::types::PrimitiveType::U64),
-            Operand::Indexed { primitive, .. } => *primitive,
+            Operand::Indexed { primitive, .. } | Operand::Field { primitive, .. } => *primitive,
             Operand::Binary { primitive, .. } => Some(*primitive),
             _ => None,
         };
@@ -341,10 +338,10 @@ fn contradicts(
                 });
             }
         }
-        let Operand::Place { path, .. } = operand else {
+        let Some(path) = operand.static_path() else {
             continue;
         };
-        let Some(interval) = environment.intervals.get(path) else {
+        let Some(interval) = environment.intervals.get(&path) else {
             continue;
         };
         for (operator, bound) in [

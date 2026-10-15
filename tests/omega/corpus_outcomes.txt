@@ -3707,6 +3707,10 @@ fail/proofs/higher_order_machine_schema_contract_mismatch rejected 759ms expecte
 	public interface selects private data `Index`
 	nested machine parameter `Chosen` of machine argument `bad_schema` for `forward_schema` does not refine `Inner`: expected return `bool`, got `Index`
 	machine argument `sample` for `Schema` does not refine `Inner`: expected return `bool`, got `Index`
+fail/proofs/indexed_field_changed_selector rejected 170ms expected @7ba26861e79c+wt
+	exact arithmetic in machine `increment` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/proofs/indexed_field_changed_value rejected 170ms expected @7ba26861e79c+wt
+	exact arithmetic in machine `increment` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/proofs/inductive_climbing_sum_step_false_twin rejected 808ms expected @a9ae30e1c334+wt
 	exact arithmetic in machine `Main::climb` ensures contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::climb` ensures contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -4303,6 +4307,10 @@ fail/slices/nested_captured_bound_replaced_descriptor rejected 636ms expected @f
 	cannot prove index `inner` is within unknown slice length of `windows[selected].values` in replace::entry
 fail/slices/nested_captured_bound_wrong_field rejected 634ms expected @f329f97f57f7+wt
 	cannot prove index `inner` is within unknown slice length of `windows[outer].other` in replace::entry
+fail/slices/nested_descriptor_shared_write rejected 164ms expected @7ba26861e79c+wt
+	machine `store` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/slices/nested_descriptor_sibling_length rejected 568ms expected @7ba26861e79c+wt
+	cannot prove index `position` is within unknown slice length of `windows[selected].values` in store::entry
 fail/slices/nested_stored_view_local_escape rejected 632ms expected @f329f97f57f7+wt
 	machine `escape` returns a view borrowing the local `windows`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/slices/noncopy_array_view_keeps_backing_loan rejected 1721ms expected @a9ae30e1c334+wt
@@ -7360,6 +7368,7 @@ pass/proofs/ring_full_polynomial_compile checked 11899ms check-target:macos_arm6
 pass/proofs/ring_law_conformance checked 5521ms check-target:macos_arm64 @b7248b14be49
 pass/proofs/runtime_byte_predicate_state_contract_exit checked 11690ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_decreases_u64_measure_exit checked 11603ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/proofs/runtime_indexed_field_relations_exit checked 3058ms check-target:macos_arm64 @7ba26861e79c+wt
 pass/proofs/runtime_inductive_climbing_sum_exit checked 12046ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_inductive_gauss_sum_exit checked 6282ms check-target:macos_arm64 @3e63a17a5fea+wt
 pass/proofs/runtime_mutable_ranked_accumulator_exit checked 8574ms check-target:macos_arm64 @1727c70d2f7e+wt
@@ -7680,6 +7689,7 @@ pass/slices/runtime_mutable_slice_result_shared_observation_exit checked 12206ms
 pass/slices/runtime_mutable_slice_result_whole_forward_exit checked 5059ms check-target:macos_arm64 @9dd545defbc0
 pass/slices/runtime_mutable_subslice_state_forwarding_exit checked 12731ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_namespace_range_contract_exit checked 11527ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/runtime_nested_descriptor_scalar_store_exit checked 3215ms check-target:macos_arm64 @7ba26861e79c+wt
 pass/slices/runtime_nested_stored_view_element_replacement_exit checked 5665ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_nested_stored_view_return_exit checked 5663ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_nested_subslice_fixed_index_exit checked 11923ms check-target:macos_arm64 @a9ae30e1c334+wt

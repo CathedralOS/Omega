@@ -58,7 +58,6 @@ impl CopiedIntegerValue {
         }
         let destination = ordered_values::Operand::Place {
             root: local.symbol,
-            fields: Vec::new(),
             path: local.name.as_str().to_owned(),
         };
         self.capture_relations(
@@ -97,11 +96,14 @@ impl CopiedIntegerValue {
         // spelling. A static projection is stable here only because the
         // shared RHS operand admission below recursively refuses effectful
         // calls; a reference-retargeting RHS cannot earn these relations.
-        let Some(destination @ ordered_values::Operand::Place { .. }) =
+        let Some(destination) =
             ordered_values::operand(program, machine, state, assignment.target, None)
         else {
             return;
         };
+        if destination.static_path().is_none() {
+            return;
+        }
         self.capture_relations(
             program,
             machine,
@@ -327,6 +329,19 @@ fn retain_places(
         }
         Operand::Integer(..) => {}
         Operand::CollectionLength(collection) => retain_places(collection, observed, bindings),
+        Operand::Field { receiver, .. } => {
+            // A sibling field can survive even when its containing record's
+            // whole-value identity does not. Keep that exact observation,
+            // unless it contains the copied selector: then rebinding must
+            // descend so the captured selector replaces its old live read.
+            if !depends_on(receiver, observed)
+                && !bindings.iter().any(|(source, _)| source == operand)
+            {
+                bindings.push((operand.clone(), operand.clone()));
+            } else {
+                retain_places(receiver, observed, bindings);
+            }
+        }
         Operand::Indexed {
             collection, index, ..
         } => {
@@ -343,6 +358,26 @@ fn retain_places(
             }
         }
     }
+}
+
+fn depends_on(operand: &ordered_values::Operand, observed: &ordered_values::Operand) -> bool {
+    use ordered_values::Operand;
+    operand == observed
+        || match operand {
+            Operand::Place { .. } | Operand::Integer(..) => false,
+            Operand::Field { receiver, .. } => depends_on(receiver, observed),
+            Operand::CollectionLength(collection) => depends_on(collection, observed),
+            Operand::Indexed {
+                collection, index, ..
+            } => depends_on(collection, observed) || depends_on(index, observed),
+            Operand::Call { arguments, .. }
+            | Operand::Binary {
+                operands: arguments,
+                ..
+            } => arguments
+                .iter()
+                .any(|argument| depends_on(argument, observed)),
+        }
 }
 
 /// Environment maps are ordered by storage path, so a copy visits only the

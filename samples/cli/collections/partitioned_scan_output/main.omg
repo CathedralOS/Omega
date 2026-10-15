@@ -1,0 +1,68 @@
+// Expected exit: 0.
+// Fill caller-supplied partitions without flattening their borrowed storage.
+data Partition<'storage> { values: &'storage mut [i32]; count: u64; }
+
+machine scan<'storage>(partitions: &mut [Partition<'storage>], input: &[i32]) -> u64 {
+    transition { _ -> next(partitions, input, 0, 0) }
+    state next(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
+    requires position <= input.len && selected <= partitions.len {
+        transition position < input.len {
+            true -> inspect(partitions, input, position, selected)
+            false -> position
+        }
+    }
+    state inspect(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
+    requires position < input.len && selected <= partitions.len {
+        transition input[position] > 0 {
+            true -> choose(partitions, input, position, selected)
+            false -> next(partitions, input, position + 1, selected)
+        }
+    }
+    state choose(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
+    requires position < input.len && selected <= partitions.len {
+        transition selected < partitions.len {
+            true -> capacity(partitions, input, position, selected)
+            false -> position
+        }
+    }
+    state capacity(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
+    requires position < input.len && selected < partitions.len {
+        transition partitions[selected].count < partitions[selected].values.len {
+            true -> store(partitions, input, position, selected)
+            false -> choose(partitions, input, position, selected + 1)
+        }
+    }
+    state store(partitions: &mut [Partition<'storage>], input: &[i32], position: u64, selected: u64) -> u64
+    requires position < input.len && selected < partitions.len
+        && partitions[selected].count < partitions[selected].values.len {
+        partitions[selected].values[partitions[selected].count] = input[position];
+        partitions[selected].count = partitions[selected].count + 1;
+        transition { _ -> next(partitions, input, position + 1, selected) }
+    }
+}
+
+machine main() crashes Trap {
+    let input: [i32; 6] = [-4, 7, 0, 9, 11, 13];
+    let mut empty: [i32; 1] = [-17];
+    let mut first: [i32; 4] = [-1, -1, -1, -1];
+    let mut second: [i32; 3] = [-2, -2, -2];
+    let mut partitions: [Partition; 3] = [
+        Partition { values: &mut empty[..0], count: 0 },
+        Partition { values: &mut first[1..3], count: 0 },
+        Partition { values: &mut second[1..2], count: 0 }
+    ];
+    let consumed: u64 = scan(&mut partitions[..], &input);
+    let full: u64 = scan(&mut partitions[..], input[5..6]);
+    let no_input: u64 = scan(&mut partitions[..], input[..0]);
+    let no_output: u64 = scan(&mut partitions[..0], input[1..2]);
+    transition consumed == 5 && full == 0 && no_input == 0 && no_output == 0
+        && partitions[0].count == 0 && partitions[1].count == 2 && partitions[2].count == 1
+        && empty[0] == -17
+        && first[0] == -1 && first[1] == 7 && first[2] == 9 && first[3] == -1
+        && second[0] == -2 && second[1] == 11 && second[2] == -2 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

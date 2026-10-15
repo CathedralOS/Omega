@@ -622,6 +622,7 @@ pass/proofs/nested_loop_digit_bytes_keep_utf8_exit built 2843ms exit:70 interpre
 pass/proofs/normal_return_expression_statement_sequence_exit built 3324ms exit:0 interpreter-exit:0 interpreter:agrees @4a6e7ac34b03
 pass/proofs/proof_bag_view_reflexivity built 3431ms exit:0 interpreter-exit:0 interpreter:agrees @6ede3322eb88+wt
 pass/proofs/runtime_byte_predicate_state_contract_exit built 1191ms exit:70 interpreter-exit:70 interpreter:agrees @767b982de12c+wt
+pass/proofs/runtime_indexed_field_relations_exit built 3048ms exit:0 interpreter-exit:0 interpreter:agrees @7ba26861e79c+wt
 pass/proofs/runtime_inductive_gauss_sum_exit built 2792ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/providers/applied_binding_field_telescopes_exit built 2885ms exit:0 interpreter-exit:0 interpreter:agrees @a8cedb3946d5+wt
 pass/providers/borrowed_service_field_forward_exit built 8241ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @9be6967d04c3+wt
@@ -681,6 +682,7 @@ pass/slices/runtime_inline_mutable_view_call_write_exit built 4313ms exit:0 inte
 pass/slices/runtime_literal_view_return_exit built 6859ms exit:105 interpreter-exit:105 interpreter:agrees @3fa817733300+wt
 pass/slices/runtime_machine_entry_view_requires_index_exit built 1976ms exit:70 interpreter-exit:70 interpreter:agrees @0991904fed3b+wt
 pass/slices/runtime_mutable_byte_view_loop_write_exit built 7114ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
+pass/slices/runtime_nested_descriptor_scalar_store_exit built 3203ms exit:0 interpreter-exit:0 interpreter:agrees @7ba26861e79c+wt
 pass/slices/runtime_published_view_length_bounds_cast_exit built 2000ms exit:0 interpreter-exit:0 interpreter:agrees @1152c1496b39
 pass/slices/runtime_shared_subslice_return_exit built 1916ms exit:70 interpreter-exit:70 interpreter:agrees @45782ade0cba+wt
 pass/slices/runtime_shared_whole_view_return_exit built 6232ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt

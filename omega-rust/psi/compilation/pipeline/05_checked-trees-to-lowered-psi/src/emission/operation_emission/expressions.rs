@@ -418,6 +418,20 @@ fn selector_obligation(operation: u64, ordinal: usize) -> semantic_vocabulary::O
     )
 }
 
+enum EvaluatedProjection {
+    Static(terminal_psi::StructuralPathSegment),
+    /// The outer selector of an indexed read uses its operation's ordinary
+    /// obligation; subsequent selectors use the nested-selector namespace.
+    ReadIndex {
+        index: ValueId,
+        bound_decided: bool,
+    },
+    RuntimeIndex {
+        index: ValueId,
+        bound_decided: bool,
+    },
+}
+
 pub(crate) fn emit_prepared_path(
     path: &[LoweredElementPathSegment],
     first_ordinal: usize,
@@ -425,15 +439,39 @@ pub(crate) fn emit_prepared_path(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Vec<terminal_psi::StructuralPathSegment> {
-    enum EvaluatedProjection {
-        Static(terminal_psi::StructuralPathSegment),
-        RuntimeIndex { index: ValueId, bound_decided: bool },
-    }
+    emit_path_from_capture(
+        Vec::with_capacity(path.len()),
+        path,
+        first_ordinal,
+        parameters,
+        next_value_identity,
+        operations,
+    )
+}
+
+/// Continue from an already captured prefix. Intervening descriptor lengths
+/// must observe that whole prefix, not a suffix rooted at the original place.
+fn emit_path_from_capture(
+    mut evaluated: Vec<EvaluatedProjection>,
+    path: &[LoweredElementPathSegment],
+    first_ordinal: usize,
+    parameters: &[ValueDeclaration],
+    next_value_identity: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Vec<terminal_psi::StructuralPathSegment> {
     let complete = |evaluated: &[EvaluatedProjection], operations: &mut OperationBuffer| {
         let mut ordinal = first_ordinal;
+        let mut prefix_ordinal = 0;
         evaluated
             .iter()
             .map(|segment| match segment {
+                EvaluatedProjection::ReadIndex {
+                    index,
+                    bound_decided,
+                } => terminal_psi::StructuralPathSegment::RuntimeIndex {
+                    index: *index,
+                    obligation: operations.push_read_obligation(*bound_decided),
+                },
                 EvaluatedProjection::RuntimeIndex {
                     index,
                     bound_decided,
@@ -448,6 +486,16 @@ pub(crate) fn emit_prepared_path(
                         obligation,
                     }
                 }
+                EvaluatedProjection::Static(
+                    terminal_psi::StructuralPathSegment::RuntimeIndex { index, .. },
+                ) => {
+                    let obligation = selector_obligation(operations.next_identity, prefix_ordinal);
+                    prefix_ordinal += 1;
+                    terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        index: *index,
+                        obligation,
+                    }
+                }
                 EvaluatedProjection::Static(segment) => segment.clone(),
             })
             .collect::<Vec<_>>()
@@ -455,7 +503,6 @@ pub(crate) fn emit_prepared_path(
     // Capture each selector once. Each intervening extent observes the exact
     // completed prefix, with bounds owned by that observation. Later endpoints
     // or selectors cannot redirect it by rereading a mutable source coordinate.
-    let mut evaluated = Vec::with_capacity(path.len());
     for segment in path {
         match segment {
             LoweredElementPathSegment::Static(segment) => {
@@ -753,17 +800,22 @@ pub(crate) fn emit_direct_expression(
                     )
                 })
                 .count();
-            let element_path = emit_prepared_path(
+            let mut captured = path_with_current_bounds(path, operations.next_identity)
+                .into_iter()
+                .map(EvaluatedProjection::Static)
+                .collect::<Vec<_>>();
+            captured.push(EvaluatedProjection::ReadIndex {
+                index,
+                bound_decided: *bound_decided,
+            });
+            let path = emit_path_from_capture(
+                captured,
                 element_path,
                 prefix_selectors,
                 parameters,
                 next_value_identity,
                 operations,
             );
-            let obligation = operations.push_read_obligation(*bound_decided);
-            let mut path = path_with_current_bounds(path, operations.next_identity);
-            path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
-            path.extend(element_path);
             emit_scalar_leaf(
                 OperationKind::PrimitiveScalarRead {
                     source: *source,

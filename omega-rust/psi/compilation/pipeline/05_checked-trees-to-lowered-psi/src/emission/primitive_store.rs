@@ -388,9 +388,7 @@ fn walk_path(
                 else {
                     return unsupported("primitive projection field is erased or ambiguous");
                 };
-                result.push(ProjectionStep::Static(Segment::Field(
-                    field.identity.clone(),
-                )));
+                result.push(ProjectionStep::Static(Segment::Field(field.identity)));
                 match field.field_type {
                     StructuralFieldType::Structural(child) => Walked::Declared(child),
                     StructuralFieldType::Scalar(scalar @ ScalarType::IeeeFloat(_)) => {
@@ -415,13 +413,23 @@ fn walk_path(
             }
             (
                 CheckedUnitStructuralPathSegment::RuntimeIndex(runtime),
-                StructuralTypeShape::FixedArray { element, .. },
+                StructuralTypeShape::FixedArray { element, .. }
+                | StructuralTypeShape::ElementView { element, .. },
             ) => {
                 // Every checked selector vocabulary walks a fixed array the
                 // same way: assignment indexes, parameter and local
                 // positions, and stored-field snapshots each name a distinct
                 // runtime element of the projection.
                 result.push(super::runtime_elements::selector_step(runtime));
+                Walked::Declared(*element)
+            }
+            (
+                CheckedUnitStructuralPathSegment::FixedIndex(index),
+                StructuralTypeShape::ElementView { element, .. },
+            ) => {
+                // The descriptor declares the element type, never its live
+                // bound. Even a literal selector needs an extent obligation.
+                result.push(ProjectionStep::RuntimeIndexLiteral { index: *index });
                 Walked::Declared(*element)
             }
             (

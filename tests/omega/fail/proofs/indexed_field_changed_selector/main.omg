@@ -1,0 +1,6 @@
+data Counter [copy] { value: u64; }
+machine increment(counters: &mut [Counter], mut selected: u64, other: u64)
+requires selected < counters.len && other < counters.len && counters[selected].value < 100 {
+    selected = other;
+    counters[selected].value = counters[selected].value + 1;
+}

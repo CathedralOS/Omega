@@ -651,6 +651,7 @@ fn validate(
                     &transition_values,
                     direct_written,
                     local_write_origins.as_deref(),
+                    call_frames.as_ref(),
                     &mut arithmetic_decisions,
                     &mut stored_integer_writes,
                     &mut boundary_operator_applications,

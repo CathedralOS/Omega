@@ -1,0 +1,5 @@
+data Window<'storage> { values: &'storage mut [i32]; other: &'storage mut [i32]; }
+machine store<'storage>(windows: &mut [Window<'storage>], selected: u64, position: u64)
+requires selected < windows.len && position < windows[selected].other.len {
+    windows[selected].values[position] = 71;
+}

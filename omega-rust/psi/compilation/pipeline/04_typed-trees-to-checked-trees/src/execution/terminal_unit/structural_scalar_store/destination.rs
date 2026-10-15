@@ -93,8 +93,9 @@ pub(super) struct Carrier<'a> {
 
 pub(super) struct StorageProjection<'a> {
     pub(super) path: Vec<CheckedUnitStructuralPathSegment>,
-    /// Position of the selector crossing an element-view descriptor, not an
-    /// earlier index selecting a descriptor from an inline array.
+    /// Position of the last element-view descriptor crossing. Earlier
+    /// selectors belong to the full structural operand locating this view;
+    /// later selectors locate the scalar leaf inside its element.
     pub(super) element_view_index: Option<usize>,
     pub(super) type_reference: typed_trees::types::TypeReferenceHandle,
     /// A declared scalar field keeps its field-store range obligation. An
@@ -625,11 +626,10 @@ impl<'a> Destination<'a> {
                             if program.primitive_type_reference(*element_type)
                                 != Some(typed_trees::types::PrimitiveType::U8)
                             {
-                                // More than one dynamic descriptor crossing
-                                // is not a static leaf inside this element.
-                                if element_view_index.is_some() {
-                                    return None;
-                                }
+                                // Each crossing selects a new descriptor.
+                                // Its prefix already carries the earlier
+                                // selectors and their checked bounds; they
+                                // must not become the final element's leaf.
                                 element_view_index = Some(path.len());
                             }
                             (*element_type, None)

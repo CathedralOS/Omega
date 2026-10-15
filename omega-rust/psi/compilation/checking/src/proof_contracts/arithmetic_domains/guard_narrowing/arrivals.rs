@@ -1161,7 +1161,8 @@ impl ArrivalWalk<'_, '_> {
                             self.program,
                             self.machine,
                             Some(source),
-                            assignment.target,
+                            statement,
+                            self.frames,
                             &written,
                         );
                     } else {

@@ -98,25 +98,13 @@ impl ValueEnvironment {
     ) -> impl Iterator<Item = (symbols::SymbolHandle, symbols::SymbolHandle, i64)> + '_ {
         self.ordered_values.iter().filter_map(|relation| {
             let (
-                ordered_values::Operand::Place {
-                    root: left,
-                    fields: left_fields,
-                    ..
-                },
-                ordered_values::Operand::Place {
-                    root: right,
-                    fields: right_fields,
-                    ..
-                },
+                ordered_values::Operand::Place { root: left, .. },
+                ordered_values::Operand::Place { root: right, .. },
             ) = (&relation.left, &relation.right)
             else {
                 return None;
             };
-            (left_fields.is_empty() && right_fields.is_empty()).then_some((
-                *left,
-                *right,
-                relation.minimum_difference()?,
-            ))
+            Some((*left, *right, relation.minimum_difference()?))
         })
     }
 
@@ -289,17 +277,25 @@ impl ValueEnvironment {
     /// A write to a parent invalidates descendants; a write to a descendant
     /// also invalidates any fact recorded for the parent value itself.
     pub(crate) fn invalidate_written_paths(&mut self, written: &[String]) {
+        self.invalidate_storage(written, |operand| operand.survives(written));
+    }
+
+    fn invalidate_storage(
+        &mut self,
+        written: &[String],
+        survives: impl Fn(&ordered_values::Operand) -> bool,
+    ) {
         self.boolean_values.retain_mut(|value| {
-            if !value.binding.survives(written) {
+            if !survives(&value.binding) {
                 return false;
             }
             for relations in &mut value.alternatives {
-                relations.retain(|relation| relation.survives(written));
+                relations.retain(|relation| survives(&relation.left) && survives(&relation.right));
             }
             true
         });
         self.ordered_values
-            .retain(|relation| relation.survives(written));
+            .retain(|relation| survives(&relation.left) && survives(&relation.right));
         let overlaps = |path: &str| {
             written
                 .iter()
@@ -327,24 +323,21 @@ impl ValueEnvironment {
         program: &dyn crate::CheckingInput,
         machine: &Machine,
         state: Option<&State>,
-        target: ExpressionHandle,
+        statement: &typed_trees::statement::StatementNode,
+        frames: Option<&crate::CallFrameResolver<'_>>,
         written: &[String],
     ) {
-        let preserved = state
-            .and_then(|state| {
-                ordered_values::byte_store_collection(program, machine, state, target)
+        let destinations = (!self.ordered_values.is_empty() || !self.boolean_values.is_empty())
+            .then(|| {
+                let target = statement.as_assignment()?.target;
+                crate::place_has_builtin_coordinates(program, machine, state, target)
+                    .then_some(())?;
+                frames?.assignment_destination_origins(machine, statement)
             })
-            .map(|collection| {
-                self.ordered_values
-                    .iter()
-                    .filter(|relation| relation.survives_byte_store(written, &collection))
-                    .cloned()
-                    .collect::<Vec<_>>()
-            });
-        self.invalidate_written_paths(written);
-        if let Some(preserved) = preserved {
-            self.ordered_values = preserved;
-        }
+            .flatten();
+        self.invalidate_storage(written, |operand| {
+            operand.survives_assignment(written, destinations.as_deref())
+        });
     }
 
     pub(super) fn get(&self, path: &str) -> Option<Interval> {

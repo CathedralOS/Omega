@@ -1,6 +1,8 @@
 //! Exact temporary operand identities for live ordered arithmetic facts.
 //!
-//! Paths are write-frame metadata only. Equality uses resolved declarations and
+//! Field and index projections compose over the same operand tree; a field
+//! does not require a name-only receiver. Paths are write-frame metadata only.
+//! Equality uses resolved declarations and
 //! the complete argument tree of an eligible normal-return call.
 //! Observed comparisons also retain consequences of finite integer carriers:
 //! a ceiling may disappear at a state edge without losing its bound on a
@@ -12,17 +14,18 @@
 //! ordering facts compose, while nonconvex exclusions keep their own meaning.
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, State, TypeReferenceNode, ValueEnvironment, declared_place_type_raw, place_path,
+    PrimitiveType, State, ValueEnvironment, declared_place_type_raw, place_path,
 };
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze_meaning;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     literal_interval, primitive_range,
 };
 use crate::proof_contracts::arithmetic_domains::place_paths::place_paths_overlap;
-use crate::value_custody::places::{collection_length_receiver, declared_member_path_type};
+use crate::value_custody::places::collection_length_receiver;
 use symbols::SymbolHandle;
 
 mod requirements;
+mod storage;
 mod transport;
 pub use requirements::validate_ordered_requirement_call_totality;
 pub(super) use transport::rebind_relations;
@@ -31,8 +34,13 @@ pub(super) use transport::rebind_relations;
 pub(super) enum Operand {
     Place {
         root: SymbolHandle,
-        fields: Vec<SymbolHandle>,
         path: String,
+    },
+    Field {
+        receiver: Box<Operand>,
+        field: SymbolHandle,
+        name: String,
+        primitive: Option<PrimitiveType>,
     },
     Integer(
         numerics::literals::IntegerLiteral,
@@ -90,13 +98,25 @@ impl Operand {
     pub(super) fn parameter(parameter: &typed_trees::signature::StateParameter) -> Self {
         Self::Place {
             root: parameter.symbol,
-            fields: Vec::new(),
             path: parameter.name.as_str().to_owned(),
         }
     }
 
+    /// Only fixed field chains have a precise legacy write-frame label.
+    /// Indexed observations keep their resolved selector but conservatively
+    /// depend on the collection footprint until that owner supplies a leaf.
+    pub(super) fn static_path(&self) -> Option<String> {
+        match self {
+            Self::Place { path, .. } => Some(path.clone()),
+            Self::Field { receiver, name, .. } => {
+                Some(format!("{}.{}", receiver.static_path()?, name))
+            }
+            _ => None,
+        }
+    }
+
     pub(super) fn survives(&self, written: &[String]) -> bool {
-        self.survives_preserving_length(written, None)
+        self.survives_paths(written)
     }
 
     pub(super) fn is_immutable_snapshot(
@@ -106,8 +126,8 @@ impl Operand {
     ) -> bool {
         match self {
             Self::Integer(..) => true,
-            Self::Place { root, fields, .. } => {
-                if !root.is_valid() || !fields.is_empty() {
+            Self::Place { root, .. } => {
+                if !root.is_valid() {
                     return false;
                 }
                 // Display paths are invalidation metadata, never declaration
@@ -139,28 +159,34 @@ impl Operand {
             Self::Binary { operands, .. } => operands
                 .iter()
                 .all(|value| value.is_immutable_snapshot(program, state)),
-            Self::CollectionLength(_) | Self::Indexed { .. } => false,
+            Self::CollectionLength(_) | Self::Indexed { .. } | Self::Field { .. } => false,
         }
     }
 
-    fn survives_preserving_length(&self, written: &[String], preserved: Option<&Operand>) -> bool {
+    fn survives_paths(&self, written: &[String]) -> bool {
         match self {
             Self::Place { path, .. } => {
                 !written.iter().any(|write| place_paths_overlap(path, write))
             }
+            Self::Field { receiver, .. } => self.static_path().map_or_else(
+                || receiver.survives_paths(written),
+                |path| {
+                    !written
+                        .iter()
+                        .any(|write| place_paths_overlap(&path, write))
+                },
+            ),
             Self::Integer(..) => true,
-            Self::Call { arguments, .. } => arguments
-                .iter()
-                .all(|value| value.survives_preserving_length(written, preserved)),
-            Self::CollectionLength(collection) => {
-                preserved == Some(collection.as_ref()) || collection.survives(written)
+            Self::Call { arguments, .. } => {
+                arguments.iter().all(|value| value.survives_paths(written))
             }
+            Self::CollectionLength(collection) => collection.survives(written),
             Self::Indexed {
                 collection, index, ..
             } => collection.survives(written) && index.survives(written),
-            Self::Binary { operands, .. } => operands
-                .iter()
-                .all(|value| value.survives_preserving_length(written, preserved)),
+            Self::Binary { operands, .. } => {
+                operands.iter().all(|value| value.survives_paths(written))
+            }
         }
     }
 
@@ -198,36 +224,20 @@ impl Operand {
                     })
                     .collect()
             }
-            Self::Place { root, fields, path } => bindings
-                .iter()
-                .filter_map(|(source, target)| {
-                    let Self::Place {
-                        root: source_root,
-                        fields: source_fields,
-                        path: source_path,
-                    } = source
-                    else {
-                        return None;
-                    };
-                    let Self::Place {
-                        root: target_root,
-                        fields: target_fields,
-                        path: target_path,
-                    } = target
-                    else {
-                        return None;
-                    };
-                    if root != source_root || !fields.starts_with(source_fields) {
-                        return None;
-                    }
-                    let suffix = path.strip_prefix(source_path)?.strip_prefix('.')?;
-                    let mut projected = target_fields.clone();
-                    projected.extend_from_slice(&fields[source_fields.len()..]);
-                    Some(Self::Place {
-                        root: *target_root,
-                        fields: projected,
-                        path: format!("{target_path}.{suffix}"),
-                    })
+            Self::Place { .. } => Vec::new(),
+            Self::Field {
+                receiver,
+                field,
+                name,
+                primitive,
+            } => receiver
+                .rebound(bindings)
+                .into_iter()
+                .map(|receiver| Self::Field {
+                    receiver: Box::new(receiver),
+                    field: *field,
+                    name: name.clone(),
+                    primitive: *primitive,
                 })
                 .collect(),
             Self::Call { target, arguments } => {
@@ -311,17 +321,6 @@ impl Relation {
         }
     }
 
-    pub(super) fn survives_byte_store(&self, written: &[String], collection: &Operand) -> bool {
-        self.left
-            .survives_preserving_length(written, Some(collection))
-            && self
-                .right
-                .survives_preserving_length(written, Some(collection))
-    }
-    pub(super) fn survives(&self, written: &[String]) -> bool {
-        self.left.survives(written) && self.right.survives(written)
-    }
-
     pub(super) fn rebound(&self, bindings: &[(Operand, Operand)]) -> Vec<Self> {
         self.left
             .rebound(bindings)
@@ -338,38 +337,6 @@ impl Relation {
             })
             .collect()
     }
-}
-
-/// Only a builtin element store through an exact mutable byte parameter leaves
-/// this view's extent unchanged. Callers cross all operand effects first.
-pub(super) fn byte_store_collection(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    target: ExpressionHandle,
-) -> Option<Operand> {
-    if !crate::place_has_builtin_coordinates(program, machine, Some(state), target) {
-        return None;
-    }
-    let indexed = program.expression_table.indexed_node(target)?;
-    let name = program
-        .expression_table
-        .name_path_node(indexed.collection)?;
-    let Some(element_type) =
-        crate::mutable_byte_slice_parameter_element(program, state, name.symbol)
-    else {
-        return None;
-    };
-    if !matches!(
-        program.type_reference_table.type_reference(element_type),
-        TypeReferenceNode::Named { .. }
-    ) || matches!(
-        program.expression_table.expression(indexed.index),
-        ExpressionNode::Range(_)
-    ) {
-        return None;
-    }
-    operand(program, machine, state, indexed.collection, None)
 }
 
 /// `operand` served by the resolver's once-computed whole-program call plans
@@ -437,17 +404,12 @@ fn build_operand(
             }
             Some(Operand::Place {
                 root: path.symbol,
-                fields: Vec::new(),
                 path: place_path(program, expression)?,
             })
         }
         ExpressionNode::Member(member) => {
-            let Operand::Place {
-                root, mut fields, ..
-            } = build_operand(program, machine, state, member.receiver, depth + 1, frames)?
-            else {
-                return None;
-            };
+            let receiver =
+                build_operand(program, machine, state, member.receiver, depth + 1, frames)?;
             // A case-tagged projection resolves its payload field under that
             // exact variant on the receiver's declared data (destructure-arm
             // reads). Untagged members keep the ordinary field lookup.
@@ -459,7 +421,7 @@ fn build_operand(
                     expression,
                 )?
                 .symbol
-            } else if root == machine.symbol {
+            } else if matches!(&receiver, Operand::Place { root, .. } if *root == machine.symbol) {
                 crate::exact_self_field(program, machine, expression)?.symbol
             } else {
                 crate::value_custody::places::declared_member_field_symbol(
@@ -469,16 +431,15 @@ fn build_operand(
                     expression,
                 )?
             };
-            if !field.is_valid()
-                || declared_place_type_raw(program, machine, Some(state), expression).is_none()
-            {
+            let reference = declared_place_type_raw(program, machine, Some(state), expression)?;
+            if !field.is_valid() {
                 return None;
             }
-            fields.push(field);
-            Some(Operand::Place {
-                root,
-                fields,
-                path: place_path(program, expression)?,
+            Some(Operand::Field {
+                receiver: Box::new(receiver),
+                field,
+                name: member.member.as_str().to_owned(),
+                primitive: program.primitive_type_reference(reference),
             })
         }
         ExpressionNode::Call(call) => {
@@ -826,7 +787,7 @@ pub(super) fn same_place(
     let Some(left) = operand(program, machine, state, left, None) else {
         return false;
     };
-    matches!(left, Operand::Place { .. })
+    left.static_path().is_some()
         && operand(program, machine, state, right, None).is_some_and(|right| left == right)
 }
 
@@ -988,16 +949,13 @@ pub(super) fn unsigned_increase_fits(
 /// call result's bound unknown -- its contract evidence lives elsewhere.
 fn operand_carrier_bound(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
     operand: &Operand,
 ) -> Option<Option<i64>> {
     match operand {
         Operand::Integer(literal, _) => Some(literal_interval(literal).high),
-        Operand::Place { path, .. } => {
-            let members = path.split('.').map(str::to_owned).collect::<Vec<_>>();
+        Operand::Place { root, .. } => {
             let type_reference =
-                declared_member_path_type(program, machine, Some(state), &members)?;
+                crate::value_custody::places::declaration_type_reference(program, *root)?;
             let primitive = program.primitive_type_reference(type_reference)?;
             Some(primitive_range(primitive).and_then(|range| range.high))
         }
@@ -1005,7 +963,7 @@ fn operand_carrier_bound(
             Some(primitive_range(*primitive).and_then(|range| range.high))
         }
         Operand::CollectionLength(_) => Some(None),
-        Operand::Indexed { primitive, .. } => {
+        Operand::Indexed { primitive, .. } | Operand::Field { primitive, .. } => {
             primitive.and_then(primitive_range).map(|range| range.high)
         }
         Operand::Call { .. } => None,
@@ -1018,8 +976,8 @@ fn operand_carrier_bound(
 /// ceiling admits only an operand whose carrier bound fits inside it.
 fn operand_carrier_within_ceiling(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
+    _machine: &Machine,
+    _state: &State,
     operand: &Operand,
     ceiling: Option<i64>,
 ) -> bool {
@@ -1027,7 +985,7 @@ fn operand_carrier_within_ceiling(
         return true;
     };
     matches!(
-        operand_carrier_bound(program, machine, state, operand),
+        operand_carrier_bound(program, operand),
         Some(Some(bound)) if bound <= ceiling
     )
 }

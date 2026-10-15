@@ -21,7 +21,6 @@ use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, State, ValueEnvironment, meaning,
     ordered_values,
 };
-use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataMember, DataVariant};
 
 /// Establish `classifier`'s case `where` facts on `subject` inside `environment`.
@@ -52,25 +51,14 @@ pub(super) fn contribute_case_where_facts(
     if variant.where_facts.is_empty() {
         return;
     }
-    let Some(ordered_values::Operand::Place { root, fields, path }) =
-        ordered_values::operand(program, machine, state, subject, None)
-    else {
+    let Some(subject) = ordered_values::operand(program, machine, state, subject, None) else {
         return;
     };
     for fact in program.proof_facts.span_or_empty(variant.where_facts) {
         let Some(expression) = fact.as_expression() else {
             continue;
         };
-        contribute_fact_expression(
-            program,
-            owner,
-            variant,
-            &root,
-            &fields,
-            &path,
-            environment,
-            *expression,
-        );
+        contribute_fact_expression(program, owner, variant, &subject, environment, *expression);
     }
 }
 
@@ -81,9 +69,7 @@ fn contribute_fact_expression(
     program: &dyn crate::CheckingInput,
     owner: &DataDefinition,
     variant: &DataVariant,
-    subject_root: &SymbolHandle,
-    subject_fields: &[SymbolHandle],
-    subject_path: &str,
+    subject: &ordered_values::Operand,
     environment: &mut ValueEnvironment,
     expression: ExpressionHandle,
 ) {
@@ -95,9 +81,7 @@ fn contribute_fact_expression(
             program,
             owner,
             variant,
-            subject_root,
-            subject_fields,
-            subject_path,
+            subject,
             environment,
             comparison.left,
         );
@@ -105,33 +89,15 @@ fn contribute_fact_expression(
             program,
             owner,
             variant,
-            subject_root,
-            subject_fields,
-            subject_path,
+            subject,
             environment,
             comparison.right,
         );
         return;
     }
     let (Some(left), Some(right)) = (
-        fact_side(
-            program,
-            owner,
-            variant,
-            subject_root,
-            subject_fields,
-            subject_path,
-            comparison.left,
-        ),
-        fact_side(
-            program,
-            owner,
-            variant,
-            subject_root,
-            subject_fields,
-            subject_path,
-            comparison.right,
-        ),
+        fact_side(program, owner, variant, subject, comparison.left),
+        fact_side(program, owner, variant, subject, comparison.right),
     ) else {
         return;
     };
@@ -154,9 +120,7 @@ fn fact_side(
     program: &dyn crate::CheckingInput,
     owner: &DataDefinition,
     variant: &DataVariant,
-    subject_root: &SymbolHandle,
-    subject_fields: &[SymbolHandle],
-    subject_path: &str,
+    subject: &ordered_values::Operand,
     expression: ExpressionHandle,
 ) -> Option<ProjectedOperand> {
     match program.expression_table.expression(expression) {
@@ -193,16 +157,18 @@ fn fact_side(
             if !has_fixed_integer_meaning(program, field.type_reference) {
                 return None;
             }
-            let mut fields = subject_fields.to_vec();
-            fields.push(field.symbol);
-            let path = format!("{subject_path}.{}", field.name.as_str());
+            let operand = ordered_values::Operand::Field {
+                receiver: Box::new(subject.clone()),
+                field: field.symbol,
+                name: field.name.as_str().to_owned(),
+                primitive: program.primitive_type_reference(field.type_reference),
+            };
+            let spelled = field_name_unique(program, owner, field.name.as_str())
+                .then(|| operand.static_path())
+                .flatten();
             Some(ProjectedOperand {
-                operand: Some(ordered_values::Operand::Place {
-                    root: *subject_root,
-                    fields,
-                    path: path.clone(),
-                }),
-                spelled: field_name_unique(program, owner, field.name.as_str()).then_some(path),
+                operand: Some(operand),
+                spelled,
                 declared_type: Some(field.type_reference),
             })
         }

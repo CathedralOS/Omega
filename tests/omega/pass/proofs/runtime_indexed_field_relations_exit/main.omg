@@ -1,0 +1,47 @@
+data Counter [copy] { value: u64; limit: u64; }
+machine advance(counters: &mut [Counter], selected: u64) -> u64
+{
+    transition selected < counters.len {
+        true -> capacity(counters, selected)
+        false -> 0
+    }
+    state capacity(counters: &mut [Counter], selected: u64) -> u64
+    requires selected < counters.len {
+        transition counters[selected].value < counters[selected].limit {
+            true -> store(counters, selected)
+            false -> 0
+        }
+    }
+    state store(counters: &mut [Counter], selected: u64) -> u64
+    requires selected < counters.len && counters[selected].value < counters[selected].limit {
+        let current: u64 = counters[selected].value;
+        counters[selected].value = current + 1;
+        counters[selected].value
+    }
+}
+machine difference(counter: &mut Counter) -> u64 {
+    transition counter.value < counter.limit {
+        true -> copy(counter)
+        false -> 0
+    }
+    state copy(counter: &mut Counter) -> u64
+    requires counter.value < counter.limit {
+        counter.value = counter.value;
+        transition { _ -> finish(counter) }
+    }
+    state finish(counter: &mut Counter) -> u64 { counter.limit - counter.value }
+}
+machine main() crashes Trap {
+    let mut counters: [Counter; 2] = [
+        Counter { value: 3, limit: 9 }, Counter { value: 18446744073709551614, limit: 18446744073709551615 }
+    ];
+    let result: u64 = advance(&mut counters[..], 1);
+    let remaining: u64 = difference(&mut counters[0]);
+    transition result == 18446744073709551615
+        && counters[1].value == result && counters[0].value == 3 && remaining == 6 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

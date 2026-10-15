@@ -398,7 +398,8 @@ pub(super) fn validate<'a, 'p>(
             program,
             machine,
             current_state,
-            assignment.target,
+            statement,
+            scope.call_frames,
             &written,
         );
     } else {

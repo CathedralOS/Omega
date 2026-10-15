@@ -448,19 +448,6 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             // Geometry needs selector positions, not their expressions or proof
             // identities. Scratch markers associate each declaration walk step
             // with the read's ordered, evaluated selector, never emitted authority.
-            if element_path
-                .iter()
-                .filter(|step| {
-                    matches!(
-                        step,
-                        checked_trees::CheckedScalarReadProjection::RuntimeIndex(_)
-                    )
-                })
-                .count()
-                > crate::emission::operation_emission::expressions::TERMINAL_NESTED_SELECTOR_LIMIT
-            {
-                return unsupported("indexed read exceeds its selector namespace");
-            }
             let mut selectors = Vec::new();
             let geometry = element_path
                 .iter()
@@ -490,10 +477,15 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             if scalar_type != terminal_scalar_type(*primitive_type)? {
                 return unsupported("indexed read changes its declared scalar carrier");
             }
-            let element_path = explicit_path
-                .into_iter()
-                .map(|step| match step {
-                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+            use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment as Prepared;
+            let mut element_path = Vec::with_capacity(explicit_path.len());
+            for step in explicit_path {
+                let dynamic_extent = matches!(
+                    element_path.last(),
+                    Some(LoweredElementPathSegment::ViewExtent { .. })
+                );
+                element_path.push(match step {
+                    Prepared::RuntimeIndex(
                         checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
                     ) => {
                         let selector =
@@ -502,32 +494,56 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                 .ok_or(LoweringError::Unsupported(
                                     "indexed read lost its selector position",
                                 ))?;
-                        Ok(LoweredElementPathSegment::RuntimeIndex {
-                            selector: lower_selector(identities, &selector.expression)?,
+                        LoweredElementPathSegment::RuntimeIndex {
+                            selector: exact_u64_index(lower_selector(
+                                identities,
+                                &selector.expression,
+                            )?)?,
                             extent: None,
                             bound_decided: selector_bound_is_decided(selector, proven_indexes),
-                        })
+                        }
                     }
-                    checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
-                        Ok(LoweredElementPathSegment::Static(
-                            terminal_psi::StructuralPathSegment::Field(
-                                identities.intern(&identity.spelling()),
-                            ),
-                        ))
+                    Prepared::Static(terminal_psi::StructuralPathSegment::FixedIndex(position))
+                        if dynamic_extent =>
+                    {
+                        LoweredElementPathSegment::RuntimeIndex {
+                            selector: LoweredDirectExpression::IntegerLiteral {
+                                value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(
+                                    position,
+                                )),
+                                scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
+                            },
+                            extent: None,
+                            bound_decided: false,
+                        }
                     }
-                    checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                        Ok(LoweredElementPathSegment::Static(
-                            terminal_psi::StructuralPathSegment::FixedIndex(index),
-                        ))
+                    Prepared::Static(segment) => LoweredElementPathSegment::Static(segment),
+                    Prepared::ViewExtent { bytes } => {
+                        LoweredElementPathSegment::ViewExtent { source, bytes }
                     }
-                    checked_trees::CheckedUnitStructuralPathSegment::Referent => {
-                        Ok(LoweredElementPathSegment::Static(
-                            terminal_psi::StructuralPathSegment::Referent,
-                        ))
-                    }
-                    _ => unsupported("indexed read has an unsupported projection"),
+                    _ => return unsupported("indexed read has an unsupported projection"),
+                });
+            }
+            // Count emitted selectors, including literal indexes into live
+            // descriptors. Source spelling alone misses those obligations.
+            let selectors = path
+                .iter()
+                .filter(|step| {
+                    matches!(
+                        step,
+                        terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+                    )
                 })
-                .collect::<Result<Vec<_>, _>>()?;
+                .count()
+                + element_path
+                    .iter()
+                    .filter(|step| matches!(step, LoweredElementPathSegment::RuntimeIndex { .. }))
+                    .count();
+            if selectors
+                > crate::emission::operation_emission::expressions::TERMINAL_NESTED_SELECTOR_LIMIT
+            {
+                return unsupported("indexed read exceeds its selector namespace");
+            }
             Ok(LoweredDirectExpression::IndexedPrimitiveRead {
                 source,
                 path,
