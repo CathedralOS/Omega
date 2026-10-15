@@ -160,14 +160,27 @@ fn known_call_written_paths_for_parts(
     inference: &mut FrameInference,
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
-    // A static machine parameter's selected target is a specialization input,
-    // not an ordinary receiver binding. Until MP summaries instantiate that
-    // binding explicitly, retain the sound all-facts invalidation.
-    if program
-        .machine_parameter_signature_in(current_machine, target_symbol)
-        .is_some()
+    // A static callable owns a public write ceiling just like an operator.
+    // Project only that exact telescope; unresolved nested substitutions stay
+    // opaque rather than borrowing a selected implementation's stronger body.
+    if let Some(signature) = program.machine_parameter_signature_in(current_machine, target_symbol)
     {
-        return None;
+        if !signature.lifetime_parameters.is_empty()
+            || !program
+                .state_signature_type_parameters(signature)
+                .is_empty()
+        {
+            return None;
+        }
+        return boundary_calls::signature_parameters_written_paths(
+            program,
+            current_machine,
+            machine_symbols,
+            symbols,
+            program.state_signature_parameters(signature),
+            arguments,
+            inference,
+        );
     }
     if let Some(operator) = program.operator_definition_by_symbol(target_symbol) {
         // The resolved requirement, not its namespace spelling or selected

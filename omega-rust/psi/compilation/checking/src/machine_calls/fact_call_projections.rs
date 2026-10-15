@@ -1,7 +1,8 @@
 //! First bounded fact-call projection rung.
 //!
-//! A direct field read from one exact bodyful internal call is a denotational
-//! term, not a runtime temporary.  Every broader shape remains fenced here so
+//! A direct field read retains an exact checked body or a total value-only
+//! static callable contract. It is a denotational term, not a runtime temporary.
+//! Broader shapes remain fenced here so
 //! the structural judge and package-review identity never acquire an implicit
 //! execution model.
 
@@ -265,19 +266,25 @@ fn validate_direct_projection(
         return None;
     }
 
-    let (machine, state) = validate_checked_call_candidate(
-        program,
-        call,
-        operational,
-        service_reaches,
-        &reject,
-        diagnostics,
-    )?;
+    let abstract_signature =
+        super::denotational_calls::abstract_value_call_signature(program, call.target_symbol);
+    let concrete = if abstract_signature.is_some() {
+        None
+    } else {
+        Some(validate_checked_call_candidate(
+            program,
+            call,
+            operational,
+            service_reaches,
+            &reject,
+            diagnostics,
+        )?)
+    };
+    let result_type = abstract_signature
+        .map(|signature| signature.return_type)
+        .or_else(|| concrete.map(|(_, state)| state.return_type))?;
 
-    let (data_symbol, qualified) = match program
-        .type_reference_table
-        .type_reference(state.return_type)
-    {
+    let (data_symbol, qualified) = match program.type_reference_table.type_reference(result_type) {
         TypeReferenceNode::Named { symbol, .. } => (*symbol, false),
         TypeReferenceNode::Generic { base_symbol, .. } => (*base_symbol, false),
         TypeReferenceNode::Constrained { .. } => (symbols::SymbolHandle::invalid(), true),
@@ -323,13 +330,18 @@ fn validate_direct_projection(
         );
         return None;
     };
+    // Abstract formation is closed by its public signature above. Only a
+    // concrete body requests a later checked termination certificate, exactly
+    // as ordinary specification invocations do; no executable target is
+    // invented for a symbolic machine parameter.
+    let (machine, state) = concrete?;
     Some(ValidatedFactCallProjection {
         projection_expression,
         call_expression,
         target_machine: machine.symbol,
         target_state: state.symbol,
         machine_arguments: call.machine_arguments.clone(),
-        result_type: state.return_type,
+        result_type,
         field,
     })
 }

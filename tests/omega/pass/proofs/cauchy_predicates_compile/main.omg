@@ -2,7 +2,7 @@
 // take their generator/modulus identities as static machine parameters.
 use omega::language::core::cauchy;
 
-machine unit_sample(index: Nat) -> Rat {
+machine unit_sample(index: Nat) -> Rat terminates {
     Rat {
         num: IntPair {
             neg: Nat::Zero,
@@ -12,7 +12,7 @@ machine unit_sample(index: Nat) -> Rat {
     }
 }
 
-machine immediate_modulus(precision: Nat) -> Nat {
+machine immediate_modulus(precision: Nat) -> Nat terminates {
     Nat::Zero
 }
 

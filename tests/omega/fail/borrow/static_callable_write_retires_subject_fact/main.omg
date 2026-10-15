@@ -1,0 +1,9 @@
+machine positive(cell: &u64) -> u64 requires cell > 0 { cell }
+machine unproved<machine Write>(cell: &mut u64) -> u64
+where machine Write(cell: &mut u64) terminates;
+requires cell > 0
+{
+    Write(cell);
+    positive(cell)
+}
+machine main() {}

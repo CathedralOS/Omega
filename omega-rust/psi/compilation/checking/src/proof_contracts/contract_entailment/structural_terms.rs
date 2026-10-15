@@ -534,6 +534,7 @@ pub(super) fn structural_term(
                     ))
                 && call.evidence_arguments.is_empty()
                 && call.static_requirement_dispatch.is_none()
+                && program.state_by_symbol(call.target_symbol).is_some()
             {
                 let handles = program.expression_table.expression_handles(call.arguments);
                 let arguments = handles
@@ -645,11 +646,20 @@ pub(super) fn structural_term(
                         ))
                     }),
                 Some(
-                    subject @ (StructuralTerm::Variable(_) | StructuralTerm::Projection { .. }),
-                ) if is_length_member || declared_field => Some(StructuralTerm::Projection {
-                    subject: Box::new(subject),
-                    path: member.member.as_str().to_owned(),
-                }),
+                    subject @ (StructuralTerm::Variable(_)
+                    | StructuralTerm::Projection { .. }
+                    | StructuralTerm::Application { .. }
+                    | StructuralTerm::CapturedValue { .. }
+                    | StructuralTerm::CallProjection { .. }
+                    | StructuralTerm::IndexedValue { .. }),
+                ) if (is_length_member || declared_field)
+                    && !term_is_unobserved_descriptor(program, &subject) =>
+                {
+                    Some(StructuralTerm::Projection {
+                        subject: Box::new(subject),
+                        path: member.member.as_str().to_owned(),
+                    })
+                }
                 _ => Some(StructuralTerm::Opaque(
                     program.expression_table.display_name(expression),
                 )),

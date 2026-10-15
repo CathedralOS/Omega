@@ -138,7 +138,7 @@ pub(crate) fn validate_specification_calls(
 /// Abstract functions have no checked body closure to inspect. Their exact
 /// interface must forbid runtime observations and control effects and expose
 /// only immutable value inputs; ordinary call formation still proves Requires.
-fn signature_has_closed_value_effects(
+pub(super) fn signature_has_closed_value_effects(
     program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> bool {

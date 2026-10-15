@@ -1010,6 +1010,14 @@ pub(super) fn call_has_mathematical_denotation(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
+    if let Some(signature) = crate::machine_calls::denotational_calls::abstract_value_call_signature(
+        program,
+        call.target_symbol,
+    ) {
+        return crate::proof_only_classification(program)
+            .proof_only_mention(program, signature.return_type)
+            .is_some();
+    }
     match selected_call_contract(program, call) {
         Some(SelectedCallContract::Concrete(machine, _)) => {
             crate::proof_only_classification(program).is_proof_machine(program, machine)

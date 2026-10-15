@@ -422,6 +422,8 @@ fail/borrow/signed_window_shared_mutation rejected 640ms expected @5acf32321f42+
 	argument `values` for state `entry` is declared `&mut` (`&mut [f64]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrow/static_byte_state_loan_cannot_write rejected 3500ms expected @a9ae30e1c334+wt
 	machine `main` state `damage` assignment cannot write `bytes` because it is not mutable in this state (if `bytes` is undeclared -- a typo -- no such field or local exists)
+fail/borrow/static_callable_write_retires_subject_fact rejected 1210ms expected @fedeee648fc7+wt
+	cannot prove requires contract for call positive from unproved: cell > 0 (needs fact `cell > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrow/stored_write_only_observation rejected 846ms expected @a9ae30e1c334+wt
 	machine `observe_index` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `observe_nested` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
@@ -3978,6 +3980,16 @@ fail/proofs/self_call_without_witness_not_denotational rejected 686ms expected @
 	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
 fail/proofs/short_circuit_skipped_rhs_bound rejected 10615ms expected @5b35eda9b8d6
 	cannot prove requires contract for call bounded from main: context.count < 6 (needs fact `context.count < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/proofs/static_machine_result_effectful_contract rejected 664ms expected @fedeee648fc7+wt
+	specification call `project` has no observation-free, reach-free, crash-free value denotation: the selected closure has effects, reaches, or unresolved call targets
+	specification call `project` has no observation-free, reach-free, crash-free value denotation: the selected closure has effects, reaches, or unresolved call targets
+fail/proofs/static_machine_result_partial_contract rejected 600ms expected @fedeee648fc7+wt
+	specification call `project` has no observation-free, reach-free, crash-free value denotation: the selected closure has effects, reaches, or unresolved call targets
+	specification call `project` has no observation-free, reach-free, crash-free value denotation: the selected closure has effects, reaches, or unresolved call targets
+fail/proofs/static_machine_result_wrong_field rejected 289ms expected @fedeee648fc7+wt
+	machine `unproved` ensures contract proof fact `project<First>(index) == First(index).other` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+fail/proofs/static_machine_result_wrong_selection rejected 284ms expected @fedeee648fc7+wt
+	machine `unproved` ensures contract proof fact `project<First>(index) == Second(index).value` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 fail/proofs/store_selector_mutation_retires_bound rejected 579ms expected @b3d0b7396229+wt
 	cannot prove ensures contract for exit from wrong at statement 2: bounds.count <= bounds.limit; no exact incoming reference origin for bounds
 fail/proofs/strict_comparison_mutation_snapshot rejected 8810ms expected @5b35eda9b8d6
@@ -5200,6 +5212,7 @@ pass/borrow/runtime_signed_element_call_exit checked 19301ms check-target:linux_
 pass/borrow/runtime_signed_element_empty_exit checked 19250ms check-target:linux_x86_64 @5acf32321f42+wt
 pass/borrow/runtime_signed_element_inclusive_exit checked 18287ms check-target:linux_x86_64 @5acf32321f42+wt
 pass/borrow/runtime_signed_element_window_exit checked 17670ms check-target:linux_x86_64 @5acf32321f42+wt
+pass/borrow/runtime_static_callable_preserves_readonly_subject_exit checked 7135ms check-target:macos_arm64 @fedeee648fc7+wt
 pass/borrow/runtime_write_only_affine_sum_exit checked 5635ms check-target:macos_arm64 @af6b0f221559+wt
 pass/borrow/runtime_write_only_aggregate_selector_snapshot_exit checked 5735ms check-target:macos_arm64 @af6b0f221559+wt
 pass/borrow/runtime_write_only_array_indexed_calls_exit checked 5689ms check-target:macos_arm64 @af6b0f221559+wt
@@ -7365,13 +7378,7 @@ pass/proofs/accumulator_guarantee_exit checked 11353ms check-target:macos_arm64 
 pass/proofs/axiom_citation checked 9748ms @5041ef1af684+wt
 pass/proofs/borrowed_descriptor_bound_local_result_exit checked 3519ms check-target:macos_arm64 @b3d0b7396229+wt
 pass/proofs/case_call_premises checked 1644ms @a9ae30e1c334+wt
-pass/proofs/cauchy_predicates_compile rejected 919ms @4ce1ff349782+wt
-	machine `cauchy_at_reflexive` ensures contract proof fact `cauchy_at<Sequence, Modulus>(precision, index, index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	machine `converges_together_at_symmetric` cites `rat_close_symmetric`, but the callee's requires fact `rat_close(p, q, precision) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
-	machine `converges_together_at_symmetric` ensures contract proof fact `converges_together_at<Right, Left, Modulus>(precision, right_index, left_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	machine `converges_together_at_triangle_split` cites `rat_close_triangle_split`, but the callee's requires fact `saturating_sub(Nat, q.den) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
-	machine `converges_together_at_triangle_split` ensures contract proof fact `converges_together_at<Left, Right, Modulus>(precision, left_index, right_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	machine `doubled_nat_max_threshold` ensures contract proof fact `saturating_sub(doubled_nat_max_modulus<FirstModulus, SecondModulus>(precision), index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+pass/proofs/cauchy_predicates_compile checked 2759ms @fedeee648fc7+wt
 pass/proofs/citation_requires_discharged checked 10576ms @b7aaf37278ea+wt
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 1240ms @1cb01af2f0bb
 pass/proofs/copied_descriptor_keeps_capture_extent checked 678ms @b3d0b7396229+wt
@@ -7461,6 +7468,7 @@ pass/proofs/selected_specification_requires_exact checked 5076ms @4ce1ff349782+w
 pass/proofs/selected_specification_requires_renamed checked 5083ms @4ce1ff349782+wt
 pass/proofs/selected_specification_requires_state checked 4678ms @4ce1ff349782+wt
 pass/proofs/short_circuit_rhs_entry_bound checked 30697ms check-target:macos_arm64 @5b35eda9b8d6
+pass/proofs/static_machine_result_projection checked 1379ms @fedeee648fc7+wt
 pass/proofs/stride_pair_telescope checked 9821ms @5041ef1af684+wt
 pass/providers/applied_binding_field_telescopes_exit checked 5887ms check-target:macos_arm64 @f523463c7783+wt
 pass/providers/applied_entry_nested_binding_context_exit checked 2785ms check-target:macos_arm64 @c61d64ccecc5+wt

@@ -405,7 +405,22 @@ fn isolated_proof_values(
                 .all(|call| {
                     program
                         .state_by_symbol(call.target_symbol)
-                        .is_some_and(isolated_parameters)
+                        .map(isolated_parameters)
+                        .or_else(|| {
+                            program
+                                .machine_parameter_signature_in(machine, call.target_symbol)
+                                .map(|signature| {
+                                    program.state_signature_parameters(signature).iter().all(
+                                        |parameter| {
+                                            !parameter.is_mutable
+                                                && resolver.proof_value_is_caller_isolated(
+                                                    parameter.type_reference,
+                                                )
+                                        },
+                                    )
+                                })
+                        })
+                        .unwrap_or(false)
                 })
         })
 }

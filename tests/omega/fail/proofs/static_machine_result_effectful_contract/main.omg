@@ -1,0 +1,18 @@
+use omega::language::core::nat;
+pub boundary trait Console {}
+data Observation { value: Nat; }
+machine project<machine Read>(index: Nat) -> Nat
+where machine Read(index: Nat) -> Observation reaches Console terminates;
+{
+    let observation: Observation = Read(index);
+    transition { _ -> observation.value }
+}
+machine unproved<machine Read>(index: Nat)
+where machine Read(index: Nat) -> Observation reaches Console terminates;
+requires
+    project<Read>(index) == Nat::Zero
+ensures
+    project<Read>(index) == Nat::Zero
+{
+}
+machine main() {}

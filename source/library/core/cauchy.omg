@@ -3,6 +3,8 @@
 // Quantification uses Omega's ordinary theorem-machine rule: `precision`,
 // `left_index`, and `right_index` are arbitrary symbolic inputs. A modulus is
 // a static machine, so no callable value or proof object exists at runtime.
+// Each selected generator and modulus must publish unconditional termination;
+// a predicate cannot assign a mathematical value to a partial invocation.
 // `cauchy_at == Zero` is the point obligation after both indices have reached
 // that modulus. `converges_together_at == Zero` is the heterogeneous twin for
 // two generators and is the atom from which the Real quotient relation will
@@ -16,8 +18,8 @@ machine cauchy_at<machine Sequence, machine Modulus>(
     left_index: Nat,
     right_index: Nat
 ) -> Nat
-where machine Sequence(index: Nat) -> Rat;
-where machine Modulus(precision: Nat) -> Nat;
+where machine Sequence(index: Nat) -> Rat terminates;
+where machine Modulus(precision: Nat) -> Nat terminates;
 requires
     (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
     (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;
@@ -33,9 +35,9 @@ machine converges_together_at<machine Left, machine Right, machine Modulus>(
     left_index: Nat,
     right_index: Nat
 ) -> Nat
-where machine Left(index: Nat) -> Rat;
-where machine Right(index: Nat) -> Rat;
-where machine Modulus(precision: Nat) -> Nat;
+where machine Left(index: Nat) -> Rat terminates;
+where machine Right(index: Nat) -> Rat terminates;
+where machine Modulus(precision: Nat) -> Nat terminates;
 requires
     (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
     (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;
@@ -50,8 +52,8 @@ machine cauchy_at_reflexive<machine Sequence, machine Modulus>(
     precision: Nat,
     index: Nat
 )
-where machine Sequence(index: Nat) -> Rat;
-where machine Modulus(precision: Nat) -> Nat;
+where machine Sequence(index: Nat) -> Rat terminates;
+where machine Modulus(precision: Nat) -> Nat terminates;
 requires
     (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
     (saturating_sub(Modulus(precision), index)) == Nat::Zero
@@ -71,9 +73,9 @@ machine converges_together_at_symmetric<
     left_index: Nat,
     right_index: Nat
 )
-where machine Left(index: Nat) -> Rat;
-where machine Right(index: Nat) -> Rat;
-where machine Modulus(precision: Nat) -> Nat;
+where machine Left(index: Nat) -> Rat terminates;
+where machine Right(index: Nat) -> Rat terminates;
+where machine Modulus(precision: Nat) -> Nat terminates;
 requires
     (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
     (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;
@@ -111,10 +113,10 @@ machine converges_together_at_triangle_split<
     middle_index: Nat,
     right_index: Nat
 )
-where machine Left(index: Nat) -> Rat;
-where machine Middle(index: Nat) -> Rat;
-where machine Right(index: Nat) -> Rat;
-where machine Modulus(precision: Nat) -> Nat;
+where machine Left(index: Nat) -> Rat terminates;
+where machine Middle(index: Nat) -> Rat terminates;
+where machine Right(index: Nat) -> Rat terminates;
+where machine Modulus(precision: Nat) -> Nat terminates;
 requires
     (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
     (saturating_sub(
@@ -165,12 +167,12 @@ ensures
 machine doubled_nat_max_modulus<machine FirstModulus, machine SecondModulus>(
     precision: Nat
 ) -> Nat
-where machine FirstModulus(precision: Nat) -> Nat;
-where machine SecondModulus(precision: Nat) -> Nat;
+where machine FirstModulus(precision: Nat) -> Nat terminates;
+where machine SecondModulus(precision: Nat) -> Nat terminates;
 {
-    let doubled_precision: Nat = add(precision, precision);
-    let first_threshold: Nat = FirstModulus(doubled_precision);
-    let second_threshold: Nat = SecondModulus(doubled_precision);
+    // Each selected invocation consumes its own affine proof-number value.
+    let first_threshold: Nat = FirstModulus(add(precision, precision));
+    let second_threshold: Nat = SecondModulus(add(precision, precision));
     transition { _ -> (nat_max(first_threshold, second_threshold)) }
 }
 
@@ -186,8 +188,8 @@ machine doubled_nat_max_threshold<
     precision: Nat,
     index: Nat
 )
-where machine FirstModulus(precision: Nat) -> Nat;
-where machine SecondModulus(precision: Nat) -> Nat;
+where machine FirstModulus(precision: Nat) -> Nat terminates;
+where machine SecondModulus(precision: Nat) -> Nat terminates;
 requires
     (saturating_sub(
         FirstModulus(add(precision, precision)),
@@ -210,13 +212,7 @@ ensures
     );
 }
 
-// NEXT STEP (unproved at this writing): the heterogeneous transitivity theorem
-// itself, `converges_together_at_composed` -- Left~Middle at 2e under
-// LeftModulus and Middle~Right at 2e under RightModulus entail Left~Right at e
-// under ComposedModulus.  Two checker capabilities still gate it, identically
-// to `converges_together_at_triangle_split` above: a static-machine call's
-// field projection `(Middle(middle_index)).den` cannot discharge
-// rat_close_triangle_split's positivity requires (only a parameter's `.den`
-// reaches the discharge site today), and an ensures naming the
-// machine-parameterized `converges_together_at` application is outside every
-// entailment tier (math roster N3).
+// Heterogeneous transitivity, `converges_together_at_composed`, is not yet
+// provided here. The threshold lemma above supplies its composed-modulus
+// admissibility; a future theorem must still cite the rational triangle law
+// with both independent doubled-precision premises.

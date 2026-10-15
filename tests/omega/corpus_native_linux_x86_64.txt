@@ -150,6 +150,7 @@ pass/borrow/runtime_signed_element_call_exit built 35837ms exit:0 @6c49683ce714
 pass/borrow/runtime_signed_element_empty_exit built 35689ms exit:0 @6c49683ce714
 pass/borrow/runtime_signed_element_inclusive_exit built 35594ms exit:0 @6c49683ce714
 pass/borrow/runtime_signed_element_window_exit built 35633ms exit:0 @6c49683ce714
+pass/borrow/runtime_static_callable_preserves_readonly_subject_exit built 7196ms exit:0 @fedeee648fc7+wt
 pass/borrow/runtime_write_only_affine_sum_exit built 17924ms exit:0 @6c49683ce714
 pass/borrow/runtime_write_only_aggregate_selector_snapshot_exit built 18012ms exit:0 @6c49683ce714
 pass/borrow/runtime_write_only_array_indexed_calls_exit built 17968ms exit:0 @6c49683ce714
@@ -2299,13 +2300,7 @@ pass/proofs/accepted_axiom_cited_exit built 14833ms exit:70 @6c49683ce714
 pass/proofs/accumulator_guarantee_exit built 14858ms exit:70 @6c49683ce714
 pass/proofs/axiom_citation checked 17567ms @6c49683ce714
 pass/proofs/case_call_premises checked 3412ms @6c49683ce714
-pass/proofs/cauchy_predicates_compile rejected 487ms @8665e38f912c
-	machine `cauchy_at_reflexive` ensures contract proof fact `cauchy_at<Sequence, Modulus>(precision, index, index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	machine `converges_together_at_symmetric` cites `rat_close_symmetric`, but the callee's requires fact `rat_close(p, q, precision) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
-	machine `converges_together_at_symmetric` ensures contract proof fact `converges_together_at<Right, Left, Modulus>(precision, right_index, left_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	machine `converges_together_at_triangle_split` cites `rat_close_triangle_split`, but the callee's requires fact `saturating_sub(Nat, q.den) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
-	machine `converges_together_at_triangle_split` ensures contract proof fact `converges_together_at<Left, Right, Modulus>(precision, left_index, right_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	machine `doubled_nat_max_threshold` ensures contract proof fact `saturating_sub(doubled_nat_max_modulus<FirstModulus, SecondModulus>(precision), index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+pass/proofs/cauchy_predicates_compile checked 2774ms @fedeee648fc7+wt
 pass/proofs/citation_requires_discharged checked 14312ms @6c49683ce714
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 4133ms @6c49683ce714
 pass/proofs/defined_proposition_premises checked 3476ms @6c49683ce714
@@ -2394,6 +2389,7 @@ pass/proofs/selected_specification_requires_exact checked 3644ms @6c49683ce714
 pass/proofs/selected_specification_requires_renamed checked 3587ms @6c49683ce714
 pass/proofs/selected_specification_requires_state checked 3400ms @6c49683ce714
 pass/proofs/short_circuit_rhs_entry_bound built 17915ms @6c49683ce714
+pass/proofs/static_machine_result_projection checked 1404ms @fedeee648fc7+wt
 pass/proofs/stride_pair_telescope checked 18313ms @6c49683ce714
 pass/providers/applied_binding_field_telescopes_exit built 5450ms exit:0 @f523463c7783+wt
 pass/providers/applied_entry_nested_binding_context_exit built 11734ms exit:0 @326ed531359e+wt

@@ -1552,6 +1552,11 @@ impl<'program> StructuralJudge<'program> {
                     && call.evidence_arguments.is_empty()
                     && call.static_requirement_dispatch.is_none()
                     && !self.runtime_body_values
+                    && crate::machine_calls::calls::signature_queries::unique_state_by_symbol(
+                        program,
+                        call.target_symbol,
+                    )
+                    .is_some()
                 {
                     let arguments = program
                         .expression_table
@@ -1676,9 +1681,26 @@ impl<'program> StructuralJudge<'program> {
                         depth + 1,
                     )?);
                 }
-                let result_type = scope
-                    .and_then(|(machine, state, _)| {
-                        crate::expression_result_type_reference(program, machine, state, expression)
+                // Substitution changes the selected callable telescope as well
+                // as its symbol. Retain its own result declaration rather than
+                // the enclosing machine parameter's separately allocated type.
+                let selected_result = selected_target.and_then(|selected| {
+                    program
+                        .machine_parameter_signature(selected.symbol)
+                        .map(|(_, signature)| signature.return_type)
+                        .or_else(|| {
+                            program
+                                .state_by_symbol(selected.symbol)
+                                .map(|state| state.return_type)
+                        })
+                });
+                let result_type = selected_result
+                    .or_else(|| {
+                        scope.and_then(|(machine, state, _)| {
+                            crate::expression_result_type_reference(
+                                program, machine, state, expression,
+                            )
+                        })
                     })
                     .unwrap_or_default();
                 Some(StructuralTerm::Application {

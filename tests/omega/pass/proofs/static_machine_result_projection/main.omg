@@ -1,0 +1,31 @@
+// Static selections keep their result carrier and field identity through wrappers.
+use omega::language::core::nat;
+data Observation { value: Nat; other: Nat; }
+machine project<machine Read>(index: Nat) -> Nat
+where machine Read(index: Nat) -> Observation terminates;
+{
+    let observation: Observation = Read(index);
+    transition { _ -> observation.value }
+}
+machine forwarded<machine Read>(index: Nat) -> Nat
+where machine Read(index: Nat) -> Observation terminates;
+{
+    transition { _ -> (project<Read>(index)) }
+}
+machine result_projection<machine Read>(index: Nat)
+where machine Read(index: Nat) -> Observation terminates;
+ensures
+    project<Read>(index) == (Read(index)).value;
+    forwarded<Read>(index) == (Read(index)).value
+{
+}
+machine literal(index: Nat) -> Observation terminates {
+    Observation { value: index, other: Nat::Zero }
+}
+machine concrete_projection(index: Nat)
+ensures
+    project<literal>(index) == index;
+    forwarded<literal>(index) == index
+{
+}
+machine main() {}

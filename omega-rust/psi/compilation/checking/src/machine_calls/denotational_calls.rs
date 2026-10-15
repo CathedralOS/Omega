@@ -5,7 +5,8 @@
 //! module consumes the existing whole-program summaries; it never performs a
 //! second expression-local effect inference. Concrete calls extend the shared
 //! checked-machine walk; exact sealed total value operators close a leaf.
-//! Abstract requirements and unresolved calls supply neither kind of authority.
+//! A total, value-only static callable closes a leaf through its exact public
+//! contract. Unresolved calls supply no denotational authority.
 
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -16,6 +17,42 @@ pub use normal_return::normal_return_call_candidate;
 pub(crate) use normal_return::plain_value_call_target;
 pub(crate) use specification::validate_specification_calls;
 pub use specification::{SpecificationCallRequest, admit_specification_calls};
+
+/// A static callable's exact public telescope can close a value-only leaf.
+/// This consumes the declared promise; it never inspects a selected private
+/// implementation or supplies an unresolved caller with stronger guarantees.
+pub(crate) fn abstract_value_call_signature(
+    program: &dyn crate::CheckingInput,
+    target: SymbolHandle,
+) -> Option<&typed_trees::signature::StateSignature> {
+    let contract = program.retained_static_machine_contract(target)?;
+    let signature = contract.signature();
+    if !matches!(
+        &signature.termination_guarantee,
+        language_semantics::TerminationGuarantee::Terminates { premises }
+            if premises.is_empty()
+    ) || !specification::signature_has_closed_value_effects(program, signature)
+    {
+        return None;
+    }
+    let proof_only = crate::proof_only_classification(program);
+    let forbidden = |reference| {
+        crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
+            program,
+            &proof_only,
+            reference,
+        )
+    };
+    if program
+        .state_signature_parameters(signature)
+        .iter()
+        .any(|parameter| forbidden(parameter.type_reference))
+        || (signature.return_type.is_valid() && forbidden(signature.return_type))
+    {
+        return None;
+    }
+    Some(signature)
+}
 
 /// A concrete value application's operational eligibility, before its checked
 /// termination summary exists. Specification formation retains the exact call
@@ -371,7 +408,8 @@ pub(crate) fn has_pure_effect_closure(
 /// Extend the concrete DFS through exact checked machine/state edges. A sealed
 /// total value operator completes a leaf under the same eligibility owner for
 /// purity, observations and crashes; a boundary spelling alone never does.
-/// Missing summaries, abstract selection and unresolved targets fail closed.
+/// Exact total value-only static contracts also close leaves; missing
+/// summaries and unresolved targets fail closed.
 fn push_checked_machine_call_targets(
     program: &dyn crate::CheckingInput,
     operational: &flow_effects::OperationalPlan,
@@ -413,9 +451,24 @@ fn push_checked_machine_call_targets(
                 pending.push(machine.symbol);
                 continue;
             }
-            // A retained abstract binder remains its own contract. The
-            // operator field cannot turn an unresolved selection into a
-            // concrete denotation, even when a catalog declaration is nearby.
+            let parameter = if call.static_machine_parameter.is_valid() {
+                call.static_machine_parameter
+            } else {
+                call.target_state_symbol
+            };
+            if program
+                .machine_parameter_signature_in(machine, parameter)
+                .is_some()
+            {
+                if !call.static_machine_bindings.is_empty()
+                    || abstract_value_call_signature(program, parameter).is_none()
+                {
+                    return false;
+                }
+                continue;
+            }
+            // An unresolved selection cannot acquire a nearby operator's
+            // denotation. Only its own closed public promise closes a leaf.
             if call.static_machine_parameter.is_valid()
                 || !call.static_machine_bindings.is_empty()
                 || call.direct_may_suspend

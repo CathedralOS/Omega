@@ -1,0 +1,17 @@
+use omega::language::core::nat;
+data Observation { value: Nat; }
+machine project<machine Read>(index: Nat) -> Nat
+where machine Read(index: Nat) -> Observation;
+{
+    let observation: Observation = Read(index);
+    transition { _ -> observation.value }
+}
+machine unproved<machine Read>(index: Nat)
+where machine Read(index: Nat) -> Observation;
+requires
+    project<Read>(index) == Nat::Zero
+ensures
+    project<Read>(index) == Nat::Zero
+{
+}
+machine main() {}

@@ -1,0 +1,23 @@
+// Expected exit: 0.
+data Cell { value: u64; }
+machine positive(cell: &u64) -> u64 requires cell > 0 { cell }
+machine observe(cell: &u64) -> u64 terminates { cell }
+machine keep<machine Read>(cell: &u64) -> u64
+where machine Read(cell: &u64) -> u64 terminates;
+requires cell > 0
+{
+    let observed: u64 = Read(cell);
+    positive(cell)
+}
+machine main() crashes Trap {
+    let local: u64 = 7;
+    let record: Cell = Cell { value: 11 };
+    let first: u64 = keep<observe>(&local);
+    let second: u64 = keep<observe>(&record.value);
+    transition first == 7 && second == 11 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
