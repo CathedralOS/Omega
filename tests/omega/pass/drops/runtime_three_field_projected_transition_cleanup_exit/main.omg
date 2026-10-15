@@ -1,9 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Leaf { value: i32 [0..=100]; }
 data Triple { left: Leaf; middle: Leaf; right: Leaf; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 // Each root sends one child and keeps two: the first keeps the siblings on
 // both sides of its middle field, the second its two leading fields. Every
@@ -32,5 +31,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 0)
         _ -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

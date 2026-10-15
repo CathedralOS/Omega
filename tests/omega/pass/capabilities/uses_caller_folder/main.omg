@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 pub domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
@@ -16,14 +15,14 @@ pub boundary trait Folder {
 data Librarian {
 }
 
-machine archive(folder: Binding<Folder>) reaches Folder {
-    folder.write_line("archive entry");
+machine archive() reaches Folder {
+    Folder::write_line("archive entry");
 }
 
 data Main {
     librarian: Librarian;
 }
 
-machine Main::main(folder: Binding<Folder>) {
-    archive(folder);
+machine Main::main() {
+    archive();
 }

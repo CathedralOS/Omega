@@ -1,9 +1,8 @@
 // A dynamically received address whose numeric value exceeds i32 traps at
 // an explicit guard before exact coercion. Address storage grants no count identity.
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; address: addr; result: i32; }
+data Main { address: addr; result: i32; }
 
 machine convert(input: addr) -> i32
 crashes Trap
@@ -20,5 +19,5 @@ crashes Trap
 machine Main::main(context: &mut Main) reaches Console {
     context.address = 2147483648;
     context.result = convert(context.address);
-    context.console.exit_process(context.result);
+    Console::exit_process(context.result);
 }

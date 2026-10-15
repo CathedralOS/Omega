@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
@@ -55,7 +54,7 @@ machine SignedByte::plan(schema: Schema) -> Plan {
 data PortableByte [copy] { value: i64; }
 data Options { enabled: bool; }
 data Record { options: Options; computed: i32; saved: i32; }
-data Main { console: Binding<Console>; record: Record; packed: SignedByte<PortableByte>; }
+data Main { record: Record; packed: SignedByte<PortableByte>; }
 
 machine encode(record: &mut Record) { record.computed = 70; }
 machine prepare(record: &mut Record) {
@@ -70,6 +69,6 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> done(context)
         _ -> bad(context)
     }
-    state done(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state done(context: &mut Main) { Console::exit_process(70); }
+    state bad(context: &mut Main) { Console::exit_process(71); }
 }

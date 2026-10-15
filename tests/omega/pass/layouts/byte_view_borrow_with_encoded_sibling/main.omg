@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // An unrelated partial-width layout does not give plain byte-view elements
 // unknown encodings. Bounds and exclusive access remain independently checked.
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
@@ -54,9 +53,9 @@ machine SignedByte::plan(schema: Schema) -> Plan {
 data PortableByte [copy] { value: i64; }
 data RawView { value: SignedByte<PortableByte>; }
 pub boundary trait ByteWriter { machine write(value: &mut u8); }
-machine write_first(byte_writer: &Binding<ByteWriter>, bytes: &mut [u8]) reaches ByteWriter {
-    transition bytes.len > 0 { true -> change(byte_writer, bytes) _ -> done() }
-    state change(byte_writer: &Binding<ByteWriter>, bytes: &mut [u8]) { ByteWriter::write(byte_writer, &mut bytes[0]); }
+machine write_first(bytes: &mut [u8]) reaches ByteWriter {
+    transition bytes.len > 0 { true -> change(bytes) _ -> done() }
+    state change(bytes: &mut [u8]) { ByteWriter::write(&mut bytes[0]); }
     state done() {}
 }
 machine main() {}

@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 data Walker {}
 machine Walker::walk(position: u64) -> u64 {
     transition position < 3 {
@@ -10,7 +9,7 @@ machine Walker::walk(position: u64) -> u64 {
         Walker::walk(((position as u64 in Wrapping) + (1 as u64 in Wrapping)) as u64)
     }
 }
-data Main { console: Binding<Console>; status: u64; }
+data Main { status: u64; }
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> gate(main) }
     state gate(main: &mut Main) {
@@ -21,6 +20,6 @@ machine Main::main(main: &mut Main) reaches Console {
         let value: u64 = Walker::walk(0);
         transition value == 3 { true -> yes(main) false -> no(main) }
     }
-    state yes(main: &mut Main) { main.console.exit_process(70); }
-    state no(main: &mut Main) { main.console.exit_process(71); }
+    state yes(main: &mut Main) { Console::exit_process(70); }
+    state no(main: &mut Main) { Console::exit_process(71); }
 }

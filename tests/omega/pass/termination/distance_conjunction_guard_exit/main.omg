@@ -2,9 +2,8 @@
 // `index < limit && index < 4096` that names the bound keeps the cursor
 // below it, for a scalar bound and for a collection length alike.
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; bytes: [u8; 8]; }
+data Main { bytes: [u8; 8]; }
 
 machine count_to(index: u64, limit: u64) -> u64
 terminates by (index, limit) -> Nat::BoundedDistance;
@@ -31,6 +30,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> reached(main)
         _ -> missed(main)
     }
-    state reached(main: &mut Main) { main.console.exit_process(70); }
-    state missed(main: &mut Main) { main.console.exit_process(71); }
+    state reached(main: &mut Main) { Console::exit_process(70); }
+    state missed(main: &mut Main) { Console::exit_process(71); }
 }

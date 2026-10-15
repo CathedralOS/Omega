@@ -7,7 +7,6 @@
 // -- the by-type walk read FIRST (silent-wrong 7-for-9 before the
 // fence, then fenced, now SERVED). Tally::get(&mut t) = 9 -> exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Tally { count: i32 in Wrapping; }
 machine Tally::get(tally: &mut Tally) -> i32 in Wrapping {
     transition true { true -> done(tally.count) }
@@ -26,10 +25,10 @@ machine Holder::run(holder: &mut Holder) -> i32 in Wrapping {
     transition true { true -> done(v) }
     state done(v: i32 in Wrapping) -> i32 in Wrapping { v }
 }
-data Main { console: Binding<Console>; holder: Holder; flag: i32 in Wrapping; }
+data Main { holder: Holder; flag: i32 in Wrapping; }
 machine Main::main(main: &mut Main) reaches Console {
     main.flag = Holder::run(&mut main.holder);
     transition main.flag == 9 { true -> good(main) _ -> bad(main) }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

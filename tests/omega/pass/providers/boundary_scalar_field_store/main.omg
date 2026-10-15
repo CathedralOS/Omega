@@ -1,5 +1,5 @@
 // Boundary scalar call result stored directly into a structural field inside a
-// composed-control state: `main.stored = main.echoer.echo(41)` plans a
+// composed-control state: `main.stored = Echo::echo(41)` plans a
 // BoundaryScalarCall whose ScalarResult feeds a StructuralScalarFieldStore at
 // the same authored statement. The authored-statement walk must see the call
 // as the statement's producer so the store continuation pairs (regression:
@@ -9,7 +9,6 @@
 // window. Replace a record twice and observe its fields to check both forms.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub boundary trait Echo {
     machine echo(value: i32) -> i32;
@@ -31,9 +30,6 @@ machine RecordProvider::receive(seed: u64) -> Triple satisfies RecordSource::rec
 }
 
 data Main {
-    echoer: Binding<Echo>;
-    console: Binding<Console>;
-    source: Binding<RecordSource>;
     stored: i32;
     seed: u64;
     earlier: u64;
@@ -43,21 +39,21 @@ data Main {
 machine Main::main(main: &mut Main) reaches Echo, Console, RecordSource {
     transition { _ -> store(main) }
     state store(main: &mut Main) {
-        main.stored = main.echoer.echo(41);
+        main.stored = Echo::echo(41);
         main.seed = 19;
-        main.result = main.source.receive(main.seed);
+        main.result = RecordSource::receive(main.seed);
         main.earlier = main.result.first;
         main.seed = 20;
-        main.result = main.source.receive(main.seed);
+        main.result = RecordSource::receive(main.seed);
         transition main.stored == 41 && main.earlier == 19 && main.result.first == 20 && main.result.second == 23 && main.result.third == 27 {
             true -> done(main)
             _ -> fail(main)
         }
     }
     state done(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     state fail(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

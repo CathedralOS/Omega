@@ -1,7 +1,6 @@
 // A scalar-returning helper borrows a qualified owner, not a raw byte view.
 // It preserves live length and ASCII while changing only the caller's home.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
 
@@ -19,11 +18,11 @@ machine replace(at: u64, bytes: &mut [u8; 8] in Ascii, value: u8) -> bool {
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    transition { _ -> prepare(&main.console, 0) }
+    transition { _ -> prepare(0) }
 
-    state prepare(console: &Binding<Console>, round: u32) {
+    state prepare(round: u32) {
         let original: [u8; 8] in Ascii = "ab";
         let mut bytes: [u8; 8] in Ascii = "ab";
         let first: bool = replace(0, &mut bytes, 65);
@@ -31,21 +30,21 @@ machine Main::main(main: &mut Main) reaches Console {
         let outside: bool = replace(2, &mut bytes, 67);
         let valid: bool = first && second && !outside
             && original[0] == 97 && original[1] == 98;
-        transition { _ -> inspect(console, &bytes, round, valid) }
+        transition { _ -> inspect(&bytes, round, valid) }
     }
     // A later state's local remains the backing of this shared state loan.
     // Re-entering prepare creates the next line only after this loan ends.
-    state inspect(console: &Binding<Console>, bytes: &[u8; 8] in Ascii, round: u32, valid: bool) {
+    state inspect(bytes: &[u8; 8] in Ascii, round: u32, valid: bool) {
         transition valid && bytes.len == 2 && bytes[0] == 65 && bytes[1] == 66 {
-            true -> again(console, round)
-            _ -> finish(console, 71)
+            true -> again(round)
+            _ -> finish(71)
         }
     }
-    state again(console: &Binding<Console>, round: u32) {
+    state again(round: u32) {
         transition round == 0 {
-            true -> prepare(console, 1)
-            _ -> finish(console, 70)
+            true -> prepare(1)
+            _ -> finish(70)
         }
     }
-    state finish(console: &Binding<Console>, code: i32) { Console::exit_process(console, code); }
+    state finish(code: i32) { Console::exit_process(code); }
 }

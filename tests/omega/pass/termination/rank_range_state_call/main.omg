@@ -4,7 +4,6 @@
 // `step -> count(n - 1)` edge completes every cycle's descent.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {}
 
@@ -42,7 +41,7 @@ requires n <= 9
     }
 }
 
-data RankExample { console: Binding<Console>; }
+data RankExample { }
 
 machine RankExample::run(context: &mut RankExample) reaches Console {
     let mut counter: Main;
@@ -52,9 +51,9 @@ machine RankExample::run(context: &mut RankExample) reaches Console {
         false -> wrong_result(context)
     }
     state finished(context: &mut RankExample) {
-        context.console.exit_process(0);
+        Console::exit_process(0);
     }
     state wrong_result(context: &mut RankExample) {
-        context.console.exit_process(1);
+        Console::exit_process(1);
     }
 }

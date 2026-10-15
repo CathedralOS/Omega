@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 pub boundary trait BoundaryRankReader {
     machine read(value: &u32) -> u32 terminates
@@ -24,35 +23,35 @@ machine require_identity(actual: u32, expected: u32) -> u32
 requires actual == expected;
 { actual }
 
-machine countdown(reader: &Binding<BoundaryRankReader>, remaining: u32) -> u32
+machine countdown(remaining: u32) -> u32
 requires remaining <= 9;
 terminates by remaining in 0..=9;
 reaches BoundaryRankReader
 {
-    transition { _ -> scan(reader, remaining) }
-    state scan(reader: &Binding<BoundaryRankReader>, remaining: u32) -> u32
+    transition { _ -> scan(remaining) }
+    state scan(remaining: u32) -> u32
     requires remaining <= 9;
     {
-        let observed: u32 = reader.read(&remaining);
+        let observed: u32 = BoundaryRankReader::read(&remaining);
         let direct_checked: u32 = require_identity(observed, remaining);
-        let nested: u32 = reader.keep(reader.read(&remaining));
+        let nested: u32 = BoundaryRankReader::keep(BoundaryRankReader::read(&remaining));
         let nested_checked: u32 = require_identity(nested, remaining);
-        let composed: u32 = reader.read(&remaining) + 0;
+        let composed: u32 = BoundaryRankReader::read(&remaining) + 0;
         let composed_checked: u32 = require_identity(composed, remaining);
         transition remaining > 0 {
-            true -> scan(reader, remaining - 1)
+            true -> scan(remaining - 1)
             false -> composed_checked
         }
     }
 }
 
-data Main { reader: Binding<BoundaryRankReader>; }
+data Main { }
 
 machine Main::main(main: &mut Main)
 reaches BoundaryRankReader
 crashes Trap
 {
-    let result: u32 = countdown(&main.reader, 4);
+    let result: u32 = countdown(4);
     transition result == 0 {
         true -> done()
         false -> bad()

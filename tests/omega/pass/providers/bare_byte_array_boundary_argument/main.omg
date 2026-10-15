@@ -9,7 +9,6 @@
 // caller has not discharged the domain obligation.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub boundary trait Sink { machine take(name: [u8; 7]) -> u64; }
 
@@ -34,13 +33,11 @@ pub linux_x86_64 machine SinkProvider::take(name: [u8; 7]) -> u64 satisfies Sink
 }
 
 data Main {
-    console: Binding<Console>;
-    sink: Binding<Sink>;
     buf: [u8; 7];
     out: u64;
 }
 
 machine Main::main(main: &mut Main) reaches Console + Sink {
-    main.out = main.sink.take(main.buf);
-    main.console.exit_process(0);
+    main.out = Sink::take(main.buf);
+    Console::exit_process(0);
 }

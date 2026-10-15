@@ -1,13 +1,12 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Leaf { value: i32; }
 data Pair { left: Leaf; right: Leaf; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let pair: Pair = Pair { left: Leaf { value: 19 }, right: Leaf { value: 23 } };
     transition { _ -> finish(main, pair.left, pair.left) }
     state finish(main: &mut Main, first: Leaf, second: Leaf) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 }

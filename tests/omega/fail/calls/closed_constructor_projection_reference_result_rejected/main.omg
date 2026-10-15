@@ -1,11 +1,10 @@
 // A nominal record cannot hide referent/descriptor authority in a closed fact call.
 use omega_language_std::console;
-use omega::language::core::binding;
 const ZERO: u64 = 0;
 data View [copy] { value: &u64; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine View::zero() -> View { View { value: &ZERO } }
 machine take(point: View) -> u64 requires point.value == View::zero().value; { 0 }
 machine Main::main(main: &mut Main) reaches Console {
- let result: u64 = take(View { value: &ZERO }); main.console.exit_process(0);
+ let result: u64 = take(View { value: &ZERO }); Console::exit_process(0);
 }

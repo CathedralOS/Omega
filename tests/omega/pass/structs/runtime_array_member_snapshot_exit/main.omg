@@ -1,8 +1,7 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Packet { samples: [i32; 2]; stamp: i32; }
-data Main { console: Binding<Console>; packet: Packet; samples: [i32; 2]; }
+data Main { packet: Packet; samples: [i32; 2]; }
 
 machine stamp(context: &mut Main) -> i32 {
     context.samples[0] = 90;
@@ -22,6 +21,6 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state finish(context: &mut Main, code: i32) {
-        context.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

@@ -1,6 +1,5 @@
 // Moving one field leaves the unrelated owned sibling for exit cleanup.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data View { body: &mut i32; }
 data Token { code: i32; }
@@ -14,8 +13,8 @@ machine exercise(value: &mut i32) -> i32 {
     value
 }
 
-data Main { console: Binding<Console>; value: i32; }
+data Main { value: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     let result: i32 = exercise(&mut main.value);
-    main.console.exit_process(result);
+    Console::exit_process(result);
 }

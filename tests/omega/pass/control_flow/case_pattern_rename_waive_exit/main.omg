@@ -4,13 +4,12 @@
 // (spelled, no binding). Case arm keeps its tag guard; the `if` guard and
 // target arguments see the renamed binding. The runtime self-check accepts only 30 + 40 = 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 domain i32::Step(value) requires 0 <= value && value <= 50;
 data Msg {
     case Move(dx: i32 in Step, dy: i32 in Step);
     case Stop(code: i32);
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) {
     Main::apply(main, Msg::Move { dx: 30, dy: 40 });
 }
@@ -19,6 +18,6 @@ machine Main::apply(main: &mut Main, m: Msg) reaches Console {
         Msg::Move { dx as step, dy as _ } if step == 30 -> good(main, step)
         _ -> bad(main)
     }
-    state good(main: &mut Main, step: i32 in Step) { let code: i32 = step + 40; main.console.exit_process(code); }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state good(main: &mut Main, step: i32 in Step) { let code: i32 = step + 40; Console::exit_process(code); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }

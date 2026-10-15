@@ -1,19 +1,18 @@
 // A callable boundary still needs provider identity when its effect row is
 // empty. Exercise direct, bound and helper calls without inventing an effect.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub boundary trait Pure { machine evaluate(value: i32) -> i32; }
 data Provider {}
 machine Provider::evaluate(value: i32) -> i32 satisfies Pure::evaluate { value }
 
-data Main { pure: Binding<Pure>; console: Binding<Console>; }
-machine through_helper(pure: &mut Binding<Pure>, value: i32) -> i32 {
-    pure.evaluate(value)
+data Main { }
+machine through_helper(value: i32) -> i32 {
+    Pure::evaluate(value)
 }
 machine Main::main(main: &mut Main) reaches Console {
-    let direct: i32 = Pure::evaluate(&main.pure, 70);
-    let bound: i32 = main.pure.evaluate(direct);
-    let forwarded: i32 = through_helper(&mut main.pure, bound);
-    main.console.exit_process(forwarded);
+    let direct: i32 = Pure::evaluate(70);
+    let bound: i32 = Pure::evaluate(direct);
+    let forwarded: i32 = through_helper(bound);
+    Console::exit_process(forwarded);
 }

@@ -13,8 +13,7 @@
 // (WriteRuntimeStorageAddressToRuntimeFrame carries the source REGION, so
 // machine and frame arrays both relocate). Differential.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; nums: [i32; 4]; picked: i32; }
+data Main { nums: [i32; 4]; picked: i32; }
 machine Main::pick(picked: &mut i32, s: &[i32], i: u64, j: u64)
 terminates by (j, i) -> Nat::BoundedDistance;
 -> i32
@@ -42,6 +41,6 @@ machine Main::main(main: &mut Main) reaches Console {
     // Loop to j == 2, then return s[2] == 7.
     let n: i32 = Main::pick(&mut main.picked, main.nums, 2, 0);
     transition n == 7 { true -> good(main) _ -> bad(main) }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

@@ -1,6 +1,5 @@
 use omega_language_std::console;
 use omega::language::core::layout;
-use omega::language::core::binding;
 
 pub data Words [copy] { first: u64; second: u64; third: u64; }
 pub data Aligned32 { }
@@ -30,7 +29,7 @@ machine select_values(first: Aligned32<Words>, second: Aligned64<Words>) -> Alig
     result
 }
 
-data Main { first: Aligned32<Words>; second: Aligned64<Words>; console: Binding<Console>; }
+data Main { first: Aligned32<Words>; second: Aligned64<Words>; }
 machine Main::main(main: &mut Main) reaches Console
 invokes Console;
 {
@@ -44,9 +43,9 @@ invokes Console;
     transition result.first == 43 && result.second == 101 && result.third == 91
         && main.first.first == 17 && main.first.second == 91 && main.first.third == 43
         && main.second.first == 101 && main.second.second == 202 && main.second.third == 303 {
-        true -> done(&main.console)
-        _ -> failed(&main.console)
+        true -> done()
+        _ -> failed()
     }
-    state done(console: &Binding<Console>) { Console::exit_process(console, 0); }
-    state failed(console: &Binding<Console>) { Console::exit_process(console, 71); }
+    state done() { Console::exit_process(0); }
+    state failed() { Console::exit_process(71); }
 }

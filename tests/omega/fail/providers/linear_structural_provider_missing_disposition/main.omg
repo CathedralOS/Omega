@@ -1,10 +1,9 @@
-use omega::language::core::binding;
 pub data Token [linear] { value: u64; }
 pub boundary trait Flow { machine forward(token: Token) -> Token; }
 data Provider {}
 machine Provider::forward(token: Token) -> Token satisfies Flow::forward { token }
-data Harness { flow: Binding<Flow>; }
+data Harness { }
 machine Harness::abandon(harness: &Harness, token: Token) reaches Flow {
-    let issued: Token = harness.flow.forward(token);
+    let issued: Token = Flow::forward(token);
 }
 machine main() {}

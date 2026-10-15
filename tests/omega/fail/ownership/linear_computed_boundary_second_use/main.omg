@@ -1,14 +1,13 @@
 // A completion receipt transfers the original owner's claim, not a copy of it.
 use omega::language::core::drop;
-use omega::language::core::binding;
 
 pub data Receipt [linear] { code: i32; }
 machine Receipt::drop(receipt: &mut Receipt) {}
 pub boundary trait Settlement { machine settle(value: Receipt) -> i32; }
 machine consume(value: Receipt) { drop(value); }
 
-machine main(settlement: &Binding<Settlement>) reaches Settlement {
+machine main() reaches Settlement {
     let original: Receipt = Receipt { code: 7 };
-    let total: i32 = ((Settlement::settle(settlement, original) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
+    let total: i32 = ((Settlement::settle(original) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
     consume(original);
 }

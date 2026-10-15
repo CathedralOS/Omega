@@ -21,7 +21,6 @@ pub domain [u8]::CString(bytes)
 requires
     no_nul(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub boundary trait ObjectiveC {
     machine get_class(name: &[u8] in CString) -> u64;
@@ -41,9 +40,6 @@ pub boundary trait CoreGraphics {
 }
 
 data Main where 0 <= frame, frame <= 8 {
-    console: Binding<Console>;
-    objc: Binding<ObjectiveC>;
-    cg: Binding<CoreGraphics>;
     pixels: [i32; 16];
     fx: f64;
     fy: f64;
@@ -80,40 +76,40 @@ machine Main::main(main: &mut Main) reaches Console + CoreGraphics + ObjectiveC 
     main.sw = 4.0;
     main.sh = 4.0;
     // NSApplication + regular policy.
-    main.tmp = main.objc.get_class("NSApplication");
-    main.sel = main.objc.register_selector("sharedApplication");
-    main.app = main.objc.send(main.tmp, main.sel);
-    main.sel = main.objc.register_selector("setActivationPolicy:");
-    main.rc = main.objc.send_scalar(main.app, main.sel, 0);
+    main.tmp = ObjectiveC::get_class("NSApplication");
+    main.sel = ObjectiveC::register_selector("sharedApplication");
+    main.app = ObjectiveC::send(main.tmp, main.sel);
+    main.sel = ObjectiveC::register_selector("setActivationPolicy:");
+    main.rc = ObjectiveC::send_scalar(main.app, main.sel, 0);
     // NSWindow.
-    main.tmp = main.objc.get_class("NSWindow");
-    main.sel = main.objc.register_selector("alloc");
-    main.tmp = main.objc.send(main.tmp, main.sel);
-    main.sel = main.objc.register_selector("initWithContentRect:styleMask:backing:defer:");
-    main.win = main.objc.send_rect(main.tmp, main.sel, main.fx, main.fy, main.fw, main.fh, 15, 2, 0);
+    main.tmp = ObjectiveC::get_class("NSWindow");
+    main.sel = ObjectiveC::register_selector("alloc");
+    main.tmp = ObjectiveC::send(main.tmp, main.sel);
+    main.sel = ObjectiveC::register_selector("initWithContentRect:styleMask:backing:defer:");
+    main.win = ObjectiveC::send_rect(main.tmp, main.sel, main.fx, main.fy, main.fw, main.fh, 15, 2, 0);
     // NSImageView as the content view.
-    main.tmp = main.objc.get_class("NSImageView");
-    main.sel = main.objc.register_selector("alloc");
-    main.tmp = main.objc.send(main.tmp, main.sel);
-    main.sel = main.objc.register_selector("initWithFrame:");
-    main.view = main.objc.send_rect(main.tmp, main.sel, main.fx, main.fy, main.fw, main.fh, 0, 0, 0);
-    main.sel = main.objc.register_selector("setContentView:");
-    main.rc = main.objc.send_scalar(main.win, main.sel, main.view);
-    main.sel = main.objc.register_selector("makeKeyAndOrderFront:");
-    main.rc = main.objc.send_scalar(main.win, main.sel, 0);
+    main.tmp = ObjectiveC::get_class("NSImageView");
+    main.sel = ObjectiveC::register_selector("alloc");
+    main.tmp = ObjectiveC::send(main.tmp, main.sel);
+    main.sel = ObjectiveC::register_selector("initWithFrame:");
+    main.view = ObjectiveC::send_rect(main.tmp, main.sel, main.fx, main.fy, main.fw, main.fh, 0, 0, 0);
+    main.sel = ObjectiveC::register_selector("setContentView:");
+    main.rc = ObjectiveC::send_scalar(main.win, main.sel, main.view);
+    main.sel = ObjectiveC::register_selector("makeKeyAndOrderFront:");
+    main.rc = ObjectiveC::send_scalar(main.win, main.sel, 0);
     // Cache the per-frame selectors + shared blit/pump inputs.
-    main.sel_img = main.objc.register_selector("initWithCGImage:size:");
-    main.sel_set = main.objc.register_selector("setImage:");
-    main.sel_next = main.objc.register_selector("nextEventMatchingMask:untilDate:inMode:dequeue:");
-    main.space = main.cg.color_space_rgb();
-    main.tmp = main.objc.get_class("NSDate");
-    main.sel = main.objc.register_selector("distantPast");
-    main.date = main.objc.send(main.tmp, main.sel);
-    main.tmp = main.objc.get_class("NSString");
-    main.sel = main.objc.register_selector("alloc");
-    main.tmp = main.objc.send(main.tmp, main.sel);
-    main.sel = main.objc.register_selector("initWithUTF8String:");
-    main.mode = main.objc.send_string(main.tmp, main.sel, "kCFRunLoopDefaultMode");
+    main.sel_img = ObjectiveC::register_selector("initWithCGImage:size:");
+    main.sel_set = ObjectiveC::register_selector("setImage:");
+    main.sel_next = ObjectiveC::register_selector("nextEventMatchingMask:untilDate:inMode:dequeue:");
+    main.space = CoreGraphics::color_space_rgb();
+    main.tmp = ObjectiveC::get_class("NSDate");
+    main.sel = ObjectiveC::register_selector("distantPast");
+    main.date = ObjectiveC::send(main.tmp, main.sel);
+    main.tmp = ObjectiveC::get_class("NSString");
+    main.sel = ObjectiveC::register_selector("alloc");
+    main.tmp = ObjectiveC::send(main.tmp, main.sel);
+    main.sel = ObjectiveC::register_selector("initWithUTF8String:");
+    main.mode = ObjectiveC::send_string(main.tmp, main.sel, "kCFRunLoopDefaultMode");
     main.mask = 4294967295;
     main.frame = 0;
     transition main.win != 0 { true -> frame_loop(main) _ -> bad(main) }
@@ -123,15 +119,15 @@ machine Main::main(main: &mut Main) reaches Console + CoreGraphics + ObjectiveC 
     state render(main: &mut Main) {
         // "render" a frame: stamp the buffer, blit it into the image view.
         main.pixels[0] = main.frame;
-        main.ctx = main.cg.bitmap_context(&mut main.pixels, 4, 4, 8, 16, main.space, 8198);
-        main.cgimg = main.cg.bitmap_context_image(main.ctx);
-        main.tmp = main.objc.get_class("NSImage");
-        main.sel = main.objc.register_selector("alloc");
-        main.tmp = main.objc.send(main.tmp, main.sel);
-        main.nsimg = main.objc.send_image_size(main.tmp, main.sel_img, main.cgimg, main.sw, main.sh);
-        main.rc = main.objc.send_scalar(main.view, main.sel_set, main.nsimg);
+        main.ctx = CoreGraphics::bitmap_context(&mut main.pixels, 4, 4, 8, 16, main.space, 8198);
+        main.cgimg = CoreGraphics::bitmap_context_image(main.ctx);
+        main.tmp = ObjectiveC::get_class("NSImage");
+        main.sel = ObjectiveC::register_selector("alloc");
+        main.tmp = ObjectiveC::send(main.tmp, main.sel);
+        main.nsimg = ObjectiveC::send_image_size(main.tmp, main.sel_img, main.cgimg, main.sw, main.sh);
+        main.rc = ObjectiveC::send_scalar(main.view, main.sel_set, main.nsimg);
         // Pump the event queue non-blocking.
-        main.evt = main.objc.send_scalar4(main.app, main.sel_next, main.mask, main.date, main.mode, 1);
+        main.evt = ObjectiveC::send_scalar4(main.app, main.sel_next, main.mask, main.date, main.mode, 1);
         // Guard BEFORE the increment so the edge carries the bound (keystone).
         transition main.frame < 8 { true -> bump(main) _ -> teardown(main) }
     }
@@ -140,12 +136,12 @@ machine Main::main(main: &mut Main) reaches Console + CoreGraphics + ObjectiveC 
         transition { _ -> frame_loop(main) }
     }
     state teardown(main: &mut Main) {
-        main.sel = main.objc.register_selector("isVisible");
-        main.alive = main.objc.send(main.win, main.sel);
-        main.sel = main.objc.register_selector("close");
-        main.rc = main.objc.send_scalar(main.win, main.sel, 0);
+        main.sel = ObjectiveC::register_selector("isVisible");
+        main.alive = ObjectiveC::send(main.win, main.sel);
+        main.sel = ObjectiveC::register_selector("close");
+        main.rc = ObjectiveC::send_scalar(main.win, main.sel, 0);
         transition { _ -> good(main) }
     }
-    state good(main: &mut Main) { main.console.exit_process(4); }
-    state bad(main: &mut Main)  { main.console.exit_process(1); }
+    state good(main: &mut Main) { Console::exit_process(4); }
+    state bad(main: &mut Main)  { Console::exit_process(1); }
 }

@@ -16,11 +16,10 @@
 // exit 1 = any other outcome.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Wrap where 4 <= remaining, remaining <= 500 { remaining: u64; }
 data Indirect { target: &mut Wrap; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine walk(n: u64, indirect: Indirect)
     requires 0 <= n && n <= 4
@@ -51,6 +50,6 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> failed(main)
     }
 
-    state passed(main: &mut Main) { main.console.exit_process(0); }
-    state failed(main: &mut Main) { main.console.exit_process(1); }
+    state passed(main: &mut Main) { Console::exit_process(0); }
+    state failed(main: &mut Main) { Console::exit_process(1); }
 }

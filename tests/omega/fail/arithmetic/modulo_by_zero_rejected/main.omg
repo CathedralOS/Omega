@@ -1,6 +1,5 @@
 // Remainder by a provably-zero divisor traps in every domain; rejected at
 // compile time (mirror of divide_by_zero_rejected).
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
-machine Main::main(main: &mut Main) { let x: i32 = 5i32 % 0; main.console.exit_process(x); }
+data Main { }
+machine Main::main(main: &mut Main) { let x: i32 = 5i32 % 0; Console::exit_process(x); }

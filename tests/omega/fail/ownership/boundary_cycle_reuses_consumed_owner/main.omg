@@ -1,12 +1,11 @@
-use omega::language::core::binding;
 // A call consumes an affine actual even when its result carries no custody.
 // A backedge cannot restore that owner by naming its consumed state parameter.
 pub data Token { value: i32; }
 pub boundary trait Consume { machine take(token: Token); }
-machine main(consume: &Binding<Consume>, token: Token) reaches Consume {
-    transition { _ -> cycle(consume, token) }
-    state cycle(consume: &Binding<Consume>, token: Token) {
-        Consume::take(consume, token);
-        transition { _ -> cycle(consume, token) }
+machine main(token: Token) reaches Consume {
+    transition { _ -> cycle(token) }
+    state cycle(token: Token) {
+        Consume::take(token);
+        transition { _ -> cycle(token) }
     }
 }

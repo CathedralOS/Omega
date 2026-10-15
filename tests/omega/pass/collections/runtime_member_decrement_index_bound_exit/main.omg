@@ -3,11 +3,10 @@
 // decrement without a separate guard. The bound is read before the store
 // replaces the field's facts.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Stack { items: [u32; 8]; count: u64; }
 
-data Main { console: Binding<Console>; stack: Stack; }
+data Main { stack: Stack; }
 
 data Popped { case Empty; case Value(value: u32); }
 
@@ -53,6 +52,6 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> missed(main)
         }
     }
-    state reached(main: &mut Main) { main.console.exit_process(70); }
-    state missed(main: &mut Main) { main.console.exit_process(71); }
+    state reached(main: &mut Main) { Console::exit_process(70); }
+    state missed(main: &mut Main) { Console::exit_process(71); }
 }

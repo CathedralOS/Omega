@@ -1,18 +1,17 @@
 // An owned record arriving through a state edge is the next call's actual
 // value, not an alias of the record's earlier establishing operation.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Amount [copy] { value: i32; }
 
 machine consume(amount: Amount) -> i32 { amount.value }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let amount: Amount = Amount { value: 70 };
-    transition { _ -> arrived(&main.console, amount) }
-    state arrived(console: &Binding<Console>, amount: Amount) {
+    transition { _ -> arrived(amount) }
+    state arrived(amount: Amount) {
         let observed: i32 = consume(amount);
-        Console::exit_process(console, observed);
+        Console::exit_process(observed);
     }
 }

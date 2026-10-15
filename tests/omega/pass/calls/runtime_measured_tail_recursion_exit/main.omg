@@ -9,8 +9,7 @@
 // refuse with the position named
 // (fail/calls/nontail_value_self_call_rejected).
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::countdown(main: &mut Main, remaining: u64) -> u64
 terminates by remaining;
 {
@@ -25,6 +24,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> yes(main)
         false -> no(main)
     }
-    state yes(main: &mut Main) { main.console.exit_process(70); }
-    state no(main: &mut Main)  { main.console.exit_process(71); }
+    state yes(main: &mut Main) { Console::exit_process(70); }
+    state no(main: &mut Main)  { Console::exit_process(71); }
 }

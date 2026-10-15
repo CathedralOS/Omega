@@ -1,9 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Counter { value: i32 in Wrapping; }
 data Store { counters: [Counter; 2]; count: u64; }
-data Main { console: Binding<Console>; store: Store; }
+data Main { store: Store; }
 
 machine Counter::add(counter: &mut Counter, amount: i32 in Wrapping) {
     counter.value = counter.value + amount;
@@ -28,6 +27,6 @@ machine Main::main(context: &mut Main) reaches Console {
         false -> finish(context, 1)
     }
     state finish(context: &mut Main, code: i32) {
-        context.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

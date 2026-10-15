@@ -1,9 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Labels [copy] { first: [u8; 8] in Utf8; second: [u8; 8] in Utf8; }
-data Main { console: Binding<Console>; generated: u64 in Wrapping; observed: Labels; }
+data Main { generated: u64 in Wrapping; observed: Labels; }
 
 machine Main::next_label(main: &mut Main) -> [u8; 8] in Utf8 {
     main.generated = main.generated + 1;
@@ -31,5 +30,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

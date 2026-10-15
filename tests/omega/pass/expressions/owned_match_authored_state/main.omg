@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // PASS canary: owned match sources inside an authored state edge. The match
 // selects one live owner while an interleaved owner stays live; the selected
 // result and the interleaved owner cross the transition into the successor's
@@ -15,7 +14,7 @@ data Marker { tag: u64; }
 
 data Main {}
 
-machine Main::main(sink: &Binding<Sink>, selected: bool, tag: u64) reaches Sink {
+machine Main::main(selected: bool, tag: u64) reaches Sink {
     let left: Choice = Choice::Some { value: 37 };
     let marker: Marker = Marker { tag: tag };
     let right: Choice = Choice::Empty;
@@ -25,15 +24,15 @@ machine Main::main(sink: &Binding<Sink>, selected: bool, tag: u64) reaches Sink 
     };
     let observed: bool = result in Choice::Some;
     transition observed {
-        true -> kept(sink, result, marker)
-        false -> kept(sink, result, marker)
+        true -> kept(result, marker)
+        false -> kept(result, marker)
     }
-    state kept(sink: &Binding<Sink>, result: Choice, marker: Marker) {
+    state kept(result: Choice, marker: Marker) {
         let bonus: u64 = match result in Choice::Some {
             true -> 1u64,
             false -> 2u64
         };
-        Sink::record(sink, marker.tag);
-        Sink::record(sink, bonus);
+        Sink::record(marker.tag);
+        Sink::record(bonus);
     }
 }

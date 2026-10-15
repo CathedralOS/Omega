@@ -3,9 +3,8 @@
 // plain u64 source -- the incoming edge's stable guard bounds the exact
 // range where the type fact alone (now the true [0, u64::MAX]) cannot.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Values where 0 <= capped, capped <= 9223372036854775807 { raw: u64; capped: u64; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(context: &mut Main) reaches Console
 {
     let mut values: Values;
@@ -14,8 +13,8 @@ machine Main::main(context: &mut Main) reaches Console
     state store(context: &mut Main, values: &mut Values)
     {
         values.capped = values.raw;
-        context.console.exit_process(70);
+        Console::exit_process(70);
     }
     state bad(context: &mut Main)
-    { context.console.exit_process(71); }
+    { Console::exit_process(71); }
 }

@@ -3,6 +3,5 @@
 // bool holding 2 (native exit 2). Rejected now as a cross-class store. (Bitwise
 // over BOOL operands stays allowed -- `b & b` keeps {0,1}.)
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
-machine Main::main(main: &mut Main) { let x: bool = 2 & 3; let r: i32 = x as i32; main.console.exit_process(r); }
+data Main { }
+machine Main::main(main: &mut Main) { let x: bool = 2 & 3; let r: i32 = x as i32; Console::exit_process(r); }

@@ -1,10 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
 domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 domain [u8; 16]::Ascii(bytes) requires ascii_only(bytes);
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine identity(value: [u8; 16] in Utf8) -> [u8; 16] in Utf8 { value }
 machine forward(value: [u8; 16] in Utf8) -> [u8; 16] in Utf8 {
@@ -42,5 +41,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

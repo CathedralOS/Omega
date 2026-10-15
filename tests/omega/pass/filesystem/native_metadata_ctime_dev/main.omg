@@ -7,10 +7,8 @@
 
 use omega_language_std::posix_filesystem_host;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    fs: Binding<PosixFilesystemHost>;
     discard: i32;
     mode: i32;
     fd: i32;
@@ -24,12 +22,12 @@ data Main {
 
 machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
     main.mode = 420;
-    main.fd = main.fs.create("/tmp/omega_cd_a.txt", main.mode);
-    main.n = main.fs.write(main.fd, "a");
-    main.discard = main.fs.close(main.fd);
-    main.fd = main.fs.create("/tmp/omega_cd_b.txt", main.mode);
-    main.discard = main.fs.close(main.fd);
-    main.rc = main.fs.read_metadata("/tmp/omega_cd_a.txt", &mut main.buffer);
+    main.fd = PosixFilesystemHost::create("/tmp/omega_cd_a.txt", main.mode);
+    main.n = PosixFilesystemHost::write(main.fd, "a");
+    main.discard = PosixFilesystemHost::close(main.fd);
+    main.fd = PosixFilesystemHost::create("/tmp/omega_cd_b.txt", main.mode);
+    main.discard = PosixFilesystemHost::close(main.fd);
+    main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_cd_a.txt", &mut main.buffer);
     // carrier note: each little-endian field is assembled in the unsigned
     // carrier of its own width and reinterpreted once at the end, so every
     // shifted byte is Exact-representable: 255 << 24 is 4278190080 against
@@ -52,14 +50,14 @@ machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
             | (widen_u8_to_u32(main.buffer[1]) << 8)
             | (widen_u8_to_u32(main.buffer[2]) << 16)
             | (widen_u8_to_u32(main.buffer[3]) << 24));
-    main.rc = main.fs.read_metadata("/tmp/omega_cd_b.txt", &mut main.buffer);
+    main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_cd_b.txt", &mut main.buffer);
     main.dev_b = narrow_u32_to_i32_wrapping(
         widen_u8_to_u32(main.buffer[0])
             | (widen_u8_to_u32(main.buffer[1]) << 8)
             | (widen_u8_to_u32(main.buffer[2]) << 16)
             | (widen_u8_to_u32(main.buffer[3]) << 24));
-    main.discard = main.fs.remove("/tmp/omega_cd_a.txt");
-    main.discard = main.fs.remove("/tmp/omega_cd_b.txt");
+    main.discard = PosixFilesystemHost::remove("/tmp/omega_cd_a.txt");
+    main.discard = PosixFilesystemHost::remove("/tmp/omega_cd_b.txt");
     transition main.ctime > 1000000000 { true -> checkdev(main) _ -> fail(main) }
     state checkdev(main: &mut Main) {
         // two files on the same filesystem share a device id
@@ -68,18 +66,18 @@ machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
     state checkdevnz(main: &mut Main) {
         transition main.dev_a == 0 { true -> fail(main) _ -> good(main) }
     }
-    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: ctime recent; two files share a nonzero device\n"); }
-    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: ctime/dev\n"); }
+    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: ctime recent; two files share a nonzero device\n"); }
+    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: ctime/dev\n"); }
 }
 
 machine Main::main_macos(main: &mut Main) reaches PosixFilesystemHost {
     main.mode = 420;
-    main.fd = main.fs.create("/tmp/omega_cd_a.txt", main.mode);
-    main.n = main.fs.write(main.fd, "a");
-    main.discard = main.fs.close(main.fd);
-    main.fd = main.fs.create("/tmp/omega_cd_b.txt", main.mode);
-    main.discard = main.fs.close(main.fd);
-    main.rc = main.fs.read_metadata("/tmp/omega_cd_a.txt", &mut main.buffer);
+    main.fd = PosixFilesystemHost::create("/tmp/omega_cd_a.txt", main.mode);
+    main.n = PosixFilesystemHost::write(main.fd, "a");
+    main.discard = PosixFilesystemHost::close(main.fd);
+    main.fd = PosixFilesystemHost::create("/tmp/omega_cd_b.txt", main.mode);
+    main.discard = PosixFilesystemHost::close(main.fd);
+    main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_cd_a.txt", &mut main.buffer);
     // carrier note: each little-endian field is assembled in the unsigned
     // carrier of its own width and reinterpreted once at the end, so every
     // shifted byte is Exact-representable: 255 << 24 is 4278190080 against
@@ -102,14 +100,14 @@ machine Main::main_macos(main: &mut Main) reaches PosixFilesystemHost {
             | (widen_u8_to_u32(main.buffer[1]) << 8)
             | (widen_u8_to_u32(main.buffer[2]) << 16)
             | (widen_u8_to_u32(main.buffer[3]) << 24));
-    main.rc = main.fs.read_metadata("/tmp/omega_cd_b.txt", &mut main.buffer);
+    main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_cd_b.txt", &mut main.buffer);
     main.dev_b = narrow_u32_to_i32_wrapping(
         widen_u8_to_u32(main.buffer[0])
             | (widen_u8_to_u32(main.buffer[1]) << 8)
             | (widen_u8_to_u32(main.buffer[2]) << 16)
             | (widen_u8_to_u32(main.buffer[3]) << 24));
-    main.discard = main.fs.remove("/tmp/omega_cd_a.txt");
-    main.discard = main.fs.remove("/tmp/omega_cd_b.txt");
+    main.discard = PosixFilesystemHost::remove("/tmp/omega_cd_a.txt");
+    main.discard = PosixFilesystemHost::remove("/tmp/omega_cd_b.txt");
     transition main.ctime > 1000000000 { true -> checkdev(main) _ -> fail(main) }
     state checkdev(main: &mut Main) {
         // two files on the same filesystem share a device id
@@ -118,6 +116,6 @@ machine Main::main_macos(main: &mut Main) reaches PosixFilesystemHost {
     state checkdevnz(main: &mut Main) {
         transition main.dev_a == 0 { true -> fail(main) _ -> good(main) }
     }
-    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: ctime recent; two files share a nonzero device\n"); }
-    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: ctime/dev\n"); }
+    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: ctime recent; two files share a nonzero device\n"); }
+    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: ctime/dev\n"); }
 }

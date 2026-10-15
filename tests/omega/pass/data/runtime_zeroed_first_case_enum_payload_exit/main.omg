@@ -4,7 +4,6 @@
 // `Integer { base: Base::Decimal, empty: false }` with `start` zero, in a
 // state-local array and in a caller-owned field.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Base [copy] { case Decimal; case Hex; }
 data Token [copy] {
@@ -13,7 +12,7 @@ data Token [copy] {
     case Word;
 }
 data Holder { tokens: [Token; 2] in Trapping; ready: bool; }
-data Context { console: Binding<Console>; token: Token; }
+data Context { token: Token; }
 
 machine main(context: &mut Context) reaches Console {
     transition context.token {
@@ -42,6 +41,6 @@ machine main(context: &mut Context) reaches Console {
             _ -> bad(context, 74)
         }
     }
-    state good(context: &mut Context) { context.console.exit_process(70); }
-    state bad(context: &mut Context, code: i32) { context.console.exit_process(code); }
+    state good(context: &mut Context) { Console::exit_process(70); }
+    state bad(context: &mut Context, code: i32) { Console::exit_process(code); }
 }

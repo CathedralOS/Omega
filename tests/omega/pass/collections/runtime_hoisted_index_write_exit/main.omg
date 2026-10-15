@@ -11,13 +11,12 @@
 // the twin of the runtime-INDEX carve-out). Static-folding RHS values
 // always lowered (probed); this pins the runtime-RHS shape.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::numeric_conversion;
 data Main
 where
     rows <= 2,
     cols <= 3,
-{ console: Binding<Console>; cells: [u8; 12]; rows: u32; cols: u32; j: u32; k: u32; out: i32; }
+{ cells: [u8; 12]; rows: u32; cols: u32; j: u32; k: u32; out: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.rows = 2;
     main.cols = 3;
@@ -33,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console {
         let next: u8 = ((narrow_u32_to_u8_wrapping(y) as u8 in Wrapping) + 5) as u8;
         main.cells[y * 4 + x] = next;
         main.out = main.cells[11] as i32;
-        main.console.exit_process(main.out);
+        Console::exit_process(main.out);
     }
-    state bad(main: &mut Main) { main.console.exit_process(9); }
+    state bad(main: &mut Main) { Console::exit_process(9); }
 }

@@ -3,9 +3,8 @@
 // declaring the other format is an error -- an f32-suffixed literal in an
 // f64 place would silently mean the f32-rounded value.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) {
     let x: f64 = 1.5f32;
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

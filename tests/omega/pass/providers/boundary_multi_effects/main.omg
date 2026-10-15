@@ -1,7 +1,6 @@
 // A single boundary machine may declare more than one service identity;
 // the declared set is the ceiling for that surface — `write_line`
 // reaches both `Net` and `Allocator`.
-use omega::language::core::binding;
 
 pub domain [u8]::Utf8(bytes)
 requires
@@ -17,10 +16,9 @@ pub boundary trait Net {
 }
 
 data Client {
-    net: Binding<Net>;
 }
 machine Client::run(client: &mut Client) reaches Net + Allocator {
-    client.net.write_line("payload");
+    Net::write_line("payload");
 }
 
 data Main {

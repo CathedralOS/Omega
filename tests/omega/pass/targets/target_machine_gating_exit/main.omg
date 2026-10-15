@@ -5,7 +5,6 @@
 // Exit 70 still requires both results (63 and 7), while the unselected
 // same-name siblings must neither collide nor supply the selected calls.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Helper { seed: i32; }
 
@@ -35,7 +34,7 @@ linux_arm64 machine Helper::delta(helper: &Helper) -> i32 {
     transition { _ -> 7 }
 }
 
-data Main { console: Binding<Console>; helper: Helper; }
+data Main { helper: Helper; }
 
 machine Main::main(main: &mut Main) reaches Console {
     let a: i32 = Helper::pick(&main.helper);
@@ -44,6 +43,6 @@ machine Main::main(main: &mut Main) reaches Console {
     state check_delta(main: &mut Main, b2: i32) {
         transition b2 == 7 { true -> good(main) _ -> bad(main, 72) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code2: i32) { main.console.exit_process(code2); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code2: i32) { Console::exit_process(code2); }
 }

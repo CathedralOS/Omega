@@ -1,26 +1,25 @@
 use omega_language_std::console;
-use omega::language::core::binding;
-machine decimal(console: &mut Binding<Console>, value: u64 in Wrapping) reaches Console {
-    transition { _ -> scale(console, value, 1) }
-    state scale(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping) {
+machine decimal(value: u64 in Wrapping) reaches Console {
+    transition { _ -> scale(value, 1) }
+    state scale(value: u64 in Wrapping, divisor: u64 in Wrapping) {
         transition divisor <= value / 10 {
-            true -> scale(console, value, divisor * 10)
-            false -> emit(console, value, divisor)
+            true -> scale(value, divisor * 10)
+            false -> emit(value, divisor)
         }
     }
-    state emit(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping) {
-        transition divisor > 0 { true -> digit(console, value, divisor) false -> done() }
+    state emit(value: u64 in Wrapping, divisor: u64 in Wrapping) {
+        transition divisor > 0 { true -> digit(value, divisor) false -> done() }
     }
-    state digit(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping)
+    state digit(value: u64 in Wrapping, divisor: u64 in Wrapping)
     requires divisor > 0 {
-        console.write_byte((value / divisor % 10 + 48) as i32);
-        transition { _ -> emit(console, value % divisor, divisor / 10) }
+        Console::write_byte((value / divisor % 10 + 48) as i32);
+        transition { _ -> emit(value % divisor, divisor / 10) }
     }
     state done() {}
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    decimal(&mut main.console, 288);
-    main.console.write_line("");
-    main.console.exit_process(70);
+    decimal(288);
+    Console::write_line("");
+    Console::exit_process(70);
 }

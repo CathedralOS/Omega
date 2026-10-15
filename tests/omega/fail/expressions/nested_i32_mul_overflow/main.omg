@@ -39,8 +39,7 @@
 // wrapped 3, 74 = interpreter's full-width 4, 75 = neither).
 
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; a: i32; b: i32; }
+data Main { a: i32; b: i32; }
 machine Main::main(main: &mut Main) {
     main.a = 100000;
     main.b = 100000;
@@ -49,13 +48,13 @@ machine Main::main(main: &mut Main) {
         true -> three(main)
         _ -> not_three(main)
     }
-    state three(main: &mut Main) { main.console.exit_process(73); }
+    state three(main: &mut Main) { Console::exit_process(73); }
     state not_three(main: &mut Main) {
         transition r == 4 {
             true -> four(main)
             _ -> other(main)
         }
     }
-    state four(main: &mut Main) { main.console.exit_process(74); }
-    state other(main: &mut Main) { main.console.exit_process(75); }
+    state four(main: &mut Main) { Console::exit_process(74); }
+    state other(main: &mut Main) { Console::exit_process(75); }
 }

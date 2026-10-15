@@ -1,19 +1,16 @@
 // A numeric host crash preserves earlier output and supplies no normal result.
 use omega::language::core::float_operations;
 use omega::language::core::process_exit;
-use omega::language::core::binding;
 use omega_language_std::process_exit;
 use omega_language_std::console;
 
 data Main {
-    console: Binding<Console>;
-    exit: Binding<ProcessExit>;
     value: f64;
 }
 
 machine Main::main(main: &mut Main) reaches Console + ProcessExit {
-    main.console.write_line("before conversion trap");
+    Console::write_line("before conversion trap");
     main.value = 0.0f64 / 0.0f64;
     let converted: i32 in Trapping = I32::from_f64(main.value);
-    main.exit.exit_process(converted as i32);
+    ProcessExit::exit_process(converted as i32);
 }

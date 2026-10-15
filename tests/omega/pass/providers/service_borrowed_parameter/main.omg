@@ -1,9 +1,8 @@
-use omega::language::core::binding;
 
 pub boundary trait Ping { machine ping(); }
 
 data Harness { }
 // Borrowing a caller's established service preserves its exact authority.
-machine Harness::run(service: &Binding<Ping>) reaches Ping {
-    service.ping();
+machine Harness::run() reaches Ping {
+    Ping::ping();
 }

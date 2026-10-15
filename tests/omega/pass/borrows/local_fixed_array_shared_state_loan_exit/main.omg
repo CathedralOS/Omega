@@ -2,22 +2,21 @@
 // Bytes use a bounded byte carrier; i32 arrays retain their element layout.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let bytes: [u8; 4] = "ABCD";
     let numbers: [i32; 3] = [5, 17, 29];
     transition numbers[1] == 17 {
-        true -> observe(&main.console, &bytes, &numbers)
-        _ -> failed(&main.console)
+        true -> observe(&bytes, &numbers)
+        _ -> failed()
     }
-    state observe(console: &Binding<Console>, bytes: &[u8; 4], numbers: &[i32; 3]) {
-        Console::write_byte(console, widen_u8_to_i32(bytes[2]));
+    state observe(bytes: &[u8; 4], numbers: &[i32; 3]) {
+        Console::write_byte(widen_u8_to_i32(bytes[2]));
         transition numbers[2] == 29 {
-            true -> done(console)
-            _ -> failed(console)
+            true -> done()
+            _ -> failed()
         }
     }
-    state done(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state failed(console: &Binding<Console>) { Console::exit_process(console, 71); }
+    state done() { Console::exit_process(70); }
+    state failed() { Console::exit_process(71); }
 }

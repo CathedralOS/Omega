@@ -9,7 +9,6 @@
 // = 10, so buf[9] is the last legal slot). Proof-stratum machines ride
 // the same evaluator; the fuel cap is the defense-in-depth ceiling.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // The remaining triangular sum is part of the arrival invariant. Independent
 // bounds on n and acc would permit triangle(100, 5050), whose next accumulator
@@ -33,10 +32,10 @@ machine table_size() -> u64 {
     transition { _ -> (size) }
 }
 
-data Main { console: Binding<Console>; buf: [u8; table_size()]; }
+data Main { buf: [u8; table_size()]; }
 machine Main::main(main: &mut Main) reaches Console {
     main.buf[9] = 7;
     transition main.buf.len == 10 && main.buf[9] == 7 { true -> yes(main) _ -> no(main) }
-    state yes(main: &mut Main) { main.console.exit_process(70); }
-    state no(main: &mut Main)  { main.console.exit_process(71); }
+    state yes(main: &mut Main) { Console::exit_process(70); }
+    state no(main: &mut Main)  { Console::exit_process(71); }
 }

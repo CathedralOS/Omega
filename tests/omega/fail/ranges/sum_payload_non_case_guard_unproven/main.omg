@@ -8,11 +8,10 @@
 // conjunct exists, so the argument's domain membership stays unestablished.
 // MUST reject with the expected fragment.
 use omega_language_std::console;
-use omega::language::core::binding;
 domain i32::Fifty(value) requires 0 <= value && value <= 50;
 domain i32::Thousand(value) requires 0 <= value && value <= 1000;
 data P { case One(v: i32 in Fifty); case Two(w: i32 in Thousand); }
-data Main { console: Binding<Console>; flag: bool; p: P; }
+data Main { flag: bool; p: P; }
 machine Main::main(main: &mut Main) reaches Console {
     main.p = P::Two { w: 900 };
     main.flag = true;
@@ -20,6 +19,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> use_v(main, main.p.v)
         false -> use_v(main, 0)
     }
-    state use_v(main: &mut Main, x: i32 in Fifty) { main.console.exit_process(x); }
+    state use_v(main: &mut Main, x: i32 in Fifty) { Console::exit_process(x); }
 }
 machine Main::run(main: &mut Main) { Main::main(main); }

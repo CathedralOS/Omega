@@ -2,9 +2,8 @@
 // U64 conversion must also preserve values above the signed hardware range.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let narrow: i8 in Trapping = I8::from_f32(-128.75f32);
     let signed: i32 in Trapping = I32::from_f64(-2147483648.75);
@@ -23,9 +22,9 @@ machine Main::main(main: &mut Main) reaches Console {
             && fraction_value == 0 && high == 9223372036854777856u64
             && saturated_value == maximum
             && rounded64 == 18446744073709551616.0
-            && rounded32 == 18446744073709551616.0f32 -> good(&main.console)
-        _ -> bad(&main.console)
+            && rounded32 == 18446744073709551616.0f32 -> good()
+        _ -> bad()
     }
-    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state bad(console: &Binding<Console>) { Console::exit_process(console, 77); }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(77); }
 }

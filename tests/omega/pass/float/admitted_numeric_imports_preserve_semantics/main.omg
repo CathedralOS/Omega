@@ -2,11 +2,9 @@
 // ProcessExit authority is explicit and independent of the numeric supplies.
 use omega::language::core::float_operations;
 use omega::language::core::process_exit;
-use omega::language::core::binding;
 use omega_language_std::process_exit;
 
 data Main {
-    exit: Binding<ProcessExit>;
     base32: f32;
     one32: f32;
     one64: f64;
@@ -71,6 +69,6 @@ machine Main::main(main: &mut Main) reaches ProcessExit {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.exit.exit_process(70); }
-    state bad(main: &mut Main) { main.exit.exit_process(77); }
+    state good(main: &mut Main) { ProcessExit::exit_process(70); }
+    state bad(main: &mut Main) { ProcessExit::exit_process(77); }
 }

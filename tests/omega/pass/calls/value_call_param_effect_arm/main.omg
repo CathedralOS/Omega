@@ -8,11 +8,10 @@
 // rejoins the authored position of the projected receiver actual
 // (`main.picker`). Exit 1 proves `hi` ran once against the caller's Tally.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Tally { count: i32 in Wrapping; }
 data Picker {}
-data Main { console: Binding<Console>; picker: Picker; tally: Tally; v: i32; }
+data Main { picker: Picker; tally: Tally; v: i32; }
 machine Picker::pick(x: i32, tally: &mut Tally) -> i32 {
     transition x > 0 { true -> hi(tally) _ -> lo(tally) }
     state hi(tally: &mut Tally) -> i32 {
@@ -28,6 +27,6 @@ machine Main::main(main: &mut Main) reaches Console {
     main.v = 5;
     let n: i32 = Picker::pick(main.v, &mut main.tally);
     transition n == 100 { true -> report(main) _ -> bad(main, 99) }
-    state report(main: &mut Main) { main.console.exit_process(main.tally.count as i32); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state report(main: &mut Main) { Console::exit_process(main.tally.count as i32); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

@@ -4,7 +4,6 @@
 // members in a partially-authored literal establish their declared type's
 // zero as the field's scalar value.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data RegionAlignment {
     case Unaligned(offset: u64);
@@ -17,9 +16,9 @@ data Snapshot {
     alignment: RegionAlignment;
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let snapshot: Snapshot = Snapshot {};
     let partial: Snapshot = Snapshot { region_count: 4 };
-    Console::exit_process(&main.console, 70);
+    Console::exit_process(70);
 }

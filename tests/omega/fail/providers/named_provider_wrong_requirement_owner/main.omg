@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 pub data Counter { value: i32; }
 pub boundary trait CounterOperations {
@@ -16,10 +15,9 @@ WrongProvider satisfies CounterOperations {
 }
 
 data Main {
-    counters: Binding<CounterOperations>;
     counter: Counter;
     observed: i32;
 }
 machine Main::main(main: &mut Main) reaches CounterOperations {
-    main.observed = main.counters.read(&main.counter);
+    main.observed = CounterOperations::read(&main.counter);
 }

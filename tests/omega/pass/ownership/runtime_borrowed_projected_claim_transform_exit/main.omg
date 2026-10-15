@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::drop;
 
 data Counter [linear] { slots: i32; }
@@ -28,7 +27,7 @@ machine apply(holder: &mut Holder) -> i32 {
     holder.inventory.counter.slots
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut holder: Holder = Holder { inventory: Inventory { marker: 99, counter: Counter { slots: 41 } } };
     let transformed: i32 = apply(&mut holder);
@@ -42,5 +41,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 42)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

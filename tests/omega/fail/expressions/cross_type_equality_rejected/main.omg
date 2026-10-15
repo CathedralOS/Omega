@@ -5,15 +5,14 @@
 // at the expansion site now (before lowering). Same-type `==` stays valid.
 trait Equatable<T> { machine equals(left: &T, right: &T) -> bool; }
 use omega_language_std::console;
-use omega::language::core::binding;
 data P { x: i32; y: i32; }
 data Q { a: i32; b: i32; }
 PEquality satisfies Equatable<P> { }
 QEquality satisfies Equatable<Q> { }
-data Main { console: Binding<Console>; p: P; q: Q; }
+data Main { p: P; q: Q; }
 machine Main::main(main: &mut Main) {
     main.p = P { x: 1, y: 2 };
     main.q = Q { a: 1, b: 2 };
     let mismatched: bool = main.p == main.q;
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

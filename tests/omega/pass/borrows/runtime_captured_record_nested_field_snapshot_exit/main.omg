@@ -1,10 +1,9 @@
 // Freeze the runtime selection, then project the nested fields through that reference.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell { stamp: i32; value: i32 [0..=100]; ready: bool; }
 data Outer { prefix: i32; inner: Cell; }
-data Main { console: Binding<Console>; items: [Outer; 2]; index: u64 [0..=1]; }
+data Main { items: [Outer; 2]; index: u64 [0..=1]; }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.items[0].prefix = 3;
@@ -25,6 +24,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

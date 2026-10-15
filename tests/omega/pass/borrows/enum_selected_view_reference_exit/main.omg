@@ -1,10 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Choice [copy] { case First; case Second; case Fallback; }
 data Holder { value: u64; sibling: u64; }
 data Bag { holders: [Holder; 3]; }
-data Main { console: Binding<Console>; bag: Bag; }
+data Main { bag: Bag; }
 
 machine Bag::pick(bag: &mut Bag, choice: Choice) -> &mut Holder {
     let slots: &mut [Holder] = &mut bag.holders[..];
@@ -44,5 +43,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

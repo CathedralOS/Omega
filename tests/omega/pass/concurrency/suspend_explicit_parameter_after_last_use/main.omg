@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 boundary data Lease;
 
@@ -9,10 +8,10 @@ data Message {
 pub boundary trait Scheduler { machine park() suspends; }
 
 // The same explicit parameter stops contributing after its last field read.
-machine inspect(message: Message, scheduler: Binding<Scheduler>)
+machine inspect(message: Message)
 suspends; reaches Scheduler {
     let value: i32 = message.value;
-    suspend scheduler.park();
+    suspend Scheduler::park();
 }
 
 machine main() {}

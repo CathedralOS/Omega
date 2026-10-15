@@ -7,13 +7,12 @@
 // same way. The refuted direction is pinned by
 // fail/calls/struct_constant_requires_argument_rejected.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Point { x: u64; y: u64; }
 data Shape {
     case Unit;
     case Scaled(factor: u64);
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Point::zero() -> Point {
     Point {
         x: 0,
@@ -46,6 +45,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

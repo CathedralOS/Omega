@@ -7,8 +7,7 @@
 // The callee is NOT re-entrant (no `terminates` walk) so the inline route
 // is sound -- the re-entrant sibling is fenced (inline_recursive_walk_rejected).
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::classify(main: &mut Main, path: &[u8]) -> i32 {
     transition path.len > 3 {
         true -> big()
@@ -27,6 +26,6 @@ machine Main::main(main: &mut Main) reaches Console {
     state check_b(main: &mut Main, b: i32) {
         transition b == 1 { true -> good(main) _ -> bad(main, 72) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

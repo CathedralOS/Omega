@@ -2,7 +2,6 @@
 // The mutable state loan must write the original caller backing, and the
 // shared state loan must retain the exact four-byte extent and contents.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Packet { values: [u8; 4]; }
 machine stamp(packet: &mut Packet) {
     transition { _ -> edit(&mut packet.values) }
@@ -14,20 +13,20 @@ machine stamp(packet: &mut Packet) {
     }
     state done() {}
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut packet: Packet;
     stamp(&mut packet);
     let bytes: [u8; 4] = [51, 52, 53, 54];
     transition packet.values[0] == 70 && packet.values[3] == 5 {
-        true -> emit(&main.console, &bytes) _ -> failed(&main.console)
+        true -> emit(&bytes) _ -> failed()
     }
-    state emit(console: &Binding<Console>, bytes: &[u8]) {
-        transition bytes.len == 4 { true -> report(console, bytes) _ -> failed(console) }
+    state emit(bytes: &[u8]) {
+        transition bytes.len == 4 { true -> report(bytes) _ -> failed() }
     }
-    state report(console: &Binding<Console>, bytes: &[u8]) {
-        Console::write_line(console, bytes);
-        Console::exit_process(console, 70);
+    state report(bytes: &[u8]) {
+        Console::write_line(bytes);
+        Console::exit_process(70);
     }
-    state failed(console: &Binding<Console>) { Console::exit_process(console, 71); }
+    state failed() { Console::exit_process(71); }
 }

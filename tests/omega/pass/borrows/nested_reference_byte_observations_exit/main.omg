@@ -1,11 +1,10 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Text { stamp: u64; bytes: [u8; 8] in Utf8; }
 data Message { stamp: u64; body: &Text; }
 data Envelope { stamp: u64; message: &Message; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let text: Text = Text { stamp: 43, bytes: "é" };
@@ -17,5 +16,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

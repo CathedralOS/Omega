@@ -1,7 +1,6 @@
 // One arm carries a copied local twice; the other carries it beside an inline
 // call result. Every selected edge has one source-home disposition.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Fraction [copy] { value: u64 in Wrapping; }
 machine make(value: u64 in Wrapping) -> Fraction { Fraction { value: value } }
 machine select(flag: bool, value: u64 in Wrapping) -> u64 in Wrapping {
@@ -14,11 +13,11 @@ machine select(flag: bool, value: u64 in Wrapping) -> u64 in Wrapping {
         first.value + second.value
     }
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(context: &mut Main) reaches Console {
     let first: u64 in Wrapping = select(true, 7);
     let second: u64 in Wrapping = select(false, 7);
     transition first == 15 && second == 14 { true -> done(context) false -> bad(context) }
-    state done(context: &mut Main) { context.console.exit_process(0); }
-    state bad(context: &mut Main) { context.console.exit_process(1); }
+    state done(context: &mut Main) { Console::exit_process(0); }
+    state bad(context: &mut Main) { Console::exit_process(1); }
 }

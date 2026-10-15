@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // A slice selector must retain partial-width IntegerAt descendants.
 // An opaque mutable call cannot establish the fit of its intermediate writes.
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
@@ -54,9 +53,9 @@ machine SignedByte::plan(schema: Schema) -> Plan {
 pub data PortableByte [copy] { value: i64; }
 pub data RawView { value: SignedByte<PortableByte>; }
 pub boundary trait EncodedWriter { machine write(value: &mut RawView); }
-machine write_first(encoded_writer: &Binding<EncodedWriter>, bytes: &mut [RawView]) reaches EncodedWriter {
-    transition bytes.len > 0 { true -> change(encoded_writer, bytes) _ -> done() }
-    state change(encoded_writer: &Binding<EncodedWriter>, bytes: &mut [RawView]) { EncodedWriter::write(encoded_writer, &mut bytes[0]); }
+machine write_first(bytes: &mut [RawView]) reaches EncodedWriter {
+    transition bytes.len > 0 { true -> change(bytes) _ -> done() }
+    state change(bytes: &mut [RawView]) { EncodedWriter::write(&mut bytes[0]); }
     state done() {}
 }
 machine main() {}

@@ -5,14 +5,13 @@
 // Members at byte offsets 0, 1, 2 and 4, array elements at 1 and 2, and a
 // 16-bit member after a byte member are moved from owned parameters.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Byte { raw: u8; }
 data Half { raw: u16; }
 data Trio { a: Byte; b: Byte; c: Byte; }
 data Mixed { tag: Byte; pad: Byte; half: Half; tail: Byte; }
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine byte_is(byte: Byte, expected: u64) -> bool { (byte.raw as u64) == expected }
 machine half_is(half: Half, expected: u64) -> bool { (half.raw as u64) == expected }
@@ -42,6 +41,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> ok(main)
         _ -> bad(main)
     }
-    state ok(main: &mut Main) { main.console.exit_process(0); }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state ok(main: &mut Main) { Console::exit_process(0); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }

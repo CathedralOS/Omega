@@ -3,7 +3,6 @@
 // generic adapter supplies a specialized concrete local provider for this
 // exact application, then reaches the selected checked provider.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data GenericMath {}
 
@@ -19,11 +18,11 @@ satisfies Math::identity
 
 boundary machine + Math::identity<Value>(receiver: GenericMath, value: Value) -> Value;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main)
 reaches Console
 {
     let generic: GenericMath = GenericMath {};
-    main.console.exit_process(generic + (70 as i32));
+    Console::exit_process(generic + (70 as i32));
 }

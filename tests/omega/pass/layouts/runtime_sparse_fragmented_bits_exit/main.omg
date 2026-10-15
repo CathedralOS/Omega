@@ -2,7 +2,6 @@
 // Entries deliberately arrive out of source-bit order. The distant container
 // is three bytes wide; a write must preserve its neighboring mode bits.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
@@ -67,7 +66,7 @@ machine SparseBits::plan(schema: Schema) -> Plan {
 }
 
 data PackedFlags { present: bool; mode: u8 [0..=7]; code: u8 [0..=15]; }
-data Main { console: Binding<Console>; packed: SparseBits<PackedFlags>; }
+data Main { packed: SparseBits<PackedFlags>; }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.packed.present = true;
@@ -90,6 +89,6 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

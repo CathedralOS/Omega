@@ -2,14 +2,13 @@
 // the operation, including when the left value is zero.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 data Operands { count: u32; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(context: &mut Main) reaches Console {
     let mut operands: Operands;
     operands.count = 32;
     let value: u32 in Trapping = (0 as u32 in Trapping);
     let shifted: u32 in Trapping = value << operands.count;
     let code: i32 = narrow_u32_to_i32_trapping(shifted as u32);
-    context.console.exit_process(code);
+    Console::exit_process(code);
 }

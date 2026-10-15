@@ -1,8 +1,7 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Output { value: u64; }
-data Main { console: Binding<Console>; output: Output; }
+data Main { output: Output; }
 
 machine fallback(output: &mut Output, first: bool, second: bool) {
     transition {
@@ -43,5 +42,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

@@ -11,8 +11,7 @@
 // expression keep their own obligations. A weaker guard (`main.k <= 9`)
 // refuses at the recast (fail/recast/guarded_offset_footprint_rejected).
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; buf: [u8; 12]; k: u32; out: i32; }
+data Main { buf: [u8; 12]; k: u32; out: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.buf[4] = 1;
     main.buf[5] = 2;
@@ -27,6 +26,6 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main)  { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main)  { Console::exit_process(71); }
 }

@@ -4,11 +4,10 @@
 // signature's shared view, so the header keeps the shared declaration rather
 // than claiming the exclusive loan its backedge forwards.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Stack { items: [u32; 8]; count: u64; }
 
-data Main { console: Binding<Console>; stack: Stack; }
+data Main { stack: Stack; }
 
 machine sum(items: &[u32; 8], index: u64, limit: u64, total: u64 in Wrapping) -> u64 in Wrapping
 terminates by (index, limit) -> Nat::BoundedDistance;
@@ -33,6 +32,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> reached(main)
         _ -> missed(main)
     }
-    state reached(main: &mut Main) { main.console.exit_process(70); }
-    state missed(main: &mut Main) { main.console.exit_process(71); }
+    state reached(main: &mut Main) { Console::exit_process(70); }
+    state missed(main: &mut Main) { Console::exit_process(71); }
 }

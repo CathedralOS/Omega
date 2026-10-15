@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // An exclusive loan of an IntegerAt leaf cannot reach a boundary callee through
 // an ordinary helper. The callee has no checked body, so it may write any `i64`
 // over the formal's whole footprint; only proven-fitting writes enter the
@@ -58,9 +57,9 @@ machine SignedByte::plan(schema: Schema) -> Plan {
 data PortableByte [copy] { value: i64; }
 data RawView { value: SignedByte<PortableByte>; }
 pub boundary trait Fill { machine fill(value: &mut i64); }
-machine forward(fill: &Binding<Fill>, value: &mut i64) reaches Fill { Fill::fill(fill, value); }
-data Main { bytes: [u8; 2]; fill: Binding<Fill>; }
+machine forward(value: &mut i64) reaches Fill { Fill::fill(value); }
+data Main { bytes: [u8; 2]; }
 machine Main::main(main: &mut Main) reaches Fill {
     let view: &mut RawView = &mut main.bytes[0] as &mut RawView;
-    forward(&main.fill, &mut view.value.value);
+    forward(&mut view.value.value);
 }

@@ -8,18 +8,17 @@
 // this covers the common std-authoring shape; the INLINE value-call route
 // stays fenced (pending/time/value_machine_receiver_field_postentry).
 use omega_language_std::console;
-use omega::language::core::binding;
 data Counter { value: i32 in Wrapping; }
 machine Counter::increment(counter: &mut Counter) {
     counter.value = counter.value + 1;
     transition { _ -> done() }
     state done() { }
 }
-data Main { console: Binding<Console>; a: Counter; b: Counter; }
+data Main { a: Counter; b: Counter; }
 machine Main::main(main: &mut Main) reaches Console {
     Counter::increment(&mut main.a);
     Counter::increment(&mut main.b);
     transition main.b.value == 1 { true -> good(main) _ -> bad(main, 71) }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 pub boundary trait RankReader {
     machine step(value: i32) -> i32
     terminates
@@ -13,31 +12,31 @@ CheckedReader satisfies RankReader {
 }
 machine identity(value: i32) -> i32 ensures result == value; { value }
 
-machine direct(reader: &Binding<RankReader>, remaining: i32) -> i32
+machine direct(remaining: i32) -> i32
 requires remaining >= 0 && remaining <= 9;
 terminates by remaining -> Nat::Descending in 0..=9;
 reaches RankReader {
     transition remaining > 0 {
-        true -> direct(reader, reader.step(remaining))
+        true -> direct(RankReader::step(remaining))
         false -> remaining
     }
 }
-machine nested(reader: &Binding<RankReader>, remaining: i32) -> i32
+machine nested(remaining: i32) -> i32
 requires remaining >= 0 && remaining <= 9;
 terminates by remaining -> Nat::Descending in 0..=9;
 reaches RankReader {
     transition remaining > 1 {
-        true -> nested(reader, identity(reader.step(reader.step(remaining))))
+        true -> nested(identity(RankReader::step(RankReader::step(remaining))))
         false -> remaining
     }
 }
-machine saved(reader: &Binding<RankReader>, remaining: i32) -> i32
+machine saved(remaining: i32) -> i32
 requires remaining > 0 && remaining <= 9;
 terminates by remaining -> Nat::Descending in 0..=9;
 reaches RankReader {
-    let next: i32 = reader.step(remaining);
+    let next: i32 = RankReader::step(remaining);
     transition next > 0 {
-        true -> saved(reader, identity(next))
+        true -> saved(identity(next))
         false -> next
     }
 }
@@ -55,12 +54,12 @@ terminates by remaining -> Nat::Descending in 0..=9;
         false -> remaining
     }
 }
-data Main { reader: Binding<RankReader>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches RankReader crashes Trap {
-    let first: i32 = direct(&main.reader, 9);
-    let second: i32 = nested(&main.reader, 8);
+    let first: i32 = direct(9);
+    let second: i32 = nested(8);
     let third: i32 = projected(7);
-    let fourth: i32 = saved(&main.reader, 6);
+    let fourth: i32 = saved(6);
     transition first == 0 && second == 0 && third == 0 && fourth == 0 {
         true -> done()
         false -> bad()

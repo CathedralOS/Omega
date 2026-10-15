@@ -7,9 +7,8 @@
 // variant dispatched (tag corrupted); 72 = a payload field read the wrong value.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
-data Main { console: Binding<Console>; stored: Msg; }
+data Main { stored: Msg; }
 
 machine Main::main(main: &mut Main) {
     main.stored = Msg::Pong { y: 10, z: 20 };
@@ -34,7 +33,7 @@ machine Main::dispatch(main: &mut Main) reaches Console {
             _ -> wrong(main)
         }
     }
-    state good(main: &mut Main)  { main.console.exit_process(70); }
-    state wrong(main: &mut Main) { main.console.exit_process(72); }
-    state bad(main: &mut Main)   { main.console.exit_process(71); }
+    state good(main: &mut Main)  { Console::exit_process(70); }
+    state wrong(main: &mut Main) { Console::exit_process(72); }
+    state bad(main: &mut Main)   { Console::exit_process(71); }
 }

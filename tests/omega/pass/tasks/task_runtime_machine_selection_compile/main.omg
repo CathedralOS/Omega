@@ -1,5 +1,4 @@
 use omega::language::core::task;
-use omega::language::core::binding;
 
 // MP6/TR3: task activation consumes the ordinary compile-time machine-symbol
 // parameter surface. `Worker::run` is selected statically and survives as the
@@ -49,14 +48,13 @@ machine Task::settle<T>(task: Task<T>) -> TaskOutcome<T> {
 
 data Main {
     runtime: &TaskRuntime;
-    issuer: Binding<TokenIssuer>;
 }
 
 machine Main::probe(main: &mut Main) reaches TokenIssuer + TaskRuntime {
-    let token: Token = main.issuer.issue(7);
+    let token: Token = TokenIssuer::issue(7);
     let first: Task<Token> = main.runtime.start<Worker::run>(token);
 
-    let retry: Token = main.issuer.issue(9);
+    let retry: Token = TokenIssuer::issue(9);
     let outcome: StartOutcome<Token, Token> =
         main.runtime.try_start<Worker::run>(retry);
 

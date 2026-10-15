@@ -4,9 +4,8 @@
 // Constant machine applications (`Point::zero()`) normalize to the same
 // closed constructor shape before the equation is judged.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Point { x: u64; y: u64; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Point::zero() -> Point {
     Point {
         x: 0,
@@ -23,5 +22,5 @@ machine Main::main(main: &mut Main) reaches Console {
         x: 1,
         y: 0,
     });
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

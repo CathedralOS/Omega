@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // Forwarding proves the public predicate from immutable caller facts; it does
 // not select a representative tuple or borrow a provider's runtime signature.
 pub boundary trait Service {
@@ -7,9 +6,9 @@ pub boundary trait Service {
 }
 Provider satisfies Service { Service::echo = echo; }
 machine echo<const Count: u64>(value: i32) -> i32 { value }
-machine relay<const Count: u64>(service: &Binding<Service>, value: i32) -> i32 reaches Service
+machine relay<const Count: u64>(value: i32) -> i32 reaches Service
 requires Count == 4 || Count == 8;
-{ Service::echo<Count>(service, value) }
+{ Service::echo<Count>(value) }
 
 data Providers {}
 macos_arm64 machine Providers::provider_defaults(defaults: &mut Providers) {
@@ -19,18 +18,18 @@ macos_arm64 machine Providers::provider_defaults(defaults: &mut Providers) {
 linux_x86_64 machine Providers::provider_defaults(defaults: &mut Providers) {
     Providers::select_provider<Service, Provider>(defaults);
 }
-data Main { service: Binding<Service>; }
+data Main { }
 macos_arm64 machine Main::main(main: &mut Main) reaches Service crashes Trap {
-    let first: i32 = relay<4>(&main.service, (17 as i32));
-    let second: i32 = relay<8>(&main.service, (25 as i32));
+    let first: i32 = relay<4>((17 as i32));
+    let second: i32 = relay<8>((25 as i32));
     transition first == 17 && second == 25 { true -> done() _ -> bad() }
     state done() {}
     state bad() { crash Trap; }
 }
 
 linux_x86_64 machine Main::main(main: &mut Main) reaches Service crashes Trap {
-    let first: i32 = relay<4>(&main.service, (17 as i32));
-    let second: i32 = relay<8>(&main.service, (25 as i32));
+    let first: i32 = relay<4>((17 as i32));
+    let second: i32 = relay<8>((25 as i32));
     transition first == 17 && second == 25 { true -> done() _ -> bad() }
     state done() {}
     state bad() { crash Trap; }

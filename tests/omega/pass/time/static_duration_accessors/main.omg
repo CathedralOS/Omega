@@ -1,9 +1,8 @@
 // Duration projections use an explicit shared parameter and invocation-local data.
 use omega_language_std::time;
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let duration: Duration = Duration { seconds: 7, subsecond_nanoseconds: 123456789 };
     let zero: Duration = Duration { seconds: 0, subsecond_nanoseconds: 0 };
@@ -13,9 +12,9 @@ machine Main::main(main: &mut Main) reaches Console {
     let nonzero: bool = Duration::is_zero(&duration);
     let empty: bool = Duration::is_zero(&zero);
     transition seconds == 7 && milliseconds == 123 && microseconds == 123456 && !nonzero && empty {
-        true -> good(&main.console)
-        false -> bad(&main.console)
+        true -> good()
+        false -> bad()
     }
-    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state bad(console: &Binding<Console>) { Console::exit_process(console, 1); }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(1); }
 }

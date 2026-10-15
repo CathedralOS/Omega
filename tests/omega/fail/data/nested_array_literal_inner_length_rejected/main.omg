@@ -3,6 +3,5 @@
 // did not recurse into nested array elements, so the extra element was truncated
 // away. Now the check recurses to every nesting level.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; grid: [[i32; 2]; 2]; }
-machine Main::main(main: &mut Main) { main.grid = [[1, 2], [3, 4, 5]]; main.console.exit_process(0); }
+data Main { grid: [[i32; 2]; 2]; }
+machine Main::main(main: &mut Main) { main.grid = [[1, 2], [3, 4, 5]]; Console::exit_process(0); }

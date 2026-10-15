@@ -22,7 +22,6 @@
 //
 // Expected once Q1 is answered: exit 60 on both legs for the program below.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 8]::Utf8(bytes)
 requires
@@ -36,7 +35,7 @@ machine retag(tagged: &write Tagged, label: [u8; 8] in Utf8) {
     tagged.label = label;
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut tagged: Tagged;
     retag(&write tagged, "omega600");
@@ -46,5 +45,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 60)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

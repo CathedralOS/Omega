@@ -7,7 +7,6 @@
 // root that was not a parameter, so the machine was omitted outright
 // ("Unit structural case field store has no lowered operation").
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Fmt [copy] {
     case Decimal;
@@ -25,8 +24,8 @@ machine reseat(fresh: Fmt) {
     boxed.fmt = fresh;
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     reseat(Fmt::Octal);
-    Console::exit_process(&main.console, 0);
+    Console::exit_process(0);
 }

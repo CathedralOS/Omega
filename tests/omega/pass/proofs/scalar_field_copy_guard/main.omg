@@ -1,16 +1,15 @@
 // Expected exit: 0
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; items: [u8; 64]; saved: u8; other: u64; }
+data Main { items: [u8; 64]; saved: u8; other: u64; }
 machine Main::main(main: &mut Main) reaches Console {
-    let read: LineReadResult = block main.console.read_line(&mut main.items);
+    let read: LineReadResult = block Console::read_line(&mut main.items);
     transition read { LineReadResult::LineComplete { count } -> inspect(main, 0) _ -> done(main) }
     state inspect(main: &mut Main, selector: u64) requires selector < 64 {
         main.saved = main.items[selector];
         transition main.saved >= 48 && main.saved <= 49 { true -> bounded(main, selector) false -> done(main) }
     }
     state bounded(main: &mut Main, selector: u64) requires selector < 64 requires main.items[selector] >= 48 requires main.items[selector] <= 49 requires main.saved >= 48 requires main.saved <= 49 {
-        main.console.exit_process(42);
+        Console::exit_process(42);
     }
-    state done(main: &mut Main) { main.console.exit_process(0); }
+    state done(main: &mut Main) { Console::exit_process(0); }
 }

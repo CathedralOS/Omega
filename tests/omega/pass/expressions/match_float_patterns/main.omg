@@ -1,5 +1,4 @@
 use omega::language::core::float_operations;
-use omega::language::core::binding;
 use omega_language_std::console;
 
 machine identity(value: f32) -> f32 { value }
@@ -12,7 +11,7 @@ machine choose(value: f32, first: f32, second: f32) -> u64 {
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 // Preserve the reusable call-bearing comparison and observe first-match,
 // second-match, fallback and signed-zero behavior through the native product.
@@ -27,5 +26,5 @@ reaches Console
         true -> 70,
         false -> 71
     };
-    main.console.exit_process(outcome);
+    Console::exit_process(outcome);
 }

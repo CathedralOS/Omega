@@ -1,8 +1,7 @@
-use omega::language::core::binding;
 use omega_language_std::console;
 
 data Buffer { input: [u8; 2]; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 // Each visit reforms the same static descriptor after the previous visit's
 // last use. Its old loan must not freeze the next visit's input mutation.
@@ -29,5 +28,5 @@ machine cycle(buffer: &mut Buffer) -> i32 {
 machine Main::main(main: &mut Main) reaches Console {
     let mut buffer: Buffer;
     let result: i32 = cycle(&mut buffer);
-    main.console.exit_process(result);
+    Console::exit_process(result);
 }

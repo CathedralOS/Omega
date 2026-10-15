@@ -1,8 +1,7 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 
-data Main { console: Binding<Console>; values: [f64; 4]; }
+data Main { values: [f64; 4]; }
 machine store(main: &mut Main, index: i32, value: i32) {
     transition index >= 0 && index < 4 { true -> write(main, index, value) _ -> done(main) }
     state write(main: &mut Main, index: i32, value: i32) {
@@ -13,5 +12,5 @@ machine store(main: &mut Main, index: i32, value: i32) {
 machine Main::main(main: &mut Main) reaches Console {
     store(main, 2, 70);
     let result: i32 in Saturating = I32::from_f64(main.values[2]);
-    main.console.exit_process(result as i32);
+    Console::exit_process(result as i32);
 }

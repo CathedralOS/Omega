@@ -1,6 +1,5 @@
 // Interface identity is not an effect. A two-operation provider can expose
 // distinct capability rows; calling one operation does not reach the other.
-use omega::language::core::binding;
 pub boundary trait Content {}
 pub boundary trait Read: Content {}
 pub boundary trait Write {}
@@ -16,12 +15,12 @@ pub boundary trait Portable {
     machine pure() -> u64 invokes Host;
 }
 
-machine portable_read(portable: &mut Binding<Portable>) -> u64 reaches Read {
-    portable.read()
+machine portable_read() -> u64 reaches Read {
+    Portable::read()
 }
 
-machine portable_pure(portable: &mut Binding<Portable>) -> u64 {
-    portable.pure()
+machine portable_pure() -> u64 {
+    Portable::pure()
 }
 
 machine read_only() -> u64 reaches Read
@@ -32,12 +31,12 @@ machine pure_operation() -> u64
 invokes Host;
 { Host::pure(7) }
 
-machine bound_read(host: &mut Binding<Host>) -> u64 reaches Read {
-    host.read()
+machine bound_read() -> u64 reaches Read {
+    Host::read()
 }
 
-machine bound_pure(host: &mut Binding<Host>) -> u64 {
-    host.pure(7)
+machine bound_pure() -> u64 {
+    Host::pure(7)
 }
 
 // The implementation check retains the read capability's parent closure.

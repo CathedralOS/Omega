@@ -1,12 +1,11 @@
 // A selected case's bounds must hold at every construction before a match
 // may publish them. The literal 9999 violates Found's zero-through-15 facts.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Slot { case Found(index: i32) where index >= 0 && index <= 15; case Full; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::run(main: &mut Main, s: Slot) {
     transition s { Slot::Found { index } -> done(main, index) Slot::Full -> stop(main) }
-    state done(main: &mut Main, n: i32) { main.console.exit_process(0); }
-    state stop(main: &mut Main) { main.console.exit_process(0); }
+    state done(main: &mut Main, n: i32) { Console::exit_process(0); }
+    state stop(main: &mut Main) { Console::exit_process(0); }
 }
 machine Main::main(main: &mut Main) { Main::run(main, Slot::Found { index: 9999 }); }

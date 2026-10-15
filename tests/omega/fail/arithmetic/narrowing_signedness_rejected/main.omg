@@ -10,11 +10,10 @@
 // of its own to reach it. The wider same-width face is
 // implicit_store_conversion_rejected (`u32` into `i32`).
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; u: u8; s: i8; }
+data Main { u: u8; s: i8; }
 machine Main::main(main: &mut Main) {
     main.u = 200;
     main.s = main.u;
     let o: i32 = main.s as i32;
-    main.console.exit_process(o);
+    Console::exit_process(o);
 }

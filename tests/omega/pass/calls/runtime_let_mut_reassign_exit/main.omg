@@ -8,11 +8,10 @@
 // the plain spelling now refuses:
 // fail/calls/plain_let_reassign_rejected).
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; out: i32; }
+data Main { out: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     let mut x: u32 = 1;
     x = 2;
     main.out = x as i32;
-    main.console.exit_process(main.out);
+    Console::exit_process(main.out);
 }

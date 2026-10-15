@@ -5,13 +5,12 @@
 // and cast to i32 for the exit code. Naive pointer-width (rides the 8-byte path);
 // native must match the interpreter.
 use omega_language_std::console;
-use omega::language::core::binding;
 data EfiHandle { raw: addr; }
 data ConsolePtr { raw: addr; }
-data Main { console: Binding<Console>; h: EfiHandle; c: ConsolePtr; r: i32; }
+data Main { h: EfiHandle; c: ConsolePtr; r: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.h = EfiHandle { raw: 4096 };
     main.c = ConsolePtr { raw: 88 };
     main.r = (main.c.raw as i32 in Trapping) as i32;
-    main.console.exit_process(main.r);
+    Console::exit_process(main.r);
 }

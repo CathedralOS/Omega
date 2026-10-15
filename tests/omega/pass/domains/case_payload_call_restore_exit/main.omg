@@ -1,10 +1,9 @@
 // Calls restore conditional payload validity, not an old case selection.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain i32::NonZero(value) requires value != 0;
 data Divisor { case Unset; case By(amount: i32 in NonZero); }
-data Main { console: Binding<Console>; divisor: Divisor; }
+data Main { divisor: Divisor; }
 
 machine install(main: &mut Main) {
     let replacement: Divisor = Divisor::By { amount: 7 };
@@ -27,6 +26,6 @@ machine Main::main(main: &mut Main) reaches Console {
             Divisor::By { amount as _ } -> fail(main)
         }
     }
-    state done(main: &mut Main, result: i32) { main.console.exit_process(result); }
-    state fail(main: &mut Main) { main.console.exit_process(71); }
+    state done(main: &mut Main, result: i32) { Console::exit_process(result); }
+    state fail(main: &mut Main) { Console::exit_process(71); }
 }

@@ -3,7 +3,6 @@
 // equality and the bound on `cap`, so nothing bounds `size` at the recast.
 // The pass sibling `pass/dependent/boundary_equality_recast_witness_compile`
 // is the same program without the write.
-use omega::language::core::binding;
 pub boundary trait Firmware {
     machine get_map(size: &mut u32, cap: &mut u32)
     ensures size == cap && cap <= 8;
@@ -11,15 +10,14 @@ pub boundary trait Firmware {
 }
 
 data Main {
-    fw: Binding<Firmware>;
     buf: [u8; 12];
     size: u32;
     cap: u32;
 }
 
 machine Main::main(main: &mut Main) reaches Firmware {
-    main.fw.get_map(&mut main.size, &mut main.cap);
-    main.fw.refill(&mut main.cap);
+    Firmware::get_map(&mut main.size, &mut main.cap);
+    Firmware::refill(&mut main.cap);
     transition { _ -> read(main.size, main.cap, main) }
 
     state read(size: u32, cap: u32, main: &mut Main) {

@@ -2,12 +2,11 @@
 // `&mut Room` borrows all of `level` through its elided signature, so `update`
 // reads the sibling fields before it forms the room loan.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Marker [copy] { case First; case Second; }
 data Room [copy] { value: u64; flag: bool; }
 data Level [copy] { rooms: [Room; 3]; start: Marker; counter: u64; }
-data Main { console: Binding<Console>; level: Level; }
+data Main { level: Level; }
 
 machine choose(level: &mut Level, first: bool) -> &mut Room {
     transition first {
@@ -38,5 +37,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

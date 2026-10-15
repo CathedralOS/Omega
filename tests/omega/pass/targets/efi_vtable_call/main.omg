@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // *** THE GREETING -- MILESTONE 1: an Omega UEFI application prints "Hello from
 // Omega" through the firmware's SimpleTextOutput protocol. BOOT-VERIFIED under
 // QEMU/OVMF (2026-07-04): serial console shows "Hello from Omega",
@@ -19,13 +18,13 @@ pub data EfiSystemTable {
     firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;
     console_in_handle: addr; con_in: addr; console_out_handle: addr; con_out: addr;
 }
-pub data Main { out: Binding<TextOutput>; msg: [u16; 19]; }
+pub data Main { msg: [u16; 19]; }
 boundary machine Main::main(main: &mut Main, handle: addr, table: &EfiSystemTable) -> i32
 reaches TextOutput
 invokes TextOutput;
 {
     main.msg = utf16"Hello from Omega\r\n\0";
     let con_out: addr = table.con_out;
-    main.out.output_string(con_out, &main.msg);
+    TextOutput::output_string(con_out, &main.msg);
     transition { _ -> (0) }
 }

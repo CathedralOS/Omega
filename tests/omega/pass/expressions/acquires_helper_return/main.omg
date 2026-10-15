@@ -2,7 +2,6 @@
 // boundary and hands it onward through its capability-typed return;
 // `Backup::stage` never touches the boundary — authority propagates
 // `acquires` up the call graph with the helper recorded as provenance.
-use omega::language::core::binding;
 
 pub domain [u8]::Utf8(bytes)
 requires
@@ -31,13 +30,12 @@ ensures
 }
 
 data Vault {
-    desktop: Binding<Desktop>;
 }
 machine Vault::pick(vault: &mut Vault) -> Folder
 reaches
     Desktop
 {
-    vault.desktop.choose_folder("choose a backup folder")
+    Desktop::choose_folder("choose a backup folder")
 }
 
 data Backup {

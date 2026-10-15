@@ -1,10 +1,9 @@
 // Scalar sibling storage survives the match join after its reference leaf ends.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell { value: i32 [0..=100]; ready: bool; }
 data Message { body: &mut Cell; stamp: i32; }
-data Main { console: Binding<Console>; cell: Cell; }
+data Main { cell: Cell; }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.cell.value = 70;
@@ -22,6 +21,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

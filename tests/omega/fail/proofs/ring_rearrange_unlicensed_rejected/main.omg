@@ -5,7 +5,6 @@
 // before the tier existed. Whether a proof compiles must never depend on
 // what happens to be in scope (the Lean CommRing-instance precedent).
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Peano {
     case Zero;
@@ -46,5 +45,5 @@ ensures
     }
 }
 
-data Main { console: Binding<Console>; }
-machine Main::main(main: &mut Main) { main.console.exit_process(70); }
+data Main { }
+machine Main::main(main: &mut Main) { Console::exit_process(70); }

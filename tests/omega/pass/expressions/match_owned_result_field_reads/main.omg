@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 data Payload { left: u64; right: u64; }
 data Pair { first: Payload; second: Payload; }
 machine choose(selected: u64) -> u64 {
@@ -14,10 +13,10 @@ machine choose(selected: u64) -> u64 {
     let r: u64 = result.right;
     l ^ r
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let b: u64 = choose(1);
     transition b == 52 { true -> good(main) _ -> exit(main, b) }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state exit(main: &mut Main, code: u64) { main.console.exit_process((code % 200) as i32); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state exit(main: &mut Main, code: u64) { Console::exit_process((code % 200) as i32); }
 }

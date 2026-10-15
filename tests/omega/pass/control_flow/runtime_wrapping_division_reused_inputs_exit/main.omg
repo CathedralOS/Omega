@@ -1,56 +1,55 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 // Decimal output is computed from the result, with no expected-value strings.
-machine number(console: &mut Binding<Console>, value: i32 in Wrapping) reaches Console {
+machine number(value: i32 in Wrapping) reaches Console {
     transition value < 0 {
-        true -> negative(console, value)
-        _ -> magnitude(console, value)
+        true -> negative(value)
+        _ -> magnitude(value)
     }
-    state negative(console: &mut Binding<Console>, value: i32 in Wrapping) {
-        console.write_byte(45);
-        transition { _ -> magnitude(console, 0 - value) }
+    state negative(value: i32 in Wrapping) {
+        Console::write_byte(45);
+        transition { _ -> magnitude(0 - value) }
     }
-    state magnitude(console: &mut Binding<Console>, value: i32 in Wrapping) {
-        transition { _ -> scale(console, value, 1) }
+    state magnitude(value: i32 in Wrapping) {
+        transition { _ -> scale(value, 1) }
     }
-    state scale(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    state scale(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 0 {
-            true -> scale_positive(console, value, divisor)
+            true -> scale_positive(value, divisor)
             _ -> done()
         }
     }
-    state scale_positive(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    state scale_positive(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition value / divisor >= 10 && divisor <= 100000000 {
-            true -> scale(console, value, divisor * 10)
-            _ -> digit(console, value, divisor)
+            true -> scale(value, divisor * 10)
+            _ -> digit(value, divisor)
         }
     }
-    state digit(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    state digit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 0 {
-            true -> digit_positive(console, value, divisor)
+            true -> digit_positive(value, divisor)
             _ -> done()
         }
     }
-    state digit_positive(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping) {
-        console.write_byte((value / divisor % 10 + 48) as i32);
+    state digit_positive(value: i32 in Wrapping, divisor: i32 in Wrapping) {
+        Console::write_byte((value / divisor % 10 + 48) as i32);
         transition divisor > 1 {
-            true -> digit(console, value, divisor / 10)
+            true -> digit(value, divisor / 10)
             _ -> done()
         }
     }
     state done() { }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    let observed: ByteRead = block main.console.read_byte();
+    let observed: ByteRead = block Console::read_byte();
     transition observed {
         ByteRead::Byte { value } -> emit(main, value)
         _ -> finish(main)
     }
     state emit(main: &mut Main, value: i32) {
-        number(&mut main.console, value as i32 in Wrapping);
+        number(value as i32 in Wrapping);
         transition { _ -> finish(main) }
     }
-    state finish(main: &mut Main) { main.console.exit_process(0); }
+    state finish(main: &mut Main) { Console::exit_process(0); }
 }

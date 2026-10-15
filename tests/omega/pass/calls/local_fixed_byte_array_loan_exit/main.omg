@@ -7,7 +7,6 @@
 // loan observed and updated the one local array.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine stamp(bytes: &mut [u8]) {
     transition bytes.len > 1 {
@@ -34,31 +33,31 @@ machine peek(bytes: &[u8], position: u64) -> u64 {
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut buffer: [u8; 4];
     stamp(&mut buffer);
     let seen: u64 = peek(&buffer, 1);
-    let line: LineReadResult = block Console::read_line(&main.console, &mut buffer);
+    let line: LineReadResult = block Console::read_line(&mut buffer);
     let first: u64 = peek(&buffer, 0);
     let second: u64 = peek(&buffer, 1);
     transition line {
-        LineReadResult::LineComplete { count } -> check(&main.console, seen, count, first, second)
-        _ -> refused(&main.console, 71)
+        LineReadResult::LineComplete { count } -> check(seen, count, first, second)
+        _ -> refused(71)
     }
 
-    state check(console: &Binding<Console>, seen: u64, count: u64, first: u64, second: u64) {
+    state check(seen: u64, count: u64, first: u64, second: u64) {
         transition seen == 5 && count == 3 && first == 97 && second == 98 {
-            true -> done(console)
-            _ -> refused(console, 72)
+            true -> done()
+            _ -> refused(72)
         }
     }
 
-    state done(console: &Binding<Console>) {
-        Console::exit_process(console, 70);
+    state done() {
+        Console::exit_process(70);
     }
 
-    state refused(console: &Binding<Console>, code: i32) {
-        Console::exit_process(console, code);
+    state refused(code: i32) {
+        Console::exit_process(code);
     }
 }

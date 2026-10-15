@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega_language_std::console;
 
 data Message { case Captured(value: i32); case Empty; }
@@ -23,9 +22,9 @@ machine run(counter: &mut Counter) -> i32 {
     }
 }
 
-data Main { console: Binding<Console>; counter: Counter; result: i32; }
+data Main { counter: Counter; result: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.counter.value = 70;
     main.result = run(&mut main.counter);
-    main.console.exit_process(main.result);
+    Console::exit_process(main.result);
 }

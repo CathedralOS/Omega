@@ -18,7 +18,6 @@
 // profile that is nobody's development host produces an inert sibling that
 // SURVIVES into typed trees.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Helper { seed: i32; }
 
@@ -27,9 +26,9 @@ uefi_x86_64 machine Helper::record_paradigm_event() {
     state done() { }
 }
 
-data Main { console: Binding<Console>; helper: Helper; }
+data Main { helper: Helper; }
 
 machine Main::main(main: &mut Main) reaches Console {
     Helper::record_paradigm_event();
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

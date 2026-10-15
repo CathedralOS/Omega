@@ -4,7 +4,6 @@
 // `pass/ownership/linear_transfer_and_consume` is the same program with an
 // external sink satisfying the requirement.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Receipt [linear] {
     code: i32;
@@ -12,11 +11,11 @@ data Receipt [linear] {
 
 boundary requirement Receipt::ack(receipt: Receipt);
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let issued: Receipt = Receipt { code: 7 };
     let forwarded: Receipt = issued;
     Receipt::ack(forwarded);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

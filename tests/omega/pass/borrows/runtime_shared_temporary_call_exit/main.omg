@@ -1,8 +1,7 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Item { value: i32; }
-data Main { console: Binding<Console>; total: i32; }
+data Main { total: i32; }
 
 machine make(value: i32) -> Item { Item { value: value } }
 machine Main::collect(context: &mut Main, first: &Item, second: &Item) -> bool {
@@ -15,5 +14,5 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> finish(context, 42)
         false -> finish(context, 1)
     }
-    state finish(context: &mut Main, code: i32) { context.console.exit_process(code); }
+    state finish(context: &mut Main, code: i32) { Console::exit_process(code); }
 }

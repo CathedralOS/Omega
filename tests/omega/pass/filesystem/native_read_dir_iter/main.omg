@@ -8,11 +8,9 @@
 // lowers correctly on aarch64. Prints PASS iff exactly 4 entries are walked.
 
 use omega_language_std::posix_filesystem_host;
-use omega::language::core::binding;
 use omega::language::core::numeric_conversion;
 
 data Main {
-    fs: Binding<PosixFilesystemHost>;
     discard: i32;
     dirmode: i32;
     filemode: i32;
@@ -44,15 +42,15 @@ machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
     main.position = 0;
     main.off = 0;
     main.count = 0;
-    main.rc = main.fs.create_dir("/tmp/omega_rdi", main.dirmode);
-    main.fd = main.fs.create("/tmp/omega_rdi/alpha", main.filemode);
-    main.discard = main.fs.close(main.fd);
-    main.fd = main.fs.create("/tmp/omega_rdi/beta", main.filemode);
-    main.discard = main.fs.close(main.fd);
-    main.dfd = main.fs.open("/tmp/omega_rdi", main.rdonly);
+    main.rc = PosixFilesystemHost::create_dir("/tmp/omega_rdi", main.dirmode);
+    main.fd = PosixFilesystemHost::create("/tmp/omega_rdi/alpha", main.filemode);
+    main.discard = PosixFilesystemHost::close(main.fd);
+    main.fd = PosixFilesystemHost::create("/tmp/omega_rdi/beta", main.filemode);
+    main.discard = PosixFilesystemHost::close(main.fd);
+    main.dfd = PosixFilesystemHost::open("/tmp/omega_rdi", main.rdonly);
     transition main.dfd >= 0 { true -> readit(main) _ -> fail(main) }
     state readit(main: &mut Main) {
-        main.total = main.fs.read_dir(main.dfd, &mut main.buffer, main.cap, &mut main.position);
+        main.total = PosixFilesystemHost::read_dir(main.dfd, &mut main.buffer, main.cap, &mut main.position);
         main.totalu = narrow_i64_to_u64_wrapping(main.total) as u64 in Wrapping;
         transition main.total > 0 { true -> walk(main) _ -> fail(main) }
     }
@@ -75,13 +73,13 @@ machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
         transition main.off < main.totalu { true -> walk(main) _ -> done(main) }
     }
     state done(main: &mut Main) {
-        main.discard = main.fs.close(main.dfd);
-        main.discard = main.fs.remove("/tmp/omega_rdi/alpha");
-        main.discard = main.fs.remove("/tmp/omega_rdi/beta");
-        main.rc = main.fs.remove_dir("/tmp/omega_rdi");
+        main.discard = PosixFilesystemHost::close(main.dfd);
+        main.discard = PosixFilesystemHost::remove("/tmp/omega_rdi/alpha");
+        main.discard = PosixFilesystemHost::remove("/tmp/omega_rdi/beta");
+        main.rc = PosixFilesystemHost::remove_dir("/tmp/omega_rdi");
         // entries: ".", "..", "alpha", "beta" => 4
         transition main.count == 4 { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: read_dir iteration walked 4 entries (., .., alpha, beta) natively\n"); }
-    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: read_dir iteration\n"); }
+    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: read_dir iteration walked 4 entries (., .., alpha, beta) natively\n"); }
+    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: read_dir iteration\n"); }
 }

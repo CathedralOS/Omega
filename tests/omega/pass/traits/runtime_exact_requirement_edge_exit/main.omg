@@ -8,7 +8,6 @@
 //
 // Exits 1: `increment` ran exactly once through `CounterIncrementable`.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 trait Incrementable<T> {
     machine increment(counter: &mut T);
@@ -25,9 +24,9 @@ CounterIncrementable satisfies Incrementable<Counter> {
     Incrementable::increment = Counter::increment;
 }
 
-data Main { console: Binding<Console>; counter: Counter; }
+data Main { counter: Counter; }
 
 machine Main::main(main: &mut Main) reaches Console {
     CounterIncrementable::increment(&mut main.counter);
-    main.console.exit_process(main.counter.value as i32);
+    Console::exit_process(main.counter.value as i32);
 }

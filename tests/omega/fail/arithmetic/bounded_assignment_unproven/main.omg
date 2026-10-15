@@ -3,9 +3,8 @@
 // write, not just construction/initialization -- assignment was the one write
 // position left unenforced (#63). `x` is [0..=100]; 9999 is outside it.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; x: i32 [0..=100]; }
+data Main { x: i32 [0..=100]; }
 machine Main::main(main: &mut Main) {
     main.x = 9999;
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Copy the entire qualified record through a slice, including a bounded byte
 // field and an enum. The source and the unselected destination stay intact.
@@ -7,7 +6,7 @@ domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Tag [copy] { case First; case Second; }
 data Cell [copy] { label: [u8; 8] in Utf8; tag: Tag; value: u64; }
 data Bag { cells: [Cell; 2]; }
-data Main { console: Binding<Console>; source: Bag; destination: Bag; }
+data Main { source: Bag; destination: Bag; }
 
 machine copy_selected(source: &Bag, destination: &mut Bag) {
     let input: &[Cell] = &source.cells[..];
@@ -42,5 +41,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

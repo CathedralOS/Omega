@@ -1,7 +1,6 @@
 // Preserve both ends of a large local across a by-value call, then carry
 // its observed result through a separate record factory and borrowed call.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Buffer { values: [i32; 8192]; marker: i32; }
 data Ticket { code: i32; }
@@ -16,7 +15,7 @@ machine inspect(values: [i32; 8192], marker: i32) -> i32 {
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut buffer: Buffer;
     buffer.values[0] = 11;
@@ -25,5 +24,5 @@ machine Main::main(main: &mut Main) reaches Console {
     let observed: i32 = inspect(buffer.values, buffer.marker);
     let result: Ticket = ticket(observed);
     let code: i32 = read(&result);
-    Console::exit_process(&main.console, code);
+    Console::exit_process(code);
 }

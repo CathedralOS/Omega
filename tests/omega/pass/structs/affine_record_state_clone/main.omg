@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell { values: [i32; 2]; count: u64; }
 data Worker {}
@@ -27,7 +26,7 @@ machine Worker::clone(source: &Cell) -> Cell {
 
 // The local backing home survives every state; the returned record is a fresh
 // copy. Mutating the original after return must not change the copied elements.
-data Main { console: Binding<Console>; cell: Cell; }
+data Main { cell: Cell; }
 machine Worker::valid(cell: &Cell) -> bool {
     cell.count == 2 && cell.values[0] == 35 && cell.values[1] == 70
 }
@@ -46,6 +45,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> success(main)
         false -> failure(main)
     }
-    state success(main: &mut Main) { main.console.exit_process(70); }
-    state failure(main: &mut Main) { main.console.exit_process(71); }
+    state success(main: &mut Main) { Console::exit_process(70); }
+    state failure(main: &mut Main) { Console::exit_process(71); }
 }

@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::drop;
 
 data Receipt [linear] { code: i32; }
@@ -10,7 +9,7 @@ machine issue(code: i32) -> Receipt {
 }
 machine observe(receipt: &Receipt) -> i32 { receipt.code }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let receipt: Receipt = issue(70);
     let view: &Receipt = &receipt;
@@ -20,5 +19,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

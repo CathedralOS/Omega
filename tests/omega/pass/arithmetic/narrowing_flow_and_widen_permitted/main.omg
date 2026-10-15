@@ -4,9 +4,8 @@
 // proven-in-range source compiles, so real code migrates by spelling the
 // conversion rather than restructuring. All three stores below compile.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Operands { a: i8; b: i64; r: i32; s: i8; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(context: &mut Main) reaches Console {
     let mut operands: Operands;
     operands.a = 5;
@@ -14,5 +13,5 @@ machine Main::main(context: &mut Main) reaches Console {
     operands.r = operands.b as i32;   // b is proven {5}; the cast spells the narrowing
     let x: i32 = 7;
     operands.s = x as i8;         // x is proven {7}; the cast spells the narrowing
-    context.console.exit_process(operands.r);
+    Console::exit_process(operands.r);
 }

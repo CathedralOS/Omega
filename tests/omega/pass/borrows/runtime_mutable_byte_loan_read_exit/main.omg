@@ -3,9 +3,8 @@
 // exclusive loan that may be written may be read; each read is a snapshot
 // of the byte at that point.
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; bytes: [u8; 5]; more: [u8; 4]; }
+data Main { bytes: [u8; 5]; more: [u8; 4]; }
 
 machine swap(bytes: &mut [u8; 5], left: u64, right: u64) -> bool
 requires left < 5 && right < 5
@@ -48,6 +47,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> reached(main)
         _ -> missed(main)
     }
-    state reached(main: &mut Main) { main.console.exit_process(70); }
-    state missed(main: &mut Main) { main.console.exit_process(71); }
+    state reached(main: &mut Main) { Console::exit_process(70); }
+    state missed(main: &mut Main) { Console::exit_process(71); }
 }

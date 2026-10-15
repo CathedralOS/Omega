@@ -3,10 +3,9 @@ use m::b;
 use m::a;
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
-use omega::language::core::binding;
 
-data Main { exit: Binding<ProcessExit>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches ProcessExit {
     let item: A = A { value: 7 };
-    main.exit.exit_process(item.value);
+    ProcessExit::exit_process(item.value);
 }

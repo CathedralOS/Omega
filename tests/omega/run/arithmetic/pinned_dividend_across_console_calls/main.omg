@@ -1,23 +1,22 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // A single runtime dividend has repeated x86 fixed uses separated by calls.
 // Its value must survive each call without requiring one common physical home.
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(root: &mut Main) reaches Console {
-    digits(&mut root.console, 53);
-    root.console.write_byte(10);
-    root.console.exit_process(0);
+    digits(53);
+    Console::write_byte(10);
+    Console::exit_process(0);
 }
 
-machine digits(console: &mut Binding<Console>, value: i32) reaches Console invokes console; {
+machine digits(value: i32) reaches Console invokes Console; {
     let magnitude: i32 in Wrapping = value as i32 in Wrapping;
-    console.write_byte(((magnitude / 10000000) % 10 + 48) as i32);
-    console.write_byte(((magnitude / 1000000) % 10 + 48) as i32);
-    console.write_byte(((magnitude / 100000) % 10 + 48) as i32);
-    console.write_byte(((magnitude / 10000) % 10 + 48) as i32);
-    console.write_byte(((magnitude / 1000) % 10 + 48) as i32);
-    console.write_byte(((magnitude / 100) % 10 + 48) as i32);
-    console.write_byte(((magnitude / 10) % 10 + 48) as i32);
-    console.write_byte((magnitude % 10 + 48) as i32);
+    Console::write_byte(((magnitude / 10000000) % 10 + 48) as i32);
+    Console::write_byte(((magnitude / 1000000) % 10 + 48) as i32);
+    Console::write_byte(((magnitude / 100000) % 10 + 48) as i32);
+    Console::write_byte(((magnitude / 10000) % 10 + 48) as i32);
+    Console::write_byte(((magnitude / 1000) % 10 + 48) as i32);
+    Console::write_byte(((magnitude / 100) % 10 + 48) as i32);
+    Console::write_byte(((magnitude / 10) % 10 + 48) as i32);
+    Console::write_byte((magnitude % 10 + 48) as i32);
 }

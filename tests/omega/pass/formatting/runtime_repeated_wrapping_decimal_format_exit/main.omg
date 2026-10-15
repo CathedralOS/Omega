@@ -1,14 +1,13 @@
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
-machine number(console: &mut Binding<Console>, value: i32 in Wrapping) reaches Console {
-    console.write_byte((value / 1000 % 10 + 48) as i32);
-    console.write_byte((value / 100 % 10 + 48) as i32);
-    console.write_byte((value / 10 % 10 + 48) as i32);
-    console.write_byte((value % 10 + 48) as i32);
-    console.write_byte(32);
+data Main { }
+machine number(value: i32 in Wrapping) reaches Console {
+    Console::write_byte((value / 1000 % 10 + 48) as i32);
+    Console::write_byte((value / 100 % 10 + 48) as i32);
+    Console::write_byte((value / 10 % 10 + 48) as i32);
+    Console::write_byte((value % 10 + 48) as i32);
+    Console::write_byte(32);
 }
 machine Main::main(main: &mut Main) reaches Console {
-    number(&mut main.console, 1234);
-    main.console.exit_process(0);
+    number(1234);
+    Console::exit_process(0);
 }

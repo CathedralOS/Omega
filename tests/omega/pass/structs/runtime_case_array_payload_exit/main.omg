@@ -1,12 +1,11 @@
 // Array construction is an ordinary value producer inside a case payload.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Packet {
     case Empty;
     case Samples(values: [i32; 2]);
 }
-data Main { console: Binding<Console>; packet: Packet; }
+data Main { packet: Packet; }
 
 machine Main::main(context: &mut Main) reaches Console {
     context.packet = Packet::Samples { values: [30, 40] };
@@ -23,5 +22,5 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> finish(context, 2)
         }
     }
-    state finish(context: &mut Main, code: i32) { context.console.exit_process(code); }
+    state finish(context: &mut Main, code: i32) { Console::exit_process(code); }
 }

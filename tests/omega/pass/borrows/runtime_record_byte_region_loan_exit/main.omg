@@ -18,9 +18,8 @@
 // Expected exit: 50
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 data Desc { kind: u32; pages: u64; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut buffer: [u8; 48];
     // Descriptor 0: kind 3, pages 10.
@@ -34,40 +33,40 @@ machine Main::main(main: &mut Main) reaches Console {
     buffer[40] = 30;
     let descriptor_size: u32 = 16;
     let total: u32 in Wrapping = 0;
-    transition { _ -> walk(&main.console, &buffer, descriptor_size, 0, total) }
+    transition { _ -> walk(&buffer, descriptor_size, 0, total) }
 
     // Each view borrows the entry's local buffer. Coordinates and the
     // accumulator travel as values instead of persistent context fields.
-    state walk(console: &Binding<Console>, buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping) requires offset <= 32 {
+    state walk(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping) requires offset <= 32 {
         let descriptor: &Desc = &buffer[offset] as &Desc;
         let pages: u64 = descriptor.pages;
         transition descriptor.kind >= 4 {
-            true -> tally(console, buffer, descriptor_size, offset, total, pages)
-            _ -> step(console, buffer, descriptor_size, offset, total)
+            true -> tally(buffer, descriptor_size, offset, total, pages)
+            _ -> step(buffer, descriptor_size, offset, total)
         }
     }
-    state tally(console: &Binding<Console>, buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping, pages: u64) requires offset <= 32 {
+    state tally(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping, pages: u64) requires offset <= 32 {
         let counted: u32 in Wrapping =
             narrow_u64_to_u32_wrapping(pages) as u32 in Wrapping;
         let updated_total: u32 in Wrapping = total + counted;
-        transition { _ -> step(console, buffer, descriptor_size, offset, updated_total) }
+        transition { _ -> step(buffer, descriptor_size, offset, updated_total) }
     }
-    state step(console: &Binding<Console>, buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping) requires offset <= 32 {
+    state step(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping) requires offset <= 32 {
         let stride: u32 = descriptor_size;
         transition stride > 0 && stride <= 16 {
-            true -> advance(console, buffer, descriptor_size, offset, total, stride)
-            _ -> done(console, total)
+            true -> advance(buffer, descriptor_size, offset, total, stride)
+            _ -> done(total)
         }
     }
-    state advance(console: &Binding<Console>, buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping, stride: u32) requires offset <= 32 requires stride <= 16 {
+    state advance(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping, stride: u32) requires offset <= 32 requires stride <= 16 {
         let next: u32 = offset + stride;
         transition next <= 32 {
-            true -> walk(console, buffer, descriptor_size, next, total)
-            _ -> done(console, total)
+            true -> walk(buffer, descriptor_size, next, total)
+            _ -> done(total)
         }
     }
-    state done(console: &Binding<Console>, total: u32 in Wrapping) {
+    state done(total: u32 in Wrapping) {
         let code: i32 = narrow_u32_to_i32_trapping(total as u32);
-        Console::exit_process(console, code);
+        Console::exit_process(code);
     }
 }

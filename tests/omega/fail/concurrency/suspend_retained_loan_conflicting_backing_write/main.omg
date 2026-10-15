@@ -1,12 +1,11 @@
-use omega::language::core::binding;
 
 pub boundary trait Scheduler { machine advance() suspends; }
 machine observe(value: &i32) -> i32 { value }
 
-machine invalid(scheduler: Binding<Scheduler>) suspends; reaches Scheduler {
+machine invalid() suspends; reaches Scheduler {
     let mut backing: i32 = 40;
     let retained: &i32 = &backing;
-    suspend scheduler.advance();
+    suspend Scheduler::advance();
     backing = 99;
     let observation: i32 = observe(retained);
 }

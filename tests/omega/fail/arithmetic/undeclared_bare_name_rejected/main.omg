@@ -9,11 +9,10 @@
 // values require a qualified path, exercised by `arithmetic/qualified_case_value`.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) {
     let x: i32 in Wrapping = undeclared_var; // undeclared bare name -- must be rejected
-    main.console.exit_process(x);
+    Console::exit_process(x);
 }

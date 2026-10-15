@@ -1,6 +1,5 @@
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; xs: [u64; 4]; ys: [u64; 4]; i: u64; }
+data Main { xs: [u64; 4]; ys: [u64; 4]; i: u64; }
 machine Main::main(main: &mut Main) reaches Console {
     main.xs = [0, 0, 0, 0];
     main.ys = [0, 0, 0, 0];
@@ -15,6 +14,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

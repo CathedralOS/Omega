@@ -1,7 +1,6 @@
 // Expected exit 70. Complete (width, depth) tuples govern both the case
 // and its packet fields; rebinding selects another complete implementation.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Packet { width: u32; depth: u32; provider: u32; }
 data Choice { case Narrow(packet: Packet); case Wide(packet: Packet); }
 data Item { marker: u32; }
@@ -32,7 +31,7 @@ machine valid(choice: Choice, width: u32, depth: u32, provider: u32) -> bool {
         Choice::Wide { packet } -> (width == 32 && packet.width == width && packet.depth == depth && packet.provider == provider)
     }
 }
-data Main { console: Binding<Console>; item: Item; }
+data Main { item: Item; }
 machine Main::main(main: &mut Main) reaches Console {
     main.item.marker = 101;
     let mut selected: dyn Shape<Item> = Primary as dyn Shape<Item>;
@@ -43,6 +42,6 @@ machine Main::main(main: &mut Main) reaches Console {
     transition valid(first, 16, 4, 101) && valid(second, 32, 8, 202) && valid(third, 16, 4, 202) {
         true -> good(main) false -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

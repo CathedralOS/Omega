@@ -1,8 +1,7 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Pair { prefix: u64; value: u32; }
-data Main { console: Binding<Console>; pair: Pair; }
+data Main { pair: Pair; }
 
 machine replace(value: &mut u32) { value = 19; }
 machine read(value: &u32) -> u32 { value }
@@ -28,6 +27,6 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

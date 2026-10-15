@@ -1,10 +1,9 @@
 // Exactly min - 1 cannot truncate to i32; nearby negative fractions can.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let converted: i32 in Trapping = I32::from_f64(-2147483649.0);
-    Console::exit_process(&main.console, converted as i32);
+    Console::exit_process(converted as i32);
 }

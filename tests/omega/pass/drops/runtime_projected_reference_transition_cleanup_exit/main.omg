@@ -1,10 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Leaf { value: i32; }
 data View { body: &mut Leaf; }
 data Outer { leftover: Leaf; selected: View; }
-data Main { console: Binding<Console>; value: Leaf; }
+data Main { value: Leaf; }
 
 // The selected subtree keeps its stored loan when its sibling is disposed.
 // Reading through it must still observe the caller's original storage.
@@ -23,5 +22,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 0)
         _ -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

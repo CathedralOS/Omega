@@ -2,32 +2,31 @@
 // divisions, across hosted byte writes that clobber those views. A validated
 // spill must split the operand's uses rather than drop a fixed-view constraint.
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
-machine number(console: &Binding<Console>, value: i32 in Saturating) reaches Console {
-    Console::write_byte(console, ((value / 100) % 10 + 48) as i32);
-    Console::write_byte(console, ((value / 10) % 10 + 48) as i32);
-    Console::write_byte(console, (value % 10 + 48) as i32);
+machine number(value: i32 in Saturating) reaches Console {
+    Console::write_byte(((value / 100) % 10 + 48) as i32);
+    Console::write_byte(((value / 10) % 10 + 48) as i32);
+    Console::write_byte((value % 10 + 48) as i32);
 }
 
 machine next(value: i32 in Saturating) -> i32 in Saturating { value + 1 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let observed: ByteRead = block main.console.read_byte();
+    let observed: ByteRead = block Console::read_byte();
     transition observed {
-        ByteRead::Byte { value } -> output(&main.console, main, value as i32 in Saturating)
+        ByteRead::Byte { value } -> output(main, value as i32 in Saturating)
         _ -> bad(main)
     }
-    state output(console: &Binding<Console>, main: &mut Main, value: i32 in Saturating) {
-        number(console, value);
-        main.console.write(" ");
-        number(console, next(value));
-        main.console.write(" ");
-        number(console, next(next(value)));
-        main.console.write_line("");
-        main.console.exit_process(0);
+    state output(main: &mut Main, value: i32 in Saturating) {
+        number(value);
+        Console::write(" ");
+        number(next(value));
+        Console::write(" ");
+        number(next(next(value)));
+        Console::write_line("");
+        Console::exit_process(0);
     }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }

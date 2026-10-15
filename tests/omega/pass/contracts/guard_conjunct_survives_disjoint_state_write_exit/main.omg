@@ -12,7 +12,6 @@
 // Exits 24 only when all four pops see their pushed values.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Stack {
     items: [i32; 4];
@@ -27,41 +26,41 @@ requires stack.count >= 1 && stack.count <= 4 {
 
 data Main {
     a: Stack;
-    b: Stack; console: Binding<Console>;
+    b: Stack; 
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.a = Stack { items: [7, 0, 0, 0], count: 1 };
     main.b = Stack { items: [5, 0, 0, 0], count: 1 };
     transition main.a.count >= 1 && main.a.count <= 4 && main.b.count >= 1 && main.b.count <= 4 {
-        true -> first(&main.console, main)
-        _ -> failed(&main.console)
+        true -> first(main)
+        _ -> failed()
     }
-    state first(console: &Binding<Console>, main: &mut Main) {
+    state first(main: &mut Main) {
         let value: i32 = Stack::pop(&mut main.a);
-        transition { _ -> second(console, main, value == 7) }
+        transition { _ -> second(main, value == 7) }
     }
-    state second(console: &Binding<Console>, main: &mut Main, matched: bool) {
+    state second(main: &mut Main, matched: bool) {
         let value: i32 = Stack::pop(&mut main.b);
         main.a.count = 1;
         main.b.count = 1;
         transition matched && value == 5
             && main.a.count >= 1 && main.a.count <= 4 && main.b.count >= 1 && main.b.count <= 4 {
-            true -> third(console, &mut main.a, &mut main.b)
-            _ -> failed(console)
+            true -> third(&mut main.a, &mut main.b)
+            _ -> failed()
         }
     }
-    state third(console: &Binding<Console>, left: &mut Stack, right: &mut Stack) {
+    state third(left: &mut Stack, right: &mut Stack) {
         let value: i32 = Stack::pop(left);
-        transition { _ -> fourth(console, right, value == 7) }
+        transition { _ -> fourth(right, value == 7) }
     }
-    state fourth(console: &Binding<Console>, right: &mut Stack, matched: bool) {
+    state fourth(right: &mut Stack, matched: bool) {
         let value: i32 = Stack::pop(right);
         transition matched && value == 5 {
-            true -> passed(console)
-            _ -> failed(console)
+            true -> passed()
+            _ -> failed()
         }
     }
-    state passed(console: &Binding<Console>) { Console::exit_process(console, 24); }
-    state failed(console: &Binding<Console>) { Console::exit_process(console, 1); }
+    state passed() { Console::exit_process(24); }
+    state failed() { Console::exit_process(1); }
 }

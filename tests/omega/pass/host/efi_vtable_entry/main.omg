@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 pub boundary trait TextOutput { machine output_string(this: addr, text: &[u16; 19]); }
 data EfiTextOutputProtocol { reset: addr; output_string: addr; }
 uefi_x86_64 machine EfiTextOutputProtocol::text_output_leaf(this: addr, text: &[u16; 19]) satisfies TextOutput::output_string via ForeignBinding::VtableField(output_string);
@@ -7,12 +6,12 @@ pub data EfiSystemTable {
     firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;
     console_in_handle: addr; con_in: addr; console_out_handle: addr; con_out: addr;
 }
-pub data Main { out: Binding<TextOutput>; msg: [u16; 19]; }
+pub data Main { msg: [u16; 19]; }
 boundary machine Main::main(main: &mut Main, handle: addr, table: &EfiSystemTable) -> i32
 reaches TextOutput
 invokes TextOutput;
 {
     main.msg = utf16"Hello, Omega world!";
-    main.out.output_string(table.con_out, &main.msg);
+    TextOutput::output_string(table.con_out, &main.msg);
     transition { _ -> (0) }
 }

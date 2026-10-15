@@ -1,6 +1,5 @@
 // The caller observes array-leaf and field writes into an owned state arrival.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Cells { values: [i32; 3]; checksum: i32; }
 machine update(cells: Cells, value: i32) -> Cells {
     transition { _ -> change(cells, value) }
@@ -11,14 +10,14 @@ machine update(cells: Cells, value: i32) -> Cells {
         completed
     }
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut cells: Cells;
     let completed: Cells = update(cells, 31);
     transition completed.values[2] == 31 && completed.checksum == 31 {
-        true -> done(&main.console)
-        _ -> failed(&main.console)
+        true -> done()
+        _ -> failed()
     }
-    state done(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state failed(console: &Binding<Console>) { Console::exit_process(console, 71); }
+    state done() { Console::exit_process(70); }
+    state failed() { Console::exit_process(71); }
 }

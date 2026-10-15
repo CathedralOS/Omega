@@ -1,8 +1,7 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Settings [copy] { count: i32; }
-data Main { console: Binding<Console>; first: i32; second: i32; }
+data Main { first: i32; second: i32; }
 
 machine Settings::default() -> Settings { Settings { count: 1 } }
 machine Settings::set_count(settings: &mut Settings, count: i32) { settings.count = count; }
@@ -18,5 +17,5 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> finish(context, 42)
         false -> finish(context, 1)
     }
-    state finish(context: &mut Main, code: i32) { context.console.exit_process(code); }
+    state finish(context: &mut Main, code: i32) { Console::exit_process(code); }
 }

@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 boundary data Lease;
 
@@ -15,7 +14,6 @@ pub boundary trait Scheduler {
 }
 
 data Main {
-    scheduler: Binding<Scheduler>;
     cell: Cell;
 }
 
@@ -25,13 +23,13 @@ machine read(cell: &Cell) -> i32 {
 
 // The record's borrowed member contributes until its last read; the lease
 // operand stops contributing when the call transfers it.
-machine inspect(message: Message, lease: Lease, scheduler: Binding<Scheduler>) suspends; reaches Scheduler {
+machine inspect(message: Message, lease: Lease) suspends; reaches Scheduler {
     let value: i32 = read(message.body);
-    suspend scheduler.park();
+    suspend Scheduler::park();
 }
 
 machine Main::main(main: &mut Main) suspends; reaches Scheduler {
     let message: Message = Message { body: &main.cell };
     let value: i32 = read(message.body);
-    suspend main.scheduler.park();
+    suspend Scheduler::park();
 }

@@ -1,8 +1,7 @@
 // Keep independently produced trapping additions live until their sum.
 // The callee parameter makes the operands runtime values rather than constants.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine doubled_sum(x: u64 in Trapping) -> u64 in Trapping {
     let amount1: u64 in Trapping = x + 1;
@@ -78,6 +77,6 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> good(context)
         false -> bad(context)
     }
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state bad(context: &mut Main) { Console::exit_process(71); }
 }

@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // Compiler-owned carry permissions are admitted only through the selected
 // owner-authorized requirement. The resulting claim is born strict, so this
 // contract relaxes suspension without relaxing CPU, thread, or address.
@@ -31,14 +30,12 @@ pub boundary trait Scheduler {
 }
 
 data Harness {
-    provider: Binding<ClaimProvider>;
-    scheduler: Binding<Scheduler>;
 }
 
 machine Harness::forward(harness: & Harness, raw: Token) -> Token suspends; reaches ClaimProvider + Scheduler {
-    let claim: Token = harness.provider.grant(raw);
+    let claim: Token = ClaimProvider::grant(raw);
     let forwarded: Token = forward_claim(claim);
-    suspend harness.scheduler.park();
+    suspend Scheduler::park();
     transition { _ -> forwarded }
 }
 

@@ -1,7 +1,6 @@
 // A pending mapping is not installed translations: unmapping requires the
 // exact `Installed` state, so `unmap` on a `Pending` carrier rejects
 // (wiki/spec/resources/extents.md "Mapping and reclamation").
-use omega::language::core::binding;
 use omega::language::core::extent;
 
 pub data TranslationActivationFact {
@@ -67,11 +66,8 @@ pub boundary trait TranslationAuthority {
     machine unmap(active: Mapping in Installed) -> Unmapped;
 }
 
-machine unmap_early(
-    authority: &Binding<TranslationAuthority>,
-    source: Extent in Granted,
-    destination: Extent in Granted
-) -> Unmapped
+machine unmap_early(source: Extent in Granted,
+    destination: Extent in Granted) -> Unmapped
 requires
     source.length == destination.length
 reaches TranslationAuthority
@@ -89,8 +85,8 @@ reaches TranslationAuthority
         ],
     };
     let pending: Mapping in Pending =
-        authority.map(source, destination, install, release);
-    authority.unmap(pending)
+        TranslationAuthority::map(source, destination, install, release);
+    TranslationAuthority::unmap(pending)
 }
 
 machine main() {

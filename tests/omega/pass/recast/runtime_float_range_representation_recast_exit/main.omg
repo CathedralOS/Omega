@@ -9,13 +9,11 @@ use omega::language::core::float_operations;
 // by forgetting it; the mutable view keeps the field's declared facts.
 // Mutable cross-carrier aliasing remains forbidden.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main
 where
     value >= 0.0 && value <= 1.0,
 {
-    console: Binding<Console>;
     value: f32;
 }
 
@@ -23,18 +21,18 @@ machine Main::main(context: &mut Main) reaches Console {
     let wide: &f32 = &context.value as &f32;
     let bits: &u32 = &context.value as &u32;
     transition wide == 0.0f32 && bits == 0 {
-        true -> mutate(&context.console, context)
-        _ -> bad(&context.console, context)
+        true -> mutate(context)
+        _ -> bad(context)
     }
 
-    state mutate(console: &Binding<Console>, context: &mut Main) {
+    state mutate(context: &mut Main) {
         let exact: &mut f32 = &mut context.value as &mut f32;
         transition exact == context.value {
-            true -> good(console, context)
-            _ -> bad(console, context)
+            true -> good(context)
+            _ -> bad(context)
         }
     }
 
-    state good(console: &Binding<Console>, context: &mut Main) { Console::exit_process(console, 70); }
-    state bad(console: &Binding<Console>, context: &mut Main) { Console::exit_process(console, 71); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state bad(context: &mut Main) { Console::exit_process(71); }
 }

@@ -4,7 +4,6 @@
 // instead of reporting an anonymous incomplete crash envelope for `pace`.
 use omega_language_std::console;
 use omega_language_std::macos_gui;
-use omega::language::core::binding;
 
 macos_arm64 machine pace(timeout: i32)
 reaches DarwinClock
@@ -12,7 +11,7 @@ reaches DarwinClock
     let status: i32 = darwin_poll(0, 0, timeout);
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

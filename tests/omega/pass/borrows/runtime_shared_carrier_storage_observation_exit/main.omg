@@ -1,10 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Value { payload: u64; }
 data Carrier { value: &Value; }
 data View { carrier: &Carrier; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine read(carrier: &Carrier, view: &View) -> bool {
     carrier.value.payload == 73 && view.carrier.value.payload == 73
@@ -19,6 +18,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> done(main)
         _ -> failed(main)
     }
-    state done(main: &mut Main) { Console::exit_process(&main.console, 0); }
-    state failed(main: &mut Main) { Console::exit_process(&main.console, 71); }
+    state done(main: &mut Main) { Console::exit_process(0); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }

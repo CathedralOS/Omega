@@ -6,12 +6,9 @@
 use omega_language_std::posix_filesystem_host;
 use omega_language_std::filesystem;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    fs: Binding<PosixFilesystemHost>;
     semantic_fs: Filesystem;
-    console: Binding<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     unit_result: UnitResult;
@@ -28,41 +25,41 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console + PosixFilesystemHost {
     // O_WRONLY | O_CREAT. /dev/null already exists, so this exercises the
     // four-argument openat adapter without leaving a filesystem artifact.
-    main.fd = main.fs.open_create("/dev/null", 65, 438);
+    main.fd = PosixFilesystemHost::open_create("/dev/null", 65, 438);
     transition main.fd >= 0 { true -> write_null(main) _ -> fail_open_create(main) }
     state write_null(main: &mut Main) {
-        main.count = main.fs.write(main.fd, "omega-linux\n");
-        main.rc = main.fs.close(main.fd);
+        main.count = PosixFilesystemHost::write(main.fd, "omega-linux\n");
+        main.rc = PosixFilesystemHost::close(main.fd);
         transition main.count == 12 && main.rc == 0 {
             true -> open_hostname(main)
             false -> fail_write(main)
         }
     }
     state open_hostname(main: &mut Main) {
-        main.fd = main.fs.open("/etc/hostname", 0);
+        main.fd = PosixFilesystemHost::open("/etc/hostname", 0);
         transition main.fd >= 0 { true -> stat_hostname(main) _ -> fail_open(main) }
     }
     state stat_hostname(main: &mut Main) {
-        main.rc = main.fs.read_file_metadata(main.fd, &mut main.metadata);
+        main.rc = PosixFilesystemHost::read_file_metadata(main.fd, &mut main.metadata);
         transition main.rc == 0 { true -> read_hostname(main) _ -> fail_stat(main) }
     }
     state read_hostname(main: &mut Main) {
         main.capacity = 64;
-        main.count = main.fs.read(main.fd, &mut main.buffer, main.capacity);
-        main.rc = main.fs.close(main.fd);
+        main.count = PosixFilesystemHost::read(main.fd, &mut main.buffer, main.capacity);
+        main.rc = PosixFilesystemHost::close(main.fd);
         transition main.count > 0 && main.rc == 0 {
             true -> open_directory(main)
             false -> fail_read(main)
         }
     }
     state open_directory(main: &mut Main) {
-        main.fd = main.fs.open("/tmp", 0);
+        main.fd = PosixFilesystemHost::open("/tmp", 0);
         main.position = 0;
         transition main.fd >= 0 { true -> read_directory(main) _ -> fail_read_dir(main) }
     }
     state read_directory(main: &mut Main) {
-        main.count = main.fs.read_dir(main.fd, &mut main.buffer, 512, &mut main.position);
-        main.rc = main.fs.close(main.fd);
+        main.count = PosixFilesystemHost::read_dir(main.fd, &mut main.buffer, 512, &mut main.position);
+        main.rc = PosixFilesystemHost::close(main.fd);
         transition main.count >= 0 && main.rc == 0 { true -> classify_missing(main) _ -> fail_read_dir(main) }
     }
     state classify_missing(main: &mut Main) {
@@ -116,12 +113,12 @@ machine Main::main(main: &mut Main) reaches Console + PosixFilesystemHost {
     state check_tree_missing(main: &mut Main, kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> good(main) _ -> fail_error_kind(main) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state fail_open_create(main: &mut Main) { main.console.exit_process(1); }
-    state fail_write(main: &mut Main) { main.console.exit_process(2); }
-    state fail_open(main: &mut Main) { main.console.exit_process(3); }
-    state fail_read(main: &mut Main) { main.console.exit_process(4); }
-    state fail_stat(main: &mut Main) { main.console.exit_process(5); }
-    state fail_read_dir(main: &mut Main) { main.console.exit_process(6); }
-    state fail_error_kind(main: &mut Main) { main.console.exit_process(7); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state fail_open_create(main: &mut Main) { Console::exit_process(1); }
+    state fail_write(main: &mut Main) { Console::exit_process(2); }
+    state fail_open(main: &mut Main) { Console::exit_process(3); }
+    state fail_read(main: &mut Main) { Console::exit_process(4); }
+    state fail_stat(main: &mut Main) { Console::exit_process(5); }
+    state fail_read_dir(main: &mut Main) { Console::exit_process(6); }
+    state fail_error_kind(main: &mut Main) { Console::exit_process(7); }
 }

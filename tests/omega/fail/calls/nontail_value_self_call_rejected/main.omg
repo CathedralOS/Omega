@@ -5,8 +5,7 @@
 // (The owner amendment CUT non-tail runtime recursion; depth lives in
 // storage the author sizes.)
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::triple(main: &mut Main, n: u64) -> u64
 terminates by n;
 {
@@ -21,6 +20,6 @@ machine Main::main(main: &mut Main) {
         true -> yes(main)
         false -> no(main)
     }
-    state yes(main: &mut Main) { main.console.exit_process(1); }
-    state no(main: &mut Main) { main.console.exit_process(2); }
+    state yes(main: &mut Main) { Console::exit_process(1); }
+    state no(main: &mut Main) { Console::exit_process(2); }
 }

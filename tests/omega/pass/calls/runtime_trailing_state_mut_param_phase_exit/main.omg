@@ -5,10 +5,9 @@
 // and the trailing guard sees 3. Exits 71/72 distinguish an outer/trailing
 // guard evaluated against a stale or flattened phase.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Rng { seed: u64 in Wrapping; calls: u32 in Wrapping; }
-data Main { console: Binding<Console>; rng: Rng; }
+data Main { rng: Rng; }
 
 machine bump(r: &mut Rng) {
     r.seed = r.seed + 7;
@@ -37,6 +36,6 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> good(context)
         _ -> bad(context)
     }
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state bad(context: &mut Main) { Console::exit_process(71); }
 }

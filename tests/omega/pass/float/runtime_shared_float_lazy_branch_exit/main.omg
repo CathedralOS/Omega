@@ -2,13 +2,12 @@ use omega_language_std::math;
 
 // Runtime predicates leave both effectful operands unselected.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 data Values {value:f64;}
-data Main {console:Binding<Console>;values:Values;}
+data Main {values:Values;}
 machine tick(values:&mut Values)->f64 {values.value=values.value+1.0;values.value}
 machine Main::main(main:&mut Main) reaches Console {
- let byte:ByteRead=block main.console.read_byte();
+ let byte:ByteRead=block Console::read_byte();
  transition byte {ByteRead::Byte{value} -> lazy(main,value) _ -> fail(main)}
  state lazy(main:&mut Main,value:i32) {
   main.values.value=F64::from_i32(value)-49.0;
@@ -16,6 +15,6 @@ machine Main::main(main:&mut Main) reaches Console {
   let right:bool=main.values.value >= 0.0 || abs_f64(tick(&mut main.values)) > 0.0;
   transition !left && right && main.values.value == 0.0 {true -> good(main) _ -> fail(main)}
  }
- state good(main:&mut Main) {main.console.exit_process(70);}
- state fail(main:&mut Main) {main.console.exit_process(71);}
+ state good(main:&mut Main) {Console::exit_process(70);}
+ state fail(main:&mut Main) {Console::exit_process(71);}
 }

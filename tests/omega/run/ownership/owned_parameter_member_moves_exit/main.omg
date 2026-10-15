@@ -5,12 +5,11 @@
 // of an owned array are moved here, from the entry machine and from a
 // helper that returns a value. Exit 0 means every path completed.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Token { raw: u64; }
 data Pair { left: Token; right: Token; }
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine take(token: Token) { }
 
@@ -47,6 +46,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> ok(main)
         _ -> bad(main)
     }
-    state ok(main: &mut Main) { main.console.exit_process(0); }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state ok(main: &mut Main) { Console::exit_process(0); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }

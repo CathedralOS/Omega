@@ -1,7 +1,6 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 data Info { name: [u8; 4]; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine clone(info: &Info) -> Info {
     Info { name: info.name }
 }
@@ -11,5 +10,5 @@ machine Main::main(context: &mut Main) reaches Console {
     info.name[0] = 70;
     let copied: Info = clone(&info);
     let code: i32 = first(&copied);
-    context.console.exit_process(code);
+    Console::exit_process(code);
 }

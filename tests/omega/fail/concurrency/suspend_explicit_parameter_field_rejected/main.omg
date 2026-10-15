@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 boundary data Lease;
 
@@ -9,9 +8,9 @@ data Message {
 pub boundary trait Scheduler { machine park() suspends; }
 
 // A field read keeps its explicit parameter root live across the call.
-machine inspect(message: Message, scheduler: Binding<Scheduler>)
+machine inspect(message: Message)
 suspends; reaches Scheduler {
-    suspend scheduler.park();
+    suspend Scheduler::park();
     let value: i32 = message.value;
 }
 

@@ -1,25 +1,24 @@
 // A scalar formatter parameter survives a console call between two remainder
 // operations with fixed RAX uses. Neither reloading nor splitting may lose it.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::number(main: &mut Main, value: u64) reaches Console {
-    main.console.write_byte(((value % 100) / 10) as i32 + 48);
-    main.console.write_byte((value % 10) as i32 + 48);
-    main.console.write_byte(10);
+    Console::write_byte(((value % 100) / 10) as i32 + 48);
+    Console::write_byte((value % 10) as i32 + 48);
+    Console::write_byte(10);
 }
 machine Main::main(main: &mut Main) reaches Console {
-    let input: ByteRead = block main.console.read_byte();
+    let input: ByteRead = block Console::read_byte();
     transition input {
         ByteRead::Byte { value } -> report(main, value)
         ByteRead::Eof -> fallback(main)
     }
     state report(main: &mut Main, value: i32) requires 0 <= value && value <= 255; {
         Main::number(main, value as u64);
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
     state fallback(main: &mut Main) {
         Main::number(main, 73);
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 }

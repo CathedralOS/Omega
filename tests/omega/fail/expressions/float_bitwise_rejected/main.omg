@@ -3,6 +3,5 @@
 // cannot encode them, yet `--check` used to pass. Rejected now at check with a
 // clear message. Float `+ - * /` and integer bitwise are unaffected.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
-machine Main::main(main: &mut Main) { let a: f64 = 6.0; let b: f64 = 3.0; let r: f64 = a & b; main.console.exit_process(0); }
+data Main { }
+machine Main::main(main: &mut Main) { let a: f64 = 6.0; let b: f64 = 3.0; let r: f64 = a & b; Console::exit_process(0); }

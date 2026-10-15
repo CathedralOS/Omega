@@ -1,8 +1,7 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Values { length: u64; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Values::count(values: &Values) -> u64 { values.length }
 
@@ -22,6 +21,6 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> success(context)
         false -> failure(context)
     }
-    state success(context: &mut Main) { context.console.exit_process(42); }
-    state failure(context: &mut Main) { context.console.exit_process(1); }
+    state success(context: &mut Main) { Console::exit_process(42); }
+    state failure(context: &mut Main) { Console::exit_process(1); }
 }

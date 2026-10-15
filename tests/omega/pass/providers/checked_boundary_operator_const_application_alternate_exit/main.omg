@@ -8,7 +8,6 @@
 // independently of const-generic application elaboration.
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
-use omega::language::core::binding;
 
 data Math {}
 
@@ -41,7 +40,6 @@ data Buffer<const N: u64> {
 }
 
 data Main {
-    exit: Binding<ProcessExit>;
     value: Buffer<limit()>;
     direct: [u8; limit()];
 }
@@ -51,5 +49,5 @@ machine Main::main(main: &mut Main) reaches
 {
     main.value.values[8] = 70;
     main.direct[8] = 70;
-    main.exit.exit_process(70);
+    ProcessExit::exit_process(70);
 }

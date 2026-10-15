@@ -6,7 +6,6 @@
 // names both. `pass/targets/unreached_foreign_body_caller_exit` keeps the same
 // relay shape without a reaching call.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Helper { seed: i32; }
 
@@ -21,11 +20,11 @@ machine Helper::relay(helper: &Helper) -> i32 {
     transition { _ -> (Helper::firmware_only(helper)) }
 }
 
-data Main { console: Binding<Console>; helper: Helper; }
+data Main { helper: Helper; }
 
 machine Main::main(main: &mut Main) reaches Console {
     let a: i32 = Helper::relay(&main.helper);
     transition a == 63 { true -> good(main) _ -> bad(main, 71) }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code2: i32) { main.console.exit_process(code2); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code2: i32) { Console::exit_process(code2); }
 }

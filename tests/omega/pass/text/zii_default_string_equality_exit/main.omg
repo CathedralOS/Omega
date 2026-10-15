@@ -14,8 +14,7 @@ domain [u8; 8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; never: [u8; 8] in Utf8; also_never: [u8; 8] in Utf8; okf: bool; }
+data Main { never: [u8; 8] in Utf8; also_never: [u8; 8] in Utf8; okf: bool; }
 machine Main::main(main: &mut Main) {
     Main::build(main);
 }
@@ -39,8 +38,8 @@ machine Main::build(main: &mut Main) reaches Console {
             _ -> wrong_zii_pair(main)
         }
     }
-    state good(main: &mut Main)              { main.console.exit_process(70); }
-    state wrong_zii_empty(main: &mut Main)   { main.console.exit_process(71); }
-    state wrong_zii_nonempty(main: &mut Main){ main.console.exit_process(72); }
-    state wrong_zii_pair(main: &mut Main)    { main.console.exit_process(73); }
+    state good(main: &mut Main)              { Console::exit_process(70); }
+    state wrong_zii_empty(main: &mut Main)   { Console::exit_process(71); }
+    state wrong_zii_nonempty(main: &mut Main){ Console::exit_process(72); }
+    state wrong_zii_pair(main: &mut Main)    { Console::exit_process(73); }
 }

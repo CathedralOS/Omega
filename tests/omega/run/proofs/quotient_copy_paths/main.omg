@@ -2,7 +2,6 @@
 // Checked quotient operations over custody-free copy representatives.
 
 use omega::language::core::relation;
-use omega::language::core::binding;
 use omega_language_std::console;
 
 data Representative [copy] { value: i32; }
@@ -89,7 +88,7 @@ machine computed_result() -> i32 in Trapping crashes Trap {
 }
 
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console crashes Trap {
     let local: EquivalenceClass = Representative { value: 11 } as EquivalenceClass;
@@ -105,6 +104,6 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         true -> matched(main)
         false -> mismatched(main)
     }
-    state matched(main: &mut Main) { main.console.exit_process(70); }
-    state mismatched(main: &mut Main) { main.console.exit_process(71); }
+    state matched(main: &mut Main) { Console::exit_process(70); }
+    state mismatched(main: &mut Main) { Console::exit_process(71); }
 }

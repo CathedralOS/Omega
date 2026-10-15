@@ -1,9 +1,8 @@
 // The first unconditional arm ends selection. Earlier guards still execute;
 // later guards and destinations must not, including an effectful operand.
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; calls: u32 in Wrapping; }
+data Main { calls: u32 in Wrapping; }
 
 machine observed(main: &mut Main) -> i32 {
     main.calls = main.calls + 1;
@@ -25,7 +24,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state verify(main: &mut Main) {
         transition main.calls == 0 { true -> good(main) _ -> bad(main) }
     }
-    state skipped(value: i32, main: &mut Main) { main.console.exit_process(value); }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state skipped(value: i32, main: &mut Main) { Console::exit_process(value); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

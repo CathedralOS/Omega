@@ -389,8 +389,12 @@ helper that passes does not close an item.
     A boundary requirement call spells `Requirement::operation(arguments)` and
     demands one exact static provider slot; checking accepts that form, and a
     leading `Binding<R>` operand is the only remaining receiver-lane entry.
-    Migrate source and fixtures (1,791 test and 468 sample files still name
-    `Binding<`, 1,343 of them only as a `Console` field); delete
+    Migrate source and fixtures: 241 test and 428 sample files still name
+    `Binding<`. The test remainder pins Binding-specific refusals, mixes
+    bindings across files, or calls an inherited requirement through a child
+    trait (`Child::reset` does not resolve a `Parent` member); the
+    filesystem and GUI host fixtures then stop at terminal-authority review
+    with 0 selected provider rows for their direct calls. Then delete
     `source/library/core/binding.omg`, Binding type recognition, entry-field
     establishment, receiver/leading-argument paths and source-visible routing
     custody. Add fail controls for `Binding<R>` in fields, locals and parameters

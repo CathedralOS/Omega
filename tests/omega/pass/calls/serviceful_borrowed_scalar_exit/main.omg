@@ -1,22 +1,21 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::measure(main: &Main, bytes: &[u8]) -> u64 reaches Console {
-    main.console.write_line(bytes);
+    Console::write_line(bytes);
     bytes.len
 }
 
-machine report(console: &Binding<Console>, length: u64) -> u64 reaches Console {
-    Console::write_byte(console, 33);
+machine report(length: u64) -> u64 reaches Console {
+    Console::write_byte(33);
     length
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     let first: u64 = Main::measure(main, "abc");
     let second: u64 = Main::measure(main, "");
-    let reported: u64 = report(&main.console, first);
+    let reported: u64 = report(first);
     transition reported == 3 {
         true -> check_empty(main, second)
         false -> failed(main)
@@ -27,6 +26,6 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> failed(main)
         }
     }
-    state passed(main: &mut Main) { main.console.exit_process(70); }
-    state failed(main: &mut Main) { main.console.exit_process(71); }
+    state passed(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }

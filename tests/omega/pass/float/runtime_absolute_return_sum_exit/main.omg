@@ -1,10 +1,9 @@
 use omega_language_std::math;
 
 use omega::language::core::float_operations;
-use omega::language::core::binding;
 use omega_language_std::console;
 data Storage { weights: [f64; 4]; }
-data Main { console: Binding<Console>; storage: Storage; }
+data Main { storage: Storage; }
 machine amplitude(storage: &Storage) -> f64 {
     abs_f64(storage.weights[0]) + abs_f64(storage.weights[1]) + abs_f64(storage.weights[2]) + abs_f64(storage.weights[3])
 }
@@ -23,6 +22,6 @@ machine Main::main(main: &mut Main) reaches Console {
         let observed: f64 = amplitude(&main.storage);
         transition observed == 0.0 { true -> pass(main) false -> fail(main) }
     }
-    state pass(main: &mut Main) { main.console.exit_process(70); }
-    state fail(main: &mut Main) { main.console.exit_process(71); }
+    state pass(main: &mut Main) { Console::exit_process(70); }
+    state fail(main: &mut Main) { Console::exit_process(71); }
 }

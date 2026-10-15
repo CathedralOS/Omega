@@ -2,9 +2,8 @@
 // helper parameter and a named local. Empty views remain valid ASCII views.
 domain [u8]::Ascii(bytes) requires ascii_only(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; end: u64; }
+data Main { end: u64; }
 
 machine Main::main(main: &mut Main) {
     main.end = 4;
@@ -16,7 +15,7 @@ machine Main::relay(main: &Main, bytes: &[u8] in Ascii) reaches Console {
         true -> Main::cut(main, bytes[0..main.end])
         false -> bad(main)
     }
-    state bad(main: &Main) { main.console.exit_process(71); }
+    state bad(main: &Main) { Console::exit_process(71); }
 }
 
 machine Main::cut(main: &Main, prefix: &[u8] in Ascii) reaches Console {
@@ -29,6 +28,6 @@ machine Main::inspect(main: &Main, empty: &[u8] in Ascii, prefix: &[u8] in Ascii
         true -> good(main)
         false -> bad(main)
     }
-    state good(main: &Main) { main.console.exit_process(70); }
-    state bad(main: &Main) { main.console.exit_process(71); }
+    state good(main: &Main) { Console::exit_process(70); }
+    state bad(main: &Main) { Console::exit_process(71); }
 }

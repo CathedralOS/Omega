@@ -2,10 +2,8 @@
 // Empty views still reach the OS; positional I/O preserves the cursor and
 // neither an oversized requested count nor a projected view may touch sentinels.
 use omega_language_std::posix_filesystem_host;
-use omega::language::core::binding;
 
 data Main {
-    fs: Binding<PosixFilesystemHost>;
     source: [u8; 8200];
     target: [u8; 8200];
     fd: i32;
@@ -26,34 +24,34 @@ machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
     main.source[8199] = 13;
     main.target[0] = 99;
     main.target[8199] = 100;
-    main.discard = main.fs.remove("/tmp/omega_borrowed_view_io.txt");
-    main.fd = main.fs.create("/tmp/omega_borrowed_view_io.txt", 420);
+    main.discard = PosixFilesystemHost::remove("/tmp/omega_borrowed_view_io.txt");
+    main.fd = PosixFilesystemHost::create("/tmp/omega_borrowed_view_io.txt", 420);
     transition main.fd >= 0 { true -> write(main) _ -> fail(main) }
 
     state write(main: &mut Main) {
-        main.result = main.fs.write(main.fd, &main.source[1..8199]);
+        main.result = PosixFilesystemHost::write(main.fd, &main.source[1..8199]);
         transition main.result == 8198 { true -> patch(main) _ -> fail(main) }
     }
     state patch(main: &mut Main) {
-        main.result = main.fs.write_at(main.fd, "Z", 4096);
-        main.cursor = main.fs.seek(main.fd, 0, 1);
+        main.result = PosixFilesystemHost::write_at(main.fd, "Z", 4096);
+        main.cursor = PosixFilesystemHost::seek(main.fd, 0, 1);
         transition main.result == 1 && main.cursor == 8198 {
             true -> empty_writes(main)
             _ -> fail(main)
         }
     }
     state empty_writes(main: &mut Main) {
-        main.empty_write = main.fs.write(main.fd, &main.source[1..1]);
-        main.empty_write_at = main.fs.write_at(main.fd, &main.source[1..1], 0);
-        main.discard = main.fs.close(main.fd);
-        main.fd = main.fs.open("/tmp/omega_borrowed_view_io.txt", 0);
+        main.empty_write = PosixFilesystemHost::write(main.fd, &main.source[1..1]);
+        main.empty_write_at = PosixFilesystemHost::write_at(main.fd, &main.source[1..1], 0);
+        main.discard = PosixFilesystemHost::close(main.fd);
+        main.fd = PosixFilesystemHost::open("/tmp/omega_borrowed_view_io.txt", 0);
         transition main.empty_write == 0 && main.empty_write_at == 0 && main.fd >= 0 {
             true -> read(main)
             _ -> fail(main)
         }
     }
     state read(main: &mut Main) {
-        main.result = main.fs.read(main.fd, &mut main.target[1..8199], 99999);
+        main.result = PosixFilesystemHost::read(main.fd, &mut main.target[1..8199], 99999);
         transition main.result == 8198 && main.target[0] == 99
             && main.target[1] == 41 && main.target[4097] == 90
             && main.target[8198] == 63 && main.target[8199] == 100 {
@@ -62,8 +60,8 @@ machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
         }
     }
     state read_at(main: &mut Main) {
-        main.result = main.fs.read_at(main.fd, &mut main.target[3..4], 99999, 4096);
-        main.cursor = main.fs.seek(main.fd, 0, 1);
+        main.result = PosixFilesystemHost::read_at(main.fd, &mut main.target[3..4], 99999, 4096);
+        main.cursor = PosixFilesystemHost::seek(main.fd, 0, 1);
         transition main.result == 1 && main.cursor == 8198
             && main.target[2] == 0 && main.target[3] == 90 && main.target[4] == 0 {
             true -> empty_reads(main)
@@ -71,9 +69,9 @@ machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
         }
     }
     state empty_reads(main: &mut Main) {
-        main.empty_read = main.fs.read(main.fd, &mut main.target[1..1], 99);
-        main.empty_read_at = main.fs.read_at(main.fd, &mut main.target[1..1], 99, 0);
-        main.result = main.fs.read(main.fd, &mut main.target[1..3], 0);
+        main.empty_read = PosixFilesystemHost::read(main.fd, &mut main.target[1..1], 99);
+        main.empty_read_at = PosixFilesystemHost::read_at(main.fd, &mut main.target[1..1], 99, 0);
+        main.result = PosixFilesystemHost::read(main.fd, &mut main.target[1..3], 0);
         transition main.empty_read == 0 && main.empty_read_at == 0
             && main.result == 0 && main.target[1] == 41 && main.target[2] == 0 {
             true -> errors(main)
@@ -81,10 +79,10 @@ machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
         }
     }
     state errors(main: &mut Main) {
-        main.empty_write = main.fs.write(-1, &main.source[1..1]);
-        main.empty_write_at = main.fs.write_at(-1, &main.source[1..1], 0);
-        main.empty_read = main.fs.read(-1, &mut main.target[1..1], 0);
-        main.empty_read_at = main.fs.read_at(-1, &mut main.target[1..1], 0, 0);
+        main.empty_write = PosixFilesystemHost::write(-1, &main.source[1..1]);
+        main.empty_write_at = PosixFilesystemHost::write_at(-1, &main.source[1..1], 0);
+        main.empty_read = PosixFilesystemHost::read(-1, &mut main.target[1..1], 0);
+        main.empty_read_at = PosixFilesystemHost::read_at(-1, &mut main.target[1..1], 0, 0);
         transition main.empty_write < 0 && main.empty_write_at < 0
             && main.empty_read < 0 && main.empty_read_at < 0 {
             true -> success(main)
@@ -92,13 +90,13 @@ machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
         }
     }
     state success(main: &mut Main) {
-        main.discard = main.fs.close(main.fd);
-        main.discard = main.fs.remove("/tmp/omega_borrowed_view_io.txt");
-        main.result = main.fs.write(1, "PASS: borrowed view IO, 8198 bytes, offsets, sentinels, empty calls and errors\n");
+        main.discard = PosixFilesystemHost::close(main.fd);
+        main.discard = PosixFilesystemHost::remove("/tmp/omega_borrowed_view_io.txt");
+        main.result = PosixFilesystemHost::write(1, "PASS: borrowed view IO, 8198 bytes, offsets, sentinels, empty calls and errors\n");
     }
     state fail(main: &mut Main) {
-        main.discard = main.fs.close(main.fd);
-        main.discard = main.fs.remove("/tmp/omega_borrowed_view_io.txt");
-        main.result = main.fs.write(1, "FAIL: borrowed view IO\n");
+        main.discard = PosixFilesystemHost::close(main.fd);
+        main.discard = PosixFilesystemHost::remove("/tmp/omega_borrowed_view_io.txt");
+        main.result = PosixFilesystemHost::write(1, "FAIL: borrowed view IO\n");
     }
 }

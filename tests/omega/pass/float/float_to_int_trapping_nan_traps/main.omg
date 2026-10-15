@@ -2,12 +2,11 @@ use omega::language::core::float_operations;
 
 // A named Trapping conversion rejects NaN rather than inheriting an ISA sentinel.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; value: f64; out: i32; }
+data Main { value: f64; out: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.value = 0.0f64 / 0.0;
     let converted: i32 in Trapping = I32::from_f64(main.value);
     main.out = converted as i32;
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }
 machine Main::run(main: &mut Main) { Main::main(main); }

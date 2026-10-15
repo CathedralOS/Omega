@@ -1,9 +1,8 @@
 module conversion_probe;
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
-pub data Main { console: Binding<Console>; }
+pub data Main { }
 // Named modules must not make unchanged core provider families disappear.
 // The byte is runtime input so the conversion also crosses native/Terminal.
 pub machine Main::main(application: &mut Main) reaches Console
@@ -11,7 +10,7 @@ invokes Console;
 blocks;
 crashes Trap
 {
-    transition block application.console.read_byte() {
+    transition block Console::read_byte() {
         ByteRead::Byte { value } -> convert(application, value)
         _ -> missing(application)
     }
@@ -24,9 +23,9 @@ crashes Trap
         }
     }
     state done(application: &mut Main) {
-        application.console.write_line("converted=65");
-        application.console.exit_process(0);
+        Console::write_line("converted=65");
+        Console::exit_process(0);
     }
-    state missing(application: &mut Main) { application.console.exit_process(2); }
-    state wrong(application: &mut Main) { application.console.exit_process(3); }
+    state missing(application: &mut Main) { Console::exit_process(2); }
+    state wrong(application: &mut Main) { Console::exit_process(3); }
 }

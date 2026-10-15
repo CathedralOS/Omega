@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::drop;
 
 // A possibly-suspending requirement may complete inline. Its call still needs
@@ -21,7 +20,7 @@ machine Inventory::forward(inventory: Inventory) -> Inventory { inventory }
 machine observe(value: &i32) -> bool { value == 40 }
 machine replace(value: &mut i32) { value = 47; }
 data Marker { value: i32; }
-data Main { scheduler: Binding<Scheduler>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
     transition { _ -> work(main, 39) }
     state work(main: &mut Main, mut input: i32) {
@@ -36,7 +35,7 @@ machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
         let inventory: Inventory = Inventory { value: 19 };
         let transferred: Inventory = Inventory::forward(inventory);
         let retained: Inventory = Inventory { value: 23 };
-        let result: i32 = suspend main.scheduler.advance(input + 2, transferred);
+        let result: i32 = suspend Scheduler::advance(input + 2, transferred);
         let retained_value: i32 = retained.value;
         drop(retained);
         transition result == 42 && input == 40 && alias == 40 && preserved == 19 && marker.value == 19 && retained_value == 23 && observed && addressed == 40 && mutable == 47 {

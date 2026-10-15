@@ -5,17 +5,14 @@ use omega_language_std::time;
 
 use omega_language_std::console;
 use omega_language_std::clock;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
     time: Time;
 }
 
 machine Main::main(context: &mut Main) reaches Console + Clock {
     let start: Instant = Time::now(&mut context.time);
-    context.clock.sleep(30);
+    Clock::sleep(30);
     let elapsed: Duration = Time::elapsed_since(&mut context.time, start);
     transition elapsed.seconds == 0 {
         true -> check_subsecond(context, elapsed.subsecond_nanoseconds)
@@ -27,6 +24,6 @@ machine Main::main(context: &mut Main) reaches Console + Clock {
             false -> fail_short(context)
         }
     }
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state fail_short(context: &mut Main) { context.console.exit_process(1); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state fail_short(context: &mut Main) { Console::exit_process(1); }
 }

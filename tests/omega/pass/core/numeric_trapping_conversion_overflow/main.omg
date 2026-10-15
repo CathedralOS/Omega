@@ -2,10 +2,9 @@
 // must trap inside the named conversion before the caller reaches exit 7.
 use omega::language::core::numeric_conversion;
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let converted: u8 = narrow_u16_to_u8_trapping(300);
-    Console::exit_process(&main.console, 7);
+    Console::exit_process(7);
 }

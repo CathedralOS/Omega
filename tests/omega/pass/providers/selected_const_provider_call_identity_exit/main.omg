@@ -3,7 +3,6 @@
 // The competing provider and builtin remainder both produce smaller arrays.
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
-use omega::language::core::binding;
 
 data Math {}
 boundary machine % Math::remainder(left: u64, right: u64) -> u64;
@@ -39,7 +38,6 @@ machine helper_limit() -> u64 {
 data Buffer<const N: u64> { values: [u8; N]; }
 
 data Main {
-    exit: Binding<ProcessExit>;
     named: [u8; named_limit()];
     token: [u8; token_limit()];
     nested: Buffer<helper_limit()>;
@@ -49,5 +47,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit {
     main.named[8] = 70;
     main.token[8] = 70;
     main.nested.values[8] = 70;
-    main.exit.exit_process(70);
+    ProcessExit::exit_process(70);
 }

@@ -1,10 +1,9 @@
 use omega::language::core::option;
-use omega::language::core::binding;
 use omega_language_std::console;
 
 data First { value: i32; }
 data Second { padding: u64; value: i32; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine first(subject: &Optional<First>) -> i32 {
     transition subject {
@@ -31,5 +30,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 71)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

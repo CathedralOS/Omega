@@ -1,8 +1,7 @@
-use omega::language::core::binding;
 pub domain u32::Issued(value) requires (value & 2) == 0 established by Issuer::issue;
 pub trait Issuer { machine issue() -> u32 ensures result in Issued; }
 pub boundary trait Gate { machine accept(value: u32 in Issued) -> u32; }
-data Context { gate: Binding<Gate>; }
+data Context { }
 machine bad(context: &Context) -> u32 reaches Gate {
-    context.gate.accept(128)
+    Gate::accept(128)
 }

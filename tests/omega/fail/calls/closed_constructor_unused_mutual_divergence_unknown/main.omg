@@ -1,10 +1,9 @@
 // An unformed divergent result cannot supply a structural contradiction.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Point [copy] { x: u64; y: u64; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine first() -> u64 { second() }
 machine second() -> u64 { first() }
 machine Point::zero() -> Point { let ignored: u64 = first(); Point { x: 0, y: 0 } }
 machine take(point: Point) -> u64 requires point == Point::zero(); { point.x }
-machine Main::main(main: &mut Main) reaches Console { let result: u64 = take(Point { x: 1, y: 0 }); main.console.exit_process(0); }
+machine Main::main(main: &mut Main) reaches Console { let result: u64 = take(Point { x: 1, y: 0 }); Console::exit_process(0); }

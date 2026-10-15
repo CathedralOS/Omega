@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // The Boolean carrier is valid, but the exact public predicate is false.
 pub boundary trait Service {
     machine echo<const Selected: bool>(value: i32) -> i32 where Selected == true;
@@ -9,7 +8,7 @@ data Providers {}
 macos_arm64 machine Providers::provider_defaults(defaults: &mut Providers) {
     Providers::select_provider<Service, Provider>(defaults);
 }
-data Main { service: Binding<Service>; }
+data Main { }
 macos_arm64 machine Main::main(main: &mut Main) reaches Service {
-    let result: i32 = Service::echo<false>(&main.service, (17 as i32));
+    let result: i32 = Service::echo<false>((17 as i32));
 }

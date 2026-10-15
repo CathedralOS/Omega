@@ -1,15 +1,14 @@
 // A scalar needed by repeated fixed-view divisions stays live across output.
 // The input selects runtime values; a second call observes caller mutation.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; input: [u8; 2]; value: i32 in Wrapping; }
+data Main { input: [u8; 2]; value: i32 in Wrapping; }
 machine digits(main: &mut Main, value: i32 in Wrapping) reaches Console {
-    main.console.write_byte((value / 100 % 10 + 48) as i32);
-    main.console.write_byte((value / 10 % 10 + 48) as i32);
-    main.console.write_byte((value % 10 + 48) as i32);
+    Console::write_byte((value / 100 % 10 + 48) as i32);
+    Console::write_byte((value / 10 % 10 + 48) as i32);
+    Console::write_byte((value % 10 + 48) as i32);
 }
 machine Main::main(main: &mut Main) reaches Console {
-    let read: LineReadResult = block main.console.read_line(&mut main.input);
+    let read: LineReadResult = block Console::read_line(&mut main.input);
     transition read {
         LineReadResult::LineComplete { count } -> length(main, count)
         _ -> bad(main)
@@ -30,8 +29,8 @@ machine Main::main(main: &mut Main) reaches Console {
         main.value = main.value + 1;
         let next: i32 in Wrapping = main.value;
         digits(main, next);
-        main.console.write_line("");
-        main.console.exit_process(70);
+        Console::write_line("");
+        Console::exit_process(70);
     }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

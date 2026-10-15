@@ -4,16 +4,14 @@
 // the authored member's.
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
-use omega::language::core::binding;
 
 data Buffer<const N: u64> { values: [u8; N]; }
 
 data Main {
-    exit: Binding<ProcessExit>;
     nested: Buffer<9>;
 }
 
 machine Main::main(main: &mut Main) reaches ProcessExit {
     main.nested.values[8] = 70;
-    main.exit.exit_process(70);
+    ProcessExit::exit_process(70);
 }

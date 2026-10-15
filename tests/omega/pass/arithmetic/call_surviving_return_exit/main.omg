@@ -1,19 +1,18 @@
 // A computed scalar survives a provider call and is returned through the ABI.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
-machine computed(console: &Binding<Console>, input: i32 in Wrapping) -> i32 in Wrapping reaches Console {
+data Main { }
+machine computed(input: i32 in Wrapping) -> i32 in Wrapping reaches Console {
     let result: i32 in Wrapping = input * 3 + 7;
-    console.write_byte(46);
+    Console::write_byte(46);
     result
 }
 machine Main::main(main: &mut Main) reaches Console {
-    let first: i32 in Wrapping = computed(&main.console, 21);
-    let second: i32 in Wrapping = computed(&main.console, 0 - 5);
+    let first: i32 in Wrapping = computed(21);
+    let second: i32 in Wrapping = computed(0 - 5);
     transition first == 70 && second == (0 - 8) {
         true -> good(main)
         false -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

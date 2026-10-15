@@ -5,7 +5,6 @@
 // Specialization selects Counter::increment without a runtime dictionary.
 // Expected exit: 1.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 trait Incrementable<T> {
     machine increment(counter: &mut T);
@@ -28,9 +27,9 @@ where machine Increment satisfies Incrementable<T>::increment;
     Increment(subject);
 }
 
-data Main { console: Binding<Console>; counter: Counter; }
+data Main { counter: Counter; }
 
 machine Main::main(main: &mut Main) reaches Console {
     step<Counter, Counter::increment>(&mut main.counter);
-    main.console.exit_process(main.counter.value as i32);
+    Console::exit_process(main.counter.value as i32);
 }

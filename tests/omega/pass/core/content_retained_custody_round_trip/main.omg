@@ -3,7 +3,6 @@
 // only the correlated terminal operation can redeem that claim as Buffer
 // custody again. Both directions retain the same core Content algebra.
 
-use omega::language::core::binding;
 use omega::language::core::content;
 
 data ByteUnit {}
@@ -40,16 +39,13 @@ pub boundary trait Writer {
         result in Buffer::Owned;
 }
 
-machine round_trip(
-    writer: &Binding<Writer>,
-    buffer: Buffer in Buffer::Owned
-) -> Buffer
+machine round_trip(buffer: Buffer in Buffer::Owned) -> Buffer
 reaches Writer
 ensures
     result in Buffer::Owned
 {
-    let pending: PendingWrite in PendingWrite::Retained = writer.submit(buffer);
-    writer.complete(pending)
+    let pending: PendingWrite in PendingWrite::Retained = Writer::submit(buffer);
+    Writer::complete(pending)
 }
 
 machine main() {}

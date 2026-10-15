@@ -4,10 +4,9 @@
 // outlive every state holding a view and die once where the last one leaves.
 // Exit 70 shows `compare` read what `prepare` wrote through both views.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Stream { values: [i32; 2]; count: u32; }
-data Context { console: Binding<Console>; }
+data Context { }
 
 machine main(context: &mut Context) reaches Console {
     transition { _ -> prepare(context) }
@@ -31,6 +30,6 @@ machine main(context: &mut Context) reaches Console {
             _ -> bad(context)
         }
     }
-    state good(context: &mut Context) { context.console.exit_process(70); }
-    state bad(context: &mut Context) { context.console.exit_process(71); }
+    state good(context: &mut Context) { Console::exit_process(70); }
+    state bad(context: &mut Context) { Console::exit_process(71); }
 }

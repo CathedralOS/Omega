@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 pub boundary trait RankReader { machine observe(value: i32) -> i32
 terminates
 requires value >= 0 && value <= 9
@@ -13,26 +12,26 @@ CheckedReader satisfies RankReader {
 machine require_identity(actual: i32, expected: i32) -> i32
 requires actual == expected;
 { actual }
-machine countdown(reader: &Binding<RankReader>, remaining: i32) -> i32
+machine countdown(remaining: i32) -> i32
 requires remaining >= 0 && remaining <= 9;
 terminates by remaining -> Nat::Descending in 0..=9;
 reaches RankReader
 {
-    let direct: i32 = reader.observe(remaining);
+    let direct: i32 = RankReader::observe(remaining);
     let direct_checked: i32 = require_identity(direct, remaining);
-    let nested: i32 = reader.observe(reader.observe(remaining));
+    let nested: i32 = RankReader::observe(RankReader::observe(remaining));
     let nested_checked: i32 = require_identity(nested, remaining);
-    let composed: i32 = reader.observe(remaining) + 0;
+    let composed: i32 = RankReader::observe(remaining) + 0;
     let composed_checked: i32 = require_identity(composed, remaining);
     transition remaining > 0 {
-        true -> countdown(reader, reader.observe(remaining - 1))
+        true -> countdown(RankReader::observe(remaining - 1))
         false -> composed_checked
     }
 }
 
-data Main { reader: Binding<RankReader>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches RankReader crashes Trap {
-    let result: i32 = countdown(&main.reader, 4);
+    let result: i32 = countdown(4);
     transition result == 0 {
         true -> done()
         false -> bad()

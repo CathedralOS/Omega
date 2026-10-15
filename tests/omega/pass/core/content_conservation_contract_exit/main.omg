@@ -8,7 +8,7 @@
 //
 // The partition primitive is called DIRECTLY. Routing it through a checked
 // wrapper machine instead -- `forward(partition, whole)` calling
-// `partition.split(whole)` -- is what the earlier shape did, and it does not
+// `RegionSplit::split(whole)` -- is what the earlier shape did, and it does not
 // check: the partition composition is recorded against the wrapper that
 // calls the boundary, so the wrapper's own caller sees a linear result with
 // no conserved claim mapping. That is the transitive derivation chain
@@ -22,7 +22,6 @@
 // cannot host this half itself, because a program entry returns nothing, so
 // `main` drives it and disposes of what comes back.
 use omega::language::core::content;
-use omega::language::core::binding;
 use omega::language::core::drop;
 use omega_language_std::console;
 
@@ -101,18 +100,15 @@ satisfies RegionSink::accept
 }
 
 data Main {
-    console: Binding<Console>;
-    partition: Binding<RegionSplit>;
-    sink: Binding<RegionSink>;
 }
 
 machine Main::partition_and_retain(main: &mut Main, whole: Region in Owned, head: u64) -> Region in Owned
 requires head <= whole.remaining
 reaches RegionSplit, RegionSink
 {
-    let split: SplitResult = main.partition.split(whole, head);
+    let split: SplitResult = RegionSplit::split(whole, head);
     let { left, right } = split;
-    main.sink.accept(left);
+    RegionSink::accept(left);
     right
 }
 
@@ -120,11 +116,11 @@ machine Main::main(main: &mut Main) reaches Console, RegionSplit, RegionSink {
     let whole: Region in Owned = Region { remaining: 8 };
     let retained: Region in Owned = Main::partition_and_retain(main, whole, 2);
     let correct: bool = retained.remaining == 6;
-    main.sink.accept(retained);
+    RegionSink::accept(retained);
     transition correct {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(72); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(72); }
 }

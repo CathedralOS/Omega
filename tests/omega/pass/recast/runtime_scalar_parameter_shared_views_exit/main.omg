@@ -3,7 +3,6 @@
 // original parameter through its checked loan and representation-view pair.
 // Expected exit: 70 in native and checked interpretation.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine read_integer(value: i32) -> i32 {
     let view: &i32 = &value;
@@ -20,7 +19,7 @@ machine read_bits64(value: f64) -> u64 {
     view
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let integer: i32 = read_integer(-17);
@@ -28,8 +27,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let bits64: u64 = read_bits64(1.0);
     transition integer == -17 && bits32 == 1065353216
         && bits64 == 4607182418800017408 {
-        true -> finish(&main.console, main, 70)
-        _ -> finish(&main.console, main, 71)
+        true -> finish(main, 70)
+        _ -> finish(main, 71)
     }
-    state finish(console: &Binding<Console>, main: &mut Main, code: i32) { Console::exit_process(console, code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

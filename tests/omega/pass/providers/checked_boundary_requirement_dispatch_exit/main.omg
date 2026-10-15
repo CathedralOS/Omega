@@ -6,7 +6,6 @@
 // the direct call stays on the requirement through Terminal Psi, and Omega
 // installs the selected adapter; the interpreter dispatches the same row.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub data CheckedMath {}
 
@@ -26,7 +25,7 @@ ensures result == input + 0 && input == input
 
 machine length() -> i32 { CheckedMath::offset_zero(9) }
 
-data Main { console: Binding<Console>; bytes: [u8; length()]; }
+data Main { bytes: [u8; length()]; }
 
 machine Main::main(main: &mut Main)
 reaches Console
@@ -38,5 +37,5 @@ reaches Console
     // passes it straight to the host exit rather than a value computed from
     // it, which normalized foreign-call custody does not yet admit.
     let selected: i32 = CheckedMath::offset_zero(70);
-    main.console.exit_process(selected);
+    Console::exit_process(selected);
 }

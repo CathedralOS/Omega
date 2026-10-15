@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 pub boundary trait Scheduler {
     machine read(carrier: &Envelope<&i32>, nested: &Envelope<&i32>) -> i64 suspends;
@@ -19,7 +18,7 @@ machine produce<'storage>(first: &'storage i32, second: &'storage i32)
 }
 machine observe(reference: &i32) -> i32 { reference }
 
-data Main { scheduler: Binding<Scheduler>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
     let first: i32 = 42;
     let second: i32 = 19;
@@ -29,7 +28,7 @@ machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
         padding: 11,
         payload: produce(&first, &second)
     };
-    let result: i64 = suspend main.scheduler.read(&carrier, &wrapped.payload);
+    let result: i64 = suspend Scheduler::read(&carrier, &wrapped.payload);
     let first_observation: i32 = observe(carrier.first);
     let second_observation: i32 = observe(carrier.second);
     let nested_observation: i32 = observe(wrapped.payload.second);

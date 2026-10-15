@@ -2,9 +2,8 @@
 // upper limits through ordinary aggregate returns before observing them.
 use omega_language_std::calling;
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine signature_at_capacity() -> BoundarySignature {
     let mut signature: BoundarySignature;
@@ -52,6 +51,6 @@ machine Main::main(main: &mut Main) reaches Console {
     state inspect_count(main: &mut Main, count: u64) {
         transition count == 16 { true -> good(main) false -> bad(main) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

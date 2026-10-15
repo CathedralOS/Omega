@@ -1,10 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Kind { case Other; case Missing; }
 data Outcome { case Error(kind: Kind); case Ok; }
 data Worker {}
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Worker::kind() -> Kind { Kind::Missing }
 machine Worker::wrap() -> Outcome {
@@ -27,6 +26,6 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> failure(main)
         }
     }
-    state success(main: &mut Main) { main.console.exit_process(70); }
-    state failure(main: &mut Main) { main.console.exit_process(71); }
+    state success(main: &mut Main) { Console::exit_process(70); }
+    state failure(main: &mut Main) { Console::exit_process(71); }
 }

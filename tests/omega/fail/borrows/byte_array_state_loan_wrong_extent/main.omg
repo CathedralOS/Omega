@@ -1,9 +1,8 @@
 // A three-byte backing cannot supply a four-byte fixed view state loan.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let bytes: [u8; 3] = "ABC";
-    transition { _ -> observe(&main.console, &bytes) }
-    state observe(console: &Binding<Console>, bytes: &[u8; 4]) { Console::exit_process(console, 70); }
+    transition { _ -> observe(&bytes) }
+    state observe(bytes: &[u8; 4]) { Console::exit_process(70); }
 }

@@ -3,9 +3,8 @@
 // form, so the mini-judge disproves it instead of certifying (N3 rung 1).
 use omega::language::core::nat;
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
-machine Main::main(main: &mut Main) { main.console.exit_process(70); }
+data Main { }
+machine Main::main(main: &mut Main) { Console::exit_process(70); }
 machine bogus(a: Nat)
 requires
     a == Nat::Zero

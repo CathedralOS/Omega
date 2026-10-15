@@ -1,13 +1,12 @@
 // Complete streamed synthetic variant-normalization application.
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::sequence;
 use domain::input;
 use domain::normalization;
 use domain::ledger;
 use domain::report;
 
-data Main { console: Binding<Console>; }
+data Main { }
 data Application {
     first_reference: Sequence;
     second_reference: Sequence;
@@ -21,7 +20,7 @@ data Application {
 
 machine Main::main(main: &mut Main) reaches Console {
     let mut application: Application;
-    main.console.write_line("VARIANT_NORMALIZATION|1");
+    Console::write_line("VARIANT_NORMALIZATION|1");
     transition { _ -> read(&mut application) }
     state read(application: &mut Application) {
         let mut line: [u8; 64];

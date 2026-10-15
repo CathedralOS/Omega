@@ -3,7 +3,6 @@
 // must observe the copied value and the caller's source must be left
 // unchanged — a copy projection duplicates the place, it does not move it.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data SourceId [copy] { value: u32 in Trapping; }
 data Src { id: SourceId; length: u32 in Trapping; }
@@ -14,7 +13,7 @@ machine Target::initialize(target: &mut Target, id: SourceId, length: u64 in Tra
     target.seen = id.value;
 }
 
-data Main { console: Binding<Console>; holder: Holder; target: Target; }
+data Main { holder: Holder; target: Target; }
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> parse(main) }
     state parse(main: &mut Main) {
@@ -38,12 +37,12 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state pass(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     state bad_seen(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
     state bad_source(main: &mut Main) {
-        main.console.exit_process(72);
+        Console::exit_process(72);
     }
 }

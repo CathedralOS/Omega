@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 pub boundary trait RankReader { machine observe(value: i32) -> i32
 terminates
 requires value > 0 && value <= 9
@@ -10,13 +9,13 @@ CheckedReader satisfies RankReader {
     ensures result == value >> 0;
     { value >> 0 }
 }
-machine countdown(reader: &Binding<RankReader>, remaining: i32) -> i32
+machine countdown(remaining: i32) -> i32
 requires remaining >= 0 && remaining <= 9;
 terminates by remaining -> Nat::Descending in 0..=9;
 reaches RankReader
 {
     transition remaining > 0 {
-        true -> countdown(reader, reader.observe(remaining))
+        true -> countdown(RankReader::observe(remaining))
         false -> 0
     }
 }

@@ -1,8 +1,7 @@
 // Expected exit: 0. Named boundary results retain their declared formats.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; integer: i32; }
+data Main { integer: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.integer = 7;
     transition F64::from_i32(main.integer) == 7.0 { true -> second(main) _ -> bad(main) }
@@ -12,7 +11,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state helper(main: &mut Main) {
         transition converted(main.integer) == 7.0 { true -> {} _ -> bad(main) }
     }
-    state bad(main: &mut Main) { main.console.exit_process(77); }
+    state bad(main: &mut Main) { Console::exit_process(77); }
 }
 machine converted(value: i32) -> f64 {
     transition F64::from_i32(value) >= 7.0 { true -> (F64::from_i32(value)) _ -> 0.0 }

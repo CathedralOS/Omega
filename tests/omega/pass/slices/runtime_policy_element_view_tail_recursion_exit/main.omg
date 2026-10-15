@@ -7,7 +7,6 @@
 // arrived through the narrowing view.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine sum_window(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length;
@@ -18,21 +17,21 @@ terminates by s -> Slice::Length;
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let values: [i32 in Wrapping; 7] = [8, 12, 10, 5, 15, 10, 10];
     let view: &[i32 in Wrapping] = &values[..];
     let total: i32 = sum_window(view, 0);
     transition total == 70 {
-        true -> done(&main.console)
-        _ -> refused(&main.console, 71)
+        true -> done()
+        _ -> refused(71)
     }
 
-    state done(console: &Binding<Console>) {
-        Console::exit_process(console, 70);
+    state done() {
+        Console::exit_process(70);
     }
 
-    state refused(console: &Binding<Console>, code: i32) {
-        Console::exit_process(console, code);
+    state refused(code: i32) {
+        Console::exit_process(code);
     }
 }

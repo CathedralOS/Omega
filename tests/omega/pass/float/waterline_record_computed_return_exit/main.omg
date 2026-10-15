@@ -3,9 +3,8 @@
 use profile;
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let lower: Node = Node { elevation: 0.0, width: 2.0 };
     let upper: Node = Node { elevation: 4.0, width: 6.0 };
@@ -14,9 +13,9 @@ machine Main::main(main: &mut Main) reaches Console {
     let full: WetSegment = clip(lower, upper, 5.0);
     transition wet.lower == 0.0 && wet.upper == 2.0 && wet.lower_width == 2.0 && wet.upper_width == 4.0
         && dry.upper == dry.lower && full.upper == 4.0 && full.upper_width == 6.0 {
-        true -> good(&main.console)
-        false -> bad(&main.console)
+        true -> good()
+        false -> bad()
     }
-    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state bad(console: &Binding<Console>) { Console::exit_process(console, 71); }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(71); }
 }

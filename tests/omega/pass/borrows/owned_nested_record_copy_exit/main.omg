@@ -1,11 +1,10 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Leaf [copy] { name: [u8; 8] in Utf8; value: u64; }
 data Event [copy] { leaf: Leaf; }
 data Room [copy] { event: Event; }
-data Main { console: Binding<Console>; source: Room; destination: Room; }
+data Main { source: Room; destination: Room; }
 
 machine copy_room(source: Room, destination: &mut Room) {
     destination.event.leaf = source.event.leaf;
@@ -25,5 +24,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

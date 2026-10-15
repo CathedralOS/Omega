@@ -8,9 +8,8 @@
 // its declared type; the conversion must be spelled (a named narrowing
 // conversion, or an exact `as` whose representability is proved).
 use omega_language_std::console;
-use omega::language::core::binding;
 data Dice { state: u32; }
-data Main { console: Binding<Console>; dice: Dice; health: i32 in Wrapping; }
+data Main { dice: Dice; health: i32 in Wrapping; }
 machine Dice::roll(dice: &mut Dice) -> u32 {
     dice.state = dice.state / 2 + 1;
     transition { _ -> (dice.state) }
@@ -18,5 +17,5 @@ machine Dice::roll(dice: &mut Dice) -> u32 {
 machine Main::main(main: &mut Main) reaches Console {
     main.health = 6 + main.dice.roll();
     let o: i32 = 70;
-    main.console.exit_process(o);
+    Console::exit_process(o);
 }

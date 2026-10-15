@@ -1,15 +1,14 @@
 // The direct Console call and write_line's checked implementation both use
 // the selected write-byte provider row. The latter calls its opaque target
 // family head; each occurrence keeps its own contract and boundary identity.
-use omega::language::core::binding;
 use omega_language_std::console;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main)
 reaches Console
 {
-    main.console.write_byte(65);
-    main.console.write_line("B");
-    main.console.exit_process(37);
+    Console::write_byte(65);
+    Console::write_line("B");
+    Console::exit_process(37);
 }

@@ -1,5 +1,4 @@
 // Expected exit: 0. Structural arguments do not consume scalar positions.
-use omega::language::core::binding;
 pub domain u32::Flags(value) requires (value & 2) == 0;
 pub data Prefix { marker: u32; }
 pub boundary trait Gate {
@@ -8,11 +7,11 @@ pub boundary trait Gate {
 data Provider {}
 machine Provider::accepted(prefix: &Prefix, value: u32 in Flags) -> u32
     satisfies Gate::accept { value as u32 }
-data Main { gate: Binding<Gate>; prefix: Prefix; value: u32; }
+data Main { prefix: Prefix; value: u32; }
 machine Main::main(main: &mut Main) reaches Gate crashes Trap {
     main.value = 128;
-    let direct: u32 = main.gate.accept(&main.prefix, 128);
-    let field: u32 = main.gate.accept(&main.prefix, main.value);
+    let direct: u32 = Gate::accept(&main.prefix, 128);
+    let field: u32 = Gate::accept(&main.prefix, main.value);
     transition direct == 128 && field == 128 { true -> done() false -> wrong() }
     state done() {}
     state wrong() { crash Trap; }

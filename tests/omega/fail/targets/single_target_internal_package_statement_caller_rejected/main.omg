@@ -11,12 +11,11 @@
 // a `uefi_x86_64` callee: it goes inert alongside it, so the golden records
 // exactly ONE diagnostic -- the exemption holds inside the dependency.
 use omega_language_std::console;
-use omega::language::core::binding;
 use paradigm_internals::paradigm;
 
-data Main { console: Binding<Console>; helper: Helper; }
+data Main { helper: Helper; }
 
 machine Main::main(main: &mut Main) reaches Console {
     Helper::record_paradigm_event(&mut main.helper);
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

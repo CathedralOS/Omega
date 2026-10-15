@@ -1,7 +1,6 @@
 // A matched owned structural payload can initialize another result directly.
 // Expected exit: 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Kind { case Other; case NotFound; }
 data Outcome { case Error(kind: Kind); case Ok; }
@@ -25,7 +24,7 @@ machine reconstruct_through_state(result: Outcome) -> Outcome {
     }
     state forwarded(kind: Kind) -> Outcome { Outcome::Error { kind: kind } }
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let result: Outcome = reconstruct(Outcome::Error { kind: Kind::NotFound });
     transition result {
@@ -57,6 +56,6 @@ machine Main::main(main: &mut Main) reaches Console {
         let result: Outcome = reconstruct(Outcome::Ok);
         transition result { Outcome::Ok -> finish(main) _ -> fail(main) }
     }
-    state finish(main: &mut Main) { main.console.exit_process(70); }
-    state fail(main: &mut Main) { main.console.exit_process(71); }
+    state finish(main: &mut Main) { Console::exit_process(70); }
+    state fail(main: &mut Main) { Console::exit_process(71); }
 }

@@ -12,10 +12,8 @@
 // `n`. NOT registered in ACTIVE_PASS_CANARIES yet (canary_suite.rs is hot).
 
 use omega_language_std::posix_filesystem_host;
-use omega::language::core::binding;
 
 data Main {
-    fs: Binding<PosixFilesystemHost>;
     discard: i32;
     mode: i32;
     read_flags: i32;
@@ -30,25 +28,25 @@ machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
     main.mode = 420;
     main.read_flags = 0;
     main.cap = 64;
-    main.fd = main.fs.create("/tmp/omega_crud.txt", main.mode);
+    main.fd = PosixFilesystemHost::create("/tmp/omega_crud.txt", main.mode);
     transition main.fd >= 0 { true -> wrote(main) _ -> fail(main) }
     state wrote(main: &mut Main) {
-        main.n = main.fs.write(main.fd, "omega end to end\n");
-        main.discard = main.fs.close(main.fd);
-        main.fd = main.fs.open("/tmp/omega_crud.txt", main.read_flags);
+        main.n = PosixFilesystemHost::write(main.fd, "omega end to end\n");
+        main.discard = PosixFilesystemHost::close(main.fd);
+        main.fd = PosixFilesystemHost::open("/tmp/omega_crud.txt", main.read_flags);
         transition main.fd >= 0 { true -> rd(main) _ -> fail(main) }
     }
     state rd(main: &mut Main) {
-        main.rn = main.fs.read(main.fd, &mut main.buffer, main.cap);
-        main.discard = main.fs.close(main.fd);
+        main.rn = PosixFilesystemHost::read(main.fd, &mut main.buffer, main.cap);
+        main.discard = PosixFilesystemHost::close(main.fd);
         transition main.rn == 17 { true -> good(main) _ -> fail(main) }
     }
     state good(main: &mut Main) {
-        main.n = main.fs.write(1, "PASS: native fs CRUD round-trip (create+write+read 17B+close+remove)\n");
-        main.discard = main.fs.remove("/tmp/omega_crud.txt");
+        main.n = PosixFilesystemHost::write(1, "PASS: native fs CRUD round-trip (create+write+read 17B+close+remove)\n");
+        main.discard = PosixFilesystemHost::remove("/tmp/omega_crud.txt");
     }
     state fail(main: &mut Main) {
-        main.n = main.fs.write(1, "FAIL\n");
-        main.discard = main.fs.remove("/tmp/omega_crud.txt");
+        main.n = PosixFilesystemHost::write(1, "FAIL\n");
+        main.discard = PosixFilesystemHost::remove("/tmp/omega_crud.txt");
     }
 }

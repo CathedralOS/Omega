@@ -1,10 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Tag [copy] { case First; case Second; }
 data Cell [copy] { label: [u8; 8] in Utf8; tag: Tag; value: u64; }
-data Main { console: Binding<Console>; cells: [Cell; 2]; }
+data Main { cells: [Cell; 2]; }
 
 machine fill(cell: &mut Cell, tag: Tag, value: u64) {
     cell.tag = tag;
@@ -26,5 +25,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

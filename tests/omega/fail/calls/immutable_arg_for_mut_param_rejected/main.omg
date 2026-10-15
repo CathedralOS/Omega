@@ -18,15 +18,14 @@
 // (`&mut Counter`), but the caller lends only immutable access
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Counter { n: i32 in Wrapping; }
-data Main { console: Binding<Console>; c: Counter; }
+data Main { c: Counter; }
 
 machine Main::main(main: &mut Main) {
     transition { _ -> handle(main, &main.c) } // &main.c (immutable) for a `&mut Counter` param
     state handle(main: &mut Main, c: &mut Counter) {
         c.n = c.n + 1; // would mutate through a borrow the caller lent immutably
-        main.console.exit_process(c.n);
+        Console::exit_process(c.n);
     }
 }

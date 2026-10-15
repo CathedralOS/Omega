@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 // Complete target-neutral reproducer. Expected main result: 42.
 // The local byte owner must remain live across the selected case edge.
 data ReadOutcome {
@@ -26,12 +25,12 @@ machine calculate() -> u64 in Wrapping {
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let result: u64 in Wrapping = calculate();
     transition result == 42 {
         true -> exit(main, 42)
         _ -> exit(main, 43)
     }
-    state exit(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state exit(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

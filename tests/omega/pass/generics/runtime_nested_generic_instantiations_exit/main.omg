@@ -7,10 +7,9 @@
 // Before this, a nested generic errored outright ("references unknown data type
 // T"). Reads 30 from the i32 pair's box, true from the bool pair's box; exits 30.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Box<T> { value: T; }
 data Pair<T> { a: Box<T>; b: T; }
-data Main { console: Binding<Console>; pi: Pair<i32>; pb: Pair<bool>; r: i32; }
+data Main { pi: Pair<i32>; pb: Pair<bool>; r: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.pi.a.value = 30;
     main.pi.b = 7;
@@ -20,7 +19,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> ok(main)
         false -> bad(main)
     }
-    state ok(main: &mut Main) { main.console.exit_process(main.r); }
-    state bad(main: &mut Main) { main.console.exit_process(99); }
+    state ok(main: &mut Main) { Console::exit_process(main.r); }
+    state bad(main: &mut Main) { Console::exit_process(99); }
 }
 // Expected exit: 30

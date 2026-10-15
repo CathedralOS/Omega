@@ -4,8 +4,7 @@
 // Counts are proven in range; saturation does not admit invalid counts.
 // Exit 71 is a wrong result; 72 is the original unsigned wrapping result.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(context: &mut Main) reaches Console {
     let value: u8 in Saturating = 17;
     let count: u8 = 4;
@@ -59,7 +58,7 @@ machine Main::main(context: &mut Main) reaches Console {
         let result: i8 in Saturating = value << count;
         transition result == 0 { true -> done(context) _ -> bad(context) }
     }
-    state done(context: &mut Main) { context.console.exit_process(70); }
-    state wrapped(context: &mut Main) { context.console.exit_process(72); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state done(context: &mut Main) { Console::exit_process(70); }
+    state wrapped(context: &mut Main) { Console::exit_process(72); }
+    state bad(context: &mut Main) { Console::exit_process(71); }
 }

@@ -1,15 +1,14 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
-machine report(value: i32, console: &mut Binding<Console>) reaches Console {
-    console.write_byte(value);
-    console.write_byte(10);
-    console.exit_process(70);
+machine report(value: i32) reaches Console {
+    Console::write_byte(value);
+    Console::write_byte(10);
+    Console::exit_process(70);
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     let value: i32 = 82;
-    report(value, &mut main.console);
+    report(value);
 }

@@ -4,9 +4,8 @@ use omega_language_std::math;
 // operand of absolute value must finish once across those call actuals.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 data Counter { calls: u32 in Wrapping; voltage: f64; }
-data Main { console: Binding<Console>; counter: Counter; positive: f64; }
+data Main { counter: Counter; positive: f64; }
 machine step(counter: &mut Counter) -> f64 {
     counter.calls = counter.calls + 1u32;
     counter.voltage
@@ -21,6 +20,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> pass(main)
         false -> fail(main)
     }
-    state pass(main: &mut Main) { main.console.exit_process(70); }
-    state fail(main: &mut Main) { main.console.exit_process(71); }
+    state pass(main: &mut Main) { Console::exit_process(70); }
+    state fail(main: &mut Main) { Console::exit_process(71); }
 }

@@ -11,17 +11,14 @@
 use omega_language_std::time_host;
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
-    host: Binding<TimeHost>;
 }
 
 machine Main::main(context: &mut Main) reaches Console + TimeHost {
-    let first_ticks: u64 = context.host.monotonic_ticks();
-    block context.host.sleep(30);
-    let second_ticks: u64 = context.host.monotonic_ticks();
+    let first_ticks: u64 = TimeHost::monotonic_ticks();
+    block TimeHost::sleep(30);
+    let second_ticks: u64 = TimeHost::monotonic_ticks();
     // 30ms of CLOCK_UPTIME_RAW nanoseconds: strictly greater, never equal.
     transition second_ticks > first_ticks {
         true -> check_sleep(&mut context, second_ticks - first_ticks)
@@ -34,28 +31,28 @@ machine Main::main(context: &mut Main) reaches Console + TimeHost {
         }
     }
     state check_frequency(context: &mut Main) {
-        let frequency: u64 = context.host.monotonic_ticks_per_second();
+        let frequency: u64 = TimeHost::monotonic_ticks_per_second();
         transition frequency == 1000000000 {
             true -> check_units(&mut context)
             false -> fail_frequency(&mut context)
         }
     }
     state check_units(context: &mut Main) {
-        let wall_units: u64 = context.host.wall_clock_units_per_second();
+        let wall_units: u64 = TimeHost::wall_clock_units_per_second();
         transition wall_units == 1000000000 {
             true -> check_offset(&mut context)
             false -> fail_units(&mut context)
         }
     }
     state check_offset(context: &mut Main) {
-        let wall_offset: u64 = context.host.wall_clock_epoch_offset_seconds();
+        let wall_offset: u64 = TimeHost::wall_clock_epoch_offset_seconds();
         transition wall_offset == 0 {
             true -> check_wall_lower(&mut context)
             false -> fail_offset(&mut context)
         }
     }
     state check_wall_lower(context: &mut Main) {
-        let wall_raw: u64 = context.host.wall_clock_raw();
+        let wall_raw: u64 = TimeHost::wall_clock_raw();
         let unix_seconds: u64 = wall_raw / 1000000000;
         transition unix_seconds > 1767225600 {
             true -> check_wall_upper(&mut context, unix_seconds)
@@ -68,11 +65,11 @@ machine Main::main(context: &mut Main) reaches Console + TimeHost {
             false -> fail_wall_high(&mut context)
         }
     }
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state fail_monotonic(context: &mut Main) { context.console.exit_process(1); }
-    state fail_frequency(context: &mut Main) { context.console.exit_process(2); }
-    state fail_units(context: &mut Main) { context.console.exit_process(3); }
-    state fail_offset(context: &mut Main) { context.console.exit_process(4); }
-    state fail_wall_low(context: &mut Main) { context.console.exit_process(5); }
-    state fail_wall_high(context: &mut Main) { context.console.exit_process(6); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state fail_monotonic(context: &mut Main) { Console::exit_process(1); }
+    state fail_frequency(context: &mut Main) { Console::exit_process(2); }
+    state fail_units(context: &mut Main) { Console::exit_process(3); }
+    state fail_offset(context: &mut Main) { Console::exit_process(4); }
+    state fail_wall_low(context: &mut Main) { Console::exit_process(5); }
+    state fail_wall_high(context: &mut Main) { Console::exit_process(6); }
 }

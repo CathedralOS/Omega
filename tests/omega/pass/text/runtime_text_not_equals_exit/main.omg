@@ -17,8 +17,7 @@ domain [u8; 8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; shift: u64; name: [u8; 8] in Utf8; other: [u8; 8] in Utf8; okf: bool; }
+data Main { shift: u64; name: [u8; 8] in Utf8; other: [u8; 8] in Utf8; okf: bool; }
 machine Main::main(main: &mut Main) {
     main.name = "omega";
     main.other = "delta";
@@ -50,9 +49,9 @@ machine Main::build(main: &mut Main) reaches Console {
             _ -> good(main)
         }
     }
-    state good(main: &mut Main)           { main.console.exit_process(70); }
-    state wrong_store(main: &mut Main)    { main.console.exit_process(71); }
-    state wrong_let_place(main: &mut Main){ main.console.exit_process(72); }
-    state wrong_equal_ne(main: &mut Main) { main.console.exit_process(73); }
-    state wrong_guard(main: &mut Main)    { main.console.exit_process(74); }
+    state good(main: &mut Main)           { Console::exit_process(70); }
+    state wrong_store(main: &mut Main)    { Console::exit_process(71); }
+    state wrong_let_place(main: &mut Main){ Console::exit_process(72); }
+    state wrong_equal_ne(main: &mut Main) { Console::exit_process(73); }
+    state wrong_guard(main: &mut Main)    { Console::exit_process(74); }
 }

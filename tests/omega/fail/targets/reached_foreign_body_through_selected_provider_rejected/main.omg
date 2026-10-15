@@ -5,7 +5,6 @@
 // provider as the caller. `pass/targets/unreached_foreign_body_caller_exit`
 // keeps the same provider shape unselected.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Helper { seed: i32; }
 
@@ -20,9 +19,9 @@ pub data RelayValue {}
 machine RelayValue::read(input: i32) -> i32
 satisfies Value::read { Helper::firmware_only(input) }
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let selected: i32 = Value::read(70);
-    main.console.exit_process(selected);
+    Console::exit_process(selected);
 }

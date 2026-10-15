@@ -10,12 +10,11 @@
 // (spelled, no binding). Case arm keeps its tag guard; the `if` guard and
 // target arguments see the renamed binding. Run-verified: 30 + 40 = 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Msg {
     case Move(dx: i32 [0..=50], dy: i32 [0..=50]);
     case Stop(code: i32);
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) {
     Main::apply(main, Msg::Move { dx: 30, dy: 40 });
 }
@@ -24,6 +23,6 @@ machine Main::apply(main: &mut Main, m: Msg) {
         Msg::Move { dx as step, typo as _, .. } if step == 30 -> good(main, step)
         _ -> bad(main)
     }
-    state good(main: &mut Main, step: i32 [0..=50]) { let code: i32 = step + 40; main.console.exit_process(code); }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state good(main: &mut Main, step: i32 [0..=50]) { let code: i32 = step + 40; Console::exit_process(code); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }

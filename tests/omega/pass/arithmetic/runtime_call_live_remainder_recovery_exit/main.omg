@@ -1,30 +1,29 @@
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 
 // A state-carried scalar crosses a console call, then signed fixed-view
 // remainder. Each use has legal views but the whole interval has no common
 // home. Recovery must rewrite storage and rebuild legality, not grant a view.
-machine carry(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping) -> i64 in Wrapping
+machine carry(value: i64 in Wrapping, divisor: i64 in Wrapping) -> i64 in Wrapping
 reaches Console
 requires divisor >= 1
 {
-    transition { _ -> emit(console, value, divisor) }
-    state emit(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping) -> i64 in Wrapping
+    transition { _ -> emit(value, divisor) }
+    state emit(value: i64 in Wrapping, divisor: i64 in Wrapping) -> i64 in Wrapping
     requires divisor >= 1
     {
-        Console::write_line(console, "carry");
+        Console::write_line("carry");
         value % divisor
     }
 }
 
 machine Main::main(context: &mut Main) reaches Console {
-    let positive: i64 in Wrapping = carry(&context.console, 12345, 10);
-    let negative: i64 in Wrapping = carry(&context.console, -12345, 100);
+    let positive: i64 in Wrapping = carry(12345, 10);
+    let negative: i64 in Wrapping = carry(-12345, 100);
     transition positive == 5 && negative == -45 {
         true -> good(context)
         false -> bad(context)
     }
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state bad(context: &mut Main) { Console::exit_process(71); }
 }

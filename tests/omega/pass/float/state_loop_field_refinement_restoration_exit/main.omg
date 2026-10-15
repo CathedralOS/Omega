@@ -1,7 +1,6 @@
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main where value >= 0.0 && value <= 1.0 { console: Binding<Console>; value: f32; }
+data Main where value >= 0.0 && value <= 1.0 { value: f32; }
 machine Main::fill(main: &mut Main) {
     transition { _ -> step(main, 0) }
     state step(main: &mut Main, round: u8) {
@@ -16,8 +15,8 @@ machine Main::fill(main: &mut Main) {
 }
 machine Main::observe(main: &mut Main) reaches Console {
     transition main.value == 0.25 { true -> good(main) _ -> bad(main) }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }
 machine Main::main(main: &mut Main) reaches Console {
     Main::fill(main);

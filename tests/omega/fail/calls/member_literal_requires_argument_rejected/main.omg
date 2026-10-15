@@ -3,9 +3,8 @@
 // call. Member receivers that stay symbolic keep the opaque whole-expression
 // name rather than guessing.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Point { x: u64; y: u64; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::take(d: u64) -> u64
     requires d != 0;
 {
@@ -16,5 +15,5 @@ machine Main::main(main: &mut Main) {
         x: 0,
         y: 5,
     }.x);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

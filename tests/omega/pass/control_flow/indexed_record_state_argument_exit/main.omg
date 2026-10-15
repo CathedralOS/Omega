@@ -1,10 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Kind [copy] { case First; case Second; }
 data Item [copy] { kind: Kind; value: u64; }
 data Output { kind: Kind; value: u64; }
-data Main { console: Binding<Console>; items: [Item; 2]; output: Output; }
+data Main { items: [Item; 2]; output: Output; }
 
 machine select(items: &[Item], index: u64, output: &mut Output)
 {
@@ -35,5 +34,5 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> finish(main, 2)
         }
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

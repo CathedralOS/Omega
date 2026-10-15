@@ -1,6 +1,5 @@
 // A positive signed read count fits the remaining unsigned capacity.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Reader { received: u64 [0..=16384]; count: i64; }
 machine Reader::advance(reader: &mut Reader) {
@@ -18,13 +17,13 @@ machine Reader::advance(reader: &mut Reader) {
     state done() { }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut reader: Reader;
     reader.received = 12288;
     reader.count = 54;
     Reader::advance(&mut reader);
-    transition reader.received == 12342 { true -> good(&main.console) _ -> bad(&main.console) }
-    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state bad(console: &Binding<Console>) { Console::exit_process(console, 71); }
+    transition reader.received == 12342 { true -> good() _ -> bad() }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(71); }
 }

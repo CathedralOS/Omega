@@ -1,14 +1,13 @@
 // Executable requirement uses survive every record edge, with their checked IEEE selections.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 data Number [copy] { value: f64; }
 data Envelope [copy] { number: Number; }
 machine shifted(value: f64) -> Envelope {
     transition { _ -> Envelope { number: Number { value: value * 2.0 + 1.0 } } }
 }
 machine observe(number: Number) -> f64 { number.value }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let result: Envelope = shifted(3.0);
     let local: Number = Number { value: result.number.value * 2.0 - 0.5 };
@@ -17,6 +16,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.write("selection=OK\n"); main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.write("selection=BAD\n"); main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::write("selection=OK\n"); Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::write("selection=BAD\n"); Console::exit_process(71); }
 }

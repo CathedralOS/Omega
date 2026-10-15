@@ -9,7 +9,6 @@
 // local from a call was always admitted, which is why the sibling Filesystem
 // machines that build their kind as a local stayed green. Exits 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Kind { case Other; case NotFound; }
 data Res { case Error(kind: Kind); case Empty; }
 data Probe { seen: i32; }
@@ -22,13 +21,13 @@ machine Probe::classify(probe: &mut Probe, flag: bool) -> Res {
     state pc_empty(probe: &mut Probe) -> Res { Res::Empty }
     state pc_err(probe: &mut Probe, kind: Kind) -> Res { Res::Error { kind: kind } }
 }
-data Main { console: Binding<Console>; probe: Probe; result: Res; }
+data Main { probe: Probe; result: Res; }
 machine Main::main(main: &mut Main) reaches Console {
     main.result = Probe::classify(&mut main.probe, false);
     transition main.result {
         Res::Empty -> bad(main, 71)
         _ -> good(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

@@ -1,11 +1,10 @@
 // Unit and scalar calls consume the same copy payload in a cycle, whether
 // the payload is constructed here or returned by another ordinary call.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Kind [copy] { case First; case Second; }
 data Counter { observed: u64; total: u64 in Wrapping; }
-data Main { console: Binding<Console>; counter: Counter; }
+data Main { counter: Counter; }
 
 machine choose(position: u64) -> Kind {
     transition position < 2 { true -> Kind::First false -> Kind::Second }
@@ -49,5 +48,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

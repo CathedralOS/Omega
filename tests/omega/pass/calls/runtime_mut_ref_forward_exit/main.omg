@@ -10,10 +10,9 @@
 // exit 71 = the forwarded write missed main.c.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Counter { n: i32 in Wrapping; }
-data Main { console: Binding<Console>; c: Counter; }
+data Main { c: Counter; }
 
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> enter(main, &mut main.c) }
@@ -29,6 +28,6 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.c.n == 59 { true -> good(main) _ -> bad(main) }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main)  { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main)  { Console::exit_process(71); }
 }

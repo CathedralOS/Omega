@@ -4,8 +4,7 @@
 // Before argument terms carried a caller scope and expected type, name-free
 // constant operands formed no term at all and this call compiled silently.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::scale(value: u64, divisor: u64) -> u64
     requires divisor != 0;
 {
@@ -13,5 +12,5 @@ machine Main::scale(value: u64, divisor: u64) -> u64
 }
 machine Main::main(main: &mut Main) {
     let result: u64 = Main::scale(10, 1 - 1);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

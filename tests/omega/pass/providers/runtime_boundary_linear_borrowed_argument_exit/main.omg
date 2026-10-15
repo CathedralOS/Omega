@@ -6,7 +6,6 @@
 // and its single occurrence across the call, and no custody transfers. The
 // loan is lent directly from a local, forwarded through a second local, and
 // lent again from a later state before the value is consumed.
-use omega::language::core::binding;
 use omega::language::core::drop;
 use omega_language_std::console;
 
@@ -33,18 +32,16 @@ satisfies TokenScale::tag
 }
 
 data Main {
-    console: Binding<Console>;
-    scale: Binding<TokenScale>;
 }
 
 machine Main::main(main: &mut Main) reaches Console, TokenScale {
     let token: Token = Token { value: 11 };
-    let direct: u64 = main.scale.weigh(&token);
+    let direct: u64 = TokenScale::weigh(&token);
     let forwarded: &Token = &token;
-    let tagged: bool = main.scale.tag(forwarded, 11);
+    let tagged: bool = TokenScale::tag(forwarded, 11);
     transition { _ -> check(main, token, direct, tagged) }
     state check(main: &mut Main, token: Token, direct: u64, tagged: bool) {
-        let later: u64 = main.scale.weigh(&token);
+        let later: u64 = TokenScale::weigh(&token);
         let correct: bool = direct == 11 && tagged && later == 11;
         drop(token);
         transition correct {
@@ -52,6 +49,6 @@ machine Main::main(main: &mut Main) reaches Console, TokenScale {
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(72); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(72); }
 }

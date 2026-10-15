@@ -2,8 +2,7 @@
 // a SMALLER service-reach row but never widen its requirement's ceiling --
 // sneaky declares Filesystem beyond Meter::read_value's Clock service.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 
 boundary trait Clock {
 }
@@ -22,5 +21,5 @@ reaches Clock, Filesystem
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

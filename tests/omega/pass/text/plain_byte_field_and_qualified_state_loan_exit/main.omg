@@ -5,7 +5,6 @@
 // helper declared before the state loan and one declared after it.
 // "G..E" stored and read through the field, "gate" through the loan: exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -16,7 +15,7 @@ requires
 
 data Header { tag: [u8; 4]; }
 data Packet { header: Header; size: u64; }
-data Main { console: Binding<Console>; packet: Packet; }
+data Main { packet: Packet; }
 
 machine Main::first_tag(main: &Main) -> u8 {
     transition { _ -> (main.packet.header.tag[0]) }
@@ -39,7 +38,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::last_tag(main: &Main) -> u8 {

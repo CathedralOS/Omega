@@ -7,7 +7,6 @@
 // computes 3^7 mod 100 = 2187 mod 100 = 87; each factor is reduced `% 100`
 // first, so every product is provably bounded and every divisor nonzero.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine modular_power(base: i32, exponent: i32) -> i32 {
     transition exponent < 0 {
@@ -46,8 +45,8 @@ machine modular_power(base: i32, exponent: i32) -> i32 {
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let result: i32 = modular_power(3, 7);
-    Console::exit_process(&main.console, result);
+    Console::exit_process(result);
 }

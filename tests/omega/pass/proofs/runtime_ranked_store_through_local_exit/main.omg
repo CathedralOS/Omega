@@ -2,9 +2,8 @@
 // value is stored through a local before the self-call; the call judgment
 // reuses the body's current-value decrease at that exact occurrence.
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let floor: u64 = accumulate(3, 4, 7);
@@ -12,8 +11,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 machine accumulate(mut remaining: u64, mut accumulator: u64, total: u64) -> u64

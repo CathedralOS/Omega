@@ -12,8 +12,7 @@
 // dispatch-routed calls SOUNDLY: dispatched value calls either deliver
 // correctly or fail to compile, never silently ZII. Differential.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; hits: i32 in Wrapping; total: i32 in Wrapping; }
+data Main { hits: i32 in Wrapping; total: i32 in Wrapping; }
 machine Main::count(main: &mut Main, i: u64, j: u64)
 terminates by (j, i) -> Nat::BoundedDistance;
 -> i32
@@ -35,6 +34,6 @@ machine Main::main(main: &mut Main) reaches Console {
     state ck_hits(main: &mut Main) {
         transition main.hits == 5 { true -> good(main) _ -> bad(main, 72) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

@@ -13,14 +13,13 @@
 // the same callee: it goes inert alongside it, so the golden records exactly
 // ONE diagnostic -- the exemption holds inside the dependency.
 use omega_language_std::console;
-use omega::language::core::binding;
 use paradigm_internals::paradigm;
 
-data Main { console: Binding<Console>; helper: Helper; }
+data Main { helper: Helper; }
 
 machine Main::main(main: &mut Main) reaches Console {
     let a: i32 = Helper::paradigm_internal(&main.helper);
     transition a == 63 { true -> good(main) _ -> bad(main, 71) }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code2: i32) { main.console.exit_process(code2); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code2: i32) { Console::exit_process(code2); }
 }

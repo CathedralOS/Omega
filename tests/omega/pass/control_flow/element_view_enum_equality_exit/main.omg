@@ -1,9 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Tag [copy] { case Empty; case First; case Second; }
 data Slot [copy] { prefix: u64; tag: Tag; suffix: u32; }
-data Main { console: Binding<Console>; slots: [Slot; 3]; }
+data Main { slots: [Slot; 3]; }
 
 // The view transports a descriptor; membership observes the selected element,
 // including its field offset, not the pointer/length words of that descriptor.
@@ -33,5 +32,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

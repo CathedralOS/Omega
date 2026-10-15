@@ -1,9 +1,8 @@
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
-use omega::language::core::binding;
 pub const SIZE:u64=1+0;
 pub const SOURCE:[i32;SIZE]=[7];
 const STATUS:i32=read_source();
 machine read_source()->i32{SOURCE[0]}
-data Main {exit:Binding<ProcessExit>;}
-machine Main::main(main:&mut Main) reaches ProcessExit {main.exit.exit_process(STATUS);}
+data Main {}
+machine Main::main(main:&mut Main) reaches ProcessExit {ProcessExit::exit_process(STATUS);}

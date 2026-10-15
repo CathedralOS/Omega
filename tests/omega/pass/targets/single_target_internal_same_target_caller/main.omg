@@ -3,7 +3,6 @@
 // development host. The portable-caller negative controls pin the distinct
 // obligation when a realized caller demands a missing target body.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Helper { seed: i32; }
 
@@ -16,11 +15,11 @@ uefi_x86_64 machine Helper::paradigm_caller(helper: &Helper) -> i32 {
     transition { _ -> (Helper::paradigm_internal(helper)) }
 }
 
-data Main { console: Binding<Console>; helper: Helper; }
+data Main { helper: Helper; }
 
 machine Main::main(main: &mut Main) reaches Console {
     let a: i32 = main.helper.seed;
     transition a == 0 { true -> good(main) _ -> bad(main, 71) }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code2: i32) { main.console.exit_process(code2); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code2: i32) { Console::exit_process(code2); }
 }

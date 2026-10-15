@@ -8,37 +8,36 @@
 // 71 = the entry guard failed; 72 = the successor read the wrong total.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Score { value: u64 in Wrapping; bonus: u64 in Wrapping; }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let start: u64 = 3;
     transition start > 2 {
-        true -> prepare(&main.console, start)
-        _ -> refused(&main.console, 71)
+        true -> prepare(start)
+        _ -> refused(71)
     }
 
-    state prepare(console: &Binding<Console>, start: u64) {
+    state prepare(start: u64) {
         let mut score: Score;
         score.value = start as u64 in Wrapping;
-        transition { _ -> bump(console, &mut score) }
+        transition { _ -> bump(&mut score) }
     }
 
-    state bump(console: &Binding<Console>, score: &mut Score) {
+    state bump(score: &mut Score) {
         score.bonus = score.value + 67;
         transition score.bonus == 70 {
-            true -> done(console)
-            _ -> refused(console, 72)
+            true -> done()
+            _ -> refused(72)
         }
     }
 
-    state done(console: &Binding<Console>) {
-        Console::exit_process(console, 70);
+    state done() {
+        Console::exit_process(70);
     }
 
-    state refused(console: &Binding<Console>, code: i32) {
-        Console::exit_process(console, code);
+    state refused(code: i32) {
+        Console::exit_process(code);
     }
 }

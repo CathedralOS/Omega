@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 pub boundary trait Scheduler {
     machine park() suspends;
@@ -10,30 +9,30 @@ pub boundary data Sleeper;
 boundary machine Sleeper::park() suspends;
 
 // Carry permission on a descriptor is not a backing-lifetime or pinning proof.
-machine inspect(loan: &i32 in Carry::AcrossSuspend, scheduler: Binding<Scheduler>)
+machine inspect(loan: &i32 in Carry::AcrossSuspend)
 suspends; reaches Scheduler {
-    suspend scheduler.park();
+    suspend Scheduler::park();
     let observed: i32 = loan;
 }
 
 // The same obligation belongs to a view stored inside a generic carrier.
-machine inspect_carrier(carrier: Envelope<&i32> in Carry::AcrossSuspend, scheduler: Binding<Scheduler>)
+machine inspect_carrier(carrier: Envelope<&i32> in Carry::AcrossSuspend)
 suspends; reaches Scheduler {
-    suspend scheduler.park();
+    suspend Scheduler::park();
     let observed: i32 = carrier.payload;
 }
 
 // A slice's descriptor permission does not establish the lifetime of its elements.
-machine inspect_slice(view: &[i32] in Carry::AcrossSuspend, scheduler: Binding<Scheduler>)
+machine inspect_slice(view: &[i32] in Carry::AcrossSuspend)
 suspends; reaches Scheduler {
-    suspend scheduler.park();
+    suspend Scheduler::park();
     let retained: &[i32] = view;
 }
 
 // Call arguments are retained during the call even without a later caller use.
-machine pass_argument(argument: &i32 in Carry::AcrossSuspend, scheduler: Binding<Scheduler>)
+machine pass_argument(argument: &i32 in Carry::AcrossSuspend)
 suspends; reaches Scheduler {
-    suspend scheduler.park_with(argument);
+    suspend Scheduler::park_with(argument);
 }
 
 // An unconstrained template must not assume its carried value contains no views.

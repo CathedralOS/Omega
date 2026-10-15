@@ -1,16 +1,15 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::report(main: &mut Main, values: &[u8]) reaches Console {
-    main.console.write(values);
-    main.console.write("\n");
+    Console::write(values);
+    Console::write("\n");
     let code: i32 = match values.len == 2 {
         true -> 70,
         false -> 71
     };
-    main.console.exit_process(code);
+    Console::exit_process(code);
 }
 
 machine Main::main(main: &mut Main) reaches Console {

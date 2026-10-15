@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 pub boundary trait Scheduler {
     machine park() suspends;
@@ -14,72 +13,72 @@ pub data Envelope<T> { payload: T; }
 machine observe(value: &Restricted) -> i32 { value.value }
 
 // The declared floor is independent of the portable scalar field.
-machine owned(scheduler: Binding<Scheduler>) suspends; reaches Scheduler {
+machine owned() suspends; reaches Scheduler {
     let owned_backing: Restricted = Restricted { value: 40 };
-    suspend scheduler.park();
+    suspend Scheduler::park();
     let observed: i32 = owned_backing.value;
 }
 
 // Only the descriptor is used after suspension, but its actual backing has
 // an independent suspension-forbidden demand.
-machine direct(scheduler: Binding<Scheduler>) suspends; reaches Scheduler {
+machine direct() suspends; reaches Scheduler {
     let direct_backing: Restricted = Restricted { value: 41 };
     let direct_loan: &Restricted = &direct_backing;
-    suspend scheduler.park();
+    suspend Scheduler::park();
     let observed: i32 = observe(direct_loan);
 }
 
 // Replacement ends the prior descriptor occurrence. The crossing must keep
 // current_backing, not recover previous_backing from historical last-use rows.
-machine replaced(scheduler: Binding<Scheduler>) suspends; reaches Scheduler {
+machine replaced() suspends; reaches Scheduler {
     let previous_backing: Restricted = Restricted { value: 17 };
     let current_backing: Restricted = Restricted { value: 42 };
     let mut current_loan: &Restricted = &previous_backing;
     current_loan = &current_backing;
-    suspend scheduler.park();
+    suspend Scheduler::park();
     let observed: i32 = observe(current_loan);
 }
 
 // The stored leaf belongs to the instantiated aggregate, not a separately
 // named reference local.
-machine aggregate(scheduler: Binding<Scheduler>) suspends; reaches Scheduler {
+machine aggregate() suspends; reaches Scheduler {
     let aggregate_backing: Restricted = Restricted { value: 43 };
     let carrier: Envelope<&Restricted> = Envelope { payload: &aggregate_backing };
-    suspend scheduler.park();
+    suspend Scheduler::park();
     let observed: i32 = observe(carrier.payload);
 }
 
 // Retaining backing which itself stores a view retains that view's backing.
 // One pass over the originally live symbols would miss nested_backing.
-machine nested(scheduler: Binding<Scheduler>) suspends; reaches Scheduler {
+machine nested() suspends; reaches Scheduler {
     let nested_backing: Restricted = Restricted { value: 44 };
     let nested_carrier: Envelope<&Restricted> = Envelope { payload: &nested_backing };
     let whole_loan: &Envelope<&Restricted> = &nested_carrier;
-    suspend scheduler.park();
+    suspend Scheduler::park();
     let observed: i32 = observe(whole_loan.payload);
 }
 
 // The backing of an incoming descriptor is supplied by its caller, not by
 // the state parameter slot holding it. Forwarding retains that namespace.
-machine incoming(descriptor: &Restricted, scheduler: Binding<Scheduler>)
+machine incoming(descriptor: &Restricted)
 suspends; reaches Scheduler {
     let forwarded: &Restricted = descriptor;
-    suspend scheduler.park();
+    suspend Scheduler::park();
     let observed: i32 = observe(forwarded);
 }
 
 // The incomplete call needs backing even without a later caller use or a
 // named reference local. Argument completion captures that referent.
-machine call_only(scheduler: Binding<Scheduler>) suspends; reaches Scheduler {
+machine call_only() suspends; reaches Scheduler {
     let call_only_backing: Restricted = Restricted { value: 45 };
-    suspend scheduler.inspect(&call_only_backing);
+    suspend Scheduler::inspect(&call_only_backing);
 }
 
 // A detached aggregate argument still contains a view. Its constructed
 // child's completion, not the aggregate's type alone, identifies backing.
-machine constructed_argument(scheduler: Binding<Scheduler>) suspends; reaches Scheduler {
+machine constructed_argument() suspends; reaches Scheduler {
     let constructed_backing: Restricted = Restricted { value: 46 };
-    suspend scheduler.inspect_carrier(Envelope { payload: &constructed_backing });
+    suspend Scheduler::inspect_carrier(Envelope { payload: &constructed_backing });
 }
 
 machine main() {}

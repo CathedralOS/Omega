@@ -1,24 +1,23 @@
 module right;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub boundary trait Sink { machine emit() -> i32; }
 pub data Provider {}
 machine Provider::emit() -> i32 satisfies Sink::emit { 37 }
 
-pub data Runner { sink: Binding<Sink>; console: Binding<Console>; }
+pub data Runner { }
 pub machine Runner::run(context: &mut Runner) reaches Sink, Console
 invokes Sink;
 invokes Console;
 {
-    _ = context.sink.emit();
-    let observed: i32 = context.sink.emit();
+    _ = Sink::emit();
+    let observed: i32 = Sink::emit();
     transition observed == 37 { true -> again(context) _ -> bad(context) }
     state again(context: &mut Runner) {
-        _ = context.sink.emit();
-        let observed: i32 = context.sink.emit();
+        _ = Sink::emit();
+        let observed: i32 = Sink::emit();
         transition observed == 37 { true -> good(context) _ -> bad(context) }
     }
-    state good(context: &mut Runner) { context.console.exit_process(70); }
-    state bad(context: &mut Runner) { context.console.exit_process(71); }
+    state good(context: &mut Runner) { Console::exit_process(70); }
+    state bad(context: &mut Runner) { Console::exit_process(71); }
 }

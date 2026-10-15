@@ -10,10 +10,9 @@
 // (fail canary sum_payload_arith_too_wide).
 // Cmd::Dim { amount: 7 } -> apply(7 * 10 = 70) -> exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 domain i32::Ten(value) requires 0 <= value && value <= 10;
 data Cmd { case Dim(amount: i32 in Ten); case Off; }
-data Main { console: Binding<Console>; c: Cmd; }
+data Main { c: Cmd; }
 machine Main::main(main: &mut Main) reaches Console {
     main.c = Cmd::Dim { amount: 7 };
     transition main.c {
@@ -25,8 +24,8 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> apply(main, scaled) }
     }
     state apply(main: &mut Main, target: i32) requires 0 <= target && target <= 100 {
-        main.console.exit_process(target);
+        Console::exit_process(target);
     }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }
 machine Main::run(main: &mut Main) { Main::main(main); }

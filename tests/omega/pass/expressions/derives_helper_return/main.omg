@@ -2,7 +2,6 @@
 // caller-provided `Folder` at the `Filesystem` boundary and returns it;
 // the outer `open_main_log` only forwards its folder, so the authority
 // flow propagates `derives` up the call graph.
-use omega::language::core::binding;
 
 pub domain [u8]::Utf8(bytes)
 requires
@@ -24,13 +23,12 @@ pub boundary trait Filesystem {
 }
 
 data Worker {
-    fs: Binding<Filesystem>;
 }
 machine Worker::open_log(worker: &mut Worker, folder: Folder) -> File
 reaches
     Filesystem
 {
-    worker.fs.open(folder, "log.txt")
+    Filesystem::open(folder, "log.txt")
 }
 machine Worker::open_main_log(worker: &mut Worker, folder: Folder) -> File
 reaches

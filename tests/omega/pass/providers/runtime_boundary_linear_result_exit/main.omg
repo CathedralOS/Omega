@@ -5,7 +5,6 @@
 // the two rosters by typed path rather than refusing linear carriers. The
 // result is received directly, through a local, as a field of a composite
 // returned from a later state, and inside another caller state.
-use omega::language::core::binding;
 use omega::language::core::drop;
 use omega_language_std::console;
 
@@ -39,16 +38,14 @@ satisfies TokenMint::wrap
 }
 
 data Main {
-    console: Binding<Console>;
-    mint: Binding<TokenMint>;
 }
 
 machine Main::main(main: &mut Main) reaches Console, TokenMint {
-    let direct: Token = main.mint.issue(11);
-    let packet: Packet = main.mint.wrap(direct, 19);
+    let direct: Token = TokenMint::issue(11);
+    let packet: Packet = TokenMint::wrap(direct, 19);
     transition { _ -> check(main, packet) }
     state check(main: &mut Main, packet: Packet) {
-        let later: Token = main.mint.issue(17);
+        let later: Token = TokenMint::issue(17);
         let correct: bool = packet.token.value == 11
             && packet.marker == 19
             && later.value == 17;
@@ -59,6 +56,6 @@ machine Main::main(main: &mut Main) reaches Console, TokenMint {
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(72); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(72); }
 }

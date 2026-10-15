@@ -2,7 +2,6 @@
 // backedges. Referent writes and final claim contents expose stale bindings or
 // overwritten custody; zero and odd/even iteration counts expose the exits.
 use omega::language::core::drop;
-use omega::language::core::binding;
 
 data Cell { value: u32; }
 data Pair { left: Cell; right: Cell; }
@@ -104,7 +103,7 @@ terminates by remaining -> Nat::Descending;
     }
 }
 
-data Main { selection: Binding<Selection>; }
+data Main { }
 
 machine Main::main(context: &mut Main) reaches Selection crashes Trap {
     let mut pair: Pair = Pair { left: Cell { value: 9 }, right: Cell { value: 8 } };
@@ -114,8 +113,8 @@ machine Main::main(context: &mut Main) reaches Selection crashes Trap {
     let changed: bool = pair.left.value == 1 && pair.right.value == 2;
     let selected_true: u32 = consume_then_select(Token { value: 7 }, true);
     let selected_false: u32 = consume_then_select(Token { value: 7 }, false);
-    let adapter_true: u32 = Selection::select(&context.selection, Token { value: 6 }, true);
-    let adapter_false: u32 = Selection::select(&context.selection, Token { value: 6 }, false);
+    let adapter_true: u32 = Selection::select(Token { value: 6 }, true);
+    let adapter_false: u32 = Selection::select(Token { value: 6 }, false);
     let zero: u32 = rotate_claims(Token { value: 9 }, Token { value: 8 }, 0);
     let odd: u32 = rotate_claims(Token { value: 9 }, Token { value: 8 }, 3);
     let even: u32 = rotate_claims(Token { value: 9 }, Token { value: 8 }, 4);

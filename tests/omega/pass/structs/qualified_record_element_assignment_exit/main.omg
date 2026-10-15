@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Direction [copy] { case None; case East; }
@@ -10,7 +9,7 @@ data Exit [copy] {
     destination: Cell;
 }
 data Room { exits: [Exit; 2]; }
-data Main { console: Binding<Console>; room: Room; command: [u8; 8] in Utf8; direction: Direction; }
+data Main { room: Room; command: [u8; 8] in Utf8; direction: Direction; }
 
 machine Room::install(room: &mut Room, command: [u8; 8] in Utf8, direction: Direction, coordinate: u64) {
     transition { _ -> write(room, command, direction, coordinate) }
@@ -41,5 +40,5 @@ machine Main::main(main: &mut Main) reaches Console {
             Direction::None -> finish(main, 2)
         }
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

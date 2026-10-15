@@ -1,9 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell { values: [i32; 2]; value: i32; }
 data Worker {}
-data Main { console: Binding<Console>; cell: Cell; }
+data Main { cell: Cell; }
 
 // State transfer must retain the caller's storage, including its writes.
 machine Worker::write(cell: &mut Cell) -> i32 {
@@ -32,6 +31,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> success(main)
         false -> failure(main)
     }
-    state success(main: &mut Main) { main.console.exit_process(main.cell.value); }
-    state failure(main: &mut Main) { main.console.exit_process(71); }
+    state success(main: &mut Main) { Console::exit_process(main.cell.value); }
+    state failure(main: &mut Main) { Console::exit_process(71); }
 }

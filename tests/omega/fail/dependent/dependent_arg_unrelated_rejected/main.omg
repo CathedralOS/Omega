@@ -3,14 +3,13 @@
 // the current count. The argument is actually outside the permitted prefix,
 // so propagation of its known value must not turn this into a passing control.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main where count <= 11 { console: Binding<Console>; items: [u8; 12]; count: u32; j: u32; out: i32; }
+data Main where count <= 11 { items: [u8; 12]; count: u32; j: u32; out: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.count = 3;
     main.j = 6;
     transition main.j == 6 { true -> read(main, main.j) _ -> read(main, 0) }
     state read(main: &mut Main, i: u32) requires i <= main.count {
         main.out = main.items[i] as i32;
-        main.console.exit_process(main.out);
+        Console::exit_process(main.out);
     }
 }

@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 pub domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
@@ -17,11 +16,10 @@ pub boundary trait Net {
 }
 
 data Client {
-    net: Binding<Net>;
 }
 
 machine Client::run(client: &mut Client) reaches Net + Allocator {
-    client.net.write_line("payload");
+    Net::write_line("payload");
 }
 
 data Main {

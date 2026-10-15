@@ -4,16 +4,15 @@
 // stored value. Exits 77.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Point {
     x: i32;
     y: i32;
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut made: Point;
     made.x = 7;
-    Console::exit_process(&main.console, 70 + made.x as i32);
+    Console::exit_process(70 + made.x as i32);
 }

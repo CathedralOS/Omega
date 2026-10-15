@@ -3,18 +3,17 @@
 // break every destructuring site until each decides bind-or-waive. The
 // refusal names the missing field.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Point {
     x: i32 [0..=100];
     y: i32 [0..=100];
     z: i32 [0..=100];
 }
-data Main { console: Binding<Console>; point: Point; }
+data Main { point: Point; }
 machine Main::main(main: &mut Main) {
     main.point = Point { x: 30, y: 40, z: 5 };
     let { x, y as vertical } = main.point;
     let total: i32 = x + vertical;
     transition total == 70 { true -> good(main) _ -> bad(main) }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }

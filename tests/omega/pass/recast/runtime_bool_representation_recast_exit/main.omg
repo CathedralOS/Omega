@@ -11,13 +11,11 @@
 // the Boolean; `fail/recast/recast_mut_bool_as_unconstrained_byte` pins that
 // rejection instead.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main
 where
     byte >= 0 && byte <= 1,
 {
-    console: Binding<Console>;
     flag: bool;
     byte: u8;
 }
@@ -28,19 +26,19 @@ machine Main::main(main: &mut Main) reaches Console {
     let flag_bits: &u8 = &main.flag as &u8;
     let byte_flag: &bool = &main.byte as &bool;
     transition flag_bits == 1 && byte_flag {
-        true -> mutate(&main.console, main)
-        _ -> bad(&main.console, main)
+        true -> mutate(main)
+        _ -> bad(main)
     }
 
-    state mutate(console: &Binding<Console>, main: &mut Main) {
+    state mutate(main: &mut Main) {
         let byte_flag: &mut bool = &mut main.byte as &mut bool;
         byte_flag = false;
         transition main.flag && main.byte == 0 {
-            true -> good(console, main)
-            _ -> bad(console, main)
+            true -> good(main)
+            _ -> bad(main)
         }
     }
 
-    state good(console: &Binding<Console>, main: &mut Main) { Console::exit_process(console, 70); }
-    state bad(console: &Binding<Console>, main: &mut Main) { Console::exit_process(console, 71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

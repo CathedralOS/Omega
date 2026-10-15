@@ -2,7 +2,6 @@
 // owns fresh contents, the original stays readable, and the empty arm never
 // evaluates the payload call.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Payload { value: u64 in Wrapping; }
 machine Payload::clone(source: &Payload) -> Payload {
@@ -29,7 +28,7 @@ machine Selection::read(source: &Selection) -> u64 {
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let source: Selection = Selection::Found { payload: Payload { value: 41 } };
     let cloned: Selection = Selection::clone(&source);
@@ -41,6 +40,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> done(main)
         _ -> failed(main)
     }
-    state done(main: &mut Main) { main.console.exit_process(70); }
-    state failed(main: &mut Main) { main.console.exit_process(71); }
+    state done(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }

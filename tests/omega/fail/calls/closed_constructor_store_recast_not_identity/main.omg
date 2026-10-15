@@ -1,11 +1,10 @@
 // Backing storage identity grants no signed-recast value equality.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; big: u64; }
+data Main { big: u64; }
 machine take(value: i64) -> u64 requires value > 0; { 0 }
 machine Main::main(main: &mut Main) reaches Console {
  main.big = 18446744073709551615;
  let view: &i64 = &main.big as &i64;
  let result: u64 = take(view);
- main.console.exit_process(0);
+ Console::exit_process(0);
 }

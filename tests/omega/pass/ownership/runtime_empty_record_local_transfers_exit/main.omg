@@ -5,11 +5,10 @@
 // a move window or cleanup code. Exits 70 when the sibling store survives the
 // replacement and reaches the forwarding state.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Empty {}
 data Holder { marker: Empty; value: i32; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine replace(holder: &mut Holder, marker: Empty) {
     holder.marker = marker;
@@ -28,6 +27,6 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

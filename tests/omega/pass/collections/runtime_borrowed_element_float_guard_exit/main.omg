@@ -20,7 +20,6 @@
 // classification. All four classifications as tabulated -> exit 70.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Probe {
     tag: u8;
@@ -44,7 +43,7 @@ requires k < 4 {
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut probes: [Probe; 4];
     probes[0].tag = 1;
@@ -64,15 +63,15 @@ machine Main::main(main: &mut Main) reaches Console {
     let third: i32 = classify(&probes, 2);
     let fourth: i32 = classify(&probes, 3);
     transition first == 1 && second == 2 && third == 0 && fourth == 1 {
-        true -> done(&main.console)
-        _ -> refused(&main.console, 71)
+        true -> done()
+        _ -> refused(71)
     }
 
-    state done(console: &Binding<Console>) {
-        Console::exit_process(console, 70);
+    state done() {
+        Console::exit_process(70);
     }
 
-    state refused(console: &Binding<Console>, code: i32) {
-        Console::exit_process(console, code);
+    state refused(code: i32) {
+        Console::exit_process(code);
     }
 }

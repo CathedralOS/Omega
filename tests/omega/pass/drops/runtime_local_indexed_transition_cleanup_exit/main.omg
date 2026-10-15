@@ -1,10 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Leaf { value: i32 [0..=100]; }
 data Pair { left: Leaf; right: Leaf; }
 data Bundle { pairs: [Pair; 2]; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 // Local establishments and parameters carry the same projected custody.
 // The path crosses a field, an array index and another field; both roots
@@ -27,5 +26,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 0)
         _ -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

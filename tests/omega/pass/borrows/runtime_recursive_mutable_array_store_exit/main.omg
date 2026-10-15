@@ -5,9 +5,8 @@
 // by the slice's `.len` reads only that extent: the element store before the
 // recursive call preserves it.
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; bytes: [u8; 8]; more: [u8; 6]; }
+data Main { bytes: [u8; 8]; more: [u8; 6]; }
 
 machine fill(bytes: &mut [u8; 8], index: u64) -> u64
 terminates by (index, 8) -> Nat::BoundedDistance;
@@ -45,6 +44,6 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> missed(main)
         }
     }
-    state reached(main: &mut Main) { main.console.exit_process(70); }
-    state missed(main: &mut Main) { main.console.exit_process(71); }
+    state reached(main: &mut Main) { Console::exit_process(70); }
+    state missed(main: &mut Main) { Console::exit_process(71); }
 }

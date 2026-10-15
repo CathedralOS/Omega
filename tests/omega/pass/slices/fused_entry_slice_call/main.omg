@@ -1,7 +1,6 @@
 // A `[u64; 3]` field on the entry receiver coerces to a checked callee's
 // `&mut [u64]` through the borrowed-view presentation; the Fused entry
 // receiver keeps its Terminal attachment while it lends the field.
-use omega::language::core::binding;
 
 pub boundary trait Ping {
     machine ping();
@@ -25,7 +24,6 @@ machine Worker::drain(buf: &mut [u64], filter: &Filter, index: u64) {
 }
 
 data Main {
-    console: Binding<Ping>;
     worker: Worker;
     items: [u64; 3];
     filter: Filter;

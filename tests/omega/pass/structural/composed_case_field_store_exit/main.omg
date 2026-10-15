@@ -1,12 +1,11 @@
 // Case replacement inside a multi-state helper must update the caller's
 // storage, including a literal, a copied parameter and a payload construction.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Direction [copy] { case Left; case Right; }
 data Mode [copy] { case Empty; case Exploring; case Counter(step: u64); }
 data Controller { direction: Direction; mode: Mode; count: u64; }
-data Main { console: Binding<Console>; controller: Controller; }
+data Main { controller: Controller; }
 
 machine Controller::before(controller: &mut Controller) { controller.count = 1; }
 machine Controller::after(controller: &mut Controller) { controller.count = 2; }
@@ -40,5 +39,5 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> finish(main, 3)
         }
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

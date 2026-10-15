@@ -4,8 +4,7 @@
 // observed: pick(60) takes the true arm (dbl -> 120); pick(10) takes the
 // else arm (raw 10, dbl NOT run). RUNS exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine dbl(x: i32) -> i32
 requires
     0 <= x && x <= 1000;
@@ -28,6 +27,6 @@ machine Main::main(main: &mut Main) reaches Console {
     state check_cold(main: &mut Main, cold: i32) {
         transition cold == 10 { true -> good(main) _ -> bad(main) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }

@@ -1,7 +1,6 @@
 // Lifetime arguments are erased regions, so a factory result and the
 // bare nominal local must retain the same runtime carrier identity.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Input { value: u64; }
 data Output<'region> { value: u64; }
@@ -38,7 +37,7 @@ machine Envelope::wrap<'region>(output: Output<'region>) -> Envelope<'region> {
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let output: Output = Output::make(Input { value: 50 });
     let result: u64 = Output::read_value(output);
@@ -50,6 +49,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> passed(main)
         false -> failed(main)
     }
-    state passed(main: &mut Main) { main.console.exit_process(70); }
-    state failed(main: &mut Main) { main.console.exit_process(71); }
+    state passed(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }

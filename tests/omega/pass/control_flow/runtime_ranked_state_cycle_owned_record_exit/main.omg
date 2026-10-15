@@ -2,10 +2,9 @@
 // at the exit state. Each edge transfers the whole record; no state keeps a
 // second copy.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Token { id: u32; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine spin(token: Token, remaining: u32)
 terminates by remaining;
@@ -28,5 +27,5 @@ requires remaining <= 5
 
 machine Main::main(main: &mut Main) reaches Console {
     spin(Token { id: 9 }, 3);
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

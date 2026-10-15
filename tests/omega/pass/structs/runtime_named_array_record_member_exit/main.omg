@@ -1,10 +1,9 @@
 // A constructor consumes an ordinary array value, not just literal syntax.
 // Its field observations must retain the supplied element order and values.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Packet { samples: [i32; 2]; }
-data Main { console: Binding<Console>; packet: Packet; }
+data Main { packet: Packet; }
 
 machine Main::main(context: &mut Main) reaches Console {
     let samples: [i32; 2] = [30, 40];
@@ -17,6 +16,6 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state finish(context: &mut Main, code: i32) {
-        context.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

@@ -13,9 +13,8 @@
 // (fail/dependent/requires_call_unproven_rejected).
 // exits: 9 - 3 = 6.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::numeric_conversion;
-data Main { console: Binding<Console>; a: u32; b: u32; out: i32; }
+data Main { a: u32; b: u32; out: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.a = 3;
     main.b = 9;
@@ -24,9 +23,9 @@ machine Main::main(main: &mut Main) reaches Console {
         let a_value: u32 = main.a;
         Main::helper(main, a_value);
         let code: i32 = main.out;
-        main.console.exit_process(code);
+        Console::exit_process(code);
     }
-    state bad(main: &mut Main) { main.console.exit_process(9); }
+    state bad(main: &mut Main) { Console::exit_process(9); }
 }
 machine Main::helper(main: &mut Main, x: u32) requires main.a <= main.b, x <= main.b {
     let diff: u32 = main.b - x;

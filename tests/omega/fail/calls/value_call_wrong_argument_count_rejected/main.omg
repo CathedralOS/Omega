@@ -3,7 +3,6 @@
 // arity, so a missing arg then read its ZII default at runtime. Now both paths
 // share the same arity check.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::pick(a: i32, b: i32) -> i32 { 42 }
-machine Main::main(main: &mut Main) { let r: i32 = Main::pick(1); main.console.exit_process(r); }
+machine Main::main(main: &mut Main) { let r: i32 = Main::pick(1); Console::exit_process(r); }

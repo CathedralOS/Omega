@@ -13,7 +13,6 @@
 // at the source surface the same roster row authorizes.
 use omega::language::core::layout;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub data Registers {
     status: u32;
@@ -107,9 +106,9 @@ machine inspect_bound(view: &mut Placed<RegPlacement, Registers>) -> u32 {
     status
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main, view: &mut Placed<RegPlacement, Registers>) reaches Console {
     let status: u32 = inspect(view);
     let code: i32 = (((status & 127) as u8) as i32) + 9;
-    main.console.exit_process(code);
+    Console::exit_process(code);
 }

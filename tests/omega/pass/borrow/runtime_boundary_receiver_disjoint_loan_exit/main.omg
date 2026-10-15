@@ -1,14 +1,13 @@
-use omega::language::core::binding;
 use omega_language_std::console;
 
-data Main { console: Binding<Console>; bytes: [u8; 2]; }
+data Main { bytes: [u8; 2]; }
 
 // Explicit disjoint arguments lend the capability and the byte field.
 // Keep the loan live through an internal state and a boundary invocation.
-machine Main::publish(console: &mut Binding<Console>, bytes: &[u8]) reaches Console {
-    transition { _ -> forward(console, bytes) }
-    state forward(console: &mut Binding<Console>, bytes: &[u8]) {
-        console.write_line(bytes);
+machine Main::publish(bytes: &[u8]) reaches Console {
+    transition { _ -> forward(bytes) }
+    state forward(bytes: &[u8]) {
+        Console::write_line(bytes);
     }
 }
 
@@ -16,6 +15,6 @@ machine Main::main(main: &mut Main) reaches Console {
     main.bytes[0] = 79;
     main.bytes[1] = 75;
     let bytes_0__2_value: u8 = main.bytes[0..2];
-    Main::publish(&mut main.console, bytes_0__2_value);
-    main.console.exit_process(70);
+    Main::publish(bytes_0__2_value);
+    Console::exit_process(70);
 }

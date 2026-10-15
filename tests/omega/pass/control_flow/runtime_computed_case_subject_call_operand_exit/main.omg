@@ -3,7 +3,6 @@
 // count their calls; exits 70 when the dispatch selects Second with payload 20
 // after exactly one call to each.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Pick {
     case First(v: i32);
@@ -12,7 +11,7 @@ data Pick {
 
 data Counter { flags: u32 in Wrapping; }
 
-data Main { console: Binding<Console>; picks: u32 in Wrapping; }
+data Main { picks: u32 in Wrapping; }
 
 machine Counter::flag(counter: &mut Counter) -> bool {
     counter.flags = counter.flags + 1;
@@ -40,5 +39,5 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> done(main, 72)
         }
     }
-    state done(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

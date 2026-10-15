@@ -1,21 +1,19 @@
 // Echo only each completed reported prefix; normalize CRLF in this caller.
 // Fixed input extent and untouched suffix survive every read.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     line: [u8; 64];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     block Main::echo_line(main);
     block Main::echo_line(main);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }
 
 machine Main::echo_line(main: &mut Main) reaches Console {
-    let observed: LineReadResult = block main.console.read_line(&mut main.line);
+    let observed: LineReadResult = block Console::read_line(&mut main.line);
     transition observed {
         LineReadResult::LineComplete { count } -> bounded_input(main, count, true)
         LineReadResult::EndOfInput { count } -> bounded_input(main, count, false)
@@ -56,19 +54,19 @@ machine Main::echo_line(main: &mut Main) reaches Console {
     }
 
     state parsed_input(main: &mut Main, count: u64) {
-        write_prefix(&mut main.console, &main.line, count);
+        write_prefix(&main.line, count);
     }
-    state input_failed(main: &mut Main) { main.console.exit_process(1); }
+    state input_failed(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The bound is checked on the exact view before forming its output prefix.
-machine write_prefix(console: &mut Binding<Console>, bytes: &[u8], count: u64) reaches Console {
+machine write_prefix(bytes: &[u8], count: u64) reaches Console {
     transition count <= bytes.len {
-        true -> output(console, bytes[0..count])
-        false -> invalid(console)
+        true -> output(bytes[0..count])
+        false -> invalid()
     }
-    state output(console: &mut Binding<Console>, bytes: &[u8]) {
-        console.write_line(bytes);
+    state output(bytes: &[u8]) {
+        Console::write_line(bytes);
     }
-    state invalid(console: &mut Binding<Console>) { console.exit_process(1); }
+    state invalid() { Console::exit_process(1); }
 }

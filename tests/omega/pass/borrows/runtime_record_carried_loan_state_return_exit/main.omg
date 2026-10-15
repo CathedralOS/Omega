@@ -1,10 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell { value: i32; }
 data Carrier<'storage> { marker: i32; reference: &'storage Cell; }
 data PrimitiveCarrier { reference: &i32; }
-data Main { console: Binding<Console>; backing: Cell; }
+data Main { backing: Cell; }
 
 machine observe(value: &i32) -> i32 { value }
 
@@ -33,5 +32,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 42)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

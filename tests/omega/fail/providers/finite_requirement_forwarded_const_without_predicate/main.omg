@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // A closed caller at Count4 cannot retroactively prove the unconstrained
 // generic relay's public requirement at every Count.
 pub boundary trait Service {
@@ -7,14 +6,14 @@ pub boundary trait Service {
 }
 Provider satisfies Service { Service::echo = echo; }
 machine echo<const Count: u64>(value: i32) -> i32 { value }
-machine relay<const Count: u64>(service: &Binding<Service>, value: i32) -> i32 reaches Service {
-    Service::echo<Count>(service, value)
+machine relay<const Count: u64>(value: i32) -> i32 reaches Service {
+    Service::echo<Count>(value)
 }
 data Providers {}
 macos_arm64 machine Providers::provider_defaults(defaults: &mut Providers) {
     Providers::select_provider<Service, Provider>(defaults);
 }
-data Main { service: Binding<Service>; }
+data Main { }
 macos_arm64 machine Main::main(main: &mut Main) reaches Service {
-    let result: i32 = relay<4>(&main.service, (17 as i32));
+    let result: i32 = relay<4>((17 as i32));
 }

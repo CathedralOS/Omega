@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 pub boundary trait Scheduler {
     machine advance(value: &i32, forwarded: &i32, stored: Envelope<&i32>, constructed: Envelope<&i32>) -> i64 suspends;
@@ -14,7 +13,7 @@ machine InlineScheduler::advance(value: &i32, forwarded: &i32, stored: Envelope<
 machine observe(value: &i32) -> i32 { value }
 machine overwrite(value: &write i32) { value = 99; }
 pub data Envelope<T> { marker: i32; first: T; second: T; }
-data Main { scheduler: Binding<Scheduler>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
     let backing: i32 = 40;
     let retained: &i32 = &backing;
@@ -33,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
         first: &retained,
         second: &argument_backing
     };
-    let result: i64 = suspend main.scheduler.advance(&call_backing, retained, argument_carrier, Envelope {
+    let result: i64 = suspend Scheduler::advance(&call_backing, retained, argument_carrier, Envelope {
         marker: 3,
         first: &retained,
         second: &other_backing

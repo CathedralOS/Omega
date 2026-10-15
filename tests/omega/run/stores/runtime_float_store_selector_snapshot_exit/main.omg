@@ -1,9 +1,8 @@
 module float_store_snapshot;
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 
-pub data Main { console: Binding<Console>; values: [f64; 2]; index: i32 in Wrapping; }
+pub data Main { values: [f64; 2]; index: i32 in Wrapping; }
 
 machine produced(index: &mut i32 in Wrapping, value: i32) -> f64 {
     index = 0;
@@ -15,7 +14,7 @@ invokes Console;
 blocks;
 crashes Trap
 {
-    transition block application.console.read_byte() {
+    transition block Console::read_byte() {
         ByteRead::Byte { value } -> guard(application, value, 1)
         _ -> bad(application)
     }
@@ -35,8 +34,8 @@ crashes Trap
         }
     }
     state done(application: &mut Main) {
-        application.console.write_line("selected index=1 value=65 next index=0");
-        application.console.exit_process(0);
+        Console::write_line("selected index=1 value=65 next index=0");
+        Console::exit_process(0);
     }
-    state bad(application: &mut Main) { application.console.exit_process(3); }
+    state bad(application: &mut Main) { Console::exit_process(3); }
 }

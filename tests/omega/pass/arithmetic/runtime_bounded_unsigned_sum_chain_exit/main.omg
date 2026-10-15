@@ -1,8 +1,7 @@
 // Bounded unsigned sums must not recursively recheck their full operand
 // trees merely to ask whether an absent ordered bound could help.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine fingerprint(value: u64) -> u64 {
     (value % 100 * 2 + value % 100 * 3 + value % 100 * 5 + value % 100 * 7 + value % 100 * 11 + value % 100 * 13 + value % 100 * 17 + value % 100 * 19 + value % 100 * 23 + value % 100 * 29 + value % 100 * 31 + value % 100 * 37 + value % 100 * 41) % 191 + 1
 }
@@ -18,7 +17,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state finish(main: &mut Main, value: u64)
     requires value < 192 {
-        main.console.exit_process(value as i32);
+        Console::exit_process(value as i32);
     }
-    state bad(main: &mut Main) { main.console.exit_process(200); }
+    state bad(main: &mut Main) { Console::exit_process(200); }
 }

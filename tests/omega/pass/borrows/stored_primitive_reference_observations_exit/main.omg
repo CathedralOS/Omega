@@ -1,8 +1,7 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Bundle<'storage> { prefix: i32; value: &'storage i32; flag: &'storage bool; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine observe<'storage>(bundle: &Bundle<'storage>) -> i32 {
     transition bundle.flag {
@@ -26,5 +25,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 42)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

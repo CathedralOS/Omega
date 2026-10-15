@@ -1,7 +1,6 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; scratch: i32; }
+data Main { scratch: i32; }
 
 machine unrelated() -> i32 { 3 }
 machine expected() -> i32 { 70 }
@@ -12,6 +11,6 @@ machine Main::main(main: &mut Main) reaches Console {
     let authored: i32 = expected();
     let copied: i32 = authored;
     main.scratch = copied;
-    main.console.exit_process(copied);
+    Console::exit_process(copied);
 }
 machine Main::run(main: &mut Main) { Main::main(main); }

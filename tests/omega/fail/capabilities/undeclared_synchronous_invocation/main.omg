@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // A checked provider cannot hide a callback edge behind a local helper when
 // the satisfied bodyless requirement omits that binding from `invokes`. The
 // requirement admits the service reach, so only the hidden synchronous
@@ -15,14 +14,13 @@ pub boundary trait EventSource<Source> {
 }
 
 data EventProvider {
-    handler: Binding<Handler>;
 }
 
 machine forward(event_provider: &mut EventProvider)
 reaches
     Handler
 {
-    event_provider.handler.handle();
+    Handler::handle();
 }
 
 machine EventProvider::fire_checked(event_provider: &mut EventProvider)

@@ -1,9 +1,8 @@
 use authored_target_supplies::main::marker;
-use omega::language::core::binding;
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
 
-data Main { exit: Binding<ProcessExit>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches ProcessExit {
-    main.exit.exit_process(marker());
+    ProcessExit::exit_process(marker());
 }

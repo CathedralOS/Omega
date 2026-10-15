@@ -3,11 +3,10 @@ use omega_language_std::math;
 // The named min/max fixture pins ordered NaN and right-operand tie behavior.
 // These identical expectations exercise builtin selection with runtime operands.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
-data Main {console:Binding<Console>;first:f64;second:f64;tie:f64;small:f32;small_tie:f32;}
+data Main {first:f64;second:f64;tie:f64;small:f32;small_tie:f32;}
 machine Main::main(main:&mut Main) reaches Console {
- let byte:ByteRead=block main.console.read_byte();
+ let byte:ByteRead=block Console::read_byte();
  transition byte {ByteRead::Byte{value} -> compute(main,value) _ -> fail(main)}
  state compute(main:&mut Main,value:i32) {
   let one:f64=F64::from_i32(value)-48.0;
@@ -30,6 +29,6 @@ machine Main::main(main:&mut Main) reaches Console {
     true -> good(main) _ -> fail(main)
   }
  }
- state good(main:&mut Main) {main.console.exit_process(70);}
- state fail(main:&mut Main) {main.console.exit_process(71);}
+ state good(main:&mut Main) {Console::exit_process(70);}
+ state fail(main:&mut Main) {Console::exit_process(71);}
 }

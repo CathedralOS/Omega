@@ -3,9 +3,8 @@
 // Expected exit: 0.
 // Expected output contains: constructor checks=8
 use omega_language_std::console;
-use omega::language::core::binding;
 data Point [copy] { x: u64; y: u64; }
-data Main { console: Binding<Console>; point: Point; }
+data Main { point: Point; }
 machine Point::zero() -> Point { Point { x: 0, y: 0 } }
 machine Point::from_x(value: u64) -> Point { Point { x: value, y: 0 } }
 machine Point::local_zero() -> Point { let value: u64 = 0; Point { x: value, y: 0 } }
@@ -51,6 +50,6 @@ machine Main::main(main: &mut Main) reaches Console {
         let result: u64 = take_projection(Point { x: 0, y: 0 });
         transition result == 0 { true -> done(main) _ -> wrong(main) }
     }
-    state done(main: &mut Main) { main.console.write_line("constructor checks=8"); main.console.exit_process(0); }
-    state wrong(main: &mut Main) { main.console.exit_process(9); }
+    state done(main: &mut Main) { Console::write_line("constructor checks=8"); Console::exit_process(0); }
+    state wrong(main: &mut Main) { Console::exit_process(9); }
 }

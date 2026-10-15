@@ -6,7 +6,6 @@
 module guard_call_scalar_argument_exit;
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine callee(v: u64) -> bool {
     transition v {
@@ -25,12 +24,12 @@ machine guarded(v: u64) -> bool
 }
 
 // exits: 70 = the `||` guard selected its true arm; 71 = it did not.
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     transition guarded(7u64) {
-        true -> passed(&main.console)
-        false -> failed(&main.console)
+        true -> passed()
+        false -> failed()
     }
-    state passed(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state failed(console: &Binding<Console>) { Console::exit_process(console, 71); }
+    state passed() { Console::exit_process(70); }
+    state failed() { Console::exit_process(71); }
 }

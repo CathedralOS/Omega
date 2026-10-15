@@ -1,8 +1,7 @@
 // Signed exclusions permit either sign, without selecting an interval branch.
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; numerator: i32; divisor: i32; }
+data Main { numerator: i32; divisor: i32; }
 
 machine quotient(numerator: i32, divisor: i32) -> i32
 requires divisor != 0, divisor != -1
@@ -15,6 +14,6 @@ machine Main::main(main: &mut Main) reaches Console {
     main.divisor = -3;
     let result: i32 = quotient(main.numerator, main.divisor);
     transition result == 14 { true -> good(main) _ -> bad(main) }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

@@ -1,12 +1,11 @@
 // Case observations retain the owned subject until the selected value returns.
 // Its disposal must join the unused parameters in reverse declaration order.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Direction { case Left; case Right; case Up; case Down; }
 data Spare { value: u64; }
 data Output [copy] { value: u64; }
-data Main { console: Binding<Console>; total: u64 in Saturating; }
+data Main { total: u64 in Saturating; }
 
 machine make(first: Spare, direction: Direction, last: Spare) -> Output {
     transition direction {
@@ -50,6 +49,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> passed(main)
         false -> failed(main)
     }
-    state passed(main: &mut Main) { main.console.exit_process(70); }
-    state failed(main: &mut Main) { main.console.exit_process(71); }
+    state passed(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }

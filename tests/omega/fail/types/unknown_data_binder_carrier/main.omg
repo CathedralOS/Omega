@@ -2,7 +2,6 @@
 // declaration's scope (wiki/spec/language/generics.md); an unknown carrier
 // rejects like an unknown field type, even while no field uses `N`.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Window<const N: Breadth> { width: u64; }
-data Main { console: Binding<Console>; }
-machine Main::main(main: &mut Main) { main.console.exit_process(70); }
+data Main { }
+machine Main::main(main: &mut Main) { Console::exit_process(70); }

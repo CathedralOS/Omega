@@ -1,6 +1,5 @@
 use helpers;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine result() -> i32 {
     let mut value: i32 = 0;
@@ -8,9 +7,9 @@ machine result() -> i32 {
     helpers::Counter::read(&value)
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let observed: i32 = result();
-    main.console.exit_process(observed);
+    Console::exit_process(observed);
 }

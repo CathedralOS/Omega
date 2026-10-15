@@ -5,8 +5,7 @@ use omega::language::core::float_operations;
 // it (a `jp` parity branch), else 4 of the 6 operators take the wrong arm. Each check
 // below advances only on the IEEE-correct outcome; any wrong arm falls to `bad` (71).
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; z: f64; nan: f64; g: f64; }
+data Main { z: f64; nan: f64; g: f64; }
 machine Main::main(main: &mut Main) reaches Console {
     main.z = 0.0;
     main.nan = main.z / main.z;
@@ -17,6 +16,6 @@ machine Main::main(main: &mut Main) reaches Console {
     state check_le(main: &mut Main) { transition main.nan <= main.g { true -> bad(main) _ -> check_gt(main) } }
     state check_gt(main: &mut Main) { transition main.nan >  main.g { true -> bad(main) _ -> check_ge(main) } }
     state check_ge(main: &mut Main) { transition main.nan >= main.g { true -> bad(main) _ -> ok(main) } }
-    state ok(main: &mut Main)  { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state ok(main: &mut Main)  { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

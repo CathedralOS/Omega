@@ -1,7 +1,6 @@
 // Each indexed destination owns its own bound. The inner extent is three,
 // the outer extent two, and their AssignmentIndex depths reverse path order.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Matrix { cells: [[u8; 3]; 2]; }
 
@@ -11,14 +10,14 @@ machine store(matrix: &mut Matrix, row: u64, column: u64)
     matrix.cells[row][column] = 70;
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut matrix: Matrix;
     store(&mut matrix, 1, 2);
     transition matrix.cells[1][2] == 70 {
-        true -> passed(&main.console)
-        false -> failed(&main.console)
+        true -> passed()
+        false -> failed()
     }
-    state passed(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state failed(console: &Binding<Console>) { Console::exit_process(console, 77); }
+    state passed() { Console::exit_process(70); }
+    state failed() { Console::exit_process(77); }
 }

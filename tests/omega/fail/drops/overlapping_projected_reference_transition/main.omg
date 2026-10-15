@@ -1,10 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Leaf { value: i32; }
 data View { body: &mut Leaf; }
 data Outer { leftover: Leaf; selected: View; }
-data Main { console: Binding<Console>; value: Leaf; }
+data Main { value: Leaf; }
 
 machine exercise(input: Outer) -> i32 {
     transition { _ -> finish(input.selected, input.selected) }
@@ -17,5 +16,5 @@ machine Main::main(main: &mut Main) reaches Console {
         leftover: Leaf { value: 7 }, selected: View { body: &mut main.value }
     };
     let observed: i32 = exercise(input);
-    main.console.exit_process(observed);
+    Console::exit_process(observed);
 }

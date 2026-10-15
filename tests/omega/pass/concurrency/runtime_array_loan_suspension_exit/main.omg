@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 pub boundary trait Scheduler {
     machine read(references: &[&i32; 2]) -> i64 suspends;
@@ -15,12 +14,12 @@ machine read_at(references: &[&i32; 2], selected: u64 [0..=1]) -> i32 {
     references[selected]
 }
 
-data Main { scheduler: Binding<Scheduler>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
     let first: i32 = 42;
     let second: i32 = 19;
     let references: [&i32; 2] = [&first, &second];
-    let result: i64 = suspend main.scheduler.read(&references);
+    let result: i64 = suspend Scheduler::read(&references);
     let first_observation: i32 = observe(references[0]);
     let second_observation: i32 = observe(references[1]);
     let selected_observation: i32 = read_at(&references, 1);

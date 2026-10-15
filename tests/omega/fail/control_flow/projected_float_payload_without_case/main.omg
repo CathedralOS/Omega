@@ -1,5 +1,4 @@
 use omega::language::core::float_operations;
-use omega::language::core::binding;
 use omega_language_std::console;
 
 data Sample {
@@ -8,7 +7,7 @@ data Sample {
 }
 
 data Context { sample: Sample; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 // A readable loan supplies access, not proof that Reading is active.
 machine read(context: &Context) -> f64 {
@@ -22,5 +21,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main)
         false -> finish(main)
     }
-    state finish(main: &mut Main) { main.console.exit_process(70); }
+    state finish(main: &mut Main) { Console::exit_process(70); }
 }

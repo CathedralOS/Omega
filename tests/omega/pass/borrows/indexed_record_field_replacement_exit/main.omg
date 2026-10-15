@@ -1,9 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Tag [copy] { case Empty; case First; case Second; }
 data Slot [copy] { tag: Tag; sentinel: u64; }
-data Main { console: Binding<Console>; slots: [Slot; 3]; }
+data Main { slots: [Slot; 3]; }
 
 machine replace(slots: &mut [Slot; 3], position: u64, value: Tag)
 requires position < 3 {
@@ -26,5 +25,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

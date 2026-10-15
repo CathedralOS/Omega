@@ -1,14 +1,13 @@
 // Intended rejection: a recursive callee writes a live shared-loan subtree.
 use omega::language::core::process_exit;
-use omega::language::core::binding;
 data Count { value: u64; }
 data Work { stable: Count; scratch: f64; }
-machine main(process_exit: &Binding<ProcessExit>) reaches ProcessExit {
+machine main() reaches ProcessExit {
     let mut work: Work; work.stable.value = 3;
     let observed: &Count = &work.stable;
     fill(&mut work, 2);
-    transition observed.value == 3 && work.scratch == 2.0 { true -> good(process_exit) false -> bad(process_exit) }
-    state good(process_exit: &Binding<ProcessExit>) { ProcessExit::exit_process(process_exit, 0); } state bad(process_exit: &Binding<ProcessExit>) { ProcessExit::exit_process(process_exit, 1); }
+    transition observed.value == 3 && work.scratch == 2.0 { true -> good() false -> bad() }
+    state good() { ProcessExit::exit_process(0); } state bad() { ProcessExit::exit_process(1); }
 }
 machine fill(work: &mut Work, remaining: u64) {
     transition remaining > 0 { true -> write(work, remaining) false -> done() }

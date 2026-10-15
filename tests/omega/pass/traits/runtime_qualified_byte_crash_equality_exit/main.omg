@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Byte predicates remain on record fields through a borrowed crash-contract call.
 domain [u8; 8]::Utf8(bytes)
@@ -12,7 +11,7 @@ trait Equatable<T> {
 data Message { active: bool; text: [u8; 8] in Utf8; }
 MessageEquality satisfies Equatable<Message> { }
 
-data Main { console: Binding<Console>; left: Message; right: Message; }
+data Main { left: Message; right: Message; }
 machine Main::inspect(main: &Main)
 crashes Abort
     main.left == main.right
@@ -22,5 +21,5 @@ machine Main::main(main: &mut Main) reaches Console
 crashes Abort
 {
     Main::inspect(main);
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

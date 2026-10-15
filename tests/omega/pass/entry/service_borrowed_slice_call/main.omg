@@ -4,7 +4,6 @@
 // seeds the callee's `&mut [u64]` parameter through the ordinary borrowed-view
 // presentation; dropping that argument once discarded the entry machine's
 // plan and the establishment rejoin failed.
-use omega::language::core::binding;
 
 pub boundary trait Ping {
     machine ping();
@@ -34,7 +33,6 @@ machine Worker::drain(buf: &mut [u64], filter: &Filter, index: u64) {
 }
 
 data Main {
-    console: Binding<Ping>;
     worker: Worker;
     items: [u64; 3];
     filter: Filter;

@@ -1,10 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Child { value: u64; }
 data Holder { child: Child; sibling: u64; }
 data Bag { holders: [Holder; 2]; }
-data Main { console: Binding<Console>; bag: Bag; }
+data Main { bag: Bag; }
 
 machine pick(bag: &mut Bag) -> &mut Holder {
     let holders: &mut [Holder] = &mut bag.holders[..];
@@ -28,5 +27,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

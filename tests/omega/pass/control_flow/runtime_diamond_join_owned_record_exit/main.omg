@@ -1,10 +1,9 @@
 // An owned affine record crosses either branch of a diamond and is disposed
 // once at the join, whichever branch carried it.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Token { id: u32; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine route(token: Token, flag: bool) {
     transition flag {
@@ -18,5 +17,5 @@ machine route(token: Token, flag: bool) {
 
 machine Main::main(main: &mut Main) reaches Console {
     route(Token { id: 9 }, true);
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

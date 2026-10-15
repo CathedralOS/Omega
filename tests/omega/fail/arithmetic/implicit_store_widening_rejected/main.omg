@@ -15,11 +15,10 @@
 // keeps its arithmetic policy" rather than "keeps its type", and would
 // silently reintroduce the widening the carrier rules exclude.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; small: u8; wide: u16; }
+data Main { small: u8; wide: u16; }
 machine Main::main(main: &mut Main) {
     main.small = 7;
     main.wide = main.small;
     let o: i32 = 70;
-    main.console.exit_process(o);
+    Console::exit_process(o);
 }

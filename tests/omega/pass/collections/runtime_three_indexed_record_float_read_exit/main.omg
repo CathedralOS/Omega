@@ -1,13 +1,12 @@
 // Expected exit: 0
 use omega::language::core::float_operations;
-use omega::language::core::binding;
 use omega_language_std::console;
 
 data Storage { cells: [[[f64; 2]; 2]; 2]; }
 data Row { cells: [f64; 2]; }
 data Group { rows: [Row; 2]; }
 data Selector { index: u64; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine read(storage: &Storage, layer: u64, row: u64, column: u64) -> f64
 requires layer <= 1 requires row <= 1 requires column <= 1 {
@@ -43,6 +42,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> done(main)
         _ -> bad(main)
     }
-    state done(main: &mut Main) { main.console.exit_process(0); }
-    state bad(main: &mut Main) { main.console.exit_process(4); }
+    state done(main: &mut Main) { Console::exit_process(0); }
+    state bad(main: &mut Main) { Console::exit_process(4); }
 }

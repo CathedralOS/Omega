@@ -1,6 +1,5 @@
-use omega::language::core::binding;
 pub boundary trait Fill { machine fill(bytes: &mut [u8]); }
-data Main { provider: Binding<Fill>; bytes: [u8; 8]; start: u64 [0..=7]; }
+data Main { bytes: [u8; 8]; start: u64 [0..=7]; }
 machine Main::main(main: &mut Main) reaches Fill {
-    main.provider.fill(&mut main.bytes[main.start..9]);
+    Fill::fill(&mut main.bytes[main.start..9]);
 }

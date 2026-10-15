@@ -1,22 +1,21 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 data Packet { items: [u8; 4]; marker: i32; }
 machine stamp(values: &mut [u8]) {
     transition values.len >= 4 { true -> write(values) _ -> skip() }
     state write(values: &mut [u8]) { values[0] = 70; values[3] = 5; }
     state skip() {}
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut packet: Packet;
-    transition { _ -> check(&main.console, &mut packet) }
-    state check(console: &Binding<Console>, packet: &mut Packet) {
+    transition { _ -> check(&mut packet) }
+    state check(packet: &mut Packet) {
         stamp(&mut packet.items);
         let view: &[u8] = &packet.items[..];
         transition view.len == 4 && packet.items[0] == 70 && packet.items[3] == 5 && packet.marker == 0 {
-            true -> done(console) _ -> failed(console)
+            true -> done() _ -> failed()
         }
     }
-    state done(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state failed(console: &Binding<Console>) { Console::exit_process(console, 71); }
+    state done() { Console::exit_process(70); }
+    state failed() { Console::exit_process(71); }
 }

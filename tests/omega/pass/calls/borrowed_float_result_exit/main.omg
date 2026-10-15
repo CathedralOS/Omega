@@ -1,8 +1,7 @@
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine echo(value: f32, scratch: &mut f32) -> f32 { value }
 
@@ -10,5 +9,5 @@ machine Main::main(main: &mut Main) reaches Console {
     let mut scratch: f32 = 3.0f32;
     let result: f32 = echo(2.5f32, &mut scratch);
     let outcome: i32 = match result { 2.5f32 -> 70, _ -> 71 };
-    main.console.exit_process(outcome);
+    Console::exit_process(outcome);
 }

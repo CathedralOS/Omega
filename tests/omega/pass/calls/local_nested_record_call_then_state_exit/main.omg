@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Buffer {
     bytes: [u8; 16] in Trapping;
@@ -20,7 +19,7 @@ data Workspace {
     cursor: u64 in Trapping;
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Buffer::initialize(buffer: &mut Buffer, length: u64) {
     buffer.length = length;
@@ -52,6 +51,6 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
 
-    state accepted(context: &mut Main) { context.console.exit_process(70); }
-    state rejected(context: &mut Main) { context.console.exit_process(71); }
+    state accepted(context: &mut Main) { Console::exit_process(70); }
+    state rejected(context: &mut Main) { Console::exit_process(71); }
 }

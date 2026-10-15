@@ -20,22 +20,19 @@ use omega_language_std::time;
 
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
-    fs: Binding<PosixFilesystemHost>;
     time: Time;
 }
 
 machine Main::main(context: &mut Main) reaches Console + PosixFilesystemHost {
     let mode: i32 = 438;
     let mut buffer: [u8; 144];
-    let descriptor: i32 = context.fs.create("/tmp/omega_time_interop.txt", mode);
-    let written: i64 = context.fs.write(descriptor, "interop");
-    let closed: i32 = context.fs.close(descriptor);
-    let metadata_status: i32 = context.fs.read_metadata("/tmp/omega_time_interop.txt", &mut buffer);
-    let removed: i32 = context.fs.remove("/tmp/omega_time_interop.txt");
+    let descriptor: i32 = PosixFilesystemHost::create("/tmp/omega_time_interop.txt", mode);
+    let written: i64 = PosixFilesystemHost::write(descriptor, "interop");
+    let closed: i32 = PosixFilesystemHost::close(descriptor);
+    let metadata_status: i32 = PosixFilesystemHost::read_metadata("/tmp/omega_time_interop.txt", &mut buffer);
+    let removed: i32 = PosixFilesystemHost::remove("/tmp/omega_time_interop.txt");
     transition metadata_status == 0 { true -> decode(context, buffer) _ -> bad(context, 71) }
     state decode(context: &mut Main, buffer: [u8; 144]) {
         // carrier note: the little-endian field is assembled in `u64` and
@@ -72,7 +69,7 @@ machine Main::main(context: &mut Main) reaches Console + PosixFilesystemHost {
         // native darwin is ~1.77e9. A zeroed decode fails here.
         transition modified_seconds >= 1000000000 { true -> good(context) _ -> bad(context, 75) }
     }
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main, code: i32) { context.console.exit_process(code); }
-    state bad_backwards(context: &mut Main, amount: Duration) { context.console.exit_process(72); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state bad(context: &mut Main, code: i32) { Console::exit_process(code); }
+    state bad_backwards(context: &mut Main, amount: Duration) { Console::exit_process(72); }
 }

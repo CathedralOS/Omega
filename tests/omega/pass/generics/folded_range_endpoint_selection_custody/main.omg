@@ -3,7 +3,6 @@
 // private checking projection that drops these declarations (the hosted
 // entry plan's premise discharge) neither loses nor orphans them.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine endpoint(value: u64) -> u64 { value }
 machine nested_sum(value: u64[0..=1 + 2 * 3]) -> u64 { value }
@@ -16,13 +15,13 @@ machine wrapped() -> u64 {
     held.value
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let total: u64 = nested_sum(7) + nested_difference(4) + nested_call(257) + wrapped();
     transition total == 275 {
         true -> passed(main)
         false -> failed(main)
     }
-    state passed(main: &mut Main) { main.console.exit_process(70); }
-    state failed(main: &mut Main) { main.console.exit_process(71); }
+    state passed(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }

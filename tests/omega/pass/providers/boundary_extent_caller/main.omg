@@ -5,23 +5,21 @@
 // state-level `requires` carries the length across the boundary.
 // `pump` takes the host binding rather than the whole subject, so its
 // `buffer` is the only exclusive path to `control`.
-use omega::language::core::binding;
 pub boundary trait ByteHost {
     machine read(fd: i32, buffer: &mut [u8], count: u64) -> i64 reaches ByteHost
     requires
         count <= buffer.len;
 }
 data Main {
-    host: Binding<ByteHost>;
     control: [u8; 64];
     n: i64;
 }
 machine Main::main(main: &mut Main) reaches ByteHost {
-    main.n = main.host.read(0, &mut main.control, 64);
-    transition { _ -> pump(&mut main.host, &mut main.control) }
-    state pump(host: &mut Binding<ByteHost>, buffer: &mut [u8])
+    main.n = ByteHost::read(0, &mut main.control, 64);
+    transition { _ -> pump(&mut main.control) }
+    state pump(buffer: &mut [u8])
         requires 64 <= buffer.len;
     {
-        let count: i64 = host.read(0, buffer, 64);
+        let count: i64 = ByteHost::read(0, buffer, 64);
     }
 }

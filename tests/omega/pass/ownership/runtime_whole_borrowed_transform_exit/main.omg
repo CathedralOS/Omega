@@ -1,10 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::drop;
 
 data Inventory [linear] { slots: i32; }
 machine Inventory::drop(inventory: &mut Inventory) {}
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine transform(inventory: Inventory) -> Inventory {
     transition inventory.slots == 41 {
@@ -36,5 +35,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 42)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

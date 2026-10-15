@@ -6,10 +6,8 @@
 
 use omega_language_std::posix_filesystem_host;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    fs: Binding<PosixFilesystemHost>;
     discard: i32;
     mode: i32;
     fd: i32;
@@ -22,10 +20,10 @@ data Main {
 
 machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
     main.mode = 420;
-    main.fd = main.fs.create("/tmp/omega_blocks.txt", main.mode);
-    main.n = main.fs.write(main.fd, "some content here");
-    main.discard = main.fs.close(main.fd);
-    main.rc = main.fs.read_metadata("/tmp/omega_blocks.txt", &mut main.buffer);
+    main.fd = PosixFilesystemHost::create("/tmp/omega_blocks.txt", main.mode);
+    main.n = PosixFilesystemHost::write(main.fd, "some content here");
+    main.discard = PosixFilesystemHost::close(main.fd);
+    main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_blocks.txt", &mut main.buffer);
     // carrier note: each little-endian field is assembled in the unsigned
     // carrier of its own width and reinterpreted once at the end, so every
     // shifted byte is Exact-representable: 255 << 24 is 4278190080 against
@@ -48,8 +46,8 @@ machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
             | (widen_u8_to_u64(main.buffer[109]) << 40)
             | (widen_u8_to_u64(main.buffer[110]) << 48)
             | (widen_u8_to_u64(main.buffer[111]) << 56));
-    main.discard = main.fs.remove("/tmp/omega_blocks.txt");
+    main.discard = PosixFilesystemHost::remove("/tmp/omega_blocks.txt");
     transition main.blksize > 0 { true -> good(main) _ -> fail(main) }
-    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: st_blksize decodes a nonzero preferred I/O size\n"); }
-    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: blocks/blksize\n"); }
+    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: st_blksize decodes a nonzero preferred I/O size\n"); }
+    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: blocks/blksize\n"); }
 }

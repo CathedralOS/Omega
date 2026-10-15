@@ -3,8 +3,7 @@
 // false, not merely unproven. The decimal spelling is compared by value at
 // binary64 (f32 spellings widen losslessly), and only non-NaN terms decide.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::pick(d: f64) -> f64
     requires d > 5.0;
 {
@@ -12,5 +11,5 @@ machine Main::pick(d: f64) -> f64
 }
 machine Main::main(main: &mut Main) {
     let result: f64 = Main::pick(1.5);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

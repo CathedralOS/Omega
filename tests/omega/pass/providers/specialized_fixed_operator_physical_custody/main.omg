@@ -3,7 +3,6 @@
 // selects one specialized concrete local provider whose own receiver-fixed
 // call reaches the selected checked provider.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data IntegerMath {}
 
@@ -19,10 +18,10 @@ requires right >= 1
 boundary machine % IntegerMath::modulo(receiver: IntegerMath, left: i32, right: i32) -> i32
 requires right >= 1;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main)
 reaches Console
 {
-    main.console.exit_process((70 as i32) % (1 as i32));
+    Console::exit_process((70 as i32) % (1 as i32));
 }

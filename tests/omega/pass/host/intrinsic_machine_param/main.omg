@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 // A worker-execution provider bound by the compiler itself: `execute` is
 // generic over a machine symbol and satisfies the trait row through
@@ -21,7 +20,6 @@ satisfies WorkerProvider::execute
 via ForeignBinding::CompilerIntrinsic;
 
 data Main {
-    provider: Binding<WorkerProvider>;
 }
 
 machine Main::main(main: &mut Main) -> u64 {

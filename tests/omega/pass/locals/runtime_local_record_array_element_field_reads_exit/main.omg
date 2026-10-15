@@ -7,13 +7,12 @@
 // only when every element holds what was written to it.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Tally { count: u64 in Wrapping; flag: u64; open: bool; }
 
 data Board { tallies: [Tally; 3]; total: u64; }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut board: Board;
     board.tallies[1].count = 2;
@@ -26,22 +25,22 @@ machine Main::main(main: &mut Main) reaches Console {
     let untouched: u64 = board.tallies[1].flag;
     let closed: bool = board.tallies[2].open;
     transition seen == 2 && flag == 9 && untouched == 0 && board.total == 4 {
-        true -> check_open(&main.console, open, closed)
-        _ -> refused(&main.console, 71)
+        true -> check_open(open, closed)
+        _ -> refused(71)
     }
 
-    state check_open(console: &Binding<Console>, open: bool, closed: bool) {
+    state check_open(open: bool, closed: bool) {
         transition open && !closed {
-            true -> done(console)
-            _ -> refused(console, 72)
+            true -> done()
+            _ -> refused(72)
         }
     }
 
-    state done(console: &Binding<Console>) {
-        Console::exit_process(console, 70);
+    state done() {
+        Console::exit_process(70);
     }
 
-    state refused(console: &Binding<Console>, code: i32) {
-        Console::exit_process(console, code);
+    state refused(code: i32) {
+        Console::exit_process(code);
     }
 }

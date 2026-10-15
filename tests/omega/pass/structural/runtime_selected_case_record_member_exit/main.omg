@@ -1,6 +1,5 @@
 // Same-spelled payloads keep their selected case through nested member reads.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Reset { success: bool; }
 data Metadata { valid: bool; count: i32; }
@@ -9,7 +8,7 @@ data Response {
     case Reset(response: Reset);
     case Scanned(response: Scanned);
 }
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::inspect(main: &mut Main, response: Response) reaches Console {
     transition response {
@@ -22,8 +21,8 @@ machine Main::inspect(main: &mut Main, response: Response) reaches Console {
             false -> failure(main)
         }
     }
-    state success(main: &mut Main) { main.console.exit_process(42); }
-    state failure(main: &mut Main) { main.console.exit_process(1); }
+    state success(main: &mut Main) { Console::exit_process(42); }
+    state failure(main: &mut Main) { Console::exit_process(1); }
 }
 
 machine Main::main(main: &mut Main) reaches Console {

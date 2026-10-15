@@ -1,7 +1,6 @@
 // Measured mutual Unit tail calls preserve the caller's borrowed data.
 // Main resumes after the complete cycle with its separate local still intact.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Counter { value: u64 in Trapping; }
 machine left(counter: &mut Counter, depth: u64)
 terminates by depth;
@@ -19,13 +18,13 @@ terminates by depth;
     transition depth == 0 { true -> done() _ -> left(counter, depth - 1) }
     state done() { }
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut counter: Counter;
     let mut untouched: Counter;
     untouched.value = 100 as u64 in Trapping;
     left(&mut counter, 6);
-    transition counter.value == 42 && untouched.value == 100 { true -> good(&main.console) false -> bad(&main.console) }
-    state good(console: &Binding<Console>) { Console::write_line(console, "mutual Unit frames: 42"); Console::exit_process(console, 70); }
-    state bad(console: &Binding<Console>) { Console::exit_process(console, 71); }
+    transition counter.value == 42 && untouched.value == 100 { true -> good() false -> bad() }
+    state good() { Console::write_line("mutual Unit frames: 42"); Console::exit_process(70); }
+    state bad() { Console::exit_process(71); }
 }

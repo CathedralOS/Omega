@@ -1,8 +1,7 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Choice [copy] { case Empty; case First; case Second; }
-data Main { console: Binding<Console>; left: Choice; right: Choice; }
+data Main { left: Choice; right: Choice; }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.left = Choice::First;
@@ -24,5 +23,5 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> finish(main, 2)
         }
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

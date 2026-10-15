@@ -1,9 +1,8 @@
 // Equivalent bounded sums retain independent carrier proofs through a
 // local value, a record field, a call result, and a later state.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Ledger { value: u64; }
-data Main { console: Binding<Console>; ledger: Ledger; }
+data Main { ledger: Ledger; }
 machine identity(value: u64) -> u64 { value }
 machine fingerprint(value: u64) -> u64 {
     (value % 100 * 2 + value % 100 * 3 + value % 100 * 5 + value % 100 * 7 + value % 100 * 11 + value % 100 * 13 + value % 100 * 17 + value % 100 * 19 + value % 100 * 23 + value % 100 * 29 + value % 100 * 31 + value % 100 * 37 + value % 100 * 41) % 191 + 1
@@ -27,6 +26,6 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> rejected(main)
         }
     }
-    state accepted(main: &mut Main) { main.console.exit_process(48); }
-    state rejected(main: &mut Main) { main.console.exit_process(1); }
+    state accepted(main: &mut Main) { Console::exit_process(48); }
+    state rejected(main: &mut Main) { Console::exit_process(1); }
 }

@@ -4,9 +4,8 @@
 // predecessor rebound after the call, not the header's; the ranked cycle
 // keeps exactly the one authored descent.
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; values: [i32; 6]; }
+data Main { values: [i32; 6]; }
 
 machine swap_descending(values: &mut [i32; 6], position: u64) -> bool
 requires position < 6
@@ -60,6 +59,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> reached(main)
         _ -> missed(main)
     }
-    state reached(main: &mut Main) { main.console.exit_process(70); }
-    state missed(main: &mut Main) { main.console.exit_process(71); }
+    state reached(main: &mut Main) { Console::exit_process(70); }
+    state missed(main: &mut Main) { Console::exit_process(71); }
 }

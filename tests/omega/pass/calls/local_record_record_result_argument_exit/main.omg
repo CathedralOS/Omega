@@ -6,7 +6,6 @@
 // both reports and the caller's own local agree.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Tally { hits: i32 in Wrapping; misses: i32 in Wrapping; }
 data Report { total: i32 in Wrapping; }
@@ -17,17 +16,17 @@ machine Tally::record(tally: &mut Tally, hits: i32 in Wrapping, misses: i32 in W
     transition { _ -> (Report { total: tally.hits + tally.misses }) }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut tally: Tally;
     let first: Report = Tally::record(&mut tally, 30, 0);
     let second: Report = Tally::record(&mut tally, 0, 10);
     transition first.total == 30 && second.total == 40 && tally.hits == 30 && tally.misses == 10 {
-        true -> done(&main.console, 70)
-        _ -> done(&main.console, 71)
+        true -> done(70)
+        _ -> done(71)
     }
 
-    state done(console: &Binding<Console>, code: i32) {
-        Console::exit_process(console, code);
+    state done(code: i32) {
+        Console::exit_process(code);
     }
 }

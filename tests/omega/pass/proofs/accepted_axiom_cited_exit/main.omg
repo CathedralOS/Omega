@@ -1,7 +1,6 @@
 use omega::language::core::nat;
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 
 // An axiom about an UNPROVEN shape, cited by a lemma: the citation
 // delivers the accepted fact into the lemma's hypothesis base.
@@ -24,5 +23,5 @@ ensures
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

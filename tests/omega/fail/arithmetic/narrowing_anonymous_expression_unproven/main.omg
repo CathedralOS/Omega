@@ -2,9 +2,8 @@
 // The final mathematical value exceeds i32, so its contextual landing rejects
 // before runtime storage. The same rule governs ordinary scalar destinations.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) {
     let values: [i32; 1] = [2147483647 + 1];
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

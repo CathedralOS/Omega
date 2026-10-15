@@ -13,8 +13,7 @@ use omega::language::core::float_operations;
 // ALWAYS arms so an effectful callee cannot run for a not-taken arm.
 use omega_language_std::math;
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine dbl(x: i32) -> i32
 requires 0 <= x && x <= 1000
 {
@@ -43,8 +42,8 @@ machine Main::main(main: &mut Main) reaches Console {
         let c: f64 = cos_via_terminal(1.0);
         transition c > 0.54030230586 && c < 0.54030230587 { true -> good(main) _ -> bad_c(main) }
     }
-    state good(main: &mut Main)  { main.console.exit_process(70); }
-    state bad_d(main: &mut Main) { main.console.exit_process(72); }
-    state bad_p(main: &mut Main) { main.console.exit_process(73); }
-    state bad_c(main: &mut Main) { main.console.exit_process(74); }
+    state good(main: &mut Main)  { Console::exit_process(70); }
+    state bad_d(main: &mut Main) { Console::exit_process(72); }
+    state bad_p(main: &mut Main) { Console::exit_process(73); }
+    state bad_c(main: &mut Main) { Console::exit_process(74); }
 }

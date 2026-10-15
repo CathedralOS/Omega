@@ -1,5 +1,4 @@
 // Expected exit: 0.
-use omega::language::core::binding;
 pub data Resource { identity: u64; }
 pub domain Resource::Open(resource) requires resource.identity != 0 established by acquire;
 machine acquire() -> Resource in Open { Resource { identity: 73 } }
@@ -11,7 +10,7 @@ machine close(resource: Resource in Open) crashes Trap {
     state done() {}
     state wrong() { crash Trap; }
 }
-data Main { source: Binding<Source>; }
+data Main { }
 machine Main::main(context: &mut Main) reaches Source crashes Trap {
-    close(Source::open(&context.source));
+    close(Source::open());
 }

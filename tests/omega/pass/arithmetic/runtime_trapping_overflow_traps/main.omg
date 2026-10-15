@@ -8,10 +8,9 @@
 // fail. Compiles cleanly (Trapping is the DECLARED escape from the decision-17
 // proof obligation); the partiality is the declared behavior.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(context: &mut Main) reaches Console {
     let value: i32 in Trapping = 2147483647;
     let incremented: i32 in Trapping = value + 1;
-    context.console.exit_process(70);
+    Console::exit_process(70);
 }

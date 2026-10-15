@@ -1,24 +1,23 @@
 // An owned state input may be mutated through its own exclusive loan, then
 // forwarded once. Binding mutability does not change incoming owned custody.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Amount { value: i32; }
 machine reset(amount: &write Amount) { amount.value = 0; }
 machine replace(amount: &mut Amount) { amount.value = 70; }
 machine consume(amount: Amount) -> i32 { amount.value }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let amount: Amount = Amount { value: 1 };
-    transition { _ -> arrived(&main.console, amount) }
-    state arrived(console: &Binding<Console>, mut amount: Amount) {
+    transition { _ -> arrived(amount) }
+    state arrived(mut amount: Amount) {
         reset(&write amount);
         replace(&mut amount);
-        transition { _ -> finished(console, amount) }
+        transition { _ -> finished(amount) }
     }
-    state finished(console: &Binding<Console>, amount: Amount) {
+    state finished(amount: Amount) {
         let observed: i32 = consume(amount);
-        Console::exit_process(console, observed);
+        Console::exit_process(observed);
     }
 }

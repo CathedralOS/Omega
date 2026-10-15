@@ -1,6 +1,5 @@
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
-use omega::language::core::binding;
 
 data Inner [copy] { value: i32; }
 data Outer [copy] { inner: Inner; }
@@ -8,7 +7,7 @@ machine make() -> Outer { Outer { inner: Inner { value: 7 } } }
 const VALUE: Outer = make();
 const STATUS: i32 = VALUE.inner.value;
 
-data Main { exit: Binding<ProcessExit>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches ProcessExit {
-    main.exit.exit_process(STATUS);
+    ProcessExit::exit_process(STATUS);
 }

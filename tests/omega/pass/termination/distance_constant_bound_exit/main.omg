@@ -3,9 +3,8 @@
 // guard `index < 8` keeps the cursor below the bound, and the bound has no
 // parameter to thread through the cycle.
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine count_to_eight(index: u64) -> u64
 terminates by (index, 8) -> Nat::BoundedDistance;
@@ -32,6 +31,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> reached(main)
         _ -> missed(main)
     }
-    state reached(main: &mut Main) { main.console.exit_process(70); }
-    state missed(main: &mut Main) { main.console.exit_process(71); }
+    state reached(main: &mut Main) { Console::exit_process(70); }
+    state missed(main: &mut Main) { Console::exit_process(71); }
 }

@@ -9,9 +9,8 @@
 // fenced by calls/value_call_effectful_arm_rejected until arm bodies are
 // guarded per-arm. exit 70 = all four values right; 71..74 name the leg.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Vec2 { x: i32 in Wrapping; y: i32 in Wrapping; }
-data Main { console: Binding<Console>; d: i32; v: i32; vec: Vec2; }
+data Main { d: i32; v: i32; vec: Vec2; }
 machine Main::delta(main: &Main, d: i32) -> Vec2 {
     transition d == 1 { true -> pos() _ -> neg() }
     state pos() -> Vec2 { Vec2 { x: 3, y: 4 } }
@@ -39,6 +38,6 @@ machine Main::main(main: &mut Main) reaches Console {
         let m: i32 = pick(9);
         transition m == 100 { true -> good(main) _ -> bad(main, 74) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

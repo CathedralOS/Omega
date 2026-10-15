@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Payload { left: u64; right: u64; }
 data Pair { first: Payload; second: Payload; }
@@ -31,7 +30,7 @@ machine call_field(selected: u64) -> u64 {
     result.left
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let l0: u64 = local_field(0);
@@ -51,6 +50,6 @@ machine Main::main(main: &mut Main) reaches Console {
     state c1wrong(main: &mut Main, c1: u64) {
         transition c1 == 251 { true -> exit(main, 75) _ -> exit(main, 76) }
     }
-    state c1ok(main: &mut Main) { main.console.exit_process(70); }
-    state exit(main: &mut Main, code: u64) { main.console.exit_process(code as i32); }
+    state c1ok(main: &mut Main) { Console::exit_process(70); }
+    state exit(main: &mut Main, code: u64) { Console::exit_process(code as i32); }
 }

@@ -1,8 +1,7 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell [copy] { value: u64; stamp: u64; }
-data Main { console: Binding<Console>; cells: [Cell; 9]; }
+data Main { cells: [Cell; 9]; }
 
 machine combine<'destination>(
     first: &Cell,
@@ -43,5 +42,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

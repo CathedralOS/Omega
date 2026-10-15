@@ -4,11 +4,10 @@
 // algebra: addr +/- count offsets; addr - addr measures. Multiplying,
 // dividing, or shifting an address rejects through the same fence.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) {
     let a: addr = 4096;
     let b: addr = 4000;
     let r: addr = a + b;
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

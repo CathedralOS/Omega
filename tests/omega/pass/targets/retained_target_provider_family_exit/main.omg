@@ -2,7 +2,6 @@
 // candidates, while this invocation installs only its own target's body.
 // A distinct competing provider must not donate its body to that selection.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub data Value {}
 pub boundary requirement Value::read(input: i32) -> i32
@@ -24,8 +23,8 @@ pub data OtherValue {}
 machine OtherValue::read(input: i32) -> i32
 satisfies Value::read ensures result == input { input }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let selected: i32 = Value::read(70);
-    main.console.exit_process(selected);
+    Console::exit_process(selected);
 }

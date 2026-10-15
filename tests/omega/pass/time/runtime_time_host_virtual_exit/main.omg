@@ -9,44 +9,41 @@
 use omega_language_std::time_host;
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
-    host: Binding<TimeHost>;
     second_ticks: u64;
 }
 
 machine Main::main(main: &mut Main) reaches Console + TimeHost {
-    let mut first_ticks: u64 = main.host.monotonic_ticks();
-    block main.host.sleep(30);
-    main.second_ticks = main.host.monotonic_ticks();
+    let mut first_ticks: u64 = TimeHost::monotonic_ticks();
+    block TimeHost::sleep(30);
+    main.second_ticks = TimeHost::monotonic_ticks();
     transition (main.second_ticks as u64 in Wrapping) == (first_ticks as u64 in Wrapping) + 30 {
         true -> check_frequency(main)
         false -> fail_delta(main)
     }
     state check_frequency(main: &mut Main) {
-        let mut frequency: u64 = main.host.monotonic_ticks_per_second();
+        let mut frequency: u64 = TimeHost::monotonic_ticks_per_second();
         transition frequency == 1000 { true -> check_wall(main) false -> fail_frequency(main) }
     }
     state check_wall(main: &mut Main) {
-        let mut wall_raw: u64 = main.host.wall_clock_raw();
+        let mut wall_raw: u64 = TimeHost::wall_clock_raw();
         transition (wall_raw as u64 in Wrapping) == (main.second_ticks as u64 in Wrapping) + 1767225600000 {
             true -> check_wall_units(main)
             false -> fail_wall(main)
         }
     }
     state check_wall_units(main: &mut Main) {
-        let mut wall_units: u64 = main.host.wall_clock_units_per_second();
-        let mut wall_offset: u64 = main.host.wall_clock_epoch_offset_seconds();
+        let mut wall_units: u64 = TimeHost::wall_clock_units_per_second();
+        let mut wall_offset: u64 = TimeHost::wall_clock_epoch_offset_seconds();
         transition wall_units == 1000 && wall_offset == 0 {
             true -> good(main)
             false -> fail_wall_units(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state fail_delta(main: &mut Main) { main.console.exit_process(1); }
-    state fail_frequency(main: &mut Main) { main.console.exit_process(2); }
-    state fail_wall(main: &mut Main) { main.console.exit_process(3); }
-    state fail_wall_units(main: &mut Main) { main.console.exit_process(4); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state fail_delta(main: &mut Main) { Console::exit_process(1); }
+    state fail_frequency(main: &mut Main) { Console::exit_process(2); }
+    state fail_wall(main: &mut Main) { Console::exit_process(3); }
+    state fail_wall_units(main: &mut Main) { Console::exit_process(4); }
 }

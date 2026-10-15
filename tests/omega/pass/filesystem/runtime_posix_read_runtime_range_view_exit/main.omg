@@ -6,10 +6,8 @@
 // transfers accumulate to EOF, a `&mut [u8; N]` parameter windowed by its
 // caller, and a local buffer, each read twice into the same backing.
 use omega_language_std::posix_filesystem_host;
-use omega::language::core::binding;
 
 data Main {
-    fs: Binding<PosixFilesystemHost>;
     source: [u8; 300];
     buffer: [u8; 320];
     window: [u8; 64];
@@ -25,20 +23,20 @@ data Main {
 
 // A caller-chosen window of a borrowed fixed buffer. The caller's second
 // call reuses the buffer from a later offset.
-machine read_window(fs: &Binding<PosixFilesystemHost>, fd: i32, bytes: &mut [u8; 64], start: u64 [0..=64]) -> i64
+machine read_window(fd: i32, bytes: &mut [u8; 64], start: u64 [0..=64]) -> i64
     reaches PosixFilesystemHost
 {
-    fs.read(fd, &mut bytes[start..64], 64 - start)
+    PosixFilesystemHost::read(fd, &mut bytes[start..64], 64 - start)
 }
 
 // The same window over a local buffer, read twice; the sentinel past the
 // window and the bytes the second transfer placed decide the result.
-machine read_local(fs: &Binding<PosixFilesystemHost>, fd: i32, start: u64 [0..=7]) -> i64
+machine read_local(fd: i32, start: u64 [0..=7]) -> i64
     reaches PosixFilesystemHost
 {
     let mut local: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 9];
-    let first: i64 = fs.read(fd, &mut local[start..7], 7 - start);
-    let second: i64 = fs.read(fd, &mut local[start..7], 7 - start);
+    let first: i64 = PosixFilesystemHost::read(fd, &mut local[start..7], 7 - start);
+    let second: i64 = PosixFilesystemHost::read(fd, &mut local[start..7], 7 - start);
     transition first == 4 && second == 4 && local[0] == 0 && local[3] == 33 && local[7] == 9 {
         true -> (1)
         _ -> (0)
@@ -53,14 +51,14 @@ machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
     main.source[100] = 33;
     main.source[299] = 44;
     main.buffer[319] = 7;
-    main.discard = main.fs.remove("/tmp/omega_runtime_range_view_read.txt");
-    main.fd = main.fs.create("/tmp/omega_runtime_range_view_read.txt", 420);
+    main.discard = PosixFilesystemHost::remove("/tmp/omega_runtime_range_view_read.txt");
+    main.fd = PosixFilesystemHost::create("/tmp/omega_runtime_range_view_read.txt", 420);
     transition main.fd >= 0 { true -> write(main) _ -> fail(main) }
 
     state write(main: &mut Main) {
-        main.n = main.fs.write(main.fd, &main.source[0..300]);
-        main.discard = main.fs.close(main.fd);
-        main.fd = main.fs.open("/tmp/omega_runtime_range_view_read.txt", 0);
+        main.n = PosixFilesystemHost::write(main.fd, &main.source[0..300]);
+        main.discard = PosixFilesystemHost::close(main.fd);
+        main.fd = PosixFilesystemHost::open("/tmp/omega_runtime_range_view_read.txt", 0);
         transition main.n == 300 && main.fd >= 0 { true -> read_go(main) _ -> fail(main) }
     }
 
@@ -73,7 +71,7 @@ machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
         transition main.received < 320 { true -> read_chunk(main) _ -> read_close(main) }
     }
     state read_chunk(main: &mut Main) {
-        main.n = main.fs.read(main.fd, &mut main.buffer[main.received..320], 320 - main.received);
+        main.n = PosixFilesystemHost::read(main.fd, &mut main.buffer[main.received..320], 320 - main.received);
         transition main.n > 0 { true -> read_count(main) _ -> read_close(main) }
     }
     state read_count(main: &mut Main) {
@@ -98,9 +96,9 @@ machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
 
     // --- a `&mut [u8; 64]` parameter windowed by the caller, reused ---
     state rewind(main: &mut Main) {
-        main.cursor = main.fs.seek(main.fd, 0, 0);
-        main.first = read_window(&main.fs, main.fd, &mut main.window, 0);
-        main.second = read_window(&main.fs, main.fd, &mut main.window, 32);
+        main.cursor = PosixFilesystemHost::seek(main.fd, 0, 0);
+        main.first = read_window(main.fd, &mut main.window, 0);
+        main.second = read_window(main.fd, &mut main.window, 32);
         transition main.cursor == 0 && main.first == 64 && main.second == 32
             && main.window[0] == 11 && main.window[31] == 66 && main.window[32] == 55 {
             true -> local(main)
@@ -110,17 +108,17 @@ machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
 
     // --- a local buffer windowed from a parameter offset, reused ---
     state local(main: &mut Main) {
-        main.local = read_local(&main.fs, main.fd, 3);
+        main.local = read_local(main.fd, 3);
         transition main.local == 1 { true -> success(main) _ -> fail(main) }
     }
     state success(main: &mut Main) {
-        main.discard = main.fs.close(main.fd);
-        main.discard = main.fs.remove("/tmp/omega_runtime_range_view_read.txt");
-        main.n = main.fs.write(1, "PASS: runtime range views, 300 bytes to EOF, windowed parameter and local reuse\n");
+        main.discard = PosixFilesystemHost::close(main.fd);
+        main.discard = PosixFilesystemHost::remove("/tmp/omega_runtime_range_view_read.txt");
+        main.n = PosixFilesystemHost::write(1, "PASS: runtime range views, 300 bytes to EOF, windowed parameter and local reuse\n");
     }
     state fail(main: &mut Main) {
-        main.discard = main.fs.close(main.fd);
-        main.discard = main.fs.remove("/tmp/omega_runtime_range_view_read.txt");
-        main.n = main.fs.write(1, "FAIL: runtime range view read\n");
+        main.discard = PosixFilesystemHost::close(main.fd);
+        main.discard = PosixFilesystemHost::remove("/tmp/omega_runtime_range_view_read.txt");
+        main.n = PosixFilesystemHost::write(1, "FAIL: runtime range view read\n");
     }
 }

@@ -4,13 +4,12 @@
 // overflow at the type's upper bound. climb(0) walks 0..70 through the false
 // arm, then the true arm exits 70.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::climb(context: &mut Main, n: i32) reaches Console {
     transition n >= 70 {
         true -> done(context, n)
         false -> Main::climb(context, n + 1)
     }
-    state done(context: &mut Main, n: i32) { context.console.exit_process(n); }
+    state done(context: &mut Main, n: i32) { Console::exit_process(n); }
 }
 machine Main::main(context: &mut Main) { Main::climb(context, 0); }

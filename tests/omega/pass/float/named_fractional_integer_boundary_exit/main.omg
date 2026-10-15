@@ -1,16 +1,15 @@
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Named conversions check the truncated result; Exact `as` cannot truncate.
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let signed_lower: i32 = I32::from_f64(-2147483648.5f64);
     let unsigned_lower: u32 = U32::from_f64(-0.5f64);
     transition signed_lower == -2147483648 && unsigned_lower == 0u32 {
-        true -> good(&main.console)
-        false -> bad(&main.console)
+        true -> good()
+        false -> bad()
     }
-    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state bad(console: &Binding<Console>) { Console::exit_process(console, 71); }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(71); }
 }

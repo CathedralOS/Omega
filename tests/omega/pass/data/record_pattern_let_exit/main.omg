@@ -5,7 +5,6 @@
 // fields keep the decision-17 exact-arithmetic obligation dischargeable.
 // The runtime self-check accepts only 30 + 40 = 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Point
 where
     0 <= x,
@@ -19,12 +18,12 @@ where
     y: i32;
     z: i32;
 }
-data Main { console: Binding<Console>; point: Point; }
+data Main { point: Point; }
 machine Main::main(main: &mut Main) reaches Console {
     main.point = Point { x: 30, y: 40, z: 5 };
     let { x, y as vertical, z as _ } = main.point;
     let total: i32 = x + vertical;
     transition total == 70 { true -> good(main) _ -> bad(main) }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }

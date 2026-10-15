@@ -14,11 +14,10 @@
 // runtime". A warning, not an error (owner: no compelling reason to forbid
 // it) -- the program compiles and traps as requested.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let a: i32 in Trapping = 2000000000;
     let b: i32 in Trapping = a + a;
-    main.console.exit_process(7);
+    Console::exit_process(7);
 }
 machine Main::run(main: &mut Main) { Main::main(main); }

@@ -1,17 +1,16 @@
 // An explicit parameter stops contributing after its last field read:
 // `message` is consumed for `value` before the suspend edge, so only
 // the scalar crosses — the record needs no suspend carry.
-use omega::language::core::binding;
 boundary data Lease;
 data Message {
     lease: Lease;
     value: i32;
 }
 pub boundary trait Scheduler { machine park() suspends; }
-machine inspect(message: Message, scheduler: Binding<Scheduler>)
+machine inspect(message: Message)
 suspends; reaches Scheduler {
     let value: i32 = message.value;
-    suspend scheduler.park();
+    suspend Scheduler::park();
 }
 data Main { }
 machine Main::main(main: &mut Main) { }

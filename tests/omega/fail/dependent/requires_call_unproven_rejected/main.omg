@@ -7,13 +7,12 @@
 // also refuses (the caller state's own preservation scan).
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; a: u32; b: u32; out: i32; }
+data Main { a: u32; b: u32; out: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.a = 9;
     main.b = 3;
     Main::helper(main);
-    main.console.exit_process(main.out);
+    Console::exit_process(main.out);
 }
 machine Main::helper(main: &mut Main) requires main.a <= main.b {
     let diff: u32 = main.b - main.a;

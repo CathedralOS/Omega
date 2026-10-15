@@ -1,9 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Tag [copy] { case First; case Second; }
 data Receiver { sentinel: u64; }
-data Main { console: Binding<Console>; receiver: Receiver; tag: Tag; }
+data Main { receiver: Receiver; tag: Tag; }
 
 machine Receiver::accept(receiver: &mut Receiver, tag: Tag) {}
 machine Receiver::observe(receiver: &mut Receiver, tag: Tag) {
@@ -25,5 +24,5 @@ machine Main::main(main: &mut Main) reaches Console {
         before == 29 && main.receiver.sentinel == 41 && main.tag == Tag::Second -> finish(main, 70)
         _ -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

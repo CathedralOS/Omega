@@ -11,8 +11,7 @@
 // (`i - main.count`) stays refused (probed -- underflow is real there).
 // exits: 8 - 6 = 2.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main where count <= 11 { console: Binding<Console>; count: u32; j: u32; out: i32; }
+data Main where count <= 11 { count: u32; j: u32; out: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.count = 8;
     main.j = 6;
@@ -22,7 +21,7 @@ machine Main::main(main: &mut Main) reaches Console {
     {
         let remaining: u32 = main.count - main.j;
         main.out = remaining as i32;
-        main.console.exit_process(main.out);
+        Console::exit_process(main.out);
     }
-    state bad(main: &mut Main) { main.console.exit_process(9); }
+    state bad(main: &mut Main) { Console::exit_process(9); }
 }

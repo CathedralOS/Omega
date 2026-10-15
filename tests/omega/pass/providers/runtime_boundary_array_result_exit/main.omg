@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega_language_std::console;
 
 pub boundary trait ArrayFactory {
@@ -9,15 +8,13 @@ machine ArrayFactoryProvider::produce() -> [u8; 2]
 satisfies ArrayFactory::produce { [30, 40] }
 
 data Main {
-    console: Binding<Console>;
-    factory: Binding<ArrayFactory>;
 }
 machine Main::main(main: &mut Main) reaches Console, ArrayFactory {
-    let values: [u8; 2] = main.factory.produce();
+    let values: [u8; 2] = ArrayFactory::produce();
     transition values[0] == 30 && values[1] == 40 {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(72); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(72); }
 }

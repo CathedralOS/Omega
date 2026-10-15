@@ -10,8 +10,7 @@
 // inc(40) = 42; main exits 42.
 
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine inc(x: i32) -> i32
     requires x < 99
@@ -21,5 +20,5 @@ machine inc(x: i32) -> i32
 
 machine Main::main(context: &mut Main) reaches Console {
     let result: i32 = inc(40);
-    context.console.exit_process(result);
+    Console::exit_process(result);
 }

@@ -3,9 +3,8 @@
 // Widening back to binary64 is exact, and infinity remains ordinary and total.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let halfway: f64 = 1.000000059604644775390625;
@@ -31,6 +30,6 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(77); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(77); }
 }

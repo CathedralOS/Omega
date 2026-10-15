@@ -7,12 +7,11 @@
 // bare nullary cases tag-only). Unservable fields stay loud via the
 // call-result blocker. Differential.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Verdict {
     case Nope;
     case Yes(score: i32 in Wrapping);
 }
-data Main { console: Binding<Console>; result: Verdict; }
+data Main { result: Verdict; }
 machine Main::count(main: &mut Main, i: u64, j: u64, acc: i32 in Wrapping)
 terminates by (j, i) -> Nat::BoundedDistance;
 -> Verdict
@@ -33,6 +32,6 @@ machine Main::main(main: &mut Main) reaches Console {
     state ck(main: &mut Main, score: i32 in Wrapping) {
         transition score == 15 { true -> good(main) _ -> bad(main, 72) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

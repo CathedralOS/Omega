@@ -1,10 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 
 // Both carriers retain boundary requirement selections below their initializer.
 data Pair { left: f64; right: f64; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(root: &mut Main) reaches Console {
     let pair: Pair = Pair { left: 12.0 / 3.0, right: 10.0 / 2.0 };
     let values: [f64; 2] = [18.0 / 3.0, 28.0 / 4.0];
@@ -13,9 +12,9 @@ machine Main::main(root: &mut Main) reaches Console {
         false -> failure(root)
     }
     state success(root: &mut Main) {
-        root.console.exit_process(0);
+        Console::exit_process(0);
     }
     state failure(root: &mut Main) {
-        root.console.exit_process(1);
+        Console::exit_process(1);
     }
 }

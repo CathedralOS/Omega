@@ -6,14 +6,13 @@
 // exit 2 or 3 exposes a repeated evaluation, 4 a wrong payload, and 71 a
 // wrong arm.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Pick {
     case First(v: i32);
     case Second(v: i32);
 }
 
-data Main { console: Binding<Console>; calls: u32 in Wrapping; }
+data Main { calls: u32 in Wrapping; }
 
 machine Main::pick(main: &mut Main, second: bool) -> Pick {
     main.calls = main.calls + 1;
@@ -55,9 +54,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state second_payload(main: &mut Main, v: i32) {
         transition v == 20 { true -> good(main) _ -> wrong_payload(main) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state exit_two(main: &mut Main) { main.console.exit_process(2); }
-    state exit_three(main: &mut Main) { main.console.exit_process(3); }
-    state wrong_payload(main: &mut Main) { main.console.exit_process(4); }
-    state wrong_arm(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state exit_two(main: &mut Main) { Console::exit_process(2); }
+    state exit_three(main: &mut Main) { Console::exit_process(3); }
+    state wrong_payload(main: &mut Main) { Console::exit_process(4); }
+    state wrong_arm(main: &mut Main) { Console::exit_process(71); }
 }

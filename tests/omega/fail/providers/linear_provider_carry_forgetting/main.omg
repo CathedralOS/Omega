@@ -1,14 +1,13 @@
-use omega::language::core::binding;
 pub data Token [linear, carry(suspension: forbidden, cpu: any, thread: any, address: movable)] { value: u64; }
 pub boundary trait Flow { machine forward(token: Token) -> Token; }
 pub boundary trait Scheduler { machine park() suspends; }
 data Provider {}
 machine Provider::forward(token: Token) -> Token satisfies Flow::forward { token }
-data Harness { flow: Binding<Flow>; scheduler: Binding<Scheduler>; }
+data Harness { }
 machine Harness::forget(harness: &Harness, token: Token) -> Token suspends; reaches Flow + Scheduler {
-    let issued: Token = harness.flow.forward(token);
+    let issued: Token = Flow::forward(token);
     let forgotten: Token = issued as Token;
-    suspend harness.scheduler.park();
+    suspend Scheduler::park();
     transition { _ -> forgotten }
 }
 machine main() {}

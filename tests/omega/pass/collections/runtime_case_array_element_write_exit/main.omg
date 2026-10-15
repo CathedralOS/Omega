@@ -7,7 +7,6 @@
 // Plan work).
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 data FieldPlan {
     case At(offset: i64, width: i64);
     case Skip;
@@ -16,7 +15,7 @@ data Main
 where
     0 <= i,
     i <= 3,
-{ console: Binding<Console>; plans: [FieldPlan; 4]; i: i64; a: i64 in Wrapping; b: i64 in Wrapping; r: i32; }
+{ plans: [FieldPlan; 4]; i: i64; a: i64 in Wrapping; b: i64 in Wrapping; r: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.plans[0] = FieldPlan::At { offset: 8, width: 4 };
     main.i = 2;
@@ -35,7 +34,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state second(main: &mut Main, v: i64 in Wrapping) {
         main.b = v;
         main.r = narrow_i64_to_i32_trapping((main.a + main.b) as i64);
-        main.console.exit_process(main.r);
+        Console::exit_process(main.r);
     }
-    state bad(main: &mut Main) { main.console.exit_process(99); }
+    state bad(main: &mut Main) { Console::exit_process(99); }
 }

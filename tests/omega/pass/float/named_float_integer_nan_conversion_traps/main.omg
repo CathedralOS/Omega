@@ -1,11 +1,10 @@
 // Trapping named conversion must reject unordered input, not return an ISA sentinel.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let nan: f64 = 0.0f64 / 0.0;
     let converted: i32 in Trapping = I32::from_f64(nan);
-    Console::exit_process(&main.console, converted as i32);
+    Console::exit_process(converted as i32);
 }

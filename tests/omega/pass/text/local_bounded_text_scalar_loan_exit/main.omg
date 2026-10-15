@@ -15,7 +15,6 @@ requires
     valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 machine digit_sum(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
     transition {
@@ -71,18 +70,18 @@ machine forwarded_length(text: &[u8; 8] in Utf8) -> u64 {
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let text: [u8; 8] in Utf8 = "150";
     let sum: i32 in Wrapping = digit_sum(&text);
     let length: u64 = live_length(&text);
     let forwarded: u64 = forwarded_length(&text);
     transition sum == 6 && length == 3 && forwarded == 3 {
-        true -> finish(&main.console, 70)
-        _ -> finish(&main.console, 71)
+        true -> finish(70)
+        _ -> finish(71)
     }
 
-    state finish(console: &Binding<Console>, code: i32) {
-        Console::exit_process(console, code);
+    state finish(code: i32) {
+        Console::exit_process(code);
     }
 }

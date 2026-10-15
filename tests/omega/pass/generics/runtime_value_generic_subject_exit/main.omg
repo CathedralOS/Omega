@@ -15,7 +15,6 @@
 // Exit 17 = 3 (direct n) + 5 (forwarded source) + 5 (bounded source)
 //         + 4 (closed static specialization).
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine prefix_count<Count: i32>(base: i32) -> i32 in Wrapping {
     Count as i32 in Wrapping
@@ -41,7 +40,7 @@ machine reassigned_source() -> i32 in Wrapping {
     forwarded + obliged
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main)
 reaches Console {
     let n: i32 = 3;
@@ -49,5 +48,5 @@ reaches Console {
     let reassigned: i32 in Wrapping = reassigned_source();
     let closed: i32 in Wrapping = prefix_count<4>(9);
     let total: i32 in Wrapping = direct + reassigned + closed;
-    Console::exit_process(&main.console, total as i32);
+    Console::exit_process(total as i32);
 }

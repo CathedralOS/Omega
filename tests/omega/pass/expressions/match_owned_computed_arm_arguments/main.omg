@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Payload { left: u64; right: u64; }
 data Pair { first: Payload; second: Payload; }
@@ -37,7 +36,7 @@ machine mix_e(selected: u64, first: u64, second: u64) -> u64 {
     result.left
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     // mix_d(1,4,6): supply(251,249).second.left = 249 expected
@@ -48,6 +47,6 @@ machine Main::main(main: &mut Main) reaches Console {
         let e: u64 = mix_e(1, 4, 6);
         transition e == 249 { true -> e_ok(main) _ -> exit(main, 82) }
     }
-    state e_ok(main: &mut Main) { main.console.exit_process(70); }
-    state exit(main: &mut Main, code: u64) { main.console.exit_process(code as i32); }
+    state e_ok(main: &mut Main) { Console::exit_process(70); }
+    state exit(main: &mut Main, code: u64) { Console::exit_process(code as i32); }
 }

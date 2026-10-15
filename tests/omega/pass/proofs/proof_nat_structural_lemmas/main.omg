@@ -8,9 +8,8 @@
 // with the N3 pointer (fail/proofs/structural_ensures_unjudged_rejected).
 use omega::language::core::nat;
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
-machine Main::main(main: &mut Main) reaches Console { main.console.exit_process(70); }
+data Main { }
+machine Main::main(main: &mut Main) reaches Console { Console::exit_process(70); }
 machine nat_refl(a: Nat)
 ensures
     a == a

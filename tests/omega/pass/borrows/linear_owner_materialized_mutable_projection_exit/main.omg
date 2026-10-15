@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::drop;
 
 data Receipt [linear] { code: i32; stamp: i32; }
@@ -14,7 +13,7 @@ machine observe_and_consume(receipt: Receipt) -> i32 {
     observed
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut receipt: Receipt = Receipt { stamp: 0, code: 27 };
     let view: &mut Receipt = &mut receipt;
@@ -27,5 +26,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

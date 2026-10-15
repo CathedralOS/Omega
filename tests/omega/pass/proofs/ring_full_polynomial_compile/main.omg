@@ -5,9 +5,8 @@
 use omega::language::core::nat;
 
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
-machine Main::main(main: &mut Main) reaches Console { main.console.exit_process(70); }
+data Main { }
+machine Main::main(main: &mut Main) reaches Console { Console::exit_process(70); }
 
 machine four_term_expansion(a: Nat, b: Nat, c: Nat, d: Nat)
 ensures

@@ -11,15 +11,13 @@
 // ACTIVE_PASS_CANARIES yet (canary_suite.rs is hot with other work).
 
 use omega_language_std::posix_filesystem_host;
-use omega::language::core::binding;
 
 data Main {
-    fs: Binding<PosixFilesystemHost>;
     fd_in: i32;
     rc: i32;
 }
 
 machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
     main.fd_in = 5;
-    main.rc = main.fs.close(main.fd_in);
+    main.rc = PosixFilesystemHost::close(main.fd_in);
 }

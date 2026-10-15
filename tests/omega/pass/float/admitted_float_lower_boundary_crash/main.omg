@@ -1,19 +1,16 @@
 // A finite lower cutpoint traps; (-129, -128) still truncates into i8.
 use omega::language::core::float_operations;
 use omega::language::core::process_exit;
-use omega::language::core::binding;
 use omega_language_std::process_exit;
 use omega_language_std::console;
 
 data Main {
-    console: Binding<Console>;
-    exit: Binding<ProcessExit>;
     value: f32;
 }
 
 machine Main::main(main: &mut Main) reaches Console + ProcessExit {
-    main.console.write_line("before lower boundary trap");
+    Console::write_line("before lower boundary trap");
     main.value = -129.0f32;
     let converted: i8 in Trapping = I8::from_f32(main.value);
-    main.exit.exit_process(converted as i8 as i32);
+    ProcessExit::exit_process(converted as i8 as i32);
 }

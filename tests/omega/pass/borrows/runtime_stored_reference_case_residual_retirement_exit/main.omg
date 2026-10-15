@@ -1,11 +1,10 @@
 // Case-selected cleanup disposes the surviving leaf after capturing its scalar argument.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell where value >= 0, value <= 100 { value: i32; }
 data Choice { case Selected(value: i32); case Empty; }
 data Pair { first: &Cell; second: &Cell; stamp: i32; }
-data Main { console: Binding<Console>; first: Cell; second: Cell; }
+data Main { first: Cell; second: Cell; }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.first.value = 70;
@@ -29,8 +28,8 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 machine require_cell_value(value: i32)

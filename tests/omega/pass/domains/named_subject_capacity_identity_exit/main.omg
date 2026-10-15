@@ -1,11 +1,10 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Renaming the value binder does not change a domain family's theory.
 domain [u8; 2]::Utf8(pair) requires valid_utf8(pair);
 domain [u8; 3]::Utf8(triple) requires valid_utf8(triple);
 
-data Context { console: Binding<Console>; }
+data Context { }
 
 machine main(context: &mut Context) reaches Console {
     let short: [u8; 2] in Utf8 = "ok";
@@ -14,6 +13,6 @@ machine main(context: &mut Context) reaches Console {
         (true, true) -> good(context)
         _ -> bad(context)
     }
-    state good(context: &mut Context) { context.console.exit_process(70); }
-    state bad(context: &mut Context) { context.console.exit_process(71); }
+    state good(context: &mut Context) { Console::exit_process(70); }
+    state bad(context: &mut Context) { Console::exit_process(71); }
 }

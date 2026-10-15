@@ -1,5 +1,4 @@
 use omega::language::core::drop;
-use omega::language::core::binding;
 
 pub data Receipt [linear] { code: i32; }
 machine Receipt::drop(receipt: &mut Receipt) {}
@@ -7,8 +6,8 @@ pub boundary trait Relay { machine forward(receipt: Receipt) -> Receipt; }
 Adapter satisfies Relay { Relay::forward = forward; }
 machine forward(receipt: Receipt) -> Receipt { receipt }
 
-machine main(relay: &Binding<Relay>) reaches Relay {
-    let result: Receipt = Relay::forward(relay, Receipt { code: 7 });
+machine main() reaches Relay {
+    let result: Receipt = Relay::forward(Receipt { code: 7 });
     drop(result);
     drop(result);
 }

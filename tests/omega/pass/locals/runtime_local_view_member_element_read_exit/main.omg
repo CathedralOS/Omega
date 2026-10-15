@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Sample {
     readings: &[u8];
@@ -12,7 +11,7 @@ machine read_member(value: &Sample) -> u8 {
     }
 }
 
-data Main { console: Binding<Console>; source: [u8; 4]; }
+data Main { source: [u8; 4]; }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.source[0] = 72;
@@ -24,6 +23,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

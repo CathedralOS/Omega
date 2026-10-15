@@ -1,9 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 data Model { z: [f64; 5]; grid: [[f64; 2]; 2]; }
 data Cursor { index: i64; }
-data Main { console: Binding<Console>; model: Model; cursor: Cursor; }
+data Main { model: Model; cursor: Cursor; }
 machine selected_value(cursor: &mut Cursor) -> f64 {
     transition cursor.index == 1 { true -> selected(cursor) false -> rejected(cursor) }
     state selected(cursor: &mut Cursor) -> f64 { cursor.index = 0; 3.0 }
@@ -36,6 +35,6 @@ machine Main::main(main: &mut Main) reaches Console {
         selector_store(&mut main.model.grid,&mut main.cursor);
         transition main.model.z[0] == -0.5 && main.model.z[1] == 6.0 && main.cursor.index == 0 && main.model.grid[1][0] == 7.0 && main.model.grid[0][0] == 0.0 { true -> good(main) false -> bad(main) }
     }
-    state good(main: &mut Main) { main.console.write_line("FLOAT STORE OK"); main.console.exit_process(0); }
-    state bad(main: &mut Main) { main.console.write_line("FLOAT STORE WRONG"); main.console.exit_process(4); }
+    state good(main: &mut Main) { Console::write_line("FLOAT STORE OK"); Console::exit_process(0); }
+    state bad(main: &mut Main) { Console::write_line("FLOAT STORE WRONG"); Console::exit_process(4); }
 }

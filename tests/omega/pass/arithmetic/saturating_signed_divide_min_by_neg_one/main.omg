@@ -7,8 +7,7 @@
 // Wrapping fix). exit 72 = divide did not clamp to INT_MAX; 73 = modulo not 0.
 
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(context: &mut Main) reaches Console {
     let mut dividend: i32 in Saturating = 0 - 2147483647;
@@ -26,7 +25,7 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> mod_wrong(&mut context)
         }
     }
-    state good(context: &mut Main)      { context.console.exit_process(70); }
-    state div_wrong(context: &mut Main) { context.console.exit_process(72); }
-    state mod_wrong(context: &mut Main) { context.console.exit_process(73); }
+    state good(context: &mut Main)      { Console::exit_process(70); }
+    state div_wrong(context: &mut Main) { Console::exit_process(72); }
+    state mod_wrong(context: &mut Main) { Console::exit_process(73); }
 }

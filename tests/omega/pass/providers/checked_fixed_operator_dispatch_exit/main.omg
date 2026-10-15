@@ -6,7 +6,6 @@
 // selected adapter in both checked interpretation and target-selected Terminal
 // production, exactly as the `boundary operator` spelling did.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data CheckedMath {}
 
@@ -20,11 +19,11 @@ satisfies CheckedMath::select_left
     transition { _ -> left }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main)
 reaches Console
 {
     let result: i32 = (70 as i32) - 0;
-    main.console.exit_process(result);
+    Console::exit_process(result);
 }

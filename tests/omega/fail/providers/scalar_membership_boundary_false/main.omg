@@ -1,7 +1,6 @@
-use omega::language::core::binding;
 pub domain u32::Flags(value) requires value < 10; (value & 2) == 0;
 pub boundary trait Gate { machine accept(value: u32 in Flags) -> u32; }
-data Context { gate: Binding<Gate>; }
+data Context { }
 machine bad(context: &Context) -> u32 reaches Gate {
-    context.gate.accept(2)
+    Gate::accept(2)
 }

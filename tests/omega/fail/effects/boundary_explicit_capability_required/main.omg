@@ -1,6 +1,5 @@
-use omega::language::core::binding;
 pub boundary trait Read {}
 pub boundary trait Host { machine read() -> u64 reaches Read; }
 
 // Naming the provider interface does not acknowledge its read capability.
-machine missing_capability(host: &Binding<Host>) -> u64 reaches Host { Host::read(host) }
+machine missing_capability() -> u64 reaches Host { Host::read() }

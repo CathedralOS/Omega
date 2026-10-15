@@ -1,9 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Token { value: i32; }
 data Reply { case Missing; case Present(value: Token); }
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine make() -> Token { Token { value: 42 } }
 machine reply(present: bool) -> Reply {
@@ -31,5 +30,5 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> finish(context, 42)
         false -> finish(context, 1)
     }
-    state finish(context: &mut Main, code: i32) { context.console.exit_process(code); }
+    state finish(context: &mut Main, code: i32) { Console::exit_process(code); }
 }

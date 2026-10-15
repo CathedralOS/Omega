@@ -2,8 +2,7 @@
 // uses: `1 + 1` under `d > 5` instantiates to `2 > 5` — structurally false,
 // not merely unproven. Symbolic operands stay with the positive prover.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::pick(d: u64) -> u64
     requires d > 5;
 {
@@ -11,5 +10,5 @@ machine Main::pick(d: u64) -> u64
 }
 machine Main::main(main: &mut Main) {
     let result: u64 = Main::pick(1 + 1);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

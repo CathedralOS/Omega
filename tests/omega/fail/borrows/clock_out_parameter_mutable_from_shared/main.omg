@@ -1,14 +1,13 @@
 // A selected clock out-parameter cannot elevate a shared observation to a write.
-use omega::language::core::binding;
 
 pub data Instant { seconds: i64; nanoseconds: i64; }
 pub boundary trait ClockProbe {
     machine read(selector: u32, instant: &mut Instant) -> i32;
 }
-data Main { clock: Binding<ClockProbe>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches ClockProbe {
     let instant: Instant = Instant { seconds: 0, nanoseconds: 0 };
     let shared: &Instant = &instant;
-    let status: i32 = main.clock.read(0, shared);
+    let status: i32 = ClockProbe::read(0, shared);
 }

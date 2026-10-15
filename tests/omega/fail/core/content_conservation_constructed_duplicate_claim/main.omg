@@ -1,5 +1,4 @@
 use omega::language::core::content;
-use omega::language::core::binding;
 use omega::language::core::nat;
 
 pub data ByteUnit {}
@@ -18,12 +17,12 @@ pub boundary trait Join {
         == Held::content(&result);
 }
 pub boundary trait Sink { machine accept(value: Chunk in Held); }
-pub machine combine(join: &Binding<Join>, sink: &Binding<Sink>, left: Chunk in Held, right: Chunk in Held)
+pub machine combine(left: Chunk in Held, right: Chunk in Held)
 reaches Join, Sink
     invokes join;
     invokes sink;
 {
-    let joined: Chunk in Held = join.merge(Pair { left: left, right: left });
-    sink.accept(joined);
+    let joined: Chunk in Held = Join::merge(Pair { left: left, right: left });
+    Sink::accept(joined);
 }
 machine main() {}

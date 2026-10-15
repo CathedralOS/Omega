@@ -1,32 +1,31 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    let observed: ByteRead = block main.console.read_byte();
+    let observed: ByteRead = block Console::read_byte();
     transition observed {
         ByteRead::Eof -> emit(main, 37)
         ByteRead::Byte { value } -> emit(main, (value as i32 in Wrapping) % 82)
     }
     state emit(main: &mut Main, value: i32 in Wrapping) {
-        number(&mut main.console, value);
-        number(&mut main.console, 81);
-        main.console.exit_process(0);
+        number(value);
+        number(81);
+        Console::exit_process(0);
     }
 }
 
 // The original value survives fixed-register division and a provider call,
 // then supplies the remainder. Each use needs its own admitted live range.
-machine number(console: &mut Binding<Console>, value: i32 in Wrapping) reaches Console {
+machine number(value: i32 in Wrapping) reaches Console {
     transition value >= 10 {
-        true -> higher(console, value)
-        _ -> digit(console, value)
+        true -> higher(value)
+        _ -> digit(value)
     }
-    state higher(console: &mut Binding<Console>, value: i32 in Wrapping) {
-        console.write_byte(((value / 10) + 48) as i32);
-        transition { _ -> digit(console, value % 10) }
+    state higher(value: i32 in Wrapping) {
+        Console::write_byte(((value / 10) + 48) as i32);
+        transition { _ -> digit(value % 10) }
     }
-    state digit(console: &mut Binding<Console>, value: i32 in Wrapping) {
-        console.write_byte((value + 48) as i32);
+    state digit(value: i32 in Wrapping) {
+        Console::write_byte((value + 48) as i32);
     }
 }

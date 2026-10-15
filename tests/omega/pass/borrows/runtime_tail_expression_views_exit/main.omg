@@ -1,10 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Leaf { value: i32; }
 data Pair { left: Leaf; right: Leaf; }
 data Holder { node: Leaf; pair: Pair; }
-data Main { console: Binding<Console>; holder: Holder; bytes: [u8; 4]; }
+data Main { holder: Holder; bytes: [u8; 4]; }
 
 // Each body ends in a final expression whose value is a borrowed view or
 // reference. Its checked value plans the completion the same way for every
@@ -69,5 +68,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 0)
         _ -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

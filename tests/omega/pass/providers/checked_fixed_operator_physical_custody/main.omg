@@ -2,7 +2,6 @@
 // beside the independent nonreturning Console settlement. The result is not
 // passed into that first immediate-only settlement lane.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data CheckedMath {}
 
@@ -16,11 +15,11 @@ satisfies CheckedMath::select_left
     transition { _ -> left }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main)
 reaches Console
 {
     let result: i32 = (70 as i32) - 0;
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

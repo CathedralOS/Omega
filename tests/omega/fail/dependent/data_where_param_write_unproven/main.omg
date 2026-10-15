@@ -4,7 +4,6 @@
 // values, so `count = 99` cannot prove `count <= len` and refuses
 // (before this rung the write bypassed the net entirely).
 use omega_language_std::console;
-use omega::language::core::binding;
 data Tally
 where
     count <= len,
@@ -12,11 +11,11 @@ where
     len: u32;
     count: u32;
 }
-data Main { console: Binding<Console>; tally: Tally; }
+data Main { tally: Tally; }
 machine corrupt(target: &mut Tally) {
     target.count = 99;
 }
 machine Main::main(main: &mut Main) {
     corrupt(&mut main.tally);
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

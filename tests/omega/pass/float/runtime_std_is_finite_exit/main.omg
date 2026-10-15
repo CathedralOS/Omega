@@ -11,8 +11,7 @@ use omega::language::core::float_operations;
 // answered true. Distinct exit codes name the first leg that misses.
 use omega_language_std::math;
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> finite_leg(main, 2.5, 0.0) }
     state finite_leg(main: &mut Main, v: f64, zero: f64) {
@@ -30,8 +29,8 @@ machine Main::main(main: &mut Main) reaches Console {
         let verdict: bool = is_finite(nan);
         transition verdict == false { true -> good(main) _ -> bad_nan(main) }
     }
-    state good(main: &mut Main)       { main.console.exit_process(70); }
-    state bad_finite(main: &mut Main) { main.console.exit_process(72); }
-    state bad_inf(main: &mut Main)    { main.console.exit_process(73); }
-    state bad_nan(main: &mut Main)    { main.console.exit_process(74); }
+    state good(main: &mut Main)       { Console::exit_process(70); }
+    state bad_finite(main: &mut Main) { Console::exit_process(72); }
+    state bad_inf(main: &mut Main)    { Console::exit_process(73); }
+    state bad_nan(main: &mut Main)    { Console::exit_process(74); }
 }

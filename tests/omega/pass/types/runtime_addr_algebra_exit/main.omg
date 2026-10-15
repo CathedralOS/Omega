@@ -6,8 +6,7 @@
 // fail/types/addr_plus_addr_rejected.
 // exits: 71 = addr - count wrong; 72 = addr - addr wrong; 73 = ordering wrong.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let a: addr = 4096;
     let b: addr = 4000;
@@ -34,8 +33,8 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad_order(main)
         }
     }
-    state good(main: &mut Main)     { main.console.exit_process(70); }
-    state bad_sub(main: &mut Main)  { main.console.exit_process(71); }
-    state bad_diff(main: &mut Main) { main.console.exit_process(72); }
-    state bad_order(main: &mut Main){ main.console.exit_process(73); }
+    state good(main: &mut Main)     { Console::exit_process(70); }
+    state bad_sub(main: &mut Main)  { Console::exit_process(71); }
+    state bad_diff(main: &mut Main) { Console::exit_process(72); }
+    state bad_order(main: &mut Main){ Console::exit_process(73); }
 }

@@ -1,10 +1,9 @@
-use omega::language::core::binding;
 use omega_language_std::console;
 
 data Sample { case Reading(value: u64); case Empty; }
 data Phase { case Ready; case Idle; }
 data Context { sample: Sample; phase: Phase; }
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine clear(context: &mut Context) -> bool {
     context.sample = Sample::Empty {};
@@ -32,5 +31,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main)
         false -> finish(main)
     }
-    state finish(main: &mut Main) { main.console.exit_process(70); }
+    state finish(main: &mut Main) { Console::exit_process(70); }
 }

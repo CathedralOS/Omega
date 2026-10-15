@@ -1,10 +1,9 @@
 // Expected exit: 0. Endpoints challenge polynomial coefficient accuracy,
 // distinct calls and state parameters rather than only one interior argument.
 use omega::language::core::float_operations;
-use omega::language::core::binding;
 use omega_language_std::math;
 use omega_language_std::console;
-data Main { console: Binding<Console>; angle: f64; }
+data Main { angle: f64; }
 machine Main::main(main: &mut Main) reaches Console {
     main.angle = 1.5707963267948966;
     let value: f64 = cos(0.0);
@@ -21,6 +20,6 @@ machine Main::main(main: &mut Main) reaches Console {
         let value: f64 = cos(3.141592653589793);
         transition value > -1.0000000000001 && value < -0.9999999999999 { true -> success(main) _ -> failure(main) }
     }
-    state success(main: &mut Main) { main.console.exit_process(0); }
-    state failure(main: &mut Main) { main.console.exit_process(19); }
+    state success(main: &mut Main) { Console::exit_process(0); }
+    state failure(main: &mut Main) { Console::exit_process(19); }
 }

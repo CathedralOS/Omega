@@ -5,7 +5,6 @@
 // The sibling Context argument owns both its explicit scalar field and the
 // synthesized zero initializer for padding; neither belongs to the case.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data ScanCompareTypeImmediate [copy] {
     case Equal;
@@ -53,7 +52,7 @@ machine Output::forward(output: Output) -> Output {
     Output { value: output.value }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let comparison: Output = Output::from_compare(
         Context { value: 30 },
@@ -68,8 +67,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> passed(main)
         false -> failed(main)
     }
-    state passed(main: &mut Main) { main.console.exit_process(70); }
-    state failed(main: &mut Main) { main.console.exit_process(71); }
+    state passed(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }
 
 // Scalar-returning callers retain the same constructed argument occurrences

@@ -3,8 +3,7 @@
 // be supplied as an explicit runtime parameter. Its namespace adds no storage.
 use omega::language::core::nat;
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; n: Nat; }
+data Main { n: Nat; }
 machine Main::main(main: &mut Main) {
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

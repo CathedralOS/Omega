@@ -5,7 +5,6 @@
 // must be valid at zero (wiki/spec/build/entry_roots.md), so a gated record
 // cannot be one of its fields.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Player
 where
     health >= 1,
@@ -13,7 +12,7 @@ where
 {
     health: i32;
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(context: &mut Main) reaches Console {
     let champion: Player = Player { health: 50 };
     // The access gate opens after the proven construction: this read is
@@ -24,6 +23,6 @@ machine Main::main(context: &mut Main) reaches Console {
         _ -> bad(context)
     }
 
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state bad(context: &mut Main) { Console::exit_process(71); }
 }

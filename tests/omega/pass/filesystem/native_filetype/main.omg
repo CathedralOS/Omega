@@ -10,10 +10,8 @@
 
 use omega_language_std::posix_filesystem_host;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    fs: Binding<PosixFilesystemHost>;
     mode: i32;
     fd: i32;
     rc: i32;
@@ -26,7 +24,7 @@ data Main {
 machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
     main.mode = 420;
     // 1: /dev/null must stat as a character device
-    main.rc = main.fs.read_metadata("/dev/null", &mut main.buffer);
+    main.rc = PosixFilesystemHost::read_metadata("/dev/null", &mut main.buffer);
     transition main.rc == 0 { true -> checkchar(main) _ -> fail(main) }
     state checkchar(main: &mut Main) {
         main.fmt =
@@ -36,11 +34,11 @@ machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
     }
     state regular(main: &mut Main) {
         // 2: a fresh regular file must stat as S_IFREG (not a device)
-        main.fd = main.fs.create("/tmp/omega_ftype.txt", main.mode);
-        main.n = main.fs.write(main.fd, "hi");
-        main.discard = main.fs.close(main.fd);
-        main.rc = main.fs.read_metadata("/tmp/omega_ftype.txt", &mut main.buffer);
-        main.discard = main.fs.remove("/tmp/omega_ftype.txt");
+        main.fd = PosixFilesystemHost::create("/tmp/omega_ftype.txt", main.mode);
+        main.n = PosixFilesystemHost::write(main.fd, "hi");
+        main.discard = PosixFilesystemHost::close(main.fd);
+        main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_ftype.txt", &mut main.buffer);
+        main.discard = PosixFilesystemHost::remove("/tmp/omega_ftype.txt");
         transition main.rc == 0 { true -> checkreg(main) _ -> fail(main) }
     }
     state checkreg(main: &mut Main) {
@@ -49,14 +47,14 @@ machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
                 & 61440;
         transition main.fmt == 32768 { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: /dev/null is S_IFCHR (char device); regular file is S_IFREG\n"); }
-    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: native filetype\n"); }
+    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: /dev/null is S_IFCHR (char device); regular file is S_IFREG\n"); }
+    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: native filetype\n"); }
 }
 
 machine Main::main_macos(main: &mut Main) reaches PosixFilesystemHost {
     main.mode = 420;
     // 1: /dev/null must stat as a character device
-    main.rc = main.fs.read_metadata("/dev/null", &mut main.buffer);
+    main.rc = PosixFilesystemHost::read_metadata("/dev/null", &mut main.buffer);
     transition main.rc == 0 { true -> checkchar(main) _ -> fail(main) }
     state checkchar(main: &mut Main) {
         main.fmt =
@@ -66,11 +64,11 @@ machine Main::main_macos(main: &mut Main) reaches PosixFilesystemHost {
     }
     state regular(main: &mut Main) {
         // 2: a fresh regular file must stat as S_IFREG (not a device)
-        main.fd = main.fs.create("/tmp/omega_ftype.txt", main.mode);
-        main.n = main.fs.write(main.fd, "hi");
-        main.discard = main.fs.close(main.fd);
-        main.rc = main.fs.read_metadata("/tmp/omega_ftype.txt", &mut main.buffer);
-        main.discard = main.fs.remove("/tmp/omega_ftype.txt");
+        main.fd = PosixFilesystemHost::create("/tmp/omega_ftype.txt", main.mode);
+        main.n = PosixFilesystemHost::write(main.fd, "hi");
+        main.discard = PosixFilesystemHost::close(main.fd);
+        main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_ftype.txt", &mut main.buffer);
+        main.discard = PosixFilesystemHost::remove("/tmp/omega_ftype.txt");
         transition main.rc == 0 { true -> checkreg(main) _ -> fail(main) }
     }
     state checkreg(main: &mut Main) {
@@ -79,6 +77,6 @@ machine Main::main_macos(main: &mut Main) reaches PosixFilesystemHost {
                 & 61440;
         transition main.fmt == 32768 { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: /dev/null is S_IFCHR (char device); regular file is S_IFREG\n"); }
-    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: native filetype\n"); }
+    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: /dev/null is S_IFCHR (char device); regular file is S_IFREG\n"); }
+    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: native filetype\n"); }
 }

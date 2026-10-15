@@ -4,13 +4,12 @@
 // dispatch must roster the same possible cases, or the state planned no body
 // ("unsupported tail: single guarded transition").
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Value<T> {
     case Integer(value: T) where T == i32;
     case Boolean(value: T) where T == bool;
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let v: Value<bool> = Value::Boolean { value: true };
     transition v {
@@ -22,6 +21,6 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

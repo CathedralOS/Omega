@@ -3,23 +3,22 @@
 // `move`. Parsing `move(count)` as the prefix applied to `(count)` dropped the
 // transition target and left `main` without an executable body.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Payload { value: i32; }
 
 machine take(payload: Payload) -> i32 { payload.value }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let payload: Payload = Payload { value: 68 };
     let count: i32 = take(move payload);
-    transition { _ -> move(&main.console, count) }
-    state move(console: &Binding<Console>, count: i32) {
+    transition { _ -> move(count) }
+    state move(count: i32) {
         transition count == 68 {
-            true -> good(console)
-            false -> bad(console)
+            true -> good()
+            false -> bad()
         }
     }
-    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state bad(console: &Binding<Console>) { Console::exit_process(console, 72); }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(72); }
 }

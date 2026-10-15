@@ -2,14 +2,13 @@
 // once, before arm selection. With stdin closed, `read_byte` yields Eof and
 // the program exits 70; a byte exits 71.
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console crashes Trap {
-    transition block main.console.read_byte() {
+    transition block Console::read_byte() {
         ByteRead::Eof -> done(main, 70)
         ByteRead::Byte { .. } -> done(main, 71)
     }
-    state done(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

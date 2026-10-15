@@ -7,8 +7,7 @@
 // Wrapping counts are masked by the language operand width on every target.
 // exits: 71 = << wrong; 72 = >> wrong; 73/74 = masked 32/64 leg wrong.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(context: &mut Main) {
     Main::build(context, 3);
 }
@@ -50,9 +49,9 @@ machine Main::build(main: &mut Main, count: u32) reaches Console {
             _ -> wrong_atwidth64(main)
         }
     }
-    state good(main: &mut Main)           { main.console.exit_process(70); }
-    state wrong_shl(main: &mut Main)      { main.console.exit_process(71); }
-    state wrong_shr(main: &mut Main)      { main.console.exit_process(72); }
-    state wrong_atwidth32(main: &mut Main){ main.console.exit_process(73); }
-    state wrong_atwidth64(main: &mut Main){ main.console.exit_process(74); }
+    state good(main: &mut Main)           { Console::exit_process(70); }
+    state wrong_shl(main: &mut Main)      { Console::exit_process(71); }
+    state wrong_shr(main: &mut Main)      { Console::exit_process(72); }
+    state wrong_atwidth32(main: &mut Main){ Console::exit_process(73); }
+    state wrong_atwidth64(main: &mut Main){ Console::exit_process(74); }
 }

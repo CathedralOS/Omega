@@ -1,6 +1,5 @@
 // An ordinary same-named service has normal completion. Confined package
 // discovery must not make the caller's false return obligation unreachable.
-use omega::language::core::binding;
 pub boundary trait Console {
     machine exit_process(return_code: i32) reaches Console;
 }
@@ -9,10 +8,10 @@ machine ReturningProvider::exit_process(return_code: i32)
 satisfies Console::exit_process
 reaches Console
 {}
-pub machine impossible(console: &mut Binding<Console>)
+pub machine impossible()
 reaches Console
-invokes console;
+invokes Console;
 ensures false;
 {
-    console.exit_process(0);
+    Console::exit_process(0);
 }

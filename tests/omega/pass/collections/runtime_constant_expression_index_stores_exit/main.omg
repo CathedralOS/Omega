@@ -7,7 +7,6 @@
 // element holds what was written to it.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Row { tag: i32 in Wrapping; data: [i32 in Wrapping; 2]; }
 
@@ -38,21 +37,21 @@ machine fold_local() -> u64 {
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut rows: [Row; 3];
     let row_result: u64 = bump_rows(&mut rows);
     let local_result: u64 = fold_local();
     transition row_result == 1 && local_result == 1 {
-        true -> done(&main.console)
-        _ -> refused(&main.console, 71)
+        true -> done()
+        _ -> refused(71)
     }
 
-    state done(console: &Binding<Console>) {
-        Console::exit_process(console, 70);
+    state done() {
+        Console::exit_process(70);
     }
 
-    state refused(console: &Binding<Console>, code: i32) {
-        Console::exit_process(console, code);
+    state refused(code: i32) {
+        Console::exit_process(code);
     }
 }

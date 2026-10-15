@@ -9,7 +9,6 @@
 // `fail/targets/reached_foreign_body_through_selected_provider_rejected` are
 // the reached twins.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Helper { seed: i32; }
 
@@ -35,9 +34,9 @@ pub data FirmwareValue {}
 machine FirmwareValue::read(input: i32) -> i32
 satisfies Value::read { Helper::firmware_only(input) }
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let selected: i32 = Value::read(70);
-    main.console.exit_process(selected);
+    Console::exit_process(selected);
 }

@@ -2,7 +2,6 @@
 // constructors of the scope type -- const substitution would otherwise
 // silently shadow the case reference.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Verdict {
     case Unknown;
@@ -11,7 +10,7 @@ data Verdict {
 
 const Verdict::Confirmed: i32 = 1;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) {
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

@@ -1,7 +1,6 @@
-use omega::language::core::binding;
 use omega_language_std::console;
 
-data Main { console: Binding<Console>; count: u64; }
+data Main { count: u64; }
 
 // The storage root stays the same across the loop, while the loan exists
 // only in snapshot. Writeback must see the count after that loan ends.
@@ -28,6 +27,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> matched(main)
         false -> mismatched(main)
     }
-    state matched(main: &mut Main) { main.console.exit_process(70); }
-    state mismatched(main: &mut Main) { main.console.exit_process(71); }
+    state matched(main: &mut Main) { Console::exit_process(70); }
+    state mismatched(main: &mut Main) { Console::exit_process(71); }
 }

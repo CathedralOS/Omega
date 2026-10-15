@@ -1,10 +1,9 @@
 // A guard belongs to its observed scalar, not to an unrelated mutable
 // context argument. Construction also observes the latest local assignment.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Bounded where value <= 5 { value: u64; }
-data Main { console: Binding<Console>; value: Bounded; }
+data Main { value: Bounded; }
 
 machine Main::main(context: &mut Main) reaches Console {
     transition { _ -> prepare(context, 6) }
@@ -25,6 +24,6 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> failed(context)
         }
     }
-    state passed(context: &mut Main) { context.console.exit_process(70); }
-    state failed(context: &mut Main) { context.console.exit_process(1); }
+    state passed(context: &mut Main) { Console::exit_process(70); }
+    state failed(context: &mut Main) { Console::exit_process(1); }
 }

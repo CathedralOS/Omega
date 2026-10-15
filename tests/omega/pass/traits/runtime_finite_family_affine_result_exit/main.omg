@@ -1,7 +1,6 @@
 // Expected exit 70. The returned affine Packet is
 // consumed while an older nominal owner remains live and readable.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::drop;
 data Token { value: u32; }
 machine Token::drop(token: &mut Token) { token.value = 0; }
@@ -19,7 +18,7 @@ machine scan(selected: dyn Shape<Item>, item: &Item, width: u32) -> Packet
 requires width == 16 || width == 32;
 { Shape::code<width>(selected, item) }
 machine consume(packet: Packet) -> bool { packet.marker == 32 && packet.token.value == 17 }
-data Main { console: Binding<Console>; item: Item; }
+data Main { item: Item; }
 machine Main::main(main: &mut Main) reaches Console {
     main.item.value = 17;
     let older: Token = Token { value: 91 };
@@ -29,6 +28,6 @@ machine Main::main(main: &mut Main) reaches Console {
     let older_intact: bool = older.value == 91;
     drop(older);
     transition accepted && older_intact { true -> good(main) false -> bad(main) }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

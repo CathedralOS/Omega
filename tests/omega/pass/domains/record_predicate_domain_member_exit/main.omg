@@ -2,11 +2,10 @@
 // construction, a local copy and a direct member replacement. The excluded
 // value is deliberately not zero: field validity is not a NonZero special case.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain i32::NotFive(value) requires value != 5;
 data Gauge { level: i32 in NotFive; }
-data Main { console: Binding<Console>; gauge: Gauge; spare: Gauge; }
+data Main { gauge: Gauge; spare: Gauge; }
 
 machine Main::fill_spare(main: &mut Main) {
     let filled: Gauge = Gauge { level: 3 };
@@ -21,6 +20,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> passed(main)
         false -> failed(main)
     }
-    state passed(main: &mut Main) { main.console.exit_process(70); }
-    state failed(main: &mut Main) { main.console.exit_process(71); }
+    state passed(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }

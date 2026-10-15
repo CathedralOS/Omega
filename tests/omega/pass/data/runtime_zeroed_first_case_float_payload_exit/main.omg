@@ -5,14 +5,13 @@
 // (Reading the float back is not exercised: binding a float payload into a
 // successor's guard is refused even for an explicitly constructed value.)
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Sample [copy] {
     case Reading(value: f64);
     case Missing;
 }
 data Holder [copy] { sample: Sample; ready: bool; }
-data Context { console: Binding<Console>; }
+data Context { }
 
 machine main(context: &mut Context) reaches Console {
     transition { _ -> sample(context) }
@@ -30,6 +29,6 @@ machine main(context: &mut Context) reaches Console {
             _ -> bad(context, 72)
         }
     }
-    state good(context: &mut Context) { context.console.exit_process(70); }
-    state bad(context: &mut Context, code: i32) { context.console.exit_process(code); }
+    state good(context: &mut Context) { Console::exit_process(70); }
+    state bad(context: &mut Context, code: i32) { Console::exit_process(code); }
 }

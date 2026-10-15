@@ -1,11 +1,10 @@
 use omega_language_std::math;
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 
 // Runtime input prevents a closed NaN-bit materialization from replacing
 // observations. IEEE tests do not identify NaN payloads or erase zero signs.
-data Main { console: Binding<Console>; zero: f64; zero32: f32; }
+data Main { zero: f64; zero32: f32; }
 
 machine Main::main(main: &mut Main) reaches Console {
     let negative_zero: f64 = F64::negate(main.zero);
@@ -32,6 +31,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> done(main)
         _ -> failed(main)
     }
-    state done(main: &mut Main) { main.console.exit_process(70); }
-    state failed(main: &mut Main) { main.console.exit_process(71); }
+    state done(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }

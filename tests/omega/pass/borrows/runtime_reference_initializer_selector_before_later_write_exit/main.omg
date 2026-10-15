@@ -4,13 +4,12 @@
 // the cell at row 1 holds 10, the cell at row 0 holds 20, and the program exits
 // 70 only when it reads 10 and the call left the cursor on row 0.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell { value: u64 in Wrapping; }
 data Holder { cells: [Cell; 4]; }
 data Matrix { rows: [Holder; 2]; }
 data Cursor where row < 2 { row: u64; }
-data Main { console: Binding<Console>; matrix: Matrix; cursor: Cursor; }
+data Main { matrix: Matrix; cursor: Cursor; }
 
 machine Cursor::advance(cursor: &mut Cursor) -> u64
 ensures result < 4
@@ -33,6 +32,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         false -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

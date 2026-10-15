@@ -8,10 +8,8 @@
 
 use omega_language_std::posix_filesystem_host;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    fs: Binding<PosixFilesystemHost>;
     discard: i32;
     mode: i32;
     fd: i32;
@@ -24,54 +22,54 @@ data Main {
 
 machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
     main.mode = 420;
-    main.fd = main.fs.create("/tmp/omega_nlink.txt", main.mode);
-    main.n = main.fs.write(main.fd, "hi");
-    main.discard = main.fs.close(main.fd);
+    main.fd = PosixFilesystemHost::create("/tmp/omega_nlink.txt", main.mode);
+    main.n = PosixFilesystemHost::write(main.fd, "hi");
+    main.discard = PosixFilesystemHost::close(main.fd);
     // defensive: clear a stale link from a prior failed run (rc ignored)
-    main.discard = main.fs.remove("/tmp/omega_nlink_2.txt");
-    main.rc = main.fs.read_metadata("/tmp/omega_nlink.txt", &mut main.buffer);
+    main.discard = PosixFilesystemHost::remove("/tmp/omega_nlink_2.txt");
+    main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_nlink.txt", &mut main.buffer);
     main.nlink1 =
         widen_u8_to_i32(main.buffer[16]) | (widen_u8_to_i32(main.buffer[17]) << 8);
-    main.rc = main.fs.hard_link("/tmp/omega_nlink.txt", "/tmp/omega_nlink_2.txt");
+    main.rc = PosixFilesystemHost::hard_link("/tmp/omega_nlink.txt", "/tmp/omega_nlink_2.txt");
     transition main.rc == 0 { true -> stat2(main) _ -> fail(main) }
     state stat2(main: &mut Main) {
-        main.rc = main.fs.read_metadata("/tmp/omega_nlink.txt", &mut main.buffer);
+        main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_nlink.txt", &mut main.buffer);
         main.nlink2 =
             widen_u8_to_i32(main.buffer[16]) | (widen_u8_to_i32(main.buffer[17]) << 8);
-        main.discard = main.fs.remove("/tmp/omega_nlink_2.txt");
-        main.discard = main.fs.remove("/tmp/omega_nlink.txt");
+        main.discard = PosixFilesystemHost::remove("/tmp/omega_nlink_2.txt");
+        main.discard = PosixFilesystemHost::remove("/tmp/omega_nlink.txt");
         transition main.nlink1 == 1 { true -> check2(main) _ -> fail(main) }
     }
     state check2(main: &mut Main) {
         transition main.nlink2 == 2 { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: nlink 1 -> 2 after hard_link\n"); }
-    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: nlink\n"); }
+    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: nlink 1 -> 2 after hard_link\n"); }
+    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: nlink\n"); }
 }
 
 machine Main::main_macos(main: &mut Main) reaches PosixFilesystemHost {
     main.mode = 420;
-    main.fd = main.fs.create("/tmp/omega_nlink.txt", main.mode);
-    main.n = main.fs.write(main.fd, "hi");
-    main.discard = main.fs.close(main.fd);
+    main.fd = PosixFilesystemHost::create("/tmp/omega_nlink.txt", main.mode);
+    main.n = PosixFilesystemHost::write(main.fd, "hi");
+    main.discard = PosixFilesystemHost::close(main.fd);
     // defensive: clear a stale link from a prior failed run (rc ignored)
-    main.discard = main.fs.remove("/tmp/omega_nlink_2.txt");
-    main.rc = main.fs.read_metadata("/tmp/omega_nlink.txt", &mut main.buffer);
+    main.discard = PosixFilesystemHost::remove("/tmp/omega_nlink_2.txt");
+    main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_nlink.txt", &mut main.buffer);
     main.nlink1 =
         widen_u8_to_i32(main.buffer[6]) | (widen_u8_to_i32(main.buffer[7]) << 8);
-    main.rc = main.fs.hard_link("/tmp/omega_nlink.txt", "/tmp/omega_nlink_2.txt");
+    main.rc = PosixFilesystemHost::hard_link("/tmp/omega_nlink.txt", "/tmp/omega_nlink_2.txt");
     transition main.rc == 0 { true -> stat2(main) _ -> fail(main) }
     state stat2(main: &mut Main) {
-        main.rc = main.fs.read_metadata("/tmp/omega_nlink.txt", &mut main.buffer);
+        main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_nlink.txt", &mut main.buffer);
         main.nlink2 =
             widen_u8_to_i32(main.buffer[6]) | (widen_u8_to_i32(main.buffer[7]) << 8);
-        main.discard = main.fs.remove("/tmp/omega_nlink_2.txt");
-        main.discard = main.fs.remove("/tmp/omega_nlink.txt");
+        main.discard = PosixFilesystemHost::remove("/tmp/omega_nlink_2.txt");
+        main.discard = PosixFilesystemHost::remove("/tmp/omega_nlink.txt");
         transition main.nlink1 == 1 { true -> check2(main) _ -> fail(main) }
     }
     state check2(main: &mut Main) {
         transition main.nlink2 == 2 { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: nlink 1 -> 2 after hard_link\n"); }
-    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: nlink\n"); }
+    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: nlink 1 -> 2 after hard_link\n"); }
+    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: nlink\n"); }
 }

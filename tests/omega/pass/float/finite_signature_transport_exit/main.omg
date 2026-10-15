@@ -1,13 +1,12 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
-use omega::language::core::binding;
 machine retain(value: f32 in Finite) -> f32 in Finite {
     transition { _ -> (value) }
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let result: f32 in Finite = retain(0.5);
-    transition result == 0.5 { true -> good(&main.console) _ -> bad(&main.console) }
-    state good(console: &Binding<Console>) { Console::exit_process(console, 77); }
-    state bad(console: &Binding<Console>) { Console::exit_process(console, 78); }
+    transition result == 0.5 { true -> good() _ -> bad() }
+    state good() { Console::exit_process(77); }
+    state bad() { Console::exit_process(78); }
 }

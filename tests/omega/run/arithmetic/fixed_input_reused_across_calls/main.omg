@@ -1,19 +1,18 @@
 // Runtime value survives multiple fixed dividend uses and intervening writes.
 // Shared dividend/divisor operands must retain two distinct instruction views.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine digits(main: &mut Main, value: u64) reaches Console
 requires value > 0 && value <= 255 {
-    main.console.write_byte(((value / 100) + 48) as i32);
-    main.console.write_byte((((value / 10) % 10) + 48) as i32);
-    main.console.write_byte(((value % 10) + 48) as i32);
-    main.console.write_byte(((value / value) + 48) as i32);
-    main.console.write_byte(((value % value) + 48) as i32);
-    main.console.write_byte(10);
+    Console::write_byte(((value / 100) + 48) as i32);
+    Console::write_byte((((value / 10) % 10) + 48) as i32);
+    Console::write_byte(((value % 10) + 48) as i32);
+    Console::write_byte(((value / value) + 48) as i32);
+    Console::write_byte(((value % value) + 48) as i32);
+    Console::write_byte(10);
 }
 machine Main::main(main: &mut Main) reaches Console {
-    let observed: ByteRead = block main.console.read_byte();
+    let observed: ByteRead = block Console::read_byte();
     transition observed {
         ByteRead::Byte { value } -> bounded(main, value)
         _ -> bad(main)
@@ -27,7 +26,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state run(main: &mut Main, value: u64)
     requires value > 0 && value <= 255 {
         digits(main, value);
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }

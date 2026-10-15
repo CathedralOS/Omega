@@ -3,9 +3,8 @@
 // [0..=1] range proves every admitted `value * 2^count` remains in u32. Count
 // validity and value overflow are independent obligations; both hold.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Operands where 0 <= value, value <= 1 { count: u32; value: u32; result: u32; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(context: &mut Main) reaches Console
 {
     let mut operands: Operands;
@@ -24,7 +23,7 @@ machine Main::main(context: &mut Main) reaches Console
         }
     }
     state good(context: &mut Main)
-    { context.console.exit_process(70); }
+    { Console::exit_process(70); }
     state bad(context: &mut Main)
-    { context.console.exit_process(71); }
+    { Console::exit_process(71); }
 }

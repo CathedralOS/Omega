@@ -10,7 +10,6 @@
 // exit 70 = both shapes guard on the delivered flag; 71 = nested-only
 // entry read ZII; 72 = stores-around-the-nested-call variant read ZII.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Verdict { case No; case Yes; }
 data Helper { seen: i32; }
 machine Helper::check(helper: &mut Helper, x: i32) -> bool {
@@ -42,7 +41,7 @@ machine Bracket::make(bracket: &mut Bracket) -> Verdict {
     state mk_yes() -> Verdict { Verdict::Yes }
     state mk_no() -> Verdict { Verdict::No }
 }
-data Main { console: Binding<Console>; probe: Probe; bracket: Bracket; v1: Verdict; v2: Verdict; }
+data Main { probe: Probe; bracket: Bracket; v1: Verdict; v2: Verdict; }
 machine Main::main(main: &mut Main) reaches Console {
     main.v1 = Probe::make(&mut main.probe);
     transition main.v1 { Verdict::Yes -> step2(main) _ -> bad(main, 71) }
@@ -50,6 +49,6 @@ machine Main::main(main: &mut Main) reaches Console {
         main.v2 = Bracket::make(&mut main.bracket);
         transition main.v2 { Verdict::Yes -> good(main) _ -> bad(main, 72) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

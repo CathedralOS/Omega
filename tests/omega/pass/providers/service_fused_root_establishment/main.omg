@@ -1,7 +1,6 @@
 // One selected attached application root receives exact Fused Service
 // establishment from its generated entry bridge. A same-shaped non-root owner
 // receives no such authority merely because the provider is selected.
-use omega::language::core::binding;
 
 pub boundary trait Ping {
     machine ping();
@@ -11,21 +10,19 @@ data PingProvider { }
 machine PingProvider::ping() satisfies Ping::ping { }
 
 data Main {
-    service: Binding<Ping>;
 }
 
 machine Main::main(main: &mut Main)
 reaches Ping
 {
-    main.service.ping();
+    Ping::ping();
 }
 
 data NonRoot {
-    service: Binding<Ping>;
 }
 
 machine NonRoot::run(non_root: &mut NonRoot)
 reaches Ping
 {
-    non_root.service.ping();
+    Ping::ping();
 }

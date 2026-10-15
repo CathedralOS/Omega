@@ -1,12 +1,11 @@
 use omega_language_std::math;
 
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use authored;
-data Main {console:Binding<Console>;value:f64;}
+data Main {value:f64;}
 machine Main::main(main:&mut Main) reaches Console {
- let byte:ByteRead=block main.console.read_byte();
+ let byte:ByteRead=block Console::read_byte();
  transition byte {ByteRead::Byte{value} -> compute(main,value) _ -> fail(main)}
  state compute(main:&mut Main,value:i32) {
   main.value=F64::from_i32(value)-48.0;
@@ -14,6 +13,6 @@ machine Main::main(main:&mut Main) reaches Console {
    true -> good(main) _ -> fail(main)
   }
  }
- state good(main:&mut Main) {main.console.exit_process(70);}
- state fail(main:&mut Main) {main.console.exit_process(71);}
+ state good(main:&mut Main) {Console::exit_process(70);}
+ state fail(main:&mut Main) {Console::exit_process(71);}
 }

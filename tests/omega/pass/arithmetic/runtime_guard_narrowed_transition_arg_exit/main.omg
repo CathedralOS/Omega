@@ -5,7 +5,6 @@
 // mutate the guarded place between guard and argument evaluation.)
 // count starts 0, bumps to 1 through the param. Exit 70. Differential.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Counter
 where
     0 <= count,
@@ -13,7 +12,7 @@ where
 {
     count: i32;
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(context: &mut Main) reaches Console {
     let mut counter: Counter;
     transition counter.count < 100 {
@@ -29,7 +28,7 @@ machine Main::main(context: &mut Main) reaches Console {
     state check(context: &mut Main, counter: &mut Counter) {
         transition counter.count == 1 { true -> ok(context) _ -> bad(context) }
     }
-    state sat(context: &mut Main) { context.console.exit_process(71); }
-    state ok(context: &mut Main)  { context.console.exit_process(70); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state sat(context: &mut Main) { Console::exit_process(71); }
+    state ok(context: &mut Main)  { Console::exit_process(70); }
+    state bad(context: &mut Main) { Console::exit_process(71); }
 }

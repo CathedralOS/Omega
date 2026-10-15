@@ -14,8 +14,7 @@
 // source now exercises the RUNTIME operand path -- which had this hole.
 // exit 71 = >> wrong; 72 = / wrong; 73 = % wrong; 74 = wrapped-as-RIGHT wrong.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(context: &mut Main) reaches Console {
     let wrapped: u32 in Wrapping = (0 as u32 in Wrapping) - 2;
     let shifted: u32 = (wrapped >> 1) as u32;
@@ -48,9 +47,9 @@ machine Main::main(context: &mut Main) reaches Console {
             _ -> wrong_right(context)
         }
     }
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state wrong_shift(context: &mut Main) { context.console.exit_process(71); }
-    state wrong_division(context: &mut Main) { context.console.exit_process(72); }
-    state wrong_remainder(context: &mut Main) { context.console.exit_process(73); }
-    state wrong_right(context: &mut Main) { context.console.exit_process(74); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state wrong_shift(context: &mut Main) { Console::exit_process(71); }
+    state wrong_division(context: &mut Main) { Console::exit_process(72); }
+    state wrong_remainder(context: &mut Main) { Console::exit_process(73); }
+    state wrong_right(context: &mut Main) { Console::exit_process(74); }
 }

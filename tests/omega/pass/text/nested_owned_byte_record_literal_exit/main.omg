@@ -1,11 +1,10 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Direction [copy] { case North; case South; }
 data Label [copy] { text: [u8; 8] in Utf8; sibling: u64; }
 data Entry [copy] { label: Label; direction: Direction; sibling: u64; }
-data Main { console: Binding<Console>; entry: Entry; }
+data Main { entry: Entry; }
 
 machine empty_entry() -> Entry {
     Entry { label: Label { text: "", sibling: 29 }, direction: Direction::North, sibling: 31 }
@@ -32,5 +31,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

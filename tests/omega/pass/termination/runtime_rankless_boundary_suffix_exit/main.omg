@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // The boundary contract cannot reenter the countdown. The rankless suffix
 // still executes its selected provider; the entry checks the observed result.
 pub boundary trait Output { machine value() -> u32; }
@@ -6,21 +5,21 @@ pub data Provider {}
 machine Provider::value() -> u32 satisfies Output::value { 37 }
 // Each family member retains the abstract service it invokes. The generated
 // interface publishes their inferred reach even though it has no body.
-macos_arm64 machine selected(output: &Binding<Output>) -> u32 reaches Output { Output::value(output) }
-macos_x86_64 machine selected(output: &Binding<Output>) -> u32 reaches Output { Output::value(output) }
-linux_x86_64 machine selected(output: &Binding<Output>) -> u32 reaches Output { Output::value(output) }
-linux_arm64 machine selected(output: &Binding<Output>) -> u32 reaches Output { Output::value(output) }
-windows_x86_64 machine selected(output: &Binding<Output>) -> u32 reaches Output { Output::value(output) }
-machine count(output: &Binding<Output>, remaining: u32) terminates by remaining; -> u32 reaches Output {
+macos_arm64 machine selected() -> u32 reaches Output { Output::value() }
+macos_x86_64 machine selected() -> u32 reaches Output { Output::value() }
+linux_x86_64 machine selected() -> u32 reaches Output { Output::value() }
+linux_arm64 machine selected() -> u32 reaches Output { Output::value() }
+windows_x86_64 machine selected() -> u32 reaches Output { Output::value() }
+machine count(remaining: u32) terminates by remaining; -> u32 reaches Output {
     transition remaining > 0 {
-        true -> count(output, remaining - 1)
-        false -> finish(output)
+        true -> count(remaining - 1)
+        false -> finish()
     }
-    state finish(output: &Binding<Output>) -> u32 { selected(output) }
+    state finish() -> u32 { selected() }
 }
-data Main { output: Binding<Output>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Output crashes Trap {
-    let result: u32 = count(&main.output, 3);
+    let result: u32 = count(3);
     transition result == 37 { true -> done() false -> bad() }
     state done() {}
     state bad() { crash Trap; }

@@ -1,8 +1,7 @@
 // Zeroed local storage and successive writes preserve wrapping arithmetic.
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(context: &mut Main) reaches Console {
     let mut value: i32 in Wrapping;
@@ -10,5 +9,5 @@ machine Main::main(context: &mut Main) reaches Console {
     value = value + 1;
     value = value + 2147483647;
     value = value + 71;
-    context.console.exit_process(value as i32);
+    Console::exit_process(value as i32);
 }

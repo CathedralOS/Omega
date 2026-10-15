@@ -2,7 +2,6 @@
 // dispatch set. Destination context selects the requirement, and provider
 // planning must preserve that exact identity through adapter dispatch.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub boundary trait Convert {
     machine convert(value: i32) -> i32;
@@ -20,20 +19,18 @@ machine ConvertProvider::saturating(value: i32) -> i32 in Saturating satisfies C
 }
 
 data Main {
-    console: Binding<Console>;
-    converter: Binding<Convert>;
 }
 
 machine Main::main(main: &mut Main)
 reaches Console, Convert
 {
-    let ordinary: i32 = main.converter.convert(0);
-    let saturated: i32 in Saturating = main.converter.convert(0);
+    let ordinary: i32 = Convert::convert(0);
+    let saturated: i32 in Saturating = Convert::convert(0);
     transition {
         ordinary == 69 && saturated == (70 as i32 in Saturating) -> good(main)
         _ -> bad(main)
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(77); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(77); }
 }

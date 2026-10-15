@@ -1,9 +1,8 @@
 module split_guard;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub data Cell { value: i32 in Wrapping; }
-pub data Main { console: Binding<Console>; left: Cell; right: Cell; }
+pub data Main { left: Cell; right: Cell; }
 
 machine split(source: &Cell, destination: &mut Cell) -> bool {
     destination.value = source.value + 1;
@@ -15,7 +14,7 @@ invokes Console;
 blocks;
 crashes Trap
 {
-    transition block application.console.read_byte() {
+    transition block Console::read_byte() {
         ByteRead::Byte { value } -> initialize(application, value)
         _ -> failure(application)
     }
@@ -34,8 +33,8 @@ crashes Trap
         }
     }
     state success(application: &mut Main) {
-        application.console.write_line("split loans observed");
-        application.console.exit_process(0);
+        Console::write_line("split loans observed");
+        Console::exit_process(0);
     }
-    state failure(application: &mut Main) { application.console.exit_process(3); }
+    state failure(application: &mut Main) { Console::exit_process(3); }
 }

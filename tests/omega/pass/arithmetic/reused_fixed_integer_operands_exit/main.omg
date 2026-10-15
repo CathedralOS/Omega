@@ -1,7 +1,6 @@
 // Expected exit: 0. Finite stdin is empty for this corpus fixture.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine reused(value: i32 in Wrapping) -> i32 in Wrapping {
     let thousands: i32 in Wrapping = value / 1000;
@@ -32,7 +31,7 @@ machine trapped(value: u32 in Trapping) -> u32 in Trapping {
     doubled + value
 }
 machine read_value(context: &mut Main) -> i32 reaches Console {
-    let observed: ByteRead = block context.console.read_byte();
+    let observed: ByteRead = block Console::read_byte();
     transition observed {
         ByteRead::Eof -> (0 - 1)
         ByteRead::Byte { value } -> value
@@ -50,6 +49,6 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> good(context)
         _ -> wrong(context)
     }
-    state good(context: &mut Main) { context.console.exit_process(0); }
-    state wrong(context: &mut Main) { context.console.exit_process(71); }
+    state good(context: &mut Main) { Console::exit_process(0); }
+    state wrong(context: &mut Main) { Console::exit_process(71); }
 }
