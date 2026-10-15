@@ -122,7 +122,7 @@ machine InventorySystem::find_item(
     inventory: &Inventory,
     kind: ItemKind
     ) -> u64 {
-    let items: &[InventoryItem] = inventory.items.as_slice();
+    let items: &[InventoryItem] = &inventory.items[..];
 
     match inventory.item_count > 0 {
         true -> InventorySystem::find_item_at(items, kind, 0)

@@ -180,7 +180,7 @@ machine MazeBuilder::clear_level(
     maze_builder: &mut MazeBuilder,
     level: &mut Level
 ) {
-    let rooms: &mut [Room] = level.rooms.as_mut_slice();
+    let rooms: &mut [Room] = &mut level.rooms[..];
     MazeBuilder::clear_room(maze_builder, &mut rooms[0], CellId::R00);
     MazeBuilder::clear_room(maze_builder, &mut rooms[1], CellId::R01);
     MazeBuilder::clear_room(maze_builder, &mut rooms[2], CellId::R02);
@@ -219,7 +219,7 @@ machine MazeBuilder::clear_exits(
     maze_builder: &mut MazeBuilder,
     room: &mut Room
 ) {
-    let exits: &mut [Exit] = room.exits.as_mut_slice();
+    let exits: &mut [Exit] = &mut room.exits[..];
     exits[0] = MazeBuilder::blank_exit();
     exits[1] = MazeBuilder::blank_exit();
     exits[2] = MazeBuilder::blank_exit();

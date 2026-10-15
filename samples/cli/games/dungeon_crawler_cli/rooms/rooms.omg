@@ -88,7 +88,7 @@ machine Room::append_exit(
 // lookup would tie every `&mut Room` to the builder receiver and block the
 // builder calls the caller still needs while that room is live.
 machine Level::room_mut(level: &mut Level, cell: CellId) -> &mut Room {
-    let slots: &mut [Room] = level.rooms.as_mut_slice();
+    let slots: &mut [Room] = &mut level.rooms[..];
 
     transition cell {
         CellId::R00 -> &mut slots[0]

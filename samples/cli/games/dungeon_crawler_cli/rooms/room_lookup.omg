@@ -12,7 +12,7 @@ ensures
     out_room.description in Utf8,
     out_room.event.enemy.name in Utf8
 {
-    let rooms: &[Room] = level.rooms.as_slice();
+    let rooms: &[Room] = &level.rooms[..];
 
     transition level.room_count > 0 {
         true -> find_room_at(rooms, level.room_count, cell, out_room, 0)
@@ -50,8 +50,8 @@ ensures
         out_room.exit_count = room.exit_count;
         out_room.discovered = room.discovered;
 
-        let out_exits: &mut [Exit] = out_room.exits.as_mut_slice();
-        let room_exits: &[Exit] = room.exits.as_slice();
+        let out_exits: &mut [Exit] = &mut out_room.exits[..];
+        let room_exits: &[Exit] = &room.exits[..];
         out_exits[0] = room_exits[0];
         out_exits[1] = room_exits[1];
         out_exits[2] = room_exits[2];
@@ -66,7 +66,7 @@ ensures
 
 machine RoomLookup::find_room_mut(level: &mut Level,
     cell: CellId) -> &mut Room {
-    let rooms: &mut [Room] = level.rooms.as_mut_slice();
+    let rooms: &mut [Room] = &mut level.rooms[..];
 
     transition level.room_count > 0 {
         true -> find_room_mut_at(rooms, level.room_count, cell, 0)

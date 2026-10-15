@@ -6,7 +6,7 @@
 //   * `hits` records the reached arm.
 //
 // GAP filed: `use omega::language::core::slice` + `view[1..3]` on an
-// existing slice (or `as_slice()` view) selects a private
+// existing slice (or `&xs[..]` view) selects a private
 // `Slice::range$specialized$` machine — slice-of-slice ranges are
 // unspellable from ordinary packages.
 //   * `hits` records the reached arm.

@@ -10,7 +10,7 @@ trailing bool padding.
 ## Learnings
 
 - Recast-carried views index like arrays
-  (`read[0].unsigned_value`) — only `.as_slice()` views
+  (`read[0].unsigned_value`) — only whole-collection `&xs[..]` views
   hit the package-blocked `Slice::index`/`range`
   operators.
 - A state holding a `&mut` recast view may not also read

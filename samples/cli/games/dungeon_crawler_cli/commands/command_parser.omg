@@ -69,7 +69,7 @@ machine CommandParser::find_exit(
     room: Room,
     command: &[u8; 256] in Utf8
     ) -> Navigation {
-    let exits: &[Exit] = room.exits.as_slice();
+    let exits: &[Exit] = &room.exits[..];
 
     transition room.exit_count > 0 {
         true -> CommandParser::find_exit_at(command_parser, exits, room.exit_count, command, 0)

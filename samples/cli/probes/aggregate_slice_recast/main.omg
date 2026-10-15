@@ -13,8 +13,8 @@
 //   * `&mut main.source as &mut [Exact]` — mutable
 //     re-view, exact sets.
 //   * Recast-carried views index like arrays
-//     (`read[0].unsigned_value`) — unlike `.as_slice()`
-//     views, whose operators are package-blocked.
+//     (`read[0].unsigned_value`) — unlike whole-collection
+//     `&xs[..]` views, whose operators are package-blocked.
 //
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
