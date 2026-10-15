@@ -1,0 +1,17 @@
+module shadow;
+
+// A resolved same-named callable installs a real reference; it is not the
+// primitive byte predicate, and the installed loan keeps its backing live.
+data Slot { view: &[u8]; }
+machine valid_utf8(slot: &mut Slot, bytes: &[u8]) -> bool {
+    slot.view = bytes;
+    true
+}
+machine observe(slot: &Slot) -> u64 { slot.view.len }
+pub machine exercise() {
+    let mut bytes: [u8; 2] = [65u8, 66u8];
+    let mut slot: Slot = Slot { view: "" };
+    let selected: bool = valid_utf8(&mut slot, &bytes[..]);
+    bytes[0] = 0u8;
+    let observed: u64 = observe(&slot);
+}

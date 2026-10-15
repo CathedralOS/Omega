@@ -3071,8 +3071,7 @@ pass/text/runtime_view_local_state_transfer_exit built 6585ms exit:70 @d9f4c9302
 pass/text/state_parameter_byte_replacement_exit built 15107ms exit:70 @6c49683ce714
 pass/text/text_concat_assign checked 18236ms @6c49683ce714
 pass/text/utf8_boundary_established checked 1037ms @4c4c955947d3
-pass/text/utf8_member_verdict rejected 5133ms @8665e38f912c
-	machine `LabelMessage::decode` state `field_1_view_validate` statement 0: call stores a borrowed value without a complete destination/backing relation
+pass/text/utf8_member_verdict checked 11297ms @4491cf553993+wt
 pass/text/view_field_literal_store_outlives_helper_exit built 15276ms exit:70 @6c49683ce714
 pass/text/zii_default_string_equality_exit built 14843ms exit:70 @6c49683ce714
 pass/time/runtime_checked_time_arith_exit built 39015ms exit:70 @6c49683ce714
@@ -3186,8 +3185,7 @@ pass/wire/runtime_wire_exact_array_without_count_exit built 15793ms exit:70 @6c4
 pass/wire/runtime_wire_policy_authored_plan_exit built 12667ms exit:70 @b1d84da832b5+wt
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit built 20731ms exit:70 @6c49683ce714
 pass/wire/runtime_wire_signed_extremes_roundtrip_exit built 27920ms exit:0 @6c49683ce714
-pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 8512ms regressed-from:built+exit:70 @8665e38f912c
-	machine `LabelMessage::decode` state `field_1_view_validate` statement 0: call stores a borrowed value without a complete destination/backing relation
+pass/wire/runtime_wire_utf8_edge_verdicts_exit built 22910ms exit:70 @4491cf553993+wt
 pass/wire/wire_compatibility_migration_across_shapes built 12597ms exit:0 @6c49683ce714
 pass/wire/wire_data_reserved_field built 17612ms @6c49683ce714
 pass/wire/wire_field_numbers checked 18613ms @6c49683ce714

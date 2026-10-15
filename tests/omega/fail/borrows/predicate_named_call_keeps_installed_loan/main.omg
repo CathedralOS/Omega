@@ -1,0 +1,3 @@
+use shadow;
+
+machine main() { exercise(); }

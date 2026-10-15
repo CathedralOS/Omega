@@ -768,6 +768,8 @@ fail/borrows/plain_read_during_live_exclusive_loan rejected 1820ms expected @a9a
 	statement 2 reads `items[2]` while local borrow `middle` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 reads `value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 reads `cell.value` while local borrow `selection` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/borrows/predicate_named_call_keeps_installed_loan rejected 999ms expected @4491cf553993+wt
+	statement 3 mutates `bytes[0]` while local borrow `slot` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/primitive_aggregate_live_owner_read rejected 1701ms expected @a9ae30e1c334+wt
 	state `observe` receives `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/projected_descriptor_retains_backing_loan rejected 1869ms expected @a9ae30e1c334+wt

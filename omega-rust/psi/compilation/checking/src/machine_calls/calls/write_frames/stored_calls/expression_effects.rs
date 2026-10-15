@@ -155,6 +155,16 @@ impl Evaluation<'_, '_> {
             self.expression(child, context, effects, inference)?;
         }
         if let ExpressionNode::Call(call) = node {
+            // Primitive predicates observe bytes without installing reference
+            // slots. Their operands have already executed above, including any
+            // calls that do install slots. The declaration classifier keeps a
+            // same-spelled ordinary callable on its own inferred effect route.
+            if matches!(
+                crate::compiler_operations::classify_expression_call_intrinsic(self.program, call),
+                Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_))
+            ) {
+                return Some(());
+            }
             let called = super::invocation_effects(
                 self.program,
                 self.machine,
