@@ -1,0 +1,11 @@
+data Buffer<'storage> { values: &'storage [u64; 2]; }
+machine overwrite(incoming: &mut [u64; 2]) { incoming[0] = 7; }
+machine invalid(incoming: &[u64; 2]) {
+    let buffer: Buffer = Buffer { values: incoming };
+    overwrite(&mut buffer.values);
+}
+
+machine main() {
+    let values: [u64; 2] = [1, 2];
+    invalid(&values);
+}

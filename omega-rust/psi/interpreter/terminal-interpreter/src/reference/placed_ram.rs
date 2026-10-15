@@ -414,6 +414,7 @@ impl TerminalExecution<'_> {
             super::ReferenceReferent {
                 view: backing,
                 primitive_loan: None,
+                collection_loan: None,
                 byte_region: None,
                 byte_owner: None,
                 aggregate_view: None,

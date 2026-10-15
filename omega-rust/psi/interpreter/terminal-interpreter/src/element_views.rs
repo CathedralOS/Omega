@@ -42,6 +42,7 @@ use terminal_psi::StructuralTypeShape;
 
 /// Original scalar storage retained by a view. Access belongs to the descriptor;
 /// a shared descendant can keep this home for current reads without write authority.
+#[derive(Clone)]
 pub(crate) struct ElementViewHome {
     pub(crate) storage: crate::primitive_storage::PrimitiveStorageHome,
     pub(crate) path: Vec<StructuralPathSegment>,
@@ -80,6 +81,41 @@ enum ElementViewBacking {
 }
 
 impl ElementView {
+    /// Freeze a projection in the supplying home, rather than retaining a
+    /// path through a descriptor that can subsequently be replaced.
+    pub(crate) fn captured_storage_home(
+        &self,
+        types: &crate::program::ProgramDeclarations<'_, terminal_psi::StructuralTypeDeclaration>,
+        path: &[StructuralPathSegment],
+    ) -> Result<ElementViewHome, TerminalInterpretError> {
+        let home = self.home.as_ref().ok_or_else(malformed)?;
+        if path.is_empty() {
+            // Only a complete fixed-array companion can become a whole-array
+            // home. A partial/nonzero window must retain its selected offset.
+            // This validates placement and existing access, not the payload.
+            self.structural_projection(types, path, self.access != StructuralAccess::SharedBorrow)?;
+            return Ok((**home).clone());
+        }
+        let Some((StructuralPathSegment::FixedIndex(element_index), suffix)) = path.split_first()
+        else {
+            return Err(malformed());
+        };
+        let element_index = usize::try_from(*element_index).map_err(|_| malformed())?;
+        if element_index >= self.len() {
+            return Err(malformed());
+        }
+        Ok(ElementViewHome {
+            storage: home.storage,
+            path: home.selected_path(
+                self.window
+                    .start
+                    .checked_add(element_index)
+                    .ok_or_else(malformed)?,
+                suffix,
+            )?,
+        })
+    }
+
     pub(crate) fn structural(
         collection: TerminalStructuralValue,
         length: usize,

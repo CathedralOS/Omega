@@ -936,6 +936,10 @@ fail/borrows/static_subject_delayed_loan rejected 1613ms expected @a9ae30e1c334+
 	state `bump` receives `main` as mutable more than once
 fail/borrows/static_whole_record_field_overlap rejected 1676ms expected @a9ae30e1c334+wt
 	state `write_other` receives `store` while local borrow `field` is still active
+fail/borrows/stored_fixed_array_shared_write rejected 688ms expected @eb99d04ef2f5+wt
+	mutable argument `buffer` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/borrows/stored_fixed_array_write_only_read rejected 110ms expected @eb99d04ef2f5+wt
+	machine `invalid` state `entry` reads through index projection of write-only parameter `buffer`; `&write` permits admitted fixed-array element replacement but never observation
 fail/borrows/stored_primitive_reference_backing_write rejected 1748ms expected @a9ae30e1c334+wt
 	statement 2 mutates `backing` while local borrow `bundle` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/stored_reference_child_constructor_live_source_write rejected 5529ms expected @a9ae30e1c334+wt
@@ -5161,6 +5165,7 @@ pass/borrows/disjoint_branch_closure_with_grandchild checked 10342ms check-targe
 pass/borrows/enum_selected_view_reference_exit checked 11141ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/exclusive_array_parameter_shared_lend_exit checked 11022ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/explicit_lifetime_select checked 9442ms @5041ef1af684+wt
+pass/borrows/fixed_array_reference_backing_exit checked 2365ms check-target:macos_arm64 @eb99d04ef2f5+wt
 pass/borrows/fixed_array_reference_results_exit checked 9558ms check-target:macos_arm64 @b7c17b88b59d
 pass/borrows/indexed_record_field_replacement_exit checked 11018ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 11225ms check-target:macos_arm64 @a9ae30e1c334+wt

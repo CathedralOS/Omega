@@ -1,0 +1,4 @@
+machine invalid(incoming: &write [u64; 2]) -> u64 {
+    let buffer: &write [u64; 2] = incoming;
+    buffer[0]
+}

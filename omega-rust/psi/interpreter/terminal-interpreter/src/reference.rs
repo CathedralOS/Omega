@@ -37,6 +37,9 @@ pub(crate) struct ReferenceReferent {
     pub(crate) placed_ram: Option<PlacedRamReference>,
     pub(crate) view: TerminalStructuralValue,
     pub(crate) primitive_loan: Option<crate::primitive_storage::PrimitiveLoan>,
+    /// Fixed-array references retain the ordinary collection loan's activation
+    /// home. Its presentation is identity, never a second payload copy.
+    pub(crate) collection_loan: Option<crate::element_views::ElementView>,
     pub(crate) byte_owner: Option<crate::byte_sequences::binding::ByteSequenceBinding>,
     pub(crate) byte_region: Option<ReferenceByteRegion>,
     /// A typed re-view of aggregate storage with identical geometry: `view`
@@ -68,7 +71,8 @@ pub(crate) struct ResolvedStructuralProjection {
     pub(crate) value: TerminalStructuralValue,
     view_tip: Option<AggregateViewTip>,
     endpoint_field: Option<semantic_vocabulary::StructuralFieldId>,
-    primitive_storage: Option<crate::primitive_storage::PrimitiveStorage>,
+    pub(crate) primitive_storage: Option<crate::primitive_storage::PrimitiveStorage>,
+    pub(crate) collection_home: Option<crate::element_views::ElementViewHome>,
 }
 
 /// A returned reference must retain the exact admitted source association,
@@ -338,6 +342,28 @@ impl TerminalExecution<'_> {
         let mut byte_region = None;
         let mut region_referent = None;
         let mut aggregate_view = None;
+        let collection_loan = if storage.is_none() && access_covers(source.access, access) {
+            let argument = StructuralArgument {
+                access,
+                ..source.clone()
+            };
+            self.prepare_scalar_array_reference(
+                &StructuralParameterDeclaration {
+                    place: source.place,
+                    position: 0,
+                    structural_type: referent_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                },
+                &argument,
+                &mut identity_cursor,
+                &mut BTreeMap::new(),
+            )?
+        } else {
+            None
+        };
         let field_compatible = storage.is_none()
             && terminal_semantics::reference_byte_field_compatible(
                 self.program.structural_types().values(),
@@ -464,7 +490,7 @@ impl TerminalExecution<'_> {
             loan.access = access;
             Some(loan)
         } else {
-            if storage.is_none() && byte_owner_loan.is_none() {
+            if storage.is_none() && byte_owner_loan.is_none() && collection_loan.is_none() {
                 let (backing, tip) =
                     self.resolve_live_view_projection(source.place, &source.path, source.access)?;
                 if let Some(AggregateViewTip::Aggregate {
@@ -629,6 +655,9 @@ impl TerminalExecution<'_> {
         let mut placed_ram = None;
         let referent = match &primitive_loan {
             Some(loan) => loan.referent.clone(),
+            None if collection_loan.is_some() => {
+                collection_loan.as_ref().ok_or_else(malformed)?.0.clone()
+            }
             None if byte_owner_loan.is_some() => {
                 byte_owner_loan.as_ref().ok_or_else(malformed)?.0.clone()
             }
@@ -688,6 +717,7 @@ impl TerminalExecution<'_> {
                     .map_or(referent, |ram| ram.source.clone()),
                 placed_ram,
                 primitive_loan,
+                collection_loan: collection_loan.map(|(_, loan)| loan),
                 byte_owner: byte_owner_loan.map(|(_, binding)| binding),
                 byte_region,
                 aggregate_view,
@@ -894,6 +924,16 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
         access: StructuralAccess,
     ) -> Result<(TerminalStructuralValue, Option<AggregateViewTip>), TerminalInterpretError> {
+        self.resolve_live_storage_projection(place, path, access)
+            .map(|projection| (projection.value, projection.view_tip))
+    }
+
+    pub(crate) fn resolve_live_storage_projection(
+        &self,
+        place: PlaceId,
+        path: &[StructuralPathSegment],
+        access: StructuralAccess,
+    ) -> Result<ResolvedStructuralProjection, TerminalInterpretError> {
         self.resolve_live_projection_with_leaf_type(
             place,
             path,
@@ -904,7 +944,6 @@ impl TerminalExecution<'_> {
                 terminal_psi::StructuralFieldType::canonical_leaf_type
             },
         )
-        .map(|projection| (projection.value, projection.view_tip))
     }
 
     /// A snapshot observes the same live backing and reference authority as
@@ -989,6 +1028,19 @@ impl TerminalExecution<'_> {
         access: StructuralAccess,
     ) -> Result<Option<(TerminalStructuralValue, Option<AggregateViewTip>)>, TerminalInterpretError>
     {
+        self.resolve_reference_storage_projection(owner, path, access)
+            .map(|selected| selected.map(|projection| (projection.value, projection.view_tip)))
+    }
+
+    /// Keep the physical endpoint while walking a descriptor's logical path.
+    /// Presentation alone cannot identify scalar cells retained in an original
+    /// primitive or collection home, including a suspended caller activation.
+    pub(crate) fn resolve_reference_storage_projection(
+        &self,
+        owner: &TerminalStructuralValue,
+        path: &[StructuralPathSegment],
+        access: StructuralAccess,
+    ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
         self.resolve_reference_view_path_with_leaf_type(
             owner,
             path,
@@ -1001,7 +1053,6 @@ impl TerminalExecution<'_> {
             None,
             None,
         )
-        .map(|selected| selected.map(|projection| (projection.value, projection.view_tip)))
     }
 
     /// Discriminator validation inspects runtime custody, not a source read.
@@ -1226,7 +1277,7 @@ impl TerminalExecution<'_> {
                     // Keep the supplying home through the remaining inline
                     // projection, including nested arrays. The presentation's
                     // synthetic identity is not primitive payload storage.
-                    collection_home = Some((view, remaining[boundary].clone()));
+                    collection_home = Some((view, &remaining[boundary..boundary + 1]));
                     remaining = &remaining[boundary + 1..];
                     continue;
                 }
@@ -1243,7 +1294,10 @@ impl TerminalExecution<'_> {
                     .primitive_loan
                     .as_ref()
                     .map(|loan| loan.storage.clone());
-                collection_home = None;
+                collection_home = captured
+                    .collection_loan
+                    .as_ref()
+                    .map(|loan| (loan, &[][..]));
                 placed_ram = captured.placed_ram.clone();
                 if let Some(ram) = &placed_ram {
                     self.validate_placed_ram_home(ram)?;
@@ -1291,10 +1345,10 @@ impl TerminalExecution<'_> {
                             .shape,
                         StructuralTypeShape::PrimitiveScalar(_)
                     )
-                    && let Some((view, selector)) = collection_home
+                    && let Some((view, selected_prefix)) = collection_home
                 {
-                    let mut selected = Vec::with_capacity(1 + prefix.len());
-                    selected.push(selector);
+                    let mut selected = Vec::with_capacity(selected_prefix.len() + prefix.len());
+                    selected.extend_from_slice(selected_prefix);
                     selected.extend_from_slice(prefix);
                     primitive_storage = Some(
                         view.scalar_storage(
@@ -1316,10 +1370,26 @@ impl TerminalExecution<'_> {
                 });
                 return Ok(Some(ResolvedStructuralProjection {
                     placed_ram,
-                    value,
                     view_tip: tip,
                     endpoint_field,
                     primitive_storage,
+                    collection_home: if matches!(
+                        types
+                            .get(&value.structural_type)
+                            .map(|declaration| &declaration.shape),
+                        Some(StructuralTypeShape::FixedArray { .. })
+                    ) {
+                        collection_home
+                            .map(|(view, selected_prefix)| {
+                                let mut selected = selected_prefix.to_vec();
+                                selected.extend_from_slice(prefix);
+                                view.captured_storage_home(&types, &selected)
+                            })
+                            .transpose()?
+                    } else {
+                        None
+                    },
+                    value,
                 }));
             }
         }

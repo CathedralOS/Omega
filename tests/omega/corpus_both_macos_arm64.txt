@@ -11,6 +11,7 @@ pass/arithmetic/runtime_composite_bound_arrivals_exit built 12850ms exit:0 inter
 pass/atomics/runtime_atomic_computed_operands_exit built 5756ms exit:0 interpreter-exit:0 interpreter:agrees @e460ea1df091+wt
 pass/atomics/runtime_atomic_computed_updates_exit built 5756ms exit:0 interpreter-exit:0 interpreter:agrees @e460ea1df091+wt
 pass/atomics/runtime_atomic_operand_order_exit built 5756ms exit:0 interpreter-exit:0 interpreter:agrees @e460ea1df091+wt
+pass/borrows/fixed_array_reference_backing_exit built 2447ms exit:0 interpreter-exit:0 interpreter:agrees @eb99d04ef2f5+wt
 pass/borrows/fixed_array_reference_results_exit built 5592ms exit:0 interpreter-exit:0 interpreter:agrees @c772928b87e3+wt
 pass/borrows/runtime_assignment_rhs_carrier_replacement_exit built 4237ms exit:0 interpreter-exit:0 interpreter:agrees @1d894d08858b+wt
 pass/borrows/runtime_indexed_carrier_conditional_exit built 5551ms exit:0 interpreter-exit:0 interpreter:agrees @e02a3fd5278f+wt

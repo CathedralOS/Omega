@@ -1,0 +1,80 @@
+// Expected exit: 0.
+// Stored array references keep the original home through calls and projections.
+data Buffer<'storage> { values: &'storage mut [u64; 2]; }
+data Matrix<'storage> { rows: &'storage mut [[u64; 2]; 2]; }
+data SharedBuffer<'storage> { values: &'storage [u64; 2]; }
+data EmptyBuffer<'storage> { values: &'storage [u64; 0]; }
+
+machine update<'storage>(incoming: &'storage mut [u64; 2]) {
+    let mut buffer: Buffer = Buffer { values: incoming };
+    buffer.values[1] = 66;
+}
+
+machine original<'storage>(incoming: &'storage mut [u64; 2]) -> &'storage mut [u64; 2] {
+    incoming
+}
+
+machine original_child<'storage>(first: &'storage mut [u64; 2], second: &'storage mut [u64; 2]) -> &'storage mut [u64; 2] {
+    let mut buffer: Buffer = Buffer { values: first };
+    let child: &mut [u64; 2] = &mut buffer.values;
+    buffer.values = second;
+    child
+}
+
+machine observe(incoming: &[u64; 2]) -> u64 {
+    let buffer: SharedBuffer = SharedBuffer { values: incoming };
+    buffer.values[1]
+}
+
+machine initialize(incoming: &write [u64; 2]) {
+    incoming[0] = 81;
+    incoming[1] = 82;
+}
+
+machine inspect_empty(incoming: &[u64; 0]) {
+    let buffer: EmptyBuffer = EmptyBuffer { values: incoming };
+    let held: &[u64; 0] = buffer.values;
+}
+
+machine retained_child() crashes Trap {
+    let mut first: [u64; 2] = [11, 12];
+    let mut second: [u64; 2] = [21, 22];
+    let mut buffer: Buffer = Buffer { values: &mut first };
+    let child: &mut [u64; 2] = &mut buffer.values;
+    buffer.values = &mut second;
+    child[0] = 65;
+    transition first[0] == 65 && second[0] == 21 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    let mut values: [u64; 2] = [11, 12];
+    let mut buffer: Buffer = Buffer { values: &mut values };
+    buffer.values[0] = 65;
+    update(&mut values);
+    let mut cells: [[u64; 2]; 2] = [[21, 22], [31, 32]];
+    let mut matrix: Matrix = Matrix { rows: &mut cells };
+    matrix.rows[1][0] = 77;
+    let returned: &mut [u64; 2] = original(&mut values);
+    returned[0] = 67;
+    let observed: u64 = observe(&values);
+    let mut output: [u64; 2] = [0, 0];
+    initialize(&write output);
+    let empty: [u64; 0] = [];
+    inspect_empty(&empty);
+    retained_child();
+    let mut original_values: [u64; 2] = [41, 42];
+    let mut replacement: [u64; 2] = [51, 52];
+    let returned_child: &mut [u64; 2] = original_child(&mut original_values, &mut replacement);
+    returned_child[1] = 91;
+    transition values[0] == 67 && observed == 66 && cells[1][0] == 77 && cells[0][0] == 21 && output[0] == 81 && output[1] == 82 && original_values[1] == 91 && replacement[1] == 52 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

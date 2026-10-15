@@ -29,6 +29,7 @@ impl TerminalExecution<'_> {
                 }),
             endpoint_field: None,
             primitive_storage: backing.primitive_storage.clone(),
+            collection_home: None,
         };
         let mut remaining = backing.suffix.as_slice();
         let mut captured_view = backing.element_view.as_ref();

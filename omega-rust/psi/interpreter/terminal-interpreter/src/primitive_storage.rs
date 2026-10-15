@@ -621,6 +621,26 @@ impl TerminalExecution<'_> {
             } else {
                 StructuralAccess::SharedBorrow
             };
+            // Descriptor traversal already retained the physical endpoint.
+            // Do not discard that association and reinterpret its presentation
+            // identity as a separately owned scalar allocation.
+            let captured = self
+                .resolve_reference_storage_projection(owner, path, access)?
+                .ok_or_else(malformed)?;
+            if let Some(storage) = captured.primitive_storage {
+                let projection_type = if writing {
+                    terminal_semantics::primitive_projection_type
+                } else {
+                    terminal_semantics::primitive_read_projection_type
+                };
+                let scalar_type = projection_type(
+                    self.program.structural_types().values(),
+                    owner.structural_type,
+                    path,
+                )
+                .ok_or_else(malformed)?;
+                return Ok(Some((storage, scalar_type, !writing)));
+            }
             // Resolve the captured pointer before applying the primitive
             // suffix. Its descriptor home is never the referent's storage.
             let (referent, view) = self

@@ -16,6 +16,32 @@ use terminal_psi::{
 };
 
 impl TerminalExecution<'_> {
+    /// Packed arrays and forwarded collection loans need an activation home.
+    /// Ordinary structural arrays already have stable resident identity and
+    /// keep the reference owner's normal storage projection. This selects a
+    /// physical backing owner, not a different source reference operation.
+    pub(crate) fn prepare_scalar_array_reference(
+        &self,
+        parameter: &StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+        identity_cursor: &mut Option<u64>,
+        local_roots: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+    ) -> Result<Option<(TerminalStructuralValue, ElementView)>, TerminalInterpretError> {
+        if self.lent_collection_type(parameter, argument).is_none() {
+            return Ok(None);
+        }
+        if !self.scalar_array_values.contains_key(&argument.place)
+            && !self.element_view_values.contains_key(&argument.place)
+            && self
+                .resolve_live_storage_projection(argument.place, &argument.path, argument.access)?
+                .collection_home
+                .is_none()
+        {
+            return Ok(None);
+        }
+        self.prepare_scalar_array_loan(parameter, argument, identity_cursor, local_roots)
+    }
+
     /// A fixed array lent to a fixed-array formal, or lent whole to an
     /// element-view formal of its own element type (`walk(&items)` for
     /// `values: &[i32]`), borrows the same live collection home. The view
@@ -132,12 +158,20 @@ impl TerminalExecution<'_> {
         }
         let (root, _) =
             self.array_storage_root_staged(argument.place, identity_cursor, local_roots)?;
-        let referent = if self.scalar_array_values.contains_key(&argument.place) {
-            project_structural_value(&self.program.structural_types(), &root, &argument.path)?
+        let (referent, captured_home) = if self.scalar_array_values.contains_key(&argument.place) {
+            (
+                project_structural_value(&self.program.structural_types(), &root, &argument.path)?,
+                None,
+            )
         } else {
             // Reference crossings and selected cases retain their independent
             // access/discriminator checks; a storage home grants neither.
-            self.resolve_live_projection(argument.place, &argument.path, argument.access)?
+            let projected = self.resolve_live_storage_projection(
+                argument.place,
+                &argument.path,
+                argument.access,
+            )?;
+            (projected.value, projected.collection_home)
         };
         if referent.structural_type != collection_type
             || !referent.qualifications.is_empty()
@@ -147,16 +181,27 @@ impl TerminalExecution<'_> {
         }
         let mut presented = referent.clone();
         presented.structural_type = parameter.structural_type;
-        let loan = ElementView::structural(
-            referent,
-            length,
-            parameter.access,
-            ElementViewHome {
+        let home = match captured_home {
+            Some(home) => home,
+            None if let Some(loan) = self.element_view_values.get(&argument.place) => {
+                // A selected row of a fixed-array formal has no descriptor
+                // crossing in its path, but still borrows the formal's original
+                // home. Pinning this forwarding activation would leave returned
+                // rows pointing at a frame that has already retired.
+                if !loan.matches_descriptor_home(&root)
+                    || !parameter.access.admits_referent(loan.access())
+                {
+                    return Err(malformed());
+                }
+                loan.captured_storage_home(&self.program.structural_types(), &argument.path)?
+            }
+            None => ElementViewHome {
                 storage: self.capture_primitive_home(argument.place)?,
                 path: argument.path.clone(),
             },
-        )
-        .with_descriptor_home(presented.clone());
+        };
+        let loan = ElementView::structural(referent, length, parameter.access, home)
+            .with_descriptor_home(presented.clone());
         Ok(Some((presented, loan)))
     }
 

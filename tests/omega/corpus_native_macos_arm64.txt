@@ -165,6 +165,7 @@ pass/borrows/data_copy_property checked 9250ms @5041ef1af684+wt
 pass/borrows/enum_selected_view_reference_exit built 1258ms exit:70 @011fd400e8c1+wt
 pass/borrows/exclusive_array_parameter_shared_lend_exit built 1452ms exit:70 @74a78aefec94+wt
 pass/borrows/explicit_lifetime_select checked 9974ms @5041ef1af684+wt
+pass/borrows/fixed_array_reference_backing_exit built 2468ms exit:0 @eb99d04ef2f5+wt
 pass/borrows/indexed_record_field_replacement_exit built 1785ms exit:70 @8d34ee62210f+wt
 pass/borrows/interleaved_parameter_field_replacement_exit built 1497ms exit:70 @63377f7122bb+wt
 pass/borrows/lifetime_return_borrow checked 9542ms @5041ef1af684+wt
