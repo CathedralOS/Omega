@@ -13,8 +13,11 @@ use super::roster_marker;
 use crate::{data::DataMember, signature::StateParameter, statement::StatementNode};
 use symbols::SymbolHandle;
 
-fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
-    (symbol.arena_index(), symbol.generation())
+fn symbol_key(symbol: SymbolHandle) -> u64 {
+    // Packing preserves lexicographic (index, generation) order while each
+    // binary-search step compares one integer. This is an ordering key, not
+    // a fingerprint: neither half of the generational identity is discarded.
+    (u64::from(symbol.arena_index()) << 32) | u64::from(symbol.generation())
 }
 
 pub(super) fn sort_symbol_rows<Position>(rows: &mut [(SymbolHandle, Position)]) {
@@ -220,5 +223,59 @@ impl crate::TypedTrees {
                 .map(|(_, position)| *position)
                 .collect()
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{first_symbol_row, sort_symbol_rows, symbol_key, symbol_rows};
+    use symbols::SymbolHandle;
+
+    #[test]
+    fn symbol_order_preserves_generations_and_duplicate_roster_order() {
+        let boundaries = [0, 1, 2, u32::MAX / 2, u32::MAX / 2 + 1, u32::MAX];
+        let symbols = boundaries
+            .into_iter()
+            .flat_map(|position| {
+                boundaries
+                    .into_iter()
+                    .map(move |generation| SymbolHandle::from_parts(position, generation))
+            })
+            .collect::<Vec<_>>();
+        for left in &symbols {
+            for right in &symbols {
+                assert_eq!(
+                    symbol_key(*left).cmp(&symbol_key(*right)),
+                    (left.arena_index(), left.generation())
+                        .cmp(&(right.arena_index(), right.generation()))
+                );
+            }
+        }
+
+        let mut rows = symbols
+            .iter()
+            .rev()
+            .chain(symbols.iter())
+            .copied()
+            .enumerate()
+            .map(|(position, symbol)| (symbol, position))
+            .collect::<Vec<_>>();
+        let authored = rows.clone();
+        sort_symbol_rows(&mut rows);
+        for symbol in symbols.into_iter().chain([
+            SymbolHandle::from_parts(3, 4),
+            SymbolHandle::from_parts(1, 3),
+        ]) {
+            let expected = authored
+                .iter()
+                .copied()
+                .filter(|(candidate, _)| *candidate == symbol)
+                .collect::<Vec<_>>();
+            assert_eq!(symbol_rows(&rows, symbol), expected);
+            assert_eq!(first_symbol_row(&rows, symbol), expected.first());
+        }
+        let empty: [(SymbolHandle, usize); 0] = [];
+        assert!(symbol_rows(&empty, SymbolHandle::invalid()).is_empty());
+        assert!(first_symbol_row(&empty, SymbolHandle::invalid()).is_none());
     }
 }

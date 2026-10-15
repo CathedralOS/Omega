@@ -624,12 +624,14 @@ impl PhaseSnapshot for TypedTrees {
 impl Deref for TypedTrees {
     type Target = TypedTreeTables;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.tables
     }
 }
 
 impl DerefMut for TypedTrees {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.tables
     }

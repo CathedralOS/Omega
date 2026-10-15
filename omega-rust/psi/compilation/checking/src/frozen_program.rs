@@ -97,6 +97,7 @@ pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
 impl Deref for dyn CheckingInput + '_ {
     type Target = TypedTrees;
 
+    #[inline]
     fn deref(&self) -> &TypedTrees {
         self.typed_program()
     }
