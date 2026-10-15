@@ -74,7 +74,9 @@ pub data AbiValueShape {
 // policy cannot establish an identity by inventing an integer, and unknown
 // values reject during plan validation. Calling policy may place declared
 // native entries but cannot create, reorder, or retarget them.
-pub data NativePlace {
+// A native destination names a compiler-issued plan coordinate; copying the
+// coordinate grants no authority over the storage it describes.
+pub data NativePlace [copy] {
     case Parameter(parameter: u64);
     case Field(
         parameter: u64,
