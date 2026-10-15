@@ -201,6 +201,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                                 index,
                                 call.clone(),
                                 selected,
+                                returns_non_unit,
                             ));
                         }
                     } else {
@@ -238,7 +239,9 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
         };
         call.target_symbol = selected;
     }
-    for (state_symbol, statements, index, call, selected) in operator_statement_updates {
+    for (state_symbol, statements, index, call, selected, returns_value) in
+        operator_statement_updates
+    {
         let source_span = call.source_span;
         let authored_call_selection = call.authored_call_selection;
         let receiver_members = program
@@ -296,6 +299,14 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
             program
                 .expression_table
                 .attach_authored_selection_occurrences(expression, [occurrence]);
+        }
+        // Unit has no value carrier. Keep the selected call in statement
+        // position so its writes and guarantees reach subsequent statements
+        // without manufacturing a local initialized by a nonexistent value.
+        if !returns_value {
+            program.statement_table.statements_mut(statements)[index] =
+                StatementNode::Expression(expression);
+            continue;
         }
         let type_reference = program
             .operator_definition_by_symbol(selected)
@@ -412,11 +423,7 @@ fn visible_boundary_overload_family<'program>(
     candidates: &[&'program typed_trees::operator::OperatorDefinition],
     source_span: SourceSpan,
     provisional: &'program typed_trees::operator::OperatorDefinition,
-) -> (
-    CallableIdentityId,
-    Vec<(SymbolHandle, CallableIdentityId)>,
-    usize,
-) {
+) -> (Vec<(SymbolHandle, CallableIdentityId)>, usize) {
     let provisional_identity = program.operator_callable_identity(provisional);
     let visible_candidate_count = candidates
         .iter()
@@ -432,7 +439,7 @@ fn visible_boundary_overload_family<'program>(
         source_span,
         provisional_identity,
     );
-    (provisional_identity, overloads, visible_candidate_count)
+    (overloads, visible_candidate_count)
 }
 
 fn selected_named_statement_callable_symbol(
@@ -480,15 +487,11 @@ fn selected_named_statement_callable_symbol(
 
     let candidates = typed_trees::operator::named_statement_call_candidates(program, call);
     if let Some(provisional) = candidates.first() {
-        let (provisional_identity, overloads, visible_candidate_count) =
+        let (overloads, visible_candidate_count) =
             visible_boundary_overload_family(program, &candidates, source_span, provisional);
         if overloads.len() == visible_candidate_count {
-            if let [(symbol, _)] = overloads.as_slice() {
-                return Some(*symbol);
-            }
-            return select_overload_symbol(
+            return select_unbound_overload_family_symbol(
                 program,
-                provisional_identity,
                 &overloads,
                 expected_result,
                 diagnostics,
@@ -551,7 +554,7 @@ fn selected_named_expression_callable_symbol(
             diagnostics,
         );
     };
-    let (provisional_identity, overloads, visible_candidate_count) =
+    let (overloads, visible_candidate_count) =
         visible_boundary_overload_family(program, &candidates, source_span, provisional);
     if overloads.len() != visible_candidate_count {
         // Path/arity alone still spans distinct parameter overload groups.
@@ -565,9 +568,8 @@ fn selected_named_expression_callable_symbol(
             diagnostics,
         );
     }
-    select_overload_symbol(
+    select_unbound_overload_family_symbol(
         program,
-        provisional_identity,
         &overloads,
         expected_result,
         diagnostics,
@@ -790,20 +792,38 @@ fn named_machine_overload_family_symbol(
                 .then_some((callable.symbol, identity))
         })
         .collect::<Vec<_>>();
-    match overloads.as_slice() {
+    select_unbound_overload_family_symbol(
+        program,
+        &overloads,
+        expected_result,
+        diagnostics,
+        "machine",
+    )
+}
+
+/// An unbound call needs a declaration even when its visible family has only
+/// one member. Bind that exact member before ordinary type and use checking;
+/// result-domain disambiguation applies only when several members remain.
+/// Already bound calls keep their original declaration through the ordinary
+/// overload selector, including its instantiated trait application identity.
+fn select_unbound_overload_family_symbol(
+    program: &dyn crate::CheckingInput,
+    overloads: &[(SymbolHandle, CallableIdentityId)],
+    expected_result: Option<TypeReferenceHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+    kind: &str,
+) -> Option<SymbolHandle> {
+    match overloads {
         [] => None,
         [(symbol, _)] => Some(*symbol),
-        _ => {
-            let provisional_identity = overloads[0].1;
-            select_overload_symbol(
-                program,
-                provisional_identity,
-                &overloads,
-                expected_result,
-                diagnostics,
-                "machine",
-            )
-        }
+        [(_, provisional_identity), ..] => select_overload_symbol(
+            program,
+            *provisional_identity,
+            overloads,
+            expected_result,
+            diagnostics,
+            kind,
+        ),
     }
 }
 

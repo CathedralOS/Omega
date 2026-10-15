@@ -3399,6 +3399,10 @@ fail/operators/named_boundary_transition_requires rejected 736ms expected @0755e
 	cannot prove `value > 0` — the `requires` of `probe` (called `probe(value)`)
 fail/operators/named_operator_result_overload_duplicate_dispatch rejected 884ms expected @a9ae30e1c334+wt
 	duplicate named requirement overload `Convert::value` with parameter signature `operands(named(name(i32)));flags(mutable=false;const=false)` and result dispatch set `arithmetic:Trapping`; predicate-only result refinements do not distinguish overloads
+fail/operators/named_unit_result_argument_rejected rejected 310ms expected @c2bf148364f2+wt
+	machine `main` state `entry`: `set(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
+fail/operators/named_unit_result_local_rejected rejected 267ms expected @c2bf148364f2+wt
+	machine `main` state `entry`: `set(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
 fail/operators/operand_requires_invalidated rejected 1623ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call equal from compare: value >= 0 (needs fact `right >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/operators/result_domain_operator_family_wrong_signature rejected 8364ms expected @a9ae30e1c334+wt
@@ -7044,6 +7048,7 @@ pass/operators/runtime_declared_open_range_preserves_operand_snapshot_exit check
 pass/operators/runtime_declared_range_guarded_collection_exit checked 11061ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/operators/runtime_declared_reference_index_capture_exit checked 4355ms check-target:macos_arm64 @a9c11ff574b9+wt
 pass/operators/runtime_generic_reference_selector_snapshot_exit checked 4337ms check-target:macos_arm64 @a9c11ff574b9+wt
+pass/operators/runtime_named_unit_statement_effects_exit checked 6131ms check-target:macos_arm64 @c2bf148364f2+wt
 pass/operators/runtime_selected_operator_requires_after_effects_exit checked 5879ms check-target:macos_arm64 @b8976916d516+wt
 pass/operators/runtime_xorshift_prng_exit checked 12139ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/operators/slice_index_bounds_from_operator_contract checked 1634ms @a9ae30e1c334+wt
@@ -7990,7 +7995,7 @@ pass/text/runtime_view_local_record_local_field_store_exit checked 11977ms check
 pass/text/runtime_view_local_state_transfer_exit checked 11515ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/state_parameter_byte_replacement_exit checked 12514ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/text_concat_assign checked 9907ms @5041ef1af684+wt
-pass/text/utf8_boundary_established checked 1689ms @a9ae30e1c334+wt
+pass/text/utf8_boundary_established checked 1065ms @c2bf148364f2+wt
 pass/text/utf8_member_verdict checked 15478ms @5041ef1af684+wt
 pass/text/view_field_literal_store_outlives_helper_exit checked 12190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/zii_default_string_equality_exit checked 12294ms check-target:macos_arm64 @a9ae30e1c334+wt

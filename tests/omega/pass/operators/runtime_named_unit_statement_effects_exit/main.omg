@@ -1,0 +1,33 @@
+// Expected exit: 0. An explicit Unit requirement stays a statement, with
+// writes and postconditions retained for bare, discarded and tail calls.
+boundary operator Actions::set(value: &mut u32) -> ()
+ensures value == 7;
+
+data Setter {}
+machine Setter::set(value: &mut u32) -> ()
+satisfies Actions::set
+ensures value == 7
+{ value = 7; }
+
+machine tail(value: &mut u32) -> () { Actions::set(value); }
+machine main() crashes Trap {
+    let mut value: u32 = 1;
+    Actions::set(&mut value);
+    let first: u32 = value;
+    value = 2;
+    _ = Actions::set(&mut value);
+    let second: u32 = value;
+    value = 3;
+    tail(&mut value);
+    transition first == 7 && second == 7 && value == 7 {
+        true -> later()
+        _ -> bad()
+    }
+    state later() {
+        let mut value: u32 = 4;
+        Actions::set(&mut value);
+        transition value == 7 { true -> done() _ -> bad() }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

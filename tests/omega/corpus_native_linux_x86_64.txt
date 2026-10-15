@@ -2138,6 +2138,7 @@ pass/operators/runtime_declared_open_range_preserves_operand_snapshot_exit built
 pass/operators/runtime_declared_range_guarded_collection_exit built 17668ms exit:0 @6c49683ce714
 pass/operators/runtime_declared_reference_index_capture_exit built 17663ms exit:0 @6c49683ce714
 pass/operators/runtime_generic_reference_selector_snapshot_exit built 17638ms exit:0 @6c49683ce714
+pass/operators/runtime_named_unit_statement_effects_exit built 6161ms exit:0 @c2bf148364f2+wt
 pass/operators/runtime_selected_operator_requires_after_effects_exit built 17646ms exit:0 @6c49683ce714
 pass/operators/runtime_xorshift_prng_exit built 15121ms exit:70 @6c49683ce714
 pass/operators/slice_index_bounds_from_operator_contract checked 3614ms @6c49683ce714
@@ -3106,8 +3107,7 @@ pass/text/runtime_view_local_record_local_field_store_exit built 6575ms exit:70 
 pass/text/runtime_view_local_state_transfer_exit built 6585ms exit:70 @d9f4c930251e+wt
 pass/text/state_parameter_byte_replacement_exit built 15107ms exit:70 @6c49683ce714
 pass/text/text_concat_assign checked 18236ms @6c49683ce714
-pass/text/utf8_boundary_established rejected 784ms regressed-from:checked @6c49683ce714
-	machine `Main::main` state `main`: `validate_utf8(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
+pass/text/utf8_boundary_established checked 1267ms @c2bf148364f2+wt
 pass/text/utf8_member_verdict rejected 15013ms @6c49683ce714
 	machine `LabelMessage::decode` state `field_1_view_validate` statement 0: call stores a borrowed value without a complete destination/backing relation
 pass/text/view_field_literal_store_outlives_helper_exit built 15276ms exit:70 @6c49683ce714

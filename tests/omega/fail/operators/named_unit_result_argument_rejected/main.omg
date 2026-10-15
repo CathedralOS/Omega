@@ -1,0 +1,6 @@
+boundary operator Actions::set(value: &mut u32) -> ();
+machine consume(value: u32) {}
+machine main() {
+    let mut value: u32 = 0;
+    consume(Actions::set(&mut value));
+}
