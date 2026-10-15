@@ -18,6 +18,15 @@ pub(super) fn append(
     let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     let selecting_map = crate::provider_identity::named_provider(context, plan);
     for row in &plan.rows {
+        if matches!(
+            row.binding,
+            ProviderBinding::Import { .. }
+                | ProviderBinding::CompilerIntrinsic { .. }
+                | ProviderBinding::Syscall { .. }
+        ) {
+            append_leaf_rows(typed, plan, row, rows, identities, diagnostics);
+            continue;
+        }
         let ProviderBinding::CheckedAdapter {
             machine_identity: selected_machine_identity,
             machine_package_identity,
@@ -126,5 +135,52 @@ pub(super) fn append(
                 machine_identity: identities.intern(&machine_identity),
             });
         }
+    }
+}
+
+/// A leaf binding (a foreign import, compiler intrinsic or system call) has
+/// no provider instance per static tuple: the one physical leaf realizes every
+/// closed application of its template, and method-level selections such as a
+/// native callback's machine are materialized at each call. Each closed
+/// application therefore rebinds to the template row itself, and the row
+/// names the template as its own realization.
+fn append_leaf_rows(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    plan: &ProviderPlan,
+    row: &crate::provider_planning::ProviderPlanRow,
+    rows: &mut Vec<effects::SelectedRequirementSpecialization>,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    diagnostics: &mut Vec<diagnostics::Diagnostic>,
+) {
+    let template = plan.identities.text(row.requirement_identity);
+    for application in typed
+        .closed_requirement_applications()
+        .filter(|application| {
+            typed
+                .trait_machine_signature(application.template)
+                .is_some_and(|(owner, signature)| {
+                    typed.trait_requirement_callable_identity_text(owner, signature) == template
+                })
+        })
+    {
+        let Some(owner) = typed.trait_definition_by_symbol(application.declaring_trait) else {
+            diagnostics.push(diagnostics::Diagnostic::error(
+                "closed requirement application lost its declaring trait",
+            ));
+            continue;
+        };
+        let requirement_identity =
+            typed.trait_requirement_callable_identity_text(owner, application.signature);
+        if requirement_identity.is_empty() || requirement_identity == template {
+            continue;
+        }
+        let template = identities.intern(template);
+        rows.push(effects::SelectedRequirementSpecialization {
+            provider_plan_report_identity: plan.report_fingerprint(),
+            selected_requirement_identity: template,
+            selected_machine_identity: template,
+            requirement_identity: identities.intern(&requirement_identity),
+            machine_identity: template,
+        });
     }
 }

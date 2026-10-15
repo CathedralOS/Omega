@@ -74,11 +74,6 @@ pub enum LoweringError {
         boundary: BoundaryMachineId,
     },
     ProviderExecutionBinding(String),
-    ProviderExecutionRequirementMismatch {
-        boundary: BoundaryMachineId,
-        expected: String,
-        actual: String,
-    },
     OperationAfterReturn(MachineId),
     FunctionHasNoReturn(MachineId),
     FunctionResultMismatch(MachineId),

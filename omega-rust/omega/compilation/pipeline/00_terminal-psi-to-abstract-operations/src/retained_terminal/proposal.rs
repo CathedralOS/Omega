@@ -233,6 +233,7 @@ fn project_terminal_native_body(
     )?;
     let external_binding_rows = crate::settle_callback_registrar_imports(
         terminal_module,
+        &selected,
         &request.callback_placements,
         callback_occurrences
             .iter()

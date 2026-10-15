@@ -606,6 +606,9 @@ pub struct NativeSelectedProviderPlan {
     requirement_identities: Vec<String>,
     family_realization_rows: Vec<effects::SelectedTargetFamilyRealization>,
     family_realization_identities: terminal_psi::TerminalIdentityTable,
+    /// Closed requirement identity paired with the template-keyed row that
+    /// serves it, projected from the closure's specialization roster.
+    closed_requirement_rows: Vec<(String, String)>,
 }
 
 impl NativeSelectedProviderPlan {
@@ -644,6 +647,24 @@ impl NativeSelectedProviderPlan {
                     .cloned()
                     .collect();
                 projected.family_realization_identities = selection.identities().clone();
+                projected.closed_requirement_rows = selection
+                    .specialized_requirement_rows()
+                    .iter()
+                    .filter(|row| row.provider_plan_report_identity == report_identity)
+                    .map(|row| {
+                        let text = |identity| {
+                            selection
+                                .identities()
+                                .text(identity)
+                                .unwrap_or_default()
+                                .to_owned()
+                        };
+                        (
+                            text(row.requirement_identity),
+                            text(row.selected_requirement_identity),
+                        )
+                    })
+                    .collect();
                 projected
             })
             .collect::<Vec<_>>();
@@ -666,6 +687,7 @@ impl NativeSelectedProviderPlan {
             family_realization_identities: terminal_psi::TerminalIdentityTable::from(vec![
                 String::new(),
             ]),
+            closed_requirement_rows: Vec::new(),
         }
     }
 
@@ -694,19 +716,23 @@ impl NativeSelectedProviderPlan {
     /// Recover the authority requirement without rewriting the original
     /// callable occurrence. These rows were projected from the exact selected
     /// closure and remain committed by both closure and artifact identities.
+    /// A family alias resolves through its realization row; a closed
+    /// application of a requirement template resolves to the template row
+    /// that serves it; any other requirement is its own authority.
     pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
-        self.family_realization_rows
+        if let Some(row) = self.family_realization_rows.iter().find(|row| {
+            self.family_realization_identities.text(row.head_identity) == Some(requirement)
+                || self.family_realization_identities.text(row.member_identity) == Some(requirement)
+        }) {
+            return self
+                .family_realization_identities
+                .text(row.selected_requirement_identity)
+                .unwrap_or(requirement);
+        }
+        self.closed_requirement_rows
             .iter()
-            .find(|row| {
-                self.family_realization_identities.text(row.head_identity) == Some(requirement)
-                    || self.family_realization_identities.text(row.member_identity)
-                        == Some(requirement)
-            })
-            .map_or(requirement, |row| {
-                self.family_realization_identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or(requirement)
-            })
+            .find(|(closed, _)| closed == requirement)
+            .map_or(requirement, |(_, selected)| selected.as_str())
     }
 }
 

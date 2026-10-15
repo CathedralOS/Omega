@@ -5,44 +5,20 @@ use target_operations::BoundarySettlementBinding;
 
 pub(super) fn bind_provider_executions(
     plan: &AbstractOperationPlan,
-    verified_input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
     settlements: &[AdmittedBoundarySettlement<'_>],
 ) -> Result<Vec<BoundarySettlementBinding>, LoweringError> {
     settlements
         .iter()
         .map(|settlement| {
-            let declaration =
-                terminal_psi::find_boundary_machine(&plan.boundary_machines, settlement.boundary)
-                    .ok_or(LoweringError::UnknownBoundarySettlement(
+            terminal_psi::find_boundary_machine(&plan.boundary_machines, settlement.boundary)
+                .ok_or(LoweringError::UnknownBoundarySettlement(
                     settlement.boundary,
                 ))?;
             let execution = match settlement.execution {
                 AdmittedBoundaryExecution::Provider(provider_execution) => {
-                    if plan.identities.text(declaration.identity)
-                        != Some(provider_execution.requirement_identity())
-                        && !verified_input.is_some_and(|input| {
-                            input.target_family_realizations().iter().any(|row| {
-                                (row.head == settlement.boundary
-                                    || row.member == settlement.boundary)
-                                    && input
-                                        .target_family_realization_identities()
-                                        .text(row.selected_requirement_identity)
-                                        == Some(provider_execution.requirement_identity())
-                                    && row.provider_plan_report_identity
-                                        == provider_execution.provider_plan_report_identity()
-                            })
-                        })
-                    {
-                        return Err(LoweringError::ProviderExecutionRequirementMismatch {
-                            boundary: settlement.boundary,
-                            expected: plan
-                                .identities
-                                .text(declaration.identity)
-                                .unwrap_or_default()
-                                .to_string(),
-                            actual: provider_execution.requirement_identity().to_owned(),
-                        });
-                    }
+                    // Provider admission joined this boundary to its selected
+                    // row through the closure's exact, family and closed
+                    // requirement relations; lowering binds that join as given.
                     let provider_plan = target_operations::ProviderPlanReportIdentity::new(
                         provider_execution.provider_plan_report_identity(),
                     )

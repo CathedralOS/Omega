@@ -24,12 +24,18 @@ pub(crate) struct CallbackRegistrarOccurrence {
 /// operation still coexist. The locator remains the target package's only
 /// contribution; the registrar requirement owns its complete physical plan.
 ///
+/// A Terminal boundary names the call's own requirement identity. A closed
+/// application of a requirement template rejoins the template-keyed calling
+/// plan and import row through the selected closure's requirement relation;
+/// an unspecialized requirement selects itself.
+///
 /// The occurrence iterator is cloned to prepare the requested operation roster;
 /// the original order determines diagnostics and row updates. An absent import
 /// remains valid for a check-only product, but an ambiguous import rejects.
 /// This closure does not grant native publication or registration authority.
 pub(crate) fn settle_callback_registrar_imports(
     terminal_module: &TerminalModule,
+    selected: &effects::SelectedProviderPlanFacts,
     callback_placements: &[NativeCallbackPlacement],
     callback_occurrences: impl Iterator<Item = CallbackRegistrarOccurrence> + Clone,
     calling_applications: &[BoundaryCallingApplication],
@@ -83,11 +89,12 @@ pub(crate) fn settle_callback_registrar_imports(
         let requirement = declarations.get(boundary).copied().ok_or_else(|| {
             "callback registrar import closure names an absent Terminal boundary".to_owned()
         })?;
+        let selected_requirement = selected.selected_requirement_identity(requirement);
 
         let matching_realizations = calling_applications
             .iter()
             .filter(|realization| {
-                realization.requirement_identity == requirement
+                realization.requirement_identity == selected_requirement
                     && realization.callback_context_closed
                     && realization.plan.plan() == &materialization.registrar_boundary_entry_plan
             })
@@ -101,7 +108,7 @@ pub(crate) fn settle_callback_registrar_imports(
         let mut matching_rows = rows
             .iter_mut()
             .filter(|row| {
-                row.requirement_identity == requirement
+                row.requirement_identity == selected_requirement
                     && matches!(
                         row.binding,
                         calling_conventions::ExternalBindingKind::Import { .. }

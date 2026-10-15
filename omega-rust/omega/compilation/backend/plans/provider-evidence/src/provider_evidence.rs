@@ -512,8 +512,9 @@ impl SelectedProviderPlanFacts {
     /// provider candidates instead name the exact closed identities. These
     /// rows rebind the selected closure to them without rewriting any
     /// selected row: each record must name a selected plan's checked-adapter
-    /// row, and a closed requirement resolves exactly once across the whole
-    /// closure.
+    /// row and its specialized instance, or a leaf row (import, intrinsic,
+    /// system call) that names the template as its own realization, and a
+    /// closed requirement resolves exactly once across the whole closure.
     pub fn with_specialized_requirement_rows(
         mut self,
         mut rows: Vec<SelectedRequirementSpecialization>,
@@ -587,14 +588,24 @@ impl SelectedProviderPlanFacts {
             let bound = plan.rows.iter().any(|plan_row| {
                 Some(plan.identities.text(plan_row.requirement_identity))
                     == self.identities.text(row.selected_requirement_identity)
-                    && matches!(
-                        &plan_row.binding,
+                    && match &plan_row.binding {
                         crate::provider_plan::ProviderBinding::CheckedAdapter {
                             machine_identity,
                             ..
-                        } if Some(plan.identity_text(*machine_identity))
-                            == self.identities.text(row.selected_machine_identity)
-                    )
+                        } => {
+                            Some(plan.identity_text(*machine_identity))
+                                == self.identities.text(row.selected_machine_identity)
+                        }
+                        // A leaf has no provider instance per closed tuple:
+                        // its row names the template as its own realization.
+                        crate::provider_plan::ProviderBinding::Import { .. }
+                        | crate::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                        | crate::provider_plan::ProviderBinding::Syscall { .. } => {
+                            row.selected_machine_identity == row.selected_requirement_identity
+                                && row.machine_identity == row.selected_requirement_identity
+                        }
+                        _ => false,
+                    }
             });
             if !bound {
                 return Err(format!(
@@ -1035,12 +1046,15 @@ pub struct SelectedRequirementSpecialization {
     /// `identities` table.
     pub selected_requirement_identity: terminal_psi::TerminalIdentityIndex,
     /// The exact provider machine identity the selected row's checked-adapter
-    /// binding names: the authored generic provider template.
+    /// binding names: the authored generic provider template. A leaf row
+    /// (import, intrinsic, system call) has no provider machine and names the
+    /// requirement template itself.
     pub selected_machine_identity: terminal_psi::TerminalIdentityIndex,
     /// The closed requirement identity Terminal boundary declarations carry.
     pub requirement_identity: terminal_psi::TerminalIdentityIndex,
     /// The specialized provider instance identity Terminal provider
-    /// candidates carry as `candidate_identity`.
+    /// candidates carry as `candidate_identity`; the requirement template
+    /// for a leaf row, which serves every closed application unchanged.
     pub machine_identity: terminal_psi::TerminalIdentityIndex,
 }
 

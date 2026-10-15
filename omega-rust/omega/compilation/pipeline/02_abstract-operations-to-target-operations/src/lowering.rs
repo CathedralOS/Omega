@@ -56,7 +56,7 @@ pub(crate) fn lower_to_target_operations(
         installation,
         native_callbacks,
     } = request;
-    let bindings = provider_evidence::bind_provider_executions(plan, verified_input, settlements)?;
+    let bindings = provider_evidence::bind_provider_executions(plan, settlements)?;
     lower_to_target_operations_with_settlements_and_installation(
         plan,
         target,
