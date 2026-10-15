@@ -10,7 +10,6 @@ use crate::borrow::view_link::{
 
 use arena::Handle;
 use checked_trees::expression::ExpressionHandle;
-use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -22,34 +21,6 @@ pub(crate) fn helper_call_borrow_loan_place(
     machine_symbol: SymbolHandle,
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<accesses::BorrowAccessPlace> {
-    // A checked call is the same `TableCallExpression` the typed program
-    // holds, and none of this function's callers carry `CheckFacts`, so the
-    // retained `CollectionView` selection is out of reach here and the call
-    // shape answers instead.
-    //
-    // `Bytes` stays excluded deliberately. `as_slice`/`as_mut_slice`/`as_view`
-    // hand back a borrow of the receiver's own storage, which is exactly the
-    // loan recorded below. `bytes` reads a view's byte content; whether that
-    // result borrows the same storage is a question for the byte-carrier
-    // semantics, and nothing here establishes it -- widening it would mint a
-    // loan against a place this lane never proved is the source.
-    if matches!(
-        validation::collection_operations::collection_view_call(program, call),
-        Some(
-            CollectionViewOperation::SharedSlice
-                | CollectionViewOperation::MutableSlice
-                | CollectionViewOperation::TextView
-        )
-    ) {
-        return borrow_access_place(
-            program,
-            state_symbol,
-            statement_index,
-            call.receiver,
-            machine_symbol,
-        );
-    }
-
     // The borrow source (self, a named input, or none) is resolved by the same
     // logic the declaration check uses (`borrow::view_link`), so the loan we
     // track here always matches what the elision check accepted. Elision rules
@@ -273,8 +244,8 @@ pub(in crate::borrow) fn call_view_return_contract<'program>(
 /// True when the call target's own declaration names one exact borrow source
 /// for its returned view: a single direct reference parameter.
 /// This is the promotion gate for call-result loan provenance --
-/// the name-matched slice/view builtins, carrier-field sources, ambiguous
-/// signatures, and view-free calls all stay deliberately unretained.
+/// carrier-field sources, ambiguous signatures, and view-free calls all stay
+/// deliberately unretained.
 pub(crate) fn call_declares_direct_view_source(
     program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
@@ -329,8 +300,8 @@ fn call_view_signature(
 
 /// The loan place for a call argument that the called machine's returned view
 /// borrows (elision rule 1). Handles arguments that are themselves
-/// view-producing calls (`bag.cells.as_mut_slice()`, or a nested one-ref-input
-/// machine call) by recursing into the call's own loan place.
+/// view-producing calls (a nested one-ref-input machine call) by recursing
+/// into the call's own loan place.
 pub(crate) fn argument_borrow_loan_place(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,

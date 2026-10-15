@@ -8,15 +8,6 @@
 //! `propagate_statement_transfers`, which transports the same payloads at the
 //! source place itself. Runtime-indexed segments still stop the transport -- a
 //! copy cannot promise which element supplied the evidence.
-//!
-//! The same rebase serves the builtin collection VIEWS: `recv.as_slice()` and
-//! `recv.as_mut_slice()` lend the receiver's element storage to the bound
-//! local element-for-element, so `view[i]` IS `recv[i]` and every fact below
-//! `recv` re-anchors below `view`. The borrows checker keeps `recv` frozen
-//! for the view's loan, and a write through a mutable view retires both the
-//! view-named and the receiver-named facts through the usual alias-closing
-//! invalidation, so transported evidence cannot go stale while it is
-//! consultable.
 use super::PlaceHandle;
 use crate::flow::FlowBuildContext;
 use crate::flow::origin_place;
@@ -25,7 +16,6 @@ use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::statement::StatementNode;
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
-use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
@@ -194,67 +184,6 @@ pub(super) fn append_copied_field_predicates(
         });
         semantic.append_ref(references, copied_fact);
     }
-}
-
-/// The place a builtin collection-view call lends to its result, or `None`
-/// when `expression` is not a compiler-owned `as_slice`/`as_mut_slice` view on
-/// a collection receiver. The call shape comes from
-/// [`validation::collection_operations::collection_view_call`], which this lane and the
-/// ownership lane's `append_builtin_collection_view` now share: a resolved
-/// `target_symbol` means a declared machine or boundary operator answered
-/// instead, and its returned view may be only a partial projection of the
-/// input -- evidence below the argument cannot re-anchor 1:1, so that shape
-/// stays unclaimed here. `as_view`/`bytes` are text-level views of a scalar
-/// carrier rather than element views of a collection, so this lane claims only
-/// the two element views. A non-collection receiver fails closed the same way.
-pub(super) fn collection_view_source_place(
-    program: &dyn ::validation::CheckingInput,
-    semantic: &mut FactPlan,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    expression: ExpressionHandle,
-) -> Option<PlaceHandle> {
-    let call = program.expression_table.call_node(expression)?;
-    if !matches!(
-        validation::collection_operations::collection_view_call(program, call),
-        Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
-    ) {
-        return None;
-    }
-    let mut reference = validation::expression_type_reference_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        call.receiver,
-    )?;
-    for _ in 0..program.type_reference_table.type_reference_count() {
-        if !program
-            .type_reference_table
-            .contains_type_reference(reference)
-        {
-            return None;
-        }
-        match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-            | typed_trees::types::TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => reference = *referee,
-            typed_trees::types::TypeReferenceNode::FixedArray { .. }
-            | typed_trees::types::TypeReferenceNode::Slice { .. } => {
-                return super::contextual_expression_place(
-                    program,
-                    semantic,
-                    machine_symbol,
-                    state_symbol,
-                    statement_index,
-                    call.receiver,
-                );
-            }
-            _ => return None,
-        }
-    }
-    None
 }
 
 /// The caller storage a freshly bound local REFERENCE refers to, or `None`

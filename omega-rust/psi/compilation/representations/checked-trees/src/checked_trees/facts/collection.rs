@@ -6,7 +6,7 @@ use crate::{
     SynchronousInvocationFacts, TerminationFacts,
 };
 
-use crate::{CheckedFactCallProjection, CheckedIntrinsicCallFact, CheckedPlacedViewInput};
+use crate::{CheckedFactCallProjection, CheckedPlacedViewInput};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
@@ -128,9 +128,6 @@ pub struct CheckFacts {
     /// Denotational, non-executing call-result projections admitted by
     /// validation. Package review must rejoin this row exactly.
     pub fact_call_projections: Vec<CheckedFactCallProjection>,
-    /// Compiler-owned call meanings selected only after exact receiver and
-    /// owner checking.
-    pub intrinsic_calls: Vec<CheckedIntrinsicCallFact>,
     /// Direct state inputs whose opaque placed-view meaning has been joined to
     /// its exact source-derived placement plan. These rows grant no runtime
     /// storage, accessor, provider, or ABI authority.

@@ -6,19 +6,17 @@
 //! exclude unrelated operators; they cannot bypass a matching authored meaning
 //! or replace the final selection and package-admission checks.
 //!
-//! This file retains checked intrinsic-call facts. `finalization.rs` publishes
-//! checked selections, and `selection_collection.rs` collects proof/statement
-//! conclusions. Independent validation owns source environments, compiler
-//! operation classification and consistent occurrence resolution. Preparation
-//! owns early binding; this owner never rewrites the typed input.
+//! `finalization.rs` publishes checked selections, and
+//! `selection_collection.rs` collects proof/statement conclusions. Independent
+//! validation owns source environments, compiler operation classification and
+//! consistent occurrence resolution. Preparation owns early binding; this
+//! owner never rewrites the typed input.
 
 mod call_targets;
 mod contract_resolution;
 mod finalization;
-mod intrinsic_calls;
 mod member_targets;
 mod operator_targets;
-mod review;
 mod selection_collection;
 
 pub(crate) use contract_resolution::{
@@ -27,13 +25,10 @@ pub(crate) use contract_resolution::{
 pub(crate) use operator_targets::{
     typed_operator_authored_selection_candidates, typed_operator_has_no_authored_selection,
 };
-pub(crate) use review::derive_checked_collection_view_intrinsic;
 
 pub(crate) use crate::authored_selections::finalization::finalize_checked_authored_selections;
 use checked_trees::CheckFacts;
-use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
 
 pub(crate) fn derive_checked_nominal_call_target(
     program: &dyn ::validation::CheckingInput,
@@ -48,57 +43,6 @@ pub(crate) fn derive_checked_nominal_call_target(
         call,
         None,
     )
-}
-
-pub(crate) fn bind_checked_intrinsic_call_facts(
-    program: &dyn ::validation::CheckingInput,
-    facts: &mut CheckFacts,
-) -> Result<(), Diagnostic> {
-    let mut intrinsic_calls = Vec::new();
-    // One exact-owner index answers every call expression's query in a
-    // single pass instead of a whole-program rescan per call site.
-    let owner_index = validation::expression_owners::OwnerEnvironmentIndex::new(
-        program,
-        &facts.proof.contract_facts,
-    );
-    for (expression, node) in program.expression_table.iter_expressions() {
-        let ExpressionNode::Call(call) = node else {
-            continue;
-        };
-        let Some(intrinsic) =
-            validation::expression_owners::checked_collection_view_intrinsic_from_exact_owner(
-                program,
-                &facts.proof.contract_facts,
-                expression,
-                call,
-                Some(&owner_index),
-            )
-        else {
-            continue;
-        };
-        if intrinsic_calls
-            .iter()
-            .any(|fact: &checked_trees::CheckedIntrinsicCallFact| {
-                fact.expression == expression && fact.intrinsic != intrinsic
-            })
-        {
-            return Err(Diagnostic::error(
-                "one checked call expression selected conflicting compiler intrinsics",
-            )
-            .with_source_span(program.expression_table.source_span(expression)));
-        }
-        if !intrinsic_calls
-            .iter()
-            .any(|fact| fact.expression == expression && fact.intrinsic == intrinsic)
-        {
-            intrinsic_calls.push(checked_trees::CheckedIntrinsicCallFact {
-                expression,
-                intrinsic,
-            });
-        }
-    }
-    facts.intrinsic_calls = intrinsic_calls;
-    Ok(())
 }
 
 /// Exact declaration for one late-bound `CheckedMember` occurrence, derived

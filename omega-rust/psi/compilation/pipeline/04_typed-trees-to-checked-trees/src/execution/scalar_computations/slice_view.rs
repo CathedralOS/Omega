@@ -1,9 +1,9 @@
 //! Element-view establishment under the scalar operand owner.
 //!
-//! A `let view: &[T] = collection.as_slice()` or `let slots: &mut [T] =
-//! collection.as_mut_slice()` local is spelled as a call but lends storage
-//! that already exists, so the value rejoins the loan checked borrow
-//! admission recorded instead of producing a call result. The loan's access
+//! A `let view: &[T]` or `let slots: &mut [T]` local initialized by a
+//! collection opener lends storage that already exists, so the value rejoins
+//! the loan checked borrow admission recorded instead of producing a call
+//! result. The loan's access
 //! is the view's access: a shared read makes a `BorrowedSliceView`, an
 //! exclusive `Mutable` loan a `MutableSliceView`. The declared view's element
 //! equals the lent collection's element for an ordinary collection opener.

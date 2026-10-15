@@ -1,13 +1,12 @@
 //! Syntactic effect and place-root classification used by transparent-result
 //! write-frame analysis.
 //!
-//! The classifier is deliberately conservative: only compiler-owned slice
-//! views are effect-free calls, and malformed expression handles contribute no
-//! invented effect. It does not resolve or summarize any call frame.
+//! The classifier is deliberately conservative: every call is effectful, and
+//! malformed expression handles contribute no invented effect. It does not
+//! resolve or summarize any call frame.
 
-use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn expression_is_effectful_for_transparent_result(
     program: &dyn crate::CheckingInput,
@@ -29,11 +28,7 @@ pub(super) fn expression_is_effectful_for_transparent_result(
                             || expression_is_effectful_for_transparent_result(program, arm.value)
                     })
         }
-        ExpressionNode::Atomic(_) => true,
-        ExpressionNode::Call(call) => {
-            !call_is_effect_free_slice_view(program, call)
-                || expression_is_effectful_for_transparent_result(program, call.receiver)
-        }
+        ExpressionNode::Atomic(_) | ExpressionNode::Call(_) => true,
         ExpressionNode::Binary(binary) => {
             expression_is_effectful_for_transparent_result(program, binary.left)
                 || expression_is_effectful_for_transparent_result(program, binary.right)
@@ -70,29 +65,6 @@ pub(super) fn expression_is_effectful_for_transparent_result(
             .any(|field| expression_is_effectful_for_transparent_result(program, field.value)),
         typed_trees::literal_expression_pattern!() => false,
     }
-}
-
-pub(super) fn call_is_transparent_mutable_slice_view(
-    program: &dyn crate::CheckingInput,
-    call: &TableCallExpression,
-) -> bool {
-    call.target.as_str() == CollectionViewOperation::MutableSlice.authored_spelling()
-        && call_is_effect_free_slice_view(program, call)
-}
-
-fn call_is_effect_free_slice_view(
-    program: &dyn crate::CheckingInput,
-    call: &TableCallExpression,
-) -> bool {
-    matches!(
-        CollectionViewOperation::from_authored_spelling(call.target.as_str()),
-        Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
-    ) && !call.target_symbol.is_valid()
-        && call.receiver.is_valid()
-        && program
-            .expression_table
-            .expression_handles(call.arguments)
-            .is_empty()
 }
 
 pub(super) fn frame_place_root_symbol(

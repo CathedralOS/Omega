@@ -606,14 +606,14 @@ impl OperationFrame<'_, '_> {
     /// Bind one immutable view local to an exclusive range. The range
     /// replays at its `LocalBinding` site and emits through the same replay
     /// and Terminal operation a call argument or an edge transfer uses. The
-    /// published place joins the local namespace exactly as an `as_slice`
+    /// published place joins the local namespace exactly as a whole-collection
     /// view local's does, so later edges, calls, lengths and element reads
     /// resolve either kind of view local the same way.
     ///
     /// A range over array backing has no view to narrow yet. It first
     /// establishes a whole element view of that collection
-    /// under a shared loan -- the same `EstablishElementView` an `as_slice`
-    /// local emits -- into a private temporary, and narrows that. The
+    /// under a shared loan -- the same `EstablishElementView` a
+    /// whole-collection view local emits -- into a private temporary, and narrows that. The
     /// verifier then relates the whole view's length to the array's declared
     /// extent and checks the range against it like any other subslice.
     pub(super) fn establish_view_subslice(

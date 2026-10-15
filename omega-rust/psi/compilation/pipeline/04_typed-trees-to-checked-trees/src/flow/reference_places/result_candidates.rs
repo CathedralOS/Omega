@@ -183,7 +183,7 @@ fn call_result_sources(
             returned_index,
             returned,
         )?;
-        // A callee local (`let slots: &mut [Room] = self.rooms.as_mut_slice()`)
+        // A callee local (`let slots: &mut [Room] = &mut self.rooms[..]`)
         // resolves to its exact origin; anything less is no candidate.
         let place = crate::flow::rebase_exact_local_place(
             program,

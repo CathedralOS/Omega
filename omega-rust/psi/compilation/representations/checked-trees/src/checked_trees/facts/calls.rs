@@ -13,15 +13,6 @@ pub struct CheckedFactCallProjection {
     pub field: symbols::SymbolHandle,
 }
 
-/// Exact checked compiler-intrinsic use joined to its retained expression.
-/// The expression handle is custody; the closed intrinsic identity is the
-/// semantic result of checking, never a later source-text classification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CheckedIntrinsicCallFact {
-    pub expression: typed_trees::expression::ExpressionHandle,
-    pub intrinsic: language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic,
-}
-
 /// Selected execution of an already-checked boundary requirement. These exact
 /// semantic symbols steer the source interpreter without rewriting source calls.
 /// Provider policy and target realization remain outside checked Psi.

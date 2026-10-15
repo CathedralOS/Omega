@@ -73,15 +73,6 @@ pub(super) fn project_call_expression(
             }
             Vec::new()
         }
-        PackageReviewContractCallTarget::CollectionView(_) => {
-            if !call.machine_arguments.is_empty() {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` supplies static arguments to a compiler-owned collection view",
-                    context.subject_kind, context.subject_name
-                ))]);
-            }
-            Vec::new()
-        }
         PackageReviewContractCallTarget::ProofView { .. } => {
             if !call.machine_arguments.is_empty() {
                 return Err(vec![Diagnostic::error(format!(

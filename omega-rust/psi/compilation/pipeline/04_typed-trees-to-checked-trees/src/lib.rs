@@ -40,7 +40,6 @@ pub use checking::{
 };
 pub use package_review::{
     derive_authored_machine_crash_buckets, derive_authored_signature_crash_buckets,
-    derive_checked_collection_view_intrinsic,
     derive_checked_contract_expression_evidence_instantiation,
     derive_checked_contract_expression_evidence_parameters, derive_checked_nominal_call_target,
     derive_checked_semantic_dependencies, derive_pre_flow_value_origins,

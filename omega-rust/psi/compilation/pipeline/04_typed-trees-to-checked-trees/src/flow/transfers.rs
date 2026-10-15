@@ -7,10 +7,10 @@
 //! `context_transport` carries each active context's source facts onto it;
 //! `owned_qualifications`, `projected`, `constructed` and `byte_sequences`
 //! re-anchor evidence below the destination from a moved owner, a copied
-//! field, a collection view, a reference result, a constructed record or a
-//! byte-sequence write; `scalar_values` records the written scalar value
-//! and bounds; `declared_domains` records the destination's declared
-//! domains; and the new facts publish as one context per exact place.
+//! field, a reference result, a constructed record or a byte-sequence write;
+//! `scalar_values` records the written scalar value and bounds;
+//! `declared_domains` records the destination's declared domains; and the new
+//! facts publish as one context per exact place.
 
 use validation::CanonicalPlace;
 
@@ -157,56 +157,27 @@ pub(super) fn propagate_statement_transfers(
         );
     }
 
-    // A builtin collection view lends the receiver's element storage to the
-    // binding: `let view = rows.as_mut_slice()` makes `view[i]` the same
-    // element as `rows[i]`, so live evidence below the receiver re-anchors
-    // below the destination through the same stable-segment transport.
-    let viewed_place = projected::collection_view_source_place(
+    // A reference result lends its proven referent to the binding:
+    // `let room = room_mut(level)` makes `room` the storage the callee
+    // selected, and the local write origins already track exactly which
+    // caller place that is. An expression-rooted source has no canonical
+    // storage of its own, so evidence below the referent re-anchors below the
+    // binding; a symbol-rooted source was already transported above.
+    if source_place.is_some_and(|place| {
+        matches!(
+            semantic.places.get(place).root,
+            facts::PlaceRoot::Expression(_)
+        )
+    }) && let Some(referent_place) = projected::bound_reference_referent_place(
         program,
         semantic,
+        build,
         machine_symbol,
         state_symbol,
         statement_index,
-        source_expression,
-    );
-    if let Some(viewed_place) = viewed_place {
-        projected::append_copied_field_predicates(
-            program,
-            semantic,
-            build,
-            *active_contexts,
-            viewed_place,
-            target_place,
-            point,
-            &mut refs,
-        );
-    }
-
-    // A reference result lends its proven referent to the binding the same
-    // way a view lends receiver storage: `let room = room_mut(level)` makes
-    // `room` the storage the callee selected, and the local write origins
-    // already track exactly which caller place that is. An expression-rooted
-    // source has no canonical storage of its own, so evidence below the
-    // referent re-anchors below the binding; a symbol-rooted source was
-    // already transported above.
-    if viewed_place.is_none()
-        && source_place.is_some_and(|place| {
-            matches!(
-                semantic.places.get(place).root,
-                facts::PlaceRoot::Expression(_)
-            )
-        })
-        && let Some(referent_place) = projected::bound_reference_referent_place(
-            program,
-            semantic,
-            build,
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            statement,
-            target_place,
-        )
-    {
+        statement,
+        target_place,
+    ) {
         projected::append_copied_field_predicates(
             program,
             semantic,

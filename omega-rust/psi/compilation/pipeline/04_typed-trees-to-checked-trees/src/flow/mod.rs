@@ -197,8 +197,7 @@ pub(crate) use place::{
     narrow_pinned_index_segments, place_case_has_value, place_case_path_is_inactive,
     place_cases_are_selected, place_segment_has_static_identity,
     place_segment_has_unresolved_identity, projected_leaf_place, reference_source_place,
-    reference_source_place_through_collection_views, source_independent_place,
-    static_place_segment_pair_equal,
+    source_independent_place, static_place_segment_pair_equal,
 };
 pub(crate) use reach::attach_reach_summaries;
 use state::build_state_flow_fact;

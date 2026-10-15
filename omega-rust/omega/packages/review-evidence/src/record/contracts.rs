@@ -14,10 +14,9 @@ pub(crate) use declarations::{PackageReviewConstShape, PackageReviewOperatorShap
 pub(crate) use expressions::{
     PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
     PackageReviewByteSequencePredicate, PackageReviewCallableRole, PackageReviewCallableSupply,
-    PackageReviewCastForm, PackageReviewCollectionViewOperation, PackageReviewConstructorField,
-    PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
-    PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
-    PackageReviewContractExpression, PackageReviewContractKind,
+    PackageReviewCastForm, PackageReviewConstructorField, PackageReviewContractBinaryOperator,
+    PackageReviewContractCallTarget, PackageReviewContractEvidenceArgument,
+    PackageReviewContractEvidenceTerm, PackageReviewContractExpression, PackageReviewContractKind,
     PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
     PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewMatchArm,
     PackageReviewOperatorCoordinate, PackageReviewOperatorRealization,

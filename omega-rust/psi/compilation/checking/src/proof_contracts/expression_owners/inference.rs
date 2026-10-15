@@ -329,63 +329,6 @@ pub(super) fn inferred_nominal_symbol(
     }
 }
 
-pub(super) fn inferred_type_is_collection(
-    program: &dyn crate::CheckingInput,
-    inferred: InferredType,
-) -> bool {
-    match inferred {
-        InferredType::Nominal(_) => false,
-        InferredType::TypeReference(type_reference) => {
-            crate::collection_operations::type_reference_is_collection(program, type_reference)
-        }
-        InferredType::CollectionView(_) => true,
-        InferredType::CompilerString => false,
-    }
-}
-
-pub(super) fn collection_view_operation_for_receiver(
-    program: &dyn crate::CheckingInput,
-    operation: language_semantics::declaration_selection::CollectionViewOperation,
-    receiver: InferredType,
-) -> Option<language_semantics::declaration_selection::CollectionViewOperation> {
-    use language_semantics::declaration_selection::CollectionViewOperation;
-
-    match operation {
-        CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice
-            if inferred_type_is_collection(program, receiver) =>
-        {
-            Some(operation)
-        }
-        CollectionViewOperation::TextView | CollectionViewOperation::Bytes
-            if inferred_type_is_compiler_text(program, receiver) =>
-        {
-            Some(operation)
-        }
-        _ => None,
-    }
-}
-
-pub(super) fn inferred_type_is_compiler_text(
-    program: &dyn crate::CheckingInput,
-    inferred: InferredType,
-) -> bool {
-    let InferredType::TypeReference(mut type_reference) = inferred else {
-        return matches!(inferred, InferredType::CompilerString);
-    };
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => type_reference = *referee,
-            TypeReferenceNode::Named { symbol, name } => {
-                return !symbol.is_valid() && matches!(name.as_str(), "String" | "Str");
-            }
-            _ => return false,
-        }
-    }
-}
-
 pub(super) fn collection_element_type(
     program: &dyn crate::CheckingInput,
     inferred: InferredType,

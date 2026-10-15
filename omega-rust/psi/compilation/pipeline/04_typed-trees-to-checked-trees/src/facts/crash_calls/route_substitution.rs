@@ -808,7 +808,6 @@ pub(crate) fn refine_published_crash_routes(
     buckets: &[checked_trees::CrashRouteBucket],
     contracts: &[typed_trees::signature::SignatureContract],
     content_conservation: &[validation::ContentConservationSourcePlan],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<SummaryCrashBucket> {
     let route_expressions = crash_route_expressions_by_identity(
         program,
@@ -920,7 +919,6 @@ pub(crate) fn refine_published_crash_routes(
                                 target_state_symbol,
                                 target_parameters,
                                 expression,
-                                call_frames,
                             )
                         })
                         .flatten();

@@ -143,9 +143,6 @@ pub enum PackageReviewByteSequencePredicate {
     NonEmpty,
 }
 
-pub type PackageReviewCollectionViewOperation =
-    language_semantics::declaration_selection::CollectionViewOperation;
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractCallTarget {
     Nominal(PackageReviewNominalIdentity),
@@ -154,9 +151,6 @@ pub enum PackageReviewContractCallTarget {
     /// ordinary nominals.
     BuiltinFunction(BuiltinFunction),
     ByteSequencePredicate(PackageReviewByteSequencePredicate),
-    /// One exact compiler-owned collection/text view operation. Package
-    /// callables with the same spelling remain ordinary nominals.
-    CollectionView(PackageReviewCollectionViewOperation),
     /// One compiler-owned opaque proof-view atom admitted inside a contract
     /// fact: a bare receiverless callee whose spelling selects no package
     /// declaration. The retained name is the atom's whole identity — the

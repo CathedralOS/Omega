@@ -377,7 +377,6 @@ pub(crate) fn build_check_facts(
         &validation_facts.exact_integer_casts,
         &values.scalar_expressions,
         &values.scalar_computations,
-        call_frames.as_ref(),
     )?;
     let nominal_machine_uses = build_nominal_machine_use_facts(
         program,

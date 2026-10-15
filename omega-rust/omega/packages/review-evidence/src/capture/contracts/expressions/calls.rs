@@ -1,10 +1,7 @@
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
-use crate::record::{
-    PackageReviewByteSequencePredicate, PackageReviewCollectionViewOperation,
-    PackageReviewContractCallTarget,
-};
+use crate::record::{PackageReviewByteSequencePredicate, PackageReviewContractCallTarget};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -299,57 +296,6 @@ pub(crate) fn exact_checked_contract_call_target(
                     }
                 },
             )),
-        AuthoredDeclarationSelectionTarget::Intrinsic(
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionView(
-                selected_operation,
-            ),
-        ) => {
-            let retained = compilation
-                .facts
-                .intrinsic_calls
-                .iter()
-                .filter(|fact| fact.expression == expression)
-                .collect::<Vec<_>>();
-            let [retained] = retained.as_slice() else {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` collection-view call has {} retained checked intrinsic facts; expected one",
-                    context.subject_kind,
-                    context.subject_name,
-                    retained.len()
-                ))]);
-            };
-            let Some(expected) =
-                typed_trees_to_checked_trees::derive_checked_collection_view_intrinsic(
-                    compilation.checking_input,
-                    &compilation.facts,
-                    expression,
-                )
-            else {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` collection-view call has no freshly derived intrinsic identity",
-                    context.subject_kind, context.subject_name
-                ))]);
-            };
-            if retained.intrinsic != expected
-                || expected
-                    != language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionView(
-                        selected_operation,
-                    )
-            {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` collection-view call disagrees with its exact checked intrinsic identity",
-                    context.subject_kind, context.subject_name
-                ))]);
-            }
-            Ok(PackageReviewContractCallTarget::CollectionView(
-                match selected_operation {
-                    language_semantics::declaration_selection::CollectionViewOperation::SharedSlice => PackageReviewCollectionViewOperation::SharedSlice,
-                    language_semantics::declaration_selection::CollectionViewOperation::MutableSlice => PackageReviewCollectionViewOperation::MutableSlice,
-                    language_semantics::declaration_selection::CollectionViewOperation::TextView => PackageReviewCollectionViewOperation::TextView,
-                    language_semantics::declaration_selection::CollectionViewOperation::Bytes => PackageReviewCollectionViewOperation::Bytes,
-                },
-            ))
-        }
         // A bare receiverless contract call whose spelled callee selects no
         // package declaration is admitted by checking as an opaque proof-view
         // atom (`Bag(items)`-style schematic views); the finalized ledger row

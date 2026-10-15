@@ -9,9 +9,7 @@ use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
     Machine, Polynomial, RankingRangeState, State, TypeReferenceNode, projections,
 };
-use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
-use typed_trees::expression::TableCallExpression;
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
@@ -292,8 +290,7 @@ fn evaluate_length(
         // count; this supplies geometry only, never an encoding predicate.
         ExpressionNode::String(bytes) => u64::try_from(bytes.len()).ok(),
         ExpressionNode::ArrayLiteral(values) => u64::try_from(values.len()).ok(),
-        ExpressionNode::Call(call) => slice_view_call_length(program, machine, state, call)
-            .or_else(|| calls::normal_return_length(program, call, engine)),
+        ExpressionNode::Call(call) => calls::normal_return_length(program, call, engine),
         _ => None,
     }?;
     Some(Polynomial::constant(BigInt::from_u64(length)))
@@ -523,35 +520,6 @@ fn borrow_root_symbol(
         }
     }
     None
-}
-
-/// `x.as_slice()` / `x.as_mut_slice()` over a declared fixed array is a pure
-/// view of the receiver's declared extent. A resolved machine target, any
-/// authored arguments or evidence, or a dispatch/layout request names a
-/// different operation that keeps no produced length here.
-fn slice_view_call_length(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    call: &TableCallExpression,
-) -> Option<u64> {
-    if !matches!(
-        CollectionViewOperation::from_authored_spelling(call.target.as_str()),
-        Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
-    ) || call.target_symbol.is_valid()
-        || !call.arguments.is_empty()
-        || !call.carries_only_positional_arguments()
-        || !call.selects_only_nominal_route()
-    {
-        return None;
-    }
-    crate::value_custody::places::declared_collection_extent(
-        program,
-        machine,
-        Some(state),
-        call.receiver,
-    )
-    .map(|length| length as u64)
 }
 
 /// A produced length coordinate over projected storage: the slice leaf of an

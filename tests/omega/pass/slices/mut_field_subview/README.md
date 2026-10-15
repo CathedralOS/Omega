@@ -6,10 +6,9 @@ reads the writes at their original coordinates.
 
 ## Gaps found while authoring (filed)
 
-- `as_mut_slice()` element writes stay corpus-only: `exits[index] = v`
+- Whole-collection `&mut xs[..]` element writes stay corpus-only: `exits[index] = v`
   on the local `&mut [T]` reports "assignment target must be a named
-  place", and the inline `as_mut_slice()[i]` form trips the
-  return-type annotation rule — the specialized `Slice::index` write
+  place" — the specialized `Slice::index` write
   path is private (same class as `Slice::range`/`Slice::index` reads).
 
 Compile-checked only: no standard-library dependency and

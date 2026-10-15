@@ -1,7 +1,7 @@
 //! Established byte owners and view locals, as scalar observations see them.
 //!
-//! A view local (an `as_slice` loan or a subslice of another view) publishes
-//! one shared view place when its establishment completes. Lengths and
+//! A view local (a whole-collection loan or a subslice of another view)
+//! publishes one shared view place when its establishment completes. Lengths and
 //! element reads rooted at the local observe that exact place with the
 //! Terminal operation its view family selects, so the binding records the
 //! family its produced type declared rather than re-deriving it from source.

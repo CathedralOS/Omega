@@ -12,7 +12,7 @@ use symbols::SymbolHandle;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::flow::ownership) enum OperatorResultOwnership {
     /// The result is a borrowed view into storage owned elsewhere
-    /// (`as_slice`, `as_mut_slice`, `as_view`, subslice/`Str::range`, ...).
+    /// (subslice/`Str::range`, ...).
     BorrowedView,
     /// The result is freshly owned storage that must be moved/dropped
     /// (`Vec::with_capacity`, `String::with_capacity`, ...).

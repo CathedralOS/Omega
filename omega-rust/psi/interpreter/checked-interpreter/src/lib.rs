@@ -51,8 +51,8 @@
 //! Supported: multiple machines with per-instance contained sub-objects; symbol/group-based
 //! machine + sibling-state resolution; self-field assignment; `let` locals; Integer / Bool /
 //! Float / Binary (arith + compare + logical) / Unary / Name / Member / Indexed / Cast /
-//! ArrayLiteral / StructLiteral expressions; fixed arrays and `.as_slice()`/`.as_mut_slice()`
-//! slice views (a slice shares the array's element cells, preserving `&mut` aliasing);
+//! ArrayLiteral / StructLiteral expressions; fixed arrays and `&xs[..]`/`&mut xs[..]`
+//! range borrows (a slice shares the array's element cells, preserving `&mut` aliasing);
 //! width/signedness-aware `as` casts (int<->float, integer narrow/widen); multi-arm
 //! value/guard transitions (subject, tuple, and boolean forms); value-calls returning a
 //! scalar/struct; method calls on `&mut Data` reference params; `&mut`-aliased argument

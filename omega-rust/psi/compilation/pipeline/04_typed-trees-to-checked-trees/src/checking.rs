@@ -326,8 +326,6 @@ fn check_program(
     facts.flow.semantic_dependencies =
         crate::flow::derive_checked_semantic_dependencies(&program, &facts);
 
-    crate::authored_selections::bind_checked_intrinsic_call_facts(&program, &mut facts)
-        .map_err(|diagnostic| vec![diagnostic])?;
     facts.specialization_identities = specialization_identities;
     // One retained identity row per admission-claim template, specialized or
     // not: consumers read the classification checking computed instead of

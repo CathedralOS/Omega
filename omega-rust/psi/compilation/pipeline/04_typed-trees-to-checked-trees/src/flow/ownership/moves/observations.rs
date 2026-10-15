@@ -1,5 +1,4 @@
 use validation::CanonicalPlace;
-use validation::expression_type_reference_in_state;
 
 use crate::flow::FlowOwnershipEventSource;
 
@@ -8,7 +7,6 @@ use crate::flow::ownership::append_move_events_for_expression;
 use crate::flow::ownership::moves::operator_call_ownership_policy;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use language_core::ReferenceAccess;
-use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
 
 /// Observing a place evaluates its address and calls, without moving the place.
@@ -142,55 +140,6 @@ pub(super) fn selected_operator(
             } if state_symbol == state && statement_index == statement))
         .then_some(operator_use.selected_operator_symbol)
     })
-}
-
-/// Targetless collection views borrow existing storage. Nominal/operator calls
-/// are resolved before this intrinsic path is considered, and
-/// [`validation::collection_operations::collection_view_call`] rejects them. Only the two
-/// element views are claimed here: `as_view`/`bytes` view a text carrier, not
-/// collection storage whose elements this lane could keep observed.
-pub(super) fn append_builtin_collection_view(
-    program: &dyn ::validation::CheckingInput,
-    sink: &mut DirectMoveEventSink<'_>,
-    state: SymbolHandle,
-    statement: usize,
-    call: &typed_trees::expression::TableCallExpression,
-    source: FlowOwnershipEventSource,
-) -> bool {
-    if !matches!(
-        validation::collection_operations::collection_view_call(program, call),
-        Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
-    ) {
-        return false;
-    }
-    let Some(mut reference) =
-        expression_type_reference_in_state(program, state, statement, call.receiver)
-    else {
-        return false;
-    };
-    for _ in 0..program.type_reference_table.type_reference_count() {
-        if !program
-            .type_reference_table
-            .contains_type_reference(reference)
-        {
-            return false;
-        }
-        match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
-                reference = *referee
-            }
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                reference = *base_type
-            }
-            typed_trees::types::TypeReferenceNode::FixedArray { .. }
-            | typed_trees::types::TypeReferenceNode::Slice { .. } => {
-                append(program, sink, state, statement, call.receiver, source);
-                return true;
-            }
-            _ => return false,
-        }
-    }
-    false
 }
 
 /// Whether one by-value use of `place` is a detached observation rather than

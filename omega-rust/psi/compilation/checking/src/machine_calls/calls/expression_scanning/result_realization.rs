@@ -9,8 +9,7 @@
 //! without proving any additional semantic obligation.
 
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::CollectionViewOperation;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
@@ -386,13 +385,8 @@ pub(crate) fn report_nested_call_in_bound_value_call(
     let Some(call) = program.expression_table.call_node(value) else {
         return;
     };
-    // Collection views retain their own operand materialization. Ordinary
-    // machine calls use the receiving operation admitted above.
-    if call_is_collection_view(call) {
-        return;
-    }
     for argument in program.expression_table.expression_handles(call.arguments) {
-        if let Some(inner) = first_non_builtin_call(program, *argument) {
+        if let Some(inner) = first_nested_call(program, *argument) {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` state `{state_name}`: a value-call argument cannot itself \
                  be a machine call yet (`{inner}(..)` nested in `{}(..)` would read a \
@@ -464,7 +458,7 @@ pub fn nested_boundary_applications_compose(
         }
         match program.expression_table.expression(expression) {
             ExpressionNode::Call(call) => {
-                (call_is_collection_view(call) || scalar_boundary_application(program, call))
+                scalar_boundary_application(program, call)
                     && program
                         .expression_table
                         .expression_handles(call.arguments)
@@ -490,18 +484,9 @@ pub fn nested_boundary_applications_compose(
         && composes(program, value)
 }
 
-/// Collection views have no callable symbol; their vocabulary applies only
-/// when no authored declaration was selected. Other calls retain ordinary
-/// call-result realization.
-fn call_is_collection_view(call: &TableCallExpression) -> bool {
-    !call.target_symbol.is_valid()
-        && CollectionViewOperation::from_authored_spelling(call.target.as_str()).is_some()
-}
-
-/// The first NON-BUILTIN machine call nested anywhere inside `expression`
-/// (its target name, for the diagnostic), or None. Collection view operations
-/// compose in arguments and retain their own value route.
-fn first_non_builtin_call(
+/// The first call nested anywhere inside `expression` (its target name, for
+/// the diagnostic), or None.
+fn first_nested_call(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<Identifier> {
@@ -509,25 +494,16 @@ fn first_non_builtin_call(
         return None;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => first_non_builtin_call(program, atomic.value),
-        ExpressionNode::Call(call) => {
-            if !call_is_collection_view(call) {
-                return Some(call.target.clone());
-            }
-            program
-                .expression_table
-                .expression_handles(call.arguments)
-                .iter()
-                .find_map(|argument| first_non_builtin_call(program, *argument))
-        }
-        ExpressionNode::Binary(binary) => first_non_builtin_call(program, binary.left)
-            .or_else(|| first_non_builtin_call(program, binary.right)),
-        ExpressionNode::Unary(unary) => first_non_builtin_call(program, unary.operand),
-        ExpressionNode::Cast(cast) => first_non_builtin_call(program, cast.value),
-        ExpressionNode::Borrow(inner) => first_non_builtin_call(program, inner.target),
-        ExpressionNode::Indexed(indexed) => first_non_builtin_call(program, indexed.collection)
-            .or_else(|| first_non_builtin_call(program, indexed.index)),
-        ExpressionNode::Member(member) => first_non_builtin_call(program, member.receiver),
+        ExpressionNode::Atomic(atomic) => first_nested_call(program, atomic.value),
+        ExpressionNode::Call(call) => Some(call.target.clone()),
+        ExpressionNode::Binary(binary) => first_nested_call(program, binary.left)
+            .or_else(|| first_nested_call(program, binary.right)),
+        ExpressionNode::Unary(unary) => first_nested_call(program, unary.operand),
+        ExpressionNode::Cast(cast) => first_nested_call(program, cast.value),
+        ExpressionNode::Borrow(inner) => first_nested_call(program, inner.target),
+        ExpressionNode::Indexed(indexed) => first_nested_call(program, indexed.collection)
+            .or_else(|| first_nested_call(program, indexed.index)),
+        ExpressionNode::Member(member) => first_nested_call(program, member.receiver),
         _ => None,
     }
 }

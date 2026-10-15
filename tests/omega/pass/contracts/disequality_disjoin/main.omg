@@ -1,7 +1,7 @@
 // In-range disequal indexes select disjoint singleton elements:
 // `requires left_index != right_index` supplies the compatibility
 // evidence for TWO coexisting `&mut` element loans drawn from one
-// `as_mut_slice()` view (the stated relation is evidence, not extra
+// `&mut entries[..]` view (the stated relation is evidence, not extra
 // loan authority — the equal-index twin is a corpus fail).
 data Entry {
     value: i32;
@@ -15,7 +15,7 @@ requires
     right_index <= 1,
     left_index != right_index
 {
-    let view: &mut [Entry] = main.entries.as_mut_slice();
+    let view: &mut [Entry] = &mut main.entries[..];
     let left: &mut Entry = &mut view[left_index];
     let right: &mut Entry = &mut view[right_index];
     left = Entry { value: 1 };

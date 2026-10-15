@@ -18,7 +18,7 @@ pub(super) fn result(
 }
 
 /// The source-state result whose home the view `binding_ordinal` lends. A
-/// `let` view (`room.exits.as_mut_slice()`) is a loan of the local it was
+/// `let` view (`&mut room.exits[..]`) is a loan of the local it was
 /// formed from, so an edge carrying the view must keep that local's home live
 /// with the loan, exactly as a projected loan keeps its backing local. `None`
 /// for a non-view result or a view of storage the state does not own (a

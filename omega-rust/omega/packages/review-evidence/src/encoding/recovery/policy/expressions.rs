@@ -5,8 +5,7 @@ use super::identity::{nominal, operator_coordinate, type_identity};
 use super::reader::Reader;
 use crate::record::{
     PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
-    PackageReviewByteSequencePredicate, PackageReviewCastForm,
-    PackageReviewCollectionViewOperation, PackageReviewConstructorField,
+    PackageReviewByteSequencePredicate, PackageReviewCastForm, PackageReviewConstructorField,
     PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
     PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
     PackageReviewContractExpression, PackageReviewContractKind,
@@ -189,12 +188,7 @@ pub(in crate::encoding::recovery) fn call_target(
         2 => PackageReviewContractCallTarget::BuiltinFunction(
             BuiltinFunction::from_ordinal(usize::from(reader.u16()?)).ok_or(Error::InvalidTag)?,
         ),
-        3 => PackageReviewContractCallTarget::CollectionView(super::tag!(reader => {
-            0 => PackageReviewCollectionViewOperation::SharedSlice,
-            1 => PackageReviewCollectionViewOperation::MutableSlice,
-            2 => PackageReviewCollectionViewOperation::TextView,
-            3 => PackageReviewCollectionViewOperation::Bytes,
-        })),
+        // Tag 3 is retired (the receiver collection views); never reuse it.
         4 => PackageReviewContractCallTarget::ProofView {
             name: reader.string()?,
         },

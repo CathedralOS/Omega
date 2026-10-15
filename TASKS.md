@@ -423,40 +423,6 @@ helper that passes does not close an item.
     partitioning and cleanup. Entry provisioning now joins explicit source
     positions; remove remaining attachment-driven discovery without changing
     provider or storage authority.
-  - View receivers: `samples/cli/games/dungeon_crawler_cli` and the remaining
-    collection-view probes still need ordinary borrow/range spellings. Finish
-    these migrations, then
-    retire the receiver recognizer (`collection_view_call` in
-    `checking/src/value_custody/places/collection_operations.rs`) and its
-    consumers. Preserve live captured extent evidence when forming ranges:
-    `omega run --both tests/omega/pass/slices/runtime_captured_range_end_exit/main.omg`
-    must retain the narrowed view and exit 70; replacing either the measured
-    descriptor or scalar must not retain the old range-end authority.
-    Keep `omega run --both tests/omega/pass/borrows/runtime_disjoint_child_loans_restore_parent_exit/main.omg`
-    and `omega run --both tests/omega/pass/borrows/disjoint_branch_closure_with_grandchild/main.omg`
-    at exit 0: exact immediate lineage and every sibling's closure must remain
-    independent of projection compatibility. Unknown index pairs and use of
-    the parent before its last child ends must still reject.
-    Preserve the guarded effectful producer in
-    `pass/operators/runtime_declared_open_range_evaluates_collection_once_exit`:
-    it must run once in the selected arm and never in the unselected arm.
-    Preserve captured operand snapshots through generic cloning and later
-    effects (`runtime_declared_open_range_preserves_operand_snapshot_exit`).
-    Keep `pass/slices/runtime_returned_range_extent_contract_exit` and
-    `pass/slices/runtime_forwarded_range_extent_snapshot_exit` at exit 0:
-    checked returned-length guarantees must discharge downstream nonempty
-    calls without fresh guards, survive endpoint stores and forwarding, and
-    retire on descriptor replacement. Wrong returned descriptors must reject.
-    Preserve
-    `pass/borrows/runtime_boundary_range_view_exit`: named and anonymous
-    checked-provider results must retain the actual descriptor and backing
-    loan in native and Terminal execution; overlapping backing mutation must
-    reject (`fail/borrows/boundary_returned_view_keeps_backing_loan`).
-    Preserve `pass/slices/runtime_borrowed_noncopy_array_argument_exit`: array
-    fields and locals must lend views without copying their elements; returned
-    views retain their backing loan (`fail/slices/noncopy_array_view_keeps_backing_loan`). Preserve
-    the selected requirement, returned loan custody and bounds; do not
-    substitute builtin slicing.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
     on both Linux targets, preserving Windows x86-64 and macOS ARM64 behavior.
   Acceptance: static customers execute with their authored exit/output; the

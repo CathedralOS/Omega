@@ -12,7 +12,6 @@ mod reachability;
 pub use reachability::{expression_contains, reachable_expressions};
 
 pub use call_targets::{
-    checked_collection_view_intrinsic_from_exact_owner,
     checked_expression_type_reference_from_exact_owner,
     checked_machine_call_target_from_exact_owner, checked_member_target_from_exact_owner,
 };

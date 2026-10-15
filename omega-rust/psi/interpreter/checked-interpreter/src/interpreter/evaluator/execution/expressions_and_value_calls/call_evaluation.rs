@@ -4,7 +4,7 @@ use crate::interpreter::evaluator::{
     Frame, Halt, PrimitiveType, SemanticFloatClass, SemanticFloatFormat, SymbolHandle, Value, trap,
     unsupported,
 };
-use language_semantics::declaration_selection::{CollectionMeasure, CollectionViewOperation};
+use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::BuiltinFunction;
 
 impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
@@ -499,50 +499,15 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             }
         }
 
-        // Slice/array view builtins on an array-valued receiver. `.as_slice()` /
-        // `.as_mut_slice()` produce a slice that SHARES the array's element cells (so a
-        // write through the slice aliases the array); `.len()` returns the element count.
-        let array_length_call =
-            CollectionMeasure::from_authored_spelling(target) == Some(CollectionMeasure::Length);
-        let array_view_call = matches!(
-            CollectionViewOperation::from_authored_spelling(target),
-            Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
-        );
-        if (array_length_call || array_view_call)
+        // `.len()` on an array-valued receiver returns the element count.
+        if CollectionMeasure::from_authored_spelling(target) == Some(CollectionMeasure::Length)
             && call.receiver.is_valid()
             && !qualified
             && let Ok(cell) = self.resolve_place(call.receiver, frame)
         {
             let cell = self.deref_cell(cell);
-            let elements = match &*cell.borrow() {
-                Value::Array(elements) => Some(elements.clone()),
-                _ => None,
-            };
-            if let Some(elements) = elements {
-                return Ok(if array_length_call {
-                    Value::Int(elements.len() as i64)
-                } else {
-                    // A slice view shares the same element `Rc`s.
-                    Value::Array(elements)
-                });
-            }
-        }
-
-        // Borrowed text-view builtins are descriptor-preserving views. The
-        // interpreter represents literal-backed and borrowed byte views with
-        // the same shared `Value::Str` cell, mirroring the native `{ptr, len}`
-        // descriptor copy. Returning a clone shares the bytes.
-        if matches!(
-            CollectionViewOperation::from_authored_spelling(target),
-            Some(CollectionViewOperation::TextView | CollectionViewOperation::Bytes)
-        ) && call.receiver.is_valid()
-            && !qualified
-            && let Ok(cell) = self.resolve_place(call.receiver, frame)
-        {
-            let cell = self.deref_cell(cell);
-            let value = cell.borrow().clone();
-            if matches!(value, Value::Str(_)) {
-                return Ok(value);
+            if let Value::Array(elements) = &*cell.borrow() {
+                return Ok(Value::Int(elements.len() as i64));
             }
         }
 

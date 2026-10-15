@@ -427,18 +427,6 @@ fn append_move_events_for_call_arguments(
         arguments.len(),
         call.receiver.is_valid() && !receiver_is_static_path,
     );
-    if operator.is_none()
-        && observations::append_builtin_collection_view(
-            program,
-            sink,
-            state_symbol,
-            statement_index,
-            call,
-            source,
-        )
-    {
-        return;
-    }
     let policy = operator_call_ownership_policy(
         program,
         operator,

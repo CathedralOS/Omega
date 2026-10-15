@@ -10,8 +10,7 @@ pub(crate) use facts::compose_captured_view_segments;
 
 pub(crate) use canonicalization::{
     canonical_place_from_semantic_place, canonical_place_from_symbol, narrow_pinned_index_segments,
-    projected_leaf_place, reference_source_place, reference_source_place_through_collection_views,
-    source_independent_place,
+    projected_leaf_place, reference_source_place, source_independent_place,
 };
 pub(crate) use case_access::{
     place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,

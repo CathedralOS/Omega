@@ -1,11 +1,10 @@
 //! Exact-owner call target resolution: member targets, expression type
-//! references, collection-view intrinsics, and machine call candidates
+//! references and machine call candidates
 //! proven against the authored environment index.
 
 use super::environments::{exact_owner_environments, executable_site_environment};
 use super::inference::{
-    collection_view_operation_for_receiver, infer_expression_type, inferred_nominal_symbol,
-    member_target_in_environment,
+    infer_expression_type, inferred_nominal_symbol, member_target_in_environment,
 };
 use super::{InferredType, OwnerEnvironmentIndex, OwnerMemberTarget, TypeEnvironment};
 use symbols::JoinedPath;
@@ -83,32 +82,6 @@ pub fn checked_expression_type_reference_from_exact_owner(
         retained = Some(candidate);
     }
     retained
-}
-
-pub fn checked_collection_view_intrinsic_from_exact_owner(
-    program: &dyn crate::CheckingInput,
-    contract_facts: &arena::Arena<checked_trees::ContractProofFact>,
-    expression: ExpressionHandle,
-    call: &typed_trees::expression::TableCallExpression,
-    owner_index: Option<&OwnerEnvironmentIndex>,
-) -> Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic> {
-    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
-
-    // The call shape decides which operation the spelling may select; this
-    // site additionally requires every exact owner environment to agree on the
-    // receiver's carrier type before the intrinsic is recorded.
-    let expected = crate::collection_operations::collection_view_call(program, call)?;
-    let mut retained = None;
-    for environment in exact_owner_environments(program, contract_facts, expression, owner_index)? {
-        let receiver =
-            infer_expression_type(program, call.receiver, &environment, &mut Vec::new())?;
-        let candidate = collection_view_operation_for_receiver(program, expected, receiver)?;
-        if retained.is_some_and(|operation| operation != candidate) {
-            return None;
-        }
-        retained = Some(candidate);
-    }
-    retained.map(Intrinsic::CollectionView)
 }
 
 pub fn checked_machine_call_target_from_exact_owner(

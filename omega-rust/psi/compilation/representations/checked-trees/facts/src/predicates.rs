@@ -17,8 +17,8 @@ pub use integer_math::{CheckedIntegerMathExpression, CheckedIntegerMathTerm};
 
 /// The storage an observation or a view derivation starts from: a structural
 /// state parameter, or an immutable borrowed view local that an earlier
-/// statement of the same body established (an `as_slice` loan or another
-/// subslice). A view local is an established view place exactly as a whole
+/// statement of the same body established (a whole-collection loan or
+/// another subslice). A view local is an established view place exactly as a whole
 /// view parameter is, so lengths, element reads and subslices take this one
 /// root instead of a parameter-only coordinate plus a local-only twin.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

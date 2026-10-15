@@ -6,12 +6,12 @@
 //! access, while lifetime, exclusivity, element/domain correspondence and
 //! storage admission remain independent checks at their existing owners.
 //!
-//! A loan's access is spelled where the loan is formed: `&mut place`,
-//! `&write place`, or a compiler-owned `as_mut_slice` view. A bare window
-//! `coll[a..b]` carries no spelling of its own, so it is the shared loan the
-//! `[..]` adaptation forms (`Slice::range` takes `&[T]`) at every receiving
-//! leaf -- a local initializer, a call or state argument, a returned value or
-//! a constructed field -- and mutable lending is spelled `&mut coll[a..b]`.
+//! A loan's access is spelled where the loan is formed: `&mut place` or
+//! `&write place`. A bare window `coll[a..b]` carries no spelling of its own,
+//! so it is the shared loan the `[..]` adaptation forms (`Slice::range` takes
+//! `&[T]`) at every receiving leaf -- a local initializer, a call or state
+//! argument, a returned value or a constructed field -- and mutable lending is
+//! spelled `&mut coll[a..b]`.
 //! This is `bare-range-reference-access` in the expression specification:
 //! an expected `&mut [T]` type never inserts the mutable borrow, including on
 //! a local declaration, and the bare window at a mutable destination is
@@ -222,7 +222,6 @@ fn completed_reference_borrow_source(
     value: ExpressionHandle,
 ) -> Option<CompletedBorrow> {
     use language_semantics::ReferenceAccess;
-    use language_semantics::declaration_selection::CollectionViewOperation;
 
     // Ordinary borrows and representation views retain the same formation
     // coordinates. In particular, `reference as &mut Other` lends the
@@ -237,30 +236,6 @@ fn completed_reference_borrow_source(
         });
     }
     match program.expression_table.expression(value) {
-        ExpressionNode::Call(call) => {
-            let operation = crate::collection_operations::collection_view_call(program, call)?;
-            let reference = crate::value_custody::places::declared_place_type_raw(
-                program,
-                machine,
-                state,
-                call.receiver,
-            )?;
-            if !crate::collection_operations::type_reference_is_collection(program, reference) {
-                return None;
-            }
-            let access = match operation {
-                CollectionViewOperation::SharedSlice => ReferenceAccess::Shared,
-                CollectionViewOperation::MutableSlice => ReferenceAccess::Mutable,
-                // Text and byte-content conversions have different carrier and
-                // source laws; their declared result/formation owners remain.
-                CollectionViewOperation::TextView | CollectionViewOperation::Bytes => return None,
-            };
-            Some(CompletedBorrow {
-                source: call.receiver,
-                access,
-                bare_window: false,
-            })
-        }
         ExpressionNode::Indexed(indexed)
             if program.expression_table.range_node(indexed.index).is_some()
                 && crate::value_custody::places::place_has_builtin_coordinates(

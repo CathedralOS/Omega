@@ -116,7 +116,6 @@ pub(crate) fn build_contract_plans(
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
     scalar_computations: &checked_trees::CheckedScalarComputationPlans,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<checked_trees::MachineContractPlans, Vec<diagnostics::Diagnostic>> {
     let mut machines = Vec::new();
     let mut publications = Vec::new();
@@ -302,7 +301,6 @@ pub(crate) fn build_contract_plans(
         &content_conservation,
         &crash_capsules,
         &mut machines,
-        call_frames,
         &summary_graph,
     );
     let realized_envelopes =

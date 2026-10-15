@@ -80,7 +80,7 @@ pub use checked_trees::{
     CheckedIeeeFloatComparisonKind, CheckedIndexedWriteDecisions, CheckedInitializedLocal,
     CheckedIntegerAssignmentDecision, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedIntegerMathExpression, CheckedIntegerMathTerm, CheckedIntegerRange,
-    CheckedIntrinsicCallFact, CheckedLocatedProofTerm, CheckedLocatedScalarExpression,
+    CheckedLocatedProofTerm, CheckedLocatedScalarExpression,
     CheckedMachineContractEnvelopeIdentity, CheckedMachineContractRefinement,
     CheckedMachineResourceEnvelopes, CheckedMachineSpecializationIdentity,
     CheckedMathematicalBinder, CheckedMathematicalBinderKind, CheckedMathematicalBody,

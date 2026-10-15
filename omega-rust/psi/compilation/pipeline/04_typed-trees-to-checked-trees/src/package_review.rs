@@ -100,18 +100,6 @@ pub fn infer_checked_crash_causes(
     facts::infer_checked_crash_causes(program, facts)
 }
 
-/// Rederive one exact compiler-owned collection view from the final typed
-/// program and the checked environments that own its expression. Package
-/// review uses this compiler-internal seam to reject a retained intrinsic fact
-/// that no longer agrees with its receiver and call shape.
-pub fn derive_checked_collection_view_intrinsic(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic> {
-    authored_selections::derive_checked_collection_view_intrinsic(program, facts, expression)
-}
-
 /// Rederive one nominal call target from the final typed program and the exact
 /// checked owner environments that contain the expression. Package review uses
 /// this compiler-internal seam for proof-owned attached and path-qualified

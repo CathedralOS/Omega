@@ -86,8 +86,8 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 | LegalizedScalarInstructionKind::ElementViewRead { source, .. } => {
                     *source == place
                 }
-                // `self.arr.as_slice()` roots a view in the parameter's
-                // fixed-array field, so the referent pointer must stay live.
+                // `&self.arr[..]` roots a view in the parameter's fixed-array
+                // field, so the referent pointer must stay live.
                 LegalizedScalarInstructionKind::EstablishElementView { source, .. }
                 | LegalizedScalarInstructionKind::ElementViewLength { source, .. } => {
                     source.place == place

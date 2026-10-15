@@ -1176,9 +1176,9 @@ pub(super) fn collect_expression_call_written_paths(
             } else {
                 Some(Vec::new())
             };
-            // Reserved value/view builtins are operand operations, not machine
-            // calls. They may read their operands or create a view, but they do
-            // not write caller storage. Keep this list aligned with the value
+            // Reserved value builtins are operand operations, not machine
+            // calls. They may read their operands, but they do not write
+            // caller storage. Keep this list aligned with the value
             // call validation exemptions below so frame consumers do not turn
             // `min`/`max` reductions into opaque whole-receiver clobbers.
             // A boundary member with the same spelling still has its declared
@@ -1373,26 +1373,16 @@ fn value_builtin_has_empty_write_frame(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
-    if !call.receiver.is_valid() {
-        // One roster for every receiver-free value builtin, including the
-        // float intrinsics that selected execution settles an authored call
-        // into after checking: the settled body must derive the same frame
-        // the authored call did.
-        return program
+    // One roster for every value builtin, including the float intrinsics that
+    // selected execution settles an authored call into after checking: the
+    // settled body must derive the same frame the authored call did. Value
+    // builtins are free functions: an unresolved method cannot acquire their
+    // empty frame.
+    !call.receiver.is_valid()
+        && program
             .symbols
             .builtin_function_for_symbol(call.target_symbol)
-            .is_some_and(symbols::BuiltinFunction::has_empty_write_frame);
-    }
-    // View operations remain receiver-bearing builtins. Numeric builtins are
-    // free functions: an unresolved method cannot acquire their empty frame.
-    language_semantics::declaration_selection::CollectionViewOperation::from_authored_spelling(
-        call.target.as_str(),
-    )
-    .is_some()
-        && program
-            .expression_table
-            .expression_handles(call.arguments)
-            .is_empty()
+            .is_some_and(symbols::BuiltinFunction::has_empty_write_frame)
 }
 
 pub(super) fn syntactic_call_written_paths(

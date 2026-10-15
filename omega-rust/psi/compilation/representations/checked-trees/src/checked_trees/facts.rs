@@ -72,9 +72,7 @@ mod stored_integer_writes;
 pub use stored_integer_writes::{CheckedStoredIntegerWrite, StoredIntegerWriteSite};
 
 pub use blocking::{BlockingFacts, MachineBlockingFact};
-pub use calls::{
-    CheckedBoundaryAdapterDispatch, CheckedFactCallProjection, CheckedIntrinsicCallFact,
-};
+pub use calls::{CheckedBoundaryAdapterDispatch, CheckedFactCallProjection};
 pub use carry::{
     CarryFacts, ClaimCarryPolicyFact, DataCarryFact, MachineActivationCarryFact,
     SuspensionCrossingBorrowFrontier, SuspensionCrossingCarryFact, SuspensionCrossingLiveValueFact,

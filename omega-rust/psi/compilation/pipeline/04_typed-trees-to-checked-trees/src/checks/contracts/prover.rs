@@ -173,7 +173,6 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
             call_flow.target_symbol,
             target_parameters,
             expression,
-            call_frames,
         )
 }
 

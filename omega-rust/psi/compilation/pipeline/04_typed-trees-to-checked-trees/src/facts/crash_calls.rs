@@ -196,7 +196,6 @@ pub(super) fn attach_checked_crash_calls(
     content_conservation: &[validation::ContentConservationSourcePlan],
     crash_capsules: &[checked_trees::CrashContractCapsule],
     plans: &mut [checked_trees::MachineContractPlan],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
     summary_graph: &PreparedCrashSummaryGraph,
 ) {
     let inferred_body_summaries = infer_private_body_summaries(
@@ -208,7 +207,6 @@ pub(super) fn attach_checked_crash_calls(
         content_conservation,
         crash_capsules,
         plans,
-        call_frames,
         Some(summary_graph),
     );
     let mut calls_by_caller =
@@ -362,7 +360,6 @@ pub(super) fn attach_checked_crash_calls(
                         buckets,
                         contracts,
                         content_conservation,
-                        call_frames,
                     )
                 }
                 SelectedTargetCrashRoutes::Private(summary) => {
@@ -481,7 +478,6 @@ pub(crate) fn infer_checked_crash_causes(
         &content_conservation,
         &facts.contract_plans.crash_capsules,
         &facts.contract_plans.machines,
-        None,
         None,
     );
     summaries

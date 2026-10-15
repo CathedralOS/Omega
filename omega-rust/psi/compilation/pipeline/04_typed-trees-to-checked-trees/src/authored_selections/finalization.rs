@@ -9,7 +9,6 @@ use crate::authored_selections::call_targets::{
     checked_call_target, checked_name_path_segment_target, checked_operator_conformance_targets,
     expression_receiver_symbol, implementation_call_selection,
 };
-use crate::authored_selections::intrinsic_calls::checked_intrinsic_call_target;
 use crate::authored_selections::member_targets::checked_member_target;
 use crate::authored_selections::operator_targets::{
     GenericOperatorValueOrigins, checked_generic_operator_target,
@@ -230,10 +229,7 @@ pub(crate) fn finalize_checked_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
                     ExpressionNode::Call(call),
-                ) => checked_intrinsic_call_target(facts, expression)
-                    .or_else(|| {
-                        validation::compiler_operations::classify_expression_call_intrinsic(program, call)
-                    })
+                ) => validation::compiler_operations::classify_expression_call_intrinsic(program, call)
                     .map(AuthoredSelectionResolutionTarget::Intrinsic)
                     .or_else(|| {
                         declaration_target(

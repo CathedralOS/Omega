@@ -449,12 +449,9 @@ pub(in crate::execution::terminal_unit) fn resolve_storage_place(
         ) else {
             break;
         };
-        let Some(source) = crate::flow::reference_source_place_through_collection_views(
-            program,
-            state.symbol,
-            statement_index,
-            source,
-        ) else {
+        let Some(source) =
+            crate::flow::reference_source_place(program, state.symbol, statement_index, source)
+        else {
             break;
         };
         let PlaceRoot::Symbol(..) = source.root else {

@@ -1,4 +1,3 @@
-use language_semantics::declaration_selection::CollectionViewOperation;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
 
 use super::ContractExpressionEvaluator;
@@ -17,84 +16,8 @@ impl<'program> ContractExpressionEvaluator<'program, '_> {
             // evaluator's counterpart of the ranges lane's
             // `fixed_array_field_lengths` vocabulary).
             ExpressionNode::Member(member) => self.fixed_array_self_field_length(member),
-            ExpressionNode::Name(_) => self.immutable_fixed_array_view_length(resolved),
             _ => None,
         }
-    }
-
-    /// A fixed-array view captures a type extent, not an array-content snapshot.
-    /// Follow only an immutable descriptor whose binding is still unexposed at
-    /// this occurrence; general initializer evaluation remains forbidden.
-    fn immutable_fixed_array_view_length(&mut self, expression: ExpressionHandle) -> Option<usize> {
-        use typed_trees::statement::TransitionGuardNode;
-
-        let Some(path) = self.program.expression_table.name_path_node(expression) else {
-            return None;
-        };
-        if !self
-            .program
-            .expression_table
-            .name_path_is_single_member(path)
-        {
-            return None;
-        }
-        let statements = self
-            .program
-            .statement_table
-            .statements(self.caller_state.statement_nodes);
-        // This first length-only route has no effects between the prefix and
-        // its actuals: neither a guard nor an earlier argument can rebind a view.
-        let transition = statements.get(self.statement_index)?.as_transition()?;
-        if !matches!(transition.guard, TransitionGuardNode::Always)
-            || !matches!(self.call_site, validation::CallSite::TransitionNamed { .. })
-            || validation::call_site_argument_expressions(self.program, self.call_site)
-                .iter()
-                .any(|argument| {
-                    !matches!(
-                        self.program.expression_table.expression(*argument),
-                        ExpressionNode::Name(_)
-                            | ExpressionNode::Integer(_)
-                            | ExpressionNode::Boolean(_)
-                    )
-                })
-        {
-            return None;
-        }
-        let (_, local) = self
-            .program
-            .state_local_declaration(self.caller_state, path.symbol)
-            .filter(|&(ordinal, _)| ordinal < self.statement_index)?;
-        let mut owned_frames = None;
-        let bindings_stable =
-            crate::flow::shared_call_frames_or(self.call_frames, self.program, &mut owned_frames)
-                .is_some_and(|frames| {
-                    frames.expression_reference_bindings_are_stable(self.caller_machine, expression)
-                });
-        if local.is_mutable || !bindings_stable {
-            return None;
-        }
-        let ExpressionNode::Call(call) = self
-            .program
-            .expression_table
-            .expression(local.initial_value)
-        else {
-            return None;
-        };
-        // Only a compiler-owned element view of a collection keeps the
-        // receiver's declared extent; the text views carry no element count.
-        if !matches!(
-            validation::collection_operations::collection_view_call(self.program, call),
-            Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
-        ) {
-            return None;
-        }
-        let receiver_type = validation::declared_place_type_raw(
-            self.program,
-            self.caller_machine,
-            Some(self.caller_state),
-            call.receiver,
-        )?;
-        crate::checks::ranges::fixed_array_type_length(self.program, receiver_type)
     }
 
     /// The declared fixed-array extent of `self.<field>` in the TARGET

@@ -16,8 +16,7 @@ use crate::machine_calls::calls::write_frames::place_paths::{
 };
 use crate::machine_calls::calls::write_frames::reference_origins;
 use crate::machine_calls::calls::write_frames::transparent_effects::{
-    call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
-    frame_place_root_symbol,
+    expression_is_effectful_for_transparent_result, frame_place_root_symbol,
 };
 use crate::machine_calls::calls::write_frames::transparent_results::transparent_callee_result_origins;
 use crate::machine_calls::calls::write_frames::type_capabilities::type_reference_is_reference;
@@ -239,41 +238,16 @@ fn parameter_relative_place_origins_in(
             aliases,
             admit_carrier_roots,
         )?,
-        ExpressionNode::Call(call) => {
-            if call_is_transparent_mutable_slice_view(program, call) {
-                // An unresolved view builtin supplies a conservative
-                // collection footprint, not a nominal helper-result identity.
-                // A same-name unresolved user method cannot establish an
-                // exact subject.
-                parameter_relative_place_origins_in(
-                    program,
-                    current_machine,
-                    call.receiver,
-                    parameters,
-                    aliases,
-                    symbols,
-                    inference,
-                    admit_carrier_roots,
-                )?
-                .into_iter()
-                .map(|mut origin| {
-                    origin.place.precision = FramePathPrecision::CollectionCoarse;
-                    origin
-                })
-                .collect()
-            } else {
-                parameter_relative_call_result_origins(
-                    program,
-                    current_machine,
-                    call,
-                    parameters,
-                    aliases,
-                    symbols,
-                    inference,
-                    admit_carrier_roots,
-                )?
-            }
-        }
+        ExpressionNode::Call(call) => parameter_relative_call_result_origins(
+            program,
+            current_machine,
+            call,
+            parameters,
+            aliases,
+            symbols,
+            inference,
+            admit_carrier_roots,
+        )?,
         ExpressionNode::Match(dispatch) => {
             // Every producing arm contributes its own candidates. Divergent
             // routes keep the exact finite union: the result may reach any

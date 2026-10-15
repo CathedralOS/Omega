@@ -52,7 +52,6 @@ pub(super) fn call_site_proves_boolean_contract_expression(
     target_symbol: symbols::SymbolHandle,
     target_parameters: &[StateParameter],
     expression: ExpressionHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     call_site_boolean_contract_expression_value(
         program,
@@ -63,7 +62,6 @@ pub(super) fn call_site_proves_boolean_contract_expression(
         target_symbol,
         target_parameters,
         expression,
-        call_frames,
     )
     .unwrap_or(false)
 }
@@ -78,7 +76,6 @@ pub(crate) fn call_site_boolean_contract_expression_value<'program, 'call>(
     target_symbol: symbols::SymbolHandle,
     target_parameters: &'program [StateParameter],
     expression: ExpressionHandle,
-    call_frames: Option<&'call validation::CallFrameResolver<'program>>,
 ) -> Option<bool> {
     let caller_state = validation::find_state_in_machine(
         program,
@@ -96,7 +93,6 @@ pub(crate) fn call_site_boolean_contract_expression_value<'program, 'call>(
         call_site,
         target_symbol,
         target_parameters,
-        call_frames,
         active_evaluations: Vec::new(),
         active_resolutions: Vec::new(),
     }
@@ -108,10 +104,6 @@ pub(super) struct ContractExpressionEvaluator<'program, 'call> {
     // Source call checking has selected operator facts. Earlier crash-fact
     // construction does not, and cannot gain Boolean equality authority here.
     operators: Option<&'program checked_trees::CheckedOperatorFacts>,
-    /// The enclosing pass's shared frame resolver, when one is live in this
-    /// immutable program window. `None` reconstructs a private resolver on
-    /// first use so standalone queries keep their established behavior.
-    call_frames: Option<&'call validation::CallFrameResolver<'program>>,
     caller_machine: &'program Machine,
     caller_state: &'program State,
     statement_index: usize,

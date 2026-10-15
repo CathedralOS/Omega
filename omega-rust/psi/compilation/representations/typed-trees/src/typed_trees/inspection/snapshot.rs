@@ -174,7 +174,6 @@ fn authored_declaration_selection_intrinsic_name(
         }
         Intrinsic::CollectionLength => ("collection_length", None),
         Intrinsic::CollectionCapacity => ("collection_capacity", None),
-        Intrinsic::CollectionView(operation) => ("collection_view", Some(format!("{operation:?}"))),
         Intrinsic::ByteSequencePredicate(predicate) => {
             ("byte_sequence_predicate", Some(format!("{predicate:?}")))
         }

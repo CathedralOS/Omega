@@ -8,9 +8,7 @@ use crate::machine_calls::calls::write_frames::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path,
     push_unique_origin, same_place_origin, split_place_root,
 };
-use crate::machine_calls::calls::write_frames::transparent_effects::{
-    call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
-};
+use crate::machine_calls::calls::write_frames::transparent_effects::expression_is_effectful_for_transparent_result;
 use crate::machine_calls::calls::write_frames::type_capabilities::type_reference_is_reference;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -151,21 +149,15 @@ pub(crate) fn transparent_place_expression_origins(
                 })
                 .collect()
         }
-        ExpressionNode::Call(call) => {
-            if call_is_transparent_mutable_slice_view(program, call) {
-                transparent_place_expression_origins(program, call.receiver, symbols, inference)?
-            } else {
-                transparent_call_result_origins(
-                    program,
-                    call,
-                    symbols,
-                    inference,
-                    |_, _, _, actual, inference| {
-                        transparent_place_expression_origins(program, actual, symbols, inference)
-                    },
-                )?
-            }
-        }
+        ExpressionNode::Call(call) => transparent_call_result_origins(
+            program,
+            call,
+            symbols,
+            inference,
+            |_, _, _, actual, inference| {
+                transparent_place_expression_origins(program, actual, symbols, inference)
+            },
+        )?,
         ExpressionNode::Match(dispatch) => {
             let mut selected = Vec::new();
             for arm in program.expression_table.match_arms(dispatch.arms) {

@@ -18,9 +18,7 @@ use crate::machine_calls::calls::write_frames::place_paths::{
 };
 use crate::machine_calls::calls::write_frames::reference_subjects;
 use crate::machine_calls::calls::write_frames::stored_origins::StoredLocalOrigins;
-use crate::machine_calls::calls::write_frames::transparent_effects::{
-    call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
-};
+use crate::machine_calls::calls::write_frames::transparent_effects::expression_is_effectful_for_transparent_result;
 use crate::machine_calls::calls::write_frames::transparent_results::transparent_call_result_origins;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -34,8 +32,7 @@ use typed_trees::signature::StateParameter;
 /// Caller-isolated locals are also stable origins, but remain local-only and
 /// therefore disappear from the published caller frame. A structurally
 /// transparent value call preserves such an origin just as it preserves a
-/// caller-visible parameter origin. The compiler-owned `as_mut_slice` view
-/// preserves its receiver's storage origin. A validated mutable recast is
+/// caller-visible parameter origin. A validated mutable recast is
 /// address identity, so an effect-free recast source preserves the same origin.
 /// Direct parameter-relative member and effect-free indexed projections compose
 /// the same exact/coarse path algebra. Other computed results stay opaque.
@@ -294,22 +291,6 @@ pub(crate) fn stable_alias_initializer_origins(
             origins
         }
         ExpressionNode::Call(call) => {
-            if call_is_transparent_mutable_slice_view(program, call) {
-                return stable_alias_initializer_origins(
-                    program,
-                    current_machine,
-                    machine_symbols,
-                    inference,
-                    call.receiver,
-                    parameters,
-                    isolated_local_roots,
-                    aliases,
-                    divergent_aliases,
-                    symbols,
-                    allow_isolated_local,
-                    stored,
-                );
-            }
             transparent_call_result_origins(
                 program,
                 call,
@@ -543,38 +524,24 @@ fn stable_alias_expression_origins(
             }
             origins
         }
-        ExpressionNode::Call(call) => {
-            if call_is_transparent_mutable_slice_view(program, call) {
-                return stable_alias_expression_origins(
+        ExpressionNode::Call(call) => transparent_call_result_origins(
+            program,
+            call,
+            symbols,
+            &mut FrameInference::default(),
+            |_, _, _, actual, _| {
+                stable_alias_expression_origins(
                     program,
-                    call.receiver,
+                    actual,
                     parameters,
                     isolated_local_roots,
                     aliases,
                     divergent_aliases,
                     symbols,
                     allow_isolated_local,
-                );
-            }
-            transparent_call_result_origins(
-                program,
-                call,
-                symbols,
-                &mut FrameInference::default(),
-                |_, _, _, actual, _| {
-                    stable_alias_expression_origins(
-                        program,
-                        actual,
-                        parameters,
-                        isolated_local_roots,
-                        aliases,
-                        divergent_aliases,
-                        symbols,
-                        allow_isolated_local,
-                    )
-                },
-            )?
-        }
+                )
+            },
+        )?,
         ExpressionNode::Cast(cast)
             if cast.form.is_recast()
                 && !expression_is_effectful_for_transparent_result(program, cast.value) =>

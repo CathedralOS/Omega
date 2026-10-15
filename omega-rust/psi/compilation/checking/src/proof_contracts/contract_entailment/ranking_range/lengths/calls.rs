@@ -3,11 +3,11 @@
 //! selected declaration supplies formal identity and its independent ensures;
 //! neither a callee name nor a range-shaped argument supplies result geometry.
 
-use super::{BigInt, Engine, ExpressionNode, TableCallExpression};
+use super::{BigInt, Engine, ExpressionNode};
 use crate::proof_contracts::contract_entailment::{
     StrictArithmeticBindingValue, StrictArithmeticSymbolBinding,
 };
-use typed_trees::expression::BinaryOperator;
+use typed_trees::expression::{BinaryOperator, TableCallExpression};
 use typed_trees::signature::SignatureContractKind;
 
 pub(super) fn normal_return_length(

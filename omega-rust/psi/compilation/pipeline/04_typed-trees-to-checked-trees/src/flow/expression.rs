@@ -979,26 +979,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 // operand's write destroys facts an earlier copied operand
                 // still owns.
                 let named_uses = self.named_uses_at(expression);
-                let whole_collection_view = matches!(
-                    validation::collection_operations::collection_view_call(self.program, call),
-                    Some(
-                        language_semantics::declaration_selection::CollectionViewOperation::SharedSlice
-                            | language_semantics::declaration_selection::CollectionViewOperation::MutableSlice
-                    )
-                );
                 let mut captured = Vec::new();
                 if call.receiver.is_valid() {
-                    let receiver = if whole_collection_view {
-                        self.evaluated_place(call.receiver, contexts, constraints)
-                    } else {
-                        self.evaluated_operand(call.receiver, contexts, constraints)
-                    };
-                    if whole_collection_view {
-                        // The selected whole-collection operation lends exactly
-                        // its completed receiver. Named machines do not inherit
-                        // this identity from matching source spelling.
-                        *referents = Some(receiver.capture.referents);
-                    }
+                    let receiver = self.evaluated_operand(call.receiver, contexts, constraints);
                     captured.push((call.receiver, receiver.capture));
                 }
                 for (position, argument) in self

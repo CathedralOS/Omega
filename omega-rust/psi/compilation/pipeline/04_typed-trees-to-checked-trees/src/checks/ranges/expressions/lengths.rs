@@ -1,4 +1,3 @@
-use language_semantics::declaration_selection::CollectionViewOperation;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -23,17 +22,6 @@ pub(in crate::checks::ranges) fn expression_indexable_length(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::String(bytes) => Some(bytes.len()),
-        // A compiler-owned element view spans its receiver's whole extent, so
-        // the view's length is the receiver's. A declared machine spelled
-        // `as_slice` returns whatever it chooses and contributes no length.
-        ExpressionNode::Call(call)
-            if matches!(
-                validation::collection_operations::collection_view_call(program, call),
-                Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
-            ) =>
-        {
-            fixed_array_expression_length(program, machine, state, facts, call.receiver)
-        }
         ExpressionNode::Indexed(indexed) => {
             match expression_indexable_length(program, machine, state, facts, indexed.collection) {
                 // Known-length base: the subslice length is bounded by the base.
@@ -105,30 +93,4 @@ fn fixed_range_window_length(
         return None;
     }
     Some(end - start)
-}
-
-fn fixed_array_expression_length(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    facts: &RangeFacts<'_>,
-    expression: ExpressionHandle,
-) -> Option<usize> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => {
-            fixed_array_expression_length(program, machine, state, facts, inner.target)
-        }
-        ExpressionNode::Member(_) => {
-            expression_indexable_length(program, machine, state, facts, expression)
-        }
-        ExpressionNode::Name(path) => facts.local_length(
-            path.symbol,
-            program
-                .expression_table
-                .name_path_members(path.members)
-                .last()
-                .map(|name| name.as_str()),
-        ),
-        _ => None,
-    }
 }

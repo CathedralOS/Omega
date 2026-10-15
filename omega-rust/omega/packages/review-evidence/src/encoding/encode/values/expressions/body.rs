@@ -10,7 +10,6 @@ use crate::record::PackageReviewArithmeticDomain;
 use crate::record::PackageReviewAtomicLoadOrdering;
 use crate::record::PackageReviewByteSequencePredicate;
 use crate::record::PackageReviewCastForm;
-use crate::record::PackageReviewCollectionViewOperation;
 use crate::record::PackageReviewContractBinaryOperator;
 use crate::record::PackageReviewContractCallTarget;
 use crate::record::PackageReviewContractExpression;
@@ -286,26 +285,7 @@ pub(super) fn encode_contract_expression_body(
                             Ok(())
                         })?;
                     }
-                    PackageReviewContractCallTarget::CollectionView(operation) => {
-                        encoder.tag("collection_view", 3);
-                        encoder.field("operation", |encoder| {
-                            match operation {
-                                PackageReviewCollectionViewOperation::SharedSlice => {
-                                    encoder.tag("shared_slice", 0)
-                                }
-                                PackageReviewCollectionViewOperation::MutableSlice => {
-                                    encoder.tag("mutable_slice", 1)
-                                }
-                                PackageReviewCollectionViewOperation::TextView => {
-                                    encoder.tag("text_view", 2)
-                                }
-                                PackageReviewCollectionViewOperation::Bytes => {
-                                    encoder.tag("bytes", 3)
-                                }
-                            };
-                            Ok(())
-                        })?;
-                    }
+                    // Tag 3 is retired (the receiver collection views); never reuse it.
                     PackageReviewContractCallTarget::ProofView { name } => {
                         encoder.tag("proof_view", 4);
                         encoder.field("name", |encoder| encoder.string(name))?;

@@ -1,7 +1,7 @@
 # slice_core_surface
 
 `use omega::language::core::slice` imports the slice surface:
-`.as_slice()` coerces a field array to `&[T]` and `.len` reports the
+`&main.entries[..]` borrows a field array as `&[T]` and `.len` reports the
 runtime length.
 
 ## Gaps found while authoring (filed)
@@ -9,7 +9,7 @@ runtime length.
 - `view[1..3]` / `view[4..4]` range slicing selects PRIVATE
   `Slice::range$specialized...` machines — corpus fixtures compile the
   full surface but user packages get 'selects private machine' (same
-  corpus-vs-package class as `.as_slice()` element ops and
+  corpus-vs-package class as whole-collection view element ops and
   `Slice::index`).
 
 Compile-checked only: no standard-library dependency and

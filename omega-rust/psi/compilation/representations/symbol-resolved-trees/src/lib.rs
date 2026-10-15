@@ -19,8 +19,7 @@ pub mod declaration_selection {
         AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError,
         AuthoredDeclarationSelectionSuffixRebase, AuthoredDeclarationSelectionSuffixRebaseError,
         AuthoredDeclarationSelectionTarget, AuthoredDeclarationSelections, BuildOperation,
-        CollectionMeasure, CollectionViewOperation, CompilerDerivedSelectionPartition,
-        ResolvedAuthoredDeclarationSelection,
+        CollectionMeasure, CompilerDerivedSelectionPartition, ResolvedAuthoredDeclarationSelection,
     };
 }
 pub mod symbol_resolved_trees;
