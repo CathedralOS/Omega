@@ -14,7 +14,7 @@ pub TransformCalling satisfies CallingPolicy {
     CallingPolicy::plan = Policies::transform;
 }
 
-machine Policies::prepare(signature: BoundarySignature) -> BoundaryPlanResult
+macos_arm64 machine Policies::prepare(signature: BoundarySignature) -> BoundaryPlanResult
 satisfies CallingPolicy::plan
 {
     let mut plan: BoundaryEntryPlan;
@@ -25,11 +25,11 @@ satisfies CallingPolicy::plan
     plan.call.parameters[3] = Policies::word(8, 3);
     plan.call.parameters[4] = Policies::word(8, 4);
     plan.call.has_result = true;
-    plan.call.result = Policies::word(4, 0);
+    plan.call.result = Policies::result_word(4);
     Policies::finish(plan)
 }
 
-machine Policies::invoke(signature: BoundarySignature) -> BoundaryPlanResult
+macos_arm64 machine Policies::invoke(signature: BoundarySignature) -> BoundaryPlanResult
 satisfies CallingPolicy::plan
 {
     let mut plan: BoundaryEntryPlan;
@@ -69,7 +69,7 @@ machine Policies::pair() -> ValuePlacement {
     placement
 }
 
-machine Policies::transform(signature: BoundarySignature) -> BoundaryPlanResult
+macos_arm64 machine Policies::transform(signature: BoundarySignature) -> BoundaryPlanResult
 satisfies CallingPolicy::plan
 {
     let mut plan: BoundaryEntryPlan;
@@ -80,18 +80,22 @@ satisfies CallingPolicy::plan
     Policies::finish(plan)
 }
 
-machine Policies::word(bytes: u64, register: u64) -> ValuePlacement {
+machine Policies::placed_word(bytes: u64, register: MachineRegister) -> ValuePlacement {
     let mut value: ValuePlacement;
     value.shape.class = AbiValueClass::Integer;
     value.shape.byte_size = bytes;
     value.shape.alignment = bytes;
     value.location_count = 1;
     value.locations[0] = ValueLocation::Register {
-        register: MachineRegister::Aarch64X { index: register },
+        register: register,
         value_byte_offset: 0,
         byte_size: bytes,
     };
     value
+}
+
+machine Policies::word(bytes: u64, register: u64) -> ValuePlacement {
+    Policies::placed_word(bytes, MachineRegister::Aarch64X { index: register })
 }
 
 machine Policies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
@@ -238,7 +242,7 @@ invokes Console;
     let elements: TypeElements = TypeElements { first: &double, second: &double, third: &double, fourth: &double, terminator: 0 };
     let pair: PairType = PairType { size: 32, alignment: 8, kind: 13, elements: &elements };
     let argument_types: ArgumentTypes = ArgumentTypes { pair: &pair };
-    let status: u32 = Prepare::prepare(&mut main.interface, 1, 1,
+    let status: u32 = Prepare::prepare(&mut main.interface, ffi_abi(), 1,
         &pair, &argument_types);
     let prepared: PreparedInterface = PreparedInterface {
         interface: main.interface, types: &argument_types
@@ -257,3 +261,177 @@ invokes Console;
     state done() { Console::exit_process(0); }
     state failed() { Console::exit_process(71); }
 }
+
+
+machine Policies::result_word(bytes: u64) -> ValuePlacement {
+    Policies::word(bytes, 0)
+}
+
+machine LinuxPolicies::word(bytes: u64, register: u64) -> ValuePlacement {
+    transition register {
+        0 -> Policies::placed_word(bytes, MachineRegister::X86Rdi)
+        1 -> Policies::placed_word(bytes, MachineRegister::X86Rsi)
+        2 -> Policies::placed_word(bytes, MachineRegister::X86Rdx)
+        3 -> Policies::placed_word(bytes, MachineRegister::X86Rcx)
+        4 -> Policies::placed_word(bytes, MachineRegister::X86R8)
+        _ -> Policies::placed_word(bytes, MachineRegister::X86R9)
+    }
+}
+
+machine LinuxPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
+    let mut plan: BoundaryEntryPlan = output;
+    plan.call.convention = CallingConvention::SystemVAMD64;
+    plan.call.stack_alignment = 16;
+    plan.call.entry_control = EntryControl::CallReturn;
+    plan.call.ordinary_clobbers.register_count = 25;
+    plan.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
+    plan.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
+    plan.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
+    plan.call.ordinary_clobbers.registers[3] = MachineRegister::X86Rsi;
+    plan.call.ordinary_clobbers.registers[4] = MachineRegister::X86Rdi;
+    plan.call.ordinary_clobbers.registers[5] = MachineRegister::X86R8;
+    plan.call.ordinary_clobbers.registers[6] = MachineRegister::X86R9;
+    plan.call.ordinary_clobbers.registers[7] = MachineRegister::X86R10;
+    plan.call.ordinary_clobbers.registers[8] = MachineRegister::X86R11;
+    plan.call.ordinary_clobbers.registers[9] = MachineRegister::X86Xmm { index: 0 };
+    plan.call.ordinary_clobbers.registers[10] = MachineRegister::X86Xmm { index: 1 };
+    plan.call.ordinary_clobbers.registers[11] = MachineRegister::X86Xmm { index: 2 };
+    plan.call.ordinary_clobbers.registers[12] = MachineRegister::X86Xmm { index: 3 };
+    plan.call.ordinary_clobbers.registers[13] = MachineRegister::X86Xmm { index: 4 };
+    plan.call.ordinary_clobbers.registers[14] = MachineRegister::X86Xmm { index: 5 };
+    plan.call.ordinary_clobbers.registers[15] = MachineRegister::X86Xmm { index: 6 };
+    plan.call.ordinary_clobbers.registers[16] = MachineRegister::X86Xmm { index: 7 };
+    plan.call.ordinary_clobbers.registers[17] = MachineRegister::X86Xmm { index: 8 };
+    plan.call.ordinary_clobbers.registers[18] = MachineRegister::X86Xmm { index: 9 };
+    plan.call.ordinary_clobbers.registers[19] = MachineRegister::X86Xmm { index: 10 };
+    plan.call.ordinary_clobbers.registers[20] = MachineRegister::X86Xmm { index: 11 };
+    plan.call.ordinary_clobbers.registers[21] = MachineRegister::X86Xmm { index: 12 };
+    plan.call.ordinary_clobbers.registers[22] = MachineRegister::X86Xmm { index: 13 };
+    plan.call.ordinary_clobbers.registers[23] = MachineRegister::X86Xmm { index: 14 };
+    plan.call.ordinary_clobbers.registers[24] = MachineRegister::X86Xmm { index: 15 };
+    plan.state.initial_regime = MachineRegime::X86Long64;
+    plan.state.permitted_transitive_use.general_registers = true;
+    plan.state.permitted_transitive_use.vector_registers = true;
+    plan.state.permitted_transitive_use.flags = true;
+    plan.state.stack = EntryStack::ProviderSelected;
+    plan.state.preemption = Preemption::NotApplicable;
+    BoundaryPlanResult::Accepted { plan: plan }
+}
+
+machine LinuxPolicies::result_word(bytes: u64) -> ValuePlacement {
+    Policies::placed_word(bytes, MachineRegister::X86Rax)
+}
+
+data LinuxPolicies {}
+
+
+linux_x86_64 machine Policies::prepare(signature: BoundarySignature) -> BoundaryPlanResult
+{
+    let mut plan: BoundaryEntryPlan;
+    plan.call.parameter_count = 5;
+    plan.call.parameters[0] = LinuxPolicies::word(8, 0);
+    plan.call.parameters[1] = LinuxPolicies::word(4, 1);
+    plan.call.parameters[2] = LinuxPolicies::word(4, 2);
+    plan.call.parameters[3] = LinuxPolicies::word(8, 3);
+    plan.call.parameters[4] = LinuxPolicies::word(8, 4);
+    plan.call.has_result = true;
+    plan.call.result = LinuxPolicies::result_word(4);
+    LinuxPolicies::finish(plan)
+}
+
+linux_x86_64 machine Policies::invoke(signature: BoundarySignature) -> BoundaryPlanResult
+{
+    let mut plan: BoundaryEntryPlan;
+    plan.call.parameter_count = signature.native_parameter_count;
+    plan.call.parameters[0] = LinuxPolicies::word(8, 0);
+    plan.call.parameters[1] = LinuxPolicies::word(8, 1);
+    plan.call.parameters[2] = LinuxPolicies::word(8, 2);
+    plan.call.parameters[3] = LinuxPolicies::word(8, 3);
+    plan.call.callback_materialization_count = signature.callback_demand_count;
+    plan.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
+    plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
+    LinuxPolicies::finish(plan)
+}
+
+linux_x86_64 machine Policies::transform(signature: BoundarySignature) -> BoundaryPlanResult {
+    let mut plan: BoundaryEntryPlan;
+    plan.call.parameter_count = 1;
+    plan.call.parameters[0] = LinuxPolicies::argument();
+    plan.call.has_result = true;
+    plan.call.result = LinuxPolicies::returned();
+    LinuxPolicies::finish(plan)
+}
+
+machine LinuxPolicies::argument() -> ValuePlacement {
+    let mut placement: ValuePlacement;
+    placement.shape.class = AbiValueClass::Integer;
+    placement.shape.byte_size = 32;
+    placement.shape.alignment = 8;
+    placement.location_count = 4;
+    placement.locations[0] = ValueLocation::Stack {
+        stack_byte_offset: 0, value_byte_offset: 0,
+        byte_size: 8, alignment: 8,
+    };
+    placement.locations[1] = ValueLocation::Stack {
+        stack_byte_offset: 8, value_byte_offset: 8,
+        byte_size: 8, alignment: 8,
+    };
+    placement.locations[2] = ValueLocation::Stack {
+        stack_byte_offset: 16, value_byte_offset: 16,
+        byte_size: 8, alignment: 8,
+    };
+    placement.locations[3] = ValueLocation::Stack {
+        stack_byte_offset: 24, value_byte_offset: 24,
+        byte_size: 8, alignment: 8,
+    };
+    placement
+}
+
+machine LinuxPolicies::returned() -> ValuePlacement {
+    let mut placement: ValuePlacement;
+    placement.shape.class = AbiValueClass::Integer;
+    placement.shape.byte_size = 32;
+    placement.shape.alignment = 8;
+    placement.location_count = 1;
+    placement.locations[0] = ValueLocation::Indirect {
+        pointer: IndirectPointerLocation::Register { register: MachineRegister::X86Rdi },
+        has_copy: false, copy_stack_byte_offset: 0,
+        byte_size: 32, alignment: 8,
+    };
+    placement
+}
+
+linux_x86_64 machine linux_prepare_binding() -> ForeignBinding<11, 12, 15> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libffi.so.8", symbol: "ffi_prep_cif", version: "LIBFFI_BASE_8.0",
+        },
+    }
+}
+
+linux_x86_64 machine prepare_leaf(
+    interface: &mut ForeignInterface, abi: u32, count: u32,
+    result_type: &PairType, argument_types: &ArgumentTypes
+) -> u32
+satisfies Prepare::prepare
+via linux_prepare_binding();
+
+
+linux_x86_64 machine linux_invoke_binding() -> ForeignBinding<11, 8, 15> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libffi.so.8", symbol: "ffi_call", version: "LIBFFI_BASE_8.0",
+        },
+    }
+}
+
+linux_x86_64 machine invoke_leaf<machine Selected>(
+    interface: &PreparedInterface, result: &mut FloatRecord, arguments: &ArgumentValues
+)
+where machine Selected satisfies Transform::transform;
+satisfies Invoke::invoke
+via linux_invoke_binding();
+
+// libffi target ABI discriminants from the platform ffi headers.
+macos_arm64 machine ffi_abi() -> u32 { 1 }
+linux_x86_64 machine ffi_abi() -> u32 { 2 }

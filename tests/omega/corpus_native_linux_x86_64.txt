@@ -268,8 +268,7 @@ pass/borrows/runtime_carrier_reference_reselection_exit built 15003ms exit:70 @6
 pass/borrows/runtime_carrier_reference_store_exit built 14733ms exit:70 @6c49683ce714
 pass/borrows/runtime_case_payload_partial_transfer_exit built 17727ms exit:0 @6c49683ce714
 pass/borrows/runtime_case_return_parameter_order_exit built 17699ms exit:0 @6c49683ce714
-pass/borrows/runtime_computed_backing_reference_copy_exit incomplete 5122ms @8665e38f912c
-	`main` has no executable body: this compiler does not lower a state of it yet (outer calls: statement window); in state `main::entry`
+pass/borrows/runtime_computed_backing_reference_copy_exit built 5646ms exit:0 @f523463c7783+wt
 pass/borrows/runtime_computed_case_copy_order_exit built 17840ms exit:0 @6c49683ce714
 pass/borrows/runtime_computed_shared_view_reborrow_exit built 17572ms exit:0 @6c49683ce714
 pass/borrows/runtime_computed_view_observation_composition_exit built 19928ms exit:0 @6c49683ce714
@@ -479,27 +478,17 @@ pass/calls/boundary_call_nested_call_argument_exit built 18166ms @6c49683ce714
 pass/calls/builtin_named_machine_call_exit built 15438ms exit:7 @6c49683ce714
 pass/calls/by_value_case_param_self_write_exit built 14708ms exit:70 @6c49683ce714
 pass/calls/call_local_reassign checked 7089ms @d9f4c930251e+wt
-pass/calls/callback_borrowed_record_entry rejected 6139ms @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
-pass/calls/callback_borrowed_scalar_entry rejected 5872ms @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
-pass/calls/callback_future_registration_cycle rejected 6189ms @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
-pass/calls/callback_mixed_formal_entry rejected 2443ms @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
-pass/calls/callback_owned_float_record rejected 6802ms @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
-pass/calls/callback_owned_float_record_packing rejected 6611ms @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
-pass/calls/callback_owned_indirect_float_record rejected 10296ms @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
-pass/calls/callback_owned_indirect_record rejected 2416ms @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
-pass/calls/callback_owned_overaligned_record rejected 2713ms @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
+pass/calls/callback_borrowed_record_entry built 10678ms exit:0 @f523463c7783+wt
+pass/calls/callback_borrowed_scalar_entry built 5878ms exit:0 @f523463c7783+wt
+pass/calls/callback_future_registration_cycle built 6134ms exit:0 @f523463c7783+wt
+pass/calls/callback_mixed_formal_entry built 6231ms exit:0 @f523463c7783+wt
+pass/calls/callback_owned_float_record built 13422ms exit:0 @f523463c7783+wt
+pass/calls/callback_owned_float_record_packing built 13299ms exit:0 @f523463c7783+wt
+pass/calls/callback_owned_indirect_float_record built 13702ms exit:0 @f523463c7783+wt
+pass/calls/callback_owned_indirect_record built 6264ms exit:0 @f523463c7783+wt
+pass/calls/callback_owned_overaligned_record built 7063ms exit:0 @f523463c7783+wt
 pass/calls/callback_private_materialization built 9098ms @8665e38f912c
-pass/calls/callback_scalar_loan_permutation rejected 2519ms @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
+pass/calls/callback_scalar_loan_permutation built 6380ms exit:0 @f523463c7783+wt
 pass/calls/caller_result_binding_mutable_loan_exit built 14883ms exit:70 @6c49683ce714
 pass/calls/caller_structural_result_indexed_borrow_exit built 14899ms exit:171 @6c49683ce714
 pass/calls/case_arm_payload_receiver_arg built 15035ms exit:70 @6c49683ce714
@@ -572,8 +561,7 @@ pass/calls/owned_mixed_overaligned_call built 6791ms exit:0 @f137abafccda+wt
 pass/calls/owned_overaligned_local_call built 20716ms exit:0 @6c49683ce714
 pass/calls/owned_state_parameter_call_exit built 14693ms exit:70 @6c49683ce714
 pass/calls/prefix_effectful_call checked 17462ms @6c49683ce714
-pass/calls/private_callback_call_closure rejected 2383ms @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
+pass/calls/private_callback_call_closure built 6468ms exit:0 stdout:match stderr:match @f523463c7783+wt
 pass/calls/projected_receiver_callee checked 17547ms @6c49683ce714
 pass/calls/qualified_record_call_result_field_exit built 15342ms exit:70 @6c49683ce714
 pass/calls/recursive_terminal_block_acknowledgement_exit built 17702ms exit:0 @6c49683ce714
@@ -934,17 +922,13 @@ pass/comptime/runtime_const_array_wrapping_result_exit built 17985ms exit:0 @6c4
 pass/comptime/runtime_const_measured_recursion_exit built 15915ms exit:70 @6c49683ce714
 pass/comptime/selected_float_array_length_exit built 36327ms exit:70 @6c49683ce714
 pass/comptime/selected_float_array_length_layout_query_exit built 35450ms exit:70 @6c49683ce714
-pass/concurrency/boundary_suspension_inline_completion_exit rejected 5301ms @8665e38f912c
-	terminal-artifact production failed: Lowering(Unsupported("Unit claim transfer references a non-entry caller claim"))
+pass/concurrency/boundary_suspension_inline_completion_exit built 5904ms exit:0 @f523463c7783+wt
 pass/concurrency/ref_array_suspend checked 17604ms @6c49683ce714
-pass/concurrency/runtime_array_loan_suspension_exit rejected 5269ms @8665e38f912c
-	terminal-artifact production failed: Lowering(Unsupported("suspension frontier source position has no storage binding"))
-pass/concurrency/runtime_retained_reference_boundary_exit rejected 5258ms @8665e38f912c
-	terminal-artifact production failed: Lowering(Unsupported("suspension frontier source position has no storage binding"))
+pass/concurrency/runtime_array_loan_suspension_exit built 5660ms exit:0 @f523463c7783+wt
+pass/concurrency/runtime_retained_reference_boundary_exit built 5605ms exit:0 @f523463c7783+wt
 pass/concurrency/runtime_returned_carrier_suspension_exit rejected 5240ms @8665e38f912c
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "cleanup local is not established", gap: None })
-pass/concurrency/runtime_suspension_repeated_actual_exit rejected 5270ms @8665e38f912c
-	terminal-artifact production failed: Lowering(Unsupported("suspension frontier source position has no storage binding"))
+pass/concurrency/runtime_suspension_repeated_actual_exit built 5396ms exit:0 @f523463c7783+wt
 pass/concurrency/runtime_zero_extent_carry_exit built 17835ms exit:0 @6c49683ce714
 pass/concurrency/suspend_after_last_use_compile checked 3594ms @6c49683ce714
 pass/concurrency/suspend_carry_task checked 17416ms @6c49683ce714
@@ -1767,8 +1751,7 @@ pass/generics/omitted_data_binder_range_equation built 5713ms exit:92 @4c4c95594
 pass/generics/omitted_fixed_domain_array_equation checked 3513ms @6c49683ce714
 pass/generics/open_computed_quantity_result built 15352ms exit:70 @6c49683ce714
 pass/generics/ranged_const_parameter_attached_shape built 14807ms exit:70 @6c49683ce714
-pass/generics/runtime_borrowed_value_inference_exit incomplete 5656ms @8665e38f912c
-	`main` has no executable body: this compiler does not lower a state of it yet (outer calls: statement window); in state `main::entry`
+pass/generics/runtime_borrowed_value_inference_exit built 6138ms exit:0 @f523463c7783+wt
 pass/generics/runtime_captured_map_borrowed_type built 18058ms exit:0 @6c49683ce714
 pass/generics/runtime_captured_map_const_body built 17654ms exit:0 @6c49683ce714
 pass/generics/runtime_captured_map_const_machine built 17700ms exit:0 @6c49683ce714
@@ -1831,13 +1814,7 @@ pass/generics/runtime_index_carrier_parameter checked 3637ms @6c49683ce714
 pass/generics/runtime_index_carrier_runtime checked 3362ms @6c49683ce714
 pass/generics/runtime_index_carrier_static checked 3280ms @6c49683ce714
 pass/generics/runtime_index_carrier_static_bool checked 3764ms @6c49683ce714
-pass/generics/runtime_inherited_composite_requirement_exit rejected 1701ms @8665e38f912c
-	machine `ForwardEnvelope::forward$specialized$8fefdbccbf9c9b16$1` state `forward` parameter `value` generic argument generic argument uses undeclared lifetime argument `'first' in `Selected`; declare it in the owner's generic parameter list
-	machine `ForwardEnvelope::forward$specialized$8fefdbccbf9c9b16$1` state `forward` parameter `value` generic argument generic argument uses undeclared lifetime argument `'second' in `Selected`; declare it in the owner's generic parameter list
-	machine `ForwardEnvelope::forward$specialized$8fefdbccbf9c9b16$1` state `forward` return type generic argument generic argument uses undeclared lifetime argument `'first' in `Selected`; declare it in the owner's generic parameter list
-	machine `ForwardEnvelope::forward$specialized$8fefdbccbf9c9b16$1` state `forward` return type generic argument generic argument uses undeclared lifetime argument `'second' in `Selected`; declare it in the owner's generic parameter list
-	machine `ForwardEnvelope::forward$specialized$594493b09bce12da$2` state `forward` parameter `value` generic argument generic argument uses undeclared lifetime argument `'storage' in `Selected`; declare it in the owner's generic parameter list
-	machine `ForwardEnvelope::forward$specialized$594493b09bce12da$2` state `forward` return type generic argument generic argument uses undeclared lifetime argument `'storage' in `Selected`; declare it in the owner's generic parameter list
+pass/generics/runtime_inherited_composite_requirement_exit built 6600ms exit:0 @f523463c7783+wt
 pass/generics/runtime_linear_constructor_instances_exit built 17854ms exit:0 @6c49683ce714
 pass/generics/runtime_machine_equation_nested_boolean_exit built 7731ms exit:0 @5171c625dc6a+wt
 pass/generics/runtime_machine_equation_nested_const_exit built 7950ms exit:0 @5171c625dc6a+wt
@@ -2413,13 +2390,7 @@ pass/proofs/selected_specification_requires_renamed checked 3587ms @6c49683ce714
 pass/proofs/selected_specification_requires_state checked 3400ms @6c49683ce714
 pass/proofs/short_circuit_rhs_entry_bound built 17915ms @6c49683ce714
 pass/proofs/stride_pair_telescope checked 18313ms @6c49683ce714
-pass/providers/applied_binding_field_telescopes_exit rejected 1651ms @8665e38f912c
-	argument `reading` for state `entry` expects `&Binding<Reading<u64>>`, got `member access`
-	argument `reading` for state `entry` expects `&Binding<Reading<bool>>`, got `member access`
-	argument `reading` for state `entry` expects `&Binding<Reading<u64>>`, got `member access`
-	argument `reading` for state `entry` expects `&Binding<Reading<u64>>`, got `member access`
-	argument `reading` for state `entry` expects `&Binding<Reading<bool>>`, got `member access`
-	argument `reading` for state `entry` expects `&Binding<Reading<u64>>`, got `member access`
+pass/providers/applied_binding_field_telescopes_exit built 5450ms exit:0 @f523463c7783+wt
 pass/providers/applied_entry_nested_binding_context_exit built 11734ms exit:0 @326ed531359e+wt
 pass/providers/bare_byte_array_boundary_argument built 10563ms exit:0 @326ed531359e+wt
 pass/providers/binding_formal_type_const_operands checked 3384ms @6c49683ce714
@@ -2438,8 +2409,7 @@ pass/providers/boundary_primitive_array_argument_exit built 15196ms exit:70 @6c4
 pass/providers/boundary_req_inherit checked 17377ms @6c49683ce714
 pass/providers/boundary_scalar_field_store built 15004ms exit:70 @6c49683ce714
 pass/providers/build_product_adapter_frontiers_exit built 22337ms exit:0 @6c49683ce714
-pass/providers/calling_application_region_scopes_exit rejected 1608ms @8665e38f912c
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `member access`
+pass/providers/calling_application_region_scopes_exit built 5421ms exit:0 @f523463c7783+wt
 pass/providers/checked_boundary_operator_const_application_alternate_exit built 14225ms exit:70 @6c49683ce714
 pass/providers/checked_boundary_operator_physical_custody built 14817ms exit:70 @6c49683ce714
 pass/providers/checked_boundary_requirement_dispatch_exit built 15845ms exit:70 @6c49683ce714
@@ -2479,16 +2449,9 @@ pass/providers/linear_structural_provider_return_exit built 8953ms exit:0 stdout
 pass/providers/local_record_foreign_borrow_exit built 7940ms exit:70 @326ed531359e+wt
 pass/providers/module_named_operator_result_domain_satisfaction built 15378ms exit:70 @6c49683ce714
 pass/providers/nested_binding_borrowed_call_exit built 17737ms exit:0 @6c49683ce714
-pass/providers/occurrence_region_binding_exit rejected 1770ms @8665e38f912c
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `member access`
-pass/providers/occurrence_region_binding_forwarding_exit rejected 1583ms @8665e38f912c
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `named value`
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `member access`
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `named value`
-pass/providers/occurrence_region_binding_projected_type_exit rejected 1595ms @8665e38f912c
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `named value`
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `member access`
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `named value`
+pass/providers/occurrence_region_binding_exit built 5456ms exit:0 @f523463c7783+wt
+pass/providers/occurrence_region_binding_forwarding_exit built 5512ms exit:0 @f523463c7783+wt
+pass/providers/occurrence_region_binding_projected_type_exit built 5150ms exit:0 @f523463c7783+wt
 pass/providers/owned_array_operand_epochs_exit built 17708ms exit:0 @6c49683ce714
 pass/providers/portable_contract checked 18110ms @6c49683ce714
 pass/providers/provider_const_endpoint checked 35728ms @6c49683ce714
@@ -3133,16 +3096,8 @@ pass/time/static_duration_accessors built 38266ms exit:70 @6c49683ce714
 pass/traits/applied_callable_law_equality_exit built 34207ms exit:0 @6c49683ce714
 pass/traits/applied_conformance_captured_fresh_regions_exit built 17924ms exit:0 @6c49683ce714
 pass/traits/applied_contract_arithmetic_refinement built 17730ms exit:0 @6c49683ce714
-pass/traits/applied_nominal_callback_closed_local_types_exit rejected 1585ms @8665e38f912c
-	static tuple for `Routine` lost its original binding declaration
-	static tuple for `Routine` lost its original binding declaration
-	static type tuple lost its declared binder
-	static type tuple lost its declared binder
-pass/traits/applied_nominal_callback_local_types_exit rejected 1596ms @8665e38f912c
-	static tuple for `Routine` lost its original binding declaration
-	static tuple for `Routine` lost its original binding declaration
-	static type tuple lost its declared binder
-	static type tuple lost its declared binder
+pass/traits/applied_nominal_callback_closed_local_types_exit built 5162ms exit:0 @f523463c7783+wt
+pass/traits/applied_nominal_callback_local_types_exit built 5186ms exit:0 @f523463c7783+wt
 pass/traits/applied_nominal_callback_proposition_contract checked 3571ms @6c49683ce714
 pass/traits/applied_nominal_callback_scopes_exit built 9523ms exit:0 @6c49683ce714
 pass/traits/applied_qualified_signature_region_scope_exit built 17443ms exit:0 @6c49683ce714

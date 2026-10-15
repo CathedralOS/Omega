@@ -9,8 +9,7 @@ pub InitializerCalling satisfies CallingPolicy {
 pub RegistrationCalling satisfies CallingPolicy {
     CallingPolicy::plan = CallbackPolicies::registration;
 }
-machine CallbackPolicies::initializer(signature: BoundarySignature) -> BoundaryPlanResult
-satisfies CallingPolicy::plan
+macos_arm64 machine CallbackPolicies::initializer(signature: BoundarySignature) -> BoundaryPlanResult
 {
     transition signature.parameter_count == 1 && !signature.has_result {
         true -> accept()
@@ -29,8 +28,7 @@ satisfies CallingPolicy::plan
     }
 }
 
-machine CallbackPolicies::registration(signature: BoundarySignature) -> BoundaryPlanResult
-satisfies CallingPolicy::plan
+macos_arm64 machine CallbackPolicies::registration(signature: BoundarySignature) -> BoundaryPlanResult
 {
     transition signature.parameter_count == 1 && signature.has_result
         && (signature.native_parameter_count == 1 || signature.native_parameter_count == 2)
@@ -44,7 +42,7 @@ satisfies CallingPolicy::plan
         plan.call.parameters[0] = CallbackPolicies::word(8, 0);
         plan.call.parameters[1] = CallbackPolicies::word(8, 1);
         plan.call.has_result = true;
-        plan.call.result = CallbackPolicies::word(4, 0);
+        plan.call.result = CallbackPolicies::result_word(4);
         plan.call.callback_materialization_count = signature.callback_demand_count;
         plan.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
         plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
@@ -58,13 +56,17 @@ satisfies CallingPolicy::plan
 }
 
 machine CallbackPolicies::word(bytes: u64, register: u64) -> ValuePlacement {
+    CallbackPolicies::placed_word(bytes, MachineRegister::Aarch64X { index: register })
+}
+
+machine CallbackPolicies::placed_word(bytes: u64, register: MachineRegister) -> ValuePlacement {
     let mut value: ValuePlacement;
     value.shape.class = AbiValueClass::Integer;
     value.shape.byte_size = bytes;
     value.shape.alignment = bytes;
     value.location_count = 1;
     value.locations[0] = ValueLocation::Register {
-        register: MachineRegister::Aarch64X { index: register },
+        register: register,
         value_byte_offset: 0,
         byte_size: bytes,
     };
@@ -187,3 +189,124 @@ invokes Console;
     state done() { Console::exit_process(0); }
     state failed() { Console::exit_process(71); }
 }
+
+
+machine CallbackPolicies::result_word(bytes: u64) -> ValuePlacement {
+    CallbackPolicies::word(bytes, 0)
+}
+
+machine LinuxCallbackPolicies::result_word(bytes: u64) -> ValuePlacement {
+    CallbackPolicies::placed_word(bytes, MachineRegister::X86Rax)
+}
+
+machine LinuxCallbackPolicies::word(bytes: u64, register: u64) -> ValuePlacement {
+    transition register {
+        0 -> CallbackPolicies::placed_word(bytes, MachineRegister::X86Rdi)
+        1 -> CallbackPolicies::placed_word(bytes, MachineRegister::X86Rsi)
+        2 -> CallbackPolicies::placed_word(bytes, MachineRegister::X86Rdx)
+        3 -> CallbackPolicies::placed_word(bytes, MachineRegister::X86Rcx)
+        4 -> CallbackPolicies::placed_word(bytes, MachineRegister::X86R8)
+        _ -> CallbackPolicies::placed_word(bytes, MachineRegister::X86R9)
+    }
+}
+
+machine LinuxCallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
+    let mut plan: BoundaryEntryPlan = output;
+    plan.call.convention = CallingConvention::SystemVAMD64;
+    plan.call.stack_alignment = 16;
+    plan.call.entry_control = EntryControl::CallReturn;
+    plan.call.ordinary_clobbers.register_count = 25;
+    plan.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
+    plan.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
+    plan.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
+    plan.call.ordinary_clobbers.registers[3] = MachineRegister::X86Rsi;
+    plan.call.ordinary_clobbers.registers[4] = MachineRegister::X86Rdi;
+    plan.call.ordinary_clobbers.registers[5] = MachineRegister::X86R8;
+    plan.call.ordinary_clobbers.registers[6] = MachineRegister::X86R9;
+    plan.call.ordinary_clobbers.registers[7] = MachineRegister::X86R10;
+    plan.call.ordinary_clobbers.registers[8] = MachineRegister::X86R11;
+    plan.call.ordinary_clobbers.registers[9] = MachineRegister::X86Xmm { index: 0 };
+    plan.call.ordinary_clobbers.registers[10] = MachineRegister::X86Xmm { index: 1 };
+    plan.call.ordinary_clobbers.registers[11] = MachineRegister::X86Xmm { index: 2 };
+    plan.call.ordinary_clobbers.registers[12] = MachineRegister::X86Xmm { index: 3 };
+    plan.call.ordinary_clobbers.registers[13] = MachineRegister::X86Xmm { index: 4 };
+    plan.call.ordinary_clobbers.registers[14] = MachineRegister::X86Xmm { index: 5 };
+    plan.call.ordinary_clobbers.registers[15] = MachineRegister::X86Xmm { index: 6 };
+    plan.call.ordinary_clobbers.registers[16] = MachineRegister::X86Xmm { index: 7 };
+    plan.call.ordinary_clobbers.registers[17] = MachineRegister::X86Xmm { index: 8 };
+    plan.call.ordinary_clobbers.registers[18] = MachineRegister::X86Xmm { index: 9 };
+    plan.call.ordinary_clobbers.registers[19] = MachineRegister::X86Xmm { index: 10 };
+    plan.call.ordinary_clobbers.registers[20] = MachineRegister::X86Xmm { index: 11 };
+    plan.call.ordinary_clobbers.registers[21] = MachineRegister::X86Xmm { index: 12 };
+    plan.call.ordinary_clobbers.registers[22] = MachineRegister::X86Xmm { index: 13 };
+    plan.call.ordinary_clobbers.registers[23] = MachineRegister::X86Xmm { index: 14 };
+    plan.call.ordinary_clobbers.registers[24] = MachineRegister::X86Xmm { index: 15 };
+    plan.state.initial_regime = MachineRegime::X86Long64;
+    plan.state.permitted_transitive_use.general_registers = true;
+    plan.state.permitted_transitive_use.vector_registers = true;
+    plan.state.permitted_transitive_use.flags = true;
+    plan.state.stack = EntryStack::ProviderSelected;
+    plan.state.preemption = Preemption::NotApplicable;
+    BoundaryPlanResult::Accepted { plan: plan }
+}
+
+linux_x86_64 machine linux_registration_binding() -> ForeignBinding<9, 18, 10> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "pthread_key_create", version: "GLIBC_2.34",
+        },
+    }
+}
+
+linux_x86_64 machine registration_leaf<machine Handler>(key: &mut ThreadKey) -> i32
+where machine Handler satisfies Initializer::call;
+satisfies Registration::register
+via linux_registration_binding();
+
+linux_x86_64 machine CallbackPolicies::initializer(signature: BoundarySignature) -> BoundaryPlanResult
+{
+    transition signature.parameter_count == 1 && !signature.has_result {
+        true -> accept()
+        _ -> reject()
+    }
+    state accept() -> BoundaryPlanResult {
+        let mut plan: BoundaryEntryPlan;
+        plan.call.parameter_count = 1;
+        plan.call.parameters[0] = LinuxCallbackPolicies::word(8, 0);
+        LinuxCallbackPolicies::finish(plan)
+    }
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "destructor must be void(pointer)" },
+        }
+    }
+}
+
+linux_x86_64 machine CallbackPolicies::registration(signature: BoundarySignature) -> BoundaryPlanResult
+{
+    transition signature.parameter_count == 1 && signature.has_result
+        && (signature.native_parameter_count == 1 || signature.native_parameter_count == 2)
+        && signature.callback_demand_count <= 1 {
+        true -> accept(signature)
+        _ -> reject()
+    }
+    state accept(signature: BoundarySignature) -> BoundaryPlanResult {
+        let mut plan: BoundaryEntryPlan;
+        plan.call.parameter_count = signature.native_parameter_count;
+        plan.call.parameters[0] = LinuxCallbackPolicies::word(8, 0);
+        plan.call.parameters[1] = LinuxCallbackPolicies::word(8, 1);
+        plan.call.has_result = true;
+        plan.call.result = LinuxCallbackPolicies::result_word(4);
+        plan.call.callback_materialization_count = signature.callback_demand_count;
+        plan.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
+        plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
+        LinuxCallbackPolicies::finish(plan)
+    }
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "invalid pthread_key_create telescope" },
+        }
+    }
+}
+
+data LinuxCallbackPolicies {}

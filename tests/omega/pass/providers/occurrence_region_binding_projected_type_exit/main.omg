@@ -1,6 +1,5 @@
 // Expected exit: 0. Repeated Type wrappers, a borrowed local and two helper telescopes
-// preserve one receiving Binding application without selecting caller regions.
-use omega::language::core::binding;
+// preserve one receiving requirement application without selecting caller regions.
 
 pub boundary trait Reading<Value> { machine read(value: Value) -> i32; }
 BorrowedReading<'provider> satisfies Reading<&'provider i32> {
@@ -21,22 +20,21 @@ linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetPro
 windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Reading, BorrowedReading>(defaults);
 }
-machine stepped<'step>(reading: &Binding<Reading<&'step i32>>, value: &'step i32)
-    -> i32 reaches Reading { reading.read(value) }
-machine observed<'source>(reading: &Binding<Reading<&'source i32>>, value: &'source i32)
-    -> i32 reaches Reading { stepped(reading, value) }
+machine stepped<'step>(value: &'step i32)
+    -> i32 reaches Reading { Reading<&'step i32>::read(value) }
+machine observed<'source>(value: &'source i32)
+    -> i32 reaches Reading { stepped(value) }
 
-data Session<'storage> {
-    reading: Binding<Reading<&'storage i32>>;
+data Session {
     value: i32;
 }
 data Holder<Value> { value: Value; }
-data Main<'storage> { session: Holder<Holder<Session<'storage>>>; }
-machine Main::main<'activation>(main: &'activation mut Main<'activation>) reaches Reading crashes Trap {
+data Main { session: Holder<Holder<Session>>; }
+machine Main::main<'activation>(main: &'activation mut Main) reaches Reading crashes Trap {
     main.session.value.value.value = 37;
-    let direct: i32 = observed(&main.session.value.value.reading, &main.session.value.value.value);
-    let reading: &Binding<Reading<&'activation i32>> = &main.session.value.value.reading;
-    let saved: i32 = observed(reading, &main.session.value.value.value);
+    let direct: i32 = observed(&main.session.value.value.value);
+    let value: &'activation i32 = &main.session.value.value.value;
+    let saved: i32 = observed(value);
     transition direct == 37 && saved == 37 { true -> done() _ -> bad() }
     state done() {}
     state bad() { crash Trap; }

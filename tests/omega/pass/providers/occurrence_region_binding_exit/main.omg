@@ -1,6 +1,5 @@
 // Expected exit: 0. A selected provider declaration is independent of the
-// caller's region. The Binding occurrence supplies the complete region scope.
-use omega::language::core::binding;
+// caller's region. The Applied requirement occurrence supplies the complete region scope.
 
 pub boundary trait Reading<Value> {
     machine read(value: Value) -> i32;
@@ -23,16 +22,15 @@ linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetPro
 windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Reading, BorrowedReading>(defaults);
 }
-machine observed<'source>(reading: &Binding<Reading<&'source i32>>, value: &'source i32)
-    -> i32 reaches Reading { reading.read(value) }
+machine observed<'source>(value: &'source i32)
+    -> i32 reaches Reading { Reading<&'source i32>::read(value) }
 
-data Main<'entry> {
-    reading: Binding<Reading<&'entry i32>>;
+data Main {
     value: i32;
 }
-machine Main::main<'entry>(main: &'entry mut Main<'entry>) reaches Reading crashes Trap {
+machine Main::main<'entry>(main: &'entry mut Main) reaches Reading crashes Trap {
     main.value = 37;
-    let result: i32 = observed(&main.reading, &main.value);
+    let result: i32 = observed(&main.value);
     transition result == 37 { true -> done() _ -> bad() }
     state done() {}
     state bad() { crash Trap; }
