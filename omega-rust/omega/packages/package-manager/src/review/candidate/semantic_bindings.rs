@@ -341,10 +341,9 @@ pub(super) fn candidate_service_bindings(
                     .flatten()
             })
             .collect::<BTreeSet<_>>();
-        // A root-bound ProgramEntry is not a package callable, so a
-        // consumer's own entry `Service` fields cannot nominate through
-        // callable reaches; the fields' requirements name the same
-        // boundaries directly.
+        // A root-bound ProgramEntry is not a package callable, so its own
+        // reach and carrier fields nominate through the entry's service
+        // requirements instead of callable reaches.
         for requirement in checked.execution().program_entry_service_requirements() {
             let definitions = checked
                 .traits()

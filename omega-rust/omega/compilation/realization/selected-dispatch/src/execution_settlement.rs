@@ -49,13 +49,14 @@ impl SelectedExecution {
             .map(target::TargetProfile::native_target)
     }
 
-    /// Boundaries demanded by the selected ProgramEntry's receiver
-    /// `Binding<R>` fields, including those nested in record fields. A
-    /// ProgramEntry is root-bound rather than a package callable, so its
-    /// service usage never surfaces in callable reach rows: the receiver's
-    /// carrier requirements are the consumer's own nomination surface.
-    /// Establishment reads the same traversal, so every field nominated here
-    /// is a field establishment later requires a selected Fused provider for.
+    /// Boundaries demanded by the selected ProgramEntry: its receiver's
+    /// `Binding<R>` fields, including those nested in record fields, then the
+    /// boundaries its own service reach names. A ProgramEntry is root-bound
+    /// rather than a package callable, so package review never reads its
+    /// reach as a callable's: this is the consumer's own nomination surface.
+    /// Establishment reads the same field traversal, so every field nominated
+    /// here is a field establishment later requires a selected Fused provider
+    /// for.
     pub fn program_entry_service_requirements(&self) -> Vec<symbols::SymbolHandle> {
         let Some(entry) = self.selected_program_entry.as_ref() else {
             return Vec::new();

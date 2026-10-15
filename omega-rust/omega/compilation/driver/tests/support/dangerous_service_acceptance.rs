@@ -38,13 +38,13 @@ impl ConsoleUse {
 /// The dangerous package-owned services one checked program requires.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RequiredDangerousServices {
-    /// The selected entry's receiver demands the standard library's
-    /// `FilesystemHost` boundary through a `Binding<FilesystemHost>` field,
-    /// directly or inside a nested record such as `Filesystem`.
+    /// The selected entry demands the standard library's `FilesystemHost`
+    /// boundary: its reach names it, directly or through a helper such as the
+    /// `Filesystem` wrapper.
     pub filesystem: bool,
-    /// The selected entry's receiver demands the standard library's
-    /// `TimeHost` boundary through a `Binding<TimeHost>` field, directly or
-    /// inside a nested record such as `Time`.
+    /// The selected entry demands the standard library's `TimeHost`
+    /// boundary: its reach names it, directly or through a helper such as
+    /// `Time::now`.
     pub time: bool,
     /// The operations the program resolves against this package's
     /// selected `Console` provider; `None` when it selected no such provider
@@ -71,10 +71,10 @@ pub struct RequiredDangerousServices {
 /// could never fire, and every entry holding one of these carriers stopped
 /// at establishment's missing-Fused-provider rejection even on the targets
 /// whose settlement table does realize the slot. Their demand is instead the
-/// selected entry's own `Binding<R>` field requirements — the same surface
-/// consumer package review nominates these bindings from, walked by the same
-/// nested-record traversal establishment uses — which is why the preliminary
-/// compile tolerates the still-unsettled fields.
+/// selected entry's own service requirements — its reach and any remaining
+/// `Binding<R>` fields, the same surface consumer package review nominates
+/// these bindings from — which is why the preliminary compile tolerates the
+/// still-unsettled fields.
 ///
 /// Console and ProcessExit operations are the trait signatures the program's
 /// resolved calls select — a `Binding<R>` receiver resolves its call

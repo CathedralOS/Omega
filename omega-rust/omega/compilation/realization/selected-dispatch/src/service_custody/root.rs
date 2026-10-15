@@ -60,15 +60,55 @@ impl<'program> ServiceFieldSource<'program> {
     }
 }
 
-/// The boundary requirement of every `Binding<R>` carrier on the provisioned
-/// context record of ProgramEntry machine `machine_symbol`, in authored route
-/// order, found by the same nested-record traversal establishment uses.
+/// The boundary requirements ProgramEntry machine `machine_symbol` demands:
+/// every `Binding<R>` carrier on its provisioned context record, in authored
+/// route order, found by the same nested-record traversal establishment
+/// uses, then every boundary its own service reach names.
 ///
 /// This is the nomination surface: it runs before provider selection, so it
 /// cannot demand a selected Fused provider. It also leaves invalid carrier
 /// shapes and ambiguous receiver rejoins to establishment, which diagnoses
-/// them; here they contribute no requirement.
+/// them; here they contribute no requirement. A ProgramEntry is root-bound,
+/// not a package callable, so package review never reads its reach rows as a
+/// callable's; a direct `Requirement::operation(..)` call in the entry, or in
+/// a helper it calls, nominates its boundary through the reach read here.
 pub fn program_entry_service_requirements(
+    checked: &CheckedTrees,
+    machine_symbol: symbols::SymbolHandle,
+) -> Vec<symbols::SymbolHandle> {
+    let mut requirements = program_entry_carrier_requirements(checked, machine_symbol);
+    for service in program_entry_reached_services(checked, machine_symbol) {
+        if !requirements.contains(&service) {
+            requirements.push(service);
+        }
+    }
+    requirements
+}
+
+/// The boundaries the entry's published ceiling and checked-body reach name:
+/// the same rows package review reads for a public callable.
+fn program_entry_reached_services(
+    checked: &CheckedTrees,
+    machine_symbol: symbols::SymbolHandle,
+) -> Vec<symbols::SymbolHandle> {
+    let reaches = &checked.facts.service_reaches;
+    let Some(reach) = reaches.for_machine(machine_symbol) else {
+        return Vec::new();
+    };
+    let published = match reach.interface {
+        language_semantics::ServiceReachInterface::PublishedCeiling(row) => Some(row),
+        language_semantics::ServiceReachInterface::InternalInferred => None,
+    };
+    published
+        .into_iter()
+        .chain([reach.inferred_transitive, reach.concrete_transitive])
+        .flat_map(|row| reaches.rows.services(row))
+        .filter_map(|&service| reaches.services.definition(service))
+        .map(|definition| definition.symbol)
+        .collect()
+}
+
+fn program_entry_carrier_requirements(
     checked: &CheckedTrees,
     machine_symbol: symbols::SymbolHandle,
 ) -> Vec<symbols::SymbolHandle> {
