@@ -22,14 +22,16 @@ machine GameView::render_commands() reaches Console {
     Console::write_line("[Commands] look | help | inv | char | use | fight | exit");
 }
 
-machine GameView::render_room(game_view: &mut GameView,
+machine GameView::render_room(
+    game_view: &mut GameView,
     level: Level,
     cell: CellId,
     treasure_taken: bool,
     gold_taken: bool,
     fountain_used: bool,
     enemy_defeated: bool,
-    line: &mut [u8; 128] in Utf8)
+    line: &mut [u8; 128] in Utf8
+)
 reaches Console
 ensures line in Utf8
 {
@@ -43,14 +45,16 @@ ensures line in Utf8
     Console::write_line(line);
 }
 
-machine GameView::render_look(game_view: &mut GameView,
+machine GameView::render_look(
+    game_view: &mut GameView,
     level: Level,
     cell: CellId,
     treasure_taken: bool,
     gold_taken: bool,
     fountain_used: bool,
     enemy_defeated: bool,
-    line: &mut [u8; 128] in Utf8)
+    line: &mut [u8; 128] in Utf8
+)
 reaches Console
 ensures line in Utf8
 {
@@ -60,10 +64,12 @@ ensures line in Utf8
     Console::write_line(line);
 }
 
-machine GameView::render_exits(game_view: &mut GameView,
+machine GameView::render_exits(
+    game_view: &mut GameView,
     level: Level,
     cell: CellId,
-    line: &mut [u8; 128] in Utf8)
+    line: &mut [u8; 128] in Utf8
+)
 reaches Console
 ensures line in Utf8
 {
@@ -191,9 +197,11 @@ ensures out_line in Utf8
     }
 }
 
-machine GameView::render_inventory(game_view: &mut GameView,
+machine GameView::render_inventory(
+    game_view: &mut GameView,
     player: Player,
-    line: &mut [u8; 128] in Utf8)
+    line: &mut [u8; 128] in Utf8
+)
 reaches Console
 ensures line in Utf8
 {
@@ -201,9 +209,11 @@ ensures line in Utf8
     Console::write_line(line);
 }
 
-machine GameView::render_character(game_view: &mut GameView,
+machine GameView::render_character(
+    game_view: &mut GameView,
     player: Player,
-    line: &mut [u8; 128] in Utf8)
+    line: &mut [u8; 128] in Utf8
+)
 reaches Console
 ensures line in Utf8
 {

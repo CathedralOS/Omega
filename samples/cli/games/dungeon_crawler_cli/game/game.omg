@@ -37,13 +37,16 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         let cell: CellId = game.dungeon.current_cell;
         Dungeon::enter_room(cell);
         game.output = "";
-        GameView::render_room(&mut game.view, game.dungeon.level,
+        GameView::render_room(
+            &mut game.view,
+            game.dungeon.level,
             game.dungeon.current_cell,
             game.dungeon.treasure_taken,
             game.dungeon.gold_taken,
             game.dungeon.fountain_used,
             game.dungeon.enemy_defeated,
-            &mut game.output);
+            &mut game.output
+        );
         GameView::render_commands();
 
         transition {
@@ -153,13 +156,16 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     }
 
     state look(game: &mut Game) {
-        GameView::render_look(&mut game.view, game.dungeon.level,
+        GameView::render_look(
+            &mut game.view,
+            game.dungeon.level,
             game.dungeon.current_cell,
             game.dungeon.treasure_taken,
             game.dungeon.gold_taken,
             game.dungeon.fountain_used,
             game.dungeon.enemy_defeated,
-            &mut game.output);
+            &mut game.output
+        );
 
         transition {
             _ -> prompt(game)
@@ -167,9 +173,12 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     }
 
     state exits(game: &mut Game) {
-        GameView::render_exits(&mut game.view, game.dungeon.level,
+        GameView::render_exits(
+            &mut game.view,
+            game.dungeon.level,
             game.dungeon.current_cell,
-            &mut game.output);
+            &mut game.output
+        );
         GameView::render_commands();
 
         transition {
