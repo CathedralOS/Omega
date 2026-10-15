@@ -219,8 +219,7 @@ pub(super) fn check_domain_field_writes(
                 state,
                 assignment.target,
             )
-            && let Some(capacity) =
-                validation::field_domains::type_reference_fixed_array_capacity(program, field_type)
+            && let Some(capacity) = validation::bounded_byte_buffer_capacity(program, field_type)
         {
             let target_label = program.expression_table.display_name(assignment.target);
             let known_lengths = known_byte_lengths_before(program, machine, state, statement_index);
@@ -552,9 +551,7 @@ fn scan_construction_field_domains(
                         case_name.as_ref().map(|name| name.as_str()),
                         field.name.as_str(),
                     ) && let Some(capacity) =
-                        validation::field_domains::type_reference_fixed_array_capacity(
-                            program, field_type,
-                        )
+                        validation::bounded_byte_buffer_capacity(program, field_type)
                     {
                         let known_lengths =
                             known_byte_lengths_before(program, machine, state, statement_index);

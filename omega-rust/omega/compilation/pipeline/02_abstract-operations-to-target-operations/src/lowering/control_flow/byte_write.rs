@@ -29,16 +29,33 @@ pub(super) fn replace(
                 length,
                 obligation,
             } => {
-                let parameter = function
-                    .arrival_parameter(*destination)
-                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+                // Whole replacement observes the same current storage contract
+                // whether it arrived as a formal or was established in-frame.
+                let (structural_type, access, multiplicity) = if let Some(home) =
+                    live.structural_homes.get(destination)
+                {
+                    (home.structural_type(), home.access(), home.multiplicity())
+                } else {
+                    let parameter = function
+                        .arrival_parameter(*destination)
+                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+                    if !parameter.projected_qualifications.is_empty() {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    (
+                        parameter.structural_type,
+                        parameter.access,
+                        parameter.multiplicity,
+                    )
+                };
                 if !matches!(
-                    parameter.access,
-                    terminal_psi::exclusive_borrow_pair_pattern!()
-                ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                    || !parameter.projected_qualifications.is_empty()
+                    access,
+                    StructuralAccess::Owned
+                        | StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow
+                ) || multiplicity != StructuralMultiplicity::Unrestricted
                     || !structural_types
-                        .get(&parameter.structural_type)
+                        .get(&structural_type)
                         .is_some_and(|declaration| {
                             declaration.shape.is_bounded_owned_byte_sequence()
                         })

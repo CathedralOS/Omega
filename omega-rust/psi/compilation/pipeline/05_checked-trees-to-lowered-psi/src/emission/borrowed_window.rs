@@ -1126,15 +1126,23 @@ fn resolve_storage_place(
         )?;
     // Owning a reference/view descriptor never owns its backing storage.
     let restoration_required = restoration_required || borrowed_backing;
+    let checked_leaf_type = lookup_type_id(type_ids, &plan.type_identity)?;
     let (field, hole_type) = match leaf {
         WindowLeaf::Field(field) => {
             let Some(hole_type) = field.field_type.as_structural().or_else(|| {
                 if let Some(carrier) = field.field_type.byte_sequence_carrier() {
-                    return terminal_semantics::byte_carrier_field_declaration(
-                        structural_types.iter(),
-                        carrier,
-                    )
-                    .map(|row| row.id);
+                    // The checked destination already names its exact leaf
+                    // type. Equal backing geometry elsewhere in the roster
+                    // cannot select or make that declaration ambiguous.
+                    let declaration =
+                        terminal_psi::find_structural_type(structural_types, checked_leaf_type)?;
+                    let terminal_psi::StructuralTypeShape::ByteSequence(declared) =
+                        declaration.shape
+                    else {
+                        return None;
+                    };
+                    return terminal_semantics::byte_carrier_geometry_matches(carrier, declared)
+                        .then_some(checked_leaf_type);
                 }
                 field
                     .field_type
@@ -1150,7 +1158,7 @@ fn resolve_storage_place(
         }
         WindowLeaf::Subtree { structural_type } => (None, structural_type),
     };
-    if lookup_type_id(type_ids, &plan.type_identity)? != hole_type {
+    if checked_leaf_type != hole_type {
         return Err(unpinned(
             &spelling,
             "the checked place type differs from the declared leaf type",

@@ -122,11 +122,11 @@ pub use placed_view_referent::{
 };
 pub use primitive_place::{
     Position, StructuralStorageSelection, borrowed_primitive_projection_declaration,
-    byte_carrier_field_declaration, canonical_primitive_path, canonical_primitive_read_path,
-    canonical_static_projection, fixed_array_place_shape, primitive_place_type,
-    primitive_projection_declaration, primitive_projection_restriction, primitive_projection_type,
-    primitive_read_field, primitive_read_projection_type, primitive_read_requirement,
-    runtime_structural_path_tip, stored_descriptor_paths,
+    byte_carrier_field_declaration, byte_carrier_geometry_matches, canonical_primitive_path,
+    canonical_primitive_read_path, canonical_static_projection, fixed_array_place_shape,
+    primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
+    primitive_projection_type, primitive_read_field, primitive_read_projection_type,
+    primitive_read_requirement, runtime_structural_path_tip, stored_descriptor_paths,
 };
 pub use proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafElision,

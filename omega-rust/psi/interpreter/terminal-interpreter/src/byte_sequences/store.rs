@@ -1,6 +1,7 @@
 //! Whole replacement writes the original caller-owned field or frame-local
 //! owner, after source snapshot.
 use crate::byte_sequences::binding::ByteSequenceBinding;
+use crate::byte_sequences::write::MutableByteSequenceStorage;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::TerminalScalarValue;
@@ -24,27 +25,46 @@ impl TerminalExecution<'_> {
         if operation.result != OperationResult::Unit || source == destination {
             return Err(malformed());
         }
+        // Replacing a whole loaned owner requires no read of its prior live
+        // extent. Write-only formals retain that distinction from indexed writes.
         let binding = self
             .byte_sequence_values
+            .get(destination)
+            .ok_or_else(malformed)?;
+        let value = self
+            .structural_values
             .get(destination)
             .ok_or_else(malformed)?;
         let (owner, capacity) = match binding {
             ByteSequenceBinding::MutableField {
                 field, capacity, ..
-            } => (ReplacedOwner::Field(field.clone()), *capacity),
+            } => {
+                binding.validate_mutable_referent(self, value)?;
+                (MutableByteSequenceStorage::Field(field.clone()), *capacity)
+            }
             ByteSequenceBinding::MutableOwner { home, capacity, .. } => {
-                (ReplacedOwner::Declared(home.clone()), *capacity)
+                binding.validate_mutable_referent(self, value)?;
+                (MutableByteSequenceStorage::Owned(home.clone()), *capacity)
             }
-            ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableArray { .. } => {
-                return Err(malformed());
+            ByteSequenceBinding::Immutable(_) => {
+                // Established frame values share the indexed writer's exact
+                // owned-home admission; they need not first borrow themselves.
+                let (owner, _) = self.mutable_byte_sequence_storage(*destination)?;
+                let terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                ) = self
+                    .program
+                    .structural_types()
+                    .get(&value.structural_type)
+                    .ok_or_else(malformed)?
+                    .shape
+                else {
+                    return Err(malformed());
+                };
+                (owner, capacity)
             }
+            ByteSequenceBinding::MutableArray { .. } => return Err(malformed()),
         };
-        binding.validate_mutable_referent(
-            self,
-            self.structural_values
-                .get(destination)
-                .ok_or_else(malformed)?,
-        )?;
         let TerminalScalarValue::Integer {
             value: IntegerValue::Unsigned(length),
             ..
@@ -63,21 +83,15 @@ impl TerminalExecution<'_> {
         }
         // Immutable backing snapshots the whole input before changing the owner.
         match owner {
-            ReplacedOwner::Field(field) => {
+            MutableByteSequenceStorage::Field(field) => {
                 self.structural_byte_sequence_fields
                     .insert(field, ByteSequenceBinding::Immutable(bytes));
             }
-            ReplacedOwner::Declared(home) => {
+            MutableByteSequenceStorage::Owned(home) => {
                 *self.byte_owner_bytes_mut(&home)? = bytes.detached_descriptor();
             }
+            MutableByteSequenceStorage::Array { .. } => return Err(malformed()),
         }
         Ok(())
     }
-}
-
-/// The caller-owned storage a whole replacement writes: a bounded byte field
-/// or a pinned frame-local owner.
-enum ReplacedOwner {
-    Field(crate::values::StructuralByteSequenceRuntimeField),
-    Declared(crate::byte_sequences::binding::ByteOwnerHome),
 }

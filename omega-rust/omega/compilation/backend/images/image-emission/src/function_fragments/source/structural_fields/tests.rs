@@ -2091,3 +2091,98 @@ fn structural_field_reads_require_graph_storage_replay() {
         ]));
     }
 }
+
+#[test]
+fn whole_byte_replacement_rejoins_one_qualified_local_producer() {
+    use semantic_vocabulary::{ObligationId, StructuralDomainId};
+    use target_operations::TargetUnitScalarArgumentSource;
+    use terminal_psi::{ByteSequenceCarrier, StructuralOperationResult};
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let (mut function, mut target) = field_fixture(scalar);
+    let parameter = function.structural_parameters.remove(0);
+    target.graph.parameters.clear();
+    target.graph.structural_types = vec![StructuralTypeDeclaration {
+        quotient_carrier: None,
+        no_code_affine_cleanup: false,
+        descriptor_cleanup: false,
+        scalar_restriction: None,
+        id: parameter.structural_type,
+        identity: terminal_psi::TerminalIdentityIndex(12),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+            capacity: 16,
+        }),
+    }]
+    .into();
+    let result = StructuralOperationResult {
+        place: parameter.place,
+        structural_type: parameter.structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: vec![StructuralDomainId::new(1).unwrap()],
+        projected_qualifications: vec![],
+        qualification_establishments: vec![],
+        claims: vec![],
+    };
+    let operand = terminal_psi::control_flow::ByteSequenceOperand::Whole {
+        source: StructuralArgument::whole(PlaceId::new(3).unwrap(), StructuralAccess::SharedBorrow),
+        length: ValueId::new(2).unwrap(),
+    };
+    let producer = OperationId::new(2).unwrap();
+    let obligation = ObligationId::new(1).unwrap();
+    function.operations[0] = AbstractOperation::EstablishByteSequenceConcatenation {
+        psi_operation: producer,
+        result: result.clone(),
+        left: operand.clone(),
+        right: operand.clone(),
+        capacity_obligation: obligation,
+    };
+    target.graph.blocks[0].operations[0] =
+        TargetUnitOperation::EstablishByteSequenceConcatenation {
+            psi_operation: producer,
+            result: result.clone(),
+            left: operand.clone(),
+            right: operand,
+            capacity_obligation: obligation,
+        };
+    let replacement = AbstractOperation::ByteSequenceStore {
+        psi_operation: OperationId::new(3).unwrap(),
+        destination: result.place,
+        source: PlaceId::new(2).unwrap(),
+        length: ValueId::new(1).unwrap(),
+        obligation,
+    };
+    target.graph.blocks[0]
+        .operations
+        .push(TargetUnitOperation::ByteSequenceStore {
+            psi_operation: OperationId::new(3).unwrap(),
+            destination: result.place,
+            source: PlaceId::new(2).unwrap(),
+            length: TargetUnitScalarArgumentSource::Parameter {
+                parameter_index: 0,
+                source_value: ValueId::new(1).unwrap(),
+                scalar_type: scalar,
+            },
+            obligation,
+        });
+    assert!(replacement_retained(&function, &replacement, &target));
+    for corruption in ["producer", "qualification", "multiplicity"] {
+        let mut changed = target.clone();
+        let TargetUnitOperation::EstablishByteSequenceConcatenation {
+            psi_operation,
+            result,
+            ..
+        } = &mut changed.graph.blocks[0].operations[0]
+        else {
+            unreachable!()
+        };
+        match corruption {
+            "producer" => *psi_operation = OperationId::new(4).unwrap(),
+            "qualification" => result.qualifications.clear(),
+            "multiplicity" => result.multiplicity = StructuralMultiplicity::Linear,
+            _ => unreachable!(),
+        }
+        assert!(
+            !replacement_retained(&function, &replacement, &changed),
+            "{corruption}"
+        );
+    }
+}

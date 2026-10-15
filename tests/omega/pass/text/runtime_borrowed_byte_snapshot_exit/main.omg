@@ -1,0 +1,72 @@
+// Expected exit: 0. Copy current descriptor contents into independent bounded
+// storage after proving capacity, through parameters, locals, fields and calls.
+use omega_language_std::console;
+domain [u8]::SnapshotUtf8(bytes) requires valid_utf8(bytes);
+domain [u8; 16]::OwnedUtf8(bytes) requires valid_utf8(bytes);
+data View { text: &[u8] in SnapshotUtf8; }
+
+machine through_parameter(text: &[u8] in SnapshotUtf8, output: &mut [u8; 16] in OwnedUtf8)
+requires text.len <= 16
+{ output = "" + text; }
+
+machine through_local(text: &[u8] in SnapshotUtf8, output: &mut [u8; 16] in OwnedUtf8)
+requires text.len <= 16
+{
+    let observed: &[u8] in SnapshotUtf8 = text;
+    output = "" + observed;
+}
+
+machine through_field(view: &View, output: &mut [u8; 16] in OwnedUtf8)
+requires view.text.len <= 16
+{ output = "" + view.text; }
+
+machine identity(text: &[u8] in SnapshotUtf8) -> &[u8] in SnapshotUtf8
+requires text.len <= 16
+ensures result.len <= 16
+{ text }
+
+machine through_call(text: &[u8] in SnapshotUtf8, output: &mut [u8; 16] in OwnedUtf8)
+requires text.len <= 16
+{
+    let observed: &[u8] in SnapshotUtf8 = identity(text);
+    output = "" + observed;
+}
+
+machine through_owned_local(text: &[u8] in SnapshotUtf8) -> bool
+requires text.len <= 16
+{
+    let mut line: [u8; 16] in OwnedUtf8 = "";
+    line = "" + text;
+    line == "owned"
+}
+
+machine exercise() -> i32 crashes Trap {
+    let mut output: [u8; 16] in OwnedUtf8 = "old";
+    through_parameter("écho", &mut output);
+    transition output == "écho" {
+        true -> local(&mut output)
+        _ -> (71)
+    }
+    state local(output: &mut [u8; 16] in OwnedUtf8) -> i32 {
+        through_local("local", output);
+        transition output == "local" { true -> field(output) _ -> (72) }
+    }
+    state field(output: &mut [u8; 16] in OwnedUtf8) -> i32 {
+        let view: View = View { text: "field" };
+        through_field(&view, output);
+        transition output == "field" { true -> called(output) _ -> (73) }
+    }
+    state called(output: &mut [u8; 16] in OwnedUtf8) -> i32 {
+        through_call("call", output);
+        transition output == "call" { true -> owned() _ -> (74) }
+    }
+    state owned() -> i32 {
+        transition through_owned_local("owned") { true -> (0) _ -> (75) }
+    }
+}
+
+data Main { }
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    let code: i32 = exercise();
+    Console::exit_process(code);
+}

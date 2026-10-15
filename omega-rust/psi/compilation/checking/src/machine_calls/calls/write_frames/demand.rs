@@ -1166,6 +1166,15 @@ pub(super) fn collect_expression_call_written_paths(
             for argument in program.expression_table.expression_handles(call.arguments) {
                 visit(*argument)?;
             }
+            // Predicates observe their already evaluated byte operands. Use
+            // the same resolved intrinsic identity as stored-call effects;
+            // an ordinary same-spelled callable keeps its inferred frame.
+            if matches!(
+                crate::compiler_operations::classify_expression_call_intrinsic(program, call),
+                Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_))
+            ) {
+                return Some(());
+            }
             // Named operators may acquire their exact identity after initial
             // symbol resolution. Reuse ordinary call selection before asking
             // the signature owner for its write ceiling; a namespace is not

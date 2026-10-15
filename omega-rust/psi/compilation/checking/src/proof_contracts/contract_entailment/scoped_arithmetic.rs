@@ -341,3 +341,22 @@ pub fn scoped_arithmetic_values_relation(
         StrictArithmeticImplicationJudgment::Unknown
     }
 }
+
+/// Bounds for an independently captured integer value under its exact live
+/// hypothesis rosters. Inconsistent premises supply no executable extent.
+pub fn scoped_arithmetic_value_bounds(
+    program: &dyn crate::CheckingInput,
+    context_machine: &Machine,
+    hypotheses: &[ScopedArithmeticHypothesis],
+    value: &ScopedArithmeticValue,
+) -> Option<crate::proof_contracts::arithmetic_domains::BigIntInterval> {
+    let mut calls = calls::ScopedCalls::new(program, context_machine);
+    let value = calls.value(value)?;
+    let hypotheses = calls.hypotheses(hypotheses)?;
+    let mut engine = Engine::strict(program, context_machine, &[]);
+    let value = engine.normalize_scoped_value(&value)?;
+    if !install_hypotheses(program, &mut engine, &hypotheses) || engine.requires_unsatisfiable {
+        return None;
+    }
+    Some(engine.polynomial_interval(&engine.substituted(&value)))
+}

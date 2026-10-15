@@ -400,7 +400,18 @@ impl OperationFrame<'_, '_> {
                     self.evaluation.structural_root_parameters(),
                     self.operations,
                 )?;
-                home.require_unqualified()?;
+                let whole_owned_bytes = store.destination.path.is_empty()
+                    && self
+                        .structural_types
+                        .declarations()
+                        .iter()
+                        .any(|declaration| {
+                            declaration.id == home.selected_type
+                                && declaration.shape.is_bounded_owned_byte_sequence()
+                        });
+                if !whole_owned_bytes {
+                    home.require_unqualified()?;
+                }
                 StoreRoot::Local {
                     place: home.argument.place,
                     structural_type: home.structural_type,
@@ -469,6 +480,7 @@ impl OperationFrame<'_, '_> {
             root,
             &self.evaluation.structural_parameters,
             &self.evaluation.structural_locals,
+            &self.evaluation.view_locals,
             self.structural_types.declarations(),
             self.private_places,
             self.next_place,
@@ -1149,9 +1161,29 @@ impl OperationFrame<'_, '_> {
                 ))
             }
             checked_trees::CheckedStoreRoot::Local { symbol } => {
-                let (_, structural_type) = self.local_home(symbol)?;
+                let home = crate::emission::store_destination::local_store_root(
+                    symbol,
+                    &self.evaluation.structural_locals,
+                    self.evaluation.structural_root_parameters(),
+                    self.operations,
+                )?;
+                // Byte writes retain their checked content predicates. Looking
+                // up a captured address does not withdraw those memberships;
+                // other qualified roots still need their restoration contract.
+                let byte_owner = home.projected_qualifications.is_empty()
+                    && self
+                        .structural_types
+                        .declarations()
+                        .iter()
+                        .any(|declaration| {
+                            declaration.id == home.selected_type
+                                && declaration.shape.is_bounded_owned_byte_sequence()
+                        });
+                if !byte_owner {
+                    home.require_unqualified()?;
+                }
                 Ok((
-                    structural_type,
+                    home.selected_type,
                     CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
                 ))
             }

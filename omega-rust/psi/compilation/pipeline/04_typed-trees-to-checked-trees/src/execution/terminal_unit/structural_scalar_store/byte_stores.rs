@@ -113,28 +113,42 @@ pub(super) fn whole_store(
     assignment: &typed_trees::statement::TableAssignment,
     source: AssignmentSource,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let Root::Parameter { plan, parameter } = destination.root else {
-        return None;
-    };
     if !destination.place.segments.is_empty()
         || destination.dynamic_index.is_some()
         || !matches!(source, AssignmentSource::Authored)
-        || !matches!(
-            plan.access,
-            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
-        )
-        || plan.multiplicity != Multiplicity::Unrestricted
-        || plan.binding_carrier.is_some()
     {
         return None;
     }
-    let checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity } =
-        byte_sequence_carrier(program, parameter.type_reference, &[])?
+    let reference = match destination.root {
+        Root::Parameter { plan, parameter } => {
+            if !matches!(
+                plan.access,
+                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+            ) || plan.multiplicity != Multiplicity::Unrestricted
+                || plan.binding_carrier.is_some()
+            {
+                return None;
+            }
+            parameter.type_reference
+        }
+        Root::Local { symbol } => {
+            let (_, local) = program.state_local_declaration(state, symbol)?;
+            if !local.is_mutable
+                || program.type_multiplicity(local.type_reference) != Multiplicity::Unrestricted
+                || structural_access_for_type_reference(program, local.type_reference)
+                    != Some(CheckedStructuralAccess::Owned)
+            {
+                return None;
+            }
+            local.type_reference
+        }
+    };
+    let checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. } =
+        byte_sequence_carrier(program, reference, &[])?
     else {
         return None;
     };
-    let domains =
-        validation::field_domains::domain_constraint_symbols(program, parameter.type_reference);
+    let domains = validation::field_domains::domain_constraint_symbols(program, reference);
     if !domains.iter().all(|symbol| {
         typed_trees::byte_predicates::domain_byte_predicate(program, *symbol).is_some()
     }) {
@@ -152,16 +166,9 @@ pub(super) fn whole_store(
         0,
     )?;
     value.root = root;
-    if let checked_trees::CheckedByteSequenceValue::Literal(bytes) = value.nodes.get(root)
-        && u64::try_from(bytes.len()).ok()? > capacity
-    {
-        return None;
-    }
     Some(contents_store(
         statement_index,
-        checked_trees::CheckedStoreRoot::Parameter {
-            position: plan.position,
-        },
+        destination.root.destination(),
         Vec::new(),
         value,
     ))
@@ -410,16 +417,25 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                 statement_index as usize,
                 &place,
             )?;
-            let checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity } =
-                byte_sequence_carrier(program, type_reference, &[])?
-            else {
-                return None;
+            let capacity = match byte_sequence_carrier(program, type_reference, &[])? {
+                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity }
+                | checked_trees::CheckedByteSequenceCarrier::BoundedView { capacity, .. } => {
+                    capacity
+                }
+                checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. } => {
+                    crate::checks::current_scalar_values::byte_length_bound(
+                        program,
+                        state,
+                        statement_index as usize,
+                        expression,
+                    )?
+                }
             };
             let source_domains =
                 validation::field_domains::domain_constraint_symbols(program, type_reference);
             if !domains.iter().all(|domain| {
                 source_domains.iter().any(|source| {
-                    validation::field_domains::declared_domain_implies(program, *source, *domain)
+                    validation::field_domains::domain_membership_implies(program, *source, *domain)
                 })
             }) {
                 return None;
@@ -434,9 +450,13 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                     let (_, local) = program
                         .state_local_declaration(state, symbol)
                         .filter(|&(ordinal, _)| ordinal < statement_index as usize)?;
-                    if structural_access_for_type_reference(program, local.type_reference)
-                        != Some(CheckedStructuralAccess::Owned)
-                    {
+                    if !matches!(
+                        structural_access_for_type_reference(program, local.type_reference),
+                        Some(
+                            CheckedStructuralAccess::Owned
+                                | checked_trees::checked_borrowed_access_pair_pattern!()
+                        )
+                    ) {
                         return None;
                     }
                     checked_trees::CheckedStoreRoot::Local { symbol }

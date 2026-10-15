@@ -100,6 +100,7 @@ impl CurrentScalarValues<'_> {
         name: &str,
         type_reference: TypeReferenceHandle,
         expression: ExpressionHandle,
+        statement: usize,
     ) {
         let value = self.collection_length(expression, 0);
         self.lengths
@@ -112,9 +113,30 @@ impl CurrentScalarValues<'_> {
                 name: name.to_owned(),
                 stable: false,
                 type_reference,
-                value,
+                // Completing a descriptor always produces its own length
+                // observation, even when no endpoint equation is available.
+                // A later guard may constrain that observation without gaining
+                // any unproved relationship to its backing or source values.
+                value: Some(value.unwrap_or_else(|| ScopedArithmeticValue::Atom {
+                    identity: format!(
+                        "state:{:?}:store:{statement}:descriptor:{symbol:?}:occurrence:{expression:?}:length",
+                        self.state.symbol
+                    ),
+                    unsigned: true,
+                })),
             });
         }
+    }
+
+    pub(crate) fn byte_length_bound(&self, expression: ExpressionHandle) -> Option<u64> {
+        let value = self.collection_length(expression, 0)?;
+        let interval = validation::scoped_arithmetic_value_bounds(
+            self.program,
+            self.machine,
+            &self.hypotheses,
+            &value,
+        )?;
+        interval.high?.to_u64()
     }
 
     pub(super) fn collection_length(
@@ -233,7 +255,8 @@ impl CurrentScalarValues<'_> {
                     },
                 ))
             }
-            _ => self.declared_extent(expression),
+            _ => super::field_collection_length(self.program, self.machine, self.state, expression)
+                .or_else(|| self.declared_extent(expression)),
         }
     }
 

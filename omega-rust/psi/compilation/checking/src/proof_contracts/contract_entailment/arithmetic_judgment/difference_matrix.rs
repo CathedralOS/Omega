@@ -112,7 +112,10 @@ impl<'program> Engine<'program> {
         false
     }
 
-    pub(super) fn polynomial_interval(&self, polynomial: &Polynomial) -> Interval {
+    pub(in crate::proof_contracts::contract_entailment) fn polynomial_interval(
+        &self,
+        polynomial: &Polynomial,
+    ) -> Interval {
         let mut total = Interval::constant(BigInt::zero());
         for (monomial, coefficient) in &polynomial.terms {
             let mut product = Interval::constant(BigInt::from_i64(1));

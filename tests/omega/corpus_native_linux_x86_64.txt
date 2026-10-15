@@ -167,6 +167,7 @@ pass/borrow/runtime_write_only_exclusive_reference_projected_exit built 17931ms 
 pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit built 17918ms exit:0 @6c49683ce714
 pass/borrow/runtime_write_only_indexed_record_copy_exit built 17823ms exit:0 @6c49683ce714
 pass/borrow/runtime_write_only_local_affine_aggregate_exit built 18106ms exit:0 @6c49683ce714
+pass/borrow/runtime_write_only_qualified_array_element_exit built 9064ms exit:0 @bb086b40ea65+wt
 pass/borrow/runtime_write_only_record_array_argument_exit built 17899ms exit:0 @6c49683ce714
 pass/borrow/runtime_write_only_reference_aggregate_alias_exit built 12319ms exit:0 @6c49683ce714
 pass/borrow/runtime_write_only_reference_aggregate_array_alias_exit built 12567ms exit:0 @6c49683ce714
@@ -275,7 +276,7 @@ pass/borrows/runtime_computed_shared_view_reborrow_exit built 17572ms exit:0 @6c
 pass/borrows/runtime_computed_view_observation_composition_exit built 19928ms exit:0 @6c49683ce714
 pass/borrows/runtime_constructed_reference_array_restoration_exit built 15088ms exit:70 @6c49683ce714
 pass/borrows/runtime_copied_byte_distinct_epochs_exit built 17899ms exit:0 @6c49683ce714
-pass/borrows/runtime_copied_byte_predicate_snapshot_exit built 17457ms exit:0 @6c49683ce714
+pass/borrows/runtime_copied_byte_predicate_snapshot_exit built 8425ms exit:0 @bb086b40ea65+wt
 pass/borrows/runtime_copied_range_record_domains_exit built 17356ms exit:0 @6c49683ce714
 pass/borrows/runtime_cyclic_field_loan_release_exit built 14864ms exit:70 @6c49683ce714
 pass/borrows/runtime_direct_immutable_scalar_loan_exit built 6482ms exit:0 @f137abafccda+wt
@@ -599,7 +600,7 @@ pass/calls/runtime_constant_tail_requires_argument_exit built 15179ms exit:70 @6
 pass/calls/runtime_constructed_borrowed_payload_arguments_exit built 18291ms exit:0 @6c49683ce714
 pass/calls/runtime_constructed_copy_payload_arguments_exit built 18683ms exit:0 @6c49683ce714
 pass/calls/runtime_constructed_payload_arguments_exit built 18342ms exit:0 @6c49683ce714
-pass/calls/runtime_constructor_byte_predicate_snapshot_exit built 18184ms exit:0 @6c49683ce714
+pass/calls/runtime_constructor_byte_predicate_snapshot_exit built 8187ms exit:0 @bb086b40ea65+wt
 pass/calls/runtime_constructor_child_declared_membership_exit built 18008ms exit:0 @6c49683ce714
 pass/calls/runtime_constructor_child_equal_captures_exit built 17736ms exit:0 @6c49683ce714
 pass/calls/runtime_constructor_child_inherited_captures_exit built 18170ms exit:0 @6c49683ce714
@@ -1101,12 +1102,14 @@ pass/control_flow/runtime_exclusive_state_loan_shared_handoff_exit built 14856ms
 pass/control_flow/runtime_far_case_tag_dispatch_exit built 14899ms exit:2 @6c49683ce714
 pass/control_flow/runtime_float_payload_snapshot_after_case_replacement_exit built 32330ms exit:70 @6c49683ce714
 pass/control_flow/runtime_guard_case_survives_disjoint_conjunct_exit built 14621ms exit:70 @6c49683ce714
+pass/control_flow/runtime_guarded_edge_preparation_exit built 8089ms exit:0 @bb086b40ea65+wt
 pass/control_flow/runtime_heterogeneous_static_parent_state_loan_exit built 18050ms exit:0 @6c49683ce714
 pass/control_flow/runtime_index_state_child_loan_exit built 17968ms exit:0 @6c49683ce714
 pass/control_flow/runtime_index_state_grandchild_loan_exit built 17835ms exit:0 @6c49683ce714
 pass/control_flow/runtime_index_state_loan_forwarding_exit built 17549ms exit:0 @6c49683ce714
 pass/control_flow/runtime_index_state_loan_snapshot_exit built 17788ms exit:0 @6c49683ce714
 pass/control_flow/runtime_indexed_case_dispatch_exit built 14766ms exit:2 @6c49683ce714
+pass/control_flow/runtime_indexed_edge_regions_exit built 7841ms exit:0 @bb086b40ea65+wt
 pass/control_flow/runtime_integer_literal_dispatch_exit built 14804ms exit:22 @6c49683ce714
 pass/control_flow/runtime_later_state_shared_array_loan built 17668ms exit:0 stdout:match @6c49683ce714
 pass/control_flow/runtime_local_record_array_byte_render_exit built 10144ms exit:0 stdout:match stderr:match @326ed531359e+wt
@@ -2236,6 +2239,7 @@ pass/ownership/runtime_borrowed_sum_empty_restore_exit built 18291ms exit:0 @6c4
 pass/ownership/runtime_borrowed_sum_identity_restore_exit built 17675ms exit:0 @6c49683ce714
 pass/ownership/runtime_borrowed_sum_retag_exit built 17879ms exit:0 @6c49683ce714
 pass/ownership/runtime_borrowed_window_crash_exit built 18061ms exit:signal signal:4 @6c49683ce714
+pass/ownership/runtime_captured_byte_destination_exit built 7548ms exit:0 @bb086b40ea65+wt
 pass/ownership/runtime_captured_construction_selector_exit built 17487ms exit:0 @6c49683ce714
 pass/ownership/runtime_captured_replacement_selector_exit built 17460ms exit:0 @6c49683ce714
 pass/ownership/runtime_captured_selector_call_exit built 17965ms exit:0 @6c49683ce714
@@ -2268,6 +2272,7 @@ pass/ownership/runtime_selected_constructed_argument_exit built 18470ms exit:0 @
 pass/ownership/runtime_selected_linear_temporary_exit built 17954ms exit:0 @6c49683ce714
 pass/ownership/runtime_selected_reference_local_exit built 17811ms exit:0 @6c49683ce714
 pass/ownership/runtime_selective_constructed_owner_custody_exit built 18140ms exit:0 @6c49683ce714
+pass/ownership/runtime_stored_byte_view_return_exit built 7153ms exit:0 @bb086b40ea65+wt
 pass/ownership/runtime_unknown_affine_case_discard_exit built 17716ms exit:0 @6c49683ce714
 pass/ownership/runtime_view_parameter_element_window_exit built 18634ms exit:0 @6c49683ce714
 pass/ownership/runtime_whole_borrowed_transform_exit built 15317ms exit:42 @6c49683ce714
@@ -2365,7 +2370,7 @@ pass/proofs/recursive_terminal_erased_evidence checked 3390ms @6c49683ce714
 pass/proofs/requires_bridge_telescope checked 17437ms @6c49683ce714
 pass/proofs/ring_full_polynomial_compile built 14886ms exit:70 @6c49683ce714
 pass/proofs/ring_law_conformance built 15052ms exit:70 @6c49683ce714
-pass/proofs/runtime_byte_predicate_state_contract_exit built 14963ms exit:70 @6c49683ce714
+pass/proofs/runtime_byte_predicate_state_contract_exit built 11502ms exit:70 @bb086b40ea65+wt
 pass/proofs/runtime_decreases_u64_measure_exit built 14933ms exit:70 @6c49683ce714
 pass/proofs/runtime_inductive_climbing_sum_exit built 15104ms exit:70 @6c49683ce714
 pass/proofs/runtime_inductive_gauss_sum_exit built 14829ms exit:70 @6c49683ce714
@@ -3003,7 +3008,7 @@ pass/termination/symbolic_quotient_endpoints checked 3752ms @6c49683ce714
 pass/termination/unsigned_identity_measure_rank_range checked 1769ms @6c49683ce714
 pass/termination/variable_step_cycle checked 8660ms @6c49683ce714
 pass/termination/wrapping_subject_guarded_descent checked 3407ms @6c49683ce714
-pass/text/borrowed_bounded_byte_indexed_write_exit built 15328ms exit:70 @6c49683ce714
+pass/text/borrowed_bounded_byte_indexed_write_exit built 6032ms exit:70 @bb086b40ea65+wt
 pass/text/bounded_ascii_write checked 9378ms @6c49683ce714
 pass/text/bounded_byte_replace checked 8604ms @6c49683ce714
 pass/text/bounded_text_loan checked 18055ms @6c49683ce714
@@ -3013,10 +3018,10 @@ pass/text/copy_record_view_field_state_transfer_exit built 7681ms exit:70 @6c496
 pass/text/declared_record_view_field_fill_exit built 14960ms exit:70 @6c49683ce714
 pass/text/encoded_source_select checked 20446ms @6c49683ce714
 pass/text/incoming_bounded_byte_dynamic_call_exit built 9554ms exit:0 @6c49683ce714
-pass/text/local_bounded_byte_indexed_write_exit built 15061ms exit:70 @6c49683ce714
+pass/text/local_bounded_byte_indexed_write_exit built 5627ms exit:70 @bb086b40ea65+wt
 pass/text/local_bounded_text_case_result_loan_exit built 15014ms exit:70 @6c49683ce714
 pass/text/local_bounded_text_scalar_loan_exit built 15132ms exit:70 @6c49683ce714
-pass/text/local_record_byte_field_copy_exit built 7787ms exit:70 stdout:match @326ed531359e+wt
+pass/text/local_record_byte_field_copy_exit built 5481ms exit:70 stdout:match @bb086b40ea65+wt
 pass/text/mutable_bounded_byte_state_exit built 14974ms exit:70 @6c49683ce714
 pass/text/nested_mutable_receiver_byte_result_exit built 15187ms exit:70 @6c49683ce714
 pass/text/nested_owned_byte_record_literal_exit built 7699ms exit:70 @6c49683ce714
@@ -3029,6 +3034,7 @@ pass/text/qualified_byte_owner_state_loan_cycle_exit built 7891ms exit:70 stdout
 pass/text/qualified_byte_state_snapshot_exit built 14851ms exit:70 @6c49683ce714
 pass/text/qualified_byte_value_forwarding_exit built 9717ms exit:70 @4738db50c6db+wt
 pass/text/runtime_alias_string_write built 5470ms exit:0 @4738db50c6db+wt
+pass/text/runtime_borrowed_byte_snapshot_exit built 5539ms exit:0 @bb086b40ea65+wt
 pass/text/runtime_bounded_carrier_alias_concat_exit built 14904ms exit:70 @6c49683ce714
 pass/text/runtime_bounded_carrier_concat_exit built 15366ms exit:70 @6c49683ce714
 pass/text/runtime_bounded_carrier_copy_exit built 8207ms exit:70 stdout:match @326ed531359e+wt
@@ -3241,7 +3247,7 @@ run/calls/runtime_float_normalized_operand_single_evaluation_exit built 15773ms 
 run/calls/selected_provider_range_arguments built 34056ms exit:0 terminal-inspections:match @6c49683ce714
 run/calls/static_binding_authority built 18019ms exit:0 @6c49683ce714
 run/calls/table_report_call_survival built 6629ms exit:0 stdout:match @326ed531359e+wt
-run/contained_health_loop_command_branch checked 773ms @2d8ed253669f+wt
+run/contained_health_loop_command_branch built 5560ms exit:0 stdout:match @bb086b40ea65+wt
 run/contracts/captured_bound_unused_mutation built 17613ms exit:0 @6c49683ce714
 run/domains/checked_provider_issued_field built 17430ms exit:0 @6c49683ce714
 run/domains/checked_provider_issued_root built 18134ms exit:0 @6c49683ce714

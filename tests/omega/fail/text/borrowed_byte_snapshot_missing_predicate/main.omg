@@ -1,0 +1,4 @@
+domain [u8; 16]::SnapshotUtf8(bytes) requires valid_utf8(bytes);
+machine copy(text: &[u8], output: &mut [u8; 16] in SnapshotUtf8)
+requires text.len <= 16
+{ output = "" + text; }

@@ -1,3 +1,4 @@
+// Expected exit: 0. Expected output contains: look
 // #66: a contained command-loop with a health gate, over an owned
 // `[u8; N] in LineUtf8` carrier (no `String`). Each iteration checks health, then
 // reads a line into the carrier, borrows it as a `&[u8] in LineUtf8` view, resolves a
@@ -8,11 +9,53 @@ requires
 pub domain [u8; 16]::LineUtf8(bytes)
 requires
     valid_utf8(bytes);
-pub boundary trait Console {
-    machine write_line(text: &[u8] in LineUtf8);
-    machine read_line(out_line: &mut [u8; 16] in LineUtf8);
-    machine exit_process(return_code: i32);
+use omega_language_std::console;
+
+machine read_command_line() -> [u8; 16] in LineUtf8
+reaches Console
+blocks;
+crashes Trap
+{
+    let mut buffer: [u8; 16] = "                ";
+    let result: LineReadResult = block Console::read_line(&mut buffer);
+    transition result {
+        LineReadResult::LineComplete { count } -> completed(&buffer, count)
+        LineReadResult::EndOfInput { count } -> completed(&buffer, count)
+        _ -> invalid()
+    }
+    state completed(buffer: &[u8; 16], count: u64) -> [u8; 16] in LineUtf8 {
+        transition count > 0 && count <= 16 {
+            true -> trim(buffer, count)
+            _ -> "quit"
+        }
+    }
+    state trim(buffer: &[u8; 16], count: u64) -> [u8; 16] in LineUtf8
+    requires count > 0 && count <= 16
+    {
+        transition buffer[count - 1] == 10 {
+            true -> validate(buffer, count - 1)
+            _ -> validate(buffer, count)
+        }
+    }
+    state validate(buffer: &[u8; 16], count: u64) -> [u8; 16] in LineUtf8
+    requires count <= 16
+    {
+        let prefix: &[u8] = &buffer[0..count];
+        transition valid_utf8(prefix) && prefix.len <= 16 {
+            true -> snapshot(prefix)
+            _ -> invalid()
+        }
+    }
+    state snapshot(prefix: &[u8] in LineUtf8) -> [u8; 16] in LineUtf8
+    requires prefix.len <= 16
+    {
+        let mut line: [u8; 16] in LineUtf8 = "";
+        line = "" + prefix;
+        line
+    }
+    state invalid() -> [u8; 16] in LineUtf8 { crash Trap; }
 }
+
 
 data Command {
     case Look;
@@ -38,7 +81,10 @@ data Game {
     health: i32;
 }
 
-machine Game::run(game: &mut Game) reaches Console {
+machine Game::run(game: &mut Game) reaches Console
+blocks;
+crashes Trap
+{
     game.health = 10;
     transition { _ -> prompt(game) }
 
@@ -51,7 +97,7 @@ machine Game::run(game: &mut Game) reaches Console {
     }
 
     state read_command(game: &mut Game) {
-        Console::read_line(&mut game.line);
+        game.line = block read_command_line();
         game.command = resolve(&game.line);
 
         transition game.command {
@@ -84,16 +130,19 @@ data Main {
     game: Game;
 }
 
-machine Main::main(main: &mut Main) -> i32 {
+machine Main::main(main: &mut Main) reaches Console
+blocks;
+crashes Trap
+{
     transition { _ -> running(main) }
 
 
     state running(main: &mut Main) {
-        Game::run(&mut main.game);
+        block Game::run(&mut main.game);
         transition { _ -> shutdown() }
     }
 
     state shutdown() {
-        0
+        Console::exit_process(0);
     }
 }

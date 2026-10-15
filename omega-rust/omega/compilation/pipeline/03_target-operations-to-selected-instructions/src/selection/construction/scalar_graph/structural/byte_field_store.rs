@@ -28,13 +28,36 @@ pub(super) fn replace(
             obligation,
             accepted_fact,
         } => {
-            let parameter =
+            let access = if let Some(parameter) =
                 crate::selection::primitive_local_input::read_parameter(function, *destination)
-                    .ok_or_else(|| invalid())?;
+            {
+                if parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                    || !parameter.projected_qualifications.is_empty()
+                {
+                    return Err(invalid());
+                }
+                parameter.access
+            } else {
+                let (_, home) =
+                    crate::selection::aggregate_result_input::home(function, *destination)
+                        .ok_or_else(|| invalid())?;
+                if home.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted {
+                    return Err(invalid());
+                }
+                StructuralAccess::Owned
+            };
+            if !matches!(
+                access,
+                StructuralAccess::Owned
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+            ) {
+                return Err(invalid());
+            }
             (
                 terminal_psi::StructuralArgument {
                     place: *destination,
-                    access: parameter.access,
+                    access,
                     path: Vec::new(),
                 },
                 None,
@@ -73,7 +96,7 @@ pub(super) fn replace(
     };
     let destination_type = if let Some((referent, _)) = reference {
         referent
-    } else if destination.access == StructuralAccess::Owned && field.is_some() {
+    } else if destination.access == StructuralAccess::Owned {
         // The actual home retains its type across operation production and
         // state arrival. Field geometry below selects inside that home; its
         // enclosing aggregate need not itself be a record.

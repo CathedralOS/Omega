@@ -412,6 +412,7 @@ pub(crate) fn emit_content_store(
     root: StoreRoot<'_>,
     parameters: &[(u32, StructuralParameterDeclaration)],
     locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
+    views: &[crate::expression_preparation::bindings::view_locals::ViewLocalBinding],
     structural_types: &[StructuralTypeDeclaration],
     literal_places: &mut Vec<StructuralPlaceDeclaration>,
     next_place: &mut u64,
@@ -428,17 +429,33 @@ pub(crate) fn emit_content_store(
     };
     let field_destination = match path.split_last() {
         None => {
-            let StoreRoot::Parameter(parameter) = &root else {
-                return unsupported("whole byte store requires a borrowed bounded formal");
+            let (structural_type, multiplicity, access) = match &root {
+                StoreRoot::Parameter(parameter) => (
+                    parameter.structural_type,
+                    parameter.multiplicity,
+                    parameter.access,
+                ),
+                StoreRoot::Local {
+                    structural_type,
+                    multiplicity,
+                    access,
+                    ..
+                } => (*structural_type, *multiplicity, *access),
+                StoreRoot::DescriptorHome { .. } => {
+                    return unsupported("descriptor storage holds no owned byte contents");
+                }
             };
-            if !matches!(
-                parameter.access,
-                terminal_psi::StructuralAccess::MutableBorrow
-                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
-            ) || !terminal_psi::find_structural_type(structural_types, parameter.structural_type)
-                .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
+            if multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                || !matches!(
+                    access,
+                    terminal_psi::StructuralAccess::Owned
+                        | terminal_psi::StructuralAccess::MutableBorrow
+                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                )
+                || !terminal_psi::find_structural_type(structural_types, structural_type)
+                    .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
             {
-                return unsupported("whole byte store requires a borrowed bounded owner");
+                return unsupported("whole byte store requires a writable bounded owner");
             }
             None
         }
@@ -502,6 +519,7 @@ pub(crate) fn emit_content_store(
         plan: value,
         parameters,
         locals,
+        views,
         emission: ByteEmission {
             structural_types,
             places: literal_places,
@@ -788,6 +806,7 @@ pub(crate) fn emit_owned_value(
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     parameters: &[(u32, StructuralParameterDeclaration)],
     locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
+    views: &[crate::expression_preparation::bindings::view_locals::ViewLocalBinding],
     structural_types: &[StructuralTypeDeclaration],
     places: &mut Vec<StructuralPlaceDeclaration>,
     next_place: &mut u64,
@@ -812,6 +831,7 @@ pub(crate) fn emit_owned_value(
         plan: value,
         parameters,
         locals,
+        views,
         emission: ByteEmission {
             structural_types,
             places,
@@ -1079,6 +1099,7 @@ struct ValueEmitter<'input> {
     plan: &'input CheckedByteSequenceValuePlan,
     parameters: &'input [(u32, StructuralParameterDeclaration)],
     locals: &'input [crate::expression_preparation::bindings::StructuralLocalBinding],
+    views: &'input [crate::expression_preparation::bindings::view_locals::ViewLocalBinding],
     emission: ByteEmission<'input>,
 }
 
@@ -1290,25 +1311,37 @@ impl ValueEmitter<'_> {
                         (parameter.place, parameter.structural_type)
                     }
                     checked_trees::CheckedStoreRoot::Local { symbol } => {
-                        let produced = self.local_source(symbol)?;
-                        if produced.multiplicity
-                            != terminal_psi::StructuralMultiplicity::Unrestricted
-                            || !produced.projected_qualifications.is_empty()
-                            || !produced.claims.is_empty()
-                        {
-                            return unsupported("whole byte local has no ordinary read custody");
+                        let mut views = self.views.iter().filter(|view| view.symbol == symbol);
+                        if let Some(view) = views.next() {
+                            if views.next().is_some()
+                                || !matches!(
+                                    view.access,
+                                    terminal_psi::StructuralAccess::SharedBorrow
+                                        | terminal_psi::StructuralAccess::MutableBorrow
+                                )
+                            {
+                                return unsupported(
+                                    "byte value view local has no unique readable descriptor",
+                                );
+                            }
+                            (view.place, view.structural_type)
+                        } else {
+                            let produced = self.local_source(symbol)?;
+                            if produced.multiplicity
+                                != terminal_psi::StructuralMultiplicity::Unrestricted
+                                || !produced.projected_qualifications.is_empty()
+                                || !produced.claims.is_empty()
+                            {
+                                return unsupported(
+                                    "whole byte local has no ordinary read custody",
+                                );
+                            }
+                            (produced.place, produced.structural_type)
                         }
-                        (produced.place, produced.structural_type)
                     }
                 };
                 if !self.emission.structural_types.iter().any(|row| {
-                    row.id == structural_type
-                        && row.shape
-                            == StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned {
-                                    capacity: *capacity,
-                                },
-                            )
+                    row.id == structural_type && readable_byte_source_bound(&row.shape, *capacity)
                 }) {
                     return unsupported("whole byte source has a different capacity");
                 }
@@ -1344,9 +1377,14 @@ impl ValueEmitter<'_> {
                         field_identity,
                         self.emission.structural_types,
                     )?;
-                if field.field_type.byte_sequence_carrier()
-                    != Some(terminal_psi::ByteSequenceCarrier::BoundedOwned {
-                        capacity: *capacity,
+                if !field
+                    .field_type
+                    .byte_sequence_carrier()
+                    .is_some_and(|carrier| {
+                        readable_byte_source_bound(
+                            &StructuralTypeShape::ByteSequence(carrier),
+                            *capacity,
+                        )
                     })
                 {
                     return unsupported("byte value field has a different carrier");
@@ -1400,5 +1438,39 @@ impl ValueEmitter<'_> {
                 ))
             }
         }
+    }
+}
+
+/// A descriptor's proven extent bounds a copy without changing its backing
+/// representation into an owned inline carrier. The checked plan supplies the
+/// live bound; the emitted concatenation retains its capacity obligation.
+fn readable_byte_source_bound(shape: &StructuralTypeShape, maximum_length: u64) -> bool {
+    match shape {
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+            capacity,
+        }) => *capacity == maximum_length,
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedView {
+            capacity,
+            access,
+        }) => {
+            *capacity == maximum_length
+                && matches!(
+                    access,
+                    None | Some(
+                        terminal_psi::StructuralAccess::SharedBorrow
+                            | terminal_psi::StructuralAccess::MutableBorrow
+                    )
+                )
+        }
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access,
+        }) => matches!(
+            access,
+            None | Some(
+                terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::MutableBorrow
+            )
+        ),
+        _ => false,
     }
 }

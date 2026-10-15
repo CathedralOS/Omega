@@ -388,12 +388,11 @@ fn borrowed_view_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     plan: &AbstractOperationPlan,
 ) -> bool {
-    parameter.qualifications.is_empty()
-        && (terminal_semantics::view_descriptor_parameter(parameter, plan.structural_types.iter())
-            || abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
-                parameter,
-                &plan.structural_types,
-            ))
+    terminal_semantics::view_descriptor_parameter(parameter, plan.structural_types.iter())
+        || abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
+            parameter,
+            &plan.structural_types,
+        )
 }
 
 fn byte_parameter(

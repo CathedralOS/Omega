@@ -941,6 +941,11 @@ pub fn bounded_byte_buffer_capacity(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
+    if let TypeReferenceNode::Reference { referee, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    {
+        return bounded_byte_buffer_capacity(program, *referee);
+    }
     let TypeReferenceNode::Constrained {
         base_type,
         constraints,

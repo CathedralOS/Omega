@@ -163,7 +163,7 @@ pub use scoped_arithmetic::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticComparison,
     ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue,
     scoped_arithmetic_comparisons_unsatisfiable, scoped_arithmetic_implication,
-    scoped_arithmetic_values_relation,
+    scoped_arithmetic_value_bounds, scoped_arithmetic_values_relation,
 };
 pub use specification_calls::call_contract_parameter_position;
 pub(crate) use specification_calls::{

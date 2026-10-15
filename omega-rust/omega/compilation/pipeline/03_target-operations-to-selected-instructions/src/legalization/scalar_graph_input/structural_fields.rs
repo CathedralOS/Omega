@@ -40,17 +40,47 @@ pub(in crate::legalization) fn replacement(
         ..
     } = operation
     {
-        let parameter = function.arrival_parameter(*destination)?;
+        let (structural_type, access, multiplicity, projected) =
+            if let Some(parameter) = function.arrival_parameter(*destination) {
+                (
+                    parameter.structural_type,
+                    parameter.access,
+                    parameter.multiplicity,
+                    parameter.projected_qualifications.as_slice(),
+                )
+            } else {
+                let (producer, result) =
+                    super::structural_case::source_result(function, *destination).ok()?;
+                if !result.claims.is_empty()
+                    || !function.structural_places.iter().any(|place| {
+                        place.id == *destination
+                            && place.kind
+                                == semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                                    producer,
+                                    structural_type: result.structural_type,
+                                }
+                    })
+                {
+                    return None;
+                }
+                (
+                    result.structural_type,
+                    terminal_psi::StructuralAccess::Owned,
+                    result.multiplicity,
+                    result.projected_qualifications.as_slice(),
+                )
+            };
         if source == destination
             || !matches!(
-                parameter.access,
-                terminal_psi::StructuralAccess::MutableBorrow
+                access,
+                terminal_psi::StructuralAccess::Owned
+                    | terminal_psi::StructuralAccess::MutableBorrow
                     | terminal_psi::StructuralAccess::WriteOnlyBorrow
             )
-            || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-            || !parameter.projected_qualifications.is_empty()
+            || multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            || !projected.is_empty()
             || !types.iter().any(|declaration| {
-                declaration.id == parameter.structural_type
+                declaration.id == structural_type
                     && declaration.shape.is_bounded_owned_byte_sequence()
             })
             || !super::byte_views::contains_readable_bytes(function, *source, types)
@@ -67,7 +97,7 @@ pub(in crate::legalization) fn replacement(
         }
         return Some(terminal_psi::StructuralArgument {
             place: *destination,
-            access: parameter.access,
+            access,
             path: Vec::new(),
         });
     }

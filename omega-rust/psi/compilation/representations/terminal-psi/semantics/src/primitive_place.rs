@@ -523,7 +523,7 @@ pub fn byte_carrier_field_declaration<'a>(
         matches!(
             declaration.shape,
             StructuralTypeShape::ByteSequence(declared)
-                if same_byte_backing(carrier, declared)
+                if byte_carrier_geometry_matches(carrier, declared)
         )
     });
     let declaration = matching.next()?;
@@ -532,7 +532,10 @@ pub fn byte_carrier_field_declaration<'a>(
 
 /// Kind and extent identify carrier geometry; a field's access remains on
 /// the field rather than becoming part of the standalone declaration.
-fn same_byte_backing(field: ByteSequenceCarrier, declared: ByteSequenceCarrier) -> bool {
+pub fn byte_carrier_geometry_matches(
+    field: ByteSequenceCarrier,
+    declared: ByteSequenceCarrier,
+) -> bool {
     match (field, declared) {
         (
             ByteSequenceCarrier::BoundedOwned { capacity: field },

@@ -186,6 +186,7 @@ impl<'program> CurrentScalarValues<'program> {
                         local.name.as_str(),
                         local.type_reference,
                         local.initial_value,
+                        ordinal,
                     );
                     if let Some(primitive) = integer_carrier(program, local.type_reference) {
                         // The executed initializer has one value even when its
@@ -237,6 +238,7 @@ impl<'program> CurrentScalarValues<'program> {
                             &length.name,
                             length.type_reference,
                             assignment.value,
+                            ordinal,
                         );
                     } else {
                         values.invalidate_operand_writes(
@@ -807,12 +809,12 @@ fn length_occurrence<'lengths>(
 /// Frozen integer fields retain canonical root and complete declaration path.
 /// Only stable shared parameter loans participate; owned or exclusive storage
 /// needs an effect-sensitive value transfer before it can retain entry atoms.
-fn field_occurrence(
+fn frozen_field(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-) -> Option<ScopedArithmeticValue> {
+) -> Option<(TypeReferenceHandle, String)> {
     let parameters = program.state_parameters(state);
     let (index, path, selected_type) =
         structural_fields::structural_parameter_place(program, parameters, expression)?;
@@ -844,12 +846,45 @@ fn field_occurrence(
     if !frozen {
         return None;
     }
-    let primitive = integer_carrier(program, selected_type)?;
-    Some(ScopedArithmeticValue::Atom {
-        identity: format!(
+    Some((
+        selected_type,
+        format!(
             "state:{:?}:parameter:{:?}:field:{segments:?}",
             state.symbol, parameter.symbol
         ),
+    ))
+}
+
+fn field_collection_length(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<ScopedArithmeticValue> {
+    let (reference, identity) = frozen_field(program, machine, state, expression)?;
+    fixed_length(program, reference, || format!("{identity}:length"))
+}
+
+fn field_occurrence(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<ScopedArithmeticValue> {
+    if let Some(member) = program.expression_table.member_node(expression)
+        && let Some((reference, _)) = frozen_field(program, machine, state, member.receiver)
+        && validation::collection_operations::collection_measure_member(
+            program,
+            member,
+            validation::collection_operations::MeasureReceiver::Declared(reference),
+        ) == Some(language_semantics::declaration_selection::CollectionMeasure::Length)
+    {
+        return field_collection_length(program, machine, state, member.receiver);
+    }
+    let (reference, identity) = frozen_field(program, machine, state, expression)?;
+    let primitive = integer_carrier(program, reference)?;
+    Some(ScopedArithmeticValue::Atom {
+        identity,
         unsigned: unsigned(primitive),
     })
 }
@@ -1054,4 +1089,24 @@ fn statement_has_call(statement: &StatementNode) -> bool {
             | StatementNode::LocalData(_)
             | StatementNode::Expression(_)
     )
+}
+
+/// The current descriptor observation's proven upper bound, after every
+/// preceding store and call has retired or replaced its captured facts.
+pub(crate) fn byte_length_bound(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<u64> {
+    let machine = program.machine_by_own_or_state_symbol(state.symbol)?;
+    CurrentScalarValues::at(
+        program,
+        machine,
+        state,
+        statement_index,
+        TransitionTargetHandle::invalid(),
+        None,
+    )?
+    .byte_length_bound(expression)
 }

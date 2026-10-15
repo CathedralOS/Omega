@@ -316,10 +316,9 @@ fn owned_local_root<'a>(
     let (local_ordinal, local) = program.state_local_declaration(state, root_symbol)?;
     // Bounded byte owners keep their declared predicates and live extent;
     // they are not plain fixed arrays. Only an explicitly mutable whole local
-    // with an admitted value establishment supplies this indexed write root.
+    // with an admitted value establishment supplies this write root.
     let bounded_byte_local = local.is_mutable
         && place.segments.is_empty()
-        && dynamic_index.is_some()
         && bounded_byte_values::value_plan(
             program,
             operators,

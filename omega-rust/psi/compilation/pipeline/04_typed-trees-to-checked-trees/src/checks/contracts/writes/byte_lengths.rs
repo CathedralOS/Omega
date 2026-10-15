@@ -65,10 +65,7 @@ pub(super) fn static_max_byte_length(
         ),
         ExpressionNode::Call(call) => {
             let target = program.state_by_symbol(call.target_symbol)?;
-            validation::field_domains::type_reference_fixed_array_capacity(
-                program,
-                target.return_type,
-            )
+            byte_capacity(program, target.return_type)
         }
         _ => {
             if let Some(place) = validation::canonical_place_from_expression_in_state(
@@ -90,7 +87,18 @@ pub(super) fn static_max_byte_length(
                         program, state, expression,
                     )
                 })?;
-            validation::field_domains::type_reference_fixed_array_capacity(program, field_type)
+            let carrier = byte_capacity(program, field_type);
+            let observed = crate::checks::current_scalar_values::byte_length_bound(
+                program,
+                state,
+                statement_index,
+                expression,
+            )
+            .and_then(|bound| usize::try_from(bound).ok());
+            match (carrier, observed) {
+                (Some(carrier), Some(observed)) => Some(carrier.min(observed)),
+                (carrier, observed) => carrier.or(observed),
+            }
         }
     }
 }
@@ -233,5 +241,21 @@ fn expression_contains_value_call(
             .iter()
             .any(|element| expression_contains_value_call(program, *element)),
         typed_trees::literal_expression_pattern!() => false,
+    }
+}
+
+/// A byte descriptor may retain a fixed backing bound without owning it.
+/// The generic array-extent query keeps its separate ranking/geometry role.
+fn byte_capacity(
+    program: &dyn ::validation::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<usize> {
+    match validation::byte_sequence_carrier(program, reference, &[]) {
+        Some(
+            checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity }
+            | checked_trees::CheckedByteSequenceCarrier::BoundedView { capacity, .. },
+        ) => usize::try_from(capacity).ok(),
+        Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }) => None,
+        None => validation::field_domains::type_reference_fixed_array_capacity(program, reference),
     }
 }

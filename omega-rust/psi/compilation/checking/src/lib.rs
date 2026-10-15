@@ -69,7 +69,7 @@ pub use proof_contracts::arithmetic_domains::domain_intervals::{
 pub use proof_contracts::arithmetic_domains::float_return_postcondition;
 pub use proof_contracts::arithmetic_domains::normal_return_float_predicates;
 pub use proof_contracts::arithmetic_domains::plain_exact_widening_cast;
-pub use proof_contracts::arithmetic_domains::{Interval, WideInterval};
+pub use proof_contracts::arithmetic_domains::{BigIntInterval, Interval, WideInterval};
 pub use proof_contracts::arithmetic_domains::{
     SelectedScalarIntervalSource, carrier_integer_range, frozen_declared_integer_range,
     integer_range_contains, selected_boolean_decision, selected_scalar_interval,
@@ -401,7 +401,8 @@ pub use proof_contracts::contract_entailment::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
     StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,
     scoped_arithmetic_comparisons_unsatisfiable, scoped_arithmetic_implication,
-    scoped_arithmetic_values_relation, strict_arithmetic_expression_implication,
+    scoped_arithmetic_value_bounds, scoped_arithmetic_values_relation,
+    strict_arithmetic_expression_implication,
 };
 pub use proof_contracts::contract_entailment::{
     anonymous_integer_math_literal, proof_integer_expression,

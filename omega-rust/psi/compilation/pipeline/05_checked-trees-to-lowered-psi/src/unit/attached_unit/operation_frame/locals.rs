@@ -594,6 +594,7 @@ impl OperationFrame<'_, '_> {
                 qualifications,
                 &self.evaluation.structural_parameters,
                 &self.evaluation.structural_locals,
+                &self.evaluation.view_locals,
                 self.structural_types.declarations(),
                 self.private_places,
                 self.next_place,

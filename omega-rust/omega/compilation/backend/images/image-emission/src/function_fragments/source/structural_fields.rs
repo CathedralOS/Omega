@@ -745,7 +745,8 @@ pub(super) fn replacement_retained(
         if destination == source
             || !matches!(
                 access,
-                terminal_psi::StructuralAccess::MutableBorrow
+                terminal_psi::StructuralAccess::Owned
+                    | terminal_psi::StructuralAccess::MutableBorrow
                     | terminal_psi::StructuralAccess::WriteOnlyBorrow
             )
         {
@@ -1485,20 +1486,28 @@ fn read_access(
             continue;
         }
         // Metadata reads observe the same established home as scalar fields.
-        // This does not authorize replacing an owned byte carrier: mutation
-        // keeps its separately checked borrowed-destination contract.
+        // Whole-byte replacement retains its exact writable owned home and
+        // predicate obligations independently of the observation contract.
         // An observation carries the existing claim roster unchanged. Exact
         // source/home equality below rejoins that roster; construction and
         // current semantic replay, not this read, validate its authority.
         // Borrowed carriers keep their separate claim-free contract.
-        let retained_custody =
+        let retained_custody = if purpose == AccessPurpose::ByteOwnerReplacement {
+            result.multiplicity == StructuralMultiplicity::Unrestricted
+                && result.claims.is_empty()
+                && result.projected_qualifications.is_empty()
+                && target.graph.structural_types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                        && declaration.shape.is_bounded_owned_byte_sequence()
+                })
+        } else {
             owned_observation_storage(&target.graph.structural_types, result.structural_type)
                 || (result.multiplicity != StructuralMultiplicity::Linear
                     && result.claims.is_empty()
                     && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty());
-        if purpose == AccessPurpose::ByteOwnerReplacement
-            || !retained_custody
+                    && result.projected_qualifications.is_empty())
+        };
+        if !retained_custody
             || !target.graph.operations().any(|operation| {
                 // Primitive locals and descriptor results need not carry an
                 // aggregate home. The observation binds the exact producer and

@@ -795,18 +795,10 @@ pub fn declared_domain_implies(
     typed_trees::domain::declared_domain_implies(program, source_domain, target_domain)
 }
 
-/// Whether an established membership in `source_domain` proves membership in
-/// `target_domain`, including the one representation-changing projection that
-/// preserves a byte sequence exactly: an owned bounded `[u8; N]` carrier viewed
-/// as `[u8]`.
-///
-/// Declared domains remain storage-bound, so the fixed carrier and slice view
-/// intentionally have distinct semantic identities. The language nevertheless
-/// specifies that projecting bounded text to a view carries its domain. Admit
-/// that implication only when both declarations consist of the same single
-/// compiler-recognized byte predicate. This proves that the live bytes exposed
-/// by the view satisfy precisely the required theory without conflating the two
-/// carrier identities or blessing unrelated cross-carrier recasts.
+/// Membership transports the same recognized byte-content predicate between
+/// byte carriers. Ownership, capacity, layout and access still require their
+/// independent formation judgments; equal predicates grant none of those.
+/// Routed or indexed theories never reduce to this predicate-only relation.
 pub fn domain_membership_implies(
     program: &dyn crate::CheckingInput,
     source_domain: SymbolHandle,
@@ -830,9 +822,13 @@ pub fn domain_membership_implies(
     let Some(target) = program.domain_definition(target_domain) else {
         return false;
     };
-    if !is_fixed_byte_carrier(program, source.target_type)
-        || !is_byte_slice_carrier(program, target.target_type)
-        || source.name.as_str().rsplit("::").next() != target.name.as_str().rsplit("::").next()
+    let bytes = |reference| {
+        is_fixed_byte_carrier(program, reference) || is_byte_slice_carrier(program, reference)
+    };
+    if !bytes(source.target_type)
+        || !bytes(target.target_type)
+        || source.semantic_roles != Default::default()
+        || target.semantic_roles != Default::default()
     {
         return false;
     }
