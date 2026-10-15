@@ -1,0 +1,7 @@
+// A program may bind the Alpha bootstrap entry beside native entries, as the
+// product compiler does. The Rust compiler has no native realization for the
+// Alpha target, so its provider row is published as unavailable while the
+// native targets publish theirs.
+data Main { }
+
+machine Main::main(main: &mut Main) { }

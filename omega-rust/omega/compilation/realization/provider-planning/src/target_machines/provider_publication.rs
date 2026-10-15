@@ -107,6 +107,14 @@ impl TargetProviderPublicationRequest<'_> {
                 "provider proposal has no receiving target catalog for `{target}`"
             ))]
         })?;
+        // A recognized profile realized outside this compiler, such as the
+        // Alpha bootstrap target, publishes a named unavailable row like any
+        // other unavailable realization; it is never asked for a native target.
+        let native_target = profile.native_realization().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "target `{target}` has no provider realization in this compiler"
+            ))]
+        })?;
         let declarations = super::settle_provider_defaults(self.context, self.defaults, profile);
         let candidates = crate::derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
             self.context,
@@ -145,7 +153,7 @@ impl TargetProviderPublicationRequest<'_> {
         }
         let selected = crate::select_derived_provider_plans(
             &demanded,
-            profile.native_target(),
+            native_target,
             &declarations.provider_defaults,
             self.overrides,
         )?;

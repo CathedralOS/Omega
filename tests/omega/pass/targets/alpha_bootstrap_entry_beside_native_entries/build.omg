@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "alpha_bootstrap_entry_beside_native_entries");
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, alpha_bootstrap::ProgramEntry, Main::main);
+}
