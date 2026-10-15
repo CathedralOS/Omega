@@ -187,7 +187,7 @@ crashes Trap
     // (wiki/spec/language/lifetimes.md#returned-views).
     state reference(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place) -> Value {
         transition entry.kind {
-            PlaceKind::Local -> local(checker, place - 1)
+            PlaceKind::Local -> local(checker, typing, place - 1, entry.type_handle)
             PlaceKind::Parameter -> parameter(checker, typing, place, entry.type_handle)
             PlaceKind::Field -> parameter(checker, typing, place, entry.type_handle)
             PlaceKind::Call -> parameter(checker, typing, place, entry.type_handle)
@@ -195,18 +195,39 @@ crashes Trap
         }
     }
 
-    state local(checker: &Checker, index: u64 in Trapping) -> Value {
+    state local(checker: &Checker, typing: &Typing, index: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         transition index < 256 {
-            true -> captured(checker, index)
+            true -> captured(checker, typing, index, type_handle)
             _ -> unknown()
         }
     }
 
-    state captured(checker: &Checker, index: u64 in Trapping) -> Value
+    state captured(checker: &Checker, typing: &Typing, index: u64 in Trapping, type_handle: u64 in Trapping) -> Value
     requires index < 256
     {
         let origin: u64 in Trapping = checker.reference_origins[index] as u64 in Trapping;
-        let value: Value = Checker::place_value(checker, origin);
+        transition origin > 0 {
+            true -> viewed(checker, typing, origin, type_handle)
+            _ -> unknown()
+        }
+    }
+
+    // A recast view of another carrier (wiki/spec/layouts/recasts.md) sees
+    // the storage's bits, not the facts held of its own carrier: it denotes
+    // the storage without its subject.
+    state viewed(checker: &Checker, typing: &Typing, origin: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+        let storage: Place = Checker::place_at(checker, origin - 1);
+        let read: u64 in Trapping = Checker::read_type(typing, type_handle);
+        let viewing: BuiltinType = Checker::carrier(typing, read);
+        let holding: BuiltinType = Checker::place_carrier(typing, storage.kind, storage.type_handle);
+        transition viewing == holding {
+            true -> owned(checker, origin)
+            _ -> foreign(origin)
+        }
+    }
+
+    state foreign(origin: u64 in Trapping) -> Value {
+        let value: Value = Value::at_place(origin);
         value
     }
 

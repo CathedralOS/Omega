@@ -1081,12 +1081,27 @@ crashes Trap
 
     state destination(checker: &mut Checker, typing: &Typing, statement: Statement, target: Value, value: Value, origin: u64 in Trapping) {
         transition target.place > 0 {
-            true -> located(checker, typing, target.place, value)
+            true -> located(checker, typing, statement, target.place, value)
             _ -> containing(checker, typing, statement, origin)
         }
     }
 
-    state located(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
+    // A store through a recast view of another carrier
+    // (wiki/spec/layouts/recasts.md) writes bits the storage's own carrier
+    // does not read back as the stored value: the storage is forgotten.
+    state located(checker: &mut Checker, typing: &Typing, statement: Statement, place: u64 in Trapping, value: Value) {
+        let storage: Place = Checker::place_at(checker, place - 1);
+        let destination: u64 in Trapping = Typing::expression_type(typing, statement.target);
+        let written: u64 in Trapping = Checker::read_type(typing, destination);
+        let storing: BuiltinType = Checker::carrier(typing, written);
+        let holding: BuiltinType = Checker::place_carrier(typing, storage.kind, storage.type_handle);
+        transition storing == holding {
+            true -> bound(checker, typing, place, value)
+            _ -> whole(checker, typing, place)
+        }
+    }
+
+    state bound(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
         Checker::bind_place(checker, typing, place, value);
     }
 

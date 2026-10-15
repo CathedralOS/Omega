@@ -318,9 +318,16 @@ crashes Trap
         }
     }
 
+    // A recast borrows its operand's storage under another shape
+    // (wiki/spec/layouts/recasts.md), so its value is that storage's place,
+    // as a borrow's is. The storage keeps its facts under its own carrier;
+    // a view of another carrier reads it as unknown and its writes forget
+    // it (references.omg, flow.omg).
     state recast(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
         Checker::check_recast(checker, syntax, typing, expression, row, checking);
-        transition { _ -> typed(checker, handle, row) }
+        let operand: Value = Checker::value_at(checker, expression.left);
+        let value: Value = Value::at_place(operand.place);
+        Checker::set_value(checker, handle, value);
     }
 
     state scalar_cast(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, integer: bool, checking: bool) {

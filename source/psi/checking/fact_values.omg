@@ -157,6 +157,18 @@ crashes Trap
     state cast(checker: &mut Checker, typing: &Typing, expression: Expression, row: TypeRow, integer: bool) -> Value {
         transition integer {
             true -> conversion(checker, typing, expression, row)
+            _ -> recast(checker, expression, row)
+        }
+    }
+
+    // A recast borrows its operand's storage under another shape
+    // (wiki/spec/layouts/recasts.md), so its value is that storage's place,
+    // as a borrow's is. The storage keeps its facts under its own carrier;
+    // a view of another carrier reads it as unknown and its writes forget
+    // it (references.omg, flow.omg).
+    state recast(checker: &Checker, expression: Expression, row: TypeRow) -> Value {
+        transition row.kind == TypeKind::Reference {
+            true -> borrowed(checker, expression)
             _ -> typed(row)
         }
     }

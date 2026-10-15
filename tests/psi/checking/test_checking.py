@@ -1658,6 +1658,22 @@ def main() -> None:
         b"    state step(current: Outer) {\n        transition current.inner.items.len > 0 {\n"
         b"            true -> step(Outer { inner: Inner { items: current.inner.items[1..] } })\n            false -> 0\n        }\n    }\n}",
     )
+    # A recast borrows its operand's storage under another shape
+    # (wiki/spec/layouts/recasts.md): a write through the view reaches the
+    # storage, whose facts under its own carrier it forgets.
+    recast = (
+        b"machine three(x: u64) requires x == 3 {}\n"
+        b"machine f() {\n    let local: u64 = 3;\n    let view: &mut i64 = &mut local as &mut i64;\n"
+        b"    view = WRITTEN;\n    three(local);\n}"
+    )
+    accepted(program, "a-write-through-a-recast-view-reaches-its-storage", recast.replace(b"WRITTEN;\n    three(local);", b"0 - 11;"))
+    rejected(program, "a-write-through-a-recast-view-forgets-the-storage", recast.replace(b"WRITTEN", b"3"), "RequirementUnproven", b"three(local)")
+    accepted(
+        program,
+        "a-write-through-a-same-carrier-view-keeps-its-value",
+        b"machine three(x: u64) requires x == 3 {}\n"
+        b"machine f() {\n    let local: u64 = 0;\n    let view: &mut u64 = &mut local;\n    view = 3;\n    three(local);\n}",
+    )
     # A declared measure ranks its subject by its body, or lexicographically
     # by the subject's named fields (wiki/spec/language/termination.md#ranking).
     measured = (
