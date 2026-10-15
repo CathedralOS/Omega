@@ -31,7 +31,7 @@ crashes Trap
     }
 
     state store(request: &mut Request, byte: u8) {
-        request.bytes[request.length] = byte;
+        request.bytes[request.length] = byte as u8 in Trapping;
         request.length = request.length + 1;
     }
 
