@@ -1,18 +1,19 @@
 // A static entry with an explicit context parameter calls a bodyless foreign
 // leaf that returns a scalar and binds the result to an ordinary local, and
 // a receiverless helper binds the same leaf's result and returns it.
-// `macos_perf_counter()` reads CLOCK_MONOTONIC in nanoseconds before and after
+// `ElapsedClock::now(6)` reads CLOCK_MONOTONIC in nanoseconds before and after
 // a 20 ms std `Clock::sleep`; the program exits 70 only when the second read
 // is at least 20,000,000 nanoseconds after the first, 71 when the clock did
 // not advance that far, and 72 when it went backwards.
 // Expected exit: 70.
 use omega_language_std::console;
 use omega_language_std::clock;
-use omega_language_std::macos_gui;
+use omega::language::core::external_binding;
+use omega::language::core::numeric_conversion;
 use omega::language::core::binding;
 
-machine monotonic_nanoseconds() -> u64 reaches DarwinClock {
-    let now: u64 = macos_perf_counter();
+machine monotonic_nanoseconds() -> u64 reaches Clock {
+    let now: u64 = ElapsedClock::now(6);
     now
 }
 
@@ -21,8 +22,8 @@ data Main {
     clock: Binding<Clock>;
 }
 
-machine Main::main(context: &mut Main) reaches Console + Clock + DarwinClock {
-    let before: u64 = macos_perf_counter();
+machine Main::main(context: &mut Main) reaches Console + Clock {
+    let before: u64 = ElapsedClock::now(6);
     context.clock.sleep(20);
     let after: u64 = monotonic_nanoseconds();
     transition after >= before {
@@ -38,4 +39,47 @@ machine Main::main(context: &mut Main) reaches Console + Clock + DarwinClock {
     state slept(context: &mut Main) { context.console.exit_process(70); }
     state early(context: &mut Main) { context.console.exit_process(71); }
     state backwards(context: &mut Main) { context.console.exit_process(72); }
+}
+
+// The scalar clock seam is foreign on Darwin and a checked timespec adapter
+// on Linux. Both expose nanoseconds on CLOCK_MONOTONIC to the same callers.
+data ElapsedClock {}
+boundary requirement ElapsedClock::now(selector: u32) -> u64 reaches Clock;
+data ElapsedClockImports {}
+data ElapsedInstant { seconds: i64; nanoseconds: i64; }
+data ElapsedClockRead {}
+boundary requirement ElapsedClockRead::read(selector: u32, instant: &mut ElapsedInstant) -> i32;
+
+macos_arm64 machine macos_elapsed_binding() -> ForeignBinding<26, 22, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
+    } }
+}
+macos_arm64 machine ElapsedClockImports::now(selector: u32) -> u64
+    satisfies ElapsedClock::now via macos_elapsed_binding();
+
+linux_x86_64 machine linux_elapsed_binding() -> ForeignBinding<9, 13, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "clock_gettime", version: "GLIBC_2.17"
+    } }
+}
+linux_x86_64 machine ElapsedClockImports::read(selector: u32, instant: &mut ElapsedInstant) -> i32
+    satisfies ElapsedClockRead::read via linux_elapsed_binding();
+
+linux_x86_64 machine ElapsedClockImports::now(selector: u32) -> u64
+    satisfies ElapsedClock::now reaches Clock {
+    let mut instant: ElapsedInstant = ElapsedInstant { seconds: 0, nanoseconds: 0 };
+    let status: i32 = ElapsedClockRead::read(1, &mut instant);
+    transition status == 0 {
+        true -> measured(instant.seconds, instant.nanoseconds)
+        false -> failed()
+    }
+    state measured(seconds: i64, nanoseconds: i64) -> u64 {
+        let whole: u64 = narrow_i64_to_u64_saturating(seconds);
+        let fraction: u64 = narrow_i64_to_u64_saturating(nanoseconds);
+        let scaled: u64 in Wrapping = (whole as u64 in Wrapping) * 1000000000;
+        let total: u64 in Wrapping = scaled + (fraction as u64 in Wrapping);
+        total as u64
+    }
+    state failed() -> u64 { 0 }
 }

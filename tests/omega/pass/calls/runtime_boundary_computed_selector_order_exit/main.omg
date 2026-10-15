@@ -10,8 +10,20 @@ macos_arm64 machine binding() -> ForeignBinding<26, 8, 0> {
         },
     }
 }
+
+linux_x86_64 machine linux_x86_64_binding() -> ForeignBinding<9, 7, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "strnlen", version: "GLIBC_2.2.5",
+        },
+    }
+}
 macos_arm64 machine c_strnlen(text: &u8, limit: u64) -> u64
 satisfies CText::length via binding();
+
+linux_x86_64 machine c_strnlen(text: &u8, limit: u64) -> u64
+satisfies CText::length via linux_x86_64_binding();
 data Cursor { position: u64[0..4]; calls: u64 in Wrapping; }
 machine choose(cursor: &mut Cursor) -> u64[0..4] {
     cursor.calls = cursor.calls + 1;

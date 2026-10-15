@@ -18,8 +18,20 @@ macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
     }
 }
 
+linux_x86_64 machine linux_x86_64_absolute_binding() -> ForeignBinding<9, 3, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs", version: "GLIBC_2.2.5",
+        },
+    }
+}
+
 macos_arm64 machine external_absolute(value: i32) -> i32
     satisfies Magnitude::absolute via absolute_binding();
+
+linux_x86_64 machine external_absolute(value: i32) -> i32
+    satisfies Magnitude::absolute via linux_x86_64_absolute_binding();
 
 pub boundary trait CText {
     machine length(text: &u8) -> u64;
@@ -32,8 +44,20 @@ macos_arm64 machine text_binding() -> ForeignBinding<26, 7, 0> {
         },
     }
 }
+
+linux_x86_64 machine linux_x86_64_text_binding() -> ForeignBinding<9, 6, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "strlen", version: "GLIBC_2.2.5",
+        },
+    }
+}
 macos_arm64 machine external_length(text: &u8) -> u64
     satisfies CText::length via text_binding();
+
+linux_x86_64 machine external_length(text: &u8) -> u64
+    satisfies CText::length via linux_x86_64_text_binding();
 
 machine identity(value: i32) -> i32 { value }
 

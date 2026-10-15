@@ -2,6 +2,7 @@
 // scalar poll results, both count widths, two read slots, and helper returns.
 // Native waits may overshoot: assert lower bounds, not exact host latency.
 use omega::language::core::external_binding;
+use omega::language::core::numeric_conversion;
 
 pub data ClockProbe { }
 pub boundary requirement ClockProbe::read(selector: u32) -> u64;
@@ -45,7 +46,7 @@ machine main() crashes Trap {
     let narrow: i32 = ClockProbe::wait_narrow(0, 0, 3);
     // Darwin consumes nfds_t's low32 bits even for this declared u64 count.
     // The effective zero count ignores the non-null pointer entirely.
-    let wide: i32 = ClockProbe::wait_wide(1, 4294967296, 1);
+    let wide: i32 = ClockProbe::wait_wide(1, empty_wide_descriptor_count(), 1);
     let after: u64 = ClockProbe::read(6);
     let other_after: u64 = helper_read();
     let wall: u64 = ClockProbe::read(0);
@@ -63,3 +64,61 @@ machine main() crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
+
+// Linux supplies the same two scalar clock operations through one admitted
+// timespec import. Darwin's 6/8 monotonic selectors map to CLOCK_MONOTONIC=1.
+data LinuxInstant { seconds: i64; nanoseconds: i64; }
+data LinuxClockRead {}
+boundary requirement LinuxClockRead::read(selector: u32, instant: &mut LinuxInstant) -> i32;
+
+linux_x86_64 machine linux_clock_binding() -> ForeignBinding<9, 13, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "clock_gettime", version: "GLIBC_2.17"
+    } }
+}
+linux_x86_64 machine ClockImports::read_instant(selector: u32, instant: &mut LinuxInstant) -> i32
+    satisfies LinuxClockRead::read via linux_clock_binding();
+
+machine linux_clock_selector(selector: u32) -> u32 {
+    transition selector == 0 { true -> 0u32 false -> 1u32 }
+}
+
+machine linux_clock_nanoseconds(selector: u32) -> u64 {
+    let mut instant: LinuxInstant = LinuxInstant { seconds: 0, nanoseconds: 0 };
+    let selected: u32 = linux_clock_selector(selector);
+    let status: i32 = LinuxClockRead::read(selected, &mut instant);
+    transition status == 0 {
+        true -> measured(instant.seconds, instant.nanoseconds)
+        false -> failed()
+    }
+    state measured(seconds: i64, nanoseconds: i64) -> u64 {
+        let whole: u64 = narrow_i64_to_u64_saturating(seconds);
+        let fraction: u64 = narrow_i64_to_u64_saturating(nanoseconds);
+        let scaled: u64 in Wrapping = (whole as u64 in Wrapping) * 1000000000;
+        let total: u64 in Wrapping = scaled + (fraction as u64 in Wrapping);
+        total as u64
+    }
+    state failed() -> u64 { 0 }
+}
+
+linux_x86_64 machine ClockImports::read(selector: u32) -> u64
+    satisfies ClockProbe::read { linux_clock_nanoseconds(selector) }
+linux_x86_64 machine ClockImports::read_other(selector: u32) -> u64
+    satisfies ClockProbe::read_other { linux_clock_nanoseconds(selector) }
+
+linux_x86_64 machine linux_wait_binding() -> ForeignBinding<9, 4, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "poll", version: "GLIBC_2.2.5"
+    } }
+}
+linux_x86_64 machine ClockImports::wait_unit(pointer: u64, count: u64, milliseconds: i32)
+    satisfies ClockProbe::wait_unit via linux_wait_binding();
+linux_x86_64 machine ClockImports::wait_narrow(pointer: u64, count: u32, milliseconds: i32) -> i32
+    satisfies ClockProbe::wait_narrow via linux_wait_binding();
+linux_x86_64 machine ClockImports::wait_wide(pointer: u64, count: u64, milliseconds: i32) -> i32
+    satisfies ClockProbe::wait_wide via linux_wait_binding();
+
+// Darwin nfds_t is 32-bit; Linux nfds_t is 64-bit. Both calls describe zero
+// descriptors, with Darwin additionally exercising truncation of the high word.
+macos_arm64 machine empty_wide_descriptor_count() -> u64 { 4294967296 }
+linux_x86_64 machine empty_wide_descriptor_count() -> u64 { 0 }

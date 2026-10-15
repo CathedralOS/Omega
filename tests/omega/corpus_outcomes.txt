@@ -1014,6 +1014,8 @@ fail/build/calling_policy_checked_helper_rejection rejected 1107ms expected @d9b
 	calling policy rejected the boundary: checked helper observed
 fail/build/calling_policy_entry_premise rejected 1112ms expected @d9b96683b9fa+wt
 	machine `LocalPolicy::plan` is not build-time admissible: machine `LocalPolicy::plan` has an authored `requires` premise along `LocalPolicy::plan`; pre-check semantic evaluation has no checked invocation proof for that premise; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/build/calling_policy_missing_target_member rejected 4600ms expected @b1d84da832b5+wt
+	boundary trait `LocalEntry` cannot evaluate Calling<Policy>: calling policy realization `TargetPolicy::plan` has no body for target `linux_x86_64`
 fail/build/calling_policy_unproved_helper rejected 952ms expected @d9b96683b9fa+wt
 	cannot prove requires contract for call bounded from LocalPolicy::plan: signature.parameter_count <= 1 (needs fact `value <= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `plan`
 fail/build/captured_named_input_missing_slot rejected 5188ms expected published:none @a9ae30e1c334+wt
@@ -5329,9 +5331,9 @@ pass/borrows/write_projection_loan checked 9836ms @5041ef1af684+wt
 pass/borrows/writeonly_record_field_store checked 5039ms check-target:macos_arm64 @af6b0f221559+wt
 pass/borrows/writeonly_record_field_store_variants checked 4946ms check-target:macos_arm64 @af6b0f221559+wt
 pass/boundary/interleaved_structural_crash_formal_exit checked 10426ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/boundary/later_state_requirement_scalar_result_exit checked 33649ms check-target:macos_arm64 @b7aaf37278ea+wt
+pass/boundary/later_state_requirement_scalar_result_exit checked 11882ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/boundary/nested_projected_structural_crash_formal_exit checked 10388ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/boundary/static_foreign_scalar_result_locals_exit checked 33160ms check-target:macos_arm64 @b7aaf37278ea+wt
+pass/boundary/static_foreign_scalar_result_locals_exit checked 11852ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/build/artifact_only_output checked 9755ms @5041ef1af684+wt
 pass/build/artifact_only_required_output_completion checked 20604ms published:files/manifest.txt @a9ae30e1c334+wt
 pass/build/build_domain_context checked 9560ms @5041ef1af684+wt
@@ -5378,7 +5380,7 @@ pass/build/same_leaf_runner_entry_left_exit checked 11139ms check-target:macos_a
 pass/build/same_leaf_runner_entry_right_exit checked 11237ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/selected_const_array_length_exit checked 19740ms check-target:macos_arm64 @9c4d1c444502
 pass/build/sibling_module_service_exclusion_exit checked 8068ms check-target:macos_arm64 @eca66ed24a79+wt
-pass/build/sibling_module_slot_family_rows_exit checked 7239ms check-target:macos_arm64 @cbb413ac54c3
+pass/build/sibling_module_slot_family_rows_exit checked 11717ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/build/static_assumed_binding_spelling_exit checked 10190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/uefi_entry_schema_same_leaf checked 7689ms check-target:uefi_x86_64 @c46a502724a1+wt
 pass/build/uefi_os_handoff_invocation rejected 9044ms check-target:uefi_x86_64 @c46a502724a1+wt
@@ -5496,7 +5498,7 @@ pass/calls/runtime_authored_numeric_names_exit checked 19576ms check-target:maco
 pass/calls/runtime_boolean_result_across_console_exit checked 11214ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_borrowed_binding_field_state_loan_exit checked 10907ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_borrowed_float_formal_exchange_exit checked 13144ms check-target:macos_arm64 @9c4d1c444502
-pass/calls/runtime_boundary_computed_selector_order_exit checked 11100ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_boundary_computed_selector_order_exit checked 11743ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/calls/runtime_boundary_loop_projected_subslice_exit checked 11119ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_boundary_projected_mutable_subslice_exit checked 10940ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_call_carrier_partition_exit checked 10447ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5555,7 +5557,7 @@ pass/calls/runtime_heterogeneous_case_argument_exit checked 10426ms check-target
 pass/calls/runtime_indexed_module_guard_operands_exit checked 11191ms check-target:macos_arm64 @8a14e9db1e32
 pass/calls/runtime_indexed_scalar_calls_exit checked 11100ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_inherited_membership_argument_snapshot_exit checked 10967ms check-target:macos_arm64 @faebfb62fb37
-pass/calls/runtime_large_frame_foreign_call_floating_control_exit checked 10968ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_large_frame_foreign_call_floating_control_exit checked 11740ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/calls/runtime_large_structural_frame_exit checked 11661ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_let_mut_reassign_exit checked 11285ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_lifetime_only_constructor_result_exit checked 11368ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5571,7 +5573,7 @@ pass/calls/runtime_mut_ref_forward_exit checked 11028ms check-target:macos_arm64
 pass/calls/runtime_mutable_call_before_transition_args_exit checked 11129ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_mutable_call_empty_input_exit checked 11065ms check-target:macos_arm64 @da842c101400+wt
 pass/calls/runtime_mutable_call_short_input_exit checked 11576ms check-target:macos_arm64 @da842c101400+wt
-pass/calls/runtime_mutable_local_external_scalar_call_exit checked 6405ms check-target:macos_arm64 @9dd545defbc0
+pass/calls/runtime_mutable_local_external_scalar_call_exit checked 6208ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/calls/runtime_mutable_local_parameter_write_exit checked 10932ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_mutual_unit_borrowed_continuation_exit checked 11449ms check-target:macos_arm64 @8df1d091a810
 pass/calls/runtime_nested_case_argument_exit checked 11245ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6545,7 +6547,7 @@ pass/float/float_saturating_arithmetic_exit checked 28544ms check-target:macos_a
 pass/float/float_to_int_trapping_nan_traps checked 27036ms check-target:macos_arm64 @9c4d1c444502
 pass/float/float_trapping_overflow_traps checked 27155ms check-target:macos_arm64 @9c4d1c444502
 pass/float/float_trapping_propagated_nan_traps checked 26892ms check-target:macos_arm64 @9c4d1c444502
-pass/float/foreign_control_state_restore checked 26763ms check-target:macos_arm64 @9c4d1c444502
+pass/float/foreign_control_state_restore checked 22857ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/float/fused_multiply_add_single_rounding_exit checked 26137ms check-target:macos_arm64 @9c4d1c444502
 pass/float/guarded_exact_float_conversion checked 7372ms @9c4d1c444502
 pass/float/guarded_scalar_state_contract_exit checked 26224ms check-target:macos_arm64 @9c4d1c444502
@@ -6782,15 +6784,15 @@ pass/host/runtime_descriptor_exclusive_atomic_record_exit checked 12607ms check-
 pass/host/runtime_descriptor_float_loan_input_exit checked 13030ms check-target:macos_arm64 @9c4d1c444502
 pass/host/runtime_descriptor_immutable_primitive_loans_exit checked 14235ms check-target:macos_arm64 @9c4d1c444502
 pass/host/runtime_descriptor_local_array_loan_input_exit checked 13016ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/host/runtime_descriptor_mutable_view_input_exit checked 8681ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/host/runtime_descriptor_mutable_view_input_exit checked 13626ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/host/runtime_descriptor_nested_array_window_exit checked 12931ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/host/runtime_descriptor_nested_case_array_exit checked 9884ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/host/runtime_descriptor_nested_case_array_exit checked 13651ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/host/runtime_descriptor_nested_record_loan_input_exit checked 13713ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_descriptor_output_streams_exit checked 11865ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_descriptor_padded_prefix_loans_exit checked 12429ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/host/runtime_descriptor_record_array_input_exit checked 10266ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/host/runtime_descriptor_record_array_input_exit checked 7044ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/host/runtime_descriptor_record_loan_input_exit checked 13256ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/host/runtime_descriptor_reference_record_prefix_exit checked 5524ms check-target:macos_arm64 @9dd545defbc0
+pass/host/runtime_descriptor_reference_record_prefix_exit checked 9899ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/host/runtime_descriptor_scalar_input_exit checked 11138ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_encoded_record_view_observation_exit checked 3867ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/host/runtime_fixed_arithmetic_across_console_exit checked 11481ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7323,7 +7325,7 @@ pass/providers/component_owner_provider_override_compile checked 11504ms check-t
 pass/providers/const_generic_entry_record_field_exit checked 2988ms check-target:macos_arm64 @b016b7e0a226
 pass/providers/consuming_trait_requirement_external_sink_exit checked 5872ms check-target:macos_arm64 @b8976916d516+wt
 pass/providers/direct_boundary_array_snapshot_exit checked 12346ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/external_boundary_contract_exit checked 17455ms check-target:macos_arm64 @5aabaabbdd54+wt
+pass/providers/external_boundary_contract_exit checked 6992ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/providers/external_boundary_requirement_via_exit checked 11623ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/external_leaf_dllimport_compile checked 11105ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/finite_requirement_boolean_const_exit checked 5400ms check-target:macos_arm64 @c03720bf6cb3
@@ -7977,9 +7979,9 @@ pass/text/utf8_member_verdict checked 15478ms @5041ef1af684+wt
 pass/text/view_field_literal_store_outlives_helper_exit checked 12190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/zii_default_string_equality_exit checked 12294ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/time/runtime_checked_time_arith_exit checked 16683ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/time/runtime_clock_out_parameter_loans_exit checked 4590ms check-target:macos_arm64 @ea68f95d0acea7b04f53f3efe179629294cb3491
+pass/time/runtime_clock_out_parameter_loans_exit checked 10427ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/time/runtime_clock_padded_out_parameter_prefix_exit checked 10718ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/time/runtime_clock_shared_import_slots_exit checked 12748ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/time/runtime_clock_shared_import_slots_exit checked 7191ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/time/runtime_duration_core_exit checked 16238ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/time/runtime_duration_units_and_scaling_exit checked 6659ms check-target:macos_arm64 @2ed2725134e877372235f00d3ce5c1602f59468c
 pass/time/runtime_fs_mtime_system_time_interop_exit checked 9465ms check-target:macos_arm64 @ea68f95d0acea7b04f53f3efe179629294cb3491
@@ -8084,7 +8086,7 @@ pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit checked 11765ms check-t
 pass/wire/runtime_wire_encode_byte_slice_exit checked 11433ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/wire/runtime_wire_encode_interior_scalar_slice_exit checked 12335ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/wire/runtime_wire_exact_array_without_count_exit checked 12076ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/wire/runtime_wire_policy_authored_plan_exit checked 8088ms check-target:macos_arm64 @2be890c63e5e5bb4ced219b4470436492e7ad97c
+pass/wire/runtime_wire_policy_authored_plan_exit checked 6914ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit checked 16124ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/wire/runtime_wire_signed_extremes_roundtrip_exit checked 13867ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/wire/runtime_wire_utf8_edge_verdicts_exit checked 21762ms check-target:macos_arm64 @a9ae30e1c334+wt

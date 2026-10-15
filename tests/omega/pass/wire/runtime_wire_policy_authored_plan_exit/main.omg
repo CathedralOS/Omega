@@ -143,7 +143,7 @@ terminates by fuel;
     requires 1 <= fuel
     requires fuel <= 128 {
         compact_binary.tag = narrow_i64_to_u64_wrapping(schema.fields[index].number);
-        compact_binary.plans[index] = field_plan(schema.fields[index].kind, compact_binary.tag);
+        compact_binary.plans[index] = field_plan(&schema.fields[index].kind, compact_binary.tag);
         transition fuel > 1 { true -> fill(compact_binary, schema, fuel - 1, index + 1) _ -> done(compact_binary, schema) }
     }
     state done(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
@@ -157,7 +157,7 @@ terminates by fuel;
     }
 }
 
-machine field_plan(kind: FieldKind, tag: u64) -> FieldPlan {
+machine field_plan(kind: &FieldKind, tag: u64) -> FieldPlan {
     transition kind {
         FieldKind::Scalar -> varint(tag)
         FieldKind::Text -> blob(tag)

@@ -8,8 +8,18 @@ pub macos_arm64 machine binding() -> ForeignBinding<26, 4, 0> {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs"
     } }
 }
+
+pub linux_x86_64 machine linux_x86_64_binding() -> ForeignBinding<9, 3, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "abs", version: "GLIBC_2.2.5"
+    } }
+}
 macos_arm64 boundary machine absolute(value: i32) -> i32
     satisfies Magnitude::absolute via binding()
+    requires value > -2147483648;
+
+linux_x86_64 boundary machine absolute(value: i32) -> i32
+    satisfies Magnitude::absolute via linux_x86_64_binding()
     requires value > -2147483648;
 data Main {}
 machine Main::main(main: &mut Main) crashes Trap {

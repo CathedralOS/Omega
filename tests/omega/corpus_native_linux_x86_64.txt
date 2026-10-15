@@ -414,8 +414,9 @@ pass/borrows/write_projection_loan checked 17770ms @6c49683ce714
 pass/borrows/writeonly_record_field_store built 15346ms exit:181 @6c49683ce714
 pass/borrows/writeonly_record_field_store_variants built 15209ms exit:181 @6c49683ce714
 pass/boundary/interleaved_structural_crash_formal_exit built 17284ms exit:0 @6c49683ce714
+pass/boundary/later_state_requirement_scalar_result_exit built 12006ms exit:70 @b1d84da832b5+wt
 pass/boundary/nested_projected_structural_crash_formal_exit built 17430ms exit:0 @6c49683ce714
-pass/boundary/static_foreign_scalar_result_locals_exit built 27224ms @95e4e5c52dc
+pass/boundary/static_foreign_scalar_result_locals_exit built 11994ms exit:70 @b1d84da832b5+wt
 pass/build/artifact_only_output checked 17526ms @6c49683ce714
 pass/build/artifact_only_required_output_completion checked 35569ms published:files/manifest.txt @6c49683ce714
 pass/build/build_domain_context checked 17488ms @6c49683ce714
@@ -1357,6 +1358,7 @@ pass/build/selected_const_array_length_exit rejected 5215ms regressed-from:built
 	retained machine declaration differs from its indexed root child
 	retained machine declaration differs from its indexed root child
 pass/build/sibling_module_service_exclusion_exit built 17506ms exit:0 @6c49683ce714
+pass/build/sibling_module_slot_family_rows_exit built 10897ms exit:70 @b1d84da832b5+wt
 pass/build/static_assumed_binding_spelling_exit built 17619ms exit:0 @6c49683ce714
 pass/build/uefi_entry_schema_same_leaf incomplete 15515ms @6c49683ce714
 	`launch` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: jump successor: loan transfer); in state `launch::entry`, statement 0
@@ -1487,8 +1489,7 @@ pass/calls/runtime_authored_numeric_names_exit built 17730ms exit:0 @6c49683ce71
 pass/calls/runtime_boolean_result_across_console_exit built 15349ms exit:70 stdout:match @6c49683ce714
 pass/calls/runtime_borrowed_binding_field_state_loan_exit built 7447ms exit:70 stdout:match @326ed531359e+wt
 pass/calls/runtime_borrowed_float_formal_exchange_exit built 34438ms exit:70 @6c49683ce714
-pass/calls/runtime_boundary_computed_selector_order_exit rejected 19507ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(c_strnlen),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(u8\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/runtime_boundary_computed_selector_order_exit built 10942ms exit:70 @b1d84da832b5+wt
 pass/calls/runtime_boundary_loop_projected_subslice_exit built 6132ms exit:70 @f137abafccda+wt
 pass/calls/runtime_boundary_projected_mutable_subslice_exit built 6350ms exit:70 @f137abafccda+wt
 pass/calls/runtime_call_carrier_partition_exit built 18059ms exit:0 @6c49683ce714
@@ -1545,8 +1546,7 @@ pass/calls/runtime_heterogeneous_case_argument_exit built 18572ms exit:0 @6c4968
 pass/calls/runtime_indexed_module_guard_operands_exit built 17963ms exit:0 @6c49683ce714
 pass/calls/runtime_indexed_scalar_calls_exit built 14926ms exit:70 @6c49683ce714
 pass/calls/runtime_inherited_membership_argument_snapshot_exit built 17388ms exit:0 @6c49683ce714
-pass/calls/runtime_large_frame_foreign_call_floating_control_exit rejected 14874ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(external_absolute),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/runtime_large_frame_foreign_call_floating_control_exit built 5865ms exit:70 @b1d84da832b5+wt
 pass/calls/runtime_large_structural_frame_exit built 7204ms exit:70 @f137abafccda+wt
 pass/calls/runtime_let_mut_reassign_exit built 15097ms exit:2 @6c49683ce714
 pass/calls/runtime_lifetime_only_constructor_result_exit built 15085ms exit:70 @6c49683ce714
@@ -1562,8 +1562,7 @@ pass/calls/runtime_mut_ref_forward_exit built 15027ms exit:70 @6c49683ce714
 pass/calls/runtime_mutable_call_before_transition_args_exit built 7502ms exit:70 @326ed531359e+wt
 pass/calls/runtime_mutable_call_empty_input_exit built 7442ms exit:72 @326ed531359e+wt
 pass/calls/runtime_mutable_call_short_input_exit built 7520ms exit:72 @326ed531359e+wt
-pass/calls/runtime_mutable_local_external_scalar_call_exit rejected 15251ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(external_absolute),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/runtime_mutable_local_external_scalar_call_exit built 6228ms exit:70 @b1d84da832b5+wt
 pass/calls/runtime_mutable_local_parameter_write_exit built 15081ms exit:171 @6c49683ce714
 pass/calls/runtime_mutual_unit_borrowed_continuation_exit built 7274ms exit:70 stdout:match stderr:match @326ed531359e+wt
 pass/calls/runtime_nested_case_argument_exit built 15367ms exit:70 @6c49683ce714
@@ -2553,7 +2552,7 @@ pass/float/float_saturating_arithmetic_exit built 32645ms exit:77 @6c49683ce714
 pass/float/float_to_int_trapping_nan_traps built 32398ms exit:signal signal:4 @6c49683ce714
 pass/float/float_trapping_overflow_traps built 32436ms exit:signal signal:4 @6c49683ce714
 pass/float/float_trapping_propagated_nan_traps built 32545ms exit:signal signal:4 @6c49683ce714
-pass/float/foreign_control_state_restore built 3067ms @2d8ed253669f+wt
+pass/float/foreign_control_state_restore built 22932ms exit:70 @b1d84da832b5+wt
 pass/float/fused_multiply_add_single_rounding_exit built 35913ms exit:0 @6c49683ce714
 pass/float/guarded_exact_float_conversion checked 7570ms @6c49683ce714
 pass/float/guarded_scalar_state_contract_exit built 34910ms exit:0 @6c49683ce714
@@ -2835,11 +2834,15 @@ pass/host/runtime_descriptor_exclusive_atomic_record_exit built 11184ms exit:0 s
 pass/host/runtime_descriptor_float_loan_input_exit built 24739ms exit:0 stdout:match @326ed531359e+wt
 pass/host/runtime_descriptor_immutable_primitive_loans_exit built 32695ms exit:0 stdout:match @326ed531359e+wt
 pass/host/runtime_descriptor_local_array_loan_input_exit built 13520ms exit:0 stdout:match @326ed531359e+wt
+pass/host/runtime_descriptor_mutable_view_input_exit built 13709ms exit:0 stdout:match @b1d84da832b5+wt
 pass/host/runtime_descriptor_nested_array_window_exit built 10465ms exit:0 stdout:match @326ed531359e+wt
+pass/host/runtime_descriptor_nested_case_array_exit built 7071ms exit:0 stdout:match stderr:match @b1d84da832b5+wt
 pass/host/runtime_descriptor_nested_record_loan_input_exit built 18072ms exit:0 stdout:match @6c49683ce714
 pass/host/runtime_descriptor_output_streams_exit built 13047ms exit:0 stdout:match stderr:match @326ed531359e+wt
 pass/host/runtime_descriptor_padded_prefix_loans_exit built 11830ms exit:0 stdout:match @326ed531359e+wt
+pass/host/runtime_descriptor_record_array_input_exit built 6767ms exit:0 stdout:match @b1d84da832b5+wt
 pass/host/runtime_descriptor_record_loan_input_exit built 11813ms exit:0 stdout:match @326ed531359e+wt
+pass/host/runtime_descriptor_reference_record_prefix_exit built 11212ms exit:0 stdout:match @b1d84da832b5+wt
 pass/host/runtime_descriptor_scalar_input_exit built 18054ms exit:0 stdout:match stderr:match @6c49683ce714
 pass/host/runtime_encoded_record_view_observation_exit built 17614ms exit:0 stdout:match @6c49683ce714
 pass/host/runtime_fixed_arithmetic_across_console_exit built 14938ms exit:0 stdout:match stderr:match @6c49683ce714
@@ -3388,8 +3391,7 @@ pass/providers/component_owner_provider_override_compile built 17727ms @6c49683c
 pass/providers/const_generic_entry_record_field_exit built 12447ms exit:70 @6c49683ce714
 pass/providers/consuming_trait_requirement_external_sink_exit built 17789ms exit:0 @6c49683ce714
 pass/providers/direct_boundary_array_snapshot_exit built 15039ms exit:70 @6c49683ce714
-pass/providers/external_boundary_contract_exit rejected 17451ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(absolute),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/providers/external_boundary_contract_exit built 6294ms exit:0 @b1d84da832b5+wt
 pass/providers/external_boundary_requirement_via_exit built 18070ms exit:21 @6c49683ce714
 pass/providers/external_leaf_dllimport_compile built 18046ms @6c49683ce714
 pass/providers/finite_requirement_boolean_const_exit built 9602ms exit:0 @326ed531359e+wt
@@ -4074,7 +4076,9 @@ pass/text/utf8_member_verdict rejected 15013ms @6c49683ce714
 pass/text/view_field_literal_store_outlives_helper_exit built 15276ms exit:70 @6c49683ce714
 pass/text/zii_default_string_equality_exit built 14843ms exit:70 @6c49683ce714
 pass/time/runtime_checked_time_arith_exit built 39015ms exit:70 @6c49683ce714
+pass/time/runtime_clock_out_parameter_loans_exit built 12522ms exit:0 @b1d84da832b5+wt
 pass/time/runtime_clock_padded_out_parameter_prefix_exit built 8524ms exit:0 @326ed531359e+wt
+pass/time/runtime_clock_shared_import_slots_exit built 7332ms exit:0 @b1d84da832b5+wt
 pass/time/runtime_duration_core_exit built 38212ms exit:70 @6c49683ce714
 pass/time/runtime_duration_units_and_scaling_exit built 37868ms exit:0 @6c49683ce714
 pass/time/runtime_fs_mtime_system_time_interop_exit built 51253ms @6c49683ce714
@@ -4190,8 +4194,7 @@ pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit built 8526ms exit:70 @6
 pass/wire/runtime_wire_encode_byte_slice_exit built 15763ms exit:70 @6c49683ce714
 pass/wire/runtime_wire_encode_interior_scalar_slice_exit built 7933ms exit:70 @6c49683ce714
 pass/wire/runtime_wire_exact_array_without_count_exit built 15793ms exit:70 @6c49683ce714
-pass/wire/runtime_wire_policy_authored_plan_exit rejected 1300ms regressed-from:built+exit:70 @6c49683ce714
-	demanded premise closure checking failed: [Diagnostic { severity: Error, message: "cannot use `schema` in machine `CompactBinary::evaluate` state `place` (statement 3) after `schema.fields[index].kind` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `schema.fields[index].kind` first", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "cannot use `schema` in machine `CompactBinary::evaluate` state `place` (statement 4) after `schema.fields[index].kind` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `schema.fields[index].kind` first", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/wire/runtime_wire_policy_authored_plan_exit built 12667ms exit:70 @b1d84da832b5+wt
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit built 20731ms exit:70 @6c49683ce714
 pass/wire/runtime_wire_signed_extremes_roundtrip_exit built 27920ms exit:0 @6c49683ce714
 pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 23317ms regressed-from:built+exit:70 @6c49683ce714

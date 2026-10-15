@@ -2,6 +2,7 @@
 // but checked Omega arithmetic must resume under the canonical nearest-even
 // state. On macOS AArch64, FE_UPWARD is 0x00400000. If that FPCR value leaks
 // through the import, 1 + 2^-53 rounds upward instead of tying to even at 1.
+// Linux x86_64 uses FE_UPWARD = 0x800 and the versioned libm fesetround.
 // The binding is an evaluated typed locator: `fesetround_binding` returns the
 // compiler-owned `ForeignBinding::DllImport` value carrying one exact Mach-O
 // dylib-symbol import, so raw foreign bytes stay data.
@@ -27,13 +28,27 @@ macos_arm64 machine fesetround_binding() -> ForeignBinding<17, 11, 0> {
 macos_arm64 machine set_rounding(mode: i32) -> i32 satisfies FloatingEnvironment::set_rounding
     via fesetround_binding();
 
+linux_x86_64 machine linux_fesetround_binding() -> ForeignBinding<9, 10, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libm.so.6", symbol: "fesetround", version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+linux_x86_64 machine set_rounding(mode: i32) -> i32 satisfies FloatingEnvironment::set_rounding
+    via linux_fesetround_binding();
+
+macos_arm64 machine upward_rounding_mode() -> i32 { 4194304 }
+linux_x86_64 machine upward_rounding_mode() -> i32 { 2048 }
+
 data Main {
     console: Binding<Console>;
     environment: Binding<FloatingEnvironment>;
 }
 
 machine Main::main(main: &mut Main) reaches Console + FloatingEnvironment {
-    let upward: i32 = 4194304;
+    let upward: i32 = upward_rounding_mode();
     let status: i32 = main.environment.set_rounding(upward);
     let one: f64 = F64::from_i32(status) + 1.0;
     let half_ulp: f64 =
