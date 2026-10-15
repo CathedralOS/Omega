@@ -387,7 +387,10 @@ helper that passes does not close an item.
     `Build::select_representation`, `Build::accept_boundary`,
     `Build::require_wire_compatibility`, and `Build::assume_binding_contract`.
     A boundary requirement call spells `Requirement::operation(arguments)` and
-    demands one exact static provider slot. Migrate source and fixtures; delete
+    demands one exact static provider slot; checking accepts that form, and a
+    leading `Binding<R>` operand is the only remaining receiver-lane entry.
+    Migrate source and fixtures (1,791 test and 468 sample files still name
+    `Binding<`, 1,343 of them only as a `Console` field); delete
     `source/library/core/binding.omg`, Binding type recognition, entry-field
     establishment, receiver/leading-argument paths and source-visible routing
     custody. Add fail controls for `Binding<R>` in fields, locals and parameters

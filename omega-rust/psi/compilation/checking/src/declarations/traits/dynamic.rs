@@ -892,31 +892,46 @@ fn explicit_binding_authority(
     {
         return None;
     }
-    let Some(argument) = arguments.first().copied() else {
+    // Every other explicit static argument fills one of the requirement's
+    // own static binders (a finite roster's type or const operand, or a
+    // native callback's `machine` selection). A data type or any surplus
+    // argument selects neither an implementation nor a binder.
+    let static_binders = program
+        .trait_definition_by_symbol(program.symbols.get(declaration).parent)
+        .and_then(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .find(|requirement| requirement.symbol == declaration)
+        })
+        .map_or(0, |requirement| {
+            program.state_signature_type_parameters(requirement).len()
+        });
+    if let Some(surplus) = machine_arguments.get(static_binders) {
         diagnostics.push(
-            Diagnostic::error(
-                "a boundary call requires an explicit shared `&Binding<R>` authority argument",
-            )
+            Diagnostic::error(format!(
+                "static argument `{}` of boundary requirement call `{}` names no implementation and selects no static binder",
+                surplus.path.iter().map(|segment| segment.as_str()).collect::<Vec<_>>().join("::"),
+                program.symbols.name(declaration),
+            ))
             .with_source_span(span),
         );
         return None;
-    };
-    let missing_authority = || {
-        "a boundary call requires an explicit shared `&Binding<R>` authority argument".to_owned()
-    };
-    let authority = crate::declared_place_type_raw(program, machine, Some(state), argument)
-        .ok_or_else(missing_authority)
-        .and_then(|reference| {
-            let carrier =
-                typed_trees::service::inspect_service_parameter_contract(program, reference)?
-                    .ok_or_else(missing_authority)?;
-            Ok((reference, carrier))
-        });
-    let (reference, carrier) = match authority {
-        Ok(authority) => authority,
+    }
+    // `Requirement::operation(arguments)` demands the requirement's static
+    // provider slot (wiki/spec/build/component_publication.md): its arguments
+    // are the requirement's own. Only a leading `Binding<R>` operand, the
+    // legacy explicit-authority spelling retired by the same contract,
+    // enters the receiver lane below.
+    let argument = arguments.first().copied()?;
+    let reference = crate::declared_place_type_raw(program, machine, Some(state), argument)?;
+    let carrier = match typed_trees::service::inspect_service_parameter_contract(program, reference)
+    {
+        Ok(Some(carrier)) => carrier,
+        Ok(None) => return None,
         Err(reason) => {
             // Preserve the carrier's own refusal (for example a private slot
-            // contract) instead of reporting an absent authority argument.
+            // contract) instead of treating it as an ordinary argument.
             diagnostics.push(Diagnostic::error(reason).with_source_span(span));
             return None;
         }

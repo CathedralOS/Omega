@@ -253,8 +253,24 @@ fn validate_native_callback_selections(
     if signature.native_callback_parameters.is_empty() {
         return;
     }
+    // A direct `Requirement::operation(...)` call selects the closed
+    // requirement application, whose machine binders are already
+    // substituted by the call's selections. The callback destinations still
+    // name those binders, so their ordinals come from the template
+    // requirement the application closes.
+    let declared = program
+        .closed_requirement_application(signature.symbol)
+        .and_then(|application| {
+            program
+                .trait_machine_signatures(
+                    program.trait_definition_by_symbol(application.declaring_trait)?,
+                )
+                .iter()
+                .find(|requirement| requirement.symbol == application.template)
+        })
+        .unwrap_or(signature);
     let machine_binders = program
-        .state_signature_type_parameters(signature)
+        .state_signature_type_parameters(declared)
         .iter()
         .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }))
         .collect::<Vec<_>>();

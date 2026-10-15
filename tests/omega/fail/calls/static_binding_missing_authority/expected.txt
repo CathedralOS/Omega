@@ -1,1 +1,0 @@
-requires an explicit shared `&Binding<R>` authority argument

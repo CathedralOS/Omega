@@ -1408,8 +1408,6 @@ fail/calls/static_binding_field_wrong_authority rejected 210ms expected @8df1d09
 	projected binding call target belongs to a different requirement
 fail/calls/static_binding_implicit_discard rejected 272ms expected @3ac38090e82f
 	call to `read` discards its non-unit `i32` result; consume the value or discard it explicitly with `_ = read(...);`
-fail/calls/static_binding_missing_authority rejected 54ms expected @3ac38090e82f
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 fail/calls/static_binding_mutable_authority rejected 52ms expected @3ac38090e82f
 	a boundary call requires a shared `&Binding<R>` authority argument
 fail/calls/static_binding_owned_authority rejected 51ms expected @3ac38090e82f

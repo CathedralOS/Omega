@@ -1,1 +1,1 @@
-requires an explicit shared `&Binding<R>` authority argument
+names no implementation and selects no static binder
