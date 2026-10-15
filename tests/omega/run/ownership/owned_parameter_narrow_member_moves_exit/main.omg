@@ -1,0 +1,47 @@
+// Members narrower than a register travel inside one transport fragment of
+// their owner. Moving one into a callee must deliver exactly its own bytes:
+// each callee widens what it received and compares it with the authored
+// value, so a sibling's bits leaking into the argument fails the check.
+// Members at byte offsets 0, 1, 2 and 4, array elements at 1 and 2, and a
+// 16-bit member after a byte member are moved from owned parameters.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Byte { raw: u8; }
+data Half { raw: u16; }
+data Trio { a: Byte; b: Byte; c: Byte; }
+data Mixed { tag: Byte; pad: Byte; half: Half; tail: Byte; }
+
+data Main { console: Binding<Console>; }
+
+machine byte_is(byte: Byte, expected: u64) -> bool { (byte.raw as u64) == expected }
+machine half_is(half: Half, expected: u64) -> bool { (half.raw as u64) == expected }
+
+machine trio_b(trio: Trio) -> bool { byte_is(trio.b, 22) }
+machine trio_c(trio: Trio) -> bool { byte_is(trio.c, 33) }
+machine trio_all(trio: Trio) -> bool {
+    let a: bool = byte_is(trio.a, 11);
+    let b: bool = byte_is(trio.b, 22);
+    let c: bool = byte_is(trio.c, 33);
+    a && b && c
+}
+machine row_middle(bytes: [Byte; 3]) -> bool { byte_is(bytes[1], 202) }
+machine row_last(bytes: [Byte; 3]) -> bool { byte_is(bytes[2], 203) }
+machine mixed_half(mixed: Mixed) -> bool { half_is(mixed.half, 4660) }
+machine mixed_tail(mixed: Mixed) -> bool { byte_is(mixed.tail, 99) }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let first: bool = trio_b(Trio { a: Byte { raw: 11 }, b: Byte { raw: 22 }, c: Byte { raw: 33 } });
+    let second: bool = trio_c(Trio { a: Byte { raw: 11 }, b: Byte { raw: 22 }, c: Byte { raw: 33 } });
+    let third: bool = trio_all(Trio { a: Byte { raw: 11 }, b: Byte { raw: 22 }, c: Byte { raw: 33 } });
+    let fourth: bool = row_middle([Byte { raw: 201 }, Byte { raw: 202 }, Byte { raw: 203 }]);
+    let fifth: bool = row_last([Byte { raw: 201 }, Byte { raw: 202 }, Byte { raw: 203 }]);
+    let sixth: bool = mixed_half(Mixed { tag: Byte { raw: 255 }, pad: Byte { raw: 255 }, half: Half { raw: 4660 }, tail: Byte { raw: 99 } });
+    let seventh: bool = mixed_tail(Mixed { tag: Byte { raw: 255 }, pad: Byte { raw: 255 }, half: Half { raw: 4660 }, tail: Byte { raw: 99 } });
+    transition first && second && third && fourth && fifth && sixth && seventh {
+        true -> ok(main)
+        _ -> bad(main)
+    }
+    state ok(main: &mut Main) { main.console.exit_process(0); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
+}

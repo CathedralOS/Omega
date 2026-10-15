@@ -329,14 +329,55 @@ pub(super) fn transport(
             )?;
             super::aggregate_memory::load(builder, pointer, output, displacement, byte_size)?;
         } else {
-            let input = builder
+            // A register-transported owner keeps whole 8-byte fragments. A
+            // projected value inside one (a narrow member after its first
+            // sibling) is shifted down to bit zero and masked to its own
+            // bytes, so the callee's register holds exactly that value.
+            let (position, input) = builder
                 .transport
                 .fragments
                 .iter()
-                .find(|(owner, position, _)| *owner == place && *position == source_offset)
-                .map(|(_, _, register)| *register)
+                .find(|(owner, position, _)| {
+                    *owner == place
+                        && *position <= source_offset
+                        && source_offset
+                            .checked_add(byte_size)
+                            .is_some_and(|end| end <= position.saturating_add(8))
+                })
+                .map(|(_, position, register)| (*position, *register))
                 .ok_or_else(|| SelectedInstructionError::custody())?;
-            builder.emit_copy_i64(input, output, Default::default())?;
+            let shift_bytes = source_offset - position;
+            if shift_bytes == 0 {
+                builder.emit_copy_i64(input, output, Default::default())?;
+            } else {
+                let count = super::structural_case::register(builder, place, offset, 64, false)?;
+                builder.emit_materialize_i64(
+                    semantic_vocabulary::IntegerValue::Unsigned(u128::from(shift_bytes * 8)),
+                    count,
+                    super::structural::provenance(operation),
+                )?;
+                let shifted = super::structural_case::register(builder, place, offset, 64, false)?;
+                builder.emit(
+                    selected_instructions::SelectedInstructionKind::WrappingShiftRightU64,
+                    builder.constraints.keys.shift_i64,
+                    &[input, count, shifted],
+                    super::structural::provenance(operation),
+                )?;
+                let mask = super::structural_case::register(builder, place, offset, 64, false)?;
+                builder.emit_materialize_i64(
+                    semantic_vocabulary::IntegerValue::Unsigned(
+                        (1_u128 << (u128::from(byte_size) * 8)) - 1,
+                    ),
+                    mask,
+                    super::structural::provenance(operation),
+                )?;
+                builder.emit(
+                    selected_instructions::SelectedInstructionKind::BitwiseAndI64,
+                    builder.constraints.keys.subtract_i64,
+                    &[shifted, mask, output],
+                    super::structural::provenance(operation),
+                )?;
+            }
         }
         if let Some(stack_offset) = stack_offset {
             let (slot, address) = outgoing.ok_or_else(|| SelectedInstructionError::custody())?;
