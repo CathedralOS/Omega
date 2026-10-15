@@ -1,6 +1,5 @@
 // Read into original caller storage. Different import slots share one finite
 // stream; zero-byte calls and short reads must preserve the untouched bytes.
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub boundary trait DescriptorIo {
@@ -11,7 +10,7 @@ pub boundary trait DescriptorIo {
     machine write_discarded(descriptor: i32, word: &u32, count: u64);
 }
 pub data DescriptorImports { }
-data Main { io: Binding<DescriptorIo>; word: u32; half: u16; }
+data Main { word: u32; half: u16; }
 
 pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -58,16 +57,16 @@ linux_arm64 boundary machine DescriptorImports::write_discarded(descriptor: i32,
 machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
     main.word = 1144201745;
     main.half = 21828;
-    let empty: i64 = block main.io.read_word(0, &mut main.word, 0);
-    let first: i64 = block main.io.read_word(0, &mut main.word, 3);
-    let second: i64 = block main.io.read_half(0, &mut main.half, 2);
-    let at_end: i64 = block main.io.read_word(0, &mut main.word, 2);
-    let written: i64 = main.io.write_word(1, &main.word, 3);
-    main.io.write_discarded(1, &main.word, 0);
+    let empty: i64 = block DescriptorIo::read_word(0, &mut main.word, 0);
+    let first: i64 = block DescriptorIo::read_word(0, &mut main.word, 3);
+    let second: i64 = block DescriptorIo::read_half(0, &mut main.half, 2);
+    let at_end: i64 = block DescriptorIo::read_word(0, &mut main.word, 2);
+    let written: i64 = DescriptorIo::write_word(1, &main.word, 3);
+    DescriptorIo::write_discarded(1, &main.word, 0);
     // Discarding the count must still perform the original storage transfer.
     let diagnostic: u32 = 174285409;
-    main.io.write_discarded(2, &diagnostic, 4);
-    let newline: i64 = main.io.write_half(1, &main.half, 1);
+    DescriptorIo::write_discarded(2, &diagnostic, 4);
+    let newline: i64 = DescriptorIo::write_half(1, &main.half, 1);
     transition empty == 0 && first == 3 && second == 1 && at_end == 0
         && written == 3 && newline == 1 && main.word == 1147363937 && main.half == 21770 {
         true -> done()

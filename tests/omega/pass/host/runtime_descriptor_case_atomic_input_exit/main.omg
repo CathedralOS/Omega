@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub data Choice { case Cell(counter: AtomicU32); case Empty; }
@@ -8,7 +7,7 @@ pub boundary trait DescriptorIo {
     machine write_tag(descriptor: i32, choice: &Choice, count: u64) -> i64;
 }
 pub data Imports {}
-data Main { io: Binding<DescriptorIo>; }
+data Main { }
 
 pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -60,8 +59,8 @@ linux_x86_64 boundary machine Imports::write_tag(descriptor: i32, choice: &Choic
     satisfies DescriptorIo::write_tag via linux_x86_64_tag_binding();
 
 machine make() -> Choice { Choice::Empty {} }
-machine receive(io: &Binding<DescriptorIo>, choice: &mut Choice) -> i64 reaches DescriptorIo blocks; {
-    block io.read(0, choice, 8)
+machine receive(choice: &mut Choice) -> i64 reaches DescriptorIo blocks; {
+    block DescriptorIo::read(0, choice, 8)
 }
 machine observe(choice: &Choice) -> u32 in Wrapping {
     transition choice {
@@ -75,10 +74,10 @@ machine observe(choice: &Choice) -> u32 in Wrapping {
 }
 machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
     let mut choice: Choice = make();
-    let received: i64 = block receive(&main.io, &mut choice);
+    let received: i64 = block receive(&mut choice);
     let resident: u32 in Wrapping = observe(&choice);
-    let tag: i64 = main.io.write_tag(1, &choice, 4);
-    let written: i64 = main.io.write(1, &mut choice, 6);
+    let tag: i64 = DescriptorIo::write_tag(1, &choice, 4);
+    let written: i64 = DescriptorIo::write(1, &mut choice, 6);
     transition received == 8 && resident == 167774785 && tag == 4 && written == 6 {
         true -> done()
         false -> bad()

@@ -10,7 +10,6 @@ use omega_language_std::console;
 use omega_language_std::clock;
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 machine monotonic_nanoseconds() -> u64 reaches Clock {
     let now: u64 = ElapsedClock::now(6);
@@ -18,13 +17,11 @@ machine monotonic_nanoseconds() -> u64 reaches Clock {
 }
 
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
 }
 
 machine Main::main(context: &mut Main) reaches Console + Clock {
     let before: u64 = ElapsedClock::now(6);
-    context.clock.sleep(20);
+    Clock::sleep(20);
     let after: u64 = monotonic_nanoseconds();
     transition after >= before {
         true -> measure(&mut context, after - before)
@@ -36,9 +33,9 @@ machine Main::main(context: &mut Main) reaches Console + Clock {
             false -> early(&mut context)
         }
     }
-    state slept(context: &mut Main) { context.console.exit_process(70); }
-    state early(context: &mut Main) { context.console.exit_process(71); }
-    state backwards(context: &mut Main) { context.console.exit_process(72); }
+    state slept(context: &mut Main) { Console::exit_process(70); }
+    state early(context: &mut Main) { Console::exit_process(71); }
+    state backwards(context: &mut Main) { Console::exit_process(72); }
 }
 
 // The scalar clock seam is foreign on Darwin and a checked timespec adapter

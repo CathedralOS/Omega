@@ -10,7 +10,6 @@
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub boundary trait FloatingEnvironment {
     machine set_rounding(mode: i32) -> i32;
@@ -43,13 +42,11 @@ macos_arm64 machine upward_rounding_mode() -> i32 { 4194304 }
 linux_x86_64 machine upward_rounding_mode() -> i32 { 2048 }
 
 data Main {
-    console: Binding<Console>;
-    environment: Binding<FloatingEnvironment>;
 }
 
 machine Main::main(main: &mut Main) reaches Console + FloatingEnvironment {
     let upward: i32 = upward_rounding_mode();
-    let status: i32 = main.environment.set_rounding(upward);
+    let status: i32 = FloatingEnvironment::set_rounding(upward);
     let one: f64 = F64::from_i32(status) + 1.0;
     let half_ulp: f64 =
         0.00000000000000011102230246251565404236316680908203125;
@@ -60,6 +57,6 @@ machine Main::main(main: &mut Main) reaches Console + FloatingEnvironment {
         _ -> bad(main)
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(77); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(77); }
 }

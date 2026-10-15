@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega_language_std::console;
 use omega::language::core::external_binding;
 pub boundary trait CText { machine length(text: &u8, limit: u64) -> u64; }
@@ -34,7 +33,7 @@ machine advance(cursor: &mut Cursor) -> u64 {
     cursor.calls = cursor.calls + 10;
     4
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console + CText {
     let mut bytes: [u8;4];
     bytes[0] = 65;
@@ -49,6 +48,6 @@ machine Main::main(main: &mut Main) reaches Console + CText {
         true -> done(main)
         _ -> bad(main)
     }
-    state done(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state done(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

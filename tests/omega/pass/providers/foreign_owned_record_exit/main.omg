@@ -1,6 +1,5 @@
 // libc returns an IPv4 address record and consumes the same record by value.
 use omega::language::core::external_binding;
-use omega::language::core::binding;
 use omega_language_std::console;
 
 pub data InternetAddress { address: u32; }
@@ -58,19 +57,17 @@ linux_x86_64 machine host(address: InternetAddress) -> u32
     satisfies AddressParts::host via linux_x86_64_host_binding();
 
 data Main {
-    foreign: Binding<AddressParts>;
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches AddressParts + Console {
-    let first: InternetAddress = main.foreign.make(10, 66051);
-    let second: InternetAddress = main.foreign.make(44048, 513);
-    let first_host: u32 = main.foreign.host(first);
-    let second_host: u32 = main.foreign.host(second);
+    let first: InternetAddress = AddressParts::make(10, 66051);
+    let second: InternetAddress = AddressParts::make(44048, 513);
+    let first_host: u32 = AddressParts::host(first);
+    let second_host: u32 = AddressParts::host(second);
     transition first_host == 66051 && second_host == 513 {
         true -> passed(main)
         _ -> failed(main)
     }
-    state passed(main: &mut Main) { main.console.exit_process(70); }
-    state failed(main: &mut Main) { main.console.exit_process(71); }
+    state passed(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }

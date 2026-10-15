@@ -6,7 +6,6 @@
 // target-scoped producer: PE by-name on Windows, versioned ELF on Linux,
 // and one Mach-O dylib symbol on macOS AArch64.
 use omega::language::core::external_binding;
-use omega::language::core::binding;
 
 pub data ByteDescriptor {
     pointer: addr;
@@ -82,14 +81,13 @@ linux_x86_64 machine take_descriptor(value: ByteDescriptor) -> i32 satisfies Nat
 macos_arm64 machine take_descriptor(value: ByteDescriptor) -> i32 satisfies NativeByteShapes::take_descriptor via macos_arm64_take_descriptor_binding();
 
 data Main {
-    foreign: Binding<NativeByteShapes>;
     pointer: addr;
     length: u64;
     status: i32;
 }
 
 machine Main::main(main: &mut Main) reaches NativeByteShapes {
-    main.status = main.foreign.take_separate(main.pointer, main.length);
+    main.status = NativeByteShapes::take_separate(main.pointer, main.length);
     let d: ByteDescriptor = ByteDescriptor { pointer: main.pointer, length: main.length };
-    main.status = main.foreign.take_descriptor(d);
+    main.status = NativeByteShapes::take_descriptor(d);
 }

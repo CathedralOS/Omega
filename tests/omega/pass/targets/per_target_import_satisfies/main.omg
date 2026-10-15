@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 // The reviewed console contract assumed by this program.
@@ -63,9 +62,8 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     via exit_process_binding();
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_byte(65);
+    Console::write_byte(65);
 }

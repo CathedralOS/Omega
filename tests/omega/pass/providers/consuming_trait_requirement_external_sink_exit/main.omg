@@ -9,7 +9,6 @@
 // code. The same program without the sink is
 // `fail/providers/consuming_trait_requirement_without_provider`.
 use omega::language::core::external_binding;
-use omega::language::core::binding;
 
 pub data Receipt [linear] { code: i32; }
 
@@ -77,33 +76,33 @@ machine verify(correct: bool) crashes Trap {
     state bad() { crash Trap; }
 }
 
-machine settle(acknowledgement: &Binding<Acknowledgement>, receipt: Receipt, first: bool) -> i32 reaches Acknowledgement {
+machine settle(receipt: Receipt, first: bool) -> i32 reaches Acknowledgement {
     transition first {
-        true -> consume_first(acknowledgement, receipt)
-        _ -> consume_second(acknowledgement, receipt)
+        true -> consume_first(receipt)
+        _ -> consume_second(receipt)
     }
 
-    state consume_first(acknowledgement: &Binding<Acknowledgement>, receipt: Receipt) -> i32 {
+    state consume_first(receipt: Receipt) -> i32 {
         let held: Receipt = receipt;
-        transition { _ -> later(acknowledgement, held) }
+        transition { _ -> later(held) }
     }
 
-    state later(acknowledgement: &Binding<Acknowledgement>, held: Receipt) -> i32 {
-        Acknowledgement::ack(acknowledgement, held)
+    state later(held: Receipt) -> i32 {
+        Acknowledgement::ack(held)
     }
 
-    state consume_second(acknowledgement: &Binding<Acknowledgement>, receipt: Receipt) -> i32 {
-        let code: i32 = Acknowledgement::ack(acknowledgement, receipt);
+    state consume_second(receipt: Receipt) -> i32 {
+        let code: i32 = Acknowledgement::ack(receipt);
         code % 100 + 100
     }
 }
 
-data Main { acknowledgement: Binding<Acknowledgement>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Acknowledgement crashes Trap {
-    let first: i32 = settle(&main.acknowledgement, Receipt { code: 7 }, true);
-    let second: i32 = settle(&main.acknowledgement, Receipt { code: 8 }, false);
+    let first: i32 = settle(Receipt { code: 7 }, true);
+    let second: i32 = settle(Receipt { code: 8 }, false);
     let pair: Pair = Pair { left: Receipt { code: 1 }, right: Receipt { code: 2 } };
-    let left: i32 = Acknowledgement::ack(&main.acknowledgement, pair.left);
-    let right: i32 = Acknowledgement::ack(&main.acknowledgement, pair.right);
+    let left: i32 = Acknowledgement::ack(pair.left);
+    let right: i32 = Acknowledgement::ack(pair.right);
     verify(first == 7 && second == 108 && left == 1 && right == 2);
 }

@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 // This fixture retains the existing reviewed finite byte-write assumption.
@@ -74,11 +73,11 @@ machine exercise(first: bool) reaches Console {
 
 machine inspect(token: &Token) -> bool { token.first }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     exercise(true);
     // The second cleanup uses the scalar-call continuation rather than an
     // owned local's state exit, but invokes the same complete callable body.
     let observed: bool = inspect(&Token { first: false });
-    main.console.write_byte(10);
+    Console::write_byte(10);
 }

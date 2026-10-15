@@ -11,7 +11,6 @@
 // The same program without the sink is
 // `fail/providers/consuming_requirement_without_provider`.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 data Receipt [linear] {
@@ -69,11 +68,11 @@ satisfies Receipt::ack via linux_arm64_receipt_sink_binding();
 macos_arm64 machine ReceiptSink::ack_leaf(receipt: Receipt)
 satisfies Receipt::ack via macos_arm64_receipt_sink_binding();
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let issued: Receipt = Receipt { code: 7 };
     let forwarded: Receipt = issued;
     Receipt::ack(forwarded);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

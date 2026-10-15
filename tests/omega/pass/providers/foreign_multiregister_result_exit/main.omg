@@ -1,6 +1,5 @@
 // libc lldiv returns two 64-bit fields in separate Darwin result registers.
 use omega::language::core::external_binding;
-use omega::language::core::binding;
 use omega_language_std::console;
 
 pub data Division {
@@ -37,20 +36,18 @@ linux_x86_64 machine divide(numerator: i64, denominator: i64) -> Division
     satisfies IntegerDivision::divide via linux_x86_64_division_binding();
 
 data Main {
-    foreign: Binding<IntegerDivision>;
-    console: Binding<Console>;
     negative: Division;
     positive: Division;
 }
 
 machine Main::main(main: &mut Main) reaches IntegerDivision + Console {
-    main.negative = main.foreign.divide(-70000000000, 3);
-    main.positive = main.foreign.divide(70000000000, 9);
+    main.negative = IntegerDivision::divide(-70000000000, 3);
+    main.positive = IntegerDivision::divide(70000000000, 9);
     transition main.negative.quotient == -23333333333 && main.negative.remainder == -1
         && main.positive.quotient == 7777777777 && main.positive.remainder == 7 {
         true -> passed(main)
         _ -> failed(main)
     }
-    state passed(main: &mut Main) { main.console.exit_process(70); }
-    state failed(main: &mut Main) { main.console.exit_process(71); }
+    state passed(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }

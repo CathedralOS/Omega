@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 // This fixture explicitly assumes finite, normal completion of one byte write
@@ -110,12 +109,12 @@ machine replace() reaches Console {
     state done() {}
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     prefix();
-    main.console.write_byte(124);
+    Console::write_byte(124);
     complete();
-    main.console.write_byte(124);
+    Console::write_byte(124);
     replace();
-    main.console.write_byte(10);
+    Console::write_byte(10);
 }

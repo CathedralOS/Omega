@@ -1,7 +1,6 @@
 // Exact descriptor imports borrow the original field/array cell through a
 // helper. A short read preserves every byte beyond its transferred prefix.
 use omega::language::core::external_binding;
-use omega::language::core::binding;
 use omega_language_std::console;
 
 pub data DescriptorIo {}
@@ -31,7 +30,7 @@ machine receive(buffer: &mut i32, count: u32) -> i32 reaches Console blocks; {
     block DescriptorIo::read(0, buffer, count)
 }
 
-data Main { console: Binding<Console>; cell: i32; cells: [i32; 2]; }
+data Main { cell: i32; cells: [i32; 2]; }
 machine Main::main(main: &mut Main) reaches Console {
     main.cell = 256;
     main.cells[0] = 7;
@@ -46,13 +45,13 @@ machine Main::main(main: &mut Main) reaches Console {
     let empty: i32 = block receive(&mut main.cell, 1);
     // Foreign and checked Console output share one ordered private sink.
     let written: i32 = DescriptorIo::write(1, &main.cell, 1);
-    main.console.write_byte(33);
-    main.console.write_byte(10);
+    Console::write_byte(33);
+    Console::write_byte(10);
     transition zero == 0 && first == 1 && local_zero == 0 && local_count == 1 && second == 1 && empty == 0 && written == 1
         && main.cell == 321 && local[0] == 7 && local[1] == 322
         && main.cells[0] == 7 && main.cells[1] == 16909066 {
         true -> done(main, 70)
         _ -> done(main, 71)
     }
-    state done(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

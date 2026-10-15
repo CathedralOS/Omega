@@ -4,7 +4,6 @@
 // reconstructs the import's admitted native ABI independently of the authored
 // declaration: on AAPCS64 the count is a 64-bit unsigned word, and an import
 // declaring it as `u32` states a call the guard cannot bound.
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub data Cell { value: u64; }
@@ -13,7 +12,7 @@ pub boundary trait DescriptorIo {
     machine read(descriptor: i32, packet: &mut Packet, count: u32) -> i64 blocks;
 }
 pub data DescriptorImports {}
-data Main { io: Binding<DescriptorIo>; cell: Cell; }
+data Main { cell: Cell; }
 
 pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -26,7 +25,7 @@ macos_arm64 boundary machine DescriptorImports::read(descriptor: i32, packet: &m
 machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
     main.cell.value = 31;
     let packet: Packet = Packet { header: 16706, reference: &main.cell, tail: 29 };
-    let moved: i64 = block main.io.read(0, &mut packet, 1);
+    let moved: i64 = block DescriptorIo::read(0, &mut packet, 1);
     transition moved == 1 && packet.reference.value == 31 && packet.tail == 29 {
         true -> done()
         false -> bad()

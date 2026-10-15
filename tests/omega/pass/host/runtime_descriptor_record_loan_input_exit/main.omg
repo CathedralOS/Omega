@@ -1,5 +1,4 @@
 // A foreign read borrows the record itself, not a copied field or byte view.
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub data Words [copy] { first: u32; second: u32; }
@@ -9,7 +8,7 @@ pub boundary trait DescriptorIo {
 }
 pub data DescriptorImports {}
 data Holder { prefix: u32; words: Words; suffix: u32; }
-data Main { io: Binding<DescriptorIo>; holder: Holder; }
+data Main { holder: Holder; }
 
 pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -44,9 +43,9 @@ macos_arm64 boundary machine DescriptorImports::write(descriptor: i32, words: &W
 linux_x86_64 boundary machine DescriptorImports::write(descriptor: i32, words: &Words, count: u64) -> i64
     satisfies DescriptorIo::write via linux_x86_64_write_binding();
 
-machine receive(io: &Binding<DescriptorIo>, words: &mut Words, count: u64) -> i64
+machine receive(words: &mut Words, count: u64) -> i64
     reaches DescriptorIo blocks; {
-    block io.read(0, words, count)
+    block DescriptorIo::read(0, words, count)
 }
 
 machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
@@ -54,10 +53,10 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
     main.holder.words.first = 287454020;
     main.holder.words.second = 1144201745;
     main.holder.suffix = 29;
-    let zero: i64 = block receive(&main.io, &mut main.holder.words, 0);
-    let moved: i64 = block receive(&main.io, &mut main.holder.words, 7);
-    let at_end: i64 = block receive(&main.io, &mut main.holder.words, 8);
-    let written: i64 = main.io.write(1, &main.holder.words, 4);
+    let zero: i64 = block receive(&mut main.holder.words, 0);
+    let moved: i64 = block receive(&mut main.holder.words, 7);
+    let at_end: i64 = block receive(&mut main.holder.words, 8);
+    let written: i64 = DescriptorIo::write(1, &main.holder.words, 4);
     transition zero == 0 && moved == 4 && at_end == 0 && written == 4
         && main.holder.words.first == 174285409
         && main.holder.words.second == 1144201745

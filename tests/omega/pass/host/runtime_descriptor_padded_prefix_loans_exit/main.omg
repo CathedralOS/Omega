@@ -1,6 +1,5 @@
 // The demanded prefix has scalar backing; later interior/trailing padding is
 // outside the foreign read/write interval and must not acquire invented bytes.
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub data Packet [copy] { header: u16; payload: u64; ending: u8; }
@@ -10,7 +9,7 @@ pub boundary trait DescriptorIo {
 }
 pub data DescriptorImports {}
 data Holder { before: u64; packet: Packet; after: u64; }
-data Main { io: Binding<DescriptorIo>; holder: Holder; }
+data Main { holder: Holder; }
 
 pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -45,9 +44,9 @@ macos_arm64 boundary machine DescriptorImports::write(descriptor: i32, packet: &
 linux_x86_64 boundary machine DescriptorImports::write(descriptor: i32, packet: &Packet, count: u64) -> i64
     satisfies DescriptorIo::write via linux_x86_64_write_binding();
 
-machine receive(io: &Binding<DescriptorIo>, packet: &mut Packet, count: u64) -> i64
+machine receive(packet: &mut Packet, count: u64) -> i64
     reaches DescriptorIo blocks; {
-    block io.read(0, packet, count)
+    block DescriptorIo::read(0, packet, count)
 }
 
 machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
@@ -56,13 +55,13 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
     main.holder.packet.payload = 123456789;
     main.holder.packet.ending = 29;
     main.holder.after = 31;
-    let zero: i64 = block receive(&main.io, &mut main.holder.packet, 0);
-    let moved: i64 = block receive(&main.io, &mut main.holder.packet, 1);
+    let zero: i64 = block receive(&mut main.holder.packet, 0);
+    let moved: i64 = block receive(&mut main.holder.packet, 1);
     let saved: u16 = main.holder.packet.header;
-    let written: i64 = main.io.write(1, &main.holder.packet, 2);
-    let tail: i64 = block receive(&main.io, &mut main.holder.packet, 1);
-    let at_end: i64 = block receive(&main.io, &mut main.holder.packet, 2);
-    let newline: i64 = main.io.write(1, &main.holder.packet, 1);
+    let written: i64 = DescriptorIo::write(1, &main.holder.packet, 2);
+    let tail: i64 = block receive(&mut main.holder.packet, 1);
+    let at_end: i64 = block receive(&mut main.holder.packet, 2);
+    let newline: i64 = DescriptorIo::write(1, &main.holder.packet, 1);
     transition zero == 0 && moved == 1 && tail == 1 && at_end == 0
         && written == 2 && newline == 1 && saved == 16707
         && main.holder.packet.header == 16650

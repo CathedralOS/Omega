@@ -1,6 +1,5 @@
 // The entry context's nominal cleanup occupies its hosted extent through
 // completion: the bridge runs it on normal return after the body.
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 // This fixture explicitly assumes finite, normal completion of one byte write
@@ -69,11 +68,11 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
     via exit_process_binding();
 
-data Main { console: Binding<Console>; byte: i32; }
+data Main { byte: i32; }
 machine Main::drop(main: &mut Main) reaches Console {
-    main.console.write_byte(main.byte);
+    Console::write_byte(main.byte);
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.byte = 67;
-    main.console.write_byte(10);
+    Console::write_byte(10);
 }

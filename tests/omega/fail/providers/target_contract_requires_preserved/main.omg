@@ -1,7 +1,6 @@
 // Expected exit: 0.
 // Adjacent external contracts and target-scoped checked machines are separate
 // declarations. Local facts named like targets remain ordinary proof facts.
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub boundary trait Magnitude {
@@ -22,10 +21,10 @@ pub macos_arm64 boundary machine alternate(value: i32) -> i32
 pub macos_arm64 machine checked_offset(value: i32, macos_arm64: i32) -> i32
     requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }
 
-data Main { magnitude: Binding<Magnitude>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Magnitude crashes Trap {
-    let magnitude: i32 = main.magnitude.absolute(-2147483648);
-    let alternate: i32 = main.magnitude.alternate(-39);
+    let magnitude: i32 = Magnitude::absolute(-2147483648);
+    let alternate: i32 = Magnitude::alternate(-39);
     let offset: i32 = checked_offset(41, 0);
     transition magnitude == 41 && alternate == 39 && offset == 42 {
         true -> done()

@@ -1,7 +1,6 @@
 // Expected exit: 0. Expected output contains: A.
 // A foreign scalar snapshot checks the original signed
 // predicate through its captured codec, not against the observed u8 carrier.
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField
@@ -72,7 +71,7 @@ linux_x86_64 boundary machine ByteImports::write(descriptor: i32, value: &u8, co
 linux_arm64 boundary machine ByteImports::write(descriptor: i32, value: &u8, count: u64) -> i64
     satisfies ByteOutput::write via ForeignBinding::Syscall(64);
 
-data Main { io: Binding<ByteOutput>; encoded: SignedByte<NarrowByte>; }
+data Main { encoded: SignedByte<NarrowByte>; }
 
 machine read(value: &u8) -> u8 { value }
 machine identity(value: &u8) -> &u8 { value }
@@ -86,11 +85,11 @@ machine Main::main(main: &mut Main) reaches ByteOutput crashes Trap {
     let returned: &u8 = identity(&view.value);
     let after: u8 = read(returned);
     view.value = 65u8;
-    let written: i64 = main.io.write(1, &view.value, 1);
+    let written: i64 = ByteOutput::write(1, &view.value, 1);
     view.value = 10u8;
-    let newline: i64 = main.io.write(1, &view.value, 1);
+    let newline: i64 = ByteOutput::write(1, &view.value, 1);
     write(&mut view.value);
-    let empty: i64 = main.io.write(1, &view.value, 0);
+    let empty: i64 = ByteOutput::write(1, &view.value, 0);
     transition written == 1 && newline == 1 && empty == 0 && before == 247u8 && after == 255u8 && main.encoded.value == -1i64 {
         true -> done()
         _ -> bad()

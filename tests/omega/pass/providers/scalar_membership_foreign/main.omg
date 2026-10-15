@@ -1,5 +1,4 @@
 // Predicate-qualified scalars are not structural boundary arguments.
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 pub domain i32::MagnitudeInput(value)
     requires value > -2147483648; (value & 1) == 0;
@@ -17,9 +16,9 @@ macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
 macos_arm64 machine absolute(value: i32 in MagnitudeInput) -> i32
     satisfies Magnitude::absolute via absolute_binding()
     requires 6 in MagnitudeInput;
-data Main { magnitude: Binding<Magnitude>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Magnitude crashes Trap {
-    let result: i32 = main.magnitude.absolute(-128);
+    let result: i32 = Magnitude::absolute(-128);
     transition result == 128 { true -> done() false -> wrong() }
     state done() {}
     state wrong() { crash Trap; }

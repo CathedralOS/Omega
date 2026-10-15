@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub data Inner [copy] { bytes: [u8; 3]; }
@@ -8,7 +7,7 @@ pub boundary trait DescriptorIo {
     machine write(descriptor: i32, packet: &Packet, count: u64) -> i64;
 }
 pub data DescriptorImports {}
-data Main { io: Binding<DescriptorIo>; before: u32; packet: Packet; after: u32; }
+data Main { before: u32; packet: Packet; after: u32; }
 
 pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -34,17 +33,17 @@ linux_x86_64 boundary machine DescriptorImports::write(descriptor: i32, packet: 
 linux_arm64 boundary machine DescriptorImports::write(descriptor: i32, packet: &Packet, count: u64) -> i64
     satisfies DescriptorIo::write via ForeignBinding::Syscall(64);
 
-machine receive(io: &Binding<DescriptorIo>, packet: &mut Packet) -> i64 reaches DescriptorIo blocks; {
-    block io.read(0, packet, 6)
+machine receive(packet: &mut Packet) -> i64 reaches DescriptorIo blocks; {
+    block DescriptorIo::read(0, packet, 6)
 }
 
 machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
     main.before = 17;
     main.packet = Packet { header: 60, inner: Inner { bytes: [88, 88, 88] }, tail: 2593 };
     main.after = 29;
-    let moved: i64 = block receive(&main.io, &mut main.packet);
-    let at_end: i64 = block main.io.read(0, &mut main.packet, 6);
-    let written: i64 = main.io.write(1, &main.packet, 6);
+    let moved: i64 = block receive(&mut main.packet);
+    let at_end: i64 = block DescriptorIo::read(0, &mut main.packet, 6);
+    let written: i64 = DescriptorIo::write(1, &main.packet, 6);
     transition moved == 4 && at_end == 0 && written == 6
         && main.packet.header == 97 && main.packet.inner.bytes[0] == 98
         && main.packet.inner.bytes[1] == 99 && main.packet.inner.bytes[2] == 10

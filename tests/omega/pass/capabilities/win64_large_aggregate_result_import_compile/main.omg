@@ -1,7 +1,6 @@
 // Microsoft x64 returns larger records through a caller-owned destination in
 // hidden RCX. The declared seed argument therefore shifts to RDX.
 use omega::language::core::external_binding;
-use omega::language::core::binding;
 
 pub data Triple {
     first: u64;
@@ -25,11 +24,10 @@ windows_x86_64 machine large_aggregate_result_binding() -> ForeignBinding<19, 30
 windows_x86_64 machine large_aggregate_result_import(seed: u64) -> Triple satisfies LargeAggregateResultImport::receive via large_aggregate_result_binding();
 
 data Main {
-    foreign: Binding<LargeAggregateResultImport>;
     seed: u64;
     result: Triple;
 }
 machine Main::main(main: &mut Main) reaches LargeAggregateResultImport {
     main.seed = 7;
-    main.result = main.foreign.receive(main.seed);
+    main.result = LargeAggregateResultImport::receive(main.seed);
 }

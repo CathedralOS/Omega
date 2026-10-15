@@ -1,7 +1,6 @@
 use omega_language_std::calling;
 use omega_language_std::console;
 use omega::language::core::external_binding;
-use omega::language::core::binding;
 
 pub data CallbackPolicies { }
 pub PointCalling satisfies CallingPolicy {
@@ -137,18 +136,18 @@ where machine Selected satisfies PointProcedure::visit;
 satisfies LineRaster::draw
 via line_binding();
 
-data Main { context: CallbackState; console: Binding<Console>; line_raster: Binding<LineRaster>; }
+data Main { context: CallbackState; }
 machine Main::main(main: &mut Main) reaches LineRaster + PointProcedure + Console
 invokes LineRaster;
 invokes Console;
 {
     main.context = CallbackState { observed: false, last_x: 0, last_y: 0 };
-    let status: i32 = LineRaster::draw<PointHandler::visit>(&main.line_raster, 2, 4, 5, 4, &mut main.context);
+    let status: i32 = LineRaster::draw<PointHandler::visit>(2, 4, 5, 4, &mut main.context);
     transition status != 0 && main.context.observed
         && main.context.last_x == 4 && main.context.last_y == 4 {
-        true -> done(&main.console)
-        _ -> failed(&main.console)
+        true -> done()
+        _ -> failed()
     }
-    state done(console: &Binding<Console>) { Console::exit_process(console, 0); }
-    state failed(console: &Binding<Console>) { Console::exit_process(console, 71); }
+    state done() { Console::exit_process(0); }
+    state failed() { Console::exit_process(71); }
 }

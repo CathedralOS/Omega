@@ -3,7 +3,6 @@
 // must observe and replace the same established scalar storage.
 use omega::language::core::external_binding;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub boundary trait Magnitude {
     machine absolute(value: i32) -> i32;
@@ -76,7 +75,7 @@ machine parameter_length(bytes: [u8; 6]) -> u64 reaches CText {
     length
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console + Magnitude + CText {
     let input: Input = Input { amount: 0 - 7 };
     let input_result: i32 = input_magnitude(&input);
@@ -95,8 +94,8 @@ machine Main::main(main: &mut Main) reaches Console + Magnitude + CText {
     transition first == 40 && replacement == 2 && current == 2
         && input_result == 7 && input.amount == 0 - 7
         && first_length == 5 && forwarded_length == 5 && length == 2 {
-        true -> done(&main.console, 70)
-        _ -> done(&main.console, 71)
+        true -> done(70)
+        _ -> done(71)
     }
-    state done(console: &Binding<Console>, code: i32) { Console::exit_process(console, code); }
+    state done(code: i32) { Console::exit_process(code); }
 }

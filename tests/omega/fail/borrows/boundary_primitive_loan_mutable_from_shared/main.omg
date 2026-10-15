@@ -1,11 +1,10 @@
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub boundary trait ScalarInput {
     machine read(descriptor: i32, value: &mut f32, count: u64) -> i64 blocks;
 }
 pub data ScalarImports {}
-data Main { input: Binding<ScalarInput>; }
+data Main { }
 
 pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -18,5 +17,5 @@ macos_arm64 boundary machine ScalarImports::read(descriptor: i32, value: &mut f3
 machine Main::main(main: &mut Main) reaches ScalarInput blocks; {
     let mut value: f32 = 100.0f32;
     let observed: &f32 = &value;
-    let moved: i64 = block main.input.read(0, observed, 4);
+    let moved: i64 = block ScalarInput::read(0, observed, 4);
 }

@@ -11,7 +11,6 @@ use omega_language_std::console;
 use omega_language_std::clock;
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data TimedWait { }
 
@@ -60,7 +59,6 @@ reaches
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(context: &mut Main) reaches Console + Clock {
@@ -77,9 +75,9 @@ machine Main::main(context: &mut Main) reaches Console + Clock {
             false -> early(&mut context)
         }
     }
-    state waited(context: &mut Main) { context.console.exit_process(70); }
-    state early(context: &mut Main) { context.console.exit_process(71); }
-    state failed(context: &mut Main) { context.console.exit_process(72); }
+    state waited(context: &mut Main) { Console::exit_process(70); }
+    state early(context: &mut Main) { Console::exit_process(71); }
+    state failed(context: &mut Main) { Console::exit_process(72); }
 }
 
 // The scalar clock seam is foreign on Darwin and a checked timespec adapter

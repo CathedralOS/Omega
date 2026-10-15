@@ -1,6 +1,5 @@
 // The record owns its byte array. Window reads and a whole-field write lend
 // that storage without transferring the record or touching its sibling field.
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 use omega_language_std::calling;
 use byte_view_calling;
@@ -10,7 +9,7 @@ pub boundary trait DescriptorIo: Calling<ByteViewCallingPolicy<u8>> {
     machine write_bytes(descriptor: i32, bytes: &[u8]) -> i64;
 }
 pub data DescriptorImports { }
-data Main { io: Binding<DescriptorIo>; }
+data Main { }
 data Packet { bytes: [u8; 7]; marker: u32; }
 
 pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
@@ -47,16 +46,16 @@ linux_x86_64 boundary machine DescriptorImports::write_bytes(descriptor: i32, by
     satisfies DescriptorIo::write_bytes via linux_x86_64_write_binding();
 
 machine receive(main: &mut Main, bytes: &mut [u8]) -> i64 reaches DescriptorIo blocks; {
-    block main.io.read_bytes(0, bytes)
+    block DescriptorIo::read_bytes(0, bytes)
 }
 
 machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
     let mut packet: Packet = Packet { bytes: [60, 88, 88, 88, 88, 33, 10], marker: 17 };
-    let empty: i64 = block main.io.read_bytes(0, &mut packet.bytes[7..7]);
+    let empty: i64 = block DescriptorIo::read_bytes(0, &mut packet.bytes[7..7]);
     let received: i64 = block receive(main, &mut packet.bytes[1..6]);
-    let at_end: i64 = block main.io.read_bytes(0, &mut packet.bytes[0..1]);
-    let whole_at_end: i64 = block main.io.read_bytes(0, &mut packet.bytes);
-    let written: i64 = main.io.write_bytes(1, &packet.bytes);
+    let at_end: i64 = block DescriptorIo::read_bytes(0, &mut packet.bytes[0..1]);
+    let whole_at_end: i64 = block DescriptorIo::read_bytes(0, &mut packet.bytes);
+    let written: i64 = DescriptorIo::write_bytes(1, &packet.bytes);
     transition empty == 0 && received == 4 && at_end == 0 && whole_at_end == 0 && written == 7
         && packet.bytes[0] == 60 && packet.bytes[1] == 97 && packet.bytes[2] == 98
         && packet.bytes[3] == 99 && packet.bytes[4] == 10 && packet.bytes[5] == 33 && packet.bytes[6] == 10

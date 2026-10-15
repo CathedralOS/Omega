@@ -1,7 +1,6 @@
 // Expected exit: 0. Expected output contains: AB.
 // Stored references retain their nonzero descriptor slot and selectors when
 // exported as thin pointers, including helper and runtime-indexed crossings.
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub boundary trait ByteOutput {
@@ -21,13 +20,13 @@ linux_arm64 boundary machine ByteImports::write(descriptor: i32, value: &u8, cou
     satisfies ByteOutput::write via ForeignBinding::Syscall(64);
 
 data Holder { padding: u64; reference: &u8; }
-data Main { io: Binding<ByteOutput>; first: u8; second: u8; newline: u8; }
+data Main { first: u8; second: u8; newline: u8; }
 
-machine send(io: &Binding<ByteOutput>, holder: &Holder) -> i64 reaches ByteOutput {
-    io.write(1, holder.reference, 1)
+machine send(holder: &Holder) -> i64 reaches ByteOutput {
+    ByteOutput::write(1, holder.reference, 1)
 }
-machine send_indexed(io: &Binding<ByteOutput>, holders: &[Holder; 2], index: u64[0..2]) -> i64 reaches ByteOutput {
-    io.write(1, holders[index].reference, 1)
+machine send_indexed(holders: &[Holder; 2], index: u64[0..2]) -> i64 reaches ByteOutput {
+    ByteOutput::write(1, holders[index].reference, 1)
 }
 
 machine Main::main(main: &mut Main) reaches ByteOutput crashes Trap {
@@ -35,14 +34,14 @@ machine Main::main(main: &mut Main) reaches ByteOutput crashes Trap {
     main.second = 66u8;
     main.newline = 10u8;
     let holder: Holder = Holder { padding: 901u64, reference: &main.first };
-    let first: i64 = send(&main.io, &holder);
+    let first: i64 = send(&holder);
     let holders: [Holder; 2] = [
         Holder { padding: 902u64, reference: &main.first },
         Holder { padding: 903u64, reference: &main.second }
     ];
     let index: u64[0..2] = 1;
-    let second: i64 = send_indexed(&main.io, &holders, index);
-    let newline: i64 = main.io.write(1, &main.newline, 1);
+    let second: i64 = send_indexed(&holders, index);
+    let newline: i64 = ByteOutput::write(1, &main.newline, 1);
     transition first == 1 && second == 1 && newline == 1
         && holder.padding == 901u64 && holders[0].padding == 902u64
         && holders[1].padding == 903u64 && main.first == 65u8 && main.second == 66u8 {

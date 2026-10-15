@@ -14,9 +14,8 @@
 // NATIVE-ONLY: the interpreter has no provider for authored bindings.
 use omega::language::core::external_binding;
 use omega_language_std::console;
-use omega::language::core::binding;
 pub boundary trait Beeper { machine beep(value: i32) -> i32; }
-data Main { console: Binding<Console>; beeper: Binding<Beeper>; m: i32; v: i32; }
+data Main { m: i32; v: i32; }
 windows_x86_64 machine beeper_binding() -> ForeignBinding<10, 3, 0> {
     ForeignBinding::DllImport {
         import: DllImport::PeByName {
@@ -28,8 +27,8 @@ windows_x86_64 machine beeper_binding() -> ForeignBinding<10, 3, 0> {
 machine beeper_abs(value: i32) -> i32 satisfies Beeper::beep via beeper_binding();
 machine Main::main(main: &mut Main) reaches Beeper + Console {
     main.v = 0 - 42;
-    main.m = main.beeper.beep(main.v);
+    main.m = Beeper::beep(main.v);
     transition main.m == 42 { true -> good(main) _ -> bad(main, 71) }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

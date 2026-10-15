@@ -1,7 +1,6 @@
 // libc `lldiv` returns two 64-bit fields in separate Darwin result
 // registers — the record result arrives as two i64 slots.
 use omega::language::core::external_binding;
-use omega::language::core::binding;
 
 pub data Division {
     quotient: i64;
@@ -22,10 +21,9 @@ macos_arm64 machine divide(numerator: i64, denominator: i64) -> Division
     satisfies IntegerDivision::divide via division_binding();
 
 data Main {
-    foreign: Binding<IntegerDivision>;
     negative: Division;
 }
 
 machine Main::main(main: &mut Main) reaches IntegerDivision {
-    main.negative = main.foreign.divide(-70000000000, 3);
+    main.negative = IntegerDivision::divide(-70000000000, 3);
 }

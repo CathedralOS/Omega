@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 // This fixture explicitly assumes finite, normal completion of one byte write
@@ -107,7 +106,7 @@ machine verify(accepted: bool) reaches Console crashes Trap {
     state bad() { crash Trap; }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console crashes Trap {
     verify(fieldwise_then_selected(false));
     verify(fieldwise_then_selected(true));

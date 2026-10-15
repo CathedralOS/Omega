@@ -4,7 +4,6 @@
 // slice's backing byte, not its descriptor: over "hello" the leaf measures 3
 // from byte 2. The provider answers 70 only then; Main exits with the answer.
 // Expected exit: 70.
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 use omega_language_std::console;
 
@@ -89,8 +88,6 @@ linux_x86_64 machine MeasureProvider::measure(text: &[u8]) -> i32 satisfies Meas
 }
 
 data Main {
-    console: Binding<Console>;
-    measure: Binding<Measure>;
     words: Words;
     result: i32;
 }
@@ -103,11 +100,11 @@ machine Main::main(main: &mut Main) reaches Console + CText + Measure {
     main.words.bytes[4] = 111;
     main.words.bytes[5] = 0;
     let view: &[u8] = &main.words.bytes[..];
-    main.result = main.measure.measure(view);
+    main.result = Measure::measure(view);
     transition main.result == 70 {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

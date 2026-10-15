@@ -1,6 +1,5 @@
 // libc div returns two signed int fields in one public C record.
 use omega::language::core::external_binding;
-use omega::language::core::binding;
 use omega_language_std::console;
 
 pub data Division {
@@ -37,20 +36,18 @@ linux_x86_64 machine divide(numerator: i32, denominator: i32) -> Division
     satisfies IntegerDivision::divide via linux_x86_64_division_binding();
 
 data Main {
-    foreign: Binding<IntegerDivision>;
-    console: Binding<Console>;
     negative: Division;
     positive: Division;
 }
 
 machine Main::main(main: &mut Main) reaches IntegerDivision + Console {
-    main.negative = main.foreign.divide(-70, 3);
-    main.positive = main.foreign.divide(70, 9);
+    main.negative = IntegerDivision::divide(-70, 3);
+    main.positive = IntegerDivision::divide(70, 9);
     transition main.negative.quotient == -23 && main.negative.remainder == -1
         && main.positive.quotient == 7 && main.positive.remainder == 7 {
         true -> passed(main)
         _ -> failed(main)
     }
-    state passed(main: &mut Main) { main.console.exit_process(70); }
-    state failed(main: &mut Main) { main.console.exit_process(71); }
+    state passed(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }

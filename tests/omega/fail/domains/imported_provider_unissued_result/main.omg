@@ -1,5 +1,4 @@
 use omega::language::core::external_binding;
-use omega::language::core::binding;
 
 pub data Resource { identity: u64; }
 pub domain Resource::Open established by acquire;
@@ -14,5 +13,5 @@ machine imported_binding() -> ForeignBinding<26, 7, 0> {
 macos_arm64 machine ImportedSource::open() -> Resource in Open
 satisfies Source::open via imported_binding();
 machine close(resource: Resource in Open) {}
-data Main { source: Binding<Source>; }
-machine Main::main(context: &mut Main) reaches Source { close(Source::open(&context.source)); }
+data Main { }
+machine Main::main(context: &mut Main) reaches Source { close(Source::open()); }

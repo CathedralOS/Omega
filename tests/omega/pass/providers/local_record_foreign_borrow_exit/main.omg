@@ -3,7 +3,6 @@
 // ordinary reads after those calls must still observe the authored values.
 use omega::language::core::external_binding;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub data Pair { first: i64; second: i64; }
 data Holder { prefix: i64; payload: Pair; }
@@ -35,18 +34,18 @@ linux_x86_64 machine compare_bytes(left: &Pair, right: &Pair, count: u64) -> i32
 
 machine second_value(first: i64 [0..=69]) -> i64 [1..=70] { first + 1 }
 
-data Main { compare: Binding<Compare>; console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Compare + Console {
     let second: i64 = second_value(69);
     let expected: Pair = Pair { first: 69, second: second };
     let actual: Pair = Pair { first: 69, second: 70 };
     let holder: Holder = Holder { prefix: 999, payload: Pair { first: 69, second: 70 } };
-    let whole: i32 = Compare::bytes(&main.compare, &actual, &expected, 16);
-    let projected: i32 = Compare::bytes(&main.compare, &holder.payload, &expected, 16);
+    let whole: i32 = Compare::bytes(&actual, &expected, 16);
+    let projected: i32 = Compare::bytes(&holder.payload, &expected, 16);
     transition whole == 0 && projected == 0 && actual.second == 70 && holder.prefix == 999 {
-        true -> good(&main.console)
-        _ -> bad(&main.console)
+        true -> good()
+        _ -> bad()
     }
-    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state bad(console: &Binding<Console>) { Console::exit_process(console, 71); }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(71); }
 }

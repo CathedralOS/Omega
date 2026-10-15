@@ -8,7 +8,6 @@
 // C library `abs`). `fail/ownership/linear_transparent_record_member_scope_loss`
 // is the same frontier with one member left unconsumed.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 data Receipt [linear] {
@@ -73,7 +72,7 @@ data Pair {
     right: Receipt;
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let left: Receipt = Receipt { code: 1 };
@@ -84,5 +83,5 @@ machine Main::main(main: &mut Main) reaches Console {
     let extracted_right: Receipt = forwarded.right;
     Receipt::ack(extracted_left);
     Receipt::ack(extracted_right);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

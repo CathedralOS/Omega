@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub boundary trait ScalarOutput {
@@ -6,7 +5,7 @@ pub boundary trait ScalarOutput {
     machine byte(descriptor: i32, value: &u8, count: u64) -> i64;
 }
 pub data ScalarImports {}
-data Main { output: Binding<ScalarOutput>; }
+data Main { }
 
 pub macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -31,18 +30,18 @@ linux_x86_64 boundary machine ScalarImports::byte(descriptor: i32, value: &u8, c
     satisfies ScalarOutput::byte via linux_x86_64_write_binding();
 
 machine set(value: &mut bool) { value = true; }
-machine emit(output: &Binding<ScalarOutput>, value: &bool) -> i64 reaches ScalarOutput {
-    transition { _ -> write(output, value) }
-    state write(output: &Binding<ScalarOutput>, value: &bool) {
-        output.flag(1, value, 1)
+machine emit(value: &bool) -> i64 reaches ScalarOutput {
+    transition { _ -> write(value) }
+    state write(value: &bool) {
+        ScalarOutput::flag(1, value, 1)
     }
 }
 machine Main::main(main: &mut Main) reaches ScalarOutput crashes Trap {
     let mut flag: bool = false;
     set(&mut flag);
-    let written: i64 = emit(&main.output, &flag);
+    let written: i64 = emit(&flag);
     let mut newline: u8 = 10;
-    let ended: i64 = main.output.byte(1, &newline, 1);
+    let ended: i64 = ScalarOutput::byte(1, &newline, 1);
     transition flag && written == 1 && ended == 1 {
         true -> done()
         false -> bad()

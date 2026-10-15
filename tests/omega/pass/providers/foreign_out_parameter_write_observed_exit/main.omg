@@ -14,7 +14,6 @@
 // its pre-call initializer.
 use omega::language::core::external_binding;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub data ForeignWrittenInstant { seconds: i64; nanoseconds: i64; }
 
@@ -48,22 +47,22 @@ linux_x86_64 machine foreign_clock_gettime(clock_id: u32, instant: &mut ForeignW
     satisfies ForeignOutParameter::clock_gettime
     via linux_x86_64_foreign_out_parameter_binding();
 
-data Main { foreign_out_parameter: Binding<ForeignOutParameter>; console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches ForeignOutParameter + Console {
     let mut instant: ForeignWrittenInstant = ForeignWrittenInstant { seconds: 0, nanoseconds: 0 };
-    let status: i32 = ForeignOutParameter::clock_gettime(&main.foreign_out_parameter, 0, &mut instant);
+    let status: i32 = ForeignOutParameter::clock_gettime(0, &mut instant);
     transition status == 0 {
-        true -> check_written(&main.console, instant.seconds)
-        _ -> bad(&main.console, 71)
+        true -> check_written(instant.seconds)
+        _ -> bad(71)
     }
 
-    state check_written(console: &Binding<Console>, seconds: i64) {
+    state check_written(seconds: i64) {
         transition seconds > 1767225600 {
-            true -> good(console)
-            _ -> bad(console, 72)
+            true -> good()
+            _ -> bad(72)
         }
     }
 
-    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state bad(console: &Binding<Console>, code: i32) { Console::exit_process(console, code); }
+    state good() { Console::exit_process(70); }
+    state bad(code: i32) { Console::exit_process(code); }
 }
