@@ -1,5 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_target_inherited_provider_roster_exit");
     Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
 }

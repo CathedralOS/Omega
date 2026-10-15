@@ -35,12 +35,27 @@ data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Child, FirstMap>(defaults);
 }
+
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Child, FirstMap>(defaults);
+}
 windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Child, SecondMap>(defaults);
 }
 
 data Main {}
 macos_arm64 machine Main::main() reaches Parent + Child crashes Trap {
+    let chosen: i32 = Child::choose();
+    let first: i32 = Parent::echo<4>((17 as i32));
+    let second: i32 = Parent::echo<8>((25 as i32));
+    transition chosen == 1 && first == 17 && second == 25 {
+        true -> done() _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+linux_x86_64 machine Main::main() reaches Parent + Child crashes Trap {
     let chosen: i32 = Child::choose();
     let first: i32 = Parent::echo<4>((17 as i32));
     let second: i32 = Parent::echo<8>((25 as i32));

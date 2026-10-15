@@ -48,12 +48,23 @@ data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Pick, FirstProvider>(defaults);
 }
+
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Pick, FirstProvider>(defaults);
+}
 windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Pick, SecondProvider>(defaults);
 }
 
 data Main {}
 macos_arm64 machine Main::main() reaches Pick crashes Trap {
+    let selected: i32 = Pick::choose();
+    transition selected == 1 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+linux_x86_64 machine Main::main() reaches Pick crashes Trap {
     let selected: i32 = Pick::choose();
     transition selected == 1 { true -> done() _ -> bad() }
     state done() {}
