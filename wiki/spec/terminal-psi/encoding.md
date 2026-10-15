@@ -528,7 +528,9 @@ id + result case id + `u32` guarded position + callee obligation id + callee
 term id + output field string + callee proposition id + instantiated
 proposition id + output evidence term id + result substitution (`u8`: 0
 absent; 1 + `u32` argument position + callee result place id + caller result
-place id) + validity record (result place id + counted proposition-dependency
+place id) + counted argument substitutions (`u32` proposition argument
+position + `u32` callee scalar parameter position, strictly increasing by
+argument position) + validity record (result place id + counted proposition-dependency
 place ids + evidence interface + counted interface-dependency place ids) +
 `u32` expected use count + counted uses (target machine id + `u32` input
 position + target requirement proposition id + target evidence term id +

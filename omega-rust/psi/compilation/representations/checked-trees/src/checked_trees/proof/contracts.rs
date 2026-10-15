@@ -122,6 +122,11 @@ pub struct OutcomeSpecificArmRowFact {
     /// saved result occurrence have been substituted.
     pub instantiated_proposition: Option<crate::CheckedPropositionApplication>,
     pub instantiated_label: Option<String>,
+    /// The root of each argument of the guarantee's proposition, in argument
+    /// order; empty for a fact that is not a proposition. Lowering turns a
+    /// callee-result or callee-parameter root whose instantiated argument
+    /// differs from the declared one into the row's substitution.
+    pub argument_roots: Vec<OutcomeOccurrenceRoot>,
     /// Structured checked validity input retained before normalized labels
     /// erase caller-place structure. The result occurrence always
     /// participates; `referenced_occurrences` are expressions in the
@@ -167,8 +172,11 @@ pub enum OutcomeOccurrenceRoot {
     /// The callee's reserved `result`, which the caller's call result
     /// replaces under contract import.
     CalleeResult,
-    /// Any other occurrence (an input of the callee or a projection); no
-    /// Terminal lane re-anchors it at the caller yet.
+    /// A bare occurrence of the callee's parameter at this authored
+    /// position, which the call's argument there replaces.
+    CalleeParameter { source_position: u32 },
+    /// Any other occurrence (a projection or a computed value); no Terminal
+    /// lane re-anchors it at the caller yet.
     Other,
 }
 

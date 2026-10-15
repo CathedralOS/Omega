@@ -15,9 +15,10 @@ pub use content::{
 };
 pub use contracts::{
     ContractClause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, MachineContract,
-    OutcomeSpecificCallEvidence, OutcomeSpecificCallEvidenceValidity,
-    OutcomeSpecificCallResultSubstitution, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
-    OutcomeSpecificEvidenceUse, OutcomeSpecificGuard,
+    OutcomeSpecificCallArgumentSubstitution, OutcomeSpecificCallEvidence,
+    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
+    OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificEvidenceUse,
+    OutcomeSpecificGuard,
 };
 pub use declarations::{
     EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,

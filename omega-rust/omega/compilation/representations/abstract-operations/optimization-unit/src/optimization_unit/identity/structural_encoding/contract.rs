@@ -79,6 +79,10 @@ pub(in crate::optimization_unit::identity) fn encode_outcome_specific_call_evide
             bytes.id(substitution.caller_result);
         },
     );
+    bytes.slice(&evidence.argument_substitutions, |bytes, substitution| {
+        bytes.u32(substitution.argument_position);
+        bytes.u32(substitution.parameter_position);
+    });
     bytes.id(evidence.validity.result);
     encode_ids(bytes, &evidence.validity.proposition_dependencies);
     encode_evidence_interface(bytes, &evidence.validity.evidence_interface);

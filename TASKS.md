@@ -3277,13 +3277,17 @@ code and preserve check/native behavior for the named customer slices.
   proposition that names the callee's `result` carries the row's result
   substitution and the call result as its validity dependency
   (`run/calls/outcome_specific_selected_guarantee_result_exit`, exit 0 in
-  both engines). Frontier: a proposition that names a callee input, a callee
-  with structural inputs, entry claims, other contract rows or crash routes,
-  and dependencies on any occurrence other than the callee's `result` are
-  refused by name ("... beyond the call result are unimplemented", "... with
-  structural inputs or other contracts is unimplemented"); inputs need an
-  argument lane in the Terminal evidence row. Coordinate operator returns
-  with **OPERATOR-BOUNDARY-CALLS**.
+  both engines), and one that names a scalar input carries an argument
+  substitution to the call's argument
+  (`run/calls/outcome_specific_selected_guarantee_input_exit`, exit 0 in both
+  engines). Frontier: a callee with structural inputs, entry claims, other
+  contract rows or crash routes, and a proposition argument or dependency
+  rooted at anything but the callee's `result` or a bare scalar parameter
+  (a projection, a computed value) are refused by name ("... with structural
+  inputs or other contracts is unimplemented", "... names neither the
+  callee's result nor a scalar input is unimplemented", "... beyond the call
+  result are unimplemented"). Coordinate operator returns with
+  **OPERATOR-BOUNDARY-CALLS**.
 
 ## Checker simplification
 

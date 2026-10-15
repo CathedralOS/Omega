@@ -313,6 +313,14 @@ fn encode_selected_evidence(
                 writer.id(substitution.caller_result);
             }
         }
+        writer.len(
+            "guarded call argument substitutions",
+            binding.argument_substitutions.len(),
+        )?;
+        for substitution in &binding.argument_substitutions {
+            writer.u32(substitution.argument_position);
+            writer.u32(substitution.parameter_position);
+        }
         writer.id(binding.validity.result);
         writer.len(
             "guarded call proposition dependencies",
@@ -375,6 +383,12 @@ fn decode_selected_evidence(
                     ));
                 }
             },
+            argument_substitutions: decode_counted(reader, |reader| {
+                Ok(terminal_psi::OutcomeSpecificCallArgumentSubstitution {
+                    argument_position: reader.u32()?,
+                    parameter_position: reader.u32()?,
+                })
+            })?,
             validity: OutcomeSpecificCallEvidenceValidity {
                 result: reader.id("PlaceId")?,
                 proposition_dependencies: decode_ids(reader, "PlaceId")?,

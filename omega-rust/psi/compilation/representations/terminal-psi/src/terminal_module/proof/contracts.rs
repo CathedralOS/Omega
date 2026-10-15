@@ -100,6 +100,11 @@ pub struct OutcomeSpecificCallEvidence {
     /// Present exactly when the proposition application mentions the complete
     /// structural result. This source-handle-free row, rather than application
     /// display strings, authorizes the one bounded substitution.
+    /// Proposition arguments that name a scalar input of the callee, each
+    /// re-anchored to the call's argument at `parameter_position`, sorted by
+    /// `argument_position`. Scalar arguments are values, so they add no
+    /// validity dependency.
+    pub argument_substitutions: Vec<OutcomeSpecificCallArgumentSubstitution>,
     pub result_substitution: Option<OutcomeSpecificCallResultSubstitution>,
     pub validity: OutcomeSpecificCallEvidenceValidity,
     /// Independent cardinality commitment for the bounded selected-term use
@@ -120,6 +125,15 @@ pub struct OutcomeSpecificEvidenceUse {
     pub instantiated_proposition: PropositionId,
     pub target_parameter: PlaceId,
     pub caller_result: PlaceId,
+}
+
+/// One proposition argument of a selected guarantee that the callee declares
+/// over its scalar input at `parameter_position` and the caller instantiates
+/// with the call's argument at that position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct OutcomeSpecificCallArgumentSubstitution {
+    pub argument_position: u32,
+    pub parameter_position: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

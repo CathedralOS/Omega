@@ -752,11 +752,14 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                             binding.output,
                         )
                     })) || selected_evidence.iter().any(|binding| {
-                        !strictly_increasing(
-                            binding.validity.proposition_dependencies.iter().copied(),
-                        ) || !strictly_increasing(
-                            binding.validity.interface_dependencies.iter().copied(),
-                        ) || !strictly_increasing(binding.uses.iter().cloned())
+                        !strictly_increasing(binding.argument_substitutions.iter().copied())
+                            || !strictly_increasing(
+                                binding.validity.proposition_dependencies.iter().copied(),
+                            )
+                            || !strictly_increasing(
+                                binding.validity.interface_dependencies.iter().copied(),
+                            )
+                            || !strictly_increasing(binding.uses.iter().cloned())
                     }) =>
                 {
                     return Err(CodecError::NonCanonicalOrder(

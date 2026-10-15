@@ -31,6 +31,8 @@ fn dependency_places(
     for occurrence in occurrences {
         match occurrence.root {
             checked_trees::OutcomeOccurrenceRoot::CalleeResult => places.push(result_place),
+            // A scalar argument is a value: it has no place to depend on.
+            checked_trees::OutcomeOccurrenceRoot::CalleeParameter { .. } => {}
             checked_trees::OutcomeOccurrenceRoot::Other => {
                 return Err(LoweringError::Unsupported(unsupported_root));
             }
@@ -143,6 +145,14 @@ pub(crate) fn lower_outcome_specific_call_evidence(
                 "outcome-specific arm callee has no structural result",
             ))?
             .place;
+        let callee_entry = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .callable_entry_for_machine(callee_symbol)
+            .ok_or(LoweringError::Unsupported(
+                "outcome-specific arm callee has no published callable entry",
+            ))?;
         let ensure_rows = outcome_specific_ensure_rows(
             identities,
             checked,
@@ -206,49 +216,73 @@ pub(crate) fn lower_outcome_specific_call_evidence(
                 instantiated,
             )?;
             // The caller's instantiated application may differ from the
-            // callee's declared one in exactly one argument: the callee names
-            // its reserved `result`, the caller names the call's own result.
-            // That pair is the row's result substitution, between the
-            // callee's result place and the call's result place; any other
-            // difference (an input named by the proposition, another binder
-            // or interface) has no Terminal lane yet.
-            let result_substitution = if *instantiated == checked_term.proposition {
-                None
-            } else {
+            // callee's declared one only in arguments whose declared root is
+            // the callee's reserved `result` (the row's result substitution,
+            // between the callee's result place and the call's result place)
+            // or one of the callee's scalar inputs (an argument substitution
+            // to the call's argument at that scalar position). Any other
+            // difference (a projection, another binder or interface) has no
+            // Terminal lane yet.
+            let mut result_substitution = None;
+            let mut argument_substitutions = Vec::new();
+            if *instantiated != checked_term.proposition {
                 let declared = &checked_term.proposition;
-                let differing = (declared.arguments.len() == instantiated.arguments.len()
-                    && declared.declaration == instantiated.declaration
-                    && declared.binder_arguments == instantiated.binder_arguments
-                    && declared.evidence_interface == instantiated.evidence_interface)
-                    .then(|| {
-                        declared
-                            .arguments
-                            .iter()
-                            .zip(&instantiated.arguments)
-                            .enumerate()
-                            .filter(|(_, (declared, instantiated))| declared != instantiated)
-                            .map(|(position, _)| position)
-                            .collect::<Vec<_>>()
-                    });
-                match differing.as_deref() {
-                    Some([position]) if declared.arguments[*position] == "result" => {
-                        Some(terminal_psi::OutcomeSpecificCallResultSubstitution {
-                            argument_position: u32::try_from(*position).map_err(|_| {
-                                LoweringError::Unsupported(
-                                    "outcome-specific result position exceeds u32",
-                                )
-                            })?,
-                            callee_result: callee_result_place,
-                            caller_result: result_place,
-                        })
-                    }
-                    _ => {
-                        return Err(LoweringError::Unsupported(
-                            "outcome-specific result substitution is unimplemented",
-                        ));
+                if declared.arguments.len() != instantiated.arguments.len()
+                    || declared.declaration != instantiated.declaration
+                    || declared.binder_arguments != instantiated.binder_arguments
+                    || declared.evidence_interface != instantiated.evidence_interface
+                {
+                    return Err(LoweringError::Unsupported(
+                        "outcome-specific substitution outside the proposition's arguments is unimplemented",
+                    ));
+                }
+                for (position, _) in declared
+                    .arguments
+                    .iter()
+                    .zip(&instantiated.arguments)
+                    .enumerate()
+                    .filter(|(_, (declared, instantiated))| declared != instantiated)
+                {
+                    let argument_position = u32::try_from(position).map_err(|_| {
+                        LoweringError::Unsupported("outcome-specific argument position exceeds u32")
+                    })?;
+                    match row.argument_roots.get(position).copied() {
+                        Some(checked_trees::OutcomeOccurrenceRoot::CalleeResult)
+                            if result_substitution.is_none() =>
+                        {
+                            result_substitution =
+                                Some(terminal_psi::OutcomeSpecificCallResultSubstitution {
+                                    argument_position,
+                                    callee_result: callee_result_place,
+                                    caller_result: result_place,
+                                });
+                        }
+                        Some(checked_trees::OutcomeOccurrenceRoot::CalleeParameter {
+                            source_position,
+                        }) => {
+                            let parameter_position = callee_entry
+                                .scalar_parameters
+                                .iter()
+                                .position(|parameter| parameter.source_position == source_position)
+                                .and_then(|position| u32::try_from(position).ok())
+                                .ok_or(LoweringError::Unsupported(
+                                    "outcome-specific argument names no scalar parameter of its callee",
+                                ))?;
+                            argument_substitutions.push(
+                                terminal_psi::OutcomeSpecificCallArgumentSubstitution {
+                                    argument_position,
+                                    parameter_position,
+                                },
+                            );
+                        }
+                        _ => {
+                            return Err(LoweringError::Unsupported(
+                                "outcome-specific substitution of an argument that names neither the callee's result nor a scalar input is unimplemented",
+                            ));
+                        }
                     }
                 }
-            };
+            }
             // Validity roots are places of the caller: an occurrence of the
             // callee's `result` re-anchors to the call's result place. No
             // other occurrence has a caller place yet.
@@ -295,6 +329,7 @@ pub(crate) fn lower_outcome_specific_call_evidence(
                     row.selected_term.expect("selected row carries a term"),
                     "selected arm term has no terminal identity",
                 )?,
+                argument_substitutions,
                 result_substitution,
                 validity: OutcomeSpecificCallEvidenceValidity {
                     result: result_place,

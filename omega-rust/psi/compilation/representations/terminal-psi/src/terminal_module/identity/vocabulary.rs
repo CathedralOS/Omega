@@ -18,7 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Static implementation maps retain body or opaque-head callables.
-        127
+        // Guarded-call selections carry argument substitutions.
+        128
     }
 }

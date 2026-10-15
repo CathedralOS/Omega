@@ -9,6 +9,7 @@ use super::{
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
 use std::collections::BTreeSet;
+use std::ops::Not;
 use terminal_psi::{
     BoundaryMachineResult, BoundaryStructuralResultDeclaration, ClaimTransfer, Operation,
     OperationKind, OperationResult, StructuralArgument, StructuralMultiplicity,
@@ -408,6 +409,17 @@ pub(super) fn validate_call_structural(
         || actual_result.projected_qualifications != expected_result.projected_qualifications
     {
         return malformed("structural call has the wrong callee signature or structural arity");
+    }
+    if selected_evidence.iter().any(|binding| {
+        binding.argument_substitutions.iter().any(|substitution| {
+            usize::try_from(substitution.parameter_position)
+                .is_ok_and(|position| position < callee.parameters.len())
+                .not()
+        })
+    }) {
+        return malformed(
+            "guarded call argument substitution names no scalar parameter of its callee",
+        );
     }
     validate_structural_call_result_declaration(module, machine, operation, actual_result)?;
     if exact_payloadless {

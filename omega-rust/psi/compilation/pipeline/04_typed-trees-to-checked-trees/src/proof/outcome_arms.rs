@@ -180,13 +180,18 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                         .into_iter()
                         .map(|occurrence| checked_trees::OutcomeReferencedOccurrence {
                             occurrence,
-                            root: if program.expression_table.names_reserved_result(occurrence) {
-                                checked_trees::OutcomeOccurrenceRoot::CalleeResult
-                            } else {
-                                checked_trees::OutcomeOccurrenceRoot::Other
-                            },
+                            root: occurrence_root(program, target_state, occurrence),
                         })
                         .collect::<Vec<_>>();
+                    let argument_roots = match program.proof_facts.get(row.fact) {
+                        typed_trees::domain::ProofFact::Proposition(application) => program
+                            .expression_table
+                            .expression_handles(application.arguments)
+                            .iter()
+                            .map(|argument| occurrence_root(program, target_state, *argument))
+                            .collect(),
+                        _ => Vec::new(),
+                    };
                     let validity = checked_trees::OutcomeSpecificValidityFact {
                         result_occurrence: result_expression,
                         evidence_interface_scope: instantiated_proposition.as_ref().and_then(
@@ -222,6 +227,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                         guarantee,
                         instantiated_proposition,
                         instantiated_label,
+                        argument_roots,
                         validity,
                         selected_term,
                     });
@@ -364,6 +370,31 @@ pub(crate) fn exact_outcome_case_test(
         }
     }
     None
+}
+
+/// The root a guaranteeing contract's occurrence re-anchors to at the caller:
+/// the callee's reserved `result`, a bare occurrence of one of the target
+/// state's parameters (by authored position), or anything else.
+fn occurrence_root(
+    program: &dyn ::validation::CheckingInput,
+    target_state: &typed_trees::state::State,
+    occurrence: typed_trees::expression::ExpressionHandle,
+) -> checked_trees::OutcomeOccurrenceRoot {
+    if program.expression_table.names_reserved_result(occurrence) {
+        return checked_trees::OutcomeOccurrenceRoot::CalleeResult;
+    }
+    if let typed_trees::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(occurrence)
+        && path.symbol.is_valid()
+        && let Some(position) = program
+            .state_parameters(target_state)
+            .iter()
+            .position(|parameter| parameter.symbol == path.symbol)
+        && let Ok(source_position) = u32::try_from(position)
+    {
+        return checked_trees::OutcomeOccurrenceRoot::CalleeParameter { source_position };
+    }
+    checked_trees::OutcomeOccurrenceRoot::Other
 }
 
 fn outcome_call_substitutions(
