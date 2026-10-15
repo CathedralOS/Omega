@@ -13,51 +13,9 @@ use terminal_psi::{
 #[test]
 fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
     let machine = MachineId::new(1).unwrap();
-    let block = BlockId::new(1).unwrap();
     let mut module = TerminalModule::for_entry(machine);
-    module.machines.push(TerminalMachine {
-        id: machine,
-        attachment: None,
-        declaration: Some(terminal_psi::CheckedMachineDeclaration {
-            semantic_declaration: Default::default(),
-            parameter_types: Vec::new(),
-            callable: Default::default(),
-            result_type: Default::default(),
-            machine: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
-            state: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(2)),
-            contract: [7; 32],
-            specialization: None,
-        }),
-        nominal_cleanup_subject: None,
-        parameters: Vec::new(),
-        structural_parameters: Vec::new(),
-        ranked_scc: None,
-        result: TerminalMachineResult::Unit,
-        structural_places: Vec::new(),
-        entry_claims: Vec::new(),
-        block_entry_claims: Vec::new(),
-        loan_completions: Vec::new(),
-        declared_service_reach: Vec::new(),
-        closed_reach_application: None,
-        published_service_ceiling: Vec::new(),
-        content_entry_claims: Vec::new(),
-        content_identity_reshuffles: Vec::new(),
-        content_partition_compositions: Vec::new(),
-        entry: block,
-        blocks: vec![Block {
-            id: block,
-            parameters: Vec::new(),
-            erased_scalar_formals: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            structural_parameters: Vec::new(),
-            operations: Vec::new(),
-            terminator: Terminator::ReturnUnit {
-                edge: EdgeId::new(1).unwrap(),
-                cleanup_actions: Vec::new(),
-            },
-        }],
-        contract: terminal_psi::MachineContract::empty(ContractId::new(1).unwrap()),
-    });
+    module.machines.push(unit_machine(machine));
+    module.identities = identity_table(10);
     let mut members = vec![TargetMachineFamilyMember {
         target: "freestanding_custom".into(),
         callable: TargetMachineCallable::Machine(machine),
@@ -175,7 +133,12 @@ fn target_family_wire_rejects_duplicate_tags_and_missing_callables() {
             ),
         ),
     ] {
-        let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
+        // The entry is a present machine outside the family, so the only
+        // defect is the family member the case names.
+        let entry = MachineId::new(2).unwrap();
+        let mut module = TerminalModule::for_entry(entry);
+        module.machines.push(unit_machine(entry));
+        module.identities = identity_table(10);
         module.target_machine_families.push(TargetMachineFamily {
             canonical: members[0].callable,
             head_contract: [1; 32],
@@ -190,4 +153,62 @@ fn target_family_wire_rejects_duplicate_tags_and_missing_callables() {
         let encoded_bytes = encode_raw(&module).unwrap();
         assert_eq!(decode_module(&encoded_bytes), Err(expected_error), "{case}");
     }
+}
+
+/// One resultless checked machine whose single block returns at once.
+fn unit_machine(machine: MachineId) -> TerminalMachine {
+    let block = BlockId::new(1).unwrap();
+    TerminalMachine {
+        id: machine,
+        attachment: None,
+        declaration: Some(terminal_psi::CheckedMachineDeclaration {
+            semantic_declaration: Default::default(),
+            parameter_types: Vec::new(),
+            callable: Default::default(),
+            result_type: Default::default(),
+            machine: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+            state: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(2)),
+            contract: [7; 32],
+            specialization: None,
+        }),
+        nominal_cleanup_subject: None,
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        ranked_scc: None,
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        block_entry_claims: Vec::new(),
+        loan_completions: Vec::new(),
+        declared_service_reach: Vec::new(),
+        closed_reach_application: None,
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block,
+        blocks: vec![Block {
+            id: block,
+            parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: EdgeId::new(1).unwrap(),
+                cleanup_actions: Vec::new(),
+            },
+        }],
+        contract: terminal_psi::MachineContract::empty(ContractId::new(1).unwrap()),
+    }
+}
+
+/// A table whose first `count` real entries are distinct texts, so every
+/// fixed identity index this file names below `count` resolves.
+fn identity_table(count: u32) -> terminal_psi::TerminalIdentityTable {
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    for position in 1..=count {
+        identities.intern(&format!("test::identity{position}"));
+    }
+    identities.build()
 }
