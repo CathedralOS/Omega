@@ -23,8 +23,9 @@
 //! module removed — `from_bytes` fed by `to_bytes()` on one expression — is
 //! pinned at zero occurrences.
 //!
-//! The scan covers `omega-rust/omega/` Rust sources minus `tests/` and
-//! `tests.rs` files, `examples/`, `target/`, and dot-directories; Psi-side
+//! The scan covers `omega-rust/omega/` Rust sources minus `tests/`,
+//! `tests.rs` and `*_tests.rs` files, inline `#[cfg(test)] mod … { … }`
+//! blocks, `examples/`, `target/`, and dot-directories; Psi-side
 //! decodes at external byte ingress live outside that root. Internal provider
 //! installation passes a retained view, not bytes. Needles use `concat!` so this file's own text
 //! never satisfies a pattern it enforces.
@@ -63,17 +64,26 @@ const PERMITTED_MODULE_DECODES: &[(&str, usize, &str)] = &[(
 
 /// The complete permitted set of `CanonicalTerminalArtifact::from_bytes`
 /// envelope replays in Omega non-test source: admitting a description's
-/// embedded artifact on the describe path. The realization path holds the
-/// artifact itself and must never rebuild one.
-const PERMITTED_ARTIFACT_REPLAYS: &[(&str, usize, &str)] = &[(
-    "omega-rust/omega/compilation/backend/artifacts/component-description/src/component_description.rs",
-    2,
-    "describe path: `decode_component_description` and `description_subject` admit the description's embedded artifact",
-)];
+/// embedded artifact on the describe path, and inspecting envelope bytes a
+/// user supplied. The realization path holds the artifact itself and must
+/// never rebuild one.
+const PERMITTED_ARTIFACT_REPLAYS: &[(&str, usize, &str)] = &[
+    (
+        "omega-rust/omega/application/cli/src/inspection/mod.rs",
+        1,
+        "inspect path: `inspect_terminal_artifact` admits externally supplied envelope bytes",
+    ),
+    (
+        "omega-rust/omega/compilation/backend/artifacts/component-description/src/component_description.rs",
+        2,
+        "describe path: `decode_component_description` and `description_subject` admit the description's embedded artifact",
+    ),
+];
 
 /// Every `.rs` file under `root` that is not test, example, or build-output
 /// source. The guard counts realizations-path text, so `tests/` module trees,
-/// `tests.rs` files, `examples/`, `target/`, and dot-directories stay out.
+/// `tests.rs` and `*_tests.rs` files, `examples/`, `target/`, and
+/// dot-directories stay out.
 fn collect_rust_sources(root: &Path, sources: &mut Vec<PathBuf>) {
     let entries = fs::read_dir(root)
         .unwrap_or_else(|error| panic!("cannot read {}: {error}", root.display()));
@@ -91,7 +101,10 @@ fn collect_rust_sources(root: &Path, sources: &mut Vec<PathBuf>) {
             }
             collect_rust_sources(&path, sources);
         } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs")
-            && path.file_name().and_then(|name| name.to_str()) != Some("tests.rs")
+            && !path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name == "tests.rs" || name.ends_with("_tests.rs"))
         {
             sources.push(path);
         }
@@ -116,10 +129,39 @@ fn scanned_tree() -> (PathBuf, PathBuf) {
     (repository, omega)
 }
 
+/// Numbered code lines of one source file: `//` lines are prose, and an
+/// inline `#[cfg(test)] mod name { … }` block is test source, skipped through
+/// the closing brace at its own indentation. A `#[cfg(test)] mod name;`
+/// declaration names a separate file, which `collect_rust_sources` filters.
+fn code_lines(text: &str) -> Vec<(usize, &str)> {
+    let mut lines = text.lines().enumerate().peekable();
+    let mut code = Vec::new();
+    while let Some((number, line)) = lines.next() {
+        if line.trim() == "#[cfg(test)]"
+            && let Some((_, item)) = lines.peek()
+            && item.trim_start().starts_with("mod ")
+            && item.trim_end().ends_with('{')
+        {
+            let indentation = &item[..item.len() - item.trim_start().len()];
+            let closing = format!("{indentation}}}");
+            for (_, skipped) in lines.by_ref() {
+                if skipped.trim_end() == closing {
+                    break;
+                }
+            }
+            continue;
+        }
+        if !line.trim_start().starts_with("//") {
+            code.push((number, line));
+        }
+    }
+    code
+}
+
 /// Count `needle` occurrences on code lines in every scanned file, keyed by
-/// repository-relative path. `//` lines are prose, not calls — a comment
-/// naming the pinned shape (like the removed round trip's own history note)
-/// is not a violation. Files with no occurrence stay out of the map.
+/// repository-relative path. A comment naming the pinned shape (like the
+/// removed round trip's own history note) is not a violation, and neither is
+/// an inline test module. Files with no occurrence stay out of the map.
 fn count_occurrences(
     repository: &Path,
     sources: &[PathBuf],
@@ -129,10 +171,9 @@ fn count_occurrences(
     for source in sources {
         let text = fs::read_to_string(source)
             .unwrap_or_else(|error| panic!("cannot read {}: {error}", source.display()));
-        let count = text
-            .lines()
-            .filter(|line| !line.trim_start().starts_with("//"))
-            .map(|line| line.matches(needle).count())
+        let count = code_lines(&text)
+            .into_iter()
+            .map(|(_, line)| line.matches(needle).count())
             .sum::<usize>();
         if count > 0 {
             let relative = source
@@ -184,8 +225,9 @@ fn realization_decodes_terminal_module_only_at_stage_00_admission() {
 }
 
 /// `CanonicalTerminalArtifact::from_bytes` is admission in envelope form: it
-/// re-decodes the semantic section internally. Its only Omega sites are the
-/// describe path's embedded-artifact admissions; the realization path holds
+/// re-decodes the semantic section internally. Its only Omega sites admit
+/// bytes from outside the compile: the describe path's embedded artifact and
+/// the CLI's inspection of supplied envelope bytes. The realization path holds
 /// the artifact itself, and a new replay there repeats the whole decode the
 /// artifact already paid.
 #[test]
@@ -219,10 +261,7 @@ fn no_source_replays_encoded_bytes_through_from_bytes() {
     for source in &sources {
         let text = fs::read_to_string(source)
             .unwrap_or_else(|error| panic!("cannot read {}: {error}", source.display()));
-        for (line_number, line) in text.lines().enumerate() {
-            if line.trim_start().starts_with("//") {
-                continue;
-            }
+        for (line_number, line) in code_lines(&text) {
             if line.contains(FROM_BYTES_CALL) && line.contains(TO_BYTES_OUTPUT) {
                 let relative = source
                     .strip_prefix(&repository)
