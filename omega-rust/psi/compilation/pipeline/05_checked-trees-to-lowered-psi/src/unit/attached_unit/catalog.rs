@@ -110,15 +110,29 @@ pub(crate) fn collect_value_roots(
                 if let checked_trees::CheckedStructuralRecordFieldValue::Structural(nested) =
                     field.value
                 {
-                    // A field stores its declared carrier, including a view's
-                    // access shell. Its initializer separately roots the backing
-                    // it reads; a borrowed formal's peeled identity is neither.
-                    roots.push(validation::stored_structural_type_identity(
-                        &checked.typed,
-                        field.type_reference,
-                        &[],
-                        &[],
-                    ));
+                    // A view's node names the backing it reads, never the view
+                    // itself, so the field roots its declared carrier, including
+                    // the view's access shell. Every other initializer roots its
+                    // own carrier; a scalar field (a zeroed `bool`, say) has no
+                    // structural plan to root.
+                    if matches!(
+                        checked
+                            .facts
+                            .values
+                            .structural_values
+                            .nodes
+                            .get(nested)
+                            .kind,
+                        checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
+                            | checked_trees::CheckedStructuralValueKind::MutableSliceView { .. }
+                    ) {
+                        roots.push(validation::stored_structural_type_identity(
+                            &checked.typed,
+                            field.type_reference,
+                            &[],
+                            &[],
+                        ));
+                    }
                     collect_value_roots(checked, nested, roots)?;
                 }
             }
