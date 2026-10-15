@@ -16,6 +16,7 @@ pub(super) fn check_statement_borrows<'p>(
     program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
+    borrow_state: &checked_trees::StateBorrowFact,
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     state_mutation_summaries: &StateMutationSummaryCache,
@@ -29,13 +30,6 @@ pub(super) fn check_statement_borrows<'p>(
         return;
     };
     let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
-        return;
-    };
-    let Some(borrow_state) = facts.borrow.states.iter().find_map(|(_, state)| {
-        (state.machine_symbol == state_flow.machine_symbol
-            && state.state_symbol == state_flow.state_symbol)
-            .then_some(state)
-    }) else {
         return;
     };
     // Use the same occurrence inventory as ownership replay: an extraction

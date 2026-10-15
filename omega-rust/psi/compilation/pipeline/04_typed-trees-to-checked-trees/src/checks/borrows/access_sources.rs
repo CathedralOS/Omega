@@ -98,11 +98,8 @@ pub(in crate::checks::borrows) fn resolve_captured_all(
     place: CapturedPlace,
 ) -> Option<Vec<ResolvedAlias>> {
     let root = place.root;
-    let borrow_state = facts.borrow.states.iter().find_map(|(_, candidate)| {
-        (candidate.machine_symbol == state.machine_symbol
-            && candidate.state_symbol == state.state_symbol)
-            .then_some(candidate)
-    })?;
+    let (_, borrow_state) =
+        crate::flow::borrow_state_fact(&facts.borrow, state.machine_symbol, state.state_symbol)?;
     let candidates =
         aliases::resolve_places(program, facts, state, entry_constraints, place.clone())?;
     let mut resolved = Vec::with_capacity(candidates.len());

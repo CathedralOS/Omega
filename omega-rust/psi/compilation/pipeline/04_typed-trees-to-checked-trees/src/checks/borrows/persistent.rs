@@ -89,12 +89,15 @@ fn check_stored_output_relations(
     let mut obligated = Vec::new();
     for machine in program.machines() {
         let mut stores = false;
-        for state in program.machine_states(machine) {
-            let Some(borrowing) = facts.borrow.states.iter().map(|(_, row)| row).find(|row| {
-                row.machine_symbol == machine.symbol && row.state_symbol == state.symbol
-            }) else {
+        'machine_states: for state in program.machine_states(machine) {
+            let Some((_, borrowing)) =
+                crate::flow::borrow_state_fact(&facts.borrow, machine.symbol, state.symbol)
+            else {
                 continue;
             };
+            if borrowing.loans.is_empty() {
+                continue;
+            }
             for (_, loan) in facts
                 .borrow
                 .loans
@@ -117,11 +120,19 @@ fn check_stored_output_relations(
                     continue;
                 }
                 stores = true;
+                // This pass asks whether a relation is required, not how
+                // many installed loans it describes. One witness suffices.
+                break 'machine_states;
             }
         }
         if stores {
             obligated.push(machine.symbol);
         }
+    }
+    // Only installed loans require a stored-output relation. With no such
+    // callee, walking every statement's call roster cannot add an obligation.
+    if obligated.is_empty() {
+        return;
     }
     for machine in program.machines() {
         if obligated.contains(&machine.symbol)

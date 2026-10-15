@@ -12,6 +12,24 @@ use checked_trees::{BorrowLoanFact, CheckedUnitStructuralPathSegment};
 
 type Results = [(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)];
 
+/// Missing borrow rows mean no recorded holders; duplicate rows cannot name
+/// one retirement schedule. Keep these outcomes distinct while consulting
+/// the ledger's existing revision-checked index instead of scanning all states
+/// once for every statement and every descendant holder.
+fn unique_borrow_state(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+) -> Option<Option<&checked_trees::StateBorrowFact>> {
+    facts
+        .borrow
+        .with_state_index(|index| match index.bucket(machine, state) {
+            [] => Some(None),
+            [handle] => Some(Some(facts.borrow.states.get(*handle))),
+            _ => None,
+        })
+}
+
 /// Completion transfers one actual result occurrence, named or anonymous.
 /// Its captured origin roster is produced by checking; this join schedules
 /// local disposition without inferring a return from a type or source root.
@@ -87,15 +105,12 @@ impl Retirement<'_> {
     /// candidate storage deaths: the existing ownership continuation graph
     /// selects actual births before emitting exact descriptor releases.
     pub(super) fn backing_releases(&self) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
-        let mut states = self.facts.borrow.states.iter().filter_map(|(_, state)| {
-            (state.machine_symbol == self.machine && state.state_symbol == self.state.symbol)
-                .then_some(state)
-        });
-        let Some(state) = states.next() else {
+        let state = unique_borrow_state(self.facts, self.machine, self.state.symbol)?;
+        let Some(state) = state else {
             return Some(Vec::new());
         };
-        if states.next().is_some() {
-            return None;
+        if state.loans.is_empty() {
+            return Some(Vec::new());
         }
         let mut owners = Vec::new();
         for (handle, loan) in self.facts.borrow.loans.iter() {
@@ -205,16 +220,10 @@ impl Retirement<'_> {
     /// reached its parent's lexical last use. Each child's own schedule obeys
     /// this same rule, so reverse production closes a chain deepest first.
     pub(super) fn children_retired(&self, parent: arena::Handle<BorrowLoanFact>) -> bool {
-        let mut states = self.facts.borrow.states.iter().filter_map(|(_, state)| {
-            (state.machine_symbol == self.machine && state.state_symbol == self.state.symbol)
-                .then_some(state)
-        });
-        let Some(state) = states.next() else {
+        let Some(Some(state)) = unique_borrow_state(self.facts, self.machine, self.state.symbol)
+        else {
             return false;
         };
-        if states.next().is_some() {
-            return false;
-        }
         let mut pending = vec![parent];
         let mut visited = Vec::new();
         while let Some(parent) = pending.pop() {
@@ -831,22 +840,10 @@ impl Retirement<'_> {
         let Some(segments) = self.facts.borrow.access_segments.span(loan.segments) else {
             return false;
         };
-        let mut borrowing = self
-            .facts
-            .borrow
-            .states
-            .iter()
-            .filter_map(|(_, borrowing)| {
-                (borrowing.machine_symbol == self.machine
-                    && borrowing.state_symbol == self.state.symbol)
-                    .then_some(borrowing)
-            });
-        let Some(state) = borrowing.next() else {
+        let Some(Some(state)) = unique_borrow_state(self.facts, self.machine, self.state.symbol)
+        else {
             return false;
         };
-        if borrowing.next().is_some() {
-            return false;
-        }
         self.facts
             .borrow
             .returned_loans
@@ -1107,16 +1104,7 @@ fn carrier_loans(
     if roots.next().is_some() {
         return None;
     }
-    let mut states = facts
-        .borrow
-        .states
-        .iter()
-        .map(|(_, borrowing)| borrowing)
-        .filter(|borrowing| borrowing.machine_symbol == machine && borrowing.state_symbol == state);
-    let borrowing = states.next()?;
-    if states.next().is_some() {
-        return None;
-    }
+    let borrowing = unique_borrow_state(facts, machine, state)??;
     facts
         .borrow
         .storage_loans(borrowing, *owner, result.statement_index as usize)

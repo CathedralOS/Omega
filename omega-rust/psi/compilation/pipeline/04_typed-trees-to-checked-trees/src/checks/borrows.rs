@@ -101,6 +101,7 @@ pub(crate) fn check_flow_call_borrows(
             program,
             facts,
             state_flow,
+            borrow_state,
             &stated_premises,
             &mut diagnostics,
             mutation_summaries,
@@ -139,9 +140,10 @@ fn matching_borrow_state<'a>(
     facts: &'a CheckFacts,
     state_flow: &FlowStateFact,
 ) -> Option<&'a checked_trees::StateBorrowFact> {
-    facts.borrow.states.iter().find_map(|(_, state)| {
-        (state.machine_symbol == state_flow.machine_symbol
-            && state.state_symbol == state_flow.state_symbol)
-            .then_some(state)
-    })
+    crate::flow::borrow_state_fact(
+        &facts.borrow,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+    )
+    .map(|(_, state)| state)
 }

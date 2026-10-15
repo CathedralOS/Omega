@@ -28,16 +28,9 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
     results: &Results,
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<TransportedLoans> {
-    let mut states = facts.borrow.states.iter().filter_map(|(_, borrowing)| {
-        (borrowing.machine_symbol == machine && borrowing.state_symbol == state.symbol)
-            .then_some(borrowing)
-    });
-    let Some(borrowing) = states.next() else {
+    let Some(borrowing) = super::unique_borrow_state(facts, machine, state.symbol)? else {
         return Some(Vec::new());
     };
-    if states.next().is_some() {
-        return None;
-    }
     let mut output = Vec::new();
     for operation in operations {
         let (owner, formation) =

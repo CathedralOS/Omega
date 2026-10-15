@@ -757,3 +757,49 @@ impl BorrowFacts {
         )
     }
 }
+
+#[cfg(test)]
+mod index_tests {
+    use super::{BorrowFacts, StateBorrowFact, SymbolHandle};
+
+    #[test]
+    fn state_index_preserves_duplicate_order_and_mutation_visibility() {
+        let machine = SymbolHandle::from_parts(1, 1);
+        let state = SymbolHandle::from_parts(2, 1);
+        let replacement = SymbolHandle::from_parts(2, 2);
+        let mut facts = BorrowFacts::default();
+        let queries = [
+            (machine, state),
+            (machine, replacement),
+            (SymbolHandle::invalid(), state),
+        ];
+        let assert_matches_roster = |facts: &BorrowFacts| {
+            for (machine, state) in queries {
+                let expected = facts
+                    .states
+                    .iter()
+                    .filter(|(_, row)| row.machine_symbol == machine && row.state_symbol == state)
+                    .map(|(handle, _)| handle)
+                    .collect::<Vec<_>>();
+                facts.with_state_index(|index| assert_eq!(index.bucket(machine, state), expected));
+            }
+        };
+        assert_matches_roster(&facts);
+        let first = facts.states.insert(StateBorrowFact {
+            machine_symbol: machine,
+            state_symbol: state,
+            ..StateBorrowFact::default()
+        });
+        assert_matches_roster(&facts);
+        facts.states.insert(StateBorrowFact {
+            machine_symbol: machine,
+            state_symbol: state,
+            ..StateBorrowFact::default()
+        });
+        assert_matches_roster(&facts);
+        let snapshot = facts.clone();
+        facts.states.get_mut(first).state_symbol = replacement;
+        assert_matches_roster(&facts);
+        assert_matches_roster(&snapshot);
+    }
+}
