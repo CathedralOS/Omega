@@ -1,0 +1,30 @@
+// Expected exit: 0. Each indexed statement observes its own selector value;
+// both transition branches retain only facts from their evaluated prefix.
+data Cursor { index: i64; }
+
+machine read(values: &[u8], cursor: &mut Cursor) -> u8
+requires values.len >= 2
+{
+    cursor.index = 0;
+    let first: u8 = values[cursor.index];
+    cursor.index = 1;
+    let second: u8 = values[cursor.index];
+    transition first == 3 {
+        true -> (second)
+        _ -> (values[0])
+    }
+}
+
+machine main() crashes Trap {
+    let first: [u8; 2] = [3, 9];
+    let second: [u8; 2] = [4, 8];
+    let mut cursor: Cursor = Cursor { index: 0 };
+    let selected: u8 = read(&first[..], &mut cursor);
+    let fallback: u8 = read(&second[..], &mut cursor);
+    transition selected == 9 && fallback == 4 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

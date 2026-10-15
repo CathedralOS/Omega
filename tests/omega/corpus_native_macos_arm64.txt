@@ -739,6 +739,7 @@ pass/collections/runtime_primitive_array_literal_call_elements_exit built 1989ms
 pass/collections/runtime_record_element_window_write_read_exit built 1618ms exit:0 @4bc316e7b1ca+wt
 pass/collections/runtime_record_exclusive_element_extent_exit built 3274ms exit:0 @7c9a1dd8dd3b
 pass/collections/runtime_refined_element_view_call_write_exit built 1631ms exit:0 @4bc316e7b1ca+wt
+pass/collections/runtime_sequential_index_observations_exit built 2657ms exit:0 interpreter-exit:0 interpreter:agrees @02e7c705cdab+wt
 pass/collections/runtime_shared_array_dot_product_exit built 4099ms exit:32 stdout:match @9beb2be72f2d+wt
 pass/collections/runtime_shared_array_polynomial_exit built 4604ms exit:70 stdout:match @9beb2be72f2d+wt
 pass/collections/runtime_shared_fixed_array_cycle_exit built 18248ms exit:42 stdout:match @57334c2f117f

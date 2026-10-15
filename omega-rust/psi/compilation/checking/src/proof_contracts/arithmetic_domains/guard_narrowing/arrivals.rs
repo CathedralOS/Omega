@@ -19,7 +19,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 
 mod collection_bounds;
 mod transition_arguments;
-pub use collection_bounds::occurrence_collection_bounds_are_proven;
+pub use collection_bounds::CollectionBoundsObservations;
 
 struct EvaluatedValue {
     interval: Interval,

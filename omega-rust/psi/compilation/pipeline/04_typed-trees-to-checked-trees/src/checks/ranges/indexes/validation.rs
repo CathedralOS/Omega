@@ -166,13 +166,9 @@ pub(super) fn check_indexed_access(
             })
             .is_some();
     if builtin_geometry
-        && ::validation::occurrence_collection_bounds_are_proven(
-            program,
-            machine.symbol,
-            state.symbol,
-            facts.statement_index,
-            expression,
-        )
+        && facts
+            .collection_bounds
+            .is_some_and(|observations| observations.proves(facts.statement_index, expression))
     {
         return if spelling == OperatorSpelling::Range {
             BoundsCheckResult::ProvenRange

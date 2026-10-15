@@ -1,0 +1,14 @@
+// Earlier bounds evidence cannot survive a selector write into a later read.
+data Cursor { index: i64; }
+
+machine read(values: &[u8], cursor: &mut Cursor) -> u8
+requires values.len == 2
+{
+    cursor.index = 0;
+    let first: u8 = values[cursor.index];
+    cursor.index = 2;
+    let second: u8 = values[cursor.index];
+    second
+}
+
+machine main() {}

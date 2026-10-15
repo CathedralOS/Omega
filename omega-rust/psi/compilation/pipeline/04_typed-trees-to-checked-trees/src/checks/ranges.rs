@@ -15,6 +15,8 @@
 //! dependent parameter orderings (`dependent_params`), the incoming guard
 //! facts and the loop invariant facts. It then runs
 //! `statements::check_statement` on each statement.
+//! Each state also owns one batch of exact integer occurrence observations;
+//! branch-local range facts borrow it without replaying prefixes per index.
 //!
 //! `check_statement` drives `statement_transfer::transfer_statement_facts`,
 //! the single statement fact transfer that `state_arguments` also replays,
@@ -116,7 +118,10 @@ pub(crate) fn check_indexed_accesses(
         // and flow facts retain their narrower lifetimes.
         let bound_lookup = validation::ImmutableBoundLookup::new(program);
         for (state, calls) in program.machine_states(machine).iter().zip(&calls) {
+            let collection_bounds =
+                validation::CollectionBoundsObservations::new(program, machine, state);
             let mut facts = RangeFacts::new(&field_lengths, &bound_lookup);
+            facts.collection_bounds = Some(&collection_bounds);
             facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
             facts.checked_operators = Some(operators);
             facts.expression_intervals = expression_intervals;

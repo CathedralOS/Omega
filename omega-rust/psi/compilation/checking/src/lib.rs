@@ -340,6 +340,7 @@ pub use value_custody::type_references::{
     scalar_result_contract_is_represented, unrestricted_builtin_primitive,
 };
 
+pub use proof_contracts::arithmetic_domains::CollectionBoundsObservations;
 pub use proof_contracts::arithmetic_domains::arrival_integer_expression_bounds;
 pub use proof_contracts::arithmetic_domains::builtin_monotonic_integer_update_bounds;
 pub use proof_contracts::arithmetic_domains::enforced_integer_type_bounds;
@@ -348,7 +349,6 @@ pub use proof_contracts::arithmetic_domains::immutable_integer_expression_bounds
 pub use proof_contracts::arithmetic_domains::integer_widen_is_total;
 pub use proof_contracts::arithmetic_domains::normal_return_integer_bounds;
 pub use proof_contracts::arithmetic_domains::normal_return_length_collection;
-pub use proof_contracts::arithmetic_domains::occurrence_collection_bounds_are_proven;
 pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_bounds;
 pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_fits_range;
 pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;

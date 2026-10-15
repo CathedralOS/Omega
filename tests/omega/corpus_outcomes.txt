@@ -1508,6 +1508,8 @@ fail/collections/fixed_vec_push_without_room rejected 1499ms expected @a9ae30e1c
 	cannot prove requires contract for call push from Main::main: main.vec.length < main.vec.items.len (needs fact `fixed_vec_i32x4.length < fixed_vec_i32x4.items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/collections/guarded_computed_index_overrun rejected 1546ms expected @a9ae30e1c334+wt
 	cannot prove index `position + 1` is within length 6 in rises::entry
+fail/collections/index_observation_after_selector_write rejected 411ms expected @02e7c705cdab+wt
+	cannot prove index `cursor.index` is within unknown slice length of `values` in read::entry
 fail/collections/literal_element_read_empty_view rejected 1605ms expected @a9ae30e1c334+wt
 	cannot prove index `0` is within unknown slice length of `values` in read::entry
 fail/collections/nested_read_index_uses_selected_extent rejected 1247ms expected @e6088bf995e6
@@ -5828,6 +5830,7 @@ pass/collections/runtime_record_element_window_write_read_exit checked 11364ms c
 pass/collections/runtime_record_exclusive_element_extent_exit checked 11286ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_record_slice_float_reads_exit checked 11473ms check-target:macos_arm64 @d3431e5a76cb+wt
 pass/collections/runtime_refined_element_view_call_write_exit checked 10640ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/runtime_sequential_index_observations_exit checked 2502ms check-target:macos_arm64 @02e7c705cdab+wt
 pass/collections/runtime_shared_array_dot_product_exit checked 11835ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_shared_array_polynomial_exit checked 13074ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_shared_fixed_array_cycle_exit checked 11537ms check-target:macos_arm64 @a9ae30e1c334+wt
