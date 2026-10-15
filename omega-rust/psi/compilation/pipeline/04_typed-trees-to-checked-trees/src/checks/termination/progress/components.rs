@@ -49,6 +49,14 @@ pub(super) fn derive_summaries(
             components.push(vec![descent.machine]);
         }
     }
+    // The semantic seed inventory is fixed for this analysis. Scan it once,
+    // not once per component and external-summary round. Call-summary seeds
+    // still change with the fixed point and are joined inside each component.
+    let maximum_fact_projection_length = if components.is_empty() {
+        0
+    } else {
+        projections::maximum_fact_projection_length(semantic)
+    };
     let mut summaries = program
         .machines()
         .iter()
@@ -80,6 +88,7 @@ pub(super) fn derive_summaries(
                 semantic,
                 component,
                 &previous,
+                maximum_fact_projection_length,
                 call_frames,
                 rank_arrivals,
             );
@@ -103,6 +112,7 @@ fn derive_component(
     semantic: &facts::FactPlan,
     component: &[SymbolHandle],
     external: &[CheckedProgressSummary],
+    maximum_fact_projection_length: usize,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     rank_arrivals: &checked_trees::CheckedRankArrivalPlan,
 ) -> Vec<CheckedProgressSummary> {
@@ -111,7 +121,7 @@ fn derive_component(
     let projection_limit = projections::finite_projection_limit(
         program,
         flow,
-        semantic,
+        maximum_fact_projection_length,
         component,
         external,
         call_frames,

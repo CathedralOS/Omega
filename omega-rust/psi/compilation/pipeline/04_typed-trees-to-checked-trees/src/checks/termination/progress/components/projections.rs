@@ -9,23 +9,27 @@ use checked_trees::FlowFacts;
 use language_semantics::TerminationGuarantee;
 use symbols::SymbolHandle;
 
+pub(super) fn maximum_fact_projection_length(semantic: &facts::FactPlan) -> usize {
+    semantic
+        .facts
+        .iter()
+        .filter_map(|(_, fact)| fact_subject(semantic, fact.place))
+        .map(|subject| subject.projections.len())
+        .max()
+        .unwrap_or(0)
+}
+
 pub(super) fn finite_projection_limit(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
-    semantic: &facts::FactPlan,
+    maximum_fact_projection_length: usize,
     component: &[SymbolHandle],
     summaries: &[CheckedProgressSummary],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<usize> {
     let mut parameter_count = 0usize;
     let mut maximum_prefix_length = 0usize;
-    let mut maximum_seed_length = semantic
-        .facts
-        .iter()
-        .filter_map(|(_, fact)| fact_subject(semantic, fact.place))
-        .map(|subject| subject.projections.len())
-        .max()
-        .unwrap_or(0);
+    let mut maximum_seed_length = maximum_fact_projection_length;
     for machine in program
         .machines()
         .iter()

@@ -789,12 +789,7 @@ impl<'program> Engine<'program> {
         {
             return true;
         }
-        // P >= b is inconsistent with -P >= 1-b over integers. Reuse the
-        // existing nonrecursive residual/scaled-bound proof, rather than
-        // adding a separate search over combinations of hypotheses.
-        self.bounds.iter().any(|(polynomial, bound)| {
-            self.prove_at_least(&polynomial.neg(), &BigInt::from_i64(1).sub(bound))
-        })
+        self.bounds_are_inconsistent()
     }
 
     /// Judge a full ensures fact: an `&&` chain proves when every conjunct

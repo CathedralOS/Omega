@@ -119,7 +119,7 @@ pub(super) fn build_call_exit_contexts(
             call_ordinal: borrow_call.call_ordinal,
         },
     );
-    ensured.contexts = copied_guarantees::retain_guarantees(
+    let retained_contexts = copied_guarantees::retain_guarantees(
         program,
         proof,
         semantic,
@@ -134,12 +134,18 @@ pub(super) fn build_call_exit_contexts(
         argument_sources,
         ensured.contexts,
     );
-    ensured.constraints = super::project_constraint_refs_to_active_contexts(
-        &mut build.contexts.constraint_refs,
-        ensured.constraints,
-        ensured.contexts,
-        &build.contexts.semantic_context_refs,
-    );
+    // The contract builder appended each context and its constraint together.
+    // Retention only selects existing rows; an unchanged span keeps the same
+    // aligned pair without repeating a membership query for every constraint.
+    if retained_contexts != ensured.contexts {
+        ensured.contexts = retained_contexts;
+        ensured.constraints = super::project_constraint_refs_to_active_contexts(
+            &mut build.contexts.constraint_refs,
+            ensured.constraints,
+            ensured.contexts,
+            &build.contexts.semantic_context_refs,
+        );
+    }
     let mut contexts = retained_flow_contexts(&build.contexts.semantic_context_refs, post_contexts);
     let mut constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, post_constraints);

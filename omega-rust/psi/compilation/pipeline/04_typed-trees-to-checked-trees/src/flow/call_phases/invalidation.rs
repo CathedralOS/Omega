@@ -86,6 +86,17 @@ pub(in crate::flow) fn apply_call_invalidations(
     borrow_call: &BorrowCallFact,
     mutated_places: Option<&[CanonicalPlace]>,
 ) -> CallInvalidationResult {
+    // Flow construction keeps every semantic constraint in the active context
+    // selection. With a known empty footprint neither selection nor its facts
+    // changes, so there is nothing to project or invalidate. Unknown writes
+    // remain distinct: they still withdraw all semantic constraints below.
+    if mutated_places.is_some_and(<[CanonicalPlace]>::is_empty) {
+        return CallInvalidationResult {
+            post_contexts: active_contexts,
+            post_constraints: active_constraints,
+            invalidations: HandleSpan::empty(),
+        };
+    }
     let invalidations_start = build.invalidations.events.len();
     let post_contexts = match mutated_places {
         None => HandleSpan::empty(),

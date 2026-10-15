@@ -26,6 +26,14 @@ pub(super) enum StructuralJudgment {
     Unknown,
 }
 
+/// Observation authority is established on resolved terms. Judgment consumes
+/// those exact results; equation intake instead needs the original terms,
+/// because installing a case equation can change subsequent resolution.
+struct ObservedEqualityTerms {
+    source: [StructuralTerm; 2],
+    resolved: [StructuralTerm; 2],
+}
+
 #[derive(Clone)]
 pub(super) struct CaseGuarantee {
     subject: StructuralTerm,
@@ -517,20 +525,27 @@ impl<'program> StructuralJudge<'program> {
     fn declaration_term_pair(
         &self,
         binary: &typed_trees::expression::TableBinaryExpression,
-    ) -> Option<(StructuralTerm, StructuralTerm)> {
+    ) -> Option<ObservedEqualityTerms> {
         let left = self.declaration_term(binary.left)?;
         let right = self.declaration_term(binary.right)?;
-        for (expression, term) in [(binary.left, &left), (binary.right, &right)] {
+        let resolve_observed = |expression, term: &StructuralTerm| {
             let reference = self.declaration_expression_type(expression)?;
+            let resolved = self.resolve(term.clone());
             if !super::structural_terms::scalar_operand_is_observed(
                 self.program,
                 reference,
-                &self.resolve(term.clone()),
+                &resolved,
             ) {
                 return None;
             }
-        }
-        Some((left, right))
+            Some(resolved)
+        };
+        let resolved_left = resolve_observed(binary.left, &left)?;
+        let resolved_right = resolve_observed(binary.right, &right)?;
+        Some(ObservedEqualityTerms {
+            source: [left, right],
+            resolved: [resolved_left, resolved_right],
+        })
     }
 
     fn has_identity_equality_meaning(&self, expression: ExpressionHandle) -> bool {
@@ -616,9 +631,10 @@ impl<'program> StructuralJudge<'program> {
             BinaryOperator::Equal
                 if !self.case_facts_only && self.has_identity_equality_meaning(fact) =>
             {
-                let Some((left, right)) = self.declaration_term_pair(binary) else {
+                let Some(terms) = self.declaration_term_pair(binary) else {
                     return;
                 };
+                let [left, right] = terms.source;
                 self.intake_case_equation(left.clone(), right.clone(), 0);
                 self.intake_equation(left, right, 0);
             }
@@ -2091,12 +2107,14 @@ impl<'program> StructuralJudge<'program> {
                 if !self.has_identity_equality_meaning(fact) {
                     return StructuralJudgment::Unknown;
                 }
-                let pair = self.declaration_term_pair(binary);
-                let Some((left, right)) = pair else {
+                let Some(terms) = self.declaration_term_pair(binary) else {
                     return StructuralJudgment::Unknown;
                 };
-                let left = self.resolve(left);
-                let right = self.resolve(right);
+                // No facts change between the authority check and judgment.
+                // Reuse its exact resolution, including its depth budget; do
+                // not resolve the result again or memoize by term equality,
+                // which deliberately ignores some observation metadata.
+                let [left, right] = terms.resolved;
                 if super::struct_trace() {
                     eprintln!(
                         "STRUCT equality caller={:?} left={left:?} right={right:?} rewrites={:?}",

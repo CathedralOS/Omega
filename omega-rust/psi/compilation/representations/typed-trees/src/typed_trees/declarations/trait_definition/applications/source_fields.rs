@@ -63,18 +63,41 @@ impl SourceFields<'_> {
         }
         // A field at u64 and bool under the same owner is two occurrences.
         // Generations, supplying owner and full frame path all remain in the key.
+        // Only this membership bucket is ordered, not the traversal or frame
+        // sequence. Root publication retains the authored discovery order.
         let seen = &mut self.seen[slot];
-        if seen
-            .iter()
-            .any(|(existing_owner, existing_reference, frames)| {
-                *existing_owner == owner
-                    && *existing_reference == reference
-                    && frames == enclosing_applications
-            })
-        {
-            return;
-        }
-        seen.push((owner, reference, enclosing_applications.to_vec()));
+        let insertion =
+            match seen.binary_search_by(|(existing_owner, existing_reference, frames)| {
+                (
+                    existing_owner.arena_index(),
+                    existing_owner.generation(),
+                    existing_reference.arena_index(),
+                    existing_reference.generation(),
+                )
+                    .cmp(&(
+                        owner.arena_index(),
+                        owner.generation(),
+                        reference.arena_index(),
+                        reference.generation(),
+                    ))
+                    .then_with(|| {
+                        frames
+                            .iter()
+                            .map(|frame| (frame.arena_index(), frame.generation()))
+                            .cmp(
+                                enclosing_applications
+                                    .iter()
+                                    .map(|frame| (frame.arena_index(), frame.generation())),
+                            )
+                    })
+            }) {
+                Ok(_) => return,
+                Err(insertion) => insertion,
+            };
+        seen.insert(
+            insertion,
+            (owner, reference, enclosing_applications.to_vec()),
+        );
 
         if let Ok(Some(contract)) =
             crate::service::inspect_service_carrier_contract(self.program, reference)

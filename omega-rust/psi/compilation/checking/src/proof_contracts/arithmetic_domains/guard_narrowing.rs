@@ -1196,11 +1196,26 @@ impl EnsuresProjection<'_> {
 /// Every state's incoming guard environment. `frames` is the caller's
 /// program-wide resolver: building one costs a symbol table per machine, so a
 /// resolver per queried machine made validation quadratic in machine count.
+/// Frozen statement validation and individual expression queries share this
+/// completed batch. Neither consumer mutates it: each takes its own state
+/// environment before applying statement-local effects.
 pub(crate) fn incoming_guard_environments(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     frames: Option<&crate::CallFrameResolver>,
-) -> Vec<(symbols::SymbolHandle, ValueEnvironment)> {
+) -> std::sync::Arc<Vec<(symbols::SymbolHandle, ValueEnvironment)>> {
+    // Resolver-free queries remain conservative and cannot populate a batch
+    // computed under the program's own complete-or-opaque call-frame law.
+    let memos = frames.is_some().then(|| program.checking_memos()).flatten();
+    if let Some(cached) = memos.and_then(|memos| {
+        memos
+            .incoming_guard_environments
+            .lock()
+            .ok()
+            .and_then(|environments| environments.get(&machine.symbol).cloned())
+    }) {
+        return cached;
+    }
     let mut environments = arrivals::incoming_environments(program, machine, frames, None);
     for (state, (_, environment)) in program
         .machine_states(machine)
@@ -1208,6 +1223,14 @@ pub(crate) fn incoming_guard_environments(
         .zip(&mut environments)
     {
         arrivals::seed_state_requirements(program, machine, state, frames, environment);
+    }
+    let environments = std::sync::Arc::new(environments);
+    // Publish only after all arrivals and requirements are complete. The
+    // mutex is never held while recursive source queries compute the batch.
+    if let Some(memos) = memos
+        && let Ok(mut cached) = memos.incoming_guard_environments.lock()
+    {
+        cached.insert(machine.symbol, environments.clone());
     }
     environments
 }
@@ -1223,21 +1246,8 @@ pub(crate) fn incoming_guard_environment(
     // otherwise rebuilt all of the machine's environments to keep one. The
     // batch is keyed to the program's own resolver, so a query without one
     // computes directly.
-    if frames.is_some()
-        && let Some(memos) = program.checking_memos()
-    {
-        let cached = memos
-            .incoming_guard_environments
-            .lock()
-            .ok()
-            .and_then(|environments| environments.get(&machine.symbol).cloned());
-        let environments = cached.unwrap_or_else(|| {
-            let built = std::sync::Arc::new(incoming_guard_environments(program, machine, frames));
-            if let Ok(mut environments) = memos.incoming_guard_environments.lock() {
-                environments.insert(machine.symbol, built.clone());
-            }
-            built
-        });
+    if frames.is_some() && program.checking_memos().is_some() {
+        let environments = incoming_guard_environments(program, machine, frames);
         if let Some((_, environment)) = environments
             .iter()
             .find(|(symbol, _)| *symbol == state.symbol)

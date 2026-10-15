@@ -617,8 +617,11 @@ pub(crate) fn fold(
     let mut result = predicate.clone();
     map_observations(&mut result.expression, &mut |operand| {
         let binding = predicate.binding(&operand)?;
-        if let Some(ScalarValue::Boolean(value)) = resolve(&binding.place)
-            && operand.primitive_type() == Some(PrimitiveType::Bool)
+        // Only Boolean leaves can be replaced here. Integer observations stay
+        // symbolic, so resolving their live values (including relational truth
+        // closure) cannot affect this fold. Still require every leaf's binding.
+        if operand.primitive_type() == Some(PrimitiveType::Bool)
+            && let Some(ScalarValue::Boolean(value)) = resolve(&binding.place)
         {
             *operand = Scalar::Boolean(Box::new(Boolean::Constant(value)));
         }

@@ -447,15 +447,28 @@ pub fn revalidate_top_level_requirement_realization(
             machine.name
         )));
     } else {
-        let symbols =
-            crate::declarations::symbols::TopLevelSymbols::build(program, &mut diagnostics);
+        // Frozen queries already share these program-fixed declaration tables
+        // with call-frame resolution. Reuse their successful construction,
+        // not a prior conformance verdict: each supplied realization below is
+        // still checked against its exact requirement and current effects.
+        // Bare or invalid inputs retain ordinary construction and diagnostics.
+        let retained_tables = program.call_frame_tables();
+        let local_symbols;
+        let symbols = match retained_tables.as_ref() {
+            Some(tables) => &tables.symbols,
+            None => {
+                local_symbols =
+                    crate::declarations::symbols::TopLevelSymbols::build(program, &mut diagnostics);
+                &local_symbols
+            }
+        };
         validate_machine_top_level_requirement_conformance(
             program,
             &service_reaches,
             machine,
             requirement,
             conformance,
-            &symbols,
+            symbols,
             &mut diagnostics,
         );
     }

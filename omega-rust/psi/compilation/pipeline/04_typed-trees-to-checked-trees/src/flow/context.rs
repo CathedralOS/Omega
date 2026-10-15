@@ -13,6 +13,19 @@ type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>
 use std::rc::Rc;
 use symbols::SymbolHandle;
 
+/// A source-bound guard contains typed-tree identities, never sweep-local fact
+/// handles. Its source occurrence and polarity completely determine binding;
+/// the live guard checks and fresh evidence allocation remain at the caller.
+struct GuardPreparation {
+    occurrence: (
+        SymbolHandle,
+        usize,
+        typed_trees::expression::ExpressionHandle,
+        bool,
+    ),
+    predicate: Option<crate::facts::boolean_predicates::BoundPredicate>,
+}
+
 /// Immutable preparation for one authored invocation. Neither result contains
 /// live flow contexts: the source, borrow inventory, mutation summaries and
 /// exact-prefix alias resolver stay fixed throughout this flow build. Keep
@@ -233,6 +246,9 @@ pub(super) struct FlowBuildContext<'plans> {
     /// whole-arena scan and its literal parsing run at most once per build
     /// rather than once per widening rejoin.
     integer_literal_thresholds: Option<Rc<Vec<numerics::bignum::BigInt>>>,
+    /// Sorted by exact source occurrence, populated only for guards reached by
+    /// flow. Retain unsuccessful source binding as well as successful binding.
+    guard_predicates: Vec<GuardPreparation>,
     pub(super) assignment_observations: super::assignment_observations::AssignmentObservations,
     pub(super) contexts: FlowContextFacts,
     pub(super) invalidations: FlowInvalidationFacts,
@@ -301,6 +317,7 @@ impl<'plans> FlowBuildContext<'plans> {
             expression_occurrences: HashMap::default(),
             proof_fact_occurrences: HashMap::default(),
             integer_literal_thresholds: None,
+            guard_predicates: Vec::new(),
             state_mutation_summary_cache,
             assignment_observations: Default::default(),
             contexts: FlowContextFacts::with_roots(
@@ -393,6 +410,58 @@ impl<'plans> FlowBuildContext<'plans> {
             .state_location
             .get(&state_symbol)
             .copied()
+    }
+
+    pub(super) fn guard_predicate_at(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        state: SymbolHandle,
+        statement: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+        value: bool,
+    ) -> Option<&crate::facts::boolean_predicates::BoundPredicate> {
+        let occurrence = (state, statement, expression, value);
+        let order_key = |(state, statement, expression, value): (
+            SymbolHandle,
+            usize,
+            typed_trees::expression::ExpressionHandle,
+            bool,
+        )| {
+            (
+                state.arena_index(),
+                state.generation(),
+                statement,
+                expression.arena_index(),
+                expression.generation(),
+                value,
+            )
+        };
+        let position = match self
+            .guard_predicates
+            .binary_search_by_key(&order_key(occurrence), |prepared| {
+                order_key(prepared.occurrence)
+            }) {
+            Ok(position) => position,
+            Err(position) => {
+                let predicate = crate::facts::boolean_predicates::bind_current_guard(
+                    program,
+                    self.operators,
+                    state,
+                    statement,
+                    expression,
+                    value,
+                );
+                self.guard_predicates.insert(
+                    position,
+                    GuardPreparation {
+                        occurrence,
+                        predicate,
+                    },
+                );
+                position
+            }
+        };
+        self.guard_predicates[position].predicate.as_ref()
     }
 
     pub(super) fn canonical_place_at(

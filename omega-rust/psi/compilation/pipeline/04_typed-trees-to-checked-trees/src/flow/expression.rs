@@ -1365,6 +1365,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
+        // Operand evaluation delivers an aligned context/constraint pair.
+        // Without changed sources, capture retains that exact selection;
+        // filtering it again cannot withdraw any semantic constraint.
+        if changed.is_empty() {
+            return;
+        }
         *contexts = filter_contexts_after_place_mutations(
             self.program,
             self.semantic,

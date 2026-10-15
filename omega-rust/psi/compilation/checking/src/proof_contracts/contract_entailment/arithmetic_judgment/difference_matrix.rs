@@ -35,6 +35,9 @@ impl<'program> Engine<'program> {
     }
 
     /// Difference bounds, exact hypotheses, and independent intervals only.
+    ///
+    /// This query is pure: contradiction checking reuses failed queries for
+    /// identical canonical residuals within one immutable engine.
     pub(super) fn prove_base_lower_bound(&self, polynomial: &Polynomial, bound: &BigInt) -> bool {
         if let Some((positive, negative, constant)) = polynomial.as_atom_difference()
             && let Some(best) = self.matrix_bound(&positive, &negative)
@@ -72,6 +75,41 @@ impl<'program> Engine<'program> {
         self.horner_interval(polynomial, 0)
             .low
             .is_some_and(|low| low >= *bound)
+    }
+
+    /// P >= b contradicts -P >= 1-b over integers. Apply the same standalone,
+    /// residual and scaled judgments as `prove_at_least`, without asking the
+    /// identical residual question twice. No new combinations are searched.
+    pub(super) fn bounds_are_inconsistent(&self) -> bool {
+        for (bound_position, (polynomial, bound)) in self.bounds.iter().enumerate() {
+            let complement = polynomial.neg();
+            let complement_bound = BigInt::from_i64(1).sub(bound);
+            if self.prove_base_lower_bound(&complement, &complement_bound) {
+                return true;
+            }
+            for (stored_position, (stored, stored_bound)) in self.bounds.iter().enumerate() {
+                // The reversed pair asks exactly -P-Q >= 1-b-c too. Earlier
+                // rows completed false or we already returned; canonical exact
+                // arithmetic and immutable engine state make that result reusable.
+                // Keep the diagonal and every directed scaled query: scaling's
+                // coefficient selection and integer slack need not be symmetric.
+                if (stored_position >= bound_position
+                    && self.prove_base_lower_bound(
+                        &complement.sub(stored),
+                        &complement_bound.sub(stored_bound),
+                    ))
+                    || self.prove_scaled_lower_bound(
+                        &complement,
+                        &complement_bound,
+                        stored,
+                        stored_bound,
+                    )
+                {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     pub(super) fn polynomial_interval(&self, polynomial: &Polynomial) -> Interval {

@@ -717,17 +717,12 @@ pub(in crate::flow) fn append_predicate_context(
     if !expression_is_stable_predicate(program, expression) {
         return;
     }
-    if let Some(predicate) = crate::facts::boolean_predicates::bind_current_guard(
-        program,
-        build.operators,
-        state_symbol,
-        statement_index,
-        expression,
-        value,
-    ) {
+    if let Some(predicate) =
+        build.guard_predicate_at(program, state_symbol, statement_index, expression, value)
+    {
         let context = crate::facts::boolean_predicates::seed(
             semantic,
-            &predicate,
+            predicate,
             point,
             FactOrigin::TransitionGuard,
         );

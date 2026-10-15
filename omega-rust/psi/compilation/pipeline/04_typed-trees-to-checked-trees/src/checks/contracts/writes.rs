@@ -336,13 +336,10 @@ pub(super) fn check_domain_field_writes(
                     statement_index,
                     transition_target: target,
                 };
-                branch_contexts.extend(
-                    facts
-                        .semantic
-                        .contexts
-                        .iter()
-                        .filter_map(|(handle, context)| (context.point == point).then_some(handle)),
-                );
+                // The fact plan retains each exact arm's contexts in append
+                // order. Use that chain instead of scanning unrelated states
+                // and arms for every construction check.
+                branch_contexts.extend(facts.semantic.context_handles_at_point(point));
                 let expressions = match program.statement_table.transition_target(target) {
                     typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
                         program
