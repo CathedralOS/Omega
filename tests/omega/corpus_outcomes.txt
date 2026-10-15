@@ -5432,6 +5432,7 @@ pass/calls/case_scrutinee_param_clone_exit checked 11622ms check-target:macos_ar
 pass/calls/case_scrutinee_self_dispatch_exit checked 11715ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/completed_effectful_result_requirement_exit checked 12402ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/computed_binding_argument_exit checked 15245ms check-target:macos_arm64 @8df1d091a810
+pass/calls/computed_case_subject_slice_operands_exit checked 9943ms check-target:macos_arm64 @103ebf27678e+wt
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 12619ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/constant_result_requires_argument_accepted checked 12089ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/copy_projection_from_borrowed_receiver checked 11612ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6926,7 +6927,7 @@ pass/layouts/two_i32_member_layout_compile checked 1667ms @a9ae30e1c334+wt
 pass/layouts/two_i8_member_layout_compile checked 1638ms @a9ae30e1c334+wt
 pass/layouts/u16_array_member_layout_compile checked 1741ms @a9ae30e1c334+wt
 pass/layouts/u64_array_member_layout_compile checked 1647ms @a9ae30e1c334+wt
-pass/layouts/unused_partial_target_layout_exit checked 4812ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @85e359099dcc+wt
+pass/layouts/unused_partial_target_layout_exit checked 9588ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @103ebf27678e+wt
 pass/layouts/whered_record_in_sum_layout_compile checked 1608ms @a9ae30e1c334+wt
 pass/layouts/wide_narrow_alignment_layout_compile checked 1779ms @a9ae30e1c334+wt
 pass/layouts/wide_then_byte_layout_compile checked 1646ms @a9ae30e1c334+wt

@@ -1,5 +1,5 @@
 // Retaining a policy catalog does not demand its geometry on another target.
-// The macOS member reads its actual authored offset; Windows never uses it.
+// The macOS member reads its actual authored offset; Windows and Linux never use it.
 // Expected exit: 0. The bad physical observation traps.
 use omega::language::core::layout;
 
@@ -23,3 +23,4 @@ macos_arm64 machine platform() crashes Trap {
     state bad() { crash Trap; }
 }
 windows_x86_64 machine platform() crashes Trap {}
+linux_x86_64 machine platform() crashes Trap {}

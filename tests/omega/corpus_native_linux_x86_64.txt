@@ -508,6 +508,7 @@ pass/calls/case_scrutinee_param_clone_exit built 14744ms exit:0 @6c49683ce714
 pass/calls/case_scrutinee_self_dispatch_exit built 15249ms exit:0 @6c49683ce714
 pass/calls/completed_effectful_result_requirement_exit built 17681ms exit:0 @6c49683ce714
 pass/calls/computed_binding_argument_exit built 17818ms exit:0 @6c49683ce714
+pass/calls/computed_case_subject_slice_operands_exit built 9932ms exit:70 @103ebf27678e+wt
 pass/calls/conditional_arm_tail_call_to_machine_exit built 15084ms exit:70 @6c49683ce714
 pass/calls/constant_result_requires_argument_accepted built 14670ms exit:70 @6c49683ce714
 pass/calls/copy_projection_from_borrowed_receiver built 14997ms exit:70 @6c49683ce714
@@ -2012,6 +2013,7 @@ pass/layouts/two_i32_member_layout_compile checked 3520ms @6c49683ce714
 pass/layouts/two_i8_member_layout_compile checked 3385ms @6c49683ce714
 pass/layouts/u16_array_member_layout_compile checked 3509ms @6c49683ce714
 pass/layouts/u64_array_member_layout_compile checked 3553ms @6c49683ce714
+pass/layouts/unused_partial_target_layout_exit built 9643ms exit:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @103ebf27678e+wt
 pass/layouts/whered_record_in_sum_layout_compile checked 3528ms @6c49683ce714
 pass/layouts/wide_narrow_alignment_layout_compile checked 3339ms @6c49683ce714
 pass/layouts/wide_then_byte_layout_compile checked 3468ms @6c49683ce714
