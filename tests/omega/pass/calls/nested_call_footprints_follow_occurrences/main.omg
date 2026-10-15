@@ -1,0 +1,27 @@
+// Expected exit: 0. Same-target calls in one statement write different places.
+data Cells { first: u64; second: u64; untouched: u64; }
+
+machine replace(cell: &mut u64, value: u64) -> bool { cell = value; true }
+machine both(first: bool, second: bool) -> bool { first && second }
+machine bounded(value: u64) requires value <= 8 {}
+
+machine main() crashes Trap {
+    let mut cells: Cells;
+    cells.first = 1;
+    cells.second = 2;
+    cells.untouched = 5;
+    transition cells.untouched <= 8 {
+        true -> write(&mut cells)
+        false -> bad()
+    }
+    state write(cells: &mut Cells) requires cells.untouched <= 8 {
+        let completed: bool = both(replace(&mut cells.first, 3), replace(&mut cells.second, 9));
+        bounded(cells.untouched);
+        transition completed && cells.first == 3 && cells.second == 9 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

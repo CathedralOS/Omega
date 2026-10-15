@@ -17,9 +17,6 @@ pub(in crate::flow) struct CallInvalidationResult {
     pub(in crate::flow) post_contexts: HandleSpan<FlowSemanticContextRef>,
     pub(in crate::flow) post_constraints: HandleSpan<FlowConstraintRef>,
     pub(in crate::flow) invalidations: HandleSpan<FlowInvalidationFact>,
-    /// The same write frame also bounds which copied-input guarantees can be
-    /// substituted back onto caller storage after the invocation.
-    pub(in crate::flow) storage_writes: Option<Vec<CanonicalPlace>>,
 }
 
 pub(in crate::flow) fn call_storage_writes(
@@ -29,8 +26,24 @@ pub(in crate::flow) fn call_storage_writes(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
-) -> Option<Vec<CanonicalPlace>> {
-    call_mutated_places(
+) -> Option<std::rc::Rc<Vec<CanonicalPlace>>> {
+    let occurrence = (
+        machine.symbol,
+        state.symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    );
+    if let Some(writes) = build
+        .call_sites
+        .get(&occurrence)
+        .and_then(|prepared| prepared.storage_writes.as_ref())
+    {
+        return writes.clone();
+    }
+    // The footprint is source-derived, not a judgment about the current
+    // incoming values. Retain it beside the existing occurrence lookup across
+    // sweeps; each consumer still filters its own live contexts below.
+    let writes = call_mutated_places(
         program,
         machine.symbol,
         state.symbol,
@@ -54,23 +67,27 @@ pub(in crate::flow) fn call_storage_writes(
         )
         .or(Some(places))
     })
+    .map(std::rc::Rc::new);
+    build
+        .call_sites
+        .entry(occurrence)
+        .or_default()
+        .storage_writes = Some(writes.clone());
+    writes
 }
 
 pub(in crate::flow) fn apply_call_invalidations(
     program: &dyn ::validation::CheckingInput,
-    borrow: &BorrowFacts,
     semantic: &FactPlan,
     domains: &DomainFacts,
     build: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
     active_contexts: HandleSpan<FlowSemanticContextRef>,
     active_constraints: HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
+    mutated_places: Option<&[CanonicalPlace]>,
 ) -> CallInvalidationResult {
-    let mutated_places = call_storage_writes(program, borrow, build, machine, state, borrow_call);
     let invalidations_start = build.invalidations.events.len();
-    let post_contexts = match &mutated_places {
+    let post_contexts = match mutated_places {
         None => HandleSpan::empty(),
         Some(mutated_places) => filter_contexts_after_place_mutations(
             program,
@@ -100,6 +117,5 @@ pub(in crate::flow) fn apply_call_invalidations(
         post_contexts,
         post_constraints,
         invalidations,
-        storage_writes: mutated_places,
     }
 }

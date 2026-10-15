@@ -13,6 +13,16 @@ type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>
 use std::rc::Rc;
 use symbols::SymbolHandle;
 
+/// Immutable preparation for one authored invocation. Neither result contains
+/// live flow contexts: the source, borrow inventory, mutation summaries and
+/// exact-prefix alias resolver stay fixed throughout this flow build. Keep
+/// unknown writes (`Some(None)`) distinct from not yet prepared (`None`).
+#[derive(Default)]
+pub(super) struct CallPreparation<'program> {
+    pub(super) site: Option<Option<validation::CallSite<'program>>>,
+    pub(super) storage_writes: Option<Option<Rc<Vec<validation::CanonicalPlace>>>>,
+}
+
 /// Program shape lookups indexed once per context: every machine, state, and
 /// their in-machine positions. All values are table positions, so the map is
 /// lifetime-free and rebuilds lazily on the first query of a fresh context.
@@ -70,7 +80,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// above -- they hold typed-tree handles only, never sweep-local arena
     /// handles.
     pub(super) call_sites:
-        HashMap<(SymbolHandle, SymbolHandle, usize, usize), Option<validation::CallSite<'plans>>>,
+        HashMap<(SymbolHandle, SymbolHandle, usize, usize), CallPreparation<'plans>>,
     pub(super) call_target_parameters:
         HashMap<SymbolHandle, Option<&'plans [typed_trees::signature::StateParameter]>>,
     pub(super) call_target_returns:

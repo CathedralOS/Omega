@@ -42,6 +42,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     active_constraints: &mut arena::HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
     captured_operands: &[checked_trees::FlowOperandFact],
+    storage_writes: Option<&[validation::CanonicalPlace]>,
 ) -> FlowCallFact {
     super::state_values::record_invocation(program, build, machine, state, borrow_call);
     let contract_call = proof_contract_call(
@@ -63,22 +64,20 @@ pub(super) fn build_call_flow_fact<'plans>(
     let requires = build_call_requires_contexts(semantic, build, machine, state, borrow_call);
     let invalidation = apply_call_invalidations(
         program,
-        borrow,
         semantic,
         domains,
         build,
-        machine,
-        state,
         *active_contexts,
         *active_constraints,
         borrow_call,
+        storage_writes,
     );
     let argument_sources = super::call_phases::ArgumentSources::new(
         program,
         machine.symbol,
         state.symbol,
         borrow_call,
-        invalidation.storage_writes.as_deref(),
+        storage_writes,
         &build.control,
         captured_operands,
     );
@@ -220,7 +219,9 @@ pub(super) fn memoized_find_call_site<'plans>(
     *build
         .call_sites
         .entry((machine_symbol, state_symbol, statement_index, call_ordinal))
-        .or_insert_with(|| {
+        .or_default()
+        .site
+        .get_or_insert_with(|| {
             validation::find_call_site(
                 program,
                 machine_symbol,

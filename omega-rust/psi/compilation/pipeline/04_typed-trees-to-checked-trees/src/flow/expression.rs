@@ -380,6 +380,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             constraints,
             borrowed_call,
             captured_operands,
+            writes.as_deref().map(Vec::as_slice),
         );
         // Evaluation consumers need this occurrence before the later package
         // source-custody binding pass. The authored ordinal identifies a call;
@@ -390,7 +391,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 ExpressionHandle::invalid()
             }
         };
-        self.record_operand_writes(writes);
+        self.record_operand_writes(writes.as_deref().cloned());
         call.operands = self
             .context
             .control

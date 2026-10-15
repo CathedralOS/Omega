@@ -1336,6 +1336,8 @@ fail/calls/nested_call_argument_constraints_unproven rejected 945ms expected @a9
 	cannot prove call argument `30.0` satisfies bounded parameter `value` for `admit` in `terminal.entry`; expected 0..=0.5
 	cannot prove call argument `40.0` satisfies bounded parameter `value` for `admit` in `nested.entry`; expected 0..=0.5
 	cannot prove call argument `left / right` satisfies `finite` for bounded parameter `value` for `finite` in `divided.entry`
+fail/calls/nested_call_footprint_retires_second_argument rejected 586ms expected @94a66e05d152+wt
+	cannot prove requires contract for call bounded from main: cells.second <= 8 (needs fact `value <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `write`
 fail/calls/nested_range_call_out_of_bounds rejected 691ms expected @0553d60b9b91+wt
 	cannot prove subslice range end bound `..4` is within slice length 3
 fail/calls/non_unit_compound_expression_requires_use rejected 880ms expected @a9ae30e1c334+wt
@@ -5456,6 +5458,7 @@ pass/calls/mutual_cycle_tail_admitted_exit checked 12745ms check-target:macos_ar
 pass/calls/named_target_payload_dispatch checked 11190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/negated_edge_guard_requires_exit checked 11055ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/nested_binding_call checked 9374ms @5041ef1af684+wt
+pass/calls/nested_call_footprints_follow_occurrences checked 3188ms check-target:macos_arm64 @94a66e05d152+wt
 pass/calls/nested_call_init_transition checked 11161ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/nested_call_policy_parameters_exit checked 11198ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/nested_call_runtime_index_arg_exit checked 11223ms check-target:macos_arm64 @a9ae30e1c334+wt
