@@ -277,6 +277,7 @@ pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
         authored_target: None,
         target_family: SymbolHandle::invalid(),
         target_family_interface: false,
+        interface_exposure: Default::default(),
         target_family_contracts_prepared: false,
         body_is_present: true,
         body_status: crate::machine::MachineBodyStatus::Complete,
