@@ -161,11 +161,13 @@ pub(super) fn capture(
     // Enumerating the whole type here would demand an unbounded catalog for a
     // growing reference edge even when the operation never follows that edge.
     // Naming a descriptor itself borrows its storage; only a proper prefix
-    // crosses into the backing captured by that descriptor instance.
+    // crosses into the backing captured by that descriptor instance. Capture
+    // follows descriptor storage, not shared-read eligibility: exclusive views
+    // also retain backing origins. Formation authenticates access separately.
     let descriptor = (0..source.path.len()).find_map(|length| {
         let path = &source.path[..length];
         let carrier = leaf_type(types, ty, path)?;
-        terminal_semantics::descriptor_results::is_shared_descriptor(types.iter(), carrier)
+        terminal_semantics::descriptor_results::is_descriptor(types.iter(), carrier)
             .then(|| path.to_vec())
     });
     if let Some(path) = descriptor {

@@ -708,6 +708,9 @@ fail/borrows/local_record_result_call_mut_and_shared_argument rejected 1878ms ex
 	state `absorb` receives `tally` as both mutable and read-only
 fail/borrows/local_record_view_result_holds_loan rejected 909ms expected @9c4d1c444502+wt
 	statement 2 mutates `tally.hits` while local borrow `cell` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/local_shared_view_mutable_reference_result rejected 191ms expected @7afd93564512+wt
+	machine `select` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
+	machine `select` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/local_subslice_live_parent_mutable_argument rejected 1626ms expected @a9ae30e1c334+wt
 	state `zero` receives `view` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	state `swap_out` receives `view` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)

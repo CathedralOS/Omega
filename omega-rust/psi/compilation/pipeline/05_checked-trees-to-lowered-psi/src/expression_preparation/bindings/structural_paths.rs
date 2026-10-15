@@ -248,13 +248,14 @@ fn prepare_structural_argument_projection<'a>(
                 "borrowed argument published carrier is ambiguous",
             ));
         }
-        // Ordinary references name a separate referent declaration. Fixed
-        // byte views instead publish the backing pointer with its extent in
-        // the carrier type; byte projections already address that backing.
-        // Match that exact extent without adding a Reference-only dereference
-        // or widening the access established by the source home.
-        let presents_root = match (&carrier.shape, &logical_root.shape) {
-            (terminal_psi::StructuralTypeShape::Reference { referent, access }, _) => {
+        // Ordinary references cross a separate referent declaration. Stored
+        // descriptors instead retain an access ceiling that can distinguish
+        // their identity from the checked logical view of the same backing.
+        // Reuse the shared presentation judgment for exact element/extent
+        // geometry, then check access separately. Descriptor projections need
+        // no extra pointer crossing, and keep their original bounds below.
+        let presents_root = match &carrier.shape {
+            terminal_psi::StructuralTypeShape::Reference { referent, access } => {
                 if *referent != logical_root.id || !structural_access_can_supply(*access, requested)
                 {
                     false
@@ -265,11 +266,9 @@ fn prepare_structural_argument_projection<'a>(
                     true
                 }
             }
-            (
-                terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
-                ),
-                _,
+            terminal_psi::StructuralTypeShape::ElementView { access, .. }
+            | terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
             ) => {
                 terminal_semantics::borrowed_referent_matches(
                     types.iter(),
@@ -286,7 +285,7 @@ fn prepare_structural_argument_projection<'a>(
         }
         // The plan may spell the logical hop already consumed by the carrier
         // presentation above. Ordinary references emitted that hop explicitly;
-        // fixed byte views address their array backing implicitly. Neither
+        // descriptors address their backing implicitly. Neither
         // may dereference the logical referent a second time.
         if matches!(
             remainder.first(),

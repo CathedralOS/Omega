@@ -1,0 +1,13 @@
+// Equal element identities do not widen a stored descriptor's shared access.
+data Record { value: u64; }
+data Store { records: [Record; 2]; }
+
+machine select(store: &Store, second: bool) -> &mut Record {
+    let records: &[Record] = &store.records[..];
+    transition second {
+        true -> &mut records[1]
+        false -> &mut records[0]
+    }
+}
+
+machine main() {}

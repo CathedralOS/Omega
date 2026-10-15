@@ -1,0 +1,44 @@
+// Expected exit: 0.
+// A runtime-selected record keeps its original storage across return and call.
+data Record { marker: u64; value: u64; observed: u64; }
+data Store { records: [Record; 3]; }
+
+machine select(store: &mut Store, second: bool) -> &mut Record {
+    let records: &mut [Record] = &mut store.records[..];
+    transition second {
+        true -> &mut records[1]
+        false -> &mut records[0]
+    }
+}
+
+machine replace(record: &mut Record, value: u64) {
+    record.observed = record.marker;
+    record.value = value;
+}
+
+machine update(store: &mut Store, second: bool, value: u64) {
+    let selected: &mut Record = select(store, second);
+    selected.marker = 29;
+    replace(selected, value);
+    selected.marker = 31;
+}
+
+machine main() crashes Trap {
+    let mut store: Store = Store { records: [
+        Record { marker: 5, value: 11, observed: 0 },
+        Record { marker: 7, value: 13, observed: 0 },
+        Record { marker: 17, value: 19, observed: 23 }
+    ] };
+    update(&mut store, true, 41);
+    update(&mut store, false, 43);
+    transition store.records[0].value == 43 && store.records[1].value == 41
+        && store.records[0].marker == 31 && store.records[1].marker == 31
+        && store.records[0].observed == 29 && store.records[1].observed == 29
+        && store.records[2].marker == 17 && store.records[2].value == 19
+        && store.records[2].observed == 23 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

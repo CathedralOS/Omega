@@ -1,0 +1,1 @@
+machine `select` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
