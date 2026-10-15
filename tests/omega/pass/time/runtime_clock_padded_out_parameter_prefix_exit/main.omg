@@ -15,8 +15,17 @@ macos_arm64 machine timespec_binding() -> ForeignBinding<26, 14, 0> {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime"
     } }
 }
+
+linux_x86_64 machine linux_x86_64_timespec_binding() -> ForeignBinding<9, 13, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "clock_gettime", version: "GLIBC_2.17"
+    } }
+}
 macos_arm64 machine ClockImports::read(selector: u32, instant: &mut Instant) -> i32
     satisfies ClockProbe::read via timespec_binding();
+
+linux_x86_64 machine ClockImports::read(selector: u32, instant: &mut Instant) -> i32
+    satisfies ClockProbe::read via linux_x86_64_timespec_binding();
 
 machine read(clock: &Binding<ClockProbe>, instant: &mut Instant) -> i32
     reaches ClockProbe { clock.read(6, instant) }

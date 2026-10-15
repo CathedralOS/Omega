@@ -18,6 +18,10 @@ macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProv
     TargetProviders::select_provider<Child, ChildMap>(defaults);
 }
 
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Child, ChildMap>(defaults);
+}
+
 data Session { parent: Binding<Parent<u64>>; }
 data Main<'record> {
     parent: Binding<Parent<u64>>;

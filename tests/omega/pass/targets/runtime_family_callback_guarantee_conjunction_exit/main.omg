@@ -10,6 +10,10 @@ macos_arm64 machine choose<Element, machine Callback>(value: &Element) -> bool
 where machine Callback(argument: &Element) -> bool ensures result;
 { Callback(value) }
 
+linux_x86_64 machine choose<Element, machine Callback>(value: &Element) -> bool
+where machine Callback(argument: &Element) -> bool ensures result;
+{ Callback(value) }
+
 machine main() crashes Trap {
     let number: u64 = 42u64;
     let flag: bool = false;

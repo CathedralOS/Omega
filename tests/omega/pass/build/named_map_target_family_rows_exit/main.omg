@@ -16,8 +16,16 @@ GateProvider satisfies Gate {
     Gate::close = close_gate;
 }
 macos_arm64 machine open_gate() -> i32 { 7 }
+
+linux_x86_64 machine open_gate() -> i32 { 7 }
 windows_x86_64 machine open_gate() -> i32 { 7 }
 macos_arm64 machine close_gate(ticket: i32) -> i32 {
+    transition ticket == 7 { true -> accepted() _ -> refused() }
+    state accepted() -> i32 { 70 }
+    state refused() -> i32 { 71 }
+}
+
+linux_x86_64 machine close_gate(ticket: i32) -> i32 {
     transition ticket == 7 { true -> accepted() _ -> refused() }
     state accepted() -> i32 { 70 }
     state refused() -> i32 { 71 }

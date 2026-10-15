@@ -20,15 +20,33 @@ pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
     } }
 }
+
+pub linux_x86_64 machine linux_x86_64_read_binding() -> ForeignBinding<9, 4, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "read", version: "GLIBC_2.2.5"
+    } }
+}
 pub macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
     } }
 }
+
+pub linux_x86_64 machine linux_x86_64_write_binding() -> ForeignBinding<9, 5, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "write", version: "GLIBC_2.2.5"
+    } }
+}
 macos_arm64 boundary machine DescriptorImports::read(descriptor: i32, choice: &mut Choice, count: u64) -> i64
     satisfies DescriptorIo::read via read_binding();
+
+linux_x86_64 boundary machine DescriptorImports::read(descriptor: i32, choice: &mut Choice, count: u64) -> i64
+    satisfies DescriptorIo::read via linux_x86_64_read_binding();
 macos_arm64 boundary machine DescriptorImports::write(descriptor: i32, choice: &Choice, count: u64) -> i64
     satisfies DescriptorIo::write via write_binding();
+
+linux_x86_64 boundary machine DescriptorImports::write(descriptor: i32, choice: &Choice, count: u64) -> i64
+    satisfies DescriptorIo::write via linux_x86_64_write_binding();
 
 machine receive(io: &Binding<DescriptorIo>, choice: &mut Choice, count: u64) -> i64
     reaches DescriptorIo blocks; {

@@ -52,8 +52,19 @@ macos_arm64 machine clear_binding() -> ForeignBinding<26, 6, 0> {
         },
     }
 }
+
+linux_x86_64 machine linux_x86_64_clear_binding() -> ForeignBinding<9, 5, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "bzero", version: "GLIBC_2.2.5",
+        },
+    }
+}
 macos_arm64 machine clear_bytes(value: &mut ForeignByte, count: u64)
     satisfies ClearByte::clear via clear_binding();
+
+linux_x86_64 machine clear_bytes(value: &mut ForeignByte, count: u64)
+    satisfies ClearByte::clear via linux_x86_64_clear_binding();
 machine clear(clear_byte: &Binding<ClearByte>, value: &mut RawView) reaches ClearByte {
     let physical: &mut ForeignByte = value as &mut ForeignByte;
     ClearByte::clear(clear_byte, physical, 1);
@@ -69,8 +80,19 @@ macos_arm64 machine compare_binding() -> ForeignBinding<26, 7, 0> {
         },
     }
 }
+
+linux_x86_64 machine linux_x86_64_compare_binding() -> ForeignBinding<9, 6, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "memcmp", version: "GLIBC_2.2.5",
+        },
+    }
+}
 macos_arm64 machine compare_bytes(left: &RawView, right: &RawView, count: u64) -> i32
     satisfies CompareByte::compare via compare_binding();
+
+linux_x86_64 machine compare_bytes(left: &RawView, right: &RawView, count: u64) -> i32
+    satisfies CompareByte::compare via linux_x86_64_compare_binding();
 machine compare(compare_byte: &Binding<CompareByte>, left: &RawView, right: &RawView) -> i32 reaches CompareByte {
     CompareByte::compare(compare_byte, left, right, 1)
 }

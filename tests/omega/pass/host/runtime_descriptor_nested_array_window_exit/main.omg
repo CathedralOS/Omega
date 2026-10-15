@@ -13,8 +13,17 @@ macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
     } }
 }
+
+linux_x86_64 machine linux_x86_64_write_binding() -> ForeignBinding<9, 5, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "write", version: "GLIBC_2.2.5"
+    } }
+}
 macos_arm64 machine DescriptorImports::write_bytes(descriptor: i32, bytes: &[u8]) -> i64
     satisfies DescriptorProbe::write_bytes via write_binding();
+
+linux_x86_64 machine DescriptorImports::write_bytes(descriptor: i32, bytes: &[u8]) -> i64
+    satisfies DescriptorProbe::write_bytes via linux_x86_64_write_binding();
 
 machine emit(envelope: &Envelope) -> bool {
     let written: i64 = DescriptorProbe::write_bytes(1, &envelope.payload.bytes[1..4]);

@@ -11,6 +11,10 @@ data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Child, ChildMap>(defaults);
 }
+
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Child, ChildMap>(defaults);
+}
 machine observed(parent: &Binding<Parent<i32>>, value: i32) -> i32 reaches Parent {
     parent.echo(value)
 }

@@ -47,8 +47,7 @@ pass/arithmetic/runtime_boolean_state_shift_count_exit built 17459ms exit:0 @6c4
 pass/arithmetic/runtime_bounded_dividend_remainder_exit built 18292ms exit:0 @6c49683ce714
 pass/arithmetic/runtime_bounded_unsigned_sum_chain_exit built 14972ms exit:48 @6c49683ce714
 pass/arithmetic/runtime_bounded_unsigned_sum_field_and_call_exit built 15293ms exit:48 @6c49683ce714
-pass/arithmetic/runtime_call_live_remainder_recovery_exit rejected 15047ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/arithmetic/runtime_call_live_remainder_recovery_exit built 32218ms exit:70 stdout:match stderr:match @326ed531359e+wt
 pass/arithmetic/runtime_comparison_signedness_exit built 14678ms exit:70 @6c49683ce714
 pass/arithmetic/runtime_composite_bound_arrivals_exit built 18636ms exit:0 @6c49683ce714
 pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit built 14499ms exit:70 stdout:match @6c49683ce714
@@ -62,8 +61,7 @@ pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit built 14798ms exit:
 pass/arithmetic/runtime_explicit_call_operand_policy_exit built 14761ms exit:70 @6c49683ce714
 pass/arithmetic/runtime_explicit_call_result_policy_exit built 17551ms exit:0 @6c49683ce714
 pass/arithmetic/runtime_fixed_input_policy_reuse_exit built 17757ms exit:0 @6c49683ce714
-pass/arithmetic/runtime_fixed_integer_across_console_exit rejected 34281ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/arithmetic/runtime_fixed_integer_across_console_exit built 45375ms exit:70 stdout:match @326ed531359e+wt
 pass/arithmetic/runtime_float_nan_comparison_exit built 32409ms exit:70 @6c49683ce714
 pass/arithmetic/runtime_float_self_compare_nan_exit built 33695ms exit:70 @6c49683ce714
 pass/arithmetic/runtime_full_width_unsigned_quotient_exit built 17909ms exit:0 @6c49683ce714
@@ -121,8 +119,7 @@ pass/arrays/runtime_index_recast checked 20708ms @6c49683ce714
 pass/arrays/subject_field_where_index checked 17635ms @6c49683ce714
 pass/atomics/atomic_global_order_operations checked 3600ms @6c49683ce714
 pass/atomics/atomic_order_surface checked 18279ms @6c49683ce714
-pass/atomics/runtime_atomic_after_quoted_write_exit rejected 15284ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/atomics/runtime_atomic_after_quoted_write_exit built 33485ms exit:70 @326ed531359e+wt
 pass/atomics/runtime_atomic_bitwise_widths_exit built 15520ms exit:70 @6c49683ce714
 pass/atomics/runtime_atomic_case_field_state_exit built 18224ms exit:0 @6c49683ce714
 pass/atomics/runtime_atomic_compare_exchange_exit built 15391ms exit:70 @6c49683ce714
@@ -143,8 +140,7 @@ pass/blockexec/blocking_executor_custody_claims_compile rejected 18042ms regress
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "execute", reason: "attached Unit closure is missing a checked boundary machine plan", gap: None })
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 3402ms @6c49683ce714
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 3489ms @6c49683ce714
-pass/borrow/runtime_boundary_receiver_disjoint_loan_exit rejected 15083ms regressed-from:built+exit:70+stdout:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/borrow/runtime_boundary_receiver_disjoint_loan_exit built 31916ms exit:70 stdout:match @326ed531359e+wt
 pass/borrow/runtime_dispatch_call_payload_snapshot_exit built 15917ms exit:70 @6c49683ce714
 pass/borrow/runtime_exclusive_loan_local_write_exit built 15548ms exit:70 @6c49683ce714
 pass/borrow/runtime_indexed_write_only_local_receiver_exit built 17469ms exit:0 @6c49683ce714
@@ -499,6 +495,7 @@ pass/build/generated_source_selects_authored rejected 9077ms published:none @6c4
 	retained machine declaration differs from its indexed root child
 	retained machine declaration differs from its indexed root child
 	published outputs [] differ from expected_published.txt [files/generated.omg]
+pass/build/named_map_target_family_rows_exit built 15672ms exit:70 @326ed531359e+wt
 pass/build/nested_generated_dependency_dual_purpose built 26168ms exit:0 @6c49683ce714
 pass/build/policy_array_entry_context_exit built 17692ms exit:0 @6c49683ce714
 pass/build/product_description_paths_exit built 18043ms exit:0 @6c49683ce714
@@ -1430,8 +1427,7 @@ pass/calls/indexed_self_root_call_arg built 15066ms exit:70 @6c49683ce714
 pass/calls/inline_record_scalar_call_arguments_exit built 14691ms exit:70 stdout:match @6c49683ce714
 pass/calls/local_after_call_result_store_exit built 15113ms exit:70 @6c49683ce714
 pass/calls/local_array_direct_read_exit built 15040ms exit:70 @6c49683ce714
-pass/calls/local_fixed_byte_array_loan_exit rejected 14823ms regressed-from:built+exit:70 @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/local_fixed_byte_array_loan_exit built 11649ms exit:70 @326ed531359e+wt
 pass/calls/local_nested_record_call_then_state_exit built 14931ms exit:70 @6c49683ce714
 pass/calls/local_projected_field_argument_exit built 14833ms exit:70 @6c49683ce714
 pass/calls/local_projected_field_record_result_argument_exit built 14868ms exit:70 @6c49683ce714
@@ -1446,8 +1442,7 @@ pass/calls/local_records_mixed_record_result_arguments_exit built 15515ms exit:7
 pass/calls/machine_self_call_recursion_compile built 17390ms exit:0 @6c49683ce714
 pass/calls/mixed_projection_sources_in_one_call built 15297ms exit:0 @6c49683ce714
 pass/calls/mixed_value_forwarding_exit built 14903ms exit:70 @6c49683ce714
-pass/calls/mutable_output_host_call rejected 14833ms regressed-from:built @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/mutable_output_host_call built 11540ms exit:0 @326ed531359e+wt
 pass/calls/mutable_receiver_computation_exit built 14651ms exit:70 @6c49683ce714
 pass/calls/mutable_receiver_scalar_destinations_exit built 14856ms exit:70 @6c49683ce714
 pass/calls/mutual_cycle_tail_admitted_exit built 14921ms exit:70 @6c49683ce714
@@ -1460,8 +1455,7 @@ pass/calls/nested_call_policy_parameters_exit built 14946ms exit:70 @6c49683ce71
 pass/calls/nested_call_runtime_index_arg_exit built 15071ms exit:70 @6c49683ce714
 pass/calls/nested_call_tail_roots_exit built 14973ms exit:0 @6c49683ce714
 pass/calls/nested_indexed_scalar_arguments_exit built 15025ms exit:70 @6c49683ce714
-pass/calls/nested_machine_continuation rejected 14897ms regressed-from:built @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/nested_machine_continuation built 10797ms exit:0 @326ed531359e+wt
 pass/calls/nested_scalar_argument_evaluation_order_exit built 17728ms exit:0 @6c49683ce714
 pass/calls/nested_self_call_argument_exit built 14832ms exit:70 @6c49683ce714
 pass/calls/nested_subject_call_operand checked 3382ms @6c49683ce714
@@ -1491,8 +1485,7 @@ pass/calls/runtime_atomic_case_shared_argument_exit built 17480ms exit:0 @6c4968
 pass/calls/runtime_authored_numeric_guard_result_exit built 17581ms exit:0 @6c49683ce714
 pass/calls/runtime_authored_numeric_names_exit built 17730ms exit:0 @6c49683ce714
 pass/calls/runtime_boolean_result_across_console_exit built 15349ms exit:70 stdout:match @6c49683ce714
-pass/calls/runtime_borrowed_binding_field_state_loan_exit rejected 15188ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/runtime_borrowed_binding_field_state_loan_exit built 7447ms exit:70 stdout:match @326ed531359e+wt
 pass/calls/runtime_borrowed_float_formal_exchange_exit built 34438ms exit:70 @6c49683ce714
 pass/calls/runtime_boundary_computed_selector_order_exit rejected 19507ms @6c49683ce714
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(c_strnlen),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(u8\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
@@ -1505,8 +1498,7 @@ pass/calls/runtime_case_payload_indexed_calls_exit built 15381ms exit:70 @6c4968
 pass/calls/runtime_case_payload_scalar_array_read_exit built 20516ms exit:0 @6c49683ce714
 pass/calls/runtime_case_record_return_exit built 15745ms exit:70 @6c49683ce714
 pass/calls/runtime_case_terminal_payload_result_exit built 18037ms exit:0 @6c49683ce714
-pass/calls/runtime_closed_constructor_requires_exit rejected 15018ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/runtime_closed_constructor_requires_exit built 7594ms exit:0 stdout:match @326ed531359e+wt
 pass/calls/runtime_completed_operand_then_forwarded_shared_borrow_exit built 17562ms exit:0 @6c49683ce714
 pass/calls/runtime_completed_operand_then_shared_borrow_exit built 18497ms exit:0 @6c49683ce714
 pass/calls/runtime_computed_case_subject_affine_argument_exit built 18661ms exit:0 @6c49683ce714
@@ -1534,12 +1526,10 @@ pass/calls/runtime_dispatch_result_enum_case_exit built 15408ms exit:70 @6c49683
 pass/calls/runtime_dispatch_slice_element_terminal_exit built 14844ms exit:70 @6c49683ce714
 pass/calls/runtime_distinct_receiver_value_calls_exit built 14886ms exit:70 @6c49683ce714
 pass/calls/runtime_enum_self_method_exit built 15422ms exit:70 @6c49683ce714
-pass/calls/runtime_exact_division_call_span_exit rejected 14735ms regressed-from:built+exit:70+stdout:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/runtime_exact_division_call_span_exit built 7520ms exit:70 stdout:match @326ed531359e+wt
 pass/calls/runtime_explicit_discard_executes_exit built 16058ms exit:70 @6c49683ce714
 pass/calls/runtime_explicit_reference_alias_argument_exit built 17292ms exit:0 @6c49683ce714
-pass/calls/runtime_fixed_element_view_field_loan_exit rejected 15359ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/runtime_fixed_element_view_field_loan_exit built 7458ms exit:70 stdout:match @326ed531359e+wt
 pass/calls/runtime_float_result_across_call_exit built 33196ms exit:70 stdout:match @6c49683ce714
 pass/calls/runtime_guard_call_vs_call_exit built 14805ms exit:70 @6c49683ce714
 pass/calls/runtime_guarded_boundary_tail_call_exit built 14845ms exit:70 @6c49683ce714
@@ -1569,17 +1559,13 @@ pass/calls/runtime_local_scalar_array_element_loan_exit built 15078ms exit:70 @6
 pass/calls/runtime_loop_rotation_exit built 15242ms exit:1 @6c49683ce714
 pass/calls/runtime_measured_tail_recursion_exit built 15383ms exit:70 @6c49683ce714
 pass/calls/runtime_mut_ref_forward_exit built 15027ms exit:70 @6c49683ce714
-pass/calls/runtime_mutable_call_before_transition_args_exit rejected 15486ms regressed-from:built+exit:70 @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
-pass/calls/runtime_mutable_call_empty_input_exit rejected 15345ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
-pass/calls/runtime_mutable_call_short_input_exit rejected 15712ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/runtime_mutable_call_before_transition_args_exit built 7502ms exit:70 @326ed531359e+wt
+pass/calls/runtime_mutable_call_empty_input_exit built 7442ms exit:72 @326ed531359e+wt
+pass/calls/runtime_mutable_call_short_input_exit built 7520ms exit:72 @326ed531359e+wt
 pass/calls/runtime_mutable_local_external_scalar_call_exit rejected 15251ms @6c49683ce714
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(external_absolute),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/runtime_mutable_local_parameter_write_exit built 15081ms exit:171 @6c49683ce714
-pass/calls/runtime_mutual_unit_borrowed_continuation_exit rejected 14901ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/runtime_mutual_unit_borrowed_continuation_exit built 7274ms exit:70 stdout:match stderr:match @326ed531359e+wt
 pass/calls/runtime_nested_case_argument_exit built 15367ms exit:70 @6c49683ce714
 pass/calls/runtime_nested_case_subject_operand_order_exit built 17814ms exit:0 @6c49683ce714
 pass/calls/runtime_nested_completed_operands_then_shared_borrow_exit built 17688ms exit:0 @6c49683ce714
@@ -1634,16 +1620,14 @@ pass/calls/runtime_value_call_return_types_exit built 15116ms exit:70 @6c49683ce
 pass/calls/runtime_value_call_single_execution_exit built 14656ms exit:70 @6c49683ce714
 pass/calls/runtime_value_call_statement_recursive_walk_exit built 15470ms exit:70 @6c49683ce714
 pass/calls/runtime_value_call_terminal_exit built 35378ms exit:70 @6c49683ce714
-pass/calls/runtime_wrapping_division_call_span_exit rejected 15364ms regressed-from:built+exit:70+stdout:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/runtime_wrapping_division_call_span_exit built 7468ms exit:70 stdout:match @326ed531359e+wt
 pass/calls/scalar_callee_borrowed_primitive_reads_exit built 14775ms exit:70 @6c49683ce714
 pass/calls/scalar_expression_binding_evaluation_order_exit built 17588ms exit:0 @6c49683ce714
 pass/calls/scalar_local_record_view_call_exit built 14813ms exit:70 @6c49683ce714
 pass/calls/scalar_range_argument_exit built 15083ms exit:70 @6c49683ce714
 pass/calls/scalar_return_after_unit_call_exit built 15260ms exit:42 @6c49683ce714
 pass/calls/scalar_unit_call_state_forward_exit built 17717ms exit:0 @6c49683ce714
-pass/calls/serviceful_borrowed_scalar_exit rejected 14999ms regressed-from:built+exit:70+stdout:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/serviceful_borrowed_scalar_exit built 7559ms exit:70 stdout:match @326ed531359e+wt
 pass/calls/state_and_machine_names_exit built 17510ms exit:0 @6c49683ce714
 pass/calls/state_graph_callee_forwards_mut_parameter_exit built 14837ms exit:70 @6c49683ce714
 pass/calls/statement_call_recursive_overload_compile checked 3450ms @6c49683ce714
@@ -1651,8 +1635,7 @@ pass/calls/static_arithmetic_name_callback_exit built 15544ms exit:7 @6c49683ce7
 pass/calls/static_binding_authority checked 3350ms @6c49683ce714
 pass/calls/static_context_forwarded_through_state_arms_exit built 14795ms exit:70 @6c49683ce714
 pass/calls/static_context_forwarded_twice_exit built 14822ms exit:70 @6c49683ce714
-pass/calls/static_state_context_field_window_exit rejected 34416ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/static_state_context_field_window_exit built 19216ms exit:70 @326ed531359e+wt
 pass/calls/structural_mut_to_shared_argument built 17418ms @6c49683ce714
 pass/calls/structural_self_rooted_argument built 17464ms exit:0 @6c49683ce714
 pass/calls/subslice_argument_result_shapes_exit built 20967ms exit:0 @6c49683ce714
@@ -1734,8 +1717,7 @@ pass/collections/element_view_write_transition built 15320ms exit:181 @6c49683ce
 pass/collections/empty_record_array_borrow_exit built 17957ms exit:0 @6c49683ce714
 pass/collections/indexed_row_array_literal_store built 14884ms exit:7 @6c49683ce714
 pass/collections/integer_index_every_width checked 3640ms @6c49683ce714
-pass/collections/local_byte_array_input_state_loan_exit rejected 14750ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
+pass/collections/local_byte_array_input_state_loan_exit built 9493ms exit:70 stdout:match stderr:match @326ed531359e+wt
 pass/collections/mutable_slice_view_edge_release built 15044ms exit:181 @6c49683ce714
 pass/collections/mutable_slice_view_establishment built 14800ms exit:181 @6c49683ce714
 pass/collections/named_transition_completion built 15382ms exit:181 @6c49683ce714
@@ -1746,8 +1728,7 @@ pass/collections/owned_state_array_leaf_store_exit built 14947ms exit:70 @6c4968
 pass/collections/policy_array_enum_element_dispatch_exit built 17782ms exit:0 @6c49683ce714
 pass/collections/policy_array_literal_store_exit built 14713ms exit:52 @6c49683ce714
 pass/collections/qualified_element_read_modify_write_retains_policy_exit built 18573ms exit:0 @6c49683ce714
-pass/collections/record_array_field_access_exit rejected 14822ms regressed-from:built+exit:0+stdout:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/collections/record_array_field_access_exit built 8334ms exit:0 stdout:match @326ed531359e+wt
 pass/collections/record_array_literal_field_store_exit built 15009ms exit:25 @6c49683ce714
 pass/collections/runtime_argmax_index_exit built 14941ms exit:70 @6c49683ce714
 pass/collections/runtime_array_child_membership_transport_exit built 17893ms exit:0 @6c49683ce714
@@ -1826,12 +1807,9 @@ pass/collections/runtime_record_element_window_write_read_exit built 17477ms exi
 pass/collections/runtime_record_exclusive_element_extent_exit built 17693ms exit:0 @6c49683ce714
 pass/collections/runtime_record_slice_float_reads_exit built 36920ms exit:0 @6c49683ce714
 pass/collections/runtime_refined_element_view_call_write_exit built 17444ms exit:0 @6c49683ce714
-pass/collections/runtime_shared_array_dot_product_exit rejected 15183ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/collections/runtime_shared_array_polynomial_exit rejected 15135ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/collections/runtime_shared_fixed_array_cycle_exit rejected 15365ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/collections/runtime_shared_array_dot_product_exit built 7919ms exit:32 stdout:match @326ed531359e+wt
+pass/collections/runtime_shared_array_polynomial_exit built 7962ms exit:70 stdout:match @326ed531359e+wt
+pass/collections/runtime_shared_fixed_array_cycle_exit built 8261ms exit:42 stdout:match @326ed531359e+wt
 pass/collections/runtime_signed_element_offset_read_exit built 14855ms exit:70 @6c49683ce714
 pass/collections/runtime_slice_record_copy_exit built 15535ms exit:70 @6c49683ce714
 pass/collections/runtime_vec_u32_growth_exit built 25128ms exit:70 @6c49683ce714
@@ -1976,8 +1954,7 @@ pass/control_flow/guarded_case_arm_value_result_exit built 15342ms exit:70 @6c49
 pass/control_flow/guarded_jump_field_view_forward built 17752ms @6c49683ce714
 pass/control_flow/guarded_leaf_branch_expansion checked 3494ms @6c49683ce714
 pass/control_flow/guarded_mid_arm_return built 15407ms exit:70 @6c49683ce714
-pass/control_flow/guarded_transition_dispatch_exit rejected 14895ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/control_flow/guarded_transition_dispatch_exit built 7878ms exit:0 stdout:match @326ed531359e+wt
 pass/control_flow/guarded_two_param_dispatch_compile checked 3430ms @6c49683ce714
 pass/control_flow/guarded_unit_completion_exit built 15210ms exit:70 @6c49683ce714
 pass/control_flow/guarded_value_transition_roster built 14940ms exit:11 @6c49683ce714
@@ -2051,8 +2028,7 @@ pass/control_flow/runtime_index_state_loan_snapshot_exit built 17788ms exit:0 @6
 pass/control_flow/runtime_indexed_case_dispatch_exit built 14766ms exit:2 @6c49683ce714
 pass/control_flow/runtime_integer_literal_dispatch_exit built 14804ms exit:22 @6c49683ce714
 pass/control_flow/runtime_later_state_shared_array_loan built 17668ms exit:0 stdout:match @6c49683ce714
-pass/control_flow/runtime_local_record_array_byte_render_exit rejected 16879ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/control_flow/runtime_local_record_array_byte_render_exit built 10144ms exit:0 stdout:match stderr:match @326ed531359e+wt
 pass/control_flow/runtime_loop_patterns_exit built 15355ms exit:70 @6c49683ce714
 pass/control_flow/runtime_mutable_bounded_byte_formatter_exit built 38612ms exit:0 @6c49683ce714
 pass/control_flow/runtime_namespace_local_state_loan built 17361ms exit:0 stdout:match @6c49683ce714
@@ -2287,8 +2263,7 @@ pass/domains/qualified_record_issuer_forwarding checked 3440ms @6c49683ce714
 pass/domains/qualified_record_retained_guarantee checked 3508ms @6c49683ce714
 pass/domains/qualified_record_wrapped_arithmetic checked 3592ms @6c49683ce714
 pass/domains/record_interval_domain_member_exit built 15226ms exit:70 @6c49683ce714
-pass/domains/record_literal_view_member_store_exit rejected 15217ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/domains/record_literal_view_member_store_exit built 7983ms exit:70 stdout:match @326ed531359e+wt
 pass/domains/record_predicate_domain_member_exit built 15162ms exit:70 @6c49683ce714
 pass/domains/refinement_chain_predicates checked 3549ms @6c49683ce714
 pass/domains/refinement_chain_routed_provenance checked 3339ms @6c49683ce714
@@ -2298,17 +2273,14 @@ pass/domains/runtime_constructor_ensured_membership_exit built 17866ms exit:0 @6
 pass/domains/runtime_nested_record_membership_transport_exit built 18068ms exit:0 @6c49683ce714
 pass/domains/runtime_qualified_borrowed_gated_input_exit built 17516ms exit:0 @6c49683ce714
 pass/domains/runtime_qualified_ieee_field_read_exit built 34327ms exit:0 @6c49683ce714
-pass/domains/runtime_qualified_view_field_parameter_store_exit rejected 15198ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/domains/runtime_qualified_view_field_parameter_store_exit built 8045ms exit:70 stdout:match @326ed531359e+wt
 pass/domains/runtime_result_domain_machine_overload_exit built 14902ms exit:70 @6c49683ce714
 pass/domains/runtime_scalar_alias_zero_and_qualification_exit built 17467ms exit:0 @6c49683ce714
 pass/domains/runtime_selected_nested_field_domain_exit built 17961ms exit:0 @6c49683ce714
-pass/domains/runtime_terminal_result_context_exit rejected 33948ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/domains/runtime_terminal_result_context_exit built 29966ms exit:0 stdout:match @326ed531359e+wt
 pass/domains/semantic_cast_guard_chain_mint checked 3323ms @6c49683ce714
 pass/domains/slice_domain_validator built 14663ms @6c49683ce714
-pass/domains/threaded_subject_keeps_established_domains rejected 15339ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
+pass/domains/threaded_subject_keeps_established_domains built 9376ms exit:0 @326ed531359e+wt
 pass/domains/transparent_alias_expansion checked 3409ms @6c49683ce714
 pass/domains/unit_membership_postcondition_exit built 15222ms exit:70 @6c49683ce714
 pass/domains/user_authored_predicate_machine checked 3374ms @6c49683ce714
@@ -2420,6 +2392,7 @@ pass/effects/checked_boundary_unused_callback checked 3445ms @6c49683ce714
 pass/effects/checked_callback_provider_ceiling checked 3334ms @6c49683ce714
 pass/effects/exact_synchronous_callback_rows rejected 1671ms @6c49683ce714
 	call to `execute` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
+pass/effects/finite_requirement_block_acknowledged_exit built 9220ms exit:0 @326ed531359e+wt
 pass/effects/generic_callback_schema_reach checked 3436ms @6c49683ce714
 pass/effects/nominal_callback_const_reach checked 3852ms @6c49683ce714
 pass/effects/nominal_callback_dependency checked 3406ms @6c49683ce714
@@ -2549,10 +2522,8 @@ pass/filesystem/wrapper_lock_metadata_exit rejected 57184ms @6c49683ce714
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_open_with_exit rejected 58920ms @6c49683ce714
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/float/admitted_float_conversion_crash rejected 32507ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/float/admitted_float_lower_boundary_crash rejected 33697ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/float/admitted_float_conversion_crash built 22290ms exit:signal signal:4 stdout:match @326ed531359e+wt
+pass/float/admitted_float_lower_boundary_crash built 23141ms exit:signal signal:4 stdout:match @326ed531359e+wt
 pass/float/admitted_numeric_imports_preserve_semantics built 237830ms exit:70 @909c94d50bd2
 pass/float/authored_heterogeneous_float_operator checked 3474ms @6c49683ce714
 pass/float/boundary_call_guard_result built 32855ms exit:0 @6c49683ce714
@@ -2586,8 +2557,7 @@ pass/float/foreign_control_state_restore built 3067ms @2d8ed253669f+wt
 pass/float/fused_multiply_add_single_rounding_exit built 35913ms exit:0 @6c49683ce714
 pass/float/guarded_exact_float_conversion checked 7570ms @6c49683ce714
 pass/float/guarded_scalar_state_contract_exit built 34910ms exit:0 @6c49683ce714
-pass/float/hydrostatic_load_format_exit rejected 32740ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/float/hydrostatic_load_format_exit built 21168ms exit:0 stdout:match @326ed531359e+wt
 pass/float/literal_indexed_float_field_read_exit built 33026ms exit:70 @6c49683ce714
 pass/float/live_division_operand_across_call_exit built 17740ms exit:0 @6c49683ce714
 pass/float/live_float_parameter_across_call_exit built 34151ms exit:0 @6c49683ce714
@@ -2624,8 +2594,7 @@ pass/float/public_integer_input_contract_import_exit built 34257ms exit:0 @6c496
 pass/float/public_integer_input_contract_state_import_exit built 34192ms exit:0 @6c49683ce714
 pass/float/public_integer_result_contract_import_exit built 34540ms exit:0 @6c49683ce714
 pass/float/qualified_integer_source_exact_float_coercion_exit built 34875ms exit:0 @6c49683ce714
-pass/float/requirement_nested_record_arithmetic_exit rejected 32607ms regressed-from:built+exit:70+stdout:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/float/requirement_nested_record_arithmetic_exit built 25342ms exit:70 stdout:match @326ed531359e+wt
 pass/float/returned_record_computed_fields_exit built 32360ms exit:70 @6c49683ce714
 pass/float/runtime_absolute_return_sum_exit built 34954ms exit:70 @6c49683ce714
 pass/float/runtime_absolute_shared_call_operands_exit built 34650ms exit:70 @6c49683ce714
@@ -2644,6 +2613,7 @@ pass/float/runtime_format_conversion_result_bounds_exit built 33612ms exit:0 @6c
 pass/float/runtime_generic_constructor_literal_landing_exit built 33301ms exit:0 stdout:match stderr:match @6c49683ce714
 pass/float/runtime_named_boundary_transition_exit built 34497ms exit:0 @6c49683ce714
 pass/float/runtime_named_float_to_integer_conversion_exit built 33943ms exit:70 @6c49683ce714
+pass/float/runtime_named_fma_sequence_exit built 26100ms exit:70 @326ed531359e+wt
 pass/float/runtime_named_format_conversion_exit built 33613ms exit:70 @6c49683ce714
 pass/float/runtime_named_policy_conversion_composition_exit built 32793ms exit:70 @6c49683ce714
 pass/float/runtime_named_policy_result_exit built 32210ms exit:70 @6c49683ce714
@@ -2833,8 +2803,7 @@ pass/generics/seq_map_filter checked 18852ms @6c49683ce714
 pass/generics/static_callable_local_type_argument_exit built 17656ms exit:0 @6c49683ce714
 pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 3553ms @6c49683ce714
 pass/generics/swapped_type_parameter_result checked 3565ms @6c49683ce714
-pass/host/console_exit_process_exit rejected 14629ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/host/console_exit_process_exit built 9342ms exit:70 stdout:match @326ed531359e+wt
 pass/host/efi_vtable_entry checked 17453ms @6c49683ce714
 pass/host/foreign_byte_recast checked 20501ms @6c49683ce714
 pass/host/foreign_multiregister checked 17592ms @6c49683ce714
@@ -2843,29 +2812,34 @@ pass/host/intrinsic_machine_param checked 17369ms @6c49683ce714
 pass/host/process_exit_after_zero_payload_construction built 12383ms exit:70 @6c49683ce714
 pass/host/process_exit_explicit_standalone_domain_exit built 5244ms exit:70 @f137abafccda+wt
 pass/host/process_exit_i32_status_mapped built 21581ms exit:212 @6c49683ce714
-pass/host/process_exit_i32_status_ordered rejected 14876ms regressed-from:built @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/host/process_exit_preserves_scalar_contract rejected 14784ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/host/runtime_console_bounded_line_cr_midline_exit rejected 15105ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
-pass/host/runtime_console_bounded_line_eof_repeat_exit rejected 14804ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
-pass/host/runtime_console_bounded_line_exit rejected 14977ms regressed-from:built+exit:20 @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
-pass/host/runtime_console_bounded_line_full_exit rejected 15155ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
-pass/host/runtime_console_bounded_line_lf_exit rejected 14896ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
-pass/host/runtime_console_bounded_line_middle_window_exit rejected 14742ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
-pass/host/runtime_console_bounded_line_nul_crlf_exit rejected 14947ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
-pass/host/runtime_console_bounded_line_partial_eof_exit rejected 14866ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
+pass/host/process_exit_i32_status_ordered built 10245ms exit:70 stdout:match @326ed531359e+wt
+pass/host/process_exit_preserves_scalar_contract built 8380ms exit:70 stdout:match @326ed531359e+wt
+pass/host/runtime_console_bounded_line_cr_midline_exit built 9253ms exit:14 stdout:match @326ed531359e+wt
+pass/host/runtime_console_bounded_line_eof_repeat_exit built 10672ms exit:21 @326ed531359e+wt
+pass/host/runtime_console_bounded_line_exit built 11103ms exit:20 @326ed531359e+wt
+pass/host/runtime_console_bounded_line_full_exit built 10081ms exit:34 stdout:match @326ed531359e+wt
+pass/host/runtime_console_bounded_line_lf_exit built 11375ms exit:13 stdout:match @326ed531359e+wt
+pass/host/runtime_console_bounded_line_middle_window_exit built 12552ms exit:70 stdout:match @326ed531359e+wt
+pass/host/runtime_console_bounded_line_nul_crlf_exit built 13461ms exit:14 stdout:match @326ed531359e+wt
+pass/host/runtime_console_bounded_line_partial_eof_exit built 12167ms exit:22 stdout:match @326ed531359e+wt
 pass/host/runtime_console_byte_echo_exit built 14672ms exit:70 @6c49683ce714
 pass/host/runtime_console_byte_payload_bounds_exit built 14537ms exit:70 @6c49683ce714
+pass/host/runtime_descriptor_binary_output_exit built 9225ms exit:0 @326ed531359e+wt
+pass/host/runtime_descriptor_binding_record_result_exit built 9981ms exit:0 stdout:match @326ed531359e+wt
+pass/host/runtime_descriptor_binding_state_forwarding_input_exit built 9839ms exit:0 stdout:match @326ed531359e+wt
+pass/host/runtime_descriptor_boolean_loan_output_exit built 9081ms exit:0 stdout:match @326ed531359e+wt
+pass/host/runtime_descriptor_case_atomic_input_exit built 9257ms exit:0 stdout:match stderr:match @326ed531359e+wt
+pass/host/runtime_descriptor_case_replacement_exit built 9393ms exit:0 stdout:match stderr:match @326ed531359e+wt
+pass/host/runtime_descriptor_direct_array_exit built 10262ms exit:0 stdout:match stderr:match @326ed531359e+wt
+pass/host/runtime_descriptor_exclusive_atomic_record_exit built 11184ms exit:0 stdout:match @326ed531359e+wt
+pass/host/runtime_descriptor_float_loan_input_exit built 24739ms exit:0 stdout:match @326ed531359e+wt
+pass/host/runtime_descriptor_immutable_primitive_loans_exit built 32695ms exit:0 stdout:match @326ed531359e+wt
+pass/host/runtime_descriptor_local_array_loan_input_exit built 13520ms exit:0 stdout:match @326ed531359e+wt
+pass/host/runtime_descriptor_nested_array_window_exit built 10465ms exit:0 stdout:match @326ed531359e+wt
 pass/host/runtime_descriptor_nested_record_loan_input_exit built 18072ms exit:0 stdout:match @6c49683ce714
+pass/host/runtime_descriptor_output_streams_exit built 13047ms exit:0 stdout:match stderr:match @326ed531359e+wt
+pass/host/runtime_descriptor_padded_prefix_loans_exit built 11830ms exit:0 stdout:match @326ed531359e+wt
+pass/host/runtime_descriptor_record_loan_input_exit built 11813ms exit:0 stdout:match @326ed531359e+wt
 pass/host/runtime_descriptor_scalar_input_exit built 18054ms exit:0 stdout:match stderr:match @6c49683ce714
 pass/host/runtime_encoded_record_view_observation_exit built 17614ms exit:0 stdout:match @6c49683ce714
 pass/host/runtime_fixed_arithmetic_across_console_exit built 14938ms exit:0 stdout:match stderr:match @6c49683ce714
@@ -2941,6 +2915,7 @@ pass/layouts/runtime_callee_owned_local_origins_exit built 17984ms exit:0 @6c496
 pass/layouts/runtime_captured_encoded_reference_replacement_exit built 17718ms exit:0 @6c49683ce714
 pass/layouts/runtime_constant_layout_contract_exit built 17362ms exit:0 @6c49683ce714
 pass/layouts/runtime_encoded_physical_view_exit built 17668ms exit:0 @6c49683ce714
+pass/layouts/runtime_foreign_encoded_reference_exit built 9683ms exit:0 @326ed531359e+wt
 pass/layouts/runtime_indexed_restricted_field_read built 17757ms exit:0 @6c49683ce714
 pass/layouts/runtime_layout_arithmetic_value_flow_exit built 19588ms exit:0 @6c49683ce714
 pass/layouts/runtime_multi_origin_encoded_reference_exit built 18068ms exit:0 @6c49683ce714
@@ -3300,8 +3275,7 @@ pass/proofs/family_carrier_relation_laws checked 3510ms @6c49683ce714
 pass/proofs/field_view_index_contract checked 8372ms @6c49683ce714
 pass/proofs/float_guarded_negated_result_contract checked 7513ms @6c49683ce714
 pass/proofs/float_named_contract_literal_landing checked 7448ms @6c49683ce714
-pass/proofs/guarded_dynamic_field_arrival rejected 14963ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
+pass/proofs/guarded_dynamic_field_arrival built 11026ms @326ed531359e+wt
 pass/proofs/higher_order_machine_schema_compile checked 3567ms @6c49683ce714
 pass/proofs/integer_piecewise_result_contract checked 3540ms @6c49683ce714
 pass/proofs/kernel_integer_discreteness built 17958ms @6c49683ce714
@@ -3317,8 +3291,7 @@ pass/proofs/named_witness_static_trait_plural_compile checked 3605ms @6c49683ce7
 pass/proofs/nat_exact_subtraction_compile checked 3456ms @6c49683ce714
 pass/proofs/nat_metric_triangle_compile checked 3781ms @6c49683ce714
 pass/proofs/negative_disjunction_post_mutation_bound built 17285ms @6c49683ce714
-pass/proofs/nested_loop_digit_bytes_keep_utf8_exit rejected 15324ms regressed-from:built+exit:70 @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/proofs/nested_loop_digit_bytes_keep_utf8_exit built 10564ms exit:70 @326ed531359e+wt
 pass/proofs/normal_return_expression_statement_sequence_exit built 17583ms exit:0 @6c49683ce714
 pass/proofs/numeric_state_contract checked 3891ms @6c49683ce714
 pass/proofs/numeric_state_contract_exit built 18726ms exit:0 @6c49683ce714
@@ -3375,10 +3348,8 @@ pass/proofs/runtime_sequential_ranked_components_exit built 15200ms exit:70 @6c4
 pass/proofs/runtime_sequential_relational_accumulator_exit built 15029ms exit:70 @6c49683ce714
 pass/proofs/runtime_two_state_accumulator_exit built 15087ms exit:70 @6c49683ce714
 pass/proofs/scalar_copy_guard_const_forwarding checked 3393ms @6c49683ce714
-pass/proofs/scalar_copy_guard_disjoint_write rejected 14804ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
-pass/proofs/scalar_field_copy_guard rejected 14992ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
+pass/proofs/scalar_copy_guard_disjoint_write built 9014ms @326ed531359e+wt
+pass/proofs/scalar_field_copy_guard built 8251ms @326ed531359e+wt
 pass/proofs/scalar_state_return_keeps_byte_class checked 3429ms @6c49683ce714
 pass/proofs/selected_specification_requires_composition checked 3415ms @6c49683ce714
 pass/proofs/selected_specification_requires_exact checked 3644ms @6c49683ce714
@@ -3388,7 +3359,8 @@ pass/proofs/short_circuit_rhs_entry_bound built 17915ms @6c49683ce714
 pass/proofs/stride_pair_telescope checked 18313ms @6c49683ce714
 pass/providers/applied_binding_field_telescopes_exit rejected 4463ms @6c49683ce714
 	a boundary call requires an explicit shared `&Binding<R>` authority argument
-pass/providers/bare_byte_array_boundary_argument built 861ms @2d8ed253669f+wt
+pass/providers/applied_entry_nested_binding_context_exit built 11734ms exit:0 @326ed531359e+wt
+pass/providers/bare_byte_array_boundary_argument built 10563ms exit:0 @326ed531359e+wt
 pass/providers/binding_formal_type_const_operands checked 3384ms @6c49683ce714
 pass/providers/binding_param_capability checked 17599ms @6c49683ce714
 pass/providers/binding_where_record checked 17941ms @6c49683ce714
@@ -3420,18 +3392,31 @@ pass/providers/external_boundary_contract_exit rejected 17451ms @6c49683ce714
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(absolute),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/providers/external_boundary_requirement_via_exit built 18070ms exit:21 @6c49683ce714
 pass/providers/external_leaf_dllimport_compile built 18046ms @6c49683ce714
+pass/providers/finite_requirement_boolean_const_exit built 9602ms exit:0 @326ed531359e+wt
+pass/providers/finite_requirement_correlated_tuple_exit built 15767ms exit:0 @326ed531359e+wt
+pass/providers/finite_requirement_direct_provider_exit built 15035ms exit:0 @326ed531359e+wt
+pass/providers/finite_requirement_forwarded_const_exit built 11508ms exit:0 @326ed531359e+wt
 pass/providers/foreign_address_result_release_exit built 18269ms exit:70 @6c49683ce714
 pass/providers/foreign_indirect_record_distinct_exit built 19998ms exit:70 @6c49683ce714
 pass/providers/foreign_indirect_record_relay_exit built 18115ms exit:70 @6c49683ce714
 pass/providers/foreign_indirect_record_result_exit built 18134ms exit:70 @6c49683ce714
+pass/providers/foreign_multiregister_result_exit built 14183ms exit:70 @326ed531359e+wt
+pass/providers/foreign_out_parameter_write_observed_exit built 10887ms exit:70 @326ed531359e+wt
+pass/providers/foreign_owned_record_exit built 10243ms exit:70 @326ed531359e+wt
 pass/providers/foreign_packed_record_reuse_exit built 18032ms exit:70 @6c49683ce714
+pass/providers/foreign_record_result_exit built 11857ms exit:70 @326ed531359e+wt
 pass/providers/foreign_register_record_reuse_exit built 17873ms exit:70 @6c49683ce714
 pass/providers/generic_provider_structural_result_composition_exit built 18326ms exit:0 @6c49683ce714
+pass/providers/inherited_applied_binding_borrowed_result_exit built 11534ms exit:0 @326ed531359e+wt
+pass/providers/inherited_applied_binding_dispatch_exit built 9961ms exit:0 @326ed531359e+wt
+pass/providers/inherited_applied_binding_finite_family_exit built 10582ms exit:0 @326ed531359e+wt
+pass/providers/inherited_applied_binding_forwarded_value_exit built 9172ms exit:0 @326ed531359e+wt
+pass/providers/inherited_boundary_field_postcondition_exit built 9490ms exit:0 @326ed531359e+wt
 pass/providers/kernel_import_result_chain_exit built 17846ms exit:70 @6c49683ce714
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 15091ms exit:41 @6c49683ce714
 pass/providers/linear_structural_provider_pure_exit built 12695ms exit:0 @6c49683ce714
-pass/providers/linear_structural_provider_return_exit rejected 15441ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/providers/linear_structural_provider_return_exit built 8953ms exit:0 stdout:match @326ed531359e+wt
+pass/providers/local_record_foreign_borrow_exit built 7940ms exit:70 @326ed531359e+wt
 pass/providers/module_named_operator_result_domain_satisfaction built 15378ms exit:70 @6c49683ce714
 pass/providers/nested_binding_borrowed_call_exit built 17737ms exit:0 @6c49683ce714
 pass/providers/occurrence_region_binding_exit rejected 5180ms @6c49683ce714
@@ -3456,6 +3441,8 @@ pass/providers/runtime_boundary_linear_borrowed_argument_exit built 15359ms exit
 pass/providers/runtime_boundary_linear_result_exit built 15277ms exit:70 @6c49683ce714
 pass/providers/runtime_boundary_owned_array_cycle_exit built 6339ms exit:70 @f137abafccda+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit built 15345ms exit:70 @6c49683ce714
+pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit built 7947ms exit:70 @326ed531359e+wt
+pass/providers/runtime_foreign_leaf_slice_element_argument_exit built 8208ms exit:70 @326ed531359e+wt
 pass/providers/runtime_linear_provider_results_exit built 18304ms exit:0 @6c49683ce714
 pass/providers/runtime_named_provider_explicit_state_exit built 15464ms exit:70 @6c49683ce714
 pass/providers/runtime_result_domain_requirement_overload_exit built 15018ms exit:70 @6c49683ce714
@@ -3474,6 +3461,7 @@ pass/providers/specialized_mixed_structural_fixed_operator_hosted_native checked
 pass/providers/specialized_mixed_structural_result_operator_hosted_native built 18446ms exit:0 @6c49683ce714
 pass/providers/specialized_structural_fixed_operator_hosted_native checked 17912ms @6c49683ce714
 pass/providers/specialized_structural_fixed_operator_terminal_custody built 18276ms @6c49683ce714
+pass/providers/target_contract_adjacency_exit built 9548ms exit:0 @326ed531359e+wt
 pass/providers/target_family_entry checked 17464ms @6c49683ce714
 pass/providers/token_machine_family_override_exit built 14886ms exit:70 @6c49683ce714
 pass/providers/unreached_console_provider_rows built 14903ms @6c49683ce714
@@ -3486,6 +3474,8 @@ pass/ranges/subject_guard_compound_index_successor checked 3572ms @6c49683ce714
 pass/ranges/subject_unsigned_computed_index_lower_bound checked 3452ms @6c49683ce714
 pass/ranges/sum_payload_range_arith_narrowed_exit built 14860ms exit:70 @6c49683ce714
 pass/recast/bool_byte_view_compile checked 3405ms @6c49683ce714
+pass/recast/boundary_postcondition_backing_scalar_exit built 9232ms exit:0 @326ed531359e+wt
+pass/recast/boundary_postcondition_disjoint_aliased_write_exit built 9620ms exit:0 @326ed531359e+wt
 pass/recast/callee_returned_aggregate_view_exit built 17635ms exit:0 @6c49683ce714
 pass/recast/callee_returned_interior_view_exit built 17889ms exit:0 @6c49683ce714
 pass/recast/callee_returned_mutable_view_exit built 17768ms exit:0 @6c49683ce714
@@ -3521,6 +3511,8 @@ pass/recast/mutable_unsigned_signed_write_compile checked 3378ms @6c49683ce714
 pass/recast/narrow_signed_bits_view_compile checked 3390ms @6c49683ce714
 pass/recast/nested_operand_view_compile checked 3558ms @6c49683ce714
 pass/recast/recast_view_forward_compile checked 3394ms @6c49683ce714
+pass/recast/reference_view_helper_backing_write_exit built 9351ms exit:0 @326ed531359e+wt
+pass/recast/reference_view_shared_call_backing_exit built 9137ms exit:0 @326ed531359e+wt
 pass/recast/reference_view_shared_primitive_neighbor_exit built 7227ms exit:0 @f137abafccda+wt
 pass/recast/returned_same_type_view_capture_exit built 18122ms exit:0 @6c49683ce714
 pass/recast/returned_view_state_and_record_composition_exit built 17844ms exit:0 @6c49683ce714
@@ -3565,10 +3557,8 @@ pass/recast/unsigned_signed_bits_view_compile checked 3371ms @6c49683ce714
 pass/references/mutable_loan_member_read_initializes_local_exit built 15211ms exit:70 @6c49683ce714
 pass/references/runtime_shared_ref_param_guard_exit built 14948ms exit:1 @6c49683ce714
 pass/references/selected_record_loan_disjoint_fields_exit built 15072ms exit:70 @6c49683ce714
-pass/register_allocation/fixed_uses_across_hosted_clobbers_exit rejected 15274ms regressed-from:built+exit:0+stdout:match+stderr:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/register_allocation/runtime_call_crossing_decimal_reload_exit rejected 16011ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/register_allocation/fixed_uses_across_hosted_clobbers_exit built 8049ms exit:0 stdout:match stderr:match @326ed531359e+wt
+pass/register_allocation/runtime_call_crossing_decimal_reload_exit built 9040ms exit:0 stdout:match @326ed531359e+wt
 pass/relevance/erased_array_calls checked 17892ms @6c49683ce714
 pass/relevance/erased_array_nested checked 17476ms @6c49683ce714
 pass/relevance/erased_array_record_parameter checked 17893ms @6c49683ce714
@@ -3600,8 +3590,7 @@ pass/slices/empty_fixed_array_slice_call_exit built 17844ms exit:0 @6c49683ce714
 pass/slices/extent_core_surface checked 17443ms @6c49683ce714
 pass/slices/extent_no_wrap checked 17677ms @6c49683ce714
 pass/slices/extent_surface checked 17377ms @6c49683ce714
-pass/slices/fixed_array_slice_state_arguments_exit rejected 15145ms regressed-from:built+exit:70+stdout:match+stderr:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/slices/fixed_array_slice_state_arguments_exit built 8370ms exit:70 stdout:match stderr:match @326ed531359e+wt
 pass/slices/fused_entry_slice_call checked 17728ms @6c49683ce714
 pass/slices/guarded_match_slice_index_exit built 15168ms exit:70 @6c49683ce714
 pass/slices/guarded_param_subslice checked 17680ms @6c49683ce714
@@ -3626,8 +3615,7 @@ pass/slices/narrowed_view_window checked 17474ms @6c49683ce714
 pass/slices/negated_mutable_array_call_exit built 17836ms exit:0 @6c49683ce714
 pass/slices/nested_captured_element_store checked 3475ms @6c49683ce714
 pass/slices/nested_operand_view checked 17460ms @6c49683ce714
-pass/slices/projected_array_call_exit rejected 14929ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/slices/projected_array_call_exit built 7900ms exit:70 stdout:match @326ed531359e+wt
 pass/slices/projected_loan_arg checked 17633ms @6c49683ce714
 pass/slices/projected_slice_length checked 17969ms @6c49683ce714
 pass/slices/qualified_subslice_composition_exit built 14865ms exit:70 @6c49683ce714
@@ -3815,6 +3803,7 @@ pass/targets/retained_target_family_bodies built 12486ms exit:0 @6c49683ce714
 pass/targets/retained_target_provider_family_exit built 10888ms exit:70 @6c49683ce714
 pass/targets/runtime_closed_generic_attached_family_exit built 9420ms exit:0 @6c49683ce714
 pass/targets/runtime_family_applied_nominal_visitor_exit built 12599ms exit:0 @6c49683ce714
+pass/targets/runtime_family_callback_guarantee_conjunction_exit built 8882ms exit:0 @326ed531359e+wt
 pass/targets/runtime_family_callback_requirement_conjunction_exit built 17791ms exit:0 @6c49683ce714
 pass/targets/runtime_family_composed_owned_results_exit built 13136ms exit:0 @6c49683ce714
 pass/targets/runtime_family_current_completion_paths_exit built 12363ms exit:0 @6c49683ce714
@@ -3829,8 +3818,7 @@ pass/targets/runtime_family_nominal_callback_application_exit built 9312ms exit:
 pass/targets/runtime_family_nominal_callback_conjunction_exit built 17625ms exit:0 @6c49683ce714
 pass/targets/runtime_family_owned_result_exit built 9037ms exit:0 @6c49683ce714
 pass/targets/runtime_family_projected_result_qualification_exit built 18065ms exit:0 @6c49683ce714
-pass/targets/runtime_opaque_family_shared_provider_row_exit rejected 15082ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/targets/runtime_opaque_family_shared_provider_row_exit built 7907ms exit:37 stdout:match @326ed531359e+wt
 pass/targets/runtime_target_default_provider_rows_exit rejected 4429ms terminal-targets:unchecked @6c49683ce714
 	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/targets/runtime_target_inherited_named_provider_defaults_exit rejected 4376ms terminal-targets:unchecked @6c49683ce714
@@ -4011,8 +3999,7 @@ pass/text/incoming_bounded_byte_dynamic_call_exit built 9554ms exit:0 @6c49683ce
 pass/text/local_bounded_byte_indexed_write_exit built 15061ms exit:70 @6c49683ce714
 pass/text/local_bounded_text_case_result_loan_exit built 15014ms exit:70 @6c49683ce714
 pass/text/local_bounded_text_scalar_loan_exit built 15132ms exit:70 @6c49683ce714
-pass/text/local_record_byte_field_copy_exit rejected 15083ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/text/local_record_byte_field_copy_exit built 7787ms exit:70 stdout:match @326ed531359e+wt
 pass/text/mutable_bounded_byte_state_exit built 14974ms exit:70 @6c49683ce714
 pass/text/nested_mutable_receiver_byte_result_exit built 15187ms exit:70 @6c49683ce714
 pass/text/nested_owned_byte_record_literal_exit built 7699ms exit:70 @6c49683ce714
@@ -4021,8 +4008,7 @@ pass/text/owned_byte_call_result_field_exit built 7772ms exit:70 @6c49683ce714
 pass/text/owned_record_byte_field_read_exit built 15310ms exit:70 @6c49683ce714
 pass/text/plain_and_qualified_byte_arrays_exit built 15087ms exit:70 @6c49683ce714
 pass/text/plain_byte_field_and_qualified_state_loan_exit built 15225ms exit:70 @6c49683ce714
-pass/text/qualified_byte_owner_state_loan_cycle_exit rejected 14957ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/text/qualified_byte_owner_state_loan_cycle_exit built 7891ms exit:70 stdout:match @326ed531359e+wt
 pass/text/qualified_byte_state_snapshot_exit built 14851ms exit:70 @6c49683ce714
 pass/text/qualified_byte_value_forwarding_exit rejected 15043ms @6c49683ce714
 	machine `Main::main` state `main` statement 2 cannot lower structural value: computed owned operand requires an existing parameter
@@ -4030,27 +4016,21 @@ pass/text/runtime_alias_string_write incomplete 17577ms regressed-from:built @6c
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (structural field store: carrier path); in state `Main::main::main`, statement 1
 pass/text/runtime_bounded_carrier_alias_concat_exit built 14904ms exit:70 @6c49683ce714
 pass/text/runtime_bounded_carrier_concat_exit built 15366ms exit:70 @6c49683ce714
-pass/text/runtime_bounded_carrier_copy_exit rejected 15031ms regressed-from:built+exit:70+stdout:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/text/runtime_bounded_carrier_copy_exit built 8207ms exit:70 stdout:match @326ed531359e+wt
 pass/text/runtime_bounded_carrier_length_exit built 15001ms exit:10 @6c49683ce714
-pass/text/runtime_bounded_carrier_normal_status_exit rejected 14843ms regressed-from:built+exit:70+stdout:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/text/runtime_bounded_carrier_normal_status_exit built 7998ms exit:70 stdout:match @326ed531359e+wt
 pass/text/runtime_bounded_carrier_write_read_exit built 14867ms exit:70 @6c49683ce714
 pass/text/runtime_byte_field_dynamic_view_exit built 10491ms exit:0 @6c49683ce714
 pass/text/runtime_carrier_indexed_read_exit built 14983ms exit:70 @6c49683ce714
-pass/text/runtime_chained_string_append_exit rejected 7741ms regressed-from:built+exit:70 @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/text/runtime_decimal_scalar_across_output_alternate_exit rejected 7729ms regressed-from:built+exit:70+stdout:match+stderr:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
-pass/text/runtime_decimal_scalar_across_output_exit rejected 14818ms regressed-from:built+exit:70+stdout:match+stderr:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
+pass/text/runtime_chained_string_append_exit built 7998ms exit:70 @326ed531359e+wt
+pass/text/runtime_decimal_scalar_across_output_alternate_exit built 7800ms exit:70 stdout:match stderr:match @326ed531359e+wt
+pass/text/runtime_decimal_scalar_across_output_exit built 7649ms exit:70 stdout:match stderr:match @326ed531359e+wt
 pass/text/runtime_element_guard_bounds_parse_exit built 6602ms exit:70 @f137abafccda+wt
 pass/text/runtime_inline_byte_case_payload_variants_exit built 18241ms exit:0 @6c49683ce714
 pass/text/runtime_inline_byte_case_values_exit built 18047ms exit:0 @6c49683ce714
 pass/text/runtime_later_arm_guard_reads_exit built 6483ms exit:70 @f137abafccda+wt
 pass/text/runtime_mixed_byte_field_equality_exit built 14812ms exit:70 @6c49683ce714
-pass/text/runtime_mutable_string_parameter_concat_write_line rejected 8176ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/text/runtime_mutable_string_parameter_concat_write_line built 7481ms exit:77 stdout:match @326ed531359e+wt
 pass/text/runtime_number_to_decimal_exit built 15226ms exit:70 @6c49683ce714
 pass/text/runtime_owned_string_byte_view_exit built 14849ms exit:70 @6c49683ce714
 pass/text/runtime_param_domain_forward_exit built 14895ms exit:70 @6c49683ce714
@@ -4059,14 +4039,10 @@ pass/text/runtime_qualified_byte_array_storage_exit built 9374ms exit:0 @6c49683
 pass/text/runtime_qualified_owner_view_open_exit rejected 17749ms @6c49683ce714
 	machine `Main::main` state `main` statement 3 cannot lower structural value: computed owned operand requires an existing parameter
 pass/text/runtime_slice_indexed_string_guard_exit built 14929ms exit:70 @6c49683ce714
-pass/text/runtime_stdin_command_branch_exit rejected 8049ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
-pass/text/runtime_stdin_line_buffering_exit rejected 15334ms regressed-from:built+exit:0+stdout:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
-pass/text/runtime_string_concat_two_fields_exit rejected 7753ms regressed-from:built+exit:70 @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/text/runtime_text_builder rejected 14905ms regressed-from:built @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/text/runtime_stdin_command_branch_exit built 7367ms exit:0 stdout:match @326ed531359e+wt
+pass/text/runtime_stdin_line_buffering_exit built 7222ms exit:0 stdout:match @326ed531359e+wt
+pass/text/runtime_string_concat_two_fields_exit built 6847ms exit:70 @326ed531359e+wt
+pass/text/runtime_text_builder built 6715ms exit:0 @326ed531359e+wt
 pass/text/runtime_text_not_equals_exit built 14953ms exit:70 @6c49683ce714
 pass/text/runtime_utf16_literal_exit built 15105ms exit:70 @6c49683ce714
 pass/text/runtime_view_local_boundary_write_exit incomplete 7867ms @6c49683ce714
@@ -4098,6 +4074,7 @@ pass/text/utf8_member_verdict rejected 15013ms @6c49683ce714
 pass/text/view_field_literal_store_outlives_helper_exit built 15276ms exit:70 @6c49683ce714
 pass/text/zii_default_string_equality_exit built 14843ms exit:70 @6c49683ce714
 pass/time/runtime_checked_time_arith_exit built 39015ms exit:70 @6c49683ce714
+pass/time/runtime_clock_padded_out_parameter_prefix_exit built 8524ms exit:0 @326ed531359e+wt
 pass/time/runtime_duration_core_exit built 38212ms exit:70 @6c49683ce714
 pass/time/runtime_duration_units_and_scaling_exit built 37868ms exit:0 @6c49683ce714
 pass/time/runtime_fs_mtime_system_time_interop_exit built 51253ms @6c49683ce714
@@ -4232,8 +4209,7 @@ run/arithmetic/fixed_integer_operand_after_pressure built 16707ms exit:70 stdout
 run/arithmetic/fixed_integer_operand_join built 14907ms exit:70 stdout:match @6c49683ce714
 run/arithmetic/float_structural_initializer_selection built 32751ms exit:0 @6c49683ce714
 run/arithmetic/pinned_dividend_across_console_calls built 8016ms exit:0 stdout:match @6c49683ce714
-run/borrows/conditional_disjoint_field_loans_exit rejected 14811ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+run/borrows/conditional_disjoint_field_loans_exit built 6591ms exit:0 stdout:match stderr:match @326ed531359e+wt
 run/borrows/direct_runtime_index_write built 14936ms exit:9 @6c49683ce714
 run/borrows/incoming_carrier_transport built 17590ms exit:0 @6c49683ce714
 run/borrows/indexed_loan_element_write built 14921ms exit:0 @6c49683ce714
@@ -4257,8 +4233,7 @@ run/borrows/stored_subview_nested_call_result built 8724ms exit:0 @6c49683ce714
 run/borrows/stored_subview_repeated_updates built 17996ms exit:0 @6c49683ce714
 run/borrows/transition_shared_borrow built 14962ms exit:0 @6c49683ce714
 run/calls/byte_literal_expression_values built 17837ms exit:0 @6c49683ce714
-run/calls/fixed_dividend_across_console_calls rejected 14997ms regressed-from:built+exit:0+stdout:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+run/calls/fixed_dividend_across_console_calls built 6615ms exit:0 stdout:match @326ed531359e+wt
 run/calls/nested_range_call_operands built 8768ms exit:0 @6c49683ce714
 run/calls/ordered_literal_call_operands built 17791ms exit:0 @6c49683ce714
 run/calls/outcome_specific_selected_guarantee_exit built 14908ms exit:0 @6c49683ce714
@@ -4270,14 +4245,11 @@ run/calls/outcome_specific_selected_guarantee_variants_exit built 15161ms exit:0
 run/calls/owned_literal_call_operands built 17855ms exit:0 @6c49683ce714
 run/calls/qualified_atomic_operation_names built 17925ms exit:0 @6c49683ce714
 run/calls/resultless_scalar_parameters built 14803ms exit:0 stdout:match stderr:match @6c49683ce714
-run/calls/runtime_float_distinct_operand_calls_exit rejected 16266ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-run/calls/runtime_float_normalized_operand_single_evaluation_exit rejected 34504ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+run/calls/runtime_float_distinct_operand_calls_exit built 15775ms exit:0 stdout:match stderr:match @326ed531359e+wt
+run/calls/runtime_float_normalized_operand_single_evaluation_exit built 15773ms exit:0 stdout:match stderr:match @326ed531359e+wt
 run/calls/selected_provider_range_arguments built 34056ms exit:0 terminal-inspections:match @6c49683ce714
 run/calls/static_binding_authority built 18019ms exit:0 @6c49683ce714
-run/calls/table_report_call_survival rejected 15469ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+run/calls/table_report_call_survival built 6629ms exit:0 stdout:match @326ed531359e+wt
 run/contained_health_loop_command_branch checked 773ms @2d8ed253669f+wt
 run/contracts/captured_bound_unused_mutation built 17613ms exit:0 @6c49683ce714
 run/domains/checked_provider_issued_field built 17430ms exit:0 @6c49683ce714
@@ -4312,10 +4284,8 @@ run/layouts/placed_ram_capture_return built 50344ms exit:0 stdout:match stderr:m
 run/layouts/placed_ram_original_backing built 49135ms exit:0 stdout:match stderr:match @6c49683ce714
 run/layouts/placed_ram_scalar_types built 17945ms exit:0 stdout:match stderr:match @6c49683ce714
 run/layouts/placed_ram_stored_field_return built 38946ms exit:0 stdout:match stderr:match @6c49683ce714
-run/nested_mut_alias_assignment_return rejected 12897ms regressed-from:built+exit:0+stdout:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/collections/float_array_completed_call_store_exit rejected 33095ms regressed-from:built+exit:0+stdout:match @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+run/nested_mut_alias_assignment_return built 6585ms exit:0 stdout:match @326ed531359e+wt
+pass/collections/float_array_completed_call_store_exit built 19227ms exit:0 stdout:match @326ed531359e+wt
 pass/collections/runtime_three_indexed_record_float_read_exit built 34868ms exit:0 @6c49683ce714
 pass/calls/runtime_guarded_reference_return_before_crash_exit built 17624ms exit:0 stdout:match stderr:match terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @6c49683ce714
 pass/calls/runtime_guarded_reference_return_crash built 17440ms exit:signal signal:4 stdout:match stderr:match terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @6c49683ce714
@@ -4330,12 +4300,9 @@ run/ownership/temporary_case_observation built 7411ms exit:0 @6c49683ce714
 run/ownership/temporary_projected_copy_argument built 13299ms exit:0 @6c49683ce714
 run/ownership/temporary_projected_value_residual built 11600ms exit:0 @6c49683ce714
 run/proofs/quotient_copy_paths built 12553ms exit:70 @6c49683ce714
-run/providers/module_named_float_conversion_family_exit rejected 31512ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-run/stores/runtime_float_indexed_call_result_exit rejected 30529ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-run/stores/runtime_float_store_selector_snapshot_exit rejected 20356ms @6c49683ce714
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+run/providers/module_named_float_conversion_family_exit built 14758ms exit:0 stdout:match stderr:match @326ed531359e+wt
+run/stores/runtime_float_indexed_call_result_exit built 14627ms exit:0 stdout:match stderr:match @326ed531359e+wt
+run/stores/runtime_float_store_selector_snapshot_exit built 14443ms exit:0 stdout:match stderr:match @326ed531359e+wt
 run/traits/static_implementation_method_arguments built 17376ms exit:0 @6c49683ce714
 run/traits/target_scoped_map_method_arguments built 26465ms exit:0 terminal-inspections:match @6c49683ce714
 run/variant_decimal_runtime_division rejected 2076ms @6c49683ce714

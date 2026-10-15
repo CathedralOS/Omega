@@ -18,6 +18,10 @@ macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProv
     TargetProviders::select_provider<Child, ChildMap>(defaults);
 }
 
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Child, ChildMap>(defaults);
+}
+
 data Main { parent: Binding<Parent<u64>>; child: Binding<Child>; }
 machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
     let chosen: i32 = Child::choose(&main.child);

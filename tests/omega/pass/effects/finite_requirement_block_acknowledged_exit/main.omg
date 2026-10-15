@@ -15,8 +15,20 @@ data Providers {}
 macos_arm64 machine Providers::provider_defaults(defaults: &mut Providers) {
     Providers::select_provider<Service, Provider>(defaults);
 }
+
+linux_x86_64 machine Providers::provider_defaults(defaults: &mut Providers) {
+    Providers::select_provider<Service, Provider>(defaults);
+}
 data Main { service: Binding<Service>; }
 macos_arm64 machine Main::main(main: &mut Main) reaches Service crashes Trap {
+    let first: i32 = block Service::echo<4>(&main.service, (17 as i32));
+    let second: i32 = block Service::echo<8>(&main.service, (25 as i32));
+    transition first == 18 && second == 27 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+linux_x86_64 machine Main::main(main: &mut Main) reaches Service crashes Trap {
     let first: i32 = block Service::echo<4>(&main.service, (17 as i32));
     let second: i32 = block Service::echo<8>(&main.service, (25 as i32));
     transition first == 18 && second == 27 { true -> done() _ -> bad() }

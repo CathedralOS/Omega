@@ -19,7 +19,16 @@ pub macos_arm64 machine SinkProvider::provider_defaults(defaults: &mut SinkProvi
     SinkProvider::select_provider<Sink, SinkProvider>(defaults);
 }
 
+pub linux_x86_64 machine SinkProvider::provider_defaults(defaults: &mut SinkProvider) {
+    SinkProvider::select_provider<Sink, SinkProvider>(defaults);
+}
+
 pub macos_arm64 machine SinkProvider::take(name: [u8; 7]) -> u64 satisfies Sink::take {
+    transition { _ -> ret() }
+    state ret() -> u64 { 7 }
+}
+
+pub linux_x86_64 machine SinkProvider::take(name: [u8; 7]) -> u64 satisfies Sink::take {
     transition { _ -> ret() }
     state ret() -> u64 { 7 }
 }

@@ -24,6 +24,22 @@ pub macos_arm64 /* checked target body */
 machine checked_offset(value: i32, macos_arm64: i32) -> i32
     requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }
 
+pub linux_x86_64 machine linux_x86_64_absolute_binding() -> ForeignBinding<9, 3, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "abs", version: "GLIBC_2.2.5"
+    } }
+}
+linux_x86_64 boundary machine absolute(value: i32) -> i32
+    satisfies Magnitude::absolute via linux_x86_64_absolute_binding()
+    requires value > -2147483648;
+pub linux_x86_64 // Declaration lookahead must skip trivia, like dispatch.
+boundary /* externally supplied */ machine alternate(value: i32) -> i32
+    satisfies Magnitude::alternate via linux_x86_64_absolute_binding()
+    requires value > -2147483648;
+pub linux_x86_64 /* checked target body */
+machine checked_offset(value: i32, macos_arm64: i32) -> i32
+    requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }
+
 data Main { magnitude: Binding<Magnitude>; }
 machine Main::main(main: &mut Main) reaches Magnitude crashes Trap {
     let magnitude: i32 = main.magnitude.absolute(-41);

@@ -1,4 +1,5 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "inherited_applied_binding_dispatch_exit");
     Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
 }

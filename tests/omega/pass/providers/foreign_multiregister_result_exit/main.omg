@@ -21,8 +21,20 @@ macos_arm64 machine division_binding() -> ForeignBinding<26, 6, 0> {
     }
 }
 
+linux_x86_64 machine linux_x86_64_division_binding() -> ForeignBinding<9, 5, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "lldiv", version: "GLIBC_2.2.5",
+        },
+    }
+}
+
 macos_arm64 machine divide(numerator: i64, denominator: i64) -> Division
     satisfies IntegerDivision::divide via division_binding();
+
+linux_x86_64 machine divide(numerator: i64, denominator: i64) -> Division
+    satisfies IntegerDivision::divide via linux_x86_64_division_binding();
 
 data Main {
     foreign: Binding<IntegerDivision>;

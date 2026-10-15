@@ -21,8 +21,20 @@ macos_arm64 machine c_strlen_binding() -> ForeignBinding<26, 7, 0> {
     }
 }
 
+linux_x86_64 machine linux_x86_64_c_strlen_binding() -> ForeignBinding<9, 6, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "strlen", version: "GLIBC_2.2.5",
+        },
+    }
+}
+
 macos_arm64 machine c_strlen(text: &u8) -> u64
     satisfies CText::length via c_strlen_binding();
+
+linux_x86_64 machine c_strlen(text: &u8) -> u64
+    satisfies CText::length via linux_x86_64_c_strlen_binding();
 
 pub data Words {
     bytes: [u8; 6];
@@ -38,7 +50,28 @@ macos_arm64 machine MeasureProvider::provider_defaults(defaults: &mut MeasurePro
     MeasureProvider::select_provider<Measure, MeasureProvider>(defaults);
 }
 
+linux_x86_64 machine MeasureProvider::provider_defaults(defaults: &mut MeasureProvider) {
+    MeasureProvider::select_provider<Measure, MeasureProvider>(defaults);
+}
+
 macos_arm64 machine MeasureProvider::measure(text: &[u8]) -> i32 satisfies Measure::measure
+{
+    transition text.len > 2 {
+        true -> lend(text)
+        _ -> (72)
+    }
+    state lend(text: &[u8]) -> i32
+    requires text.len > 2
+    {
+        let element: u64 = c_strlen(&text[2]);
+        transition element == 3 {
+            true -> (70)
+            _ -> (71)
+        }
+    }
+}
+
+linux_x86_64 machine MeasureProvider::measure(text: &[u8]) -> i32 satisfies Measure::measure
 {
     transition text.len > 2 {
         true -> lend(text)

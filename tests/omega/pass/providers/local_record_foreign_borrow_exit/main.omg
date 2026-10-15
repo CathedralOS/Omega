@@ -19,8 +19,19 @@ macos_arm64 machine compare_binding() -> ForeignBinding<26, 7, 0> {
         },
     }
 }
+
+linux_x86_64 machine linux_x86_64_compare_binding() -> ForeignBinding<9, 6, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "memcmp", version: "GLIBC_2.2.5",
+        },
+    }
+}
 macos_arm64 machine compare_bytes(left: &Pair, right: &Pair, count: u64) -> i32
     satisfies Compare::bytes via compare_binding();
+
+linux_x86_64 machine compare_bytes(left: &Pair, right: &Pair, count: u64) -> i32
+    satisfies Compare::bytes via linux_x86_64_compare_binding();
 
 machine second_value(first: i64 [0..=69]) -> i64 [1..=70] { first + 1 }
 

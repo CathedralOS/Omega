@@ -13,10 +13,22 @@ pub macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
     } }
 }
+
+pub linux_x86_64 machine linux_x86_64_write_binding() -> ForeignBinding<9, 5, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "write", version: "GLIBC_2.2.5"
+    } }
+}
 macos_arm64 boundary machine ScalarImports::flag(descriptor: i32, value: &bool, count: u64) -> i64
     satisfies ScalarOutput::flag via write_binding();
+
+linux_x86_64 boundary machine ScalarImports::flag(descriptor: i32, value: &bool, count: u64) -> i64
+    satisfies ScalarOutput::flag via linux_x86_64_write_binding();
 macos_arm64 boundary machine ScalarImports::byte(descriptor: i32, value: &u8, count: u64) -> i64
     satisfies ScalarOutput::byte via write_binding();
+
+linux_x86_64 boundary machine ScalarImports::byte(descriptor: i32, value: &u8, count: u64) -> i64
+    satisfies ScalarOutput::byte via linux_x86_64_write_binding();
 
 machine set(value: &mut bool) { value = true; }
 machine emit(output: &Binding<ScalarOutput>, value: &bool) -> i64 reaches ScalarOutput {

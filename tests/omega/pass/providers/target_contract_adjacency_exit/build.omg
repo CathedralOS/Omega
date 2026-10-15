@@ -1,4 +1,5 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "target_contract_adjacency");
     Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
 }

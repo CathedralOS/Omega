@@ -20,6 +20,10 @@ macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProv
     TargetProviders::select_provider<Child, ChildMap>(defaults);
 }
 
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Child, ChildMap>(defaults);
+}
+
 machine observed<'source>(parent: &Binding<Parent<i32>>, value: &'source i32)
     -> &'source i32 reaches Parent {
     parent.borrow(value)

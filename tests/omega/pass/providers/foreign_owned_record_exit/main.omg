@@ -19,6 +19,15 @@ macos_arm64 machine make_binding() -> ForeignBinding<26, 14, 0> {
     }
 }
 
+linux_x86_64 machine linux_x86_64_make_binding() -> ForeignBinding<9, 13, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "inet_makeaddr", version: "GLIBC_2.2.5",
+        },
+    }
+}
+
 macos_arm64 machine host_binding() -> ForeignBinding<26, 11, 0> {
     ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
@@ -28,10 +37,25 @@ macos_arm64 machine host_binding() -> ForeignBinding<26, 11, 0> {
     }
 }
 
+linux_x86_64 machine linux_x86_64_host_binding() -> ForeignBinding<9, 10, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "inet_lnaof", version: "GLIBC_2.2.5",
+        },
+    }
+}
+
 macos_arm64 machine make(network: u32, host: u32) -> InternetAddress
     satisfies AddressParts::make via make_binding();
+
+linux_x86_64 machine make(network: u32, host: u32) -> InternetAddress
+    satisfies AddressParts::make via linux_x86_64_make_binding();
 macos_arm64 machine host(address: InternetAddress) -> u32
     satisfies AddressParts::host via host_binding();
+
+linux_x86_64 machine host(address: InternetAddress) -> u32
+    satisfies AddressParts::host via linux_x86_64_host_binding();
 
 data Main {
     foreign: Binding<AddressParts>;

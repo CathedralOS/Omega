@@ -31,9 +31,22 @@ macos_arm64 machine foreign_out_parameter_binding() -> ForeignBinding<26, 14, 0>
     }
 }
 
+linux_x86_64 machine linux_x86_64_foreign_out_parameter_binding() -> ForeignBinding<9, 13, 10> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "clock_gettime", version: "GLIBC_2.17",
+        },
+    }
+}
+
 macos_arm64 machine foreign_clock_gettime(clock_id: u32, instant: &mut ForeignWrittenInstant) -> i32
     satisfies ForeignOutParameter::clock_gettime
     via foreign_out_parameter_binding();
+
+linux_x86_64 machine foreign_clock_gettime(clock_id: u32, instant: &mut ForeignWrittenInstant) -> i32
+    satisfies ForeignOutParameter::clock_gettime
+    via linux_x86_64_foreign_out_parameter_binding();
 
 data Main { foreign_out_parameter: Binding<ForeignOutParameter>; console: Binding<Console>; }
 machine Main::main(main: &mut Main) reaches ForeignOutParameter + Console {
