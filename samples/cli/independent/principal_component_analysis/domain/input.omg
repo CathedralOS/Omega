@@ -1,40 +1,39 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
 pub data Input {
  values: [f64; 67]; count: u64 in Wrapping; bytes: u64 in Wrapping; length: u64 in Wrapping;
  token: [i32 in Wrapping; 64]; valid: bool;
 }
-pub machine Input::read(input: &mut Input, console: &mut Binding<Console>)
-invokes console; reaches Console blocks; crashes Trap {
+pub machine Input::read(input: &mut Input)
+invokes Console; reaches Console blocks; crashes Trap {
  input.count = 0; input.bytes = 0; input.length = 0; input.valid = true;
- transition { _ -> receive(input, console) }
- state receive(input: &mut Input, console: &mut Binding<Console>) {
-  transition block console.read_byte() {
+ transition { _ -> receive(input) }
+ state receive(input: &mut Input) {
+  transition block Console::read_byte() {
    ByteRead::Eof -> finish(input)
-   ByteRead::Byte { value } -> bound(input, console, value as i32 in Wrapping)
+   ByteRead::Byte { value } -> bound(input, value as i32 in Wrapping)
   }
  }
- state bound(input: &mut Input, console: &mut Binding<Console>, value: i32 in Wrapping) {
-  transition input.bytes < 4096 { true -> byte(input, console, value) false -> invalid(input) }
+ state bound(input: &mut Input, value: i32 in Wrapping) {
+  transition input.bytes < 4096 { true -> byte(input, value) false -> invalid(input) }
  }
- state byte(input: &mut Input, console: &mut Binding<Console>, value: i32 in Wrapping) {
+ state byte(input: &mut Input, value: i32 in Wrapping) {
   input.bytes = input.bytes + 1;
   transition value == 32 || value == 9 || value == 10 || value == 13 {
-   true -> flush(input, console) false -> token_bound(input, console, value)
+   true -> flush(input) false -> token_bound(input, value)
   }
  }
- state token_bound(input: &mut Input, console: &mut Binding<Console>, value: i32 in Wrapping) {
-  transition input.length < 64 { true -> store(input, console, value) false -> invalid(input) }
+ state token_bound(input: &mut Input, value: i32 in Wrapping) {
+  transition input.length < 64 { true -> store(input, value) false -> invalid(input) }
  }
- state store(input: &mut Input, console: &mut Binding<Console>, value: i32 in Wrapping) {
+ state store(input: &mut Input, value: i32 in Wrapping) {
   input.token[input.length] = value; input.length = input.length + 1;
-  transition { _ -> receive(input, console) }
+  transition { _ -> receive(input) }
  }
- state flush(input: &mut Input, console: &mut Binding<Console>) {
+ state flush(input: &mut Input) {
   Input::flush(input);
-  transition input.valid { true -> receive(input, console) false -> done() }
+  transition input.valid { true -> receive(input) false -> done() }
  }
  state finish(input: &mut Input) { Input::flush(input); }
  state invalid(input: &mut Input) { input.valid = false; }

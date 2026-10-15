@@ -1,6 +1,5 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Decimal {
     value: i32 in Wrapping;
@@ -11,91 +10,91 @@ data Decimal {
 
 // Prepare signed decimal bytes before invoking Console. A nonpositive
 // working value represents i32::MIN exactly; eleven bytes include its sign.
-pub machine number(console: &Binding<Console>, value: i32 in Wrapping)
+pub machine number(value: i32 in Wrapping)
 reaches Console
 invokes Console;
 {
     let mut decimal: Decimal;
     decimal.divisor = 1;
     transition value < 0 {
-        true -> negative(console, value, &mut decimal)
-        false -> positive(console, value, &mut decimal)
+        true -> negative(value, &mut decimal)
+        false -> positive(value, &mut decimal)
     }
-    state negative(console: &Binding<Console>, value: i32 in Wrapping, decimal: &mut Decimal) {
+    state negative(value: i32 in Wrapping, decimal: &mut Decimal) {
         decimal.value = value;
         decimal.bytes[0] = 45;
         decimal.count = 1;
-        transition { _ -> scale(console, decimal) }
+        transition { _ -> scale(decimal) }
     }
-    state positive(console: &Binding<Console>, value: i32 in Wrapping, decimal: &mut Decimal) {
+    state positive(value: i32 in Wrapping, decimal: &mut Decimal) {
         decimal.value = -value;
-        transition { _ -> scale(console, decimal) }
+        transition { _ -> scale(decimal) }
     }
-    state scale(console: &Binding<Console>, decimal: &mut Decimal) {
+    state scale(decimal: &mut Decimal) {
         transition decimal.divisor >= 1 && decimal.divisor <= 1000000000 && decimal.count < 11 {
-            true -> scale_ready(console, decimal)
+            true -> scale_ready(decimal)
             false -> done()
         }
     }
-    state scale_ready(console: &Binding<Console>, decimal: &mut Decimal)
+    state scale_ready(decimal: &mut Decimal)
     requires decimal.divisor >= 1 && decimal.divisor <= 1000000000 && decimal.count < 11
     {
         transition decimal.value / decimal.divisor <= -10 && decimal.divisor <= 100000000 {
-            true -> grow(console, decimal)
-            false -> digit(console, decimal)
+            true -> grow(decimal)
+            false -> digit(decimal)
         }
     }
-    state grow(console: &Binding<Console>, decimal: &mut Decimal) {
+    state grow(decimal: &mut Decimal) {
         transition decimal.divisor >= 1 && decimal.divisor <= 100000000 && decimal.count < 11 {
-            true -> grow_ready(console, decimal)
+            true -> grow_ready(decimal)
             false -> done()
         }
     }
-    state grow_ready(console: &Binding<Console>, decimal: &mut Decimal)
+    state grow_ready(decimal: &mut Decimal)
     requires decimal.divisor >= 1 && decimal.divisor <= 100000000 && decimal.count < 11
     {
         decimal.divisor = decimal.divisor * 10;
-        transition { _ -> scale(console, decimal) }
+        transition { _ -> scale(decimal) }
     }
-    state digit(console: &Binding<Console>, decimal: &mut Decimal) {
+    state digit(decimal: &mut Decimal) {
         transition decimal.divisor >= 1 && decimal.divisor <= 1000000000 && decimal.count < 11 {
-            true -> digit_ready(console, decimal)
+            true -> digit_ready(decimal)
             false -> done()
         }
     }
-    state digit_ready(console: &Binding<Console>, decimal: &mut Decimal)
+    state digit_ready(decimal: &mut Decimal)
     requires decimal.divisor >= 1 && decimal.divisor <= 1000000000 && decimal.count < 11
     {
         decimal.bytes[decimal.count] = narrow_i32_to_u8_wrapping((-(decimal.value / decimal.divisor) + 48) as i32);
         decimal.count = decimal.count + 1;
         transition decimal.divisor >= 10 && decimal.count < 11 {
-            true -> next(console, decimal)
-            false -> emit(console, decimal)
+            true -> next(decimal)
+            false -> emit(decimal)
         }
     }
-    state next(console: &Binding<Console>, decimal: &mut Decimal) {
+    state next(decimal: &mut Decimal) {
         transition decimal.divisor >= 10 && decimal.divisor <= 1000000000 && decimal.count < 11 {
-            true -> next_ready(console, decimal)
+            true -> next_ready(decimal)
             false -> done()
         }
     }
-    state next_ready(console: &Binding<Console>, decimal: &mut Decimal)
+    state next_ready(decimal: &mut Decimal)
     requires decimal.divisor >= 10 && decimal.divisor <= 1000000000 && decimal.count < 11
     {
         decimal.value = decimal.value % decimal.divisor;
         decimal.divisor = decimal.divisor / 10;
-        transition { _ -> digit(console, decimal) }
+        transition { _ -> digit(decimal) }
     }
-    state emit(console: &Binding<Console>, decimal: &Decimal) {
+    state emit(decimal: &Decimal) {
         transition decimal.count <= 11 {
-            true -> emit_ready(console, decimal)
+            true -> emit_ready(decimal)
             false -> done()
         }
     }
-    state emit_ready(console: &Binding<Console>, decimal: &Decimal)
+    state emit_ready(decimal: &Decimal)
     requires decimal.count <= 11
     {
-        Console::write(console, decimal.bytes[..decimal.count]);
+        Console::write(decimal.bytes[..decimal.count]);
     }
     state done() {}
 }

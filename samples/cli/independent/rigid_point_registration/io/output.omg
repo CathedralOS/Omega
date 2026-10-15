@@ -2,48 +2,47 @@ use omega_language_std::console;
 use omega::language::core::float_operations;
 use model::registration;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 // Signed integers in 1e-12 units preserve more than the acceptance precision.
-pub machine number(console: &Binding<Console>, value: f64) reaches Console invokes Console; {
+pub machine number(value: f64) reaches Console invokes Console; {
     let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
     let integer: i64 in Wrapping = scaled as i64 in Wrapping;
-    Console::write(console, " ");
-    transition integer < 0 { true -> negative(console, integer) false -> positive(console, integer) }
-    state negative(console: &Binding<Console>, value: i64 in Wrapping) { Console::write(console, "-"); transition { _ -> digit(console, 0 - value, 1000000000000000000, false) } }
-    state positive(console: &Binding<Console>, value: i64 in Wrapping) { transition { _ -> digit(console, value, 1000000000000000000, false) } }
-    state digit(console: &Binding<Console>, value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
+    Console::write(" ");
+    transition integer < 0 { true -> negative(integer) false -> positive(integer) }
+    state negative(value: i64 in Wrapping) { Console::write("-"); transition { _ -> digit(0 - value, 1000000000000000000, false) } }
+    state positive(value: i64 in Wrapping) { transition { _ -> digit(value, 1000000000000000000, false) } }
+    state digit(value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
         let character: i64 in Wrapping = value / place;
-        transition character != 0 || started || place == 1 { true -> write(console, value, place, character) false -> advance(console, value, place, false) }
+        transition character != 0 || started || place == 1 { true -> write(value, place, character) false -> advance(value, place, false) }
     }
-    state write(console: &Binding<Console>, value: i64 in Wrapping, place: i64 in Wrapping, character: i64 in Wrapping) requires place > 0 {
-        Console::write_byte(console, narrow_i64_to_i32_saturating((character + 48) as i64)); transition { _ -> advance(console, value, place, true) }
+    state write(value: i64 in Wrapping, place: i64 in Wrapping, character: i64 in Wrapping) requires place > 0 {
+        Console::write_byte(narrow_i64_to_i32_saturating((character + 48) as i64)); transition { _ -> advance(value, place, true) }
     }
-    state advance(console: &Binding<Console>, value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
-        transition place >= 10 { true -> digit(console, value % place, place / 10, started) false -> done() }
+    state advance(value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
+        transition place >= 10 { true -> digit(value % place, place / 10, started) false -> done() }
     }
     state done() { }
 }
-pub machine emit(console: &Binding<Console>, problem: &Problem) reaches Console invokes Console; {
-    Console::write_line(console, "status fitted; numbers in 1e-12 units");
-    Console::write(console, "rotation");
-    number(console, problem.rotation.values[0]);
-    number(console, problem.rotation.values[1]);
-    number(console, problem.rotation.values[2]);
-    number(console, problem.rotation.values[3]);
-    number(console, problem.rotation.values[4]);
-    number(console, problem.rotation.values[5]);
-    number(console, problem.rotation.values[6]);
-    number(console, problem.rotation.values[7]);
-    number(console, problem.rotation.values[8]);
-    Console::write_line(console, ""); Console::write(console, "translation");
-    number(console, problem.translation[0]);
-    number(console, problem.translation[1]);
-    number(console, problem.translation[2]);
-    Console::write_line(console, ""); transition { _ -> points(console, problem, 0, 0.0) }
-    state points(console: &Binding<Console>, problem: &Problem, index: u64, objective: f64) {
-        transition index < problem.count && index < 16 { true -> row(console, problem, index, objective) false -> total(console, problem, objective) }
+pub machine emit(problem: &Problem) reaches Console invokes Console; {
+    Console::write_line("status fitted; numbers in 1e-12 units");
+    Console::write("rotation");
+    number(problem.rotation.values[0]);
+    number(problem.rotation.values[1]);
+    number(problem.rotation.values[2]);
+    number(problem.rotation.values[3]);
+    number(problem.rotation.values[4]);
+    number(problem.rotation.values[5]);
+    number(problem.rotation.values[6]);
+    number(problem.rotation.values[7]);
+    number(problem.rotation.values[8]);
+    Console::write_line(""); Console::write("translation");
+    number(problem.translation[0]);
+    number(problem.translation[1]);
+    number(problem.translation[2]);
+    Console::write_line(""); transition { _ -> points(problem, 0, 0.0) }
+    state points(problem: &Problem, index: u64, objective: f64) {
+        transition index < problem.count && index < 16 { true -> row(problem, index, objective) false -> total(problem, objective) }
     }
-    state row(console: &Binding<Console>, problem: &Problem, index: u64, objective: f64) requires index < 16 {
+    state row(problem: &Problem, index: u64, objective: f64) requires index < 16 {
         let transformed0: f64 = problem.translation[0] + problem.rotation.values[0] * problem.source[index * 3] + problem.rotation.values[1] * problem.source[index * 3 + 1] + problem.rotation.values[2] * problem.source[index * 3 + 2];
         let residual0: f64 = transformed0 - problem.target[index * 3 + 0];
         let transformed1: f64 = problem.translation[1] + problem.rotation.values[3] * problem.source[index * 3] + problem.rotation.values[4] * problem.source[index * 3 + 1] + problem.rotation.values[5] * problem.source[index * 3 + 2];
@@ -52,9 +51,9 @@ pub machine emit(console: &Binding<Console>, problem: &Problem) reaches Console 
         let residual2: f64 = transformed2 - problem.target[index * 3 + 2];
         let weighted: f64 = F64::square_root(problem.weights[index]);
         let squared: f64 = problem.weights[index] * (residual0 * residual0 + residual1 * residual1 + residual2 * residual2);
-        Console::write(console, "point"); number(console, transformed0); number(console, transformed1); number(console, transformed2);
-        number(console, weighted * residual0); number(console, weighted * residual1); number(console, weighted * residual2); number(console, F64::square_root(squared)); Console::write_line(console, "");
-        transition { _ -> points(console, problem, index + 1, objective + squared) }
+        Console::write("point"); number(transformed0); number(transformed1); number(transformed2);
+        number(weighted * residual0); number(weighted * residual1); number(weighted * residual2); number(F64::square_root(squared)); Console::write_line("");
+        transition { _ -> points(problem, index + 1, objective + squared) }
     }
-    state total(console: &Binding<Console>, problem: &Problem, objective: f64) { Console::write(console, "rms"); number(console, F64::square_root(objective / problem.total_weight)); Console::write_line(console, ""); }
+    state total(problem: &Problem, objective: f64) { Console::write("rms"); number(F64::square_root(objective / problem.total_weight)); Console::write_line(""); }
 }

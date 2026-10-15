@@ -1,7 +1,6 @@
 // Expected exit: 10.
 // Expected output contains: error: input bounds or syntax
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::model::SensorBlock;
 use domain::model::SensorStream;
 use domain::model::InputBuffer;
@@ -13,12 +12,12 @@ use domain::codec::decode;
 use domain::codec::certify;
 use domain::report::report;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 // The entry owns input, private codec storage, decoding and certification.
 machine Main::main(main: &mut Main) reaches Console {
     let mut input: InputBuffer;
-    let success: bool = block read_input(&mut main.console, &mut input);
+    let success: bool = block read_input(&mut input);
     transition success && input.length > 0 {
         true -> dispatch(main, &input)
         _ -> bad_input(main)
@@ -78,9 +77,9 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state output(main: &mut Main, stream: &SensorStream, decoded: &SensorBlock, maximum: i32) {
-        report(&mut main.console, stream, decoded, maximum);
+        report(stream, decoded, maximum);
     }
-    state bad_input(main: &mut Main) { main.console.write_line("error: input bounds or syntax"); main.console.exit_process(10); }
-    state bad_stream(main: &mut Main) { main.console.write_line("error: malformed sensor stream"); main.console.exit_process(12); }
-    state bad_certificate(main: &mut Main) { main.console.write_line("error: reconstruction certificate"); main.console.exit_process(13); }
+    state bad_input(main: &mut Main) { Console::write_line("error: input bounds or syntax"); Console::exit_process(10); }
+    state bad_stream(main: &mut Main) { Console::write_line("error: malformed sensor stream"); Console::exit_process(12); }
+    state bad_certificate(main: &mut Main) { Console::write_line("error: reconstruction certificate"); Console::exit_process(13); }
 }

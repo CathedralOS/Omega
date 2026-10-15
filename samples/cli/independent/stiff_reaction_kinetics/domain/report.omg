@@ -1,67 +1,66 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
 
 // Time and total concentration are bounded by 10^6, so 10^-12 units
 // fit i64. Explicit floating conversion handles presentation rounding.
-pub machine scaled(console: &mut Binding<Console>, value: f64)
-invokes console;
+pub machine scaled(value: f64)
+invokes Console;
 reaches Console {
     let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
-    integer64(console, scaled as i64);
+    integer64(scaled as i64);
 }
-pub machine integer(console: &mut Binding<Console>, value: i32)
-invokes console;
+pub machine integer(value: i32)
+invokes Console;
 reaches Console {
-    integer64(console, widen_i32_to_i64(value));
+    integer64(widen_i32_to_i64(value));
 }
-pub machine integer64(console: &mut Binding<Console>, value: i64)
-invokes console;
+pub machine integer64(value: i64)
+invokes Console;
 reaches Console {
     transition value < 0 {
-        true -> negative(console, value)
-        false -> positive(console, value)
+        true -> negative(value)
+        false -> positive(value)
     }
-    state negative(console: &mut Binding<Console>, value: i64) {
-        console.write("-");
+    state negative(value: i64) {
+        Console::write("-");
         // Unsigned modular negation also handles the full signed minimum.
         let bits: u64 = narrow_i64_to_u64_wrapping(value);
         let magnitude: u64 in Wrapping = 0 - (bits as u64 in Wrapping);
-        unsigned(console, magnitude as u64);
+        unsigned(magnitude as u64);
     }
-    state positive(console: &mut Binding<Console>, value: i64) {
-        unsigned(console, narrow_i64_to_u64_wrapping(value));
+    state positive(value: i64) {
+        unsigned(narrow_i64_to_u64_wrapping(value));
     }
 }
-machine unsigned(console: &mut Binding<Console>, value: u64)
-invokes console;
+machine unsigned(value: u64)
+invokes Console;
 reaches Console {
-    transition { _ -> digits(console, value, 10000000000000000000, false) }
-    state digits(console: &mut Binding<Console>, value: u64, divisor: u64, started: bool)
+    transition { _ -> digits(value, 10000000000000000000, false) }
+    state digits(value: u64, divisor: u64, started: bool)
     requires divisor > 0
     {
         let digit: u64 = value / divisor % 10;
         transition started || digit != 0 || divisor == 1 {
-            true -> emit(console, value, divisor, digit)
-            false -> skip(console, value, divisor)
+            true -> emit(value, divisor, digit)
+            false -> skip(value, divisor)
         }
     }
-    state emit(console: &mut Binding<Console>, value: u64, divisor: u64, digit: u64)
+    state emit(value: u64, divisor: u64, digit: u64)
     requires divisor > 0
     {
         let byte: u64 in Wrapping = (digit as u64 in Wrapping) + 48;
-        console.write_byte(narrow_u64_to_i32_saturating(byte as u64));
+        Console::write_byte(narrow_u64_to_i32_saturating(byte as u64));
         transition divisor >= 10 {
-            true -> digits(console, value, divisor / 10, true)
+            true -> digits(value, divisor / 10, true)
             false -> done()
         }
     }
-    state skip(console: &mut Binding<Console>, value: u64, divisor: u64)
+    state skip(value: u64, divisor: u64)
     requires divisor > 0
     {
         transition divisor >= 10 {
-            true -> digits(console, value, divisor / 10, false)
+            true -> digits(value, divisor / 10, false)
             false -> done()
         }
     }

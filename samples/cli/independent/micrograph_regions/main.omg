@@ -5,13 +5,12 @@ use domain::input;
 use domain::regions;
 use domain::output;
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let mut image: Image;
-    let valid: bool = block read_image(&main.console, &mut image);
+    let valid: bool = block read_image(&mut image);
     transition valid {
         true -> analyze(main, &mut image)
         false -> invalid(main)
@@ -24,15 +23,15 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state report(main: &mut Main, image: &Image) {
-        render(&main.console, image);
-        main.console.exit_process(0);
+        render(image);
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("ERROR invalid image: width height 1..8, threshold 0..255, connectivity 4 or 8, exact pixels 0..255");
-        main.console.exit_process(2);
+        Console::write_line("ERROR invalid image: width height 1..8, threshold 0..255, connectivity 4 or 8, exact pixels 0..255");
+        Console::exit_process(2);
     }
     state internal(main: &mut Main) {
-        main.console.write_line("ERROR internal capacity invariant");
-        main.console.exit_process(3);
+        Console::write_line("ERROR internal capacity invariant");
+        Console::exit_process(3);
     }
 }

@@ -2,7 +2,6 @@
 // 4096 consumed bytes prevent overflow and unbounded malformed input work.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 pub data Reader {
     value: i64 in Wrapping;
@@ -11,51 +10,51 @@ pub data Reader {
     digits: i32 in Wrapping;
 }
 
-pub machine Reader::next(console: &Binding<Console>, reader: &mut Reader) reaches Console
-invokes console;
+pub machine Reader::next(reader: &mut Reader) reaches Console
+invokes Console;
 blocks;
 crashes Trap
 {
     reader.value = 0;
     reader.status = 0;
     reader.digits = 0;
-    transition { _ -> scan(console, reader) }
-    state scan(console: &Binding<Console>, reader: &mut Reader) {
+    transition { _ -> scan(reader) }
+    state scan(reader: &mut Reader) {
         transition reader.consumed < 4096 {
-            true -> read(console, reader)
+            true -> read(reader)
             false -> invalid(reader)
         }
     }
-    state read(console: &Binding<Console>, reader: &mut Reader) {
-        let observed: ByteRead = block Console::read_byte(console);
+    state read(reader: &mut Reader) {
+        let observed: ByteRead = block Console::read_byte();
         reader.consumed = reader.consumed + 1;
         transition observed {
             ByteRead::Eof -> finish(reader)
-            ByteRead::Byte { value } -> classify(console, reader, value)
+            ByteRead::Byte { value } -> classify(reader, value)
         }
     }
-    state classify(console: &Binding<Console>, reader: &mut Reader, value: i32) {
+    state classify(reader: &mut Reader, value: i32) {
         transition value == 32 || value == 9 || value == 10 || value == 13 {
-            true -> delimiter(console, reader)
-            false -> numeral(console, reader, value)
+            true -> delimiter(reader)
+            false -> numeral(reader, value)
         }
     }
-    state delimiter(console: &Binding<Console>, reader: &mut Reader) {
+    state delimiter(reader: &mut Reader) {
         transition reader.digits > 0 {
             true -> finish(reader)
-            false -> scan(console, reader)
+            false -> scan(reader)
         }
     }
-    state numeral(console: &Binding<Console>, reader: &mut Reader, value: i32) {
+    state numeral(reader: &mut Reader, value: i32) {
         transition value >= 48 && value <= 57 && reader.digits < 6 {
-            true -> append(console, reader, value)
+            true -> append(reader, value)
             false -> invalid(reader)
         }
     }
-    state append(console: &Binding<Console>, reader: &mut Reader, value: i32) {
+    state append(reader: &mut Reader, value: i32) {
         reader.value = reader.value * 10 + ((value as i64 in Wrapping) - 48);
         reader.digits = reader.digits + 1;
-        transition { _ -> scan(console, reader) }
+        transition { _ -> scan(reader) }
     }
     state finish(reader: &mut Reader) {
         transition reader.digits > 0 {

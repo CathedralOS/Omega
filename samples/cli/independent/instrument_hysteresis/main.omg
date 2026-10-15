@@ -3,14 +3,12 @@ use omega_language_std::math;
 // Expected exit: 0.
 // Expected output contains: trace rows ambiguous plateaus reversals max_width 0 0 0 0 0
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::calibration;
 use domain::trace;
 use io::input;
 use io::report;
 
 data Instrument {
-    console: Binding<Console>;
     buffer: [u8; 64];
     calibration: Calibration;
     trace: Trace;
@@ -19,10 +17,10 @@ data Instrument {
 // The 256-row bound keeps counts and residual sums within signed i32.
 machine Instrument::run(instrument: &mut Instrument) reaches Console {
     Calibration::initialize(&mut instrument.calibration);
-    instrument.console.write_line("row stimulus branch prediction observed residual width (response milliunits)");
+    Console::write_line("row stimulus branch prediction observed residual width (response milliunits)");
     transition { _ -> read(instrument) }
     state read(instrument: &mut Instrument) {
-        let input: LineReadResult = block instrument.console.read_line(&mut instrument.buffer);
+        let input: LineReadResult = block Console::read_line(&mut instrument.buffer);
         transition input {
             LineReadResult::LineComplete { count } -> bounded(instrument, count)
             LineReadResult::EndOfInput { count } -> end_of_input(instrument, count)
@@ -60,8 +58,8 @@ machine Instrument::run(instrument: &mut Instrument) reaches Console {
         let width: i32 in Wrapping = reverse - forward;
         identify(&mut instrument.trace, stimulus);
         instrument.trace.width_max = max_i32(instrument.trace.width_max as i32, width as i32) as i32 in Wrapping;
-        number(&instrument.console, instrument.trace.rows);
-        field(&instrument.console, stimulus);
+        number(instrument.trace.rows);
+        field(stimulus);
         transition instrument.trace.branch {
             1 -> calibrated(instrument, forward, observed, width, "forward")
             2 -> calibrated(instrument, reverse, observed, width, "reverse")
@@ -71,49 +69,49 @@ machine Instrument::run(instrument: &mut Instrument) reaches Console {
     state calibrated(instrument: &mut Instrument, prediction: i32 in Wrapping, observed: i32 in Wrapping, width: i32 in Wrapping, branch: &[u8]) {
         let residual: i32 in Wrapping = observed - prediction;
         residual_statistics(&mut instrument.trace, residual);
-        instrument.console.write(" ");
-        instrument.console.write(branch);
-        field(&instrument.console, prediction);
-        field(&instrument.console, observed);
-        field(&instrument.console, residual);
-        field(&instrument.console, width);
-        instrument.console.write_line("");
+        Console::write(" ");
+        Console::write(branch);
+        field(prediction);
+        field(observed);
+        field(residual);
+        field(width);
+        Console::write_line("");
         transition { _ -> read(instrument) }
     }
     state ambiguous(instrument: &mut Instrument, observed: i32 in Wrapping, width: i32 in Wrapping) {
-        instrument.console.write(" ambiguous NA");
-        field(&instrument.console, observed);
-        instrument.console.write(" NA");
-        field(&instrument.console, width);
-        instrument.console.write_line("");
+        Console::write(" ambiguous NA");
+        field(observed);
+        Console::write(" NA");
+        field(width);
+        Console::write_line("");
         transition { _ -> read(instrument) }
     }
     state summary(instrument: &mut Instrument) {
-        instrument.console.write("forward count sum_abs max_abs");
-        field(&instrument.console, instrument.trace.forward_count);
-        field(&instrument.console, instrument.trace.forward_sum);
-        field(&instrument.console, instrument.trace.forward_max);
-        instrument.console.write_line("");
-        instrument.console.write("reverse count sum_abs max_abs");
-        field(&instrument.console, instrument.trace.reverse_count);
-        field(&instrument.console, instrument.trace.reverse_sum);
-        field(&instrument.console, instrument.trace.reverse_max);
-        instrument.console.write_line("");
-        instrument.console.write("trace rows ambiguous plateaus reversals max_width");
-        field(&instrument.console, instrument.trace.rows);
-        field(&instrument.console, instrument.trace.ambiguous);
-        field(&instrument.console, instrument.trace.plateaus);
-        field(&instrument.console, instrument.trace.reversals);
-        field(&instrument.console, instrument.trace.width_max);
-        instrument.console.write_line("");
-        instrument.console.exit_process(0);
+        Console::write("forward count sum_abs max_abs");
+        field(instrument.trace.forward_count);
+        field(instrument.trace.forward_sum);
+        field(instrument.trace.forward_max);
+        Console::write_line("");
+        Console::write("reverse count sum_abs max_abs");
+        field(instrument.trace.reverse_count);
+        field(instrument.trace.reverse_sum);
+        field(instrument.trace.reverse_max);
+        Console::write_line("");
+        Console::write("trace rows ambiguous plateaus reversals max_width");
+        field(instrument.trace.rows);
+        field(instrument.trace.ambiguous);
+        field(instrument.trace.plateaus);
+        field(instrument.trace.reversals);
+        field(instrument.trace.width_max);
+        Console::write_line("");
+        Console::exit_process(0);
     }
     state invalid(instrument: &mut Instrument) {
-        instrument.console.write_line("ERROR malformed input: expected stimulus response LF");
-        instrument.console.exit_process(64);
+        Console::write_line("ERROR malformed input: expected stimulus response LF");
+        Console::exit_process(64);
     }
     state range_error(instrument: &mut Instrument) {
-        instrument.console.write_line("ERROR range: stimulus 0..100, response 0..200000, at most 256 rows");
-        instrument.console.exit_process(65);
+        Console::write_line("ERROR range: stimulus 0..100, response 0..200000, at most 256 rows");
+        Console::exit_process(65);
     }
 }

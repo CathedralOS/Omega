@@ -2,87 +2,86 @@ use omega_language_std::console;
 use omega::language::core::float_operations;
 use domain::indexing;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 // These exact metadata values are bounded by the search (at most 765
 // hypotheses and Miller components <=4), far below integer precision loss.
-pub machine integer(console: &Binding<Console>, value: u64) reaches Console invokes Console; {
-    Console::write(console, " ");
-    transition { _ -> digit(console, value, 10000000000000000000, false) }
-    state digit(console: &Binding<Console>, value: u64, place: u64, started: bool) requires place > 0 {
+pub machine integer(value: u64) reaches Console invokes Console; {
+    Console::write(" ");
+    transition { _ -> digit(value, 10000000000000000000, false) }
+    state digit(value: u64, place: u64, started: bool) requires place > 0 {
         let character: u64 = value / place;
         transition {
-            character >= 10 -> limit(console)
-            character != 0 || started || place == 1 -> write(console, value, place, character)
-            _ -> advance(console, value, place, false)
+            character >= 10 -> limit()
+            character != 0 || started || place == 1 -> write(value, place, character)
+            _ -> advance(value, place, false)
         }
     }
-    state write(console: &Binding<Console>, value: u64, place: u64, character: u64) requires place > 0, character < 10 {
-        Console::write_byte(console, narrow_u64_to_i32_saturating(character + 48)); transition { _ -> advance(console, value, place, true) }
+    state write(value: u64, place: u64, character: u64) requires place > 0, character < 10 {
+        Console::write_byte(narrow_u64_to_i32_saturating(character + 48)); transition { _ -> advance(value, place, true) }
     }
-    state advance(console: &Binding<Console>, value: u64, place: u64, started: bool) requires place > 0 {
-        transition place >= 10 { true -> digit(console, value % place, place / 10, started) false -> done() }
+    state advance(value: u64, place: u64, started: bool) requires place > 0 {
+        transition place >= 10 { true -> digit(value % place, place / 10, started) false -> done() }
     }
     state done() { }
-    state limit(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state limit() { Console::exit_process(70); }
 }
 // Signed integers in 1e-12 units preserve more than the acceptance precision.
-pub machine number(console: &Binding<Console>, value: f64) reaches Console invokes Console; {
+pub machine number(value: f64) reaches Console invokes Console; {
     let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
     let integer: i64 in Wrapping = scaled as i64 in Wrapping;
-    Console::write(console, " ");
-    transition integer < 0 { true -> negative(console, integer) false -> positive(console, integer) }
-    state negative(console: &Binding<Console>, value: i64 in Wrapping) { Console::write(console, "-"); transition { _ -> digit(console, 0 - value, 1000000000000000000, false) } }
-    state positive(console: &Binding<Console>, value: i64 in Wrapping) { transition { _ -> digit(console, value, 1000000000000000000, false) } }
-    state digit(console: &Binding<Console>, value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
+    Console::write(" ");
+    transition integer < 0 { true -> negative(integer) false -> positive(integer) }
+    state negative(value: i64 in Wrapping) { Console::write("-"); transition { _ -> digit(0 - value, 1000000000000000000, false) } }
+    state positive(value: i64 in Wrapping) { transition { _ -> digit(value, 1000000000000000000, false) } }
+    state digit(value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
         let character: i64 in Wrapping = value / place;
-        transition character != 0 || started || place == 1 { true -> write(console, value, place, character) false -> advance(console, value, place, false) }
+        transition character != 0 || started || place == 1 { true -> write(value, place, character) false -> advance(value, place, false) }
     }
-    state write(console: &Binding<Console>, value: i64 in Wrapping, place: i64 in Wrapping, character: i64 in Wrapping) requires place > 0 {
-        Console::write_byte(console, narrow_i64_to_i32_saturating((character + 48) as i64)); transition { _ -> advance(console, value, place, true) }
+    state write(value: i64 in Wrapping, place: i64 in Wrapping, character: i64 in Wrapping) requires place > 0 {
+        Console::write_byte(narrow_i64_to_i32_saturating((character + 48) as i64)); transition { _ -> advance(value, place, true) }
     }
-    state advance(console: &Binding<Console>, value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
-        transition place >= 10 { true -> digit(console, value % place, place / 10, started) false -> done() }
-    }
-    state done() { }
-}
-pub machine report(console: &Binding<Console>, problem: &Problem, kind: u64, mask: u64) reaches Console invokes Console; {
-    Console::write(console, "hypothesis"); integer(console, kind); number(console, problem.lattice); number(console, problem.scale); Console::write_line(console, "");
-    peaks(console, problem, kind, 0); missing(console, problem, mask, 0);
-    Console::write_line(console, "end");
-}
-machine peaks(console: &Binding<Console>, problem: &Problem, kind: u64, index: u64) reaches Console invokes Console; {
-    transition index < problem.count && index < 6 { true -> row(console, problem, kind, index) false -> done() }
-    state row(console: &Binding<Console>, problem: &Problem, kind: u64, index: u64) requires index < 6 {
-        Console::write(console, "peak"); integer(console, problem.assignments[index]); number(console, problem.predictions[index]); number(console, problem.residuals[index]); Console::write_line(console, "");
-        families(console, kind, problem.assignments[index], 0, 0, 0);
-        transition { _ -> peaks(console, problem, kind, index + 1) }
+    state advance(value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
+        transition place >= 10 { true -> digit(value % place, place / 10, started) false -> done() }
     }
     state done() { }
 }
-machine families(console: &Binding<Console>, kind: u64, squared: u64, h: u64, k: u64, l: u64) reaches Console invokes Console; {
-    transition h < 5 && k < 5 && l < 5 { true -> test(console, kind, squared, h, k, l) false -> done() }
-    state test(console: &Binding<Console>, kind: u64, squared: u64, h: u64, k: u64, l: u64) requires h < 5, k < 5, l < 5 {
+pub machine report(problem: &Problem, kind: u64, mask: u64) reaches Console invokes Console; {
+    Console::write("hypothesis"); integer(kind); number(problem.lattice); number(problem.scale); Console::write_line("");
+    peaks(problem, kind, 0); missing(problem, mask, 0);
+    Console::write_line("end");
+}
+machine peaks(problem: &Problem, kind: u64, index: u64) reaches Console invokes Console; {
+    transition index < problem.count && index < 6 { true -> row(problem, kind, index) false -> done() }
+    state row(problem: &Problem, kind: u64, index: u64) requires index < 6 {
+        Console::write("peak"); integer(problem.assignments[index]); number(problem.predictions[index]); number(problem.residuals[index]); Console::write_line("");
+        families(kind, problem.assignments[index], 0, 0, 0);
+        transition { _ -> peaks(problem, kind, index + 1) }
+    }
+    state done() { }
+}
+machine families(kind: u64, squared: u64, h: u64, k: u64, l: u64) reaches Console invokes Console; {
+    transition h < 5 && k < 5 && l < 5 { true -> test(kind, squared, h, k, l) false -> done() }
+    state test(kind: u64, squared: u64, h: u64, k: u64, l: u64) requires h < 5, k < 5, l < 5 {
         transition h >= k && k >= l && h * h + k * k + l * l == squared && allowed(kind, h, k, l) {
-            true -> emit(console, kind, squared, h, k, l) false -> advance(console, kind, squared, h, k, l)
+            true -> emit(kind, squared, h, k, l) false -> advance(kind, squared, h, k, l)
         }
     }
-    state emit(console: &Binding<Console>, kind: u64, squared: u64, h: u64, k: u64, l: u64) requires h < 5, k < 5, l < 5 {
-        Console::write(console, "family"); integer(console, h); integer(console, k); integer(console, l); Console::write_line(console, "");
-        transition { _ -> advance(console, kind, squared, h, k, l) }
+    state emit(kind: u64, squared: u64, h: u64, k: u64, l: u64) requires h < 5, k < 5, l < 5 {
+        Console::write("family"); integer(h); integer(k); integer(l); Console::write_line("");
+        transition { _ -> advance(kind, squared, h, k, l) }
     }
-    state advance(console: &Binding<Console>, kind: u64, squared: u64, h: u64, k: u64, l: u64) requires h < 5, k < 5, l < 5 {
-        transition { l < 4 -> families(console, kind, squared, h, k, l + 1) k < 4 -> families(console, kind, squared, h, k + 1, 0) _ -> families(console, kind, squared, h + 1, 0, 0) }
+    state advance(kind: u64, squared: u64, h: u64, k: u64, l: u64) requires h < 5, k < 5, l < 5 {
+        transition { l < 4 -> families(kind, squared, h, k, l + 1) k < 4 -> families(kind, squared, h, k + 1, 0) _ -> families(kind, squared, h + 1, 0, 0) }
     }
     state done() { }
 }
-machine missing(console: &Binding<Console>, problem: &Problem, mask: u64, rank: u64) reaches Console invokes Console; {
-    transition rank < problem.last && rank < 8 { true -> test(console, problem, mask, rank) false -> done() }
-    state test(console: &Binding<Console>, problem: &Problem, mask: u64, rank: u64) requires rank < 8 {
-        transition mask % 2 == 0 { true -> emit(console, problem, mask, rank) false -> missing(console, problem, mask / 2, rank + 1) }
+machine missing(problem: &Problem, mask: u64, rank: u64) reaches Console invokes Console; {
+    transition rank < problem.last && rank < 8 { true -> test(problem, mask, rank) false -> done() }
+    state test(problem: &Problem, mask: u64, rank: u64) requires rank < 8 {
+        transition mask % 2 == 0 { true -> emit(problem, mask, rank) false -> missing(problem, mask / 2, rank + 1) }
     }
-    state emit(console: &Binding<Console>, problem: &Problem, mask: u64, rank: u64) requires rank < 8 {
-        Console::write(console, "missing"); integer(console, problem.lines[rank]); Console::write_line(console, "");
-        transition { _ -> missing(console, problem, mask / 2, rank + 1) }
+    state emit(problem: &Problem, mask: u64, rank: u64) requires rank < 8 {
+        Console::write("missing"); integer(problem.lines[rank]); Console::write_line("");
+        transition { _ -> missing(problem, mask / 2, rank + 1) }
     }
     state done() { }
 }

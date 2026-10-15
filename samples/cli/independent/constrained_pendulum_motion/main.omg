@@ -1,13 +1,11 @@
 // Expected exit: 64 (empty stdin); valid data fixtures exit 0.
 // Expected output contains: INVALID: expected scenario
 use omega_language_std::console;
-use omega::language::core::binding;
 use model::integrator;
 use report::report;
 use omega::language::core::float_operations;
 
 data Main {
-    console: Binding<Console>;
     pendulum: Pendulum;
     scenario: i32;
     step: i32;
@@ -15,8 +13,8 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("NEW021 constrained pendulum; signed micro-units; dt=0.01; gravity=9.81; mass=1");
-    let input: ByteRead = block main.console.read_byte();
+    Console::write_line("NEW021 constrained pendulum; signed micro-units; dt=0.01; gravity=9.81; mass=1");
+    let input: ByteRead = block Console::read_byte();
     transition input {
         ByteRead::Byte { value } -> scenario(main, value)
         ByteRead::Eof -> invalid(main)
@@ -29,7 +27,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state length_input(main: &mut Main, scenario: i32) {
         main.scenario = scenario;
-        let input: ByteRead = block main.console.read_byte();
+        let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value } -> length(main, value)
             ByteRead::Eof -> invalid(main)
@@ -51,7 +49,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> newline(main) }
     }
     state newline(main: &mut Main) {
-        let input: ByteRead = block main.console.read_byte();
+        let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value } -> check_newline(main, value)
             ByteRead::Eof -> invalid(main)
@@ -64,7 +62,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state end_input(main: &mut Main) {
-        let input: ByteRead = block main.console.read_byte();
+        let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Eof -> initialize(main)
             ByteRead::Byte { value } -> invalid(main)
@@ -109,25 +107,25 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> row(main) }
     }
     state row(main: &mut Main) {
-        main.console.write("ROW ");
-        print_micro(&mut main.console, F64::from_i32(main.step));
-        main.console.write(" ");
-        print_micro(&mut main.console, main.pendulum.x);
-        main.console.write(" ");
-        print_micro(&mut main.console, main.pendulum.y);
-        main.console.write(" ");
-        print_micro(&mut main.console, main.pendulum.vx);
-        main.console.write(" ");
-        print_micro(&mut main.console, main.pendulum.vy);
-        main.console.write(" ");
-        print_micro(&mut main.console, main.pendulum.raw_drift);
-        main.console.write(" ");
-        print_micro(&mut main.console, main.pendulum.drift);
-        main.console.write(" ");
-        print_micro(&mut main.console, main.pendulum.tangent);
-        main.console.write(" ");
-        print_micro(&mut main.console, main.pendulum.energy);
-        main.console.write_line("");
+        Console::write("ROW ");
+        print_micro(F64::from_i32(main.step));
+        Console::write(" ");
+        print_micro(main.pendulum.x);
+        Console::write(" ");
+        print_micro(main.pendulum.y);
+        Console::write(" ");
+        print_micro(main.pendulum.vx);
+        Console::write(" ");
+        print_micro(main.pendulum.vy);
+        Console::write(" ");
+        print_micro(main.pendulum.raw_drift);
+        Console::write(" ");
+        print_micro(main.pendulum.drift);
+        Console::write(" ");
+        print_micro(main.pendulum.tangent);
+        Console::write(" ");
+        print_micro(main.pendulum.energy);
+        Console::write_line("");
         transition main.step >= 0 && main.step < 32 {
             true -> advance(main)
             false -> finish(main)
@@ -141,14 +139,14 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> row(main) }
     }
     state finish(main: &mut Main) {
-        main.console.write("ENERGY_CHANGE ");
-        print_micro(&mut main.console, main.pendulum.energy - main.initial_energy);
-        main.console.write_line("");
-        main.console.write_line("COMPLETE 32 steps");
-        main.console.exit_process(0);
+        Console::write("ENERGY_CHANGE ");
+        print_micro(main.pendulum.energy - main.initial_energy);
+        Console::write_line("");
+        Console::write_line("COMPLETE 32 steps");
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("INVALID: expected scenario 0..3, length 1..2, LF, EOF");
-        main.console.exit_process(64);
+        Console::write_line("INVALID: expected scenario 0..3, length 1..2, LF, EOF");
+        Console::exit_process(64);
     }
 }

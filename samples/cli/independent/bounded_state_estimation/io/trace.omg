@@ -1,77 +1,76 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use domain::filter;
 // Decimal integer fields represent millionths, truncated toward zero. The
 // external oracle allows 2e-6 output quantization, independently of f64 checks.
 // Scan at most nineteen decimal places with state transfers. Only the final
 // remainder is negated, so even the minimum i64 value needs no magnitude cast.
-machine print_integer(console: &mut Binding<Console>, value: i64) reaches Console {
+machine print_integer(value: i64) reaches Console {
     transition value < 0 {
-        true -> negative(console, value)
-        false -> scan(console, value, 1000000000000000000, false)
+        true -> negative(value)
+        false -> scan(value, 1000000000000000000, false)
     }
-    state negative(console: &mut Binding<Console>, value: i64) {
-        console.write("-");
-        transition { _ -> scan(console, value, 1000000000000000000, false) }
+    state negative(value: i64) {
+        Console::write("-");
+        transition { _ -> scan(value, 1000000000000000000, false) }
     }
-    state scan(console: &mut Binding<Console>, value: i64, divisor: i64, started: bool)
+    state scan(value: i64, divisor: i64, started: bool)
     requires divisor >= 1 requires divisor <= 1000000000000000000 {
         let remainder: i64 = (value / divisor) % 10;
         transition remainder != 0 || started || divisor == 1 {
-            true -> digit(console, value, divisor, remainder)
-            false -> advance(console, value, divisor, false)
+            true -> digit(value, divisor, remainder)
+            false -> advance(value, divisor, false)
         }
     }
-    state digit(console: &mut Binding<Console>, value: i64, divisor: i64, remainder: i64)
+    state digit(value: i64, divisor: i64, remainder: i64)
     requires divisor >= 1 requires divisor <= 1000000000000000000
     requires remainder >= -9 requires remainder <= 9 {
         transition remainder < 0 {
-            true -> signed_digit(console, value, divisor, remainder)
-            false -> unsigned_digit(console, value, divisor, remainder)
+            true -> signed_digit(value, divisor, remainder)
+            false -> unsigned_digit(value, divisor, remainder)
         }
     }
-    state signed_digit(console: &mut Binding<Console>, value: i64, divisor: i64, remainder: i64)
+    state signed_digit(value: i64, divisor: i64, remainder: i64)
     requires divisor >= 1 requires divisor <= 1000000000000000000
     requires remainder >= -9 requires remainder < 0 {
-        console.write_byte((48 - remainder) as i32);
-        transition { _ -> advance(console, value, divisor, true) }
+        Console::write_byte((48 - remainder) as i32);
+        transition { _ -> advance(value, divisor, true) }
     }
-    state unsigned_digit(console: &mut Binding<Console>, value: i64, divisor: i64, remainder: i64)
+    state unsigned_digit(value: i64, divisor: i64, remainder: i64)
     requires divisor >= 1 requires divisor <= 1000000000000000000
     requires remainder >= 0 requires remainder <= 9 {
-        console.write_byte((48 + remainder) as i32);
-        transition { _ -> advance(console, value, divisor, true) }
+        Console::write_byte((48 + remainder) as i32);
+        transition { _ -> advance(value, divisor, true) }
     }
-    state advance(console: &mut Binding<Console>, value: i64, divisor: i64, started: bool)
+    state advance(value: i64, divisor: i64, started: bool)
     requires divisor >= 1 requires divisor <= 1000000000000000000 {
         transition divisor >= 10 {
-            true -> scan(console, value, divisor / 10, started)
+            true -> scan(value, divisor / 10, started)
             false -> finished()
         }
     }
     state finished() { }
 }
-machine print_number(console: &mut Binding<Console>, value: f64) reaches Console {
+machine print_number(value: f64) reaches Console {
     let integer: i64 in Saturating = I64::from_f64(value * 1000000.0);
-    console.write(" ");
-    print_integer(console, integer as i64);
+    Console::write(" ");
+    print_integer(integer as i64);
 }
-machine emit(console: &mut Binding<Console>, filter: &Filter, step: u64) reaches Console requires step <= 8 {
-    console.write("TRACE ");
-    print_integer(console, step as i64);
-    print_number(console, filter.estimate.position);
-    print_number(console, filter.estimate.velocity);
-    print_number(console, filter.covariance.a);
-    print_number(console, filter.covariance.b);
-    print_number(console, filter.covariance.c);
-    print_number(console, filter.covariance.d);
-    print_number(console, filter.innovation);
-    print_number(console, filter.innovation_variance);
+machine emit(filter: &Filter, step: u64) reaches Console requires step <= 8 {
+    Console::write("TRACE ");
+    print_integer(step as i64);
+    print_number(filter.estimate.position);
+    print_number(filter.estimate.velocity);
+    print_number(filter.covariance.a);
+    print_number(filter.covariance.b);
+    print_number(filter.covariance.c);
+    print_number(filter.covariance.d);
+    print_number(filter.innovation);
+    print_number(filter.innovation_variance);
     transition filter.updated {
-        true -> observed(console)
-        false -> missing(console)
+        true -> observed()
+        false -> missing()
     }
-    state observed(console: &mut Binding<Console>) { console.write_line(" update"); }
-    state missing(console: &mut Binding<Console>) { console.write_line(" missing"); }
+    state observed() { Console::write_line(" update"); }
+    state missing() { Console::write_line(" missing"); }
 }

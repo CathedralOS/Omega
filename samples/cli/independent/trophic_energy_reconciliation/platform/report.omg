@@ -1,22 +1,21 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 // Signed fixed-width decimal in hundredths of an energy unit.
-pub machine number(console: &mut Binding<Console>, value: i32 in Saturating) reaches Console
-invokes console;
+pub machine number(value: i32 in Saturating) reaches Console
+invokes Console;
 {
-    transition value < 0 { true -> negative(console, value) false -> positive(console, value) }
-    state negative(console: &mut Binding<Console>, value: i32 in Saturating) {
-        console.write("-");
-        transition { _ -> positive(console, 0 - value) }
+    transition value < 0 { true -> negative(value) false -> positive(value) }
+    state negative(value: i32 in Saturating) {
+        Console::write("-");
+        transition { _ -> positive(0 - value) }
     }
-    state positive(console: &mut Binding<Console>, value: i32 in Saturating) {
-        console.write_byte(((value / 1000000 % 10) + 48) as i32);
-        console.write_byte(((value / 100000 % 10) + 48) as i32);
-        console.write_byte(((value / 10000 % 10) + 48) as i32);
-        console.write_byte(((value / 1000 % 10) + 48) as i32);
-        console.write_byte(((value / 100 % 10) + 48) as i32);
-        console.write_byte(((value / 10 % 10) + 48) as i32);
-        console.write_byte(((value / 1 % 10) + 48) as i32);
-        console.write_line("");
+    state positive(value: i32 in Saturating) {
+        Console::write_byte(((value / 1000000 % 10) + 48) as i32);
+        Console::write_byte(((value / 100000 % 10) + 48) as i32);
+        Console::write_byte(((value / 10000 % 10) + 48) as i32);
+        Console::write_byte(((value / 1000 % 10) + 48) as i32);
+        Console::write_byte(((value / 100 % 10) + 48) as i32);
+        Console::write_byte(((value / 10 % 10) + 48) as i32);
+        Console::write_byte(((value / 1 % 10) + 48) as i32);
+        Console::write_line("");
     }
 }

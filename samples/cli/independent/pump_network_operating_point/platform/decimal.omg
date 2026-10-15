@@ -1,63 +1,62 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Decimal output keeps its own bounded divisor loop; no formatter package.
-pub machine number(console: &Binding<Console>, value: i64 in Wrapping)
+pub machine number(value: i64 in Wrapping)
 reaches Console
 invokes Console;
 {
     transition value < 0 {
-        true -> negative(console, value)
-        false -> digits(console, value, 1000000000000000000, false)
+        true -> negative(value)
+        false -> digits(value, 1000000000000000000, false)
     }
-    state negative(console: &Binding<Console>, value: i64 in Wrapping) {
-        Console::write(console, "-");
-        transition { _ -> digits(console, -value, 1000000000000000000, false) }
+    state negative(value: i64 in Wrapping) {
+        Console::write("-");
+        transition { _ -> digits(-value, 1000000000000000000, false) }
     }
-    state digits(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
+    state digits(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
     requires divisor >= 1
     {
         let digit: i64 in Wrapping = value / divisor;
         transition digit != 0 || started || divisor == 1 {
-            true -> emit(console, value, divisor, digit)
-            false -> advance(console, value, divisor, false)
+            true -> emit(value, divisor, digit)
+            false -> advance(value, divisor, false)
         }
     }
-    state emit(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, digit: i64 in Wrapping)
+    state emit(value: i64 in Wrapping, divisor: i64 in Wrapping, digit: i64 in Wrapping)
     requires divisor >= 1
     {
-        decimal_digit(console, digit);
-        transition { _ -> advance(console, value % divisor, divisor, true) }
+        decimal_digit(digit);
+        transition { _ -> advance(value % divisor, divisor, true) }
     }
-    state advance(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
+    state advance(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
         transition divisor >= 10 {
-            true -> digits(console, value, divisor / 10, started)
-            false -> done(console)
+            true -> digits(value, divisor / 10, started)
+            false -> done()
         }
     }
-    state done(console: &Binding<Console>) { Console::write(console, " "); }
+    state done() { Console::write(" "); }
 }
-machine decimal_digit(console: &Binding<Console>, digit: i64 in Wrapping) reaches Console {
+machine decimal_digit(digit: i64 in Wrapping) reaches Console {
     transition digit {
-        0 -> zero(console)
-        1 -> one(console)
-        2 -> two(console)
-        3 -> three(console)
-        4 -> four(console)
-        5 -> five(console)
-        6 -> six(console)
-        7 -> seven(console)
-        8 -> eight(console)
-        _ -> nine(console)
+        0 -> zero()
+        1 -> one()
+        2 -> two()
+        3 -> three()
+        4 -> four()
+        5 -> five()
+        6 -> six()
+        7 -> seven()
+        8 -> eight()
+        _ -> nine()
     }
-    state zero(console: &Binding<Console>) { Console::write(console, "0"); }
-    state one(console: &Binding<Console>) { Console::write(console, "1"); }
-    state two(console: &Binding<Console>) { Console::write(console, "2"); }
-    state three(console: &Binding<Console>) { Console::write(console, "3"); }
-    state four(console: &Binding<Console>) { Console::write(console, "4"); }
-    state five(console: &Binding<Console>) { Console::write(console, "5"); }
-    state six(console: &Binding<Console>) { Console::write(console, "6"); }
-    state seven(console: &Binding<Console>) { Console::write(console, "7"); }
-    state eight(console: &Binding<Console>) { Console::write(console, "8"); }
-    state nine(console: &Binding<Console>) { Console::write(console, "9"); }
+    state zero() { Console::write("0"); }
+    state one() { Console::write("1"); }
+    state two() { Console::write("2"); }
+    state three() { Console::write("3"); }
+    state four() { Console::write("4"); }
+    state five() { Console::write("5"); }
+    state six() { Console::write("6"); }
+    state seven() { Console::write("7"); }
+    state eight() { Console::write("8"); }
+    state nine() { Console::write("9"); }
 }

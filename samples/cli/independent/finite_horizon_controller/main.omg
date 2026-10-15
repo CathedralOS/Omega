@@ -1,17 +1,16 @@
 // Offline controller: input selection, validation, exhaustive search, reporting.
 // No source outside this application supplies any controller algorithm.
 use omega_language_std::console;
-use omega::language::core::binding;
 use controller::model;
 use controller::search;
 use data::fixtures;
 use io::render;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("IND07 finite horizon controller: select 0..7");
+    Console::write_line("IND07 finite horizon controller: select 0..7");
     let mut input: [u8; 8];
-    let observed: LineReadResult = block main.console.read_line(&mut input);
+    let observed: LineReadResult = block Console::read_line(&mut input);
     transition observed {
         LineReadResult::LineComplete { count } -> parse(main, &input, count)
         _ -> bad_input(main)
@@ -34,14 +33,14 @@ machine Main::main(main: &mut Main) reaches Console {
     state solve(main: &mut Main, problem: &Problem) {
         let mut plan: Plan;
         optimize(problem, &mut plan);
-        report(&mut main.console, problem, &plan);
+        report(problem, &plan);
     }
     state bad_input(main: &mut Main) {
-        main.console.write_line("INVALID: expected one selector digit and LF");
-        main.console.exit_process(2);
+        Console::write_line("INVALID: expected one selector digit and LF");
+        Console::exit_process(2);
     }
     state bad_problem(main: &mut Main) {
-        main.console.write_line("INVALID: problem outside supported bounds");
-        main.console.exit_process(2);
+        Console::write_line("INVALID: problem outside supported bounds");
+        Console::exit_process(2);
     }
 }

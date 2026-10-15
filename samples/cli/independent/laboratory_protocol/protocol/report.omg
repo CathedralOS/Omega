@@ -1,84 +1,83 @@
 module protocol::report;
 
 use omega_language_std::console;
-use omega::language::core::binding;
 use protocol::model;
 
 pub data Report { }
 
-pub machine Report::row(console: &mut Binding<Console>, laboratory: &protocol::model::Laboratory, decision: i32) reaches Console
-invokes console;
+pub machine Report::row(laboratory: &protocol::model::Laboratory, decision: i32) reaches Console
+invokes Console;
 {
-    Report::decision(console, decision);
-    console.write(" owner=");
-    Report::number(console, laboratory.owner as i32 in Saturating);
-    console.write(" phase=");
-    Report::number(console, laboratory.phase as i32 in Saturating);
-    console.write(" lid=");
-    Report::lid(console, laboratory.closed);
-    console.write(" tick=");
-    Report::number(console, laboratory.elapsed);
-    console.write(" completed=");
-    Report::number(console, laboratory.completed);
-    console.write(" aborted=");
-    Report::number(console, laboratory.aborted);
-    console.write_line("");
+    Report::decision(decision);
+    Console::write(" owner=");
+    Report::number(laboratory.owner as i32 in Saturating);
+    Console::write(" phase=");
+    Report::number(laboratory.phase as i32 in Saturating);
+    Console::write(" lid=");
+    Report::lid(laboratory.closed);
+    Console::write(" tick=");
+    Report::number(laboratory.elapsed);
+    Console::write(" completed=");
+    Report::number(laboratory.completed);
+    Console::write(" aborted=");
+    Report::number(laboratory.aborted);
+    Console::write_line("");
 }
 
-machine Report::number(console: &mut Binding<Console>, value: i32 in Saturating) reaches Console {
+machine Report::number(value: i32 in Saturating) reaches Console {
     transition value >= 0 && value <= 99 {
-        true -> digits(console, value)
-        false -> invalid(console)
+        true -> digits(value)
+        false -> invalid()
     }
-    state digits(console: &mut Binding<Console>, value: i32 in Saturating) {
+    state digits(value: i32 in Saturating) {
         let tens: i32 in Saturating = value / 10 + 48;
         let units: i32 in Saturating = value % 10 + 48;
-        console.write_byte(tens as i32);
-        console.write_byte(units as i32);
+        Console::write_byte(tens as i32);
+        Console::write_byte(units as i32);
     }
-    state invalid(console: &mut Binding<Console>) {
-        console.write("??");
+    state invalid() {
+        Console::write("??");
     }
 }
 
-machine Report::lid(console: &mut Binding<Console>, closed: bool) reaches Console {
+machine Report::lid(closed: bool) reaches Console {
     transition closed {
-        true -> shut(console)
-        false -> open(console)
+        true -> shut()
+        false -> open()
     }
-    state shut(console: &mut Binding<Console>) { console.write("closed"); }
-    state open(console: &mut Binding<Console>) { console.write("open"); }
+    state shut() { Console::write("closed"); }
+    state open() { Console::write("open"); }
 }
 
-machine Report::decision(console: &mut Binding<Console>, decision: i32) reaches Console {
+machine Report::decision(decision: i32) reaches Console {
     transition decision {
-        0 -> acquired(console)
-        1 -> loaded(console)
-        2 -> started(console)
-        3 -> advanced(console)
-        4 -> completed(console)
-        5 -> cancelled(console)
-        6 -> recovered(console)
-        7 -> lid_changed(console)
-        8 -> conflict(console)
-        9 -> phase(console)
-        10 -> interlock(console)
-        11 -> timeout(console)
-        13 -> emergency(console)
-        _ -> invalid(console)
+        0 -> acquired()
+        1 -> loaded()
+        2 -> started()
+        3 -> advanced()
+        4 -> completed()
+        5 -> cancelled()
+        6 -> recovered()
+        7 -> lid_changed()
+        8 -> conflict()
+        9 -> phase()
+        10 -> interlock()
+        11 -> timeout()
+        13 -> emergency()
+        _ -> invalid()
     }
-    state acquired(console: &mut Binding<Console>) { console.write("ALLOW acquire"); }
-    state loaded(console: &mut Binding<Console>) { console.write("ALLOW load"); }
-    state started(console: &mut Binding<Console>) { console.write("ALLOW start interlock=closed"); }
-    state advanced(console: &mut Binding<Console>) { console.write("ALLOW advance deadline=pending"); }
-    state completed(console: &mut Binding<Console>) { console.write("ALLOW finish lease=released"); }
-    state cancelled(console: &mut Binding<Console>) { console.write("ABORT cancel lease=retained"); }
-    state recovered(console: &mut Binding<Console>) { console.write("ALLOW recover lease=released"); }
-    state lid_changed(console: &mut Binding<Console>) { console.write("ALLOW lid"); }
-    state conflict(console: &mut Binding<Console>) { console.write("DENY resource_owner"); }
-    state phase(console: &mut Binding<Console>) { console.write("DENY phase"); }
-    state interlock(console: &mut Binding<Console>) { console.write("DENY interlock=open"); }
-    state timeout(console: &mut Binding<Console>) { console.write("ABORT timeout lease=retained"); }
-    state emergency(console: &mut Binding<Console>) { console.write("ABORT interlock=open lease=retained"); }
-    state invalid(console: &mut Binding<Console>) { console.write("DENY input"); }
+    state acquired() { Console::write("ALLOW acquire"); }
+    state loaded() { Console::write("ALLOW load"); }
+    state started() { Console::write("ALLOW start interlock=closed"); }
+    state advanced() { Console::write("ALLOW advance deadline=pending"); }
+    state completed() { Console::write("ALLOW finish lease=released"); }
+    state cancelled() { Console::write("ABORT cancel lease=retained"); }
+    state recovered() { Console::write("ALLOW recover lease=released"); }
+    state lid_changed() { Console::write("ALLOW lid"); }
+    state conflict() { Console::write("DENY resource_owner"); }
+    state phase() { Console::write("DENY phase"); }
+    state interlock() { Console::write("DENY interlock=open"); }
+    state timeout() { Console::write("ABORT timeout lease=retained"); }
+    state emergency() { Console::write("ABORT interlock=open lease=retained"); }
+    state invalid() { Console::write("DENY input"); }
 }

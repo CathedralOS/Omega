@@ -1,40 +1,39 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 
 // Signed micro-units, ten decimal digits. No text format or math dependency.
 // Saturating conversion is explicit; the model inputs keep values below 1000.
-pub machine print_micro(console: &mut Binding<Console>, value: f64)
+pub machine print_micro(value: f64)
 reaches Console
-invokes console;
+invokes Console;
 {
     let landed: i32 in Saturating = I32::from_f64(value * 1000000.0);
     let integer: i32 in Wrapping = landed as i32 in Wrapping;
     transition integer < 0 {
-        true -> negative(console, integer)
-        false -> positive(console, integer)
+        true -> negative(integer)
+        false -> positive(integer)
     }
-    state negative(console: &mut Binding<Console>, integer: i32 in Wrapping) {
-        console.write_byte(45);
-        transition { _ -> digits(console, 0 - integer, 1000000000) }
+    state negative(integer: i32 in Wrapping) {
+        Console::write_byte(45);
+        transition { _ -> digits(0 - integer, 1000000000) }
     }
-    state positive(console: &mut Binding<Console>, integer: i32 in Wrapping) {
-        console.write_byte(43);
-        transition { _ -> digits(console, integer, 1000000000) }
+    state positive(integer: i32 in Wrapping) {
+        Console::write_byte(43);
+        transition { _ -> digits(integer, 1000000000) }
     }
-    state digits(console: &mut Binding<Console>, integer: i32 in Wrapping, divisor: i32 in Wrapping) {
+    state digits(integer: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 0 {
-            true -> emit(console, integer, divisor)
+            true -> emit(integer, divisor)
             false -> done()
         }
     }
-    state emit(console: &mut Binding<Console>, integer: i32 in Wrapping, divisor: i32 in Wrapping)
+    state emit(integer: i32 in Wrapping, divisor: i32 in Wrapping)
     requires divisor > 0
     {
         let digit: i32 in Wrapping = integer / divisor;
         let remaining: i32 in Wrapping = integer % divisor;
-        console.write_byte((digit + 48) as i32);
-        transition { _ -> digits(console, remaining, divisor / 10) }
+        Console::write_byte((digit + 48) as i32);
+        transition { _ -> digits(remaining, divisor / 10) }
     }
     state done() { }
 }

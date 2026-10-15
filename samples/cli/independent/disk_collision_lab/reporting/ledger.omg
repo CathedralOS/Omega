@@ -1,88 +1,87 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use physics::model;
 // Bounded scientific output: signed fixed point with six fractional digits.
 // Model validation and 8-event cap keep all printed magnitudes below 10^9.
-pub machine integer(console:&mut Binding<Console>,value:u64) reaches Console
-invokes console;
+pub machine integer(value:u64) reaches Console
+invokes Console;
 {
- transition { _ -> digits(console,value,1000000000000000,false) }
- state digits(console:&mut Binding<Console>,value:u64,divisor:u64,started:bool) {
-  transition divisor > 0 {true -> emit(console,value,divisor,started) _ -> done()}
+ transition { _ -> digits(value,1000000000000000,false) }
+ state digits(value:u64,divisor:u64,started:bool) {
+  transition divisor > 0 {true -> emit(value,divisor,started) _ -> done()}
  }
- state emit(console:&mut Binding<Console>,value:u64,divisor:u64,started:bool) requires divisor > 0 {
+ state emit(value:u64,divisor:u64,started:bool) requires divisor > 0 {
   let digit:u64=value/divisor;
   transition digit > 0 || started || divisor == 1 {
-   true -> write(console,value,divisor,digit) _ -> digits(console,value,divisor/10,false)
+   true -> write(value,divisor,digit) _ -> digits(value,divisor/10,false)
   }
  }
- state write(console:&mut Binding<Console>,value:u64,divisor:u64,digit:u64) requires divisor > 0 {
-  transition digit <= 9 {true -> write_digit(console,value,divisor,digit) _ -> invalid(console)}
+ state write(value:u64,divisor:u64,digit:u64) requires divisor > 0 {
+  transition digit <= 9 {true -> write_digit(value,divisor,digit) _ -> invalid()}
  }
- state write_digit(console:&mut Binding<Console>,value:u64,divisor:u64,digit:u64) requires divisor > 0 && digit <= 9 {
+ state write_digit(value:u64,divisor:u64,digit:u64) requires divisor > 0 && digit <= 9 {
   let character:i32 in Wrapping=(digit as i32 in Wrapping)+48;
-  console.write_byte(character as i32);
-  transition { _ -> digits(console,value%divisor,divisor/10,true) }
+  Console::write_byte(character as i32);
+  transition { _ -> digits(value%divisor,divisor/10,true) }
  }
- state invalid(console:&mut Binding<Console>) {console.write_line("FAIL output bound");console.exit_process(4);}
+ state invalid() {Console::write_line("FAIL output bound");Console::exit_process(4);}
  state done() {}
 }
-pub machine number(console:&mut Binding<Console>,value:f64) reaches Console
-invokes console;
+pub machine number(value:f64) reaches Console
+invokes Console;
 {
- transition value < 0.0 {true -> negative(console,value) _ -> positive(console,value)}
- state negative(console:&mut Binding<Console>,value:f64) {
-  console.write("-"); transition { _ -> positive(console,0.0-value) }
+ transition value < 0.0 {true -> negative(value) _ -> positive(value)}
+ state negative(value:f64) {
+  Console::write("-"); transition { _ -> positive(0.0-value) }
  }
- state positive(console:&mut Binding<Console>,value:f64) {
+ state positive(value:f64) {
   let converted:u64 in Saturating=U64::from_f64(value*1000000.0+0.5);
   let scaled:u64=converted as u64;
-  integer(console,scaled/1000000);console.write(".");
-  transition { _ -> fraction(console,scaled%1000000,100000) }
+  integer(scaled/1000000);Console::write(".");
+  transition { _ -> fraction(scaled%1000000,100000) }
  }
- state fraction(console:&mut Binding<Console>,value:u64,divisor:u64) {
-  transition divisor > 0 {true -> digit(console,value,divisor) _ -> done()}
+ state fraction(value:u64,divisor:u64) {
+  transition divisor > 0 {true -> digit(value,divisor) _ -> done()}
  }
- state digit(console:&mut Binding<Console>,value:u64,divisor:u64) requires divisor > 0 {
+ state digit(value:u64,divisor:u64) requires divisor > 0 {
   let observed:u64=value/divisor;
-  transition observed <= 9 {true -> write_digit(console,value,divisor,observed) _ -> invalid(console)}
+  transition observed <= 9 {true -> write_digit(value,divisor,observed) _ -> invalid()}
  }
- state write_digit(console:&mut Binding<Console>,value:u64,divisor:u64,observed:u64) requires divisor > 0 && observed <= 9 {
+ state write_digit(value:u64,divisor:u64,observed:u64) requires divisor > 0 && observed <= 9 {
   let character:i32 in Wrapping=(observed as i32 in Wrapping)+48;
-  console.write_byte(character as i32);
-  transition { _ -> fraction(console,value%divisor,divisor/10) }
+  Console::write_byte(character as i32);
+  transition { _ -> fraction(value%divisor,divisor/10) }
  }
- state invalid(console:&mut Binding<Console>) {console.write_line("FAIL output bound");console.exit_process(4);}
+ state invalid() {Console::write_line("FAIL output bound");Console::exit_process(4);}
  state done() {}
 }
-pub machine contact_row(console:&mut Binding<Console>,lab:&Lab) reaches Console
-invokes console;
+pub machine contact_row(lab:&Lab) reaches Console
+invokes Console;
 {
- console.write("contact ");integer(console,lab.first);console.write(" ");integer(console,lab.second);
- console.write(" time=");number(console,lab.time);console.write(" impulse=");number(console,lab.impulse);
- console.write(" error=");number(console,lab.contact_error);console.write_line("");
+ Console::write("contact ");integer(lab.first);Console::write(" ");integer(lab.second);
+ Console::write(" time=");number(lab.time);Console::write(" impulse=");number(lab.impulse);
+ Console::write(" error=");number(lab.contact_error);Console::write_line("");
 }
-pub machine totals_row(console:&mut Binding<Console>,lab:&Lab) reaches Console
-invokes console;
+pub machine totals_row(lab:&Lab) reaches Console
+invokes Console;
 {
- console.write("ledger time=");number(console,lab.time);
- console.write(" px=");number(console,lab.momentum_x);console.write(" py=");number(console,lab.momentum_y);
- console.write(" energy=");number(console,lab.energy);console.write(" loss=");number(console,lab.loss);
- console.write_line("");
+ Console::write("ledger time=");number(lab.time);
+ Console::write(" px=");number(lab.momentum_x);Console::write(" py=");number(lab.momentum_y);
+ Console::write(" energy=");number(lab.energy);Console::write(" loss=");number(lab.loss);
+ Console::write_line("");
 }
-pub machine disk_rows(console:&mut Binding<Console>,lab:&Lab) reaches Console
-invokes console;
+pub machine disk_rows(lab:&Lab) reaches Console
+invokes Console;
 {
- transition { _ -> scan(console,lab,0) }
- state scan(console:&mut Binding<Console>,lab:&Lab,index:u64) {
-  transition index < lab.count && index < 4 {true -> row(console,lab,index) _ -> done()}
+ transition { _ -> scan(lab,0) }
+ state scan(lab:&Lab,index:u64) {
+  transition index < lab.count && index < 4 {true -> row(lab,index) _ -> done()}
  }
- state row(console:&mut Binding<Console>,lab:&Lab,index:u64) requires index < 4 {
-  let disk:Disk=lab.disks[index];console.write("disk ");integer(console,index);
-  console.write(" x=");number(console,disk.x);console.write(" y=");number(console,disk.y);
-  console.write(" vx=");number(console,disk.vx);console.write(" vy=");number(console,disk.vy);console.write_line("");
-  transition index < 4 {true -> scan(console,lab,index+1) _ -> done()}
+ state row(lab:&Lab,index:u64) requires index < 4 {
+  let disk:Disk=lab.disks[index];Console::write("disk ");integer(index);
+  Console::write(" x=");number(disk.x);Console::write(" y=");number(disk.y);
+  Console::write(" vx=");number(disk.vx);Console::write(" vy=");number(disk.vy);Console::write_line("");
+  transition index < 4 {true -> scan(lab,index+1) _ -> done()}
  }
  state done() {}
 }

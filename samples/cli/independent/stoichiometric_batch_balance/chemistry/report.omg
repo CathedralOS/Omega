@@ -1,52 +1,51 @@
 module chemistry::report;
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::numeric_conversion;
 
 // Prints nonnegative i64 values through existing Console byte providers.
 // Largest reachable element total is 64*INT32_MAX (<10^12).
-machine number(console: &mut Binding<Console>, value: i64 in Wrapping) reaches Console
-invokes console;
+machine number(value: i64 in Wrapping) reaches Console
+invokes Console;
 {
-    transition { _ -> place(console, value, 1000000000000, false) }
-    state place(console: &mut Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
+    transition { _ -> place(value, 1000000000000, false) }
+    state place(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
         transition divisor > 0 {
-            true -> digit(console, value, divisor, started)
+            true -> digit(value, divisor, started)
             false -> done()
         }
     }
-    state digit(console: &mut Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
+    state digit(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
     requires divisor > 0 {
         let digit: i64 in Wrapping = value / divisor;
         transition started || digit > 0 || divisor == 1 {
-            true -> emit(console, value, divisor, digit)
-            false -> place(console, value, divisor / 10, false)
+            true -> emit(value, divisor, digit)
+            false -> place(value, divisor / 10, false)
         }
     }
-    state emit(console: &mut Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, digit: i64 in Wrapping)
+    state emit(value: i64 in Wrapping, divisor: i64 in Wrapping, digit: i64 in Wrapping)
     requires divisor > 0 {
         let byte: i32 = narrow_i64_to_i32_wrapping((digit + 48) as i64);
-        console.write_byte(byte);
-        transition { _ -> place(console, value % divisor, divisor / 10, true) }
+        Console::write_byte(byte);
+        transition { _ -> place(value % divisor, divisor / 10, true) }
     }
     state done() { }
 }
 
-machine line_number(console: &mut Binding<Console>, value: i64 in Wrapping) reaches Console
-invokes console;
+machine line_number(value: i64 in Wrapping) reaches Console
+invokes Console;
 {
-    number(console, value);
-    console.write_line("");
+    number(value);
+    Console::write_line("");
 }
 
-machine line_four(console: &mut Binding<Console>, values: &[i64 in Wrapping; 4]) reaches Console
-invokes console;
+machine line_four(values: &[i64 in Wrapping; 4]) reaches Console
+invokes Console;
 {
-    number(console, values[0]);
-    console.write(" ");
-    number(console, values[1]);
-    console.write(" ");
-    number(console, values[2]);
-    console.write(" ");
-    line_number(console, values[3]);
+    number(values[0]);
+    Console::write(" ");
+    number(values[1]);
+    Console::write(" ");
+    number(values[2]);
+    Console::write(" ");
+    line_number(values[3]);
 }

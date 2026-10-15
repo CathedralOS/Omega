@@ -1,16 +1,15 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use platform::input;
 use platform::report;
 use domain::reconcile;
 
-data Main { console: Binding<Console>; web: Web; }
+data Main { web: Web; }
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("trophic reconciliation v1; hundredths");
+    Console::write_line("trophic reconciliation v1; hundredths");
     transition { _ -> node_input(main, 0) }
     state node_input(main: &mut Main, node: u64) requires node < 3 {
-        let external: i32 in Saturating = block read_number(&mut main.console);
-        let maintenance: i32 in Saturating = block read_number(&mut main.console);
+        let external: i32 in Saturating = block read_number();
+        let maintenance: i32 in Saturating = block read_number();
         transition external >= 0 && maintenance >= 0 {
             true -> store_node(main, node, external, maintenance)
             false -> invalid(main)
@@ -23,7 +22,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition next < 3 { true -> node_input(main, next) false -> edge_count(main) }
     }
     state edge_count(main: &mut Main) {
-        let count: i32 in Saturating = block read_number(&mut main.console);
+        let count: i32 in Saturating = block read_number();
         transition count >= 0 && count <= 6 {
             true -> edges(main, count, 0)
             false -> invalid(main)
@@ -36,10 +35,10 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state edge_input(main: &mut Main, count: i32 in Saturating, index: u64) requires index <= 6 {
-        let source: i32 in Saturating = block read_number(&mut main.console);
-        let destination: i32 in Saturating = block read_number(&mut main.console);
-        let intake: i32 in Saturating = block read_number(&mut main.console);
-        let efficiency: i32 in Saturating = block read_number(&mut main.console);
+        let source: i32 in Saturating = block read_number();
+        let destination: i32 in Saturating = block read_number();
+        let intake: i32 in Saturating = block read_number();
+        let efficiency: i32 in Saturating = block read_number();
         transition source >= 0 && source < 3 && destination >= 0 && destination < 3 && source != destination && intake >= 0 && efficiency >= 0 && efficiency <= 100 {
             true -> apply(main, count, index, source as u64, destination as u64, intake, efficiency)
             false -> invalid(main)
@@ -48,32 +47,32 @@ machine Main::main(main: &mut Main) reaches Console {
     state apply(main: &mut Main, count: i32 in Saturating, index: u64, source: u64, destination: u64, intake: i32 in Saturating, efficiency: i32 in Saturating)
     requires index <= 6 requires source < 3 requires destination < 3 {
         transfer(&mut main.web, source, destination, intake, efficiency);
-        main.console.write_line("flow source destination raw assimilated loss");
-        number(&mut main.console, source as i32 in Saturating);
-        number(&mut main.console, destination as i32 in Saturating);
-        number(&mut main.console, intake * 100);
-        number(&mut main.console, intake * efficiency);
-        number(&mut main.console, intake * (100 - efficiency));
+        Console::write_line("flow source destination raw assimilated loss");
+        number(source as i32 in Saturating);
+        number(destination as i32 in Saturating);
+        number(intake * 100);
+        number(intake * efficiency);
+        number(intake * (100 - efficiency));
         transition index < 6 { true -> advance(main, count, index) false -> invalid(main) }
     }
     state advance(main: &mut Main, count: i32 in Saturating, index: u64) requires index < 6 {
         transition { _ -> edges(main, count, index + 1) }
     }
     state end_input(main: &mut Main) {
-        let ended: bool = block require_end(&mut main.console);
+        let ended: bool = block require_end();
         transition ended { true -> report_nodes(main, 0, 0, 0, 0) false -> invalid(main) }
     }
     state report_nodes(main: &mut Main, node: u64, balances: i32 in Saturating, deficits: i32 in Saturating, supplies: i32 in Saturating) requires node < 3 {
         let balance: i32 in Saturating = residual(&main.web, node);
         let shortage: i32 in Saturating = deficit(balance);
-        main.console.write_line("node intake assimilated outgoing residual deficit surplus");
-        number(&mut main.console, node as i32 in Saturating);
-        number(&mut main.console, main.web.intake[node]);
-        number(&mut main.console, main.web.assimilated[node]);
-        number(&mut main.console, main.web.outgoing[node]);
-        number(&mut main.console, balance);
-        number(&mut main.console, shortage);
-        number(&mut main.console, surplus(balance));
+        Console::write_line("node intake assimilated outgoing residual deficit surplus");
+        number(node as i32 in Saturating);
+        number(main.web.intake[node]);
+        number(main.web.assimilated[node]);
+        number(main.web.outgoing[node]);
+        number(balance);
+        number(shortage);
+        number(surplus(balance));
         let next: u64 = node + 1;
         let next_balance: i32 in Saturating = balances + balance;
         let next_deficit: i32 in Saturating = deficits + shortage;
@@ -85,17 +84,17 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state diagnostic(main: &mut Main, balances: i32 in Saturating, deficits: i32 in Saturating, supplies: i32 in Saturating) {
         let error: i32 in Saturating = supplies - main.web.loss - balances;
-        main.console.write_line("web loss deficit balance_error");
-        number(&mut main.console, main.web.loss);
-        number(&mut main.console, deficits);
-        number(&mut main.console, error);
+        Console::write_line("web loss deficit balance_error");
+        number(main.web.loss);
+        number(deficits);
+        number(error);
         transition error == 0 { true -> feasibility(main, deficits) false -> broken(main) }
     }
     state feasibility(main: &mut Main, deficits: i32 in Saturating) {
         transition deficits == 0 { true -> feasible(main) false -> infeasible(main) }
     }
-    state feasible(main: &mut Main) { main.console.write_line("FEASIBLE"); main.console.exit_process(0); }
-    state infeasible(main: &mut Main) { main.console.write_line("INFEASIBLE"); main.console.exit_process(3); }
-    state invalid(main: &mut Main) { main.console.write_line("INVALID INPUT"); main.console.exit_process(64); }
-    state broken(main: &mut Main) { main.console.write_line("BALANCE FAILURE"); main.console.exit_process(70); }
+    state feasible(main: &mut Main) { Console::write_line("FEASIBLE"); Console::exit_process(0); }
+    state infeasible(main: &mut Main) { Console::write_line("INFEASIBLE"); Console::exit_process(3); }
+    state invalid(main: &mut Main) { Console::write_line("INVALID INPUT"); Console::exit_process(64); }
+    state broken(main: &mut Main) { Console::write_line("BALANCE FAILURE"); Console::exit_process(70); }
 }

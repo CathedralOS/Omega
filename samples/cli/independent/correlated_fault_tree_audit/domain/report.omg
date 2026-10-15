@@ -1,41 +1,40 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Emit decimal digits through the standard byte writer. No fabricated UTF-8
 // domain or host-side formatter is required. All callers pass nonnegative sums.
-pub machine number(console: &mut Binding<Console>, value: i32) reaches Console
-invokes console;
+pub machine number(value: i32) reaches Console
+invokes Console;
 {
-    transition { _ -> scale(console, value, value, 1) }
-    state scale(console: &mut Binding<Console>, value: i32,
+    transition { _ -> scale(value, value, 1) }
+    state scale(value: i32,
                 remaining: i32, place: i32 in Wrapping) {
         transition remaining >= 10 {
-            true -> grow(console, value, remaining, place)
-            _ -> emit(console, value, place)
+            true -> grow(value, remaining, place)
+            _ -> emit(value, place)
         }
     }
-    state grow(console: &mut Binding<Console>, value: i32,
+    state grow(value: i32,
                remaining: i32, place: i32 in Wrapping) {
         // An i32 has at most ten decimal digits, so place never exceeds 10^9.
-        transition { _ -> scale(console, value, remaining / 10, place * 10) }
+        transition { _ -> scale(value, remaining / 10, place * 10) }
     }
-    state emit(console: &mut Binding<Console>, value: i32, place: i32 in Wrapping) {
+    state emit(value: i32, place: i32 in Wrapping) {
         transition place > 0 {
-            true -> digit(console, value, place)
-            _ -> done(console)
+            true -> digit(value, place)
+            _ -> done()
         }
     }
-    state digit(console: &mut Binding<Console>, value: i32, place: i32 in Wrapping)
+    state digit(value: i32, place: i32 in Wrapping)
     requires place > 0 {
-        console.write_byte((((value as i32 in Wrapping) / place) + 48) as i32);
+        Console::write_byte((((value as i32 in Wrapping) / place) + 48) as i32);
         transition place > 1 {
-            true -> rest(console, value, place)
-            _ -> done(console)
+            true -> rest(value, place)
+            _ -> done()
         }
     }
-    state rest(console: &mut Binding<Console>, value: i32, place: i32 in Wrapping)
+    state rest(value: i32, place: i32 in Wrapping)
     requires place > 1 {
-        transition { _ -> emit(console, ((value as i32 in Wrapping) % place) as i32, place / 10) }
+        transition { _ -> emit(((value as i32 in Wrapping) % place) as i32, place / 10) }
     }
-    state done(console: &mut Binding<Console>) { }
+    state done() { }
 }

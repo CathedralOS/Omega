@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub data Input {
     tokens: [u64; 28];
@@ -11,49 +10,49 @@ pub data Input {
 
 // One digit per token, 28 tokens, at most 256 input bytes. EOF is required.
 // Delimiters are ASCII space, tab, CR and LF; no implicit normalization.
-pub machine Input::read(input: &mut Input, console: &mut Binding<Console>) reaches Console
-invokes console;
+pub machine Input::read(input: &mut Input) reaches Console
+invokes Console;
 blocks;
 crashes Trap
 {
     input.separator = true;
-    transition { _ -> scan(input, console) }
-    state scan(input: &mut Input, console: &mut Binding<Console>) {
+    transition { _ -> scan(input) }
+    state scan(input: &mut Input) {
         transition input.bytes < 256 {
-            true -> consume(input, console)
+            true -> consume(input)
             false -> reject(input)
         }
     }
-    state consume(input: &mut Input, console: &mut Binding<Console>) {
-        let observed: ByteRead = block console.read_byte();
+    state consume(input: &mut Input) {
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> finish(input)
-            ByteRead::Byte { value } -> byte(input, console, value)
+            ByteRead::Byte { value } -> byte(input, value)
         }
     }
-    state byte(input: &mut Input, console: &mut Binding<Console>, value: i32) {
+    state byte(input: &mut Input, value: i32) {
         input.bytes = input.bytes % 256 + 1;
         transition value == 32 || value == 9 || value == 10 || value == 13 {
-            true -> space(input, console)
-            false -> digit(input, console, value)
+            true -> space(input)
+            false -> digit(input, value)
         }
     }
-    state space(input: &mut Input, console: &mut Binding<Console>) {
+    state space(input: &mut Input) {
         input.separator = true;
-        transition { _ -> scan(input, console) }
+        transition { _ -> scan(input) }
     }
-    state digit(input: &mut Input, console: &mut Binding<Console>, value: i32) {
+    state digit(input: &mut Input, value: i32) {
         transition value >= 48 && value <= 57 && input.separator && input.count < 28 {
-            true -> store(input, console, value)
+            true -> store(input, value)
             false -> reject(input)
         }
     }
-    state store(input: &mut Input, console: &mut Binding<Console>, value: i32)
+    state store(input: &mut Input, value: i32)
     requires value >= 48 && value <= 57 {
         input.tokens[input.count] = (value - 48) as u64;
         input.count = input.count + 1;
         input.separator = false;
-        transition { _ -> scan(input, console) }
+        transition { _ -> scan(input) }
     }
     state finish(input: &mut Input) { input.valid = input.count == 28; }
     state reject(input: &mut Input) { input.valid = false; }

@@ -9,31 +9,30 @@ use design::model;
 use design::search;
 use design::certificate;
 use design::output;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut input: [u8; 16];
-    let observed: LineReadResult = block Console::read_line(&main.console, &mut input);
+    let observed: LineReadResult = block Console::read_line(&mut input);
     transition observed {
-        LineReadResult::LineComplete { count } -> length(&main.console, &input, count)
-        _ -> invalid(&main.console)
+        LineReadResult::LineComplete { count } -> length(&input, count)
+        _ -> invalid()
     }
-    state length(console: &Binding<Console>, input: &[u8; 16], count: u64) {
+    state length(input: &[u8; 16], count: u64) {
         transition count == 8 {
-            true -> syntax(console, input)
-            false -> invalid(console)
+            true -> syntax(input)
+            false -> invalid()
         }
     }
-    state syntax(console: &Binding<Console>, input: &[u8; 16]) {
+    state syntax(input: &[u8; 16]) {
         transition input[1] == 44 && input[3] == 44 && input[5] == 44 && input[7] == 10
             && input[0] >= 48 && input[0] <= 57 && input[2] >= 48 && input[2] <= 57
             && input[4] >= 48 && input[4] <= 57 && input[6] >= 48 && input[6] <= 57 {
-            true -> parse(console, input)
-            false -> invalid(console)
+            true -> parse(input)
+            false -> invalid()
         }
     }
-    state parse(console: &Binding<Console>, input: &[u8; 16]) {
+    state parse(input: &[u8; 16]) {
         let mut request: Request;
         request.treatments = (widen_u8_to_i32(input[0]) as i32 in Wrapping) - 48;
         request.subjects = (widen_u8_to_i32(input[2]) as i32 in Wrapping) - 48;
@@ -43,39 +42,39 @@ machine Main::main(main: &mut Main) reaches Console {
             && request.subjects >= 1 && request.subjects <= 6 && request.cap <= 6
             && request.forbidden <= 6
             && (request.treatments == 3 || request.forbidden == 0 || request.forbidden == 1 || request.forbidden == 3) {
-            true -> search(console, &request)
-            false -> invalid(console)
+            true -> search(&request)
+            false -> invalid()
         }
     }
-    state search(console: &Binding<Console>, request: &Request) {
+    state search(request: &Request) {
         let mut allocation: Allocation;
         let found: bool = solve(request, &mut allocation);
         transition found {
-            true -> verify(console, request, &mut allocation)
-            false -> infeasible(console)
+            true -> verify(request, &mut allocation)
+            false -> infeasible()
         }
     }
-    state verify(console: &Binding<Console>, request: &Request, allocation: &mut Allocation) {
+    state verify(request: &Request, allocation: &mut Allocation) {
         let verified: bool = certify(request, allocation);
         transition verified {
-            true -> report(console, request, allocation)
-            false -> defect(console)
+            true -> report(request, allocation)
+            false -> defect()
         }
     }
-    state report(console: &Binding<Console>, request: &Request, allocation: &Allocation) {
-        emit(console, request, allocation);
-        Console::exit_process(console, 0);
+    state report(request: &Request, allocation: &Allocation) {
+        emit(request, allocation);
+        Console::exit_process(0);
     }
-    state infeasible(console: &Binding<Console>) {
-        Console::write_line(console, "INFEASIBLE: all subject-sequence multisets exhausted");
-        Console::exit_process(console, 2);
+    state infeasible() {
+        Console::write_line("INFEASIBLE: all subject-sequence multisets exhausted");
+        Console::exit_process(2);
     }
-    state invalid(console: &Binding<Console>) {
-        Console::write_line(console, "INVALID: expected T,N,C,F followed by LF; T=2..3 N=1..6 C=0..6 F=0..6");
-        Console::exit_process(console, 64);
+    state invalid() {
+        Console::write_line("INVALID: expected T,N,C,F followed by LF; T=2..3 N=1..6 C=0..6 F=0..6");
+        Console::exit_process(64);
     }
-    state defect(console: &Binding<Console>) {
-        Console::write_line(console, "DEFECT: selected allocation failed recount");
-        Console::exit_process(console, 70);
+    state defect() {
+        Console::write_line("DEFECT: selected allocation failed recount");
+        Console::exit_process(70);
     }
 }

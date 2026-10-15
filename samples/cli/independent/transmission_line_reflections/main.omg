@@ -8,47 +8,46 @@ use omega::language::core::float_operations;
 use physics::model;
 use io::input;
 use io::report;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    let request: Request = block read_request(&main.console);
+    let request: Request = block read_request();
     transition request.valid {
-        true -> start(&main.console, request.identifier, request.horizon)
-        false -> invalid(&main.console)
+        true -> start(request.identifier, request.horizon)
+        false -> invalid()
     }
-    state start(console: &Binding<Console>, identifier: u64 in Saturating, horizon: u64 in Saturating) {
+    state start(identifier: u64 in Saturating, horizon: u64 in Saturating) {
         let model: LineModel = preset(identifier as u64);
         let mut tree: ReflectionTree;
-        Console::write_line(console, "transmission_line_reflections v1 micro-units");
-        transition { _ -> simulate(console, &mut tree, &model, 0, horizon) }
+        Console::write_line("transmission_line_reflections v1 micro-units");
+        transition { _ -> simulate(&mut tree, &model, 0, horizon) }
     }
-    state simulate(console: &Binding<Console>, tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating) {
+    state simulate(tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating) {
         transition tick < horizon && tick < 24 {
-            true -> step(console, tree, model, tick, horizon)
-            false -> finish(console)
+            true -> step(tree, model, tick, horizon)
+            false -> finish()
         }
     }
-    state step(console: &Binding<Console>, tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
+    state step(tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
     requires tick < 24
     {
         let okay: bool = propagate(tree, model, tick as u64);
         transition okay {
-            true -> emit(console, tree, model, tick, horizon)
-            false -> failed(console)
+            true -> emit(tree, model, tick, horizon)
+            false -> failed()
         }
     }
-    state emit(console: &Binding<Console>, tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
+    state emit(tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
     requires tick < 24
     {
-        report(console, tick as u64, tree);
+        report(tick as u64, tree);
         let residual: f64 = tree.supplied - tree.source_heat - tree.load_heat - tree.travelling;
         transition residual >= -0.000000001 && residual <= 0.000000001 {
-            true -> simulate(console, tree, model, tick + 1, horizon)
-            false -> failed(console)
+            true -> simulate(tree, model, tick + 1, horizon)
+            false -> failed()
         }
     }
-    state finish(console: &Binding<Console>) { Console::write_line(console, "END"); Console::exit_process(console, 0); }
-    state invalid(console: &Binding<Console>) { Console::write_line(console, "ERROR input: expected case 0..5 and horizon 1..24 followed by LF"); Console::exit_process(console, 64); }
-    state failed(console: &Binding<Console>) { Console::write_line(console, "ERROR simulation invariant"); Console::exit_process(console, 70); }
+    state finish() { Console::write_line("END"); Console::exit_process(0); }
+    state invalid() { Console::write_line("ERROR input: expected case 0..5 and horizon 1..24 followed by LF"); Console::exit_process(64); }
+    state failed() { Console::write_line("ERROR simulation invariant"); Console::exit_process(70); }
 }

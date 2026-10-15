@@ -1,59 +1,58 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 
 // Decimal integer fields represent trillionths, truncated toward zero. The
 // external oracle requires absolute numerical error at most 1e-9.
 // Scan at most nineteen decimal places with state transfers. Only the final
 // remainder is negated, so even the minimum i64 value needs no magnitude cast.
-machine print_integer(console: &mut Binding<Console>, value: i64) reaches Console {
+machine print_integer(value: i64) reaches Console {
     transition value < 0 {
-        true -> negative(console, value)
-        false -> scan(console, value, 1000000000000000000, false)
+        true -> negative(value)
+        false -> scan(value, 1000000000000000000, false)
     }
-    state negative(console: &mut Binding<Console>, value: i64) {
-        console.write("-");
-        transition { _ -> scan(console, value, 1000000000000000000, false) }
+    state negative(value: i64) {
+        Console::write("-");
+        transition { _ -> scan(value, 1000000000000000000, false) }
     }
-    state scan(console: &mut Binding<Console>, value: i64, divisor: i64, started: bool)
+    state scan(value: i64, divisor: i64, started: bool)
     requires divisor >= 1 requires divisor <= 1000000000000000000 {
         let remainder: i64 = (value / divisor) % 10;
         transition remainder != 0 || started || divisor == 1 {
-            true -> digit(console, value, divisor, remainder)
-            false -> advance(console, value, divisor, false)
+            true -> digit(value, divisor, remainder)
+            false -> advance(value, divisor, false)
         }
     }
-    state digit(console: &mut Binding<Console>, value: i64, divisor: i64, remainder: i64)
+    state digit(value: i64, divisor: i64, remainder: i64)
     requires divisor >= 1 requires divisor <= 1000000000000000000
     requires remainder >= -9 requires remainder <= 9 {
         transition remainder < 0 {
-            true -> signed_digit(console, value, divisor, remainder)
-            false -> unsigned_digit(console, value, divisor, remainder)
+            true -> signed_digit(value, divisor, remainder)
+            false -> unsigned_digit(value, divisor, remainder)
         }
     }
-    state signed_digit(console: &mut Binding<Console>, value: i64, divisor: i64, remainder: i64)
+    state signed_digit(value: i64, divisor: i64, remainder: i64)
     requires divisor >= 1 requires divisor <= 1000000000000000000
     requires remainder >= -9 requires remainder < 0 {
-        console.write_byte((48 - remainder) as i32);
-        transition { _ -> advance(console, value, divisor, true) }
+        Console::write_byte((48 - remainder) as i32);
+        transition { _ -> advance(value, divisor, true) }
     }
-    state unsigned_digit(console: &mut Binding<Console>, value: i64, divisor: i64, remainder: i64)
+    state unsigned_digit(value: i64, divisor: i64, remainder: i64)
     requires divisor >= 1 requires divisor <= 1000000000000000000
     requires remainder >= 0 requires remainder <= 9 {
-        console.write_byte((48 + remainder) as i32);
-        transition { _ -> advance(console, value, divisor, true) }
+        Console::write_byte((48 + remainder) as i32);
+        transition { _ -> advance(value, divisor, true) }
     }
-    state advance(console: &mut Binding<Console>, value: i64, divisor: i64, started: bool)
+    state advance(value: i64, divisor: i64, started: bool)
     requires divisor >= 1 requires divisor <= 1000000000000000000 {
         transition divisor >= 10 {
-            true -> scan(console, value, divisor / 10, started)
+            true -> scan(value, divisor / 10, started)
             false -> finished()
         }
     }
     state finished() { }
 }
-machine print_number(console: &mut Binding<Console>, value: f64) reaches Console {
+machine print_number(value: f64) reaches Console {
     let integer: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
-    console.write(" ");
-    print_integer(console, integer as i64);
+    Console::write(" ");
+    print_integer(integer as i64);
 }

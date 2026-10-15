@@ -3,23 +3,22 @@ use omega_language_std::math;
 // Expected exit: 2 (closed stdin).
 // Expected output contains: invalid input: one digit 0..9 and LF required
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use physics::model;
 use physics::events;
 use reporting::ledger;
 use data::fixtures;
 use data::expectations;
-data Main {console:Binding<Console>; lab:Lab; choice:i32;}
+data Main {lab:Lab; choice:i32;}
 machine Main::main(main:&mut Main) reaches Console {
- let input:ByteRead=block main.console.read_byte();
+ let input:ByteRead=block Console::read_byte();
  transition input {ByteRead::Byte{value} -> choice(main,value) _ -> invalid(main)}
  state choice(main:&mut Main,value:i32) {
   transition value >= 48 && value <= 57 {true -> newline(main,value) _ -> invalid(main)}
  }
  state newline(main:&mut Main,value:i32) requires value >= 48 && value <= 57 {
   main.choice=value-48;
-  let ending:ByteRead=block main.console.read_byte();
+  let ending:ByteRead=block Console::read_byte();
   transition ending {ByteRead::Byte{value} -> ending(main,value) _ -> invalid(main)}
  }
  state ending(main:&mut Main,value:i32) {
@@ -32,8 +31,8 @@ machine Main::main(main:&mut Main) reaches Console {
  state start(main:&mut Main) {
   totals(&mut main.lab);main.lab.initial_x=main.lab.momentum_x;
   main.lab.initial_y=main.lab.momentum_y;main.lab.initial_energy=main.lab.energy;
-  main.console.write_line("disk_collision_lab Newton frictionless model");
-  totals_row(&mut main.console,&main.lab);
+  Console::write_line("disk_collision_lab Newton frictionless model");
+  totals_row(&main.lab);
   transition { _ -> next(main) }
  }
  state next(main:&mut Main) {
@@ -45,7 +44,7 @@ machine Main::main(main:&mut Main) reaches Console {
  }
  state event(main:&mut Main) {
   let delay:f64=main.lab.delay;advance(&mut main.lab,delay);resolve(&mut main.lab);totals(&mut main.lab);
-  contact_row(&mut main.console,&main.lab);totals_row(&mut main.console,&main.lab);
+  contact_row(&main.lab);totals_row(&main.lab);
   transition expected_contact(&main.lab,main.choice) && abs_f64(main.lab.momentum_x-main.lab.initial_x) <= 0.000000001
    && abs_f64(main.lab.momentum_y-main.lab.initial_y) <= 0.000000001
    && abs_f64(main.lab.energy+main.lab.loss-main.lab.initial_energy) <= 0.000000001
@@ -58,17 +57,17 @@ machine Main::main(main:&mut Main) reaches Console {
   transition expected_result(&main.lab,main.choice) {true -> complete(main) _ -> failed(main)}
  }
  state complete(main:&mut Main) {
-  totals_row(&mut main.console,&main.lab);disk_rows(&mut main.console,&main.lab);
-  main.console.write_line("status complete");main.console.exit_process(0);
+  totals_row(&main.lab);disk_rows(&main.lab);
+  Console::write_line("status complete");Console::exit_process(0);
  }
  state exhausted(main:&mut Main) {
   transition expected_result(&main.lab,main.choice) {true -> report_exhausted(main) _ -> failed(main)}
  }
  state report_exhausted(main:&mut Main) {
-  disk_rows(&mut main.console,&main.lab);main.console.write_line("status event_budget_exhausted");
-  main.console.exit_process(3);
+  disk_rows(&main.lab);Console::write_line("status event_budget_exhausted");
+  Console::exit_process(3);
  }
- state invalid(main:&mut Main) {main.console.write_line("invalid input: one digit 0..9 and LF required");main.console.exit_process(2);}
- state invalid_model(main:&mut Main) {main.console.write_line("invalid model: bounded finite disks, no overlap, restitution 0..1 required");main.console.exit_process(2);}
- state failed(main:&mut Main) {main.console.write_line("FAIL conservation or contact tolerance");main.console.exit_process(4);}
+ state invalid(main:&mut Main) {Console::write_line("invalid input: one digit 0..9 and LF required");Console::exit_process(2);}
+ state invalid_model(main:&mut Main) {Console::write_line("invalid model: bounded finite disks, no overlap, restitution 0..1 required");Console::exit_process(2);}
+ state failed(main:&mut Main) {Console::write_line("FAIL conservation or contact tolerance");Console::exit_process(4);}
 }

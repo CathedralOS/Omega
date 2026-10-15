@@ -1,79 +1,78 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use linkage::model;
 
-pub machine number(console: &mut Binding<Console>, value: u64) reaches Console
-invokes console;
+pub machine number(value: u64) reaches Console
+invokes Console;
 {
     // Runtime recursion is tail-only. Find the highest decimal place, then
     // emit left to right using state backedges and a positive divisor.
-    transition { _ -> scale(console, value, 1) }
-    state scale(console: &mut Binding<Console>, value: u64, divisor: u64)
+    transition { _ -> scale(value, 1) }
+    state scale(value: u64, divisor: u64)
     requires divisor > 0 {
         transition divisor <= 1844674407370955161 && value / divisor >= 10 {
-            true -> grow(console, value, divisor)
-            false -> digit(console, value, divisor)
+            true -> grow(value, divisor)
+            false -> digit(value, divisor)
         }
     }
-    state grow(console: &mut Binding<Console>, value: u64, divisor: u64)
+    state grow(value: u64, divisor: u64)
     requires divisor > 0 && divisor <= 1844674407370955161 {
-        transition { _ -> scale(console, value, divisor * 10) }
+        transition { _ -> scale(value, divisor * 10) }
     }
-    state digit(console: &mut Binding<Console>, value: u64, divisor: u64)
+    state digit(value: u64, divisor: u64)
     requires divisor > 0 {
-        console.write_byte((value / divisor % 10 + 48) as i32);
+        Console::write_byte((value / divisor % 10 + 48) as i32);
         transition divisor >= 10 {
-            true -> remaining(console, value, divisor)
+            true -> remaining(value, divisor)
             false -> done()
         }
     }
-    state remaining(console: &mut Binding<Console>, value: u64, divisor: u64)
+    state remaining(value: u64, divisor: u64)
     requires divisor >= 10 {
-        transition { _ -> digit(console, value % divisor, divisor / 10) }
+        transition { _ -> digit(value % divisor, divisor / 10) }
     }
     state done() { }
 }
 
-pub machine report(console: &mut Binding<Console>, linkage: &Linkage) reaches Console
-invokes console;
+pub machine report(linkage: &Linkage) reaches Console
+invokes Console;
 {
-    console.write("best=");
-    number(console, linkage.best);
-    console.write_line("");
-    console.write("optima=");
-    number(console, linkage.optima);
-    console.write_line("");
-    console.write("edges=");
-    number(console, linkage.edges);
-    console.write_line("");
-    console.write("conflicts=");
-    number(console, linkage.conflicts);
-    console.write_line("");
-    console.write("linked=");
-    number(console, linkage.linked);
-    console.write_line("");
-    console.write("ambiguous=");
-    number(console, linkage.ambiguous);
-    console.write_line("");
-    console.write("unmatched=");
-    number(console, linkage.unmatched);
-    console.write_line("");
-    console.write("tp=");
-    number(console, linkage.true_positive);
-    console.write_line("");
-    console.write("fp=");
-    number(console, linkage.false_positive);
-    console.write_line("");
-    console.write("fn=");
-    number(console, linkage.false_negative);
-    console.write_line("");
-    console.write("left1=");
-    number(console, linkage.consensus[0]);
-    console.write_line("");
-    console.write("left2=");
-    number(console, linkage.consensus[1]);
-    console.write_line("");
-    console.write("left3=");
-    number(console, linkage.consensus[2]);
-    console.write_line("");
+    Console::write("best=");
+    number(linkage.best);
+    Console::write_line("");
+    Console::write("optima=");
+    number(linkage.optima);
+    Console::write_line("");
+    Console::write("edges=");
+    number(linkage.edges);
+    Console::write_line("");
+    Console::write("conflicts=");
+    number(linkage.conflicts);
+    Console::write_line("");
+    Console::write("linked=");
+    number(linkage.linked);
+    Console::write_line("");
+    Console::write("ambiguous=");
+    number(linkage.ambiguous);
+    Console::write_line("");
+    Console::write("unmatched=");
+    number(linkage.unmatched);
+    Console::write_line("");
+    Console::write("tp=");
+    number(linkage.true_positive);
+    Console::write_line("");
+    Console::write("fp=");
+    number(linkage.false_positive);
+    Console::write_line("");
+    Console::write("fn=");
+    number(linkage.false_negative);
+    Console::write_line("");
+    Console::write("left1=");
+    number(linkage.consensus[0]);
+    Console::write_line("");
+    Console::write("left2=");
+    number(linkage.consensus[1]);
+    Console::write_line("");
+    Console::write("left3=");
+    number(linkage.consensus[2]);
+    Console::write_line("");
 }

@@ -1,83 +1,82 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use controller::model;
 // Decimal output is computed from the result, with no expected-value strings.
-machine number(console: &mut Binding<Console>, value: i32 in Wrapping) reaches Console {
+machine number(value: i32 in Wrapping) reaches Console {
     transition value < 0 {
-        true -> negative(console, value)
-        _ -> magnitude(console, value)
+        true -> negative(value)
+        _ -> magnitude(value)
     }
-    state negative(console: &mut Binding<Console>, value: i32 in Wrapping) {
-        console.write_byte(45);
-        transition { _ -> magnitude(console, 0 - value) }
+    state negative(value: i32 in Wrapping) {
+        Console::write_byte(45);
+        transition { _ -> magnitude(0 - value) }
     }
-    state magnitude(console: &mut Binding<Console>, value: i32 in Wrapping) {
-        transition { _ -> scale(console, value, 1) }
+    state magnitude(value: i32 in Wrapping) {
+        transition { _ -> scale(value, 1) }
     }
-    state scale(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    state scale(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 0 {
-            true -> scale_positive(console, value, divisor)
+            true -> scale_positive(value, divisor)
             _ -> done()
         }
     }
-    state scale_positive(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    state scale_positive(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition value / divisor >= 10 && divisor <= 100000000 {
-            true -> scale(console, value, divisor * 10)
-            _ -> digit(console, value, divisor)
+            true -> scale(value, divisor * 10)
+            _ -> digit(value, divisor)
         }
     }
-    state digit(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    state digit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 0 {
-            true -> digit_positive(console, value, divisor)
+            true -> digit_positive(value, divisor)
             _ -> done()
         }
     }
-    state digit_positive(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping) {
-        console.write_byte((value / divisor % 10 + 48) as i32);
+    state digit_positive(value: i32 in Wrapping, divisor: i32 in Wrapping) {
+        Console::write_byte((value / divisor % 10 + 48) as i32);
         transition divisor > 1 {
-            true -> digit(console, value, divisor / 10)
+            true -> digit(value, divisor / 10)
             _ -> done()
         }
     }
     state done() { }
 }
-machine report(console: &mut Binding<Console>, problem: &Problem, plan: &Plan) reaches Console {
-    console.write("candidates="); number(console, plan.candidates); console.write_line("");
-    console.write("feasible="); number(console, plan.feasible); console.write_line("");
-    console.write("boundary_rejected="); number(console, plan.boundary_rejected); console.write_line("");
-    console.write("terminal_rejected="); number(console, plan.terminal_rejected); console.write_line("");
+machine report(problem: &Problem, plan: &Plan) reaches Console {
+    Console::write("candidates="); number(plan.candidates); Console::write_line("");
+    Console::write("feasible="); number(plan.feasible); Console::write_line("");
+    Console::write("boundary_rejected="); number(plan.boundary_rejected); Console::write_line("");
+    Console::write("terminal_rejected="); number(plan.terminal_rejected); Console::write_line("");
     transition plan.feasible > 0 {
-        true -> chosen(console, problem, plan)
-        _ -> infeasible(console)
+        true -> chosen(problem, plan)
+        _ -> infeasible()
     }
-    state infeasible(console: &mut Binding<Console>) {
-        console.write_line("INFEASIBLE: every sequence violates a step constraint or terminal equality");
-        console.exit_process(3);
+    state infeasible() {
+        Console::write_line("INFEASIBLE: every sequence violates a step constraint or terminal equality");
+        Console::exit_process(3);
     }
-    state chosen(console: &mut Binding<Console>, problem: &Problem, plan: &Plan) {
-        console.write("cost="); number(console, plan.cost); console.write_line("");
-        console.write("initial="); number(console, problem.initial); console.write_line("");
+    state chosen(problem: &Problem, plan: &Plan) {
+        Console::write("cost="); number(plan.cost); Console::write_line("");
+        Console::write("initial="); number(problem.initial); Console::write_line("");
         let divisor: i32 in Wrapping = power_three(problem.horizon - 1);
-        transition { _ -> step(console, problem, plan, 0, divisor, problem.initial) }
+        transition { _ -> step(problem, plan, 0, divisor, problem.initial) }
     }
-    state step(console: &mut Binding<Console>, problem: &Problem, plan: &Plan,
+    state step(problem: &Problem, plan: &Plan,
                time: i32 in Wrapping, divisor: i32 in Wrapping, position: i32 in Wrapping) {
         transition divisor > 0 {
-            true -> emit(console, problem, plan, time, divisor, position)
-            _ -> finish(console)
+            true -> emit(problem, plan, time, divisor, position)
+            _ -> finish()
         }
     }
-    state emit(console: &mut Binding<Console>, problem: &Problem, plan: &Plan,
+    state emit(problem: &Problem, plan: &Plan,
                time: i32 in Wrapping, divisor: i32 in Wrapping, position: i32 in Wrapping) {
         let action: i32 in Wrapping = plan.code / divisor % 3 - 1;
         let next: i32 in Wrapping = position + action + problem.drift;
-        console.write("step="); number(console, time);
-        console.write(" action="); number(console, action);
-        console.write(" state="); number(console, next); console.write_line("");
-        transition { _ -> step(console, problem, plan, time + 1, divisor / 3, next) }
+        Console::write("step="); number(time);
+        Console::write(" action="); number(action);
+        Console::write(" state="); number(next); Console::write_line("");
+        transition { _ -> step(problem, plan, time + 1, divisor / 3, next) }
     }
-    state finish(console: &mut Binding<Console>) {
-        console.write_line("OPTIMAL: lexicographically smallest minimum-cost sequence");
-        console.exit_process(0);
+    state finish() {
+        Console::write_line("OPTIMAL: lexicographically smallest minimum-cost sequence");
+        Console::exit_process(0);
     }
 }

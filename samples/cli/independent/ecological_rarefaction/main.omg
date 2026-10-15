@@ -2,24 +2,22 @@
 // Expected output contains: ecological_rarefaction
 // Input: S, S nonnegative counts, Q, Q depths; one bounded line and EOF.
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::model;
 use io::report;
 data Main {
-    console: Binding<Console>;
     line: [u8; 256];
     tokens: [u64 in Wrapping; 30];
     community: Community;
 }
 machine Main::main(main: &mut Main) reaches Console {
-    let result: LineReadResult = block main.console.read_line(&mut main.line);
+    let result: LineReadResult = block Console::read_line(&mut main.line);
     transition result {
         LineReadResult::LineComplete { count } -> eof(main, count)
         LineReadResult::EndOfInput { count } -> parse(main, count, 0, 0, 0, 0)
         _ -> invalid(main)
     }
     state eof(main: &mut Main, count: u64) {
-        let result: ByteRead = block main.console.read_byte();
+        let result: ByteRead = block Console::read_byte();
         transition result { ByteRead::Eof -> parse(main, count, 0, 0, 0, 0) _ -> invalid(main) }
     }
     state parse(main: &mut Main, count: u64, position: u64 in Wrapping,
@@ -136,8 +134,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state calculate(main: &mut Main) {
         analyze(&mut main.community);
-        report(&mut main.console, &main.community);
-        main.console.exit_process(0);
+        report(&main.community);
+        Console::exit_process(0);
     }
-    state invalid(main: &mut Main) { main.console.write_line("ERROR invalid_input"); main.console.exit_process(64); }
+    state invalid(main: &mut Main) { Console::write_line("ERROR invalid_input"); Console::exit_process(64); }
 }

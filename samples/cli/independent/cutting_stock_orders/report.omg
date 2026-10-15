@@ -1,94 +1,93 @@
 module report;
 use model;
 use omega_language_std::console;
-use omega::language::core::binding;
 // Four decimal digits per integer. Inputs bound every reported sum below 10000.
-machine number(console: &mut Binding<Console>, value: i32 in Wrapping) reaches Console {
-    console.write_byte((value / 1000 % 10 + 48) as i32);
-    console.write_byte((value / 100 % 10 + 48) as i32);
-    console.write_byte((value / 10 % 10 + 48) as i32);
-    console.write_byte((value % 10 + 48) as i32);
-    console.write_byte(32);
+machine number(value: i32 in Wrapping) reaches Console {
+    Console::write_byte((value / 1000 % 10 + 48) as i32);
+    Console::write_byte((value / 100 % 10 + 48) as i32);
+    Console::write_byte((value / 10 % 10 + 48) as i32);
+    Console::write_byte((value % 10 + 48) as i32);
+    Console::write_byte(32);
 }
-pub machine emit(console: &mut Binding<Console>, orders: &model::Orders, plan: &model::Plan) -> bool reaches Console
-invokes console;
+pub machine emit(orders: &model::Orders, plan: &model::Plan) -> bool reaches Console
+invokes Console;
 {
-    console.write("summary ");
-    number(console, plan.fulfilled);
-    number(console, plan.useful);
-    number(console, plan.fresh);
-    number(console, plan.opened);
-    number(console, plan.ties);
-    number(console, plan.code);
-    console.write_byte(10);
-    transition { _ -> item(console, orders, plan, 0, plan.code) }
-    state item(console: &mut Binding<Console>, orders: &model::Orders, plan: &model::Plan,
+    Console::write("summary ");
+    number(plan.fulfilled);
+    number(plan.useful);
+    number(plan.fresh);
+    number(plan.opened);
+    number(plan.ties);
+    number(plan.code);
+    Console::write_byte(10);
+    transition { _ -> item(orders, plan, 0, plan.code) }
+    state item(orders: &model::Orders, plan: &model::Plan,
                 index: i32 in Wrapping, code: i32 in Wrapping) -> bool {
         let order_index: i32 in Wrapping = index + 3;
         transition index >= 0 && index < 4 && order_index >= 3 && order_index < 7 {
-            true -> row(console, orders, plan, index, code, order_index)
-            _ -> stock(console, orders, plan, 0, 0, 0, 0)
+            true -> row(orders, plan, index, code, order_index)
+            _ -> stock(orders, plan, 0, 0, 0, 0)
         }
     }
-    state row(console: &mut Binding<Console>, orders: &model::Orders, plan: &model::Plan,
+    state row(orders: &model::Orders, plan: &model::Plan,
                index: i32 in Wrapping, code: i32 in Wrapping, order_index: i32 in Wrapping) -> bool {
-        console.write("order ");
-        number(console, index);
-        number(console, orders.values[order_index]);
-        number(console, code % 4);
-        console.write_byte(10);
-        transition { _ -> item(console, orders, plan, index + 1, code / 4) }
+        Console::write("order ");
+        number(index);
+        number(orders.values[order_index]);
+        number(code % 4);
+        Console::write_byte(10);
+        transition { _ -> item(orders, plan, index + 1, code / 4) }
     }
-    state stock(console: &mut Binding<Console>, orders: &model::Orders, plan: &model::Plan,
+    state stock(orders: &model::Orders, plan: &model::Plan,
                  source: i32 in Wrapping, kerf: i32 in Wrapping,
                  reusable: i32 in Wrapping, scrap: i32 in Wrapping) -> bool {
         transition source >= 0 && source < 3 {
-            true -> capacity(console, orders, plan, source, kerf, reusable, scrap)
-            _ -> certificate(console, plan, kerf, reusable, scrap)
+            true -> capacity(orders, plan, source, kerf, reusable, scrap)
+            _ -> certificate(plan, kerf, reusable, scrap)
         }
     }
-    state capacity(console: &mut Binding<Console>, orders: &model::Orders, plan: &model::Plan,
+    state capacity(orders: &model::Orders, plan: &model::Plan,
                     source: i32 in Wrapping, kerf: i32 in Wrapping,
                     reusable: i32 in Wrapping, scrap: i32 in Wrapping) -> bool {
         transition source == 2 {
-            true -> pattern(console, orders, plan, source, orders.values[1], kerf, reusable, scrap)
-            _ -> pattern(console, orders, plan, source, orders.values[0], kerf, reusable, scrap)
+            true -> pattern(orders, plan, source, orders.values[1], kerf, reusable, scrap)
+            _ -> pattern(orders, plan, source, orders.values[0], kerf, reusable, scrap)
         }
     }
-    state pattern(console: &mut Binding<Console>, orders: &model::Orders, plan: &model::Plan,
+    state pattern(orders: &model::Orders, plan: &model::Plan,
                    source: i32 in Wrapping, capacity: i32 in Wrapping, kerf: i32 in Wrapping,
                    reusable: i32 in Wrapping, scrap: i32 in Wrapping) -> bool {
         let loss: i32 in Wrapping = plan.counts[source] * orders.values[2];
-        console.write("stock ");
-        number(console, source);
-        number(console, capacity);
-        number(console, plan.counts[source]);
-        number(console, plan.loads[source] - loss);
-        number(console, loss);
+        Console::write("stock ");
+        number(source);
+        number(capacity);
+        number(plan.counts[source]);
+        number(plan.loads[source] - loss);
+        number(loss);
         transition plan.counts[source] > 0 {
-            true -> leftover(console, orders, plan, source, capacity - plan.loads[source], kerf + loss, reusable, scrap)
-            _ -> leftover(console, orders, plan, source, 0, kerf, reusable, scrap)
+            true -> leftover(orders, plan, source, capacity - plan.loads[source], kerf + loss, reusable, scrap)
+            _ -> leftover(orders, plan, source, 0, kerf, reusable, scrap)
         }
     }
-    state leftover(console: &mut Binding<Console>, orders: &model::Orders, plan: &model::Plan,
+    state leftover(orders: &model::Orders, plan: &model::Plan,
                     source: i32 in Wrapping, remaining: i32 in Wrapping, kerf: i32 in Wrapping,
                     reusable: i32 in Wrapping, scrap: i32 in Wrapping) -> bool {
-        number(console, remaining);
-        console.write_byte(10);
+        number(remaining);
+        Console::write_byte(10);
         transition remaining >= 5 {
-            true -> stock(console, orders, plan, source + 1, kerf, reusable + remaining, scrap)
-            _ -> stock(console, orders, plan, source + 1, kerf, reusable, scrap + remaining)
+            true -> stock(orders, plan, source + 1, kerf, reusable + remaining, scrap)
+            _ -> stock(orders, plan, source + 1, kerf, reusable, scrap + remaining)
         }
     }
-    state certificate(console: &mut Binding<Console>, plan: &model::Plan, kerf: i32 in Wrapping,
+    state certificate(plan: &model::Plan, kerf: i32 in Wrapping,
                        reusable: i32 in Wrapping, scrap: i32 in Wrapping) -> bool {
-        console.write("certificate ");
-        number(console, plan.opened);
-        number(console, plan.useful);
-        number(console, kerf);
-        number(console, reusable);
-        number(console, scrap);
-        console.write_byte(10);
+        Console::write("certificate ");
+        number(plan.opened);
+        number(plan.useful);
+        number(kerf);
+        number(reusable);
+        number(scrap);
+        Console::write_byte(10);
         plan.opened == plan.useful + kerf + reusable + scrap
     }
 }

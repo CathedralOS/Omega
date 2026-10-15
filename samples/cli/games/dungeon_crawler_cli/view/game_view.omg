@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use player::player_state;
 use rooms::map;
 use rooms::rooms;
@@ -9,76 +8,67 @@ data GameView {
     formatter: RoomFormatter;
 }
 
-machine GameView::render_title(console: &mut Binding<Console>) reaches Console {
-    console.write_line("###########################");
-    console.write_line("#     Dungeon Crawler     #");
-    console.write_line("###########################");
-    console.write_line("");
-    console.write_line("A tiny generated crawl for compiler stress.");
-    console.write_line("Type help if you need a command reminder.");
-    console.write_line("");
+machine GameView::render_title() reaches Console {
+    Console::write_line("###########################");
+    Console::write_line("#     Dungeon Crawler     #");
+    Console::write_line("###########################");
+    Console::write_line("");
+    Console::write_line("A tiny generated crawl for compiler stress.");
+    Console::write_line("Type help if you need a command reminder.");
+    Console::write_line("");
 }
 
-machine GameView::render_commands(console: &mut Binding<Console>) reaches Console {
-    console.write_line("[Commands] look | help | inv | char | use | fight | exit");
+machine GameView::render_commands() reaches Console {
+    Console::write_line("[Commands] look | help | inv | char | use | fight | exit");
 }
 
-machine GameView::render_room(
-    game_view: &mut GameView,
+machine GameView::render_room(game_view: &mut GameView,
     level: Level,
     cell: CellId,
     treasure_taken: bool,
     gold_taken: bool,
     fountain_used: bool,
     enemy_defeated: bool,
-    console: &mut Binding<Console>,
-    line: &mut [u8; 128] in Utf8
-)
+    line: &mut [u8; 128] in Utf8)
 reaches Console
 ensures line in Utf8
 {
     RoomFormatter::write_current_cell(level, cell, line);
-    console.write_line(line);
+    Console::write_line(line);
     RoomFormatter::write_room_info(&mut game_view.formatter, level, cell, line);
-    console.write_line(line);
+    Console::write_line(line);
     GameView::write_cell_event(cell, treasure_taken, gold_taken, fountain_used, enemy_defeated, line);
-    console.write_line(line);
+    Console::write_line(line);
     GameView::write_cell_paths(cell, line);
-    console.write_line(line);
+    Console::write_line(line);
 }
 
-machine GameView::render_look(
-    game_view: &mut GameView,
+machine GameView::render_look(game_view: &mut GameView,
     level: Level,
     cell: CellId,
     treasure_taken: bool,
     gold_taken: bool,
     fountain_used: bool,
     enemy_defeated: bool,
-    console: &mut Binding<Console>,
-    line: &mut [u8; 128] in Utf8
-)
+    line: &mut [u8; 128] in Utf8)
 reaches Console
 ensures line in Utf8
 {
     RoomFormatter::write_room_info(&mut game_view.formatter, level, cell, line);
-    console.write_line(line);
+    Console::write_line(line);
     GameView::write_cell_event(cell, treasure_taken, gold_taken, fountain_used, enemy_defeated, line);
-    console.write_line(line);
+    Console::write_line(line);
 }
 
-machine GameView::render_exits(
-    game_view: &mut GameView,
+machine GameView::render_exits(game_view: &mut GameView,
     level: Level,
     cell: CellId,
-    console: &mut Binding<Console>,
-    line: &mut [u8; 128] in Utf8
-)
+    line: &mut [u8; 128] in Utf8)
 reaches Console
 ensures line in Utf8
 {
     GameView::write_cell_paths(cell, line);
-    console.write_line(line);
+    Console::write_line(line);
 }
 
 // Output writers retain the caller's Utf8 invariant while replacing the
@@ -201,49 +191,42 @@ ensures out_line in Utf8
     }
 }
 
-machine GameView::render_inventory(
-    game_view: &mut GameView,
+machine GameView::render_inventory(game_view: &mut GameView,
     player: Player,
-    console: &mut Binding<Console>,
-    line: &mut [u8; 128] in Utf8
-)
+    line: &mut [u8; 128] in Utf8)
 reaches Console
 ensures line in Utf8
 {
     RoomFormatter::write_inventory(player, line);
-    console.write_line(line);
+    Console::write_line(line);
 }
 
-machine GameView::render_character(
-    game_view: &mut GameView,
+machine GameView::render_character(game_view: &mut GameView,
     player: Player,
-    console: &mut Binding<Console>,
-    line: &mut [u8; 128] in Utf8
-)
+    line: &mut [u8; 128] in Utf8)
 reaches Console
 ensures line in Utf8
 {
     RoomFormatter::write_character(player, line);
-    console.write_line(line);
+    Console::write_line(line);
 }
 
-machine GameView::render_prompt(console: &mut Binding<Console>) reaches Console {
-    console.write("> ");
+machine GameView::render_prompt() reaches Console {
+    Console::write("> ");
 }
 
-machine GameView::render_line(line: [u8; 128] in Utf8,
-    console: &mut Binding<Console>) reaches Console {
-    console.write_line(line);
+machine GameView::render_line(line: [u8; 128] in Utf8) reaches Console {
+    Console::write_line(line);
 }
 
-machine GameView::render_invalid_command(console: &mut Binding<Console>) reaches Console {
-    console.write_line("[Input] That action is not available right now.");
+machine GameView::render_invalid_command() reaches Console {
+    Console::write_line("[Input] That action is not available right now.");
 }
 
-machine GameView::render_game_over(console: &mut Binding<Console>) reaches Console {
-    console.write_line("Game over.");
+machine GameView::render_game_over() reaches Console {
+    Console::write_line("Game over.");
 }
 
-machine GameView::render_goodbye(console: &mut Binding<Console>) reaches Console {
-    console.write_line("Goodbye.");
+machine GameView::render_goodbye() reaches Console {
+    Console::write_line("Goodbye.");
 }

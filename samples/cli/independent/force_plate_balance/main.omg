@@ -3,79 +3,78 @@ use omega_language_std::console;
 use domain::balance;
 use input::frames;
 use output::report;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    Console::write_line(&main.console, "force_plate_balance positions_mm=(-200,-100),(200,-100),(200,100),(-200,100) support_mm=150,75");
-    transition { _ -> next(&main.console) }
-    state next(console: &Binding<Console>) {
+    Console::write_line("force_plate_balance positions_mm=(-200,-100),(200,-100),(200,100),(-200,100) support_mm=150,75");
+    transition { _ -> next() }
+    state next() {
         let mut buffer: [u8; 256];
-        let observed: LineReadResult = block Console::read_line(console, &mut buffer);
+        let observed: LineReadResult = block Console::read_line(&mut buffer);
         transition observed {
-            LineReadResult::LineComplete { count } -> line(console, &buffer, count, false)
-            LineReadResult::EndOfInput { count } -> line(console, &buffer, count, true)
-            LineReadResult::Full { count } -> oversized(console)
-            _ -> failed(console)
+            LineReadResult::LineComplete { count } -> line(&buffer, count, false)
+            LineReadResult::EndOfInput { count } -> line(&buffer, count, true)
+            LineReadResult::Full { count } -> oversized()
+            _ -> failed()
         }
     }
-    state line(console: &Binding<Console>, buffer: &[u8; 256], count: u64, final: bool) {
+    state line(buffer: &[u8; 256], count: u64, final: bool) {
         transition count <= buffer.len {
-            true -> bounded_line(console, buffer, count, final)
-            _ -> failed(console)
+            true -> bounded_line(buffer, count, final)
+            _ -> failed()
         }
     }
-    state bounded_line(console: &Binding<Console>, buffer: &[u8; 256], count: u64, final: bool)
+    state bounded_line(buffer: &[u8; 256], count: u64, final: bool)
     requires count <= buffer.len
     {
         transition final {
-            true -> end(console, &buffer[..count], count)
-            _ -> parse(console, &buffer[..count])
+            true -> end(&buffer[..count], count)
+            _ -> parse(&buffer[..count])
         }
     }
-    state parse(console: &Binding<Console>, text: &[u8]) {
+    state parse(text: &[u8]) {
         let parsed: Parsed = parse_frame(text);
         transition parsed {
-            Parsed::Valid { frame } -> balance(console, frame)
-            _ -> malformed(console)
+            Parsed::Valid { frame } -> balance(frame)
+            _ -> malformed()
         }
     }
-    state balance(console: &Binding<Console>, frame: Frame) {
+    state balance(frame: Frame) {
         let result: Balance = reconcile(&frame);
-        report(console, &frame, &result);
-        transition { _ -> next(console) }
+        report(&frame, &result);
+        transition { _ -> next() }
     }
-    state malformed(console: &Binding<Console>) {
-        Console::write_line(console, "INVALID_SYNTAX expected seven signed integers <=1000000");
-        transition { _ -> next(console) }
+    state malformed() {
+        Console::write_line("INVALID_SYNTAX expected seven signed integers <=1000000");
+        transition { _ -> next() }
     }
-    state oversized(console: &Binding<Console>) {
-        Console::write_line(console, "INVALID_LINE_TOO_LONG");
-        transition { _ -> drain(console) }
+    state oversized() {
+        Console::write_line("INVALID_LINE_TOO_LONG");
+        transition { _ -> drain() }
     }
-    state drain(console: &Binding<Console>) {
-        let observed: ByteRead = block Console::read_byte(console);
+    state drain() {
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Byte { value } -> drain_byte(console, value)
-            _ -> done(console)
+            ByteRead::Byte { value } -> drain_byte(value)
+            _ -> done()
         }
     }
-    state drain_byte(console: &Binding<Console>, value: i32) {
-        transition value == 10 { true -> next(console) _ -> drain(console) }
+    state drain_byte(value: i32) {
+        transition value == 10 { true -> next() _ -> drain() }
     }
-    state end(console: &Binding<Console>, text: &[u8], count: u64) {
-        transition count == 0 { true -> done(console) _ -> final_frame(console, text) }
+    state end(text: &[u8], count: u64) {
+        transition count == 0 { true -> done() _ -> final_frame(text) }
     }
-    state final_frame(console: &Binding<Console>, text: &[u8]) {
+    state final_frame(text: &[u8]) {
         let parsed: Parsed = parse_frame(text);
-        transition parsed { Parsed::Valid { frame } -> final_balance(console, frame) _ -> final_invalid(console) }
+        transition parsed { Parsed::Valid { frame } -> final_balance(frame) _ -> final_invalid() }
     }
-    state final_balance(console: &Binding<Console>, frame: Frame) {
+    state final_balance(frame: Frame) {
         let result: Balance = reconcile(&frame);
-        report(console, &frame, &result);
-        transition { _ -> done(console) }
+        report(&frame, &result);
+        transition { _ -> done() }
     }
-    state final_invalid(console: &Binding<Console>) { Console::write_line(console, "INVALID_SYNTAX expected seven signed integers <=1000000"); Console::exit_process(console, 0); }
-    state done(console: &Binding<Console>) { Console::exit_process(console, 0); }
-    state failed(console: &Binding<Console>) { Console::exit_process(console, 1); }
+    state final_invalid() { Console::write_line("INVALID_SYNTAX expected seven signed integers <=1000000"); Console::exit_process(0); }
+    state done() { Console::exit_process(0); }
+    state failed() { Console::exit_process(1); }
 }

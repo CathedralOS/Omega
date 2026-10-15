@@ -9,7 +9,6 @@ use output::numbers;
 use omega_language_std::console;
 use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Application {
     reader: Reader;
@@ -25,175 +24,175 @@ data Application {
     wetted_count: i64 in Wrapping;
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut application: Application;
-    block Reader::next(&main.console, &mut application.reader);
+    block Reader::next(&mut application.reader);
     transition application.reader.status == 1 && application.reader.value >= 2 && application.reader.value <= 8 {
-        true -> header(&main.console, &mut application)
-        false -> invalid(&main.console)
+        true -> header(&mut application)
+        false -> invalid()
     }
-    state header(console: &Binding<Console>, application: &mut Application) {
+    state header(application: &mut Application) {
         application.profile.count = application.reader.value as u64 in Wrapping;
-        block Reader::next(console, &mut application.reader);
+        block Reader::next(&mut application.reader);
         transition application.reader.status == 1 && application.reader.value >= 1 && application.reader.value <= 8 {
-            true -> gamma(console, application)
-            false -> invalid(console)
+            true -> gamma(application)
+            false -> invalid()
         }
     }
-    state gamma(console: &Binding<Console>, application: &mut Application) {
+    state gamma(application: &mut Application) {
         application.level_count = application.reader.value as u64 in Wrapping;
-        block Reader::next(console, &mut application.reader);
+        block Reader::next(&mut application.reader);
         transition application.reader.status == 1 && application.reader.value >= 1 && application.reader.value <= 20000 {
-            true -> hinge(console, application)
-            false -> invalid(console)
+            true -> hinge(application)
+            false -> invalid()
         }
     }
-    state hinge(console: &Binding<Console>, application: &mut Application) {
+    state hinge(application: &mut Application) {
         application.gamma = F64::from_i64(application.reader.value as i64);
-        block Reader::next(console, &mut application.reader);
+        block Reader::next(&mut application.reader);
         transition application.reader.status == 1 && application.reader.value <= 100000 {
-            true -> begin_nodes(console, application)
-            false -> invalid(console)
+            true -> begin_nodes(application)
+            false -> invalid()
         }
     }
-    state begin_nodes(console: &Binding<Console>, application: &mut Application) {
+    state begin_nodes(application: &mut Application) {
         application.hinge = (F64::from_i64(application.reader.value as i64)) / 1000.0;
-        transition { _ -> node(console, application, 0) }
+        transition { _ -> node(application, 0) }
     }
-    state node(console: &Binding<Console>, application: &mut Application, index: u64 in Wrapping) {
+    state node(application: &mut Application, index: u64 in Wrapping) {
         transition index < application.profile.count && index < 8 {
-            true -> elevation(console, application, index)
-            false -> level(console, application, 0)
+            true -> elevation(application, index)
+            false -> level(application, 0)
         }
     }
-    state elevation(console: &Binding<Console>, application: &mut Application, index: u64 in Wrapping) {
-        block Reader::next(console, &mut application.reader);
+    state elevation(application: &mut Application, index: u64 in Wrapping) {
+        block Reader::next(&mut application.reader);
         let node_elevation: f64 = F64::from_i64(application.reader.value as i64) / 1000.0;
         transition application.reader.status == 1 && application.reader.value <= 100000 {
-            true -> width(console, application, index, node_elevation)
-            false -> invalid(console)
+            true -> width(application, index, node_elevation)
+            false -> invalid()
         }
     }
-    state width(console: &Binding<Console>, application: &mut Application, index: u64 in Wrapping, elevation: f64) {
-        block Reader::next(console, &mut application.reader);
+    state width(application: &mut Application, index: u64 in Wrapping, elevation: f64) {
+        block Reader::next(&mut application.reader);
         transition application.reader.status == 1 && application.reader.value <= 100000 && index < 8 {
-            true -> store_node(console, application, index, elevation)
-            false -> invalid(console)
+            true -> store_node(application, index, elevation)
+            false -> invalid()
         }
     }
-    state store_node(console: &Binding<Console>, application: &mut Application, index: u64 in Wrapping, elevation: f64) {
+    state store_node(application: &mut Application, index: u64 in Wrapping, elevation: f64) {
         application.profile.nodes[index].elevation = elevation;
         application.profile.nodes[index].width = (F64::from_i64(application.reader.value as i64)) / 1000.0;
         transition index > 0 {
-            true -> validate_order(console, application, index, elevation)
-            false -> node(console, application, index + 1)
+            true -> validate_order(application, index, elevation)
+            false -> node(application, index + 1)
         }
     }
-    state validate_order(console: &Binding<Console>, application: &mut Application, index: u64 in Wrapping, elevation: f64) {
+    state validate_order(application: &mut Application, index: u64 in Wrapping, elevation: f64) {
         let previous: u64 in Wrapping = index - 1;
         transition previous < 8 && elevation > application.profile.nodes[previous].elevation {
-            true -> node(console, application, index + 1)
-            false -> invalid(console)
+            true -> node(application, index + 1)
+            false -> invalid()
         }
     }
-    state level(console: &Binding<Console>, application: &mut Application, index: u64 in Wrapping) {
+    state level(application: &mut Application, index: u64 in Wrapping) {
         transition index < application.level_count && index < 8 {
-            true -> read_level(console, application, index)
-            false -> trailing(console, application)
+            true -> read_level(application, index)
+            false -> trailing(application)
         }
     }
-    state read_level(console: &Binding<Console>, application: &mut Application, index: u64 in Wrapping) {
-        block Reader::next(console, &mut application.reader);
+    state read_level(application: &mut Application, index: u64 in Wrapping) {
+        block Reader::next(&mut application.reader);
         transition application.reader.status == 1 && application.reader.value <= 100000 && index < 8 {
-            true -> store_level(console, application, index)
-            false -> invalid(console)
+            true -> store_level(application, index)
+            false -> invalid()
         }
     }
-    state store_level(console: &Binding<Console>, application: &mut Application, index: u64 in Wrapping) {
+    state store_level(application: &mut Application, index: u64 in Wrapping) {
         application.levels[index] = (F64::from_i64(application.reader.value as i64)) / 1000.0;
-        transition { _ -> level(console, application, index + 1) }
+        transition { _ -> level(application, index + 1) }
     }
-    state trailing(console: &Binding<Console>, application: &mut Application) {
-        block Reader::next(console, &mut application.reader);
+    state trailing(application: &mut Application) {
+        block Reader::next(&mut application.reader);
         transition application.reader.status == 0 {
-            true -> begin(console, application)
-            false -> invalid(console)
+            true -> begin(application)
+            false -> invalid()
         }
     }
-    state begin(console: &Binding<Console>, application: &mut Application) {
-        Console::write_line(console, "HYDROSTATIC_GATE_V1 micro_units");
-        transition { _ -> water(console, application, 0) }
+    state begin(application: &mut Application) {
+        Console::write_line("HYDROSTATIC_GATE_V1 micro_units");
+        transition { _ -> water(application, 0) }
     }
-    state water(console: &Binding<Console>, application: &mut Application, index: u64 in Wrapping) {
+    state water(application: &mut Application, index: u64 in Wrapping) {
         transition index < application.level_count && index < 8 {
-            true -> reset(console, application, index)
-            false -> done(console)
+            true -> reset(application, index)
+            false -> done()
         }
     }
-    state reset(console: &Binding<Console>, application: &mut Application, index: u64 in Wrapping) {
+    state reset(application: &mut Application, index: u64 in Wrapping) {
         application.area = 0.0;
         application.force = 0.0;
         application.first_moment = 0.0;
         application.hinge_moment = 0.0;
         application.wetted_count = 0;
-        Console::write(console, "LEVEL "); write_integer(console, index as i64 in Wrapping);
-        Console::write(console, " water_um="); write_scaled(console, application.levels[index]);
-        Console::write_line(console, "");
-        transition { _ -> segment(console, application, index, 0) }
+        Console::write("LEVEL "); write_integer(index as i64 in Wrapping);
+        Console::write(" water_um="); write_scaled(application.levels[index]);
+        Console::write_line("");
+        transition { _ -> segment(application, index, 0) }
     }
-    state segment(console: &Binding<Console>, application: &mut Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping) {
+    state segment(application: &mut Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping) {
         let next: u64 in Wrapping = segment_index + 1;
         transition next < application.profile.count && next < 8 && segment_index < 8 && water_index < 8 {
-            true -> calculate(console, application, water_index, segment_index, next)
-            false -> summary(console, application, water_index)
+            true -> calculate(application, water_index, segment_index, next)
+            false -> summary(application, water_index)
         }
     }
-    state calculate(console: &Binding<Console>, application: &mut Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping, next: u64 in Wrapping) {
+    state calculate(application: &mut Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping, next: u64 in Wrapping) {
         let water: f64 = application.levels[water_index];
         let wet: WetSegment = clip(application.profile.nodes[segment_index], application.profile.nodes[next], water);
         transition wet.upper > wet.lower {
-            true -> accumulate(console, application, water_index, segment_index, wet, water)
-            false -> segment(console, application, water_index, next)
+            true -> accumulate(application, water_index, segment_index, wet, water)
+            false -> segment(application, water_index, next)
         }
     }
-    state accumulate(console: &Binding<Console>, application: &mut Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping, wet: WetSegment, water: f64) {
+    state accumulate(application: &mut Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping, wet: WetSegment, water: f64) {
         let load: SegmentLoad = integrate(wet, water, application.gamma, application.hinge);
         application.area = application.area + load.area;
         application.force = application.force + load.force;
         application.first_moment = application.first_moment + load.first_moment;
         application.hinge_moment = application.hinge_moment + load.hinge_moment;
         application.wetted_count = application.wetted_count + 1;
-        Console::write(console, "WET "); write_integer(console, segment_index as i64 in Wrapping);
-        Console::write(console, " lower_um="); write_scaled(console, wet.lower);
-        Console::write(console, " upper_um="); write_scaled(console, wet.upper);
-        Console::write(console, " lower_width_um="); write_scaled(console, wet.lower_width);
-        Console::write(console, " upper_width_um="); write_scaled(console, wet.upper_width);
-        Console::write(console, " area_micro_m2="); write_scaled(console, load.area);
-        Console::write(console, " force_uN="); write_scaled(console, load.force);
-        Console::write(console, " moment_uNm="); write_scaled(console, load.hinge_moment);
-        Console::write_line(console, "");
-        transition { _ -> segment(console, application, water_index, segment_index + 1) }
+        Console::write("WET "); write_integer(segment_index as i64 in Wrapping);
+        Console::write(" lower_um="); write_scaled(wet.lower);
+        Console::write(" upper_um="); write_scaled(wet.upper);
+        Console::write(" lower_width_um="); write_scaled(wet.lower_width);
+        Console::write(" upper_width_um="); write_scaled(wet.upper_width);
+        Console::write(" area_micro_m2="); write_scaled(load.area);
+        Console::write(" force_uN="); write_scaled(load.force);
+        Console::write(" moment_uNm="); write_scaled(load.hinge_moment);
+        Console::write_line("");
+        transition { _ -> segment(application, water_index, segment_index + 1) }
     }
-    state summary(console: &Binding<Console>, application: &mut Application, water_index: u64 in Wrapping) {
-        Console::write(console, "TOTAL wetted="); write_integer(console, application.wetted_count);
-        Console::write(console, " area_micro_m2="); write_scaled(console, application.area);
-        Console::write(console, " force_uN="); write_scaled(console, application.force);
-        Console::write(console, " moment_uNm="); write_scaled(console, application.hinge_moment);
+    state summary(application: &mut Application, water_index: u64 in Wrapping) {
+        Console::write("TOTAL wetted="); write_integer(application.wetted_count);
+        Console::write(" area_micro_m2="); write_scaled(application.area);
+        Console::write(" force_uN="); write_scaled(application.force);
+        Console::write(" moment_uNm="); write_scaled(application.hinge_moment);
         transition application.force > 0.0 {
-            true -> center(console, application, water_index)
-            false -> dry_summary(console, application, water_index)
+            true -> center(application, water_index)
+            false -> dry_summary(application, water_index)
         }
     }
-    state center(console: &Binding<Console>, application: &mut Application, water_index: u64 in Wrapping) {
-        Console::write(console, " center_um="); write_scaled(console, application.first_moment / application.force);
-        Console::write_line(console, "");
-        transition { _ -> water(console, application, water_index + 1) }
+    state center(application: &mut Application, water_index: u64 in Wrapping) {
+        Console::write(" center_um="); write_scaled(application.first_moment / application.force);
+        Console::write_line("");
+        transition { _ -> water(application, water_index + 1) }
     }
-    state dry_summary(console: &Binding<Console>, application: &mut Application, water_index: u64 in Wrapping) {
-        Console::write_line(console, " center_um=undefined");
-        transition { _ -> water(console, application, water_index + 1) }
+    state dry_summary(application: &mut Application, water_index: u64 in Wrapping) {
+        Console::write_line(" center_um=undefined");
+        transition { _ -> water(application, water_index + 1) }
     }
-    state done(console: &Binding<Console>) { Console::exit_process(console, 0); }
-    state invalid(console: &Binding<Console>) { Console::write_line(console, "ERROR invalid bounded gate input"); Console::exit_process(console, 64); }
+    state done() { Console::exit_process(0); }
+    state invalid() { Console::write_line("ERROR invalid bounded gate input"); Console::exit_process(64); }
 }

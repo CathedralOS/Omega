@@ -2,21 +2,19 @@
 // Expected exit: 64.
 // Expected output contains: INVALID: expected
 use omega_language_std::console;
-use omega::language::core::binding;
 use clearance::model;
 use clearance::search;
 use input::parse;
 use reporting::certificate;
 
 data Clearance {
-    console: Binding<Console>;
     input: [u8; 11];
     plan: Plan;
     certificate: Certificate;
 }
 
 machine Clearance::main(clearance: &mut Clearance) reaches Console {
-    let read: LineReadResult = block clearance.console.read_line(&mut clearance.input);
+    let read: LineReadResult = block Console::read_line(&mut clearance.input);
     transition read {
         LineReadResult::LineComplete { count } -> newline(clearance, count)
         LineReadResult::EndOfInput { count } -> eof(clearance, count)
@@ -43,10 +41,10 @@ machine Clearance::main(clearance: &mut Clearance) reaches Console {
     }
     state route(clearance: &mut Clearance) {
         solve(&clearance.plan, &mut clearance.certificate);
-        report(&mut clearance.console, &clearance.certificate);
+        report(&clearance.certificate);
     }
     state invalid(clearance: &mut Clearance) {
-        clearance.console.write_line("INVALID: expected H0 HE F1 C1 F2 C2 F3 C3 F4 C4, ten digits; each floor<=ceiling");
-        clearance.console.exit_process(64);
+        Console::write_line("INVALID: expected H0 HE F1 C1 F2 C2 F3 C3 F4 C4, ten digits; each floor<=ceiling");
+        Console::exit_process(64);
     }
 }

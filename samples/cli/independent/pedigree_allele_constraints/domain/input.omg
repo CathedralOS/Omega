@@ -1,20 +1,19 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::model;
 
 // Deliberately small wire format: whitespace separated single decimal digits.
 // Parse to an independent token buffer before touching pedigree storage.
 data Tokens { values: [i32; 19]; count: i32 in Wrapping; separated: bool; }
 
-pub machine read(console: &mut Binding<Console>, pedigree: &mut Pedigree) -> bool
+pub machine read(pedigree: &mut Pedigree) -> bool
 reaches Console
-invokes console;
+invokes Console;
 blocks;
 crashes Trap
 {
     let mut tokens: Tokens;
     tokens.separated = true;
-    let accepted: bool = block scan(console, &mut tokens);
+    let accepted: bool = block scan(&mut tokens);
     transition accepted && tokens.count >= 1 {
         true -> header(pedigree, &tokens)
         _ -> false
@@ -51,35 +50,35 @@ crashes Trap
     }
 }
 
-machine scan(console: &mut Binding<Console>, tokens: &mut Tokens) -> bool reaches Console {
-    transition { _ -> byte(console, tokens) }
-    state byte(console: &mut Binding<Console>, tokens: &mut Tokens) -> bool {
-        let observed: ByteRead = block console.read_byte();
+machine scan(tokens: &mut Tokens) -> bool reaches Console {
+    transition { _ -> byte(tokens) }
+    state byte(tokens: &mut Tokens) -> bool {
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> true
-            ByteRead::Byte { value } -> classify(console, tokens, value)
+            ByteRead::Byte { value } -> classify(tokens, value)
         }
     }
-    state classify(console: &mut Binding<Console>, tokens: &mut Tokens, value: i32) -> bool {
+    state classify(tokens: &mut Tokens, value: i32) -> bool {
         transition value == 32 || value == 10 || value == 13 || value == 9 {
-            true -> space(console, tokens)
-            _ -> digit(console, tokens, value)
+            true -> space(tokens)
+            _ -> digit(tokens, value)
         }
     }
-    state space(console: &mut Binding<Console>, tokens: &mut Tokens) -> bool {
+    state space(tokens: &mut Tokens) -> bool {
         tokens.separated = true;
-        transition { _ -> byte(console, tokens) }
+        transition { _ -> byte(tokens) }
     }
-    state digit(console: &mut Binding<Console>, tokens: &mut Tokens, value: i32) -> bool {
+    state digit(tokens: &mut Tokens, value: i32) -> bool {
         transition value >= 48 && value <= 57 && tokens.separated && tokens.count >= 0 && tokens.count < 19 {
-            true -> store(console, tokens, value - 48)
+            true -> store(tokens, value - 48)
             _ -> false
         }
     }
-    state store(console: &mut Binding<Console>, tokens: &mut Tokens, value: i32) -> bool {
+    state store(tokens: &mut Tokens, value: i32) -> bool {
         tokens.values[tokens.count] = value;
         tokens.count = tokens.count + 1;
         tokens.separated = false;
-        transition { _ -> byte(console, tokens) }
+        transition { _ -> byte(tokens) }
     }
 }

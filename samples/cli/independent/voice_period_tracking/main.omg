@@ -1,10 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::scores::lag_sum;
 use domain::report::number;
 
 data Main {
-    console: Binding<Console>;
     samples: [i32 in Wrapping; 32];
     length: i32 in Wrapping;
     frame: i32 in Wrapping;
@@ -35,7 +33,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     main.eof = false;
     transition { _ -> read(main) }
     state read(main: &mut Main) {
-        let observed: ByteRead = block main.console.read_byte();
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Byte { value } -> byte(main, value)
             _ -> finish_input(main)
@@ -72,8 +70,8 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         }
     }
     state begin_frame(main: &mut Main) {
-        main.console.write("FRAME "); number(&mut main.console, main.frame);
-        main.console.write(" "); number(&mut main.console, main.length); main.console.write_line("");
+        Console::write("FRAME "); number(main.frame);
+        Console::write(" "); number(main.length); Console::write_line("");
         main.best_lag = 0;
         main.status = 3;
         main.lag = 2;
@@ -91,9 +89,9 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     state calculate(main: &mut Main) {
         main.sum = lag_sum(&main.samples, main.length, main.lag);
         main.pairs = main.length - main.lag;
-        main.console.write("LAG "); number(&mut main.console, main.lag);
-        main.console.write(" "); number(&mut main.console, main.sum);
-        main.console.write(" "); number(&mut main.console, main.pairs); main.console.write_line("");
+        Console::write("LAG "); number(main.lag);
+        Console::write(" "); number(main.sum);
+        Console::write(" "); number(main.pairs); Console::write_line("");
         transition main.sum * main.best_pairs < main.best_sum * main.pairs {
             true -> better(main)
             _ -> tie(main)
@@ -126,30 +124,30 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         transition { _ -> track(main) }
     }
     state track(main: &mut Main) {
-        main.console.write("TRACK "); number(&mut main.console, main.frame);
-        main.console.write(" "); number(&mut main.console, main.best_lag);
-        main.console.write(" ");
+        Console::write("TRACK "); number(main.frame);
+        Console::write(" "); number(main.best_lag);
+        Console::write(" ");
         transition main.best_lag > 0 { true -> pitch(main) _ -> no_pitch(main) }
     }
     state pitch(main: &mut Main) {
-        number(&mut main.console, 8000 / main.best_lag);
+        number(8000 / main.best_lag);
         transition { _ -> status(main) }
     }
     state no_pitch(main: &mut Main) {
-        number(&mut main.console, 0);
+        number(0);
         transition { _ -> status(main) }
     }
     state status(main: &mut Main) {
-        main.console.write(" "); number(&mut main.console, main.status); main.console.write_line("");
+        Console::write(" "); number(main.status); Console::write_line("");
         transition main.previous > 0 && main.best_lag > 0 && main.previous != main.best_lag {
             true -> change(main)
             _ -> uncertainty(main)
         }
     }
     state change(main: &mut Main) {
-        main.console.write("CHANGE "); number(&mut main.console, main.frame);
-        main.console.write(" "); number(&mut main.console, main.previous);
-        main.console.write(" "); number(&mut main.console, main.best_lag); main.console.write_line("");
+        Console::write("CHANGE "); number(main.frame);
+        Console::write(" "); number(main.previous);
+        Console::write(" "); number(main.best_lag); Console::write_line("");
         transition { _ -> uncertainty(main) }
     }
     state uncertainty(main: &mut Main) {
@@ -160,8 +158,8 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         }
     }
     state segment(main: &mut Main) {
-        main.console.write("SEGMENT "); number(&mut main.console, main.uncertain_start);
-        main.console.write(" "); number(&mut main.console, main.frame); main.console.write_line("");
+        Console::write("SEGMENT "); number(main.uncertain_start);
+        Console::write(" "); number(main.frame); Console::write_line("");
         main.uncertain_start = -1;
         transition { _ -> remember(main) }
     }
@@ -186,10 +184,10 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         }
     }
     state final_segment(main: &mut Main) {
-        main.console.write("SEGMENT "); number(&mut main.console, main.uncertain_start);
-        main.console.write(" "); number(&mut main.console, main.frame); main.console.write_line("");
+        Console::write("SEGMENT "); number(main.uncertain_start);
+        Console::write(" "); number(main.frame); Console::write_line("");
         transition { _ -> good(main) }
     }
-    state good(main: &mut Main) { main.console.exit_process(0); }
-    state bad(main: &mut Main) { main.console.write_line("ERROR input"); main.console.exit_process(64); }
+    state good(main: &mut Main) { Console::exit_process(0); }
+    state bad(main: &mut Main) { Console::write_line("ERROR input"); Console::exit_process(64); }
 }

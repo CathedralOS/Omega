@@ -6,32 +6,31 @@ use domain::input;
 use domain::paths;
 use domain::report;
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut job: Job;
-    let valid: bool = block load(&main.console, &mut job);
+    let valid: bool = block load(&mut job);
     transition valid {
         true -> generate(main, &mut job)
         _ -> invalid(main)
     }
     state generate(main: &mut Main, job: &mut Job) {
-        let complete: bool = paths(&main.console, job);
+        let complete: bool = paths(job);
         transition complete {
             true -> success(main, job)
             _ -> internal(main)
         }
     }
     state success(main: &mut Main, job: &Job) {
-        audit(&main.console, job);
-        main.console.exit_process(0);
+        audit(job);
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("ERROR input");
-        main.console.exit_process(64);
+        Console::write_line("ERROR input");
+        Console::exit_process(64);
     }
     state internal(main: &mut Main) {
-        main.console.write_line("ERROR internal bounds");
-        main.console.exit_process(70);
+        Console::write_line("ERROR internal bounds");
+        Console::exit_process(70);
     }
 }

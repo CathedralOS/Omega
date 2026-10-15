@@ -1,7 +1,6 @@
 // Private decimal token reader. Reject overflow before multiplying; at most
 // 256 input bytes and 51 tokens, so malformed input cannot grow storage.
 use omega_language_std::console;
-use omega::language::core::binding;
 pub data Tokens {
     values: [i32; 51] in Saturating;
     count: i32 in Saturating;
@@ -10,69 +9,69 @@ pub data Tokens {
     digits: bool;
     valid: bool;
 }
-pub machine Tokens::read(console: &Binding<Console>, tokens: &mut Tokens)
+pub machine Tokens::read(tokens: &mut Tokens)
 reaches Console
-invokes console;
+invokes Console;
 blocks;
 crashes Trap
 {
     tokens.valid = true;
-    transition { _ -> scan(console, tokens) }
-    state scan(console: &Binding<Console>, tokens: &mut Tokens) {
+    transition { _ -> scan(tokens) }
+    state scan(tokens: &mut Tokens) {
         transition tokens.bytes < 256 {
-            true -> pull(console, tokens)
+            true -> pull(tokens)
             _ -> reject(tokens)
         }
     }
-    state pull(console: &Binding<Console>, tokens: &mut Tokens) {
-        let observed: ByteRead = block Console::read_byte(console);
+    state pull(tokens: &mut Tokens) {
+        let observed: ByteRead = block Console::read_byte();
         tokens.bytes = tokens.bytes + 1;
         transition observed {
             ByteRead::Eof -> finish(tokens)
-            ByteRead::Byte { value } -> classify(console, tokens, value)
+            ByteRead::Byte { value } -> classify(tokens, value)
         }
     }
-    state classify(console: &Binding<Console>, tokens: &mut Tokens, byte: i32) {
+    state classify(tokens: &mut Tokens, byte: i32) {
         transition byte >= 48 && byte <= 57 {
-            true -> digit(console, tokens, byte)
-            _ -> separator(console, tokens, byte)
+            true -> digit(tokens, byte)
+            _ -> separator(tokens, byte)
         }
     }
-    state digit(console: &Binding<Console>, tokens: &mut Tokens, byte: i32) {
+    state digit(tokens: &mut Tokens, byte: i32) {
         transition tokens.value < 100 {
-            true -> accumulate(console, tokens, byte)
+            true -> accumulate(tokens, byte)
             _ -> reject(tokens)
         }
     }
-    state accumulate(console: &Binding<Console>, tokens: &mut Tokens, byte: i32) {
+    state accumulate(tokens: &mut Tokens, byte: i32) {
         tokens.value = tokens.value * 10 + (byte as i32 in Saturating) - 48;
         tokens.digits = true;
-        transition { _ -> scan(console, tokens) }
+        transition { _ -> scan(tokens) }
     }
-    state separator(console: &Binding<Console>, tokens: &mut Tokens, byte: i32) {
+    state separator(tokens: &mut Tokens, byte: i32) {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
-            true -> flush(console, tokens)
+            true -> flush(tokens)
             _ -> reject(tokens)
         }
     }
-    state flush(console: &Binding<Console>, tokens: &mut Tokens) {
+    state flush(tokens: &mut Tokens) {
         transition tokens.digits {
-            true -> capacity(console, tokens)
-            _ -> scan(console, tokens)
+            true -> capacity(tokens)
+            _ -> scan(tokens)
         }
     }
-    state capacity(console: &Binding<Console>, tokens: &mut Tokens) {
+    state capacity(tokens: &mut Tokens) {
         transition tokens.count >= 0 && tokens.count < 51 {
-            true -> store(console, tokens)
+            true -> store(tokens)
             _ -> reject(tokens)
         }
     }
-    state store(console: &Binding<Console>, tokens: &mut Tokens) {
+    state store(tokens: &mut Tokens) {
         tokens.values[tokens.count] = tokens.value;
         tokens.count = tokens.count + 1;
         tokens.value = 0;
         tokens.digits = false;
-        transition { _ -> scan(console, tokens) }
+        transition { _ -> scan(tokens) }
     }
     state finish(tokens: &mut Tokens) {
         transition tokens.digits {

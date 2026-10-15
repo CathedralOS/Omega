@@ -1,18 +1,17 @@
 // Complete reproduction: a scaled integer survives ordinary Console calls.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use formatting;
-data Main {console:Binding<Console>;}
+data Main {}
 machine Main::main(main:&mut Main) reaches Console {
- let byte:ByteRead=block main.console.read_byte();
+ let byte:ByteRead=block Console::read_byte();
  transition byte {ByteRead::Byte{value} -> render(main,value) _ -> fail(main)}
  state render(main:&mut Main,value:i32) {
   transition value >= 48 && value <= 57 {true -> bounded(main,value) _ -> fail(main)}
  }
  state bounded(main:&mut Main,value:i32) requires value >= 48 && value <= 57 {
-  number(&mut main.console,(F64::from_i32(value)-48.0)/10.0);
-  main.console.write_line("");main.console.exit_process(70);
+  number((F64::from_i32(value)-48.0)/10.0);
+  Console::write_line("");Console::exit_process(70);
  }
- state fail(main:&mut Main) {main.console.exit_process(71);}
+ state fail(main:&mut Main) {Console::exit_process(71);}
 }

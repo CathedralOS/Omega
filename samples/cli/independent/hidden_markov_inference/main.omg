@@ -1,16 +1,15 @@
 // Expected exit: 64 (empty stdin is invalid).
 // Expected numerical outputs are frozen independently in expected.json.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use domain::inference;
 use domain::viterbi;
 use io::trace;
-data Main { console: Binding<Console>; model: Model; result: Inference; paths: Paths; line: [u8; 64]; }
+data Main { model: Model; result: Inference; paths: Paths; line: [u8; 64]; }
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> probability(main, 0) }
     state probability(main: &mut Main, field: u64) requires field < 10 {
-        let read: LineReadResult = block main.console.read_line(&mut main.line);
+        let read: LineReadResult = block Console::read_line(&mut main.line);
         transition read {
             LineReadResult::LineComplete { count } -> probability_line(main, field, count)
             _ -> invalid(main)
@@ -61,7 +60,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition row < 4 { true -> distributions(main, row + 1) false -> observations(main) }
     }
     state observations(main: &mut Main) {
-        let read: LineReadResult = block main.console.read_line(&mut main.line);
+        let read: LineReadResult = block Console::read_line(&mut main.line);
         transition read {
             LineReadResult::LineComplete { count } -> observation_line(main, count)
             _ -> invalid(main)
@@ -85,7 +84,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition index < 15 { true -> symbols(main, index + 1) false -> invalid(main) }
     }
     state end_input(main: &mut Main) {
-        let read: LineReadResult = block main.console.read_line(&mut main.line);
+        let read: LineReadResult = block Console::read_line(&mut main.line);
         transition read { LineReadResult::EndOfInput { count } -> ended(main, count) _ -> invalid(main) }
     }
     state ended(main: &mut Main, count: u64) {
@@ -97,27 +96,27 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state report(main: &mut Main) requires main.model.count >= 1 requires main.model.count <= 16 {
         viterbi(&main.model, &mut main.paths, &mut main.result);
-        main.console.write_line("OK trillionths");
-        main.console.write("LOG");
-        print_number(&mut main.console, main.result.log_likelihood);
-        main.console.write_line("");
+        Console::write_line("OK trillionths");
+        Console::write("LOG");
+        print_number(main.result.log_likelihood);
+        Console::write_line("");
         transition { _ -> posterior(main, 0) }
     }
     state posterior(main: &mut Main, index: u64) requires index < 16 {
         let zero: f64 = main.result.forward[2 * index] * main.result.backward[2 * index];
         let one: f64 = main.result.forward[2 * index + 1] * main.result.backward[2 * index + 1];
-        main.console.write("POST");
-        print_integer(&mut main.console, index as i64);
-        print_number(&mut main.console, zero / (zero + one));
-        print_number(&mut main.console, one / (zero + one));
-        main.console.write_line("");
+        Console::write("POST");
+        print_integer(index as i64);
+        print_number(zero / (zero + one));
+        print_number(one / (zero + one));
+        Console::write_line("");
         transition index + 1 < main.model.count { true -> next_posterior(main, index) false -> path_start(main) }
     }
     state next_posterior(main: &mut Main, index: u64) requires index < 16 {
         transition index < 15 { true -> posterior(main, index + 1) false -> invalid(main) }
     }
     state path_start(main: &mut Main) {
-        main.console.write("PATH ");
+        Console::write("PATH ");
         transition main.model.count >= 1 && main.model.count <= 16 { true -> path_divisor(main, 1, 1) false -> invalid(main) }
     }
     state path_divisor(main: &mut Main, index: u64, divisor: u64)
@@ -130,10 +129,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state path(main: &mut Main, divisor: u64) requires divisor >= 1 requires divisor <= 32768 {
         let digit: u64 = (main.result.path / divisor) % 2;
-        main.console.write_byte((48 + digit) as i32);
+        Console::write_byte((48 + digit) as i32);
         transition divisor >= 2 { true -> path(main, divisor / 2) false -> success(main) }
     }
-    state success(main: &mut Main) { main.console.write_line(""); main.console.exit_process(0); }
-    state invalid(main: &mut Main) { main.console.write_line("INVALID"); main.console.exit_process(64); }
-    state impossible(main: &mut Main) { main.console.write_line("IMPOSSIBLE"); main.console.exit_process(65); }
+    state success(main: &mut Main) { Console::write_line(""); Console::exit_process(0); }
+    state invalid(main: &mut Main) { Console::write_line("INVALID"); Console::exit_process(64); }
+    state impossible(main: &mut Main) { Console::write_line("IMPOSSIBLE"); Console::exit_process(65); }
 }

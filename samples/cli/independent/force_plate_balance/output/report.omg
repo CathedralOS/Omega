@@ -1,79 +1,78 @@
 use omega_language_std::console;
 use domain::balance;
-use omega::language::core::binding;
 // Collect decimal digits privately, then emit them in reverse order. Ten
 // digits cover every bounded application result; division precedes all I/O.
 data Decimal { digits: [i32; 10]; }
-pub machine number(console: &Binding<Console>, value: i64 in Wrapping) reaches Console
+pub machine number(value: i64 in Wrapping) reaches Console
 invokes Console;
 {
     transition value < 0 {
-        true -> negative(console, value)
-        _ -> positive(console, value)
+        true -> negative(value)
+        _ -> positive(value)
     }
-    state negative(console: &Binding<Console>, value: i64 in Wrapping) {
-        Console::write_byte(console, 45);
-        transition { _ -> positive(console, 0 - value) }
+    state negative(value: i64 in Wrapping) {
+        Console::write_byte(45);
+        transition { _ -> positive(0 - value) }
     }
-    state positive(console: &Binding<Console>, value: i64 in Wrapping) {
+    state positive(value: i64 in Wrapping) {
         let mut decimal: Decimal;
-        transition { _ -> collect(console, decimal, value, 0) }
+        transition { _ -> collect(decimal, value, 0) }
     }
-    state collect(console: &Binding<Console>, decimal: Decimal, value: i64 in Wrapping, count: u64) {
-        transition count < 10 { true -> append(console, decimal, value, count) _ -> failed(console) }
+    state collect(decimal: Decimal, value: i64 in Wrapping, count: u64) {
+        transition count < 10 { true -> append(decimal, value, count) _ -> failed() }
     }
-    state append(console: &Binding<Console>, decimal: Decimal, value: i64 in Wrapping, count: u64)
+    state append(decimal: Decimal, value: i64 in Wrapping, count: u64)
     requires count < 10
     {
         let mut completed: Decimal = decimal;
         completed.digits[count] = (value % 10 + 48) as i32;
         let remaining: i64 in Wrapping = value / 10;
         transition remaining == 0 {
-            true -> emit(console, completed, count + 1)
-            _ -> collect(console, completed, remaining, count + 1)
+            true -> emit(completed, count + 1)
+            _ -> collect(completed, remaining, count + 1)
         }
     }
-    state emit(console: &Binding<Console>, decimal: Decimal, count: u64) {
-        transition count > 0 && count <= 10 { true -> byte(console, decimal, count) _ -> done() }
+    state emit(decimal: Decimal, count: u64) {
+        transition count > 0 && count <= 10 { true -> byte(decimal, count) _ -> done() }
     }
-    state byte(console: &Binding<Console>, decimal: Decimal, count: u64)
+    state byte(decimal: Decimal, count: u64)
     requires count > 0 && count <= 10
     {
-        Console::write_byte(console, decimal.digits[count - 1]);
-        transition { _ -> emit(console, decimal, count - 1) }
+        Console::write_byte(decimal.digits[count - 1]);
+        transition { _ -> emit(decimal, count - 1) }
     }
     state done() { }
-    state failed(console: &Binding<Console>) { Console::exit_process(console, 1); }
+    state failed() { Console::exit_process(1); }
 }
-pub machine report(console: &Binding<Console>, frame: &Frame, result: &Balance) reaches Console
+pub machine report(frame: &Frame, result: &Balance) reaches Console
 invokes Console;
 {
-    Console::write(console, "loads=");
-    number(console, frame.values[0] as i64 in Wrapping); Console::write(console, ",");
-    number(console, frame.values[1] as i64 in Wrapping); Console::write(console, ",");
-    number(console, frame.values[2] as i64 in Wrapping); Console::write(console, ",");
-    number(console, frame.values[3] as i64 in Wrapping);
-    Console::write(console, " force="); number(console, result.force);
-    Console::write(console, " moments="); number(console, result.moment_x); Console::write(console, ","); number(console, result.moment_y);
-    Console::write(console, " residuals="); number(console, result.force_residual); Console::write(console, ","); number(console, result.x_residual); Console::write(console, ","); number(console, result.y_residual);
+    Console::write("loads=");
+    number(frame.values[0] as i64 in Wrapping); Console::write(",");
+    number(frame.values[1] as i64 in Wrapping); Console::write(",");
+    number(frame.values[2] as i64 in Wrapping); Console::write(",");
+    number(frame.values[3] as i64 in Wrapping);
+    Console::write(" force="); number(result.force);
+    Console::write(" moments="); number(result.moment_x); Console::write(","); number(result.moment_y);
+    Console::write(" residuals="); number(result.force_residual); Console::write(","); number(result.x_residual); Console::write(","); number(result.y_residual);
     transition result.force > 0 && result.status != 1 && result.status != 2 {
-        true -> position(console, result)
-        _ -> decision(console, result)
+        true -> position(result)
+        _ -> decision(result)
     }
-    state position(console: &Binding<Console>, result: &Balance) {
-        Console::write(console, " cop_mm="); number(console, result.moment_x); Console::write(console, "/"); number(console, result.force);
-        Console::write(console, ","); number(console, result.moment_y); Console::write(console, "/"); number(console, result.force);
-        transition { _ -> decision(console, result) }
+    state position(result: &Balance) {
+        Console::write(" cop_mm="); number(result.moment_x); Console::write("/"); number(result.force);
+        Console::write(","); number(result.moment_y); Console::write("/"); number(result.force);
+        transition { _ -> decision(result) }
     }
-    state decision(console: &Binding<Console>, result: &Balance) {
+    state decision(result: &Balance) {
         transition result.status {
-            0 -> label(console, " SUPPORTED")
-            1 -> label(console, " INVALID_NEGATIVE_LOAD")
-            2 -> label(console, " INVALID_SATURATED_CELL")
-            3 -> label(console, " INVALID_ZERO_FORCE")
-            4 -> label(console, " INVALID_EQUILIBRIUM")
-            _ -> label(console, " OUTSIDE_SUPPORT")
+            0 -> label(" SUPPORTED")
+            1 -> label(" INVALID_NEGATIVE_LOAD")
+            2 -> label(" INVALID_SATURATED_CELL")
+            3 -> label(" INVALID_ZERO_FORCE")
+            4 -> label(" INVALID_EQUILIBRIUM")
+            _ -> label(" OUTSIDE_SUPPORT")
         }
     }
-    state label(console: &Binding<Console>, text: &[u8]) { Console::write_line(console, text); }
+    state label(text: &[u8]) { Console::write_line(text); }
 }

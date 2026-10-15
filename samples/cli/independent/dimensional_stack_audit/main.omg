@@ -2,32 +2,30 @@
 // Expected exit: 64.
 // Expected output contains: INVALID INPUT: expected profile 1..6 and ordered temperatures in [-100,100]
 use omega_language_std::console;
-use omega::language::core::binding;
 use model::audit;
 use data::profiles;
 use io::numbers;
 
 data Main {
-    console: Binding<Console>;
     input: Input;
     assembly: Assembly;
     audit: Audit;
 }
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("dimensional_stack_audit: profile 1..6, temperature low, temperature high (one integer per line)");
-    block read_integer(&mut main.console, &mut main.input);
+    Console::write_line("dimensional_stack_audit: profile 1..6, temperature low, temperature high (one integer per line)");
+    block read_integer(&mut main.input);
     transition main.input.valid && main.input.value >= 1 && main.input.value <= 6 {
         true -> profile(main)
         false -> invalid(main)
     }
     state profile(main: &mut Main) {
         load(&mut main.assembly, main.input.value);
-        block read_integer(&mut main.console, &mut main.input);
+        block read_integer(&mut main.input);
         transition main.input.valid { true -> temperature_low(main) false -> invalid(main) }
     }
     state temperature_low(main: &mut Main) {
         main.assembly.temperature_low = main.input.value;
-        block read_integer(&mut main.console, &mut main.input);
+        block read_integer(&mut main.input);
         transition main.input.valid { true -> temperature_high(main) false -> invalid(main) }
     }
     state temperature_high(main: &mut Main) {
@@ -37,10 +35,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state audit(main: &mut Main) {
         calculate(&main.assembly, &mut main.audit);
-        main.console.write_line("fit_low_um");
-        write_integer(&mut main.console, main.audit.low);
-        main.console.write_line("fit_high_um");
-        write_integer(&mut main.console, main.audit.high);
+        Console::write_line("fit_low_um");
+        write_integer(main.audit.low);
+        Console::write_line("fit_high_um");
+        write_integer(main.audit.high);
         transition main.audit.status {
             1 -> guaranteed(main)
             3 -> impossible(main)
@@ -48,15 +46,15 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state guaranteed(main: &mut Main) {
-        main.console.write_line("GUARANTEED");
+        Console::write_line("GUARANTEED");
         transition { _ -> contributors(main, 0) }
     }
     state impossible(main: &mut Main) {
-        main.console.write_line("IMPOSSIBLE");
+        Console::write_line("IMPOSSIBLE");
         transition { _ -> contributors(main, 0) }
     }
     state conditional(main: &mut Main) {
-        main.console.write_line("CONDITIONAL");
+        Console::write_line("CONDITIONAL");
         transition { _ -> contributors(main, 0) }
     }
     state contributors(main: &mut Main, index: u32) {
@@ -74,10 +72,10 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state lower_offender(main: &mut Main, index: u32, deviation: i32 in Saturating) requires index < 3 {
-        main.console.write_line("lower_offender_index_zero_based");
-        write_integer(&mut main.console, index as i32 in Saturating);
-        main.console.write_line("deviation_um");
-        write_integer(&mut main.console, deviation);
+        Console::write_line("lower_offender_index_zero_based");
+        write_integer(index as i32 in Saturating);
+        Console::write_line("deviation_um");
+        write_integer(deviation);
         transition { _ -> upper(main, index) }
     }
     state upper(main: &mut Main, index: u32) requires index < 3 {
@@ -92,15 +90,15 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state upper_offender(main: &mut Main, index: u32, deviation: i32 in Saturating) requires index < 3 {
-        main.console.write_line("upper_offender_index_zero_based");
-        write_integer(&mut main.console, index as i32 in Saturating);
-        main.console.write_line("deviation_um");
-        write_integer(&mut main.console, deviation);
+        Console::write_line("upper_offender_index_zero_based");
+        write_integer(index as i32 in Saturating);
+        Console::write_line("deviation_um");
+        write_integer(deviation);
         transition { _ -> contributors(main, index + 1) }
     }
-    state done(main: &mut Main) { main.console.exit_process(0); }
+    state done(main: &mut Main) { Console::exit_process(0); }
     state invalid(main: &mut Main) {
-        main.console.write_line("INVALID INPUT: expected profile 1..6 and ordered temperatures in [-100,100]");
-        main.console.exit_process(64);
+        Console::write_line("INVALID INPUT: expected profile 1..6 and ordered temperatures in [-100,100]");
+        Console::exit_process(64);
     }
 }

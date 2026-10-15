@@ -1,14 +1,12 @@
 // NEW034: runtime-configured discrete rail-limited feedback amplifier.
 // Only this project owns its model, bounded parser and report implementation.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use domain::model;
 use io::input;
 use io::output;
 
 data Main {
-    console: Binding<Console>;
     bytes: [u8; 192];
     input: Inputs;
     circuit: Circuit;
@@ -26,7 +24,7 @@ data Main {
     first_recovered: i32;
 }
 machine Main::main(main: &mut Main) reaches Console {
-    let read: LineReadResult = block main.console.read_line(&mut main.bytes);
+    let read: LineReadResult = block Console::read_line(&mut main.bytes);
     transition read {
         LineReadResult::LineComplete { count } -> received(main, count)
         LineReadResult::EndOfInput { count } -> received(main, count)
@@ -78,7 +76,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.first_recovered = -1;
         main.overload_count = 0;
         main.equilibrium = equilibria(main.circuit, main.first_drive);
-        main.console.write_line("rail_limited_amplifier v1; voltage=uv; q=ppm");
+        Console::write_line("rail_limited_amplifier v1; voltage=uv; q=ppm");
         Main::equilibrium_row(main, 0);
         main.equilibrium = equilibria(main.circuit, main.final_drive);
         Main::equilibrium_row(main, 1);
@@ -114,32 +112,32 @@ machine Main::main(main: &mut Main) reaches Console {
             true -> (main.last_bad + 1)
             false -> (-1)
         };
-        main.console.write("M,");
-        integer(&mut main.console, settled as i32);
-        main.console.write(",");
-        integer(&mut main.console, main.overload_count as i32);
-        main.console.write(",");
-        integer(&mut main.console, main.first_recovered);
-        main.console.write_line("");
-        main.console.exit_process(0);
+        Console::write("M,");
+        integer(settled as i32);
+        Console::write(",");
+        integer(main.overload_count as i32);
+        Console::write(",");
+        integer(main.first_recovered);
+        Console::write_line("");
+        Console::exit_process(0);
     }
     state syntax(main: &mut Main) {
-        main.console.write_line("ERROR syntax: expected ten bounded signed integers");
-        main.console.exit_process(64);
+        Console::write_line("ERROR syntax: expected ten bounded signed integers");
+        Console::exit_process(64);
     }
     state bad_rails(main: &mut Main) {
-        main.console.write_line("ERROR rails: lower must be less than upper");
-        main.console.exit_process(64);
+        Console::write_line("ERROR rails: lower must be less than upper");
+        Console::exit_process(64);
     }
     state bad_parameters(main: &mut Main) {
-        main.console.write_line("ERROR parameters: gain, feedback, relaxation, steps or initial output outside bounds");
-        main.console.exit_process(64);
+        Console::write_line("ERROR parameters: gain, feedback, relaxation, steps or initial output outside bounds");
+        Console::exit_process(64);
     }
 }
 machine Main::equilibrium_row(main: &mut Main, phase: i32) reaches Console {
-    main.console.write("E,");
-    integer(&mut main.console, phase);
-    main.console.write(",");
+    Console::write("E,");
+    integer(phase);
+    Console::write(",");
     let lower_exists: bool = main.equilibrium.lower_exists;
     Main::flag(main, lower_exists);
     let interior_exists: bool = main.equilibrium.interior_exists;
@@ -148,31 +146,31 @@ machine Main::equilibrium_row(main: &mut Main, phase: i32) reaches Console {
     Main::flag(main, upper_exists);
     let continuum: bool = main.equilibrium.continuum;
     Main::flag(main, continuum);
-    voltage(&mut main.console, main.equilibrium.interior);
-    main.console.write(",");
-    voltage(&mut main.console, main.equilibrium.multiplier);
-    main.console.write(",");
-    integer(&mut main.console, match main.equilibrium.stable { true -> (1) false -> (0) });
-    main.console.write_line("");
+    voltage(main.equilibrium.interior);
+    Console::write(",");
+    voltage(main.equilibrium.multiplier);
+    Console::write(",");
+    integer(match main.equilibrium.stable { true -> (1) false -> (0) });
+    Console::write_line("");
 }
 machine Main::flag(main: &mut Main, flag: bool) reaches Console {
-    integer(&mut main.console, match flag { true -> (1) false -> (0) });
-    main.console.write(",");
+    integer(match flag { true -> (1) false -> (0) });
+    Console::write(",");
 }
 machine Main::trace_row(main: &mut Main) reaches Console {
-    main.console.write("T,");
-    integer(&mut main.console, main.step as i32);
-    main.console.write(",");
-    voltage(&mut main.console, main.drive);
-    main.console.write(",");
-    voltage(&mut main.console, main.observed.output);
-    main.console.write(",");
-    voltage(&mut main.console, main.observed.feedback);
-    main.console.write(",");
-    voltage(&mut main.console, main.observed.raw);
-    main.console.write(",");
-    integer(&mut main.console, main.observed.overload);
-    main.console.write_line("");
+    Console::write("T,");
+    integer(main.step as i32);
+    Console::write(",");
+    voltage(main.drive);
+    Console::write(",");
+    voltage(main.observed.output);
+    Console::write(",");
+    voltage(main.observed.feedback);
+    Console::write(",");
+    voltage(main.observed.raw);
+    Console::write(",");
+    integer(main.observed.overload);
+    Console::write_line("");
 }
 machine Main::measure(main: &mut Main) {
     transition main.observed.overload != 0 {

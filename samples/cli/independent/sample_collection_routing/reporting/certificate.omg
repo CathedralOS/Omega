@@ -1,70 +1,69 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use routing::model;
 
 // Fixed-width decimal keeps every output field easy to compare as raw bytes.
-machine number(console: &mut Binding<Console>, value: i32 in Saturating) reaches Console
-invokes console;
+machine number(value: i32 in Saturating) reaches Console
+invokes Console;
 {
-    console.write_byte(((value / 100) % 10 + 48) as i32);
-    console.write_byte(((value / 10) % 10 + 48) as i32);
-    console.write_byte((value % 10 + 48) as i32);
-    console.write_byte(10);
+    Console::write_byte(((value / 100) % 10 + 48) as i32);
+    Console::write_byte(((value / 10) % 10 + 48) as i32);
+    Console::write_byte((value % 10 + 48) as i32);
+    Console::write_byte(10);
 }
 
 // A route event must be 0..3; guard before the Exact narrowing to i32.
 // Domain qualification alone does not authorize a narrowing conversion.
-machine route_event(console: &mut Binding<Console>, event: u64) reaches Console
-invokes console;
+machine route_event(event: u64) reaches Console
+invokes Console;
 {
     transition event < 4 {
-        true -> emit(console, event)
-        false -> corrupt(console)
+        true -> emit(event)
+        false -> corrupt()
     }
-    state emit(console: &mut Binding<Console>, event: u64) {
-        number(console, (event as i32 in Saturating) + 1);
+    state emit(event: u64) {
+        number((event as i32 in Saturating) + 1);
     }
-    state corrupt(console: &mut Binding<Console>) {
-        console.write_line("INTERNAL: route event outside 0..3");
-        console.exit_process(70);
+    state corrupt() {
+        Console::write_line("INTERNAL: route event outside 0..3");
+        Console::exit_process(70);
     }
 }
 
-pub machine report(console: &mut Binding<Console>, certificate: &Certificate) reaches Console
-invokes console;
+pub machine report(certificate: &Certificate) reaches Console
+invokes Console;
 {
-    console.write_line("sample_collection_routing: synthetic integer-minute model");
-    console.write_line("explored_words"); number(console, 256);
-    console.write_line("feasible_tours"); number(console, certificate.feasible);
-    console.write_line("optimal_ties"); number(console, certificate.ties);
+    Console::write_line("sample_collection_routing: synthetic integer-minute model");
+    Console::write_line("explored_words"); number(256);
+    Console::write_line("feasible_tours"); number(certificate.feasible);
+    Console::write_line("optimal_ties"); number(certificate.ties);
     transition certificate.ties > 0 {
-        true -> optimal(console, certificate)
-        false -> infeasible(console)
+        true -> optimal(certificate)
+        false -> infeasible()
     }
-    state infeasible(console: &mut Binding<Console>) {
-        console.write_line("INFEASIBLE");
-        console.exit_process(2);
+    state infeasible() {
+        Console::write_line("INFEASIBLE");
+        Console::exit_process(2);
     }
-    state optimal(console: &mut Binding<Console>, certificate: &Certificate) {
-        console.write_line("OPTIMAL distance_then_completion lexicographic_route");
-        console.write_line("distance"); number(console, certificate.best.distance);
-        console.write_line("completion"); number(console, certificate.best.time);
-        console.write_line("waiting"); number(console, certificate.best.waiting);
-        console.write_line("peak_load"); number(console, certificate.best.peak);
-        console.write_line("route 000=depot 001=pickup_A 002=pickup_B 003=drop_A 004=drop_B");
-        number(console, 0);
-        route_event(console, certificate.best.route[0]);
-        route_event(console, certificate.best.route[1]);
-        route_event(console, certificate.best.route[2]);
-        route_event(console, certificate.best.route[3]);
-        number(console, 0);
-        console.write_line("service_starts");
-        number(console, certificate.best.arrivals[0]);
-        number(console, certificate.best.arrivals[1]);
-        number(console, certificate.best.arrivals[2]);
-        number(console, certificate.best.arrivals[3]);
-        console.write_line("final_load"); number(console, certificate.best.load);
-        console.write_line("final_position"); number(console, certificate.best.position);
-        console.exit_process(0);
+    state optimal(certificate: &Certificate) {
+        Console::write_line("OPTIMAL distance_then_completion lexicographic_route");
+        Console::write_line("distance"); number(certificate.best.distance);
+        Console::write_line("completion"); number(certificate.best.time);
+        Console::write_line("waiting"); number(certificate.best.waiting);
+        Console::write_line("peak_load"); number(certificate.best.peak);
+        Console::write_line("route 000=depot 001=pickup_A 002=pickup_B 003=drop_A 004=drop_B");
+        number(0);
+        route_event(certificate.best.route[0]);
+        route_event(certificate.best.route[1]);
+        route_event(certificate.best.route[2]);
+        route_event(certificate.best.route[3]);
+        number(0);
+        Console::write_line("service_starts");
+        number(certificate.best.arrivals[0]);
+        number(certificate.best.arrivals[1]);
+        number(certificate.best.arrivals[2]);
+        number(certificate.best.arrivals[3]);
+        Console::write_line("final_load"); number(certificate.best.load);
+        Console::write_line("final_position"); number(certificate.best.position);
+        Console::exit_process(0);
     }
 }

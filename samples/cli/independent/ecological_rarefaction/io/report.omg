@@ -1,80 +1,79 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::model;
-machine decimal(console: &mut Binding<Console>, value: u64 in Wrapping) reaches Console {
-    transition { _ -> scale(console, value, 1) }
-    state scale(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping) {
+machine decimal(value: u64 in Wrapping) reaches Console {
+    transition { _ -> scale(value, 1) }
+    state scale(value: u64 in Wrapping, divisor: u64 in Wrapping) {
         transition divisor <= value/10 {
-            true -> scale(console, value, divisor*10)
-            false -> emit(console, value, divisor)
+            true -> scale(value, divisor*10)
+            false -> emit(value, divisor)
         }
     }
-    state emit(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping) {
-        transition divisor > 0 { true -> digit(console, value, divisor) false -> done() }
+    state emit(value: u64 in Wrapping, divisor: u64 in Wrapping) {
+        transition divisor > 0 { true -> digit(value, divisor) false -> done() }
     }
-    state digit(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping)
+    state digit(value: u64 in Wrapping, divisor: u64 in Wrapping)
     requires divisor > 0 {
-        console.write_byte((value/divisor%10+48) as i32);
-        transition { _ -> emit(console, value%divisor, divisor/10) }
+        Console::write_byte((value/divisor%10+48) as i32);
+        transition { _ -> emit(value%divisor, divisor/10) }
     }
     state done() {}
 }
-machine field(console: &mut Binding<Console>, name: &[u8], value: u64 in Wrapping) reaches Console {
-    console.write(name);
-    decimal(console, value);
-    console.write_line("");
+machine field(name: &[u8], value: u64 in Wrapping) reaches Console {
+    Console::write(name);
+    decimal(value);
+    Console::write_line("");
 }
-pub machine report(console: &mut Binding<Console>, community: &Community) reaches Console
-invokes console;
+pub machine report(community: &Community) reaches Console
+invokes Console;
 {
-    console.write_line("ecological_rarefaction");
-    field(console, "species=", community.species);
-    field(console, "individuals=", community.total);
-    transition { _ -> query(console, community, 0) }
-    state query(console: &mut Binding<Console>, community: &Community, index: u64 in Wrapping) {
+    Console::write_line("ecological_rarefaction");
+    field("species=", community.species);
+    field("individuals=", community.total);
+    transition { _ -> query(community, 0) }
+    state query(community: &Community, index: u64 in Wrapping) {
         transition index < community.queries && index < 16 {
-            true -> start(console, community, index)
+            true -> start(community, index)
             false -> done()
         }
     }
-    state start(console: &mut Binding<Console>, community: &Community, index: u64 in Wrapping)
+    state start(community: &Community, index: u64 in Wrapping)
     requires index < 16 {
         let depth: u64 in Wrapping = community.depths[index];
         let denominator: u64 in Wrapping = choose(community.total, depth);
-        field(console, "depth=", depth);
-        field(console, "denominator=", denominator);
-        transition { _ -> bin(console, community, index, depth, denominator, 0, 0, 0) }
+        field("depth=", depth);
+        field("denominator=", denominator);
+        transition { _ -> bin(community, index, depth, denominator, 0, 0, 0) }
     }
-    state bin(console: &mut Binding<Console>, community: &Community,
+    state bin(community: &Community,
                index: u64 in Wrapping, depth: u64 in Wrapping, denominator: u64 in Wrapping,
                richness: u64 in Wrapping, first: u64 in Wrapping, second: u64 in Wrapping) {
         transition richness <= community.species && richness < 13 && depth < 33 {
-            true -> value(console, community, index, depth, denominator, richness, first, second)
-            false -> moments(console, community, index, denominator, first, second)
+            true -> value(community, index, depth, denominator, richness, first, second)
+            false -> moments(community, index, denominator, first, second)
         }
     }
-    state value(console: &mut Binding<Console>, community: &Community,
+    state value(community: &Community,
                  index: u64 in Wrapping, depth: u64 in Wrapping, denominator: u64 in Wrapping,
                  richness: u64 in Wrapping, first: u64 in Wrapping, second: u64 in Wrapping)
     requires richness < 13 && depth < 33 {
         let weight: u64 in Wrapping = community.weights[depth][richness];
-        console.write("bin=");
-        decimal(console, richness);
-        console.write(" numerator=");
-        decimal(console, weight);
-        console.write_line("");
-        transition { _ -> bin(console, community, index, depth, denominator, richness+1,
+        Console::write("bin=");
+        decimal(richness);
+        Console::write(" numerator=");
+        decimal(weight);
+        Console::write_line("");
+        transition { _ -> bin(community, index, depth, denominator, richness+1,
                               first+richness*weight, second+richness*richness*weight) }
     }
-    state moments(console: &mut Binding<Console>, community: &Community,
+    state moments(community: &Community,
                    index: u64 in Wrapping, denominator: u64 in Wrapping,
                    first: u64 in Wrapping, second: u64 in Wrapping) {
         transition denominator > 0 {
-            true -> centered(console, community, index, denominator, first, second)
+            true -> centered(community, index, denominator, first, second)
             false -> done()
         }
     }
-    state centered(console: &mut Binding<Console>, community: &Community,
+    state centered(community: &Community,
                     index: u64 in Wrapping, denominator: u64 in Wrapping,
                     first: u64 in Wrapping, second: u64 in Wrapping)
     requires denominator > 0 {
@@ -85,11 +84,11 @@ invokes console;
         let centered_second: u64 in Wrapping = second+center*center*denominator-2*center*first;
         let residual: u64 in Wrapping = first-center*denominator;
         let variance: u64 in Wrapping = centered_second*denominator-residual*residual;
-        field(console, "expectation_numerator=", first);
-        field(console, "expectation_denominator=", denominator);
-        field(console, "variance_numerator=", variance);
-        field(console, "variance_denominator=", denominator*denominator);
-        transition { _ -> query(console, community, index+1) }
+        field("expectation_numerator=", first);
+        field("expectation_denominator=", denominator);
+        field("variance_numerator=", variance);
+        field("variance_denominator=", denominator*denominator);
+        transition { _ -> query(community, index+1) }
     }
     state done() {}
 }

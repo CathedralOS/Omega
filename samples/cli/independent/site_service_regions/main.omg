@@ -7,75 +7,74 @@ use domain::clip;
 use domain::verify;
 use platform::input;
 use platform::output;
-use omega::language::core::binding;
-data Main { reader: Reader; partition: Partition; console: Binding<Console>; }
+data Main { reader: Reader; partition: Partition; }
 machine Main::main(main: &mut Main) reaches Console {
     main.reader.valid = true;
     main.partition.valid = true;
-    block read_integer(&main.console, &mut main.reader);
+    block read_integer(&mut main.reader);
     transition main.reader.valid && main.reader.value >= 3.0 && main.reader.value <= 12.0 {
-        true -> count(&main.console, main)
-        false -> invalid(&main.console)
+        true -> count(main)
+        false -> invalid()
     }
-    state count(console: &Binding<Console>, main: &mut Main) {
+    state count(main: &mut Main) {
         main.partition.boundary.count = U64::from_f64(main.reader.value) as u64;
-        transition { _ -> boundary(console, main, 0) }
+        transition { _ -> boundary(main, 0) }
     }
-    state boundary(console: &Binding<Console>, main: &mut Main, index: u64) {
+    state boundary(main: &mut Main, index: u64) {
         transition index < main.partition.boundary.count && index < 32 {
             true -> coordinate(main, index)
-            false -> site_count(console, main)
+            false -> site_count(main)
         }
     }
     state coordinate(main: &mut Main, index: u64) {
-        block read_integer(&main.console, &mut main.reader);
+        block read_integer(&mut main.reader);
         main.partition.boundary.x[index] = main.reader.value;
-        block read_integer(&main.console, &mut main.reader);
+        block read_integer(&mut main.reader);
         main.partition.boundary.y[index] = main.reader.value;
-        transition main.reader.valid { true -> boundary(&main.console, main, index + 1) false -> invalid(&main.console) }
+        transition main.reader.valid { true -> boundary(main, index + 1) false -> invalid() }
     }
-    state site_count(console: &Binding<Console>, main: &mut Main) {
-        block read_integer(console, &mut main.reader);
+    state site_count(main: &mut Main) {
+        block read_integer(&mut main.reader);
         transition main.reader.valid && main.reader.value >= 1.0 && main.reader.value <= 8.0 {
-            true -> sites(console, main)
-            false -> invalid(console)
+            true -> sites(main)
+            false -> invalid()
         }
     }
-    state sites(console: &Binding<Console>, main: &mut Main) {
+    state sites(main: &mut Main) {
         main.partition.site_count = U64::from_f64(main.reader.value) as u64;
-        transition { _ -> site(console, main, 0) }
+        transition { _ -> site(main, 0) }
     }
-    state site(console: &Binding<Console>, main: &mut Main, index: u64) {
+    state site(main: &mut Main, index: u64) {
         transition index < main.partition.site_count && index < 8 {
             true -> location(main, index)
-            false -> validate(console, main)
+            false -> validate(main)
         }
     }
     state location(main: &mut Main, index: u64) {
-        block read_integer(&main.console, &mut main.reader);
+        block read_integer(&mut main.reader);
         main.partition.site_x[index] = main.reader.value;
-        block read_integer(&main.console, &mut main.reader);
+        block read_integer(&mut main.reader);
         main.partition.site_y[index] = main.reader.value;
-        transition main.reader.valid { true -> site(&main.console, main, index + 1) false -> invalid(&main.console) }
+        transition main.reader.valid { true -> site(main, index + 1) false -> invalid() }
     }
-    state validate(console: &Binding<Console>, main: &mut Main) {
-        block end_input(console, &mut main.reader);
+    state validate(main: &mut Main) {
+        block end_input(&mut main.reader);
         let boundary_ok: bool = boundary_valid(&main.partition.boundary);
         let sites_ok: bool = sites_valid(&main.partition);
         transition main.reader.valid && boundary_ok && sites_ok {
-            true -> partition(console, main)
-            false -> invalid(console)
+            true -> partition(main)
+            false -> invalid()
         }
     }
-    state partition(console: &Binding<Console>, main: &mut Main) {
+    state partition(main: &mut Main) {
         construct(&mut main.partition);
         verify(&mut main.partition);
         transition main.partition.valid && main.partition.nearest {
-            true -> success(console, main)
-            false -> failed(console)
+            true -> success(main)
+            false -> failed()
         }
     }
-    state success(console: &Binding<Console>, main: &mut Main) { emit(console, &main.partition); Console::exit_process(console, 0); }
-    state invalid(console: &Binding<Console>) { Console::write_line(console, "INVALID_INPUT"); Console::exit_process(console, 64); }
-    state failed(console: &Binding<Console>) { Console::write_line(console, "PARTITION_FAILED"); Console::exit_process(console, 70); }
+    state success(main: &mut Main) { emit(&main.partition); Console::exit_process(0); }
+    state invalid() { Console::write_line("INVALID_INPUT"); Console::exit_process(64); }
+    state failed() { Console::write_line("PARTITION_FAILED"); Console::exit_process(70); }
 }

@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub data Image {
     width: i32 in Wrapping;
@@ -19,121 +18,121 @@ data Token { value: i32 in Wrapping; valid: bool; }
 // Strict unsigned decimal scanner, bounded to three digits. EOF after a
 // number is accepted; EOF before a required number is invalid. Only ASCII
 // whitespace separates tokens. An offending character never becomes zero.
-machine token(console: &Binding<Console>, token: &mut Token)
+machine token(token: &mut Token)
 reaches Console {
     token.valid = false;
     token.value = 0;
-    transition { _ -> leading(console, token) }
-    state leading(console: &Binding<Console>, token: &mut Token) {
-        let observed: ByteRead = block console.read_byte();
+    transition { _ -> leading(token) }
+    state leading(token: &mut Token) {
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> stopped()
-            ByteRead::Byte { value } -> first(console, token, value)
+            ByteRead::Byte { value } -> first(token, value)
         }
     }
-    state first(console: &Binding<Console>, token: &mut Token, character: i32) {
+    state first(token: &mut Token, character: i32) {
         transition character == 32 || character == 9 || character == 10 || character == 13 {
-            true -> leading(console, token)
-            false -> digit(console, token, character, 0)
+            true -> leading(token)
+            false -> digit(token, character, 0)
         }
     }
-    state digit(console: &Binding<Console>, token: &mut Token, character: i32, count: i32 in Wrapping) {
+    state digit(token: &mut Token, character: i32, count: i32 in Wrapping) {
         transition character >= 48 && character <= 57 && count < 3 {
-            true -> accumulate(console, token, character, count)
+            true -> accumulate(token, character, count)
             false -> stopped()
         }
     }
-    state accumulate(console: &Binding<Console>, token: &mut Token, character: i32, count: i32 in Wrapping) {
+    state accumulate(token: &mut Token, character: i32, count: i32 in Wrapping) {
         token.value = token.value * 10 + (character as i32 in Wrapping) - 48;
-        transition { _ -> next(console, token, count + 1) }
+        transition { _ -> next(token, count + 1) }
     }
-    state next(console: &Binding<Console>, token: &mut Token, count: i32 in Wrapping) {
-        let observed: ByteRead = block console.read_byte();
+    state next(token: &mut Token, count: i32 in Wrapping) {
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> complete(token)
-            ByteRead::Byte { value } -> separator(console, token, value, count)
+            ByteRead::Byte { value } -> separator(token, value, count)
         }
     }
-    state separator(console: &Binding<Console>, token: &mut Token, character: i32, count: i32 in Wrapping) {
+    state separator(token: &mut Token, character: i32, count: i32 in Wrapping) {
         transition character == 32 || character == 9 || character == 10 || character == 13 {
             true -> complete(token)
-            false -> digit(console, token, character, count)
+            false -> digit(token, character, count)
         }
     }
     state complete(token: &mut Token) { token.valid = true; }
     state stopped() {}
 }
 
-pub machine read_image(console: &Binding<Console>, image: &mut Image) -> bool
-invokes console;
+pub machine read_image(image: &mut Image) -> bool
+invokes Console;
 reaches Console
 blocks;
 crashes Trap
 {
     let mut number: Token;
-    block token(console, &mut number);
+    block token(&mut number);
     image.width = number.value;
     transition number.valid && number.value >= 1 && number.value <= 8 {
-        true -> height(console, image)
+        true -> height(image)
         false -> false
     }
-    state height(console: &Binding<Console>, image: &mut Image) -> bool {
+    state height(image: &mut Image) -> bool {
         let mut number: Token;
-        block token(console, &mut number);
+        block token(&mut number);
         image.height = number.value;
         transition number.valid && number.value >= 1 && number.value <= 8 {
-            true -> threshold(console, image)
+            true -> threshold(image)
             false -> false
         }
     }
-    state threshold(console: &Binding<Console>, image: &mut Image) -> bool {
+    state threshold(image: &mut Image) -> bool {
         let mut number: Token;
-        block token(console, &mut number);
+        block token(&mut number);
         image.threshold = number.value;
         transition number.valid && number.value <= 255 {
-            true -> connectivity(console, image)
+            true -> connectivity(image)
             false -> false
         }
     }
-    state connectivity(console: &Binding<Console>, image: &mut Image) -> bool {
+    state connectivity(image: &mut Image) -> bool {
         let mut number: Token;
-        block token(console, &mut number);
+        block token(&mut number);
         image.connectivity = number.value;
         image.length = image.width * image.height;
         transition number.valid && (number.value == 4 || number.value == 8) {
-            true -> pixels(console, image, 0)
+            true -> pixels(image, 0)
             false -> false
         }
     }
-    state pixels(console: &Binding<Console>, image: &mut Image, position: i32 in Wrapping) -> bool {
+    state pixels(image: &mut Image, position: i32 in Wrapping) -> bool {
         transition position >= 0 && position < 64 && position < image.length {
-            true -> store(console, image, position)
-            false -> trailing(console)
+            true -> store(image, position)
+            false -> trailing()
         }
     }
-    state store(console: &Binding<Console>, image: &mut Image, position: i32 in Wrapping) -> bool {
+    state store(image: &mut Image, position: i32 in Wrapping) -> bool {
         let mut number: Token;
-        block token(console, &mut number);
+        block token(&mut number);
         transition number.valid && number.value <= 255 {
-            true -> accepted(console, image, position, number.value)
+            true -> accepted(image, position, number.value)
             false -> false
         }
     }
-    state accepted(console: &Binding<Console>, image: &mut Image, position: i32 in Wrapping, value: i32 in Wrapping) -> bool {
+    state accepted(image: &mut Image, position: i32 in Wrapping, value: i32 in Wrapping) -> bool {
         image.pixels[position] = value as i32;
         image.labels[position] = 0;
-        transition { _ -> pixels(console, image, position + 1) }
+        transition { _ -> pixels(image, position + 1) }
     }
-    state trailing(console: &Binding<Console>) -> bool {
-        let observed: ByteRead = block console.read_byte();
+    state trailing() -> bool {
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> true
-            ByteRead::Byte { value } -> whitespace(console, value)
+            ByteRead::Byte { value } -> whitespace(value)
         }
     }
-    state whitespace(console: &Binding<Console>, character: i32) -> bool {
+    state whitespace(character: i32) -> bool {
         transition character == 32 || character == 9 || character == 10 || character == 13 {
-            true -> trailing(console)
+            true -> trailing()
             false -> false
         }
     }

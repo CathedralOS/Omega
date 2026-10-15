@@ -1,35 +1,34 @@
 module domain.report;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // All report quantities are nonnegative and below 100000. No floating
 // conversion hides the rational lag score or the original pair count.
-pub machine number(console: &mut Binding<Console>, value: i32 in Wrapping) reaches Console
-invokes console;
+pub machine number(value: i32 in Wrapping) reaches Console
+invokes Console;
 {
-    transition { _ -> digits(console, value, 10000, false) }
-    state digits(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
+    transition { _ -> digits(value, 10000, false) }
+    state digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         transition divisor > 0 {
-            true -> select(console, value, divisor, started)
+            true -> select(value, divisor, started)
             _ -> done()
         }
     }
-    state select(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
+    state select(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         transition value >= divisor || started || divisor == 1 {
-            true -> emit(console, value, divisor)
-            _ -> smaller(console, value, divisor)
+            true -> emit(value, divisor)
+            _ -> smaller(value, divisor)
         }
     }
-    state emit(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping) {
-        console.write_byte((48 + value / divisor) as i32);
+    state emit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
+        Console::write_byte((48 + value / divisor) as i32);
         transition divisor > 1 {
-            true -> digits(console, value % divisor, divisor / 10, true)
+            true -> digits(value % divisor, divisor / 10, true)
             _ -> done()
         }
     }
-    state smaller(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    state smaller(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 1 {
-            true -> digits(console, value, divisor / 10, false)
+            true -> digits(value, divisor / 10, false)
             _ -> done()
         }
     }

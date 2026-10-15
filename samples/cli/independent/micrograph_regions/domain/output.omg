@@ -1,92 +1,91 @@
 use domain::input;
 use domain::regions;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // All printed values are nonnegative and <= 448. Centroids are exact
 // unreduced fractions sum/area, avoiding rounding and floating tolerances.
-machine number(console: &Binding<Console>, value: i32 in Wrapping) reaches Console {
+machine number(value: i32 in Wrapping) reaches Console {
     transition value >= 100 {
-        true -> hundreds(console, value)
-        false -> tens(console, value)
+        true -> hundreds(value)
+        false -> tens(value)
     }
-    state hundreds(console: &Binding<Console>, value: i32 in Wrapping) {
-        console.write_byte((value / 100 + 48) as i32);
-        console.write_byte((value / 10 % 10 + 48) as i32);
-        console.write_byte((value % 10 + 48) as i32);
+    state hundreds(value: i32 in Wrapping) {
+        Console::write_byte((value / 100 + 48) as i32);
+        Console::write_byte((value / 10 % 10 + 48) as i32);
+        Console::write_byte((value % 10 + 48) as i32);
     }
-    state tens(console: &Binding<Console>, value: i32 in Wrapping) {
+    state tens(value: i32 in Wrapping) {
         transition value >= 10 {
-            true -> two(console, value)
-            false -> one(console, value)
+            true -> two(value)
+            false -> one(value)
         }
     }
-    state two(console: &Binding<Console>, value: i32 in Wrapping) {
-        console.write_byte((value / 10 + 48) as i32);
-        console.write_byte((value % 10 + 48) as i32);
+    state two(value: i32 in Wrapping) {
+        Console::write_byte((value / 10 + 48) as i32);
+        Console::write_byte((value % 10 + 48) as i32);
     }
-    state one(console: &Binding<Console>, value: i32 in Wrapping) {
-        console.write_byte((value + 48) as i32);
+    state one(value: i32 in Wrapping) {
+        Console::write_byte((value + 48) as i32);
     }
 }
 
-pub machine render(console: &Binding<Console>, image: &Image)
-invokes console;
+pub machine render(image: &Image)
+invokes Console;
 reaches Console {
-    console.write_line("P2");
-    console.write_line("# micrograph region labels; zero is background");
-    number(console, image.width); console.write(" "); number(console, image.height); console.write_line("");
-    console.write_line("64");
-    transition { _ -> pixel(console, image, 0) }
-    state pixel(console: &Binding<Console>, image: &Image, position: i32 in Wrapping) {
+    Console::write_line("P2");
+    Console::write_line("# micrograph region labels; zero is background");
+    number(image.width); Console::write(" "); number(image.height); Console::write_line("");
+    Console::write_line("64");
+    transition { _ -> pixel(image, 0) }
+    state pixel(image: &Image, position: i32 in Wrapping) {
         transition position >= 0 && position < 64 && position < image.length {
-            true -> emit(console, image, position)
-            false -> heading(console, image)
+            true -> emit(image, position)
+            false -> heading(image)
         }
     }
-    state emit(console: &Binding<Console>, image: &Image, position: i32 in Wrapping) {
+    state emit(image: &Image, position: i32 in Wrapping) {
         transition image.width > 0 {
-            true -> emit_pixel(console, image, position)
+            true -> emit_pixel(image, position)
             false -> stopped()
         }
     }
-    state emit_pixel(console: &Binding<Console>, image: &Image, position: i32 in Wrapping) {
+    state emit_pixel(image: &Image, position: i32 in Wrapping) {
         let label: i32 in Wrapping = image.labels[position] as i32 in Wrapping;
-        number(console, label);
+        number(label);
         transition (position + 1) % image.width == 0 {
-            true -> newline(console, image, position)
-            false -> space(console, image, position)
+            true -> newline(image, position)
+            false -> space(image, position)
         }
     }
-    state newline(console: &Binding<Console>, image: &Image, position: i32 in Wrapping) {
-        console.write_line("");
-        transition { _ -> pixel(console, image, position + 1) }
+    state newline(image: &Image, position: i32 in Wrapping) {
+        Console::write_line("");
+        transition { _ -> pixel(image, position + 1) }
     }
-    state space(console: &Binding<Console>, image: &Image, position: i32 in Wrapping) {
-        console.write(" ");
-        transition { _ -> pixel(console, image, position + 1) }
+    state space(image: &Image, position: i32 in Wrapping) {
+        Console::write(" ");
+        transition { _ -> pixel(image, position + 1) }
     }
-    state heading(console: &Binding<Console>, image: &Image) {
-        console.write("regions "); number(console, image.components); console.write_line("");
-        console.write_line("label area centroid_x centroid_y min_x min_y max_x max_y");
-        transition { _ -> region(console, image, 1) }
+    state heading(image: &Image) {
+        Console::write("regions "); number(image.components); Console::write_line("");
+        Console::write_line("label area centroid_x centroid_y min_x min_y max_x max_y");
+        transition { _ -> region(image, 1) }
     }
-    state region(console: &Binding<Console>, image: &Image, label: i32 in Wrapping) {
+    state region(image: &Image, label: i32 in Wrapping) {
         transition label <= image.components {
-            true -> report(console, image, label)
+            true -> report(image, label)
             false -> stopped()
         }
     }
-    state report(console: &Binding<Console>, image: &Image, label: i32 in Wrapping) {
+    state report(image: &Image, label: i32 in Wrapping) {
         let mut measured: Region;
         measure(image, label, &mut measured);
-        number(console, label); console.write(" "); number(console, measured.area);
-        console.write(" "); number(console, measured.sum_x); console.write("/"); number(console, measured.area);
-        console.write(" "); number(console, measured.sum_y); console.write("/"); number(console, measured.area);
-        console.write(" "); number(console, measured.min_x); console.write(" "); number(console, measured.min_y);
-        console.write(" "); number(console, measured.max_x); console.write(" "); number(console, measured.max_y);
-        console.write_line("");
-        transition { _ -> region(console, image, label + 1) }
+        number(label); Console::write(" "); number(measured.area);
+        Console::write(" "); number(measured.sum_x); Console::write("/"); number(measured.area);
+        Console::write(" "); number(measured.sum_y); Console::write("/"); number(measured.area);
+        Console::write(" "); number(measured.min_x); Console::write(" "); number(measured.min_y);
+        Console::write(" "); number(measured.max_x); Console::write(" "); number(measured.max_y);
+        Console::write_line("");
+        transition { _ -> region(image, label + 1) }
     }
     state stopped() {}
 }

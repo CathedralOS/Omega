@@ -3,17 +3,16 @@
 // Expected exit: 64.
 // Expected output contains: INVALID INPUT
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::model;
 use domain::input;
 use domain::solver;
 use domain::report;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let mut pedigree: Pedigree;
-    let accepted: bool = block read(&mut main.console, &mut pedigree);
+    let accepted: bool = block read(&mut pedigree);
     transition accepted {
         true -> infer(main, &pedigree)
         _ -> invalid(main)
@@ -29,15 +28,15 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state impossible(main: &mut Main, pedigree: &Pedigree, result: &mut Inference) {
         contradiction(pedigree, result);
-        emit(&mut main.console, pedigree, result);
-        main.console.exit_process(2);
+        emit(pedigree, result);
+        Console::exit_process(2);
     }
     state complete(main: &mut Main, pedigree: &Pedigree, result: &Inference) {
-        emit(&mut main.console, pedigree, result);
-        main.console.exit_process(0);
+        emit(pedigree, result);
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("INVALID INPUT");
-        main.console.exit_process(64);
+        Console::write_line("INVALID INPUT");
+        Console::exit_process(64);
     }
 }

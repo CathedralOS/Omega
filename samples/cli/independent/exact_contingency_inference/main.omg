@@ -1,14 +1,13 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::tables;
 use domain::inference;
 use io::report;
 use controls::runtime_oracle;
 
-data Main { console: Binding<Console>; input: [u8; 19]; digits: [u64 in Wrapping; 17]; }
+data Main { input: [u8; 19]; digits: [u64 in Wrapping; 17]; }
 // One bounded record: 17 ASCII digits followed by LF, or exact-length EOF.
 machine Main::main(main: &mut Main) reaches Console {
-    let read: LineReadResult = block main.console.read_line(&mut main.input);
+    let read: LineReadResult = block Console::read_line(&mut main.input);
     transition read {
         LineReadResult::LineComplete { count } -> command(main, count)
         LineReadResult::EndOfInput { count } -> end(main, count)
@@ -20,7 +19,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> line(main, count)
         }
     }
-    state control(main: &mut Main) { frozen_numerical_control(&mut main.console); }
+    state control(main: &mut Main) { frozen_numerical_control(); }
     state line(main: &mut Main, count: u64) {
         transition count == 18 && main.input[17] == 10 {
             true -> parse(main, 0)
@@ -66,12 +65,12 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state success(main: &mut Main, result: Inference) {
-        report(&mut main.console, &result);
-        main.console.exit_process(0);
+        report(&result);
+        Console::exit_process(0);
     }
-    state malformed(main: &mut Main) { main.console.write_line("ERROR malformed_record"); main.console.exit_process(64); }
-    state margins(main: &mut Main) { main.console.write_line("ERROR invalid_margins_or_mask"); main.console.exit_process(65); }
-    state impossible(main: &mut Main) { main.console.write_line("ERROR impossible_support"); main.console.exit_process(66); }
-    state observation(main: &mut Main) { main.console.write_line("ERROR invalid_observation"); main.console.exit_process(67); }
-    state invariant(main: &mut Main) { main.console.write_line("ERROR arithmetic_invariant"); main.console.exit_process(70); }
+    state malformed(main: &mut Main) { Console::write_line("ERROR malformed_record"); Console::exit_process(64); }
+    state margins(main: &mut Main) { Console::write_line("ERROR invalid_margins_or_mask"); Console::exit_process(65); }
+    state impossible(main: &mut Main) { Console::write_line("ERROR impossible_support"); Console::exit_process(66); }
+    state observation(main: &mut Main) { Console::write_line("ERROR invalid_observation"); Console::exit_process(67); }
+    state invariant(main: &mut Main) { Console::write_line("ERROR arithmetic_invariant"); Console::exit_process(70); }
 }

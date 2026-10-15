@@ -1,79 +1,78 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
 use domain::model;
 // Scientific output retains twelve significant decimal places at every scale.
-pub machine number(console: &mut Binding<Console>, value: f64)
-invokes console; reaches Console {
- transition value < 0.0 { true -> negative(console, value) false -> normalize(console, value, 0) }
- state negative(console: &mut Binding<Console>, value: f64) { console.write("-"); transition { _ -> normalize(console, 0.0 - value, 0) } }
- state normalize(console: &mut Binding<Console>, value: f64, exponent: i32 in Wrapping) {
-  transition { value >= 10.0 -> normalize(console, value / 10.0, exponent + 1) value > 0.0 && value < 1.0 -> normalize(console, value * 10.0, exponent - 1) _ -> mantissa(console, value, exponent) }
+pub machine number(value: f64)
+invokes Console; reaches Console {
+ transition value < 0.0 { true -> negative(value) false -> normalize(value, 0) }
+ state negative(value: f64) { Console::write("-"); transition { _ -> normalize(0.0 - value, 0) } }
+ state normalize(value: f64, exponent: i32 in Wrapping) {
+  transition { value >= 10.0 -> normalize(value / 10.0, exponent + 1) value > 0.0 && value < 1.0 -> normalize(value * 10.0, exponent - 1) _ -> mantissa(value, exponent) }
  }
- state mantissa(console: &mut Binding<Console>, value: f64, exponent: i32 in Wrapping) {
+ state mantissa(value: f64, exponent: i32 in Wrapping) {
   let digits: u64 in Saturating = U64::from_f64(value * 1000000000000.0);
-  unsigned(console, digits as u64 in Wrapping, 1000000000000, true);
-  console.write("e");
-  transition exponent < 0 { true -> negative_exponent(console, exponent) false -> positive_exponent(console, exponent) }
+  unsigned(digits as u64 in Wrapping, 1000000000000, true);
+  Console::write("e");
+  transition exponent < 0 { true -> negative_exponent(exponent) false -> positive_exponent(exponent) }
  }
- state negative_exponent(console: &mut Binding<Console>, exponent: i32 in Wrapping) { console.write("-"); unsigned(console, narrow_i32_to_u64_saturating((0 - exponent) as i32) as u64 in Wrapping, 100, false); }
- state positive_exponent(console: &mut Binding<Console>, exponent: i32 in Wrapping) { unsigned(console, narrow_i32_to_u64_saturating(exponent as i32) as u64 in Wrapping, 100, false); }
+ state negative_exponent(exponent: i32 in Wrapping) { Console::write("-"); unsigned(narrow_i32_to_u64_saturating((0 - exponent) as i32) as u64 in Wrapping, 100, false); }
+ state positive_exponent(exponent: i32 in Wrapping) { unsigned(narrow_i32_to_u64_saturating(exponent as i32) as u64 in Wrapping, 100, false); }
 }
-machine unsigned(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping, decimal: bool)
-invokes console; reaches Console {
- transition divisor > 0 { true -> digit(console, value, divisor, decimal) false -> done() }
- state digit(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping, decimal: bool) requires divisor > 0 {
+machine unsigned(value: u64 in Wrapping, divisor: u64 in Wrapping, decimal: bool)
+invokes Console; reaches Console {
+ transition divisor > 0 { true -> digit(value, divisor, decimal) false -> done() }
+ state digit(value: u64 in Wrapping, divisor: u64 in Wrapping, decimal: bool) requires divisor > 0 {
   let digit: u64 in Wrapping = value / divisor % 10;
-  console.write_byte(((narrow_u64_to_i32_saturating(digit as u64) as i32 in Wrapping) + 48) as i32);
-  transition decimal { true -> point(console, value, divisor) false -> unsigned(console, value, divisor / 10, false) }
+  Console::write_byte(((narrow_u64_to_i32_saturating(digit as u64) as i32 in Wrapping) + 48) as i32);
+  transition decimal { true -> point(value, divisor) false -> unsigned(value, divisor / 10, false) }
  }
- state point(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping) { console.write("."); transition { _ -> unsigned(console, value, divisor / 10, false) } }
+ state point(value: u64 in Wrapping, divisor: u64 in Wrapping) { Console::write("."); transition { _ -> unsigned(value, divisor / 10, false) } }
  state done() {}
 }
-pub machine report(console: &mut Binding<Console>, a: &Analysis)
-invokes console; reaches Console {
- console.write_line("principal_component_analysis");
- console.write("means");
- transition { _ -> vector(console, a, 0, 0) }
- state vector(console: &mut Binding<Console>, a: &Analysis, kind: u64 in Wrapping, index: u64 in Wrapping) {
-  transition index < a.features && index < 4 { true -> vector_element(console, a, kind, index) false -> next_vector(console, a, kind) }
+pub machine report(a: &Analysis)
+invokes Console; reaches Console {
+ Console::write_line("principal_component_analysis");
+ Console::write("means");
+ transition { _ -> vector(a, 0, 0) }
+ state vector(a: &Analysis, kind: u64 in Wrapping, index: u64 in Wrapping) {
+  transition index < a.features && index < 4 { true -> vector_element(a, kind, index) false -> next_vector(a, kind) }
  }
- state vector_element(console: &mut Binding<Console>, a: &Analysis, kind: u64 in Wrapping, index: u64 in Wrapping) {
-  console.write(" ");
-  transition kind { 0 -> means(console, a, index) 1 -> eigenvalues(console, a, index) _ -> explained(console, a, index) }
+ state vector_element(a: &Analysis, kind: u64 in Wrapping, index: u64 in Wrapping) {
+  Console::write(" ");
+  transition kind { 0 -> means(a, index) 1 -> eigenvalues(a, index) _ -> explained(a, index) }
  }
- state means(console: &mut Binding<Console>, a: &Analysis, index: u64 in Wrapping) { number(console, a.means[index % 4]); transition { _ -> vector(console, a, 0, index + 1) } }
- state eigenvalues(console: &mut Binding<Console>, a: &Analysis, index: u64 in Wrapping) { number(console, a.eigenvalues[index % 4]); transition { _ -> vector(console, a, 1, index + 1) } }
- state explained(console: &mut Binding<Console>, a: &Analysis, index: u64 in Wrapping) { number(console, a.explained[index % 4]); transition { _ -> vector(console, a, 2, index + 1) } }
- state next_vector(console: &mut Binding<Console>, a: &Analysis, kind: u64 in Wrapping) {
-  console.write_line("");
-  transition kind { 0 -> eigenvalue_label(console, a) 1 -> explained_label(console, a) _ -> covariance_label(console, a) }
+ state means(a: &Analysis, index: u64 in Wrapping) { number(a.means[index % 4]); transition { _ -> vector(a, 0, index + 1) } }
+ state eigenvalues(a: &Analysis, index: u64 in Wrapping) { number(a.eigenvalues[index % 4]); transition { _ -> vector(a, 1, index + 1) } }
+ state explained(a: &Analysis, index: u64 in Wrapping) { number(a.explained[index % 4]); transition { _ -> vector(a, 2, index + 1) } }
+ state next_vector(a: &Analysis, kind: u64 in Wrapping) {
+  Console::write_line("");
+  transition kind { 0 -> eigenvalue_label(a) 1 -> explained_label(a) _ -> covariance_label(a) }
  }
- state eigenvalue_label(console: &mut Binding<Console>, a: &Analysis) { console.write("eigenvalues"); transition { _ -> vector(console, a, 1, 0) } }
- state explained_label(console: &mut Binding<Console>, a: &Analysis) { console.write("explained"); transition { _ -> vector(console, a, 2, 0) } }
- state covariance_label(console: &mut Binding<Console>, a: &Analysis) { console.write("covariance"); transition { _ -> matrix(console, a, 0, 0, 0) } }
- state matrix(console: &mut Binding<Console>, a: &Analysis, kind: u64 in Wrapping, row: u64 in Wrapping, column: u64 in Wrapping) {
-  transition { column >= a.features || column >= 4 -> matrix(console, a, kind, row + 1, 0) kind == 3 && row >= a.rows -> next_matrix(console, a, kind) kind != 3 && row >= a.features -> next_matrix(console, a, kind) row < 16 -> element(console, a, kind, row, column) _ -> next_matrix(console, a, kind) }
+ state eigenvalue_label(a: &Analysis) { Console::write("eigenvalues"); transition { _ -> vector(a, 1, 0) } }
+ state explained_label(a: &Analysis) { Console::write("explained"); transition { _ -> vector(a, 2, 0) } }
+ state covariance_label(a: &Analysis) { Console::write("covariance"); transition { _ -> matrix(a, 0, 0, 0) } }
+ state matrix(a: &Analysis, kind: u64 in Wrapping, row: u64 in Wrapping, column: u64 in Wrapping) {
+  transition { column >= a.features || column >= 4 -> matrix(a, kind, row + 1, 0) kind == 3 && row >= a.rows -> next_matrix(a, kind) kind != 3 && row >= a.features -> next_matrix(a, kind) row < 16 -> element(a, kind, row, column) _ -> next_matrix(a, kind) }
  }
- state element(console: &mut Binding<Console>, a: &Analysis, kind: u64 in Wrapping, row: u64 in Wrapping, column: u64 in Wrapping) {
-  console.write(" ");
-  transition kind { 0 -> covariance(console, a, row, column) 1 -> analysis_matrix(console, a, row, column) 2 -> vectors(console, a, row, column) _ -> scores(console, a, row, column) }
+ state element(a: &Analysis, kind: u64 in Wrapping, row: u64 in Wrapping, column: u64 in Wrapping) {
+  Console::write(" ");
+  transition kind { 0 -> covariance(a, row, column) 1 -> analysis_matrix(a, row, column) 2 -> vectors(a, row, column) _ -> scores(a, row, column) }
  }
- state covariance(console: &mut Binding<Console>, a: &Analysis, row: u64 in Wrapping, column: u64 in Wrapping) { number(console, a.covariance[(row * 4 + column) % 16]); transition { _ -> matrix(console, a, 0, row, column + 1) } }
- state analysis_matrix(console: &mut Binding<Console>, a: &Analysis, row: u64 in Wrapping, column: u64 in Wrapping) { number(console, a.matrix[(row * 4 + column) % 16]); transition { _ -> matrix(console, a, 1, row, column + 1) } }
- state vectors(console: &mut Binding<Console>, a: &Analysis, row: u64 in Wrapping, column: u64 in Wrapping) { number(console, a.vectors[(row * 4 + column) % 16]); transition { _ -> matrix(console, a, 2, row, column + 1) } }
- state scores(console: &mut Binding<Console>, a: &Analysis, row: u64 in Wrapping, column: u64 in Wrapping) { number(console, a.scores[(row * 4 + column) % 64]); transition { _ -> matrix(console, a, 3, row, column + 1) } }
- state next_matrix(console: &mut Binding<Console>, a: &Analysis, kind: u64 in Wrapping) {
-  console.write_line("");
-  transition kind { 0 -> matrix_label(console, a) 1 -> vectors_label(console, a) 2 -> scores_label(console, a) _ -> errors(console, a) }
+ state covariance(a: &Analysis, row: u64 in Wrapping, column: u64 in Wrapping) { number(a.covariance[(row * 4 + column) % 16]); transition { _ -> matrix(a, 0, row, column + 1) } }
+ state analysis_matrix(a: &Analysis, row: u64 in Wrapping, column: u64 in Wrapping) { number(a.matrix[(row * 4 + column) % 16]); transition { _ -> matrix(a, 1, row, column + 1) } }
+ state vectors(a: &Analysis, row: u64 in Wrapping, column: u64 in Wrapping) { number(a.vectors[(row * 4 + column) % 16]); transition { _ -> matrix(a, 2, row, column + 1) } }
+ state scores(a: &Analysis, row: u64 in Wrapping, column: u64 in Wrapping) { number(a.scores[(row * 4 + column) % 64]); transition { _ -> matrix(a, 3, row, column + 1) } }
+ state next_matrix(a: &Analysis, kind: u64 in Wrapping) {
+  Console::write_line("");
+  transition kind { 0 -> matrix_label(a) 1 -> vectors_label(a) 2 -> scores_label(a) _ -> errors(a) }
  }
- state matrix_label(console: &mut Binding<Console>, a: &Analysis) { console.write("matrix"); transition { _ -> matrix(console, a, 1, 0, 0) } }
- state vectors_label(console: &mut Binding<Console>, a: &Analysis) { console.write("vectors"); transition { _ -> matrix(console, a, 2, 0, 0) } }
- state scores_label(console: &mut Binding<Console>, a: &Analysis) { console.write("scores"); transition { _ -> matrix(console, a, 3, 0, 0) } }
- state errors(console: &mut Binding<Console>, a: &Analysis) {
-  console.write("reconstruction_error "); number(console, a.error); console.write_line("");
-  console.write("residual "); number(console, a.residual); console.write_line("");
-  console.write("orthogonality "); number(console, a.orthogonality); console.write_line("");
+ state matrix_label(a: &Analysis) { Console::write("matrix"); transition { _ -> matrix(a, 1, 0, 0) } }
+ state vectors_label(a: &Analysis) { Console::write("vectors"); transition { _ -> matrix(a, 2, 0, 0) } }
+ state scores_label(a: &Analysis) { Console::write("scores"); transition { _ -> matrix(a, 3, 0, 0) } }
+ state errors(a: &Analysis) {
+  Console::write("reconstruction_error "); number(a.error); Console::write_line("");
+  Console::write("residual "); number(a.residual); Console::write_line("");
+  Console::write("orthogonality "); number(a.orthogonality); Console::write_line("");
  }
 }

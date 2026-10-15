@@ -4,20 +4,19 @@ use omega_language_std::console;
 use io::input;
 use io::output;
 use model::kriging;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut raw: Raw;
-    let accepted: bool = block read(&main.console, &mut raw);
-    transition accepted { true -> validate(&main.console, &raw) false -> invalid(&main.console) }
-    state validate(console: &Binding<Console>, raw: &Raw) {
+    let accepted: bool = block read(&mut raw);
+    transition accepted { true -> validate(&raw) false -> invalid() }
+    state validate(raw: &Raw) {
         let mut problem: Problem;
-        transition decode(raw, &mut problem) { true -> calculate(console, &mut problem) false -> invalid(console) }
+        transition decode(raw, &mut problem) { true -> calculate(&mut problem) false -> invalid() }
     }
-    state calculate(console: &Binding<Console>, problem: &mut Problem) {
-        transition solve(problem) { true -> report(console, problem) false -> singular(console) }
+    state calculate(problem: &mut Problem) {
+        transition solve(problem) { true -> report(problem) false -> singular() }
     }
-    state report(console: &Binding<Console>, problem: &Problem) { emit(console, problem); Console::exit_process(console, 0); }
-    state singular(console: &Binding<Console>) { Console::write_line(console, "status singular-system"); Console::exit_process(console, 2); }
-    state invalid(console: &Binding<Console>) { Console::write_line(console, "error invalid input"); Console::exit_process(console, 64); }
+    state report(problem: &Problem) { emit(problem); Console::exit_process(0); }
+    state singular() { Console::write_line("status singular-system"); Console::exit_process(2); }
+    state invalid() { Console::write_line("error invalid input"); Console::exit_process(64); }
 }

@@ -3,63 +3,62 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
-pub machine write_integer(console: &Binding<Console>, value: i64 in Wrapping) reaches Console
+pub machine write_integer(value: i64 in Wrapping) reaches Console
 invokes Console;
 {
     transition value < 0 {
-        true -> negative(console, value)
-        false -> magnitude(console, value)
+        true -> negative(value)
+        false -> magnitude(value)
     }
-    state negative(console: &Binding<Console>, value: i64 in Wrapping) {
-        Console::write(console, "-");
-        transition { _ -> magnitude(console, 0 - value) }
+    state negative(value: i64 in Wrapping) {
+        Console::write("-");
+        transition { _ -> magnitude(0 - value) }
     }
-    state magnitude(console: &Binding<Console>, value: i64 in Wrapping) {
-        transition { _ -> find_divisor(console, value, 1) }
+    state magnitude(value: i64 in Wrapping) {
+        transition { _ -> find_divisor(value, 1) }
     }
-    state find_divisor(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    state find_divisor(value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 {
-            true -> grow(console, value, divisor)
+            true -> grow(value, divisor)
             false -> done()
         }
     }
-    state grow(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping)
+    state grow(value: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor > 0
     {
         transition value / divisor >= 10 && divisor < 1000000000000000000 {
-            true -> find_divisor(console, value, divisor * 10)
-            false -> emit(console, value, divisor)
+            true -> find_divisor(value, divisor * 10)
+            false -> emit(value, divisor)
         }
     }
-    state emit(console: &Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping)
+    state emit(value: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor > 0
     {
         let digit: i32 = ((value / divisor) % 10) as i32;
-        Console::write_byte(console, digit + 48);
+        Console::write_byte(digit + 48);
         transition divisor >= 10 {
-            true -> emit(console, value, divisor / 10)
+            true -> emit(value, divisor / 10)
             false -> done()
         }
     }
     state done() { }
 }
 
-pub machine write_scaled(console: &Binding<Console>, value: f64) reaches Console
+pub machine write_scaled(value: f64) reaches Console
 invokes Console;
 {
     transition value < 0.0 {
-        true -> negative(console, value)
-        false -> positive(console, value)
+        true -> negative(value)
+        false -> positive(value)
     }
-    state negative(console: &Binding<Console>, value: f64) {
-        Console::write(console, "-");
+    state negative(value: f64) {
+        Console::write("-");
         let rounded: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
-        write_integer(console, rounded as i64 in Wrapping);
+        write_integer(rounded as i64 in Wrapping);
     }
-    state positive(console: &Binding<Console>, value: f64) {
+    state positive(value: f64) {
         let rounded: i64 in Saturating = I64::from_f64(value * 1000000.0 + 0.5);
-        write_integer(console, rounded as i64 in Wrapping);
+        write_integer(rounded as i64 in Wrapping);
     }
 }

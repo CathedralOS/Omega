@@ -3,33 +3,32 @@ use domain::model::SensorBlock;
 use domain::model::SensorStream;
 use domain::model::InputBuffer;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Finite binary stdin protocol. One lookahead rejects over-capacity input.
-pub machine read_input(console: &mut Binding<Console>, input: &mut InputBuffer) -> bool reaches Console
-invokes console;
+pub machine read_input(input: &mut InputBuffer) -> bool reaches Console
+invokes Console;
 blocks;
 crashes Trap
 {
     input.length = 0;
-    transition { _ -> read(console, input, 0) }
-    state read(console: &mut Binding<Console>, input: &mut InputBuffer, index: i32) -> bool {
-        let observed: ByteRead = block console.read_byte();
+    transition { _ -> read(input, 0) }
+    state read(input: &mut InputBuffer, index: i32) -> bool {
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> done(input, index)
-            ByteRead::Byte { value } -> capacity(console, input, index, value)
+            ByteRead::Byte { value } -> capacity(input, index, value)
         }
     }
-    state capacity(console: &mut Binding<Console>, input: &mut InputBuffer, index: i32, value: i32) -> bool {
+    state capacity(input: &mut InputBuffer, index: i32, value: i32) -> bool {
         transition index >= 0 && index < 56 && value >= 0 && value <= 255 {
-            true -> store(console, input, index, value)
+            true -> store(input, index, value)
             _ -> invalid()
         }
     }
-    state store(console: &mut Binding<Console>, input: &mut InputBuffer, index: i32, value: i32) -> bool
+    state store(input: &mut InputBuffer, index: i32, value: i32) -> bool
     requires index >= 0 && index < 56 && value >= 0 && value <= 255 {
         input.bytes[index] = value as u8;
-        transition { _ -> read(console, input, index + 1) }
+        transition { _ -> read(input, index + 1) }
     }
     state done(input: &mut InputBuffer, index: i32) -> bool { input.length = index; true }
     state invalid() -> bool { false }

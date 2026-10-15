@@ -1,19 +1,18 @@
 // Runtime data is supplied through five bounded newline-terminated rows.
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::sets;
 use domain::exact;
 use domain::report;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(context: &mut Main) reaches Console {
-    let universe: Parsed = block read_set(&context.console);
-    let query: Parsed = block read_set(&context.console);
-    let first: Parsed = block read_set(&context.console);
-    let second: Parsed = block read_set(&context.console);
-    let third: Parsed = block read_set(&context.console);
-    let ended: bool = block end_input(&context.console);
+    let universe: Parsed = block read_set();
+    let query: Parsed = block read_set();
+    let first: Parsed = block read_set();
+    let second: Parsed = block read_set();
+    let third: Parsed = block read_set();
+    let ended: bool = block end_input();
     transition ended && universe.valid && query.valid && first.valid && second.valid && third.valid {
         true -> validate(context, universe, query, first, second, third)
         false -> reject(context)
@@ -37,15 +36,15 @@ machine Main::main(context: &mut Main) reaches Console {
         let adjusted_one: Fraction = correction(one, rank_one, two, rank_two, three, rank_three);
         let adjusted_two: Fraction = correction(two, rank_two, one, rank_one, three, rank_three);
         let adjusted_three: Fraction = correction(three, rank_three, one, rank_one, two, rank_two);
-        context.console.write("N="); number(&context.console, total); context.console.write(" n="); number(&context.console, selected);
-        context.console.write(" duplicate_query="); number(&context.console, query.duplicates);
-        context.console.write(" duplicate_annotations="); number(&context.console, first.duplicates + second.duplicates + third.duplicates); context.console.write_line("");
-        result(&context.console, 1, first.mask, intersection(first.mask, query.mask), one, adjusted_one, rank_one);
-        result(&context.console, 2, second.mask, intersection(second.mask, query.mask), two, adjusted_two, rank_two);
-        result(&context.console, 3, third.mask, intersection(third.mask, query.mask), three, adjusted_three, rank_three);
-        context.console.exit_process(0);
+        Console::write("N="); number(total); Console::write(" n="); number(selected);
+        Console::write(" duplicate_query="); number(query.duplicates);
+        Console::write(" duplicate_annotations="); number(first.duplicates + second.duplicates + third.duplicates); Console::write_line("");
+        result(1, first.mask, intersection(first.mask, query.mask), one, adjusted_one, rank_one);
+        result(2, second.mask, intersection(second.mask, query.mask), two, adjusted_two, rank_two);
+        result(3, third.mask, intersection(third.mask, query.mask), three, adjusted_three, rank_three);
+        Console::exit_process(0);
     }
-    state reject(context: &mut Main) { context.console.write_line("INVALID_INPUT"); context.console.exit_process(65); }
+    state reject(context: &mut Main) { Console::write_line("INVALID_INPUT"); Console::exit_process(65); }
 }
 
 machine ranking(value: Fraction, other: Fraction, last: Fraction, identifier: u64 in Wrapping) -> u64 in Wrapping {

@@ -1,24 +1,23 @@
 // Expected exit: 2 (EOF).
 // Expected output contains: invalid input: one digit 0..9 and LF required
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::numeric_conversion;
 use kinetics;
 use format;
 data Main {
-    console: Binding<Console>; model: Model; mode: u64; initial_x: i64;
+    model: Model; mode: u64; initial_x: i64;
     replicate: u64; sum_x: u64; sum_x2: u64; sum_y: u64; sum_y2: u64;
     zero: u64; one: u64; two: u64; three_plus: u64;
 }
 machine Main::main(main: &mut Main) reaches Console {
-    let first: ByteRead = block main.console.read_byte();
+    let first: ByteRead = block Console::read_byte();
     transition first { ByteRead::Byte { value } -> digit(main, value) _ -> invalid(main) }
     state digit(main: &mut Main, value: i32) {
         transition value >= 48 && value <= 57 { true -> newline(main, value) _ -> invalid(main) }
     }
     state newline(main: &mut Main, value: i32) requires value >= 48 && value <= 57 {
         main.mode = (value - 48) as u64;
-        let ending: ByteRead = block main.console.read_byte();
+        let ending: ByteRead = block Console::read_byte();
         transition ending { ByteRead::Byte { value } -> ending(main, value) _ -> invalid(main) }
     }
     state ending(main: &mut Main, value: i32) {
@@ -73,17 +72,17 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> failed(main)
         }
     }
-    state failed(main: &mut Main) { main.console.write_line("unexpected control result"); main.console.exit_process(5); }
+    state failed(main: &mut Main) { Console::write_line("unexpected control result"); Console::exit_process(5); }
     state trace(main: &mut Main) {
         main.model.budget = 20; main.model.seed = 100000;
         transition main.mode == 8 { true -> gene_header(main) _ -> immigration_header(main) }
     }
     state gene_header(main: &mut Main) {
-        main.console.write_line("trajectory seed=100000 model=gene_expression");
+        Console::write_line("trajectory seed=100000 model=gene_expression");
         transition { _ -> trace_step(main) }
     }
     state immigration_header(main: &mut Main) {
-        main.console.write_line("trajectory seed=100000 model=immigration_death");
+        Console::write_line("trajectory seed=100000 model=immigration_death");
         transition { _ -> trace_step(main) }
     }
     state trace_step(main: &mut Main) {
@@ -96,18 +95,18 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state trace_event(main: &mut Main) {
-        main.console.write("event="); integer(&mut main.console, main.model.events);
-        main.console.write(" time="); number(&mut main.console, main.model.time);
-        main.console.write(" channel="); integer(&mut main.console, main.model.channel);
-        main.console.write(" x="); integer(&mut main.console, main.model.x);
-        main.console.write(" y="); integer(&mut main.console, main.model.y);
-        main.console.write_line("");
+        Console::write("event="); integer(main.model.events);
+        Console::write(" time="); number(main.model.time);
+        Console::write(" channel="); integer(main.model.channel);
+        Console::write(" x="); integer(main.model.x);
+        Console::write(" y="); integer(main.model.y);
+        Console::write_line("");
         transition { _ -> trace_step(main) }
     }
     state trace_done(main: &mut Main) {
-        main.console.write("final time="); number(&mut main.console, main.model.time);
-        main.console.write(" x="); integer(&mut main.console, main.model.x);
-        main.console.write_line(""); main.console.exit_process(0);
+        Console::write("final time="); number(main.model.time);
+        Console::write(" x="); integer(main.model.x);
+        Console::write_line(""); Console::exit_process(0);
     }
     state ensemble(main: &mut Main) { transition { _ -> replicate(main) } }
     state replicate(main: &mut Main) {
@@ -145,23 +144,23 @@ machine Main::main(main: &mut Main) reaches Console {
     state bucket_three(main: &mut Main) { let three_plus_next: u64 in Saturating = (main.three_plus as u64 in Saturating) + 1; main.three_plus = three_plus_next as u64; transition { _ -> next(main) } }
     state next(main: &mut Main) { let replicate_next: u64 in Saturating = (main.replicate as u64 in Saturating) + 1; main.replicate = replicate_next as u64; transition { _ -> replicate(main) } }
     state summarize(main: &mut Main) {
-        main.console.write("ensemble n="); integer(&mut main.console, main.replicate);
-        main.console.write(" seed_end="); integer(&mut main.console, main.model.seed);
-        main.console.write_line("");
-        main.console.write("sum_x="); integer(&mut main.console, main.sum_x);
-        main.console.write(" sum_x2="); integer(&mut main.console, main.sum_x2);
-        main.console.write(" sum_y="); integer(&mut main.console, main.sum_y);
-        main.console.write(" sum_y2="); integer(&mut main.console, main.sum_y2);
-        main.console.write_line("");
-        main.console.write("hist_x 0="); integer(&mut main.console, main.zero);
-        main.console.write(" 1="); integer(&mut main.console, main.one);
-        main.console.write(" 2="); integer(&mut main.console, main.two);
-        main.console.write(" 3plus="); integer(&mut main.console, main.three_plus);
-        main.console.write_line("");
-        main.console.exit_process(0);
+        Console::write("ensemble n="); integer(main.replicate);
+        Console::write(" seed_end="); integer(main.model.seed);
+        Console::write_line("");
+        Console::write("sum_x="); integer(main.sum_x);
+        Console::write(" sum_x2="); integer(main.sum_x2);
+        Console::write(" sum_y="); integer(main.sum_y);
+        Console::write(" sum_y2="); integer(main.sum_y2);
+        Console::write_line("");
+        Console::write("hist_x 0="); integer(main.zero);
+        Console::write(" 1="); integer(main.one);
+        Console::write(" 2="); integer(main.two);
+        Console::write(" 3plus="); integer(main.three_plus);
+        Console::write_line("");
+        Console::exit_process(0);
     }
-    state invalid(main: &mut Main) { main.console.write_line("invalid input: one digit 0..9 and LF required"); main.console.exit_process(2); }
-    state invalid_model(main: &mut Main) { main.console.write_line("invalid model: nonnegative rates and populations, bounded seed required"); main.console.exit_process(2); }
-    state exhausted(main: &mut Main) { main.console.write_line("event budget exhausted"); main.console.exit_process(3); }
-    state overflow(main: &mut Main) { main.console.write_line("population overflow"); main.console.exit_process(4); }
+    state invalid(main: &mut Main) { Console::write_line("invalid input: one digit 0..9 and LF required"); Console::exit_process(2); }
+    state invalid_model(main: &mut Main) { Console::write_line("invalid model: nonnegative rates and populations, bounded seed required"); Console::exit_process(2); }
+    state exhausted(main: &mut Main) { Console::write_line("event budget exhausted"); Console::exit_process(3); }
+    state overflow(main: &mut Main) { Console::write_line("population overflow"); Console::exit_process(4); }
 }

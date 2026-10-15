@@ -1,94 +1,93 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::model;
 use domain::solver;
 
-pub machine number(console: &mut Binding<Console>, value: i32 in Wrapping) reaches Console
-invokes console;
+pub machine number(value: i32 in Wrapping) reaches Console
+invokes Console;
 {
-    transition { _ -> leading(console, value, 10000) }
-    state leading(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    transition { _ -> leading(value, 10000) }
+    state leading(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 1 && value < divisor {
-            true -> leading(console, value, divisor / 10)
-            _ -> digit(console, value, divisor)
+            true -> leading(value, divisor / 10)
+            _ -> digit(value, divisor)
         }
     }
-    state digit(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    state digit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 0 {
-            true -> emit_digit(console, value, divisor)
+            true -> emit_digit(value, divisor)
             _ -> done()
         }
     }
-    state emit_digit(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping) {
-        console.write_byte((48 + value / divisor) as i32);
+    state emit_digit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
+        Console::write_byte((48 + value / divisor) as i32);
         transition divisor > 1 {
-            true -> digit(console, value % divisor, divisor / 10)
+            true -> digit(value % divisor, divisor / 10)
             _ -> done()
         }
     }
     state done() { }
 }
 
-pub machine emit(console: &mut Binding<Console>, pedigree: &Pedigree, result: &Inference) reaches Console
-invokes console;
+pub machine emit(pedigree: &Pedigree, result: &Inference) reaches Console
+invokes Console;
 {
-    console.write("SOLUTIONS "); number(console, result.solutions); console.write_line("");
-    console.write("EVIDENCE "); number(console, result.mass); console.write("/");
-    number(console, result.denominator); console.write_line("");
+    Console::write("SOLUTIONS "); number(result.solutions); Console::write_line("");
+    Console::write("EVIDENCE "); number(result.mass); Console::write("/");
+    number(result.denominator); Console::write_line("");
     transition result.mass > 0 {
-        true -> marginal(console, pedigree, result, 0)
-        _ -> witness(console, pedigree, result, 0)
+        true -> marginal(pedigree, result, 0)
+        _ -> witness(pedigree, result, 0)
     }
-    state marginal(console: &mut Binding<Console>, pedigree: &Pedigree, result: &Inference,
+    state marginal(pedigree: &Pedigree, result: &Inference,
                    position: i32 in Wrapping) {
         transition position >= 0 && position < pedigree.count * 3 && position < 18 {
-            true -> probability(console, pedigree, result, position)
+            true -> probability(pedigree, result, position)
             _ -> done()
         }
     }
-    state probability(console: &mut Binding<Console>, pedigree: &Pedigree, result: &Inference,
+    state probability(pedigree: &Pedigree, result: &Inference,
                       position: i32 in Wrapping) {
         let weight: i32 in Wrapping = result.marginals[position] as i32 in Wrapping;
         transition weight > 0 {
-            true -> possible(console, pedigree, result, position, weight)
-            _ -> marginal(console, pedigree, result, position + 1)
+            true -> possible(pedigree, result, position, weight)
+            _ -> marginal(pedigree, result, position + 1)
         }
     }
-    state possible(console: &mut Binding<Console>, pedigree: &Pedigree, result: &Inference,
+    state possible(pedigree: &Pedigree, result: &Inference,
                    position: i32 in Wrapping, weight: i32 in Wrapping) {
-        console.write("POSSIBLE "); number(console, position / 3 + 1); console.write(" ");
+        Console::write("POSSIBLE "); number(position / 3 + 1); Console::write(" ");
         let genotype: i32 in Wrapping = position % 3;
-        label(console, genotype);
-        console.write(" "); number(console, weight); console.write("/");
-        number(console, result.mass); console.write_line("");
-        transition { _ -> marginal(console, pedigree, result, position + 1) }
+        label(genotype);
+        Console::write(" "); number(weight); Console::write("/");
+        number(result.mass); Console::write_line("");
+        transition { _ -> marginal(pedigree, result, position + 1) }
     }
-    state witness(console: &mut Binding<Console>, pedigree: &Pedigree, result: &Inference,
+    state witness(pedigree: &Pedigree, result: &Inference,
                   person: i32 in Wrapping) {
         transition person >= 0 && person < pedigree.count && person < 6 {
-            true -> constraint(console, pedigree, result, person)
+            true -> constraint(pedigree, result, person)
             _ -> done()
         }
     }
-    state constraint(console: &mut Binding<Console>, pedigree: &Pedigree, result: &Inference,
+    state constraint(pedigree: &Pedigree, result: &Inference,
                      person: i32 in Wrapping) {
         let active: i32 = result.active[person];
         transition active == 1 {
-            true -> retained(console, pedigree, result, person)
-            _ -> witness(console, pedigree, result, person + 1)
+            true -> retained(pedigree, result, person)
+            _ -> witness(pedigree, result, person + 1)
         }
     }
-    state retained(console: &mut Binding<Console>, pedigree: &Pedigree, result: &Inference,
+    state retained(pedigree: &Pedigree, result: &Inference,
                    person: i32 in Wrapping) {
-        console.write("CORE "); number(console, person + 1); console.write_line("");
-        transition { _ -> witness(console, pedigree, result, person + 1) }
+        Console::write("CORE "); number(person + 1); Console::write_line("");
+        transition { _ -> witness(pedigree, result, person + 1) }
     }
     state done() { }
 }
 
-machine label(console: &mut Binding<Console>, genotype: i32 in Wrapping) reaches Console {
-    transition genotype { 0 -> aa(console) 1 -> ab(console) _ -> bb(console) }
-    state aa(console: &mut Binding<Console>) { console.write("AA"); }
-    state ab(console: &mut Binding<Console>) { console.write("AB"); }
-    state bb(console: &mut Binding<Console>) { console.write("BB"); }
+machine label(genotype: i32 in Wrapping) reaches Console {
+    transition genotype { 0 -> aa() 1 -> ab() _ -> bb() }
+    state aa() { Console::write("AA"); }
+    state ab() { Console::write("AB"); }
+    state bb() { Console::write("BB"); }
 }

@@ -2,19 +2,17 @@
 // Expected output contains: INVALID input
 // Empty stdin smoke control; finite-input scientific oracles are data/*.stdout.
 use omega_language_std::console;
-use omega::language::core::binding;
 use input::parser;
 use linkage::model;
 use report::output;
 
 data Main {
-    console: Binding<Console>;
     input: Input;
     linkage: Linkage;
 }
 
 machine Main::main(main: &mut Main) reaches Console blocks; crashes Trap {
-    block Input::read(&mut main.input, &mut main.console);
+    block Input::read(&mut main.input);
     transition main.input.valid && main.input.tokens[0] > 0 &&
                main.input.tokens[25] < 4 && main.input.tokens[26] < 4 && main.input.tokens[27] < 4 &&
                (main.input.tokens[25] == 0 || main.input.tokens[25] != main.input.tokens[26]) &&
@@ -35,14 +33,14 @@ machine Main::main(main: &mut Main) reaches Console blocks; crashes Trap {
         main.linkage.truth[1] = main.input.tokens[26];
         main.linkage.truth[2] = main.input.tokens[27];
         Linkage::solve(&mut main.linkage);
-        report(&mut main.console, &main.linkage);
+        report(&main.linkage);
         // The process result fingerprints every computed report field. The CLI's
         // Terminal comparison observes termination; native stdout is checked
         // separately against the full frozen oracle by validate.py.
-        main.console.exit_process(((main.linkage.best % 100 * 2 + main.linkage.optima % 100 * 3 + main.linkage.edges % 100 * 5 + main.linkage.conflicts % 100 * 7 + main.linkage.linked % 100 * 11 + main.linkage.ambiguous % 100 * 13 + main.linkage.unmatched % 100 * 17 + main.linkage.true_positive % 100 * 19 + main.linkage.false_positive % 100 * 23 + main.linkage.false_negative % 100 * 29 + main.linkage.consensus[0] % 100 * 31 + main.linkage.consensus[1] % 100 * 37 + main.linkage.consensus[2] % 100 * 41) % 191 + 1) as i32);
+        Console::exit_process(((main.linkage.best % 100 * 2 + main.linkage.optima % 100 * 3 + main.linkage.edges % 100 * 5 + main.linkage.conflicts % 100 * 7 + main.linkage.linked % 100 * 11 + main.linkage.ambiguous % 100 * 13 + main.linkage.unmatched % 100 * 17 + main.linkage.true_positive % 100 * 19 + main.linkage.false_positive % 100 * 23 + main.linkage.false_negative % 100 * 29 + main.linkage.consensus[0] % 100 * 31 + main.linkage.consensus[1] % 100 * 37 + main.linkage.consensus[2] % 100 * 41) % 191 + 1) as i32);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("INVALID input");
-        main.console.exit_process(64);
+        Console::write_line("INVALID input");
+        Console::exit_process(64);
     }
 }

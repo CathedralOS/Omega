@@ -3,10 +3,8 @@ use dungeon::dungeon;
 use omega_language_std::console;
 use rooms::map;
 use view::game_view;
-use omega::language::core::binding;
 
 data Game {
-    console: Binding<Console>;
     dungeon: Dungeon;
     parser: CommandParser;
     view: GameView;
@@ -27,8 +25,8 @@ ensures
 }
 
 machine Game::run_game_loop(game: &mut Game) reaches Console {
-    game.console.write_line("dungeon_crawler_cli: an interactive dungeon crawl -- type commands to explore");
-    GameView::render_title(&mut game.console);
+    Console::write_line("dungeon_crawler_cli: an interactive dungeon crawl -- type commands to explore");
+    GameView::render_title();
 
     transition {
         _ -> enter_room(game)
@@ -45,10 +43,8 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
             game.dungeon.gold_taken,
             game.dungeon.fountain_used,
             game.dungeon.enemy_defeated,
-            &mut game.console,
-            &mut game.output
-        );
-        GameView::render_commands(&mut game.console);
+            &mut game.output);
+        GameView::render_commands();
 
         transition {
             _ -> prompt(game)
@@ -63,8 +59,8 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     }
 
     state read_command(game: &mut Game) {
-        GameView::render_prompt(&mut game.console);
-        transition block game.console.read_line(&mut game.input) {
+        GameView::render_prompt();
+        transition block Console::read_line(&mut game.input) {
             LineReadResult::LineComplete { count } -> received_command(game, count)
             LineReadResult::EndOfInput { count } -> received_command(game, count)
             // Full and Invalid do not establish a completed command.
@@ -163,9 +159,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
             game.dungeon.gold_taken,
             game.dungeon.fountain_used,
             game.dungeon.enemy_defeated,
-            &mut game.console,
-            &mut game.output
-        );
+            &mut game.output);
 
         transition {
             _ -> prompt(game)
@@ -175,10 +169,8 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     state exits(game: &mut Game) {
         GameView::render_exits(&mut game.view, game.dungeon.level,
             game.dungeon.current_cell,
-            &mut game.console,
-            &mut game.output
-        );
-        GameView::render_commands(&mut game.console);
+            &mut game.output);
+        GameView::render_commands();
 
         transition {
             _ -> prompt(game)
@@ -186,7 +178,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     }
 
     state inventory(game: &mut Game) {
-        GameView::render_inventory(&mut game.view, game.dungeon.player, &mut game.console, &mut game.output);
+        GameView::render_inventory(&mut game.view, game.dungeon.player, &mut game.output);
 
         transition {
             _ -> prompt(game)
@@ -194,7 +186,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     }
 
     state character(game: &mut Game) {
-        GameView::render_character(&mut game.view, game.dungeon.player, &mut game.console, &mut game.output);
+        GameView::render_character(&mut game.view, game.dungeon.player, &mut game.output);
 
         transition {
             _ -> prompt(game)
@@ -204,7 +196,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     state use_event(game: &mut Game) {
         let cell: CellId = game.dungeon.current_cell;
         Dungeon::use_event(&mut game.dungeon, cell, &mut game.output);
-        GameView::render_line(game.output, &mut game.console);
+        GameView::render_line(game.output);
 
         transition {
             _ -> prompt(game)
@@ -214,7 +206,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     state fight(game: &mut Game) {
         let cell: CellId = game.dungeon.current_cell;
         Dungeon::fight(&mut game.dungeon, cell, &mut game.output);
-        GameView::render_line(game.output, &mut game.console);
+        GameView::render_line(game.output);
 
         transition game.dungeon.player.health == 0 {
             true -> game_over(game)
@@ -306,7 +298,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
 
     state blocked_by_enemy(game: &mut Game) {
         game.output = "[Blocked] A hostile presence bars the deeper path. Fight or fall back.";
-        GameView::render_line(game.output, &mut game.console);
+        GameView::render_line(game.output);
 
         transition {
             _ -> prompt(game)
@@ -314,7 +306,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     }
 
     state invalid_command(game: &mut Game) {
-        GameView::render_invalid_command(&mut game.console);
+        GameView::render_invalid_command();
 
         transition {
             _ -> prompt(game)
@@ -323,7 +315,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
 
     state game_over(game: &mut Game) {
         Dungeon::game_over(&mut game.dungeon);
-        GameView::render_game_over(&mut game.console);
+        GameView::render_game_over();
 
         transition {
             _ -> finished(game)
@@ -331,9 +323,9 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     }
 
     state finished(game: &mut Game) {
-        game.console.write_line("the crawl has ended -- goodbye (exit 0)");
-        game.console.write_line("[press Enter to close]");
-        _ = block game.console.read_line(&mut game.pause);
-        game.console.exit_process(0);
+        Console::write_line("the crawl has ended -- goodbye (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut game.pause);
+        Console::exit_process(0);
     }
 }

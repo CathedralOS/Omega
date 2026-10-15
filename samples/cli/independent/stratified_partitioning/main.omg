@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use input::parser;
 use data::dataset;
 use partition::allocation;
@@ -7,14 +6,13 @@ use partition::audit;
 use report::output;
 
 data Main {
-    console: Binding<Console>;
     tokens: Tokens;
     data: Dataset;
     allocation: Allocation;
     audit: Audit;
 }
 machine Main::main(context: &mut Main) reaches Console {
-    block Tokens::read(&context.console, &mut context.tokens);
+    block Tokens::read(&mut context.tokens);
     Dataset::load(&mut context.data, &context.tokens);
     transition context.data.valid {
         true -> solve(context)
@@ -35,20 +33,20 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state corrupt(context: &mut Main) {
-        context.console.write_line("ERROR audit_failed");
-        context.console.exit_process(66);
+        Console::write_line("ERROR audit_failed");
+        Console::exit_process(66);
     }
     state output(context: &mut Main) {
-        report(&context.console, &context.data, &context.allocation, &context.audit);
-        context.console.write("leakage "); number(&context.console, context.audit.leakage); context.console.write_line("");
-        context.console.exit_process(0);
+        report(&context.data, &context.allocation, &context.audit);
+        Console::write("leakage "); number(context.audit.leakage); Console::write_line("");
+        Console::exit_process(0);
     }
     state invalid(context: &mut Main) {
-        context.console.write_line("ERROR invalid_input");
-        context.console.exit_process(64);
+        Console::write_line("ERROR invalid_input");
+        Console::exit_process(64);
     }
     state infeasible(context: &mut Main) {
-        context.console.write_line("ERROR indivisible_single_group");
-        context.console.exit_process(65);
+        Console::write_line("ERROR indivisible_single_group");
+        Console::exit_process(65);
     }
 }

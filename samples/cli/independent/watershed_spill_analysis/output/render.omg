@@ -1,44 +1,43 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Values are 0..81, so two decimal digits cover every emitted quantity.
 // Output uses the existing console provider and no numerics package.
-machine number(console: &mut Binding<Console>, value: i32 in Wrapping) reaches Console {
+machine number(value: i32 in Wrapping) reaches Console {
     transition value >= 10 {
-        true -> higher(console, value)
-        _ -> digit(console, value)
+        true -> higher(value)
+        _ -> digit(value)
     }
-    state higher(console: &mut Binding<Console>, value: i32 in Wrapping) {
-        console.write_byte(((value / 10) + 48) as i32);
-        transition { _ -> digit(console, value % 10) }
+    state higher(value: i32 in Wrapping) {
+        Console::write_byte(((value / 10) + 48) as i32);
+        transition { _ -> digit(value % 10) }
     }
-    state digit(console: &mut Binding<Console>, value: i32 in Wrapping) {
-        console.write_byte((value + 48) as i32);
+    state digit(value: i32 in Wrapping) {
+        Console::write_byte((value + 48) as i32);
     }
 }
 
-machine grid(console: &mut Binding<Console>, values: &[i32 in Wrapping; 25]) reaches Console {
-    transition { _ -> cell(console, values, 0) }
-    state cell(console: &mut Binding<Console>, values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
+machine grid(values: &[i32 in Wrapping; 25]) reaches Console {
+    transition { _ -> cell(values, 0) }
+    state cell(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
         transition index >= 0 && index < 25 {
-            true -> emit(console, values, index)
+            true -> emit(values, index)
             _ -> done()
         }
     }
-    state emit(console: &mut Binding<Console>, values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
-        number(console, values[index]);
+    state emit(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
+        number(values[index]);
         transition index % 5 == 4 {
-            true -> newline(console, values, index)
-            _ -> space(console, values, index)
+            true -> newline(values, index)
+            _ -> space(values, index)
         }
     }
-    state newline(console: &mut Binding<Console>, values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
-        console.write_byte(10);
-        transition { _ -> cell(console, values, index + 1) }
+    state newline(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
+        Console::write_byte(10);
+        transition { _ -> cell(values, index + 1) }
     }
-    state space(console: &mut Binding<Console>, values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
-        console.write_byte(32);
-        transition { _ -> cell(console, values, index + 1) }
+    state space(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
+        Console::write_byte(32);
+        transition { _ -> cell(values, index + 1) }
     }
     state done() {}
 }

@@ -1,105 +1,104 @@
 use omega_language_std::console;
 use design::model;
-use omega::language::core::binding;
 
-machine digit(console: &Binding<Console>, value: i32 in Wrapping) reaches Console {
+machine digit(value: i32 in Wrapping) reaches Console {
     transition value {
-        0 -> zero(console) 1 -> one(console) 2 -> two(console) 3 -> three(console)
-        4 -> four(console) 5 -> five(console) 6 -> six(console) _ -> invalid(console)
+        0 -> zero() 1 -> one() 2 -> two() 3 -> three()
+        4 -> four() 5 -> five() 6 -> six() _ -> invalid()
     }
-    state zero(console: &Binding<Console>) { Console::write(console, "0"); }
-    state one(console: &Binding<Console>) { Console::write(console, "1"); }
-    state two(console: &Binding<Console>) { Console::write(console, "2"); }
-    state three(console: &Binding<Console>) { Console::write(console, "3"); }
-    state four(console: &Binding<Console>) { Console::write(console, "4"); }
-    state five(console: &Binding<Console>) { Console::write(console, "5"); }
-    state six(console: &Binding<Console>) { Console::write(console, "6"); }
-    state invalid(console: &Binding<Console>) { Console::write(console, "?"); }
+    state zero() { Console::write("0"); }
+    state one() { Console::write("1"); }
+    state two() { Console::write("2"); }
+    state three() { Console::write("3"); }
+    state four() { Console::write("4"); }
+    state five() { Console::write("5"); }
+    state six() { Console::write("6"); }
+    state invalid() { Console::write("?"); }
 }
 
-machine emit(console: &Binding<Console>, request: &Request, allocation: &Allocation) reaches Console {
-    Console::write_line(console, "FEASIBLE: allocation (treatments A=0 B=1 C=2)");
-    transition { _ -> scan_row(console, request, allocation, 0) }
-    state scan_row(console: &Binding<Console>, request: &Request, allocation: &Allocation, subject: i32 in Wrapping) {
+machine emit(request: &Request, allocation: &Allocation) reaches Console {
+    Console::write_line("FEASIBLE: allocation (treatments A=0 B=1 C=2)");
+    transition { _ -> scan_row(request, allocation, 0) }
+    state scan_row(request: &Request, allocation: &Allocation, subject: i32 in Wrapping) {
         transition subject >= 0 && subject < 6 && subject < request.subjects {
-            true -> row_start(console, request, allocation, subject)
-            false -> period_start(console, request, allocation)
+            true -> row_start(request, allocation, subject)
+            false -> period_start(request, allocation)
         }
     }
-    state row_start(console: &Binding<Console>, request: &Request, allocation: &Allocation, subject: i32 in Wrapping) {
-        Console::write(console, "subject "); digit(console, subject); Console::write(console, ":");
-        transition { _ -> cell(console, request, allocation, subject, 0) }
+    state row_start(request: &Request, allocation: &Allocation, subject: i32 in Wrapping) {
+        Console::write("subject "); digit(subject); Console::write(":");
+        transition { _ -> cell(request, allocation, subject, 0) }
     }
-    state cell(console: &Binding<Console>, request: &Request, allocation: &Allocation, subject: i32 in Wrapping, period: i32 in Wrapping) {
+    state cell(request: &Request, allocation: &Allocation, subject: i32 in Wrapping, period: i32 in Wrapping) {
         transition period >= 0 && period < 3 && period < request.treatments {
-            true -> cell_index(console, request, allocation, subject, period, subject * 3 + period)
-            false -> row_end(console, request, allocation, subject)
+            true -> cell_index(request, allocation, subject, period, subject * 3 + period)
+            false -> row_end(request, allocation, subject)
         }
     }
-    state cell_index(console: &Binding<Console>, request: &Request, allocation: &Allocation, subject: i32 in Wrapping, period: i32 in Wrapping, index: i32 in Wrapping) {
+    state cell_index(request: &Request, allocation: &Allocation, subject: i32 in Wrapping, period: i32 in Wrapping, index: i32 in Wrapping) {
         transition index >= 0 && index < 18 {
-            true -> cell_write(console, request, allocation, subject, period, index)
-            false -> done(console)
+            true -> cell_write(request, allocation, subject, period, index)
+            false -> done()
         }
     }
-    state cell_write(console: &Binding<Console>, request: &Request, allocation: &Allocation, subject: i32 in Wrapping, period: i32 in Wrapping, index: i32 in Wrapping) {
-        Console::write(console, " "); digit(console, allocation.cells[index]);
-        transition { _ -> cell(console, request, allocation, subject, period + 1) }
+    state cell_write(request: &Request, allocation: &Allocation, subject: i32 in Wrapping, period: i32 in Wrapping, index: i32 in Wrapping) {
+        Console::write(" "); digit(allocation.cells[index]);
+        transition { _ -> cell(request, allocation, subject, period + 1) }
     }
-    state row_end(console: &Binding<Console>, request: &Request, allocation: &Allocation, subject: i32 in Wrapping) {
-        Console::write_line(console, "");
-        transition { _ -> scan_row(console, request, allocation, subject + 1) }
+    state row_end(request: &Request, allocation: &Allocation, subject: i32 in Wrapping) {
+        Console::write_line("");
+        transition { _ -> scan_row(request, allocation, subject + 1) }
     }
-    state period_start(console: &Binding<Console>, request: &Request, allocation: &Allocation) {
-        Console::write_line(console, "PERIOD COUNTS (rows=period, columns=treatment)");
-        transition { _ -> matrix_scan_row(console, request, allocation, 0, false) }
+    state period_start(request: &Request, allocation: &Allocation) {
+        Console::write_line("PERIOD COUNTS (rows=period, columns=treatment)");
+        transition { _ -> matrix_scan_row(request, allocation, 0, false) }
     }
-    state matrix_scan_row(console: &Binding<Console>, request: &Request, allocation: &Allocation, row: i32 in Wrapping, carry: bool) {
+    state matrix_scan_row(request: &Request, allocation: &Allocation, row: i32 in Wrapping, carry: bool) {
         transition row >= 0 && row < 3 && row < request.treatments {
-            true -> matrix_column(console, request, allocation, row, 0, carry)
-            false -> next_matrix(console, request, allocation, carry)
+            true -> matrix_column(request, allocation, row, 0, carry)
+            false -> next_matrix(request, allocation, carry)
         }
     }
-    state matrix_column(console: &Binding<Console>, request: &Request, allocation: &Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool) {
+    state matrix_column(request: &Request, allocation: &Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool) {
         transition column >= 0 && column < 3 && column < request.treatments {
-            true -> matrix_index(console, request, allocation, row, column, carry, row * 3 + column)
-            false -> matrix_end(console, request, allocation, row, carry)
+            true -> matrix_index(request, allocation, row, column, carry, row * 3 + column)
+            false -> matrix_end(request, allocation, row, carry)
         }
     }
-    state matrix_index(console: &Binding<Console>, request: &Request, allocation: &Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
+    state matrix_index(request: &Request, allocation: &Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
         transition index >= 0 && index < 9 {
-            true -> matrix_value(console, request, allocation, row, column, carry, index)
-            false -> done(console)
+            true -> matrix_value(request, allocation, row, column, carry, index)
+            false -> done()
         }
     }
-    state matrix_value(console: &Binding<Console>, request: &Request, allocation: &Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
+    state matrix_value(request: &Request, allocation: &Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
         transition carry {
-            true -> carry_write(console, request, allocation, row, column, carry, index)
-            false -> period_write(console, request, allocation, row, column, carry, index)
+            true -> carry_write(request, allocation, row, column, carry, index)
+            false -> period_write(request, allocation, row, column, carry, index)
         }
     }
-    state carry_write(console: &Binding<Console>, request: &Request, allocation: &Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
-        digit(console, allocation.carryover[index]); Console::write(console, " ");
-        transition { _ -> matrix_column(console, request, allocation, row, column + 1, carry) }
+    state carry_write(request: &Request, allocation: &Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
+        digit(allocation.carryover[index]); Console::write(" ");
+        transition { _ -> matrix_column(request, allocation, row, column + 1, carry) }
     }
-    state period_write(console: &Binding<Console>, request: &Request, allocation: &Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
-        digit(console, allocation.periods[index]); Console::write(console, " ");
-        transition { _ -> matrix_column(console, request, allocation, row, column + 1, carry) }
+    state period_write(request: &Request, allocation: &Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
+        digit(allocation.periods[index]); Console::write(" ");
+        transition { _ -> matrix_column(request, allocation, row, column + 1, carry) }
     }
-    state matrix_end(console: &Binding<Console>, request: &Request, allocation: &Allocation, row: i32 in Wrapping, carry: bool) {
-        Console::write_line(console, "");
-        transition { _ -> matrix_scan_row(console, request, allocation, row + 1, carry) }
+    state matrix_end(request: &Request, allocation: &Allocation, row: i32 in Wrapping, carry: bool) {
+        Console::write_line("");
+        transition { _ -> matrix_scan_row(request, allocation, row + 1, carry) }
     }
-    state next_matrix(console: &Binding<Console>, request: &Request, allocation: &Allocation, carry: bool) {
+    state next_matrix(request: &Request, allocation: &Allocation, carry: bool) {
         transition carry {
-            true -> complete(console)
-            false -> carry_start(console, request, allocation)
+            true -> complete()
+            false -> carry_start(request, allocation)
         }
     }
-    state carry_start(console: &Binding<Console>, request: &Request, allocation: &Allocation) {
-        Console::write_line(console, "CARRYOVER COUNTS (rows=previous, columns=next)");
-        transition { _ -> matrix_scan_row(console, request, allocation, 0, true) }
+    state carry_start(request: &Request, allocation: &Allocation) {
+        Console::write_line("CARRYOVER COUNTS (rows=previous, columns=next)");
+        transition { _ -> matrix_scan_row(request, allocation, 0, true) }
     }
-    state complete(console: &Binding<Console>) { Console::write_line(console, "CERTIFIED: subject permutations; exact period balance; carryover cap; forbidden edge"); }
-    state done(console: &Binding<Console>) { Console::exit_process(console, 70); }
+    state complete() { Console::write_line("CERTIFIED: subject permutations; exact period balance; carryover cap; forbidden edge"); }
+    state done() { Console::exit_process(70); }
 }

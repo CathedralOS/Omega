@@ -3,13 +3,12 @@
 // Expected exit: 64.
 // Expected output contains: INVALID_INPUT
 use omega_language_std::console;
-use omega::language::core::binding;
 use chemistry::model;
 use chemistry::balance;
 use chemistry::inventory;
 use chemistry::report;
 
-data Main { console: Binding<Console>; }
+data Main { }
 data Input {
     values: [i64 in Wrapping; 19];
     count: u64;
@@ -108,50 +107,49 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state report(context: &mut Main, balance: &chemistry::model::Balance, batch: &chemistry::model::Batch, first: i64 in Wrapping, second: i64 in Wrapping, third: i64 in Wrapping) {
-        context.console.write_line("BALANCED");
-        context.console.write("coefficients ");
-        chemistry::report::line_four(&mut context.console, &balance.coefficients);
-        context.console.write("primitive_solutions ");
-        chemistry::report::line_number(&mut context.console, balance.solutions);
-        context.console.write("extent ");
-        chemistry::report::line_number(&mut context.console, batch.extent);
-        context.console.write("limiting_mask ");
-        chemistry::report::line_number(&mut context.console, batch.limiting);
-        context.console.write("cap_limited ");
-        chemistry::report::line_number(&mut context.console, batch.cap_limited);
-        context.console.write("inventory ");
-        chemistry::report::line_four(&mut context.console, &batch.inventory);
-        context.console.write("elements ");
-        chemistry::report::number(&mut context.console, first);
-        context.console.write(" ");
-        chemistry::report::number(&mut context.console, second);
-        context.console.write(" ");
-        chemistry::report::line_number(&mut context.console, third);
-        context.console.write_line("CONSERVATION_OK");
-        context.console.exit_process(0);
+        Console::write_line("BALANCED");
+        Console::write("coefficients ");
+        chemistry::report::line_four(&balance.coefficients);
+        Console::write("primitive_solutions ");
+        chemistry::report::line_number(balance.solutions);
+        Console::write("extent ");
+        chemistry::report::line_number(batch.extent);
+        Console::write("limiting_mask ");
+        chemistry::report::line_number(batch.limiting);
+        Console::write("cap_limited ");
+        chemistry::report::line_number(batch.cap_limited);
+        Console::write("inventory ");
+        chemistry::report::line_four(&batch.inventory);
+        Console::write("elements ");
+        chemistry::report::number(first);
+        Console::write(" ");
+        chemistry::report::number(second);
+        Console::write(" ");
+        chemistry::report::line_number(third);
+        Console::write_line("CONSERVATION_OK");
+        Console::exit_process(0);
     }
     state invalid(context: &mut Main) {
-        context.console.write_line("INVALID_INPUT");
-        context.console.exit_process(64);
+        Console::write_line("INVALID_INPUT");
+        Console::exit_process(64);
     }
     state impossible(context: &mut Main) {
-        context.console.write_line("NO_BALANCE_WITHIN_BOUND");
-        context.console.exit_process(65);
+        Console::write_line("NO_BALANCE_WITHIN_BOUND");
+        Console::exit_process(65);
     }
     state overflow(context: &mut Main, result: &chemistry::model::Batch) {
-        context.console.write_line("OVERFLOW_REFUSED");
-        context.console.write("inventory ");
-        chemistry::report::line_four(&mut context.console, &result.inventory);
-        context.console.exit_process(66);
+        Console::write_line("OVERFLOW_REFUSED");
+        Console::write("inventory ");
+        chemistry::report::line_four(&result.inventory);
+        Console::exit_process(66);
     }
     state corrupt(context: &mut Main) {
-        context.console.write_line("CONSERVATION_FAILURE");
-        context.console.exit_process(70);
+        Console::write_line("CONSERVATION_FAILURE");
+        Console::exit_process(70);
     }
 }
 
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::numeric_conversion;
 
 // ASCII decimal fields, whitespace separated, finite input <=1024 bytes.
@@ -162,7 +160,7 @@ machine Main::read(context: &mut Main, input: &mut Input) reaches Console {
     input.status = 0;
     transition { _ -> scan(context, input, 0, false, 0) }
     state scan(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping) {
-        let observed: ByteRead = block context.console.read_byte();
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> end(context, input, value, digits)
             ByteRead::Byte { value as byte } -> byte_value(context, input, value, digits, consumed, byte)

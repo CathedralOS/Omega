@@ -2,7 +2,6 @@
 // The real application remains stdin-driven; this opcode also checks Terminal's calculations,
 // since the shipped --both route compares termination rather than stdout.
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::tables;
 use domain::inference;
 machine snapshot(model: &Model, expected: &Inference) -> bool {
@@ -13,73 +12,73 @@ machine snapshot(model: &Model, expected: &Inference) -> bool {
     actual.probability_tail == expected.probability_tail && actual.association_tail == expected.association_tail &&
     actual.ties == expected.ties
 }
-pub machine frozen_numerical_control(console: &mut Binding<Console>) reaches Console
-invokes console;
+pub machine frozen_numerical_control() reaches Console
+invokes Console;
 {
-    transition { _ -> case_0(console) }
-    state case_0(console: &mut Binding<Console>) {
+    transition { _ -> case_0() }
+    state case_0() {
         let model: Model = Model { rows: [3, 3], columns: [2, 2, 2],
             observed: Table { cells: [1, 1, 1, 1, 1, 1] }, zeros: [0, 0, 0, 0, 0, 0] };
         let expected: Inference = Inference { status: 0, count: 7, partition: 1800, observed_weight: 720, score: 0, denominator: 432, probability_tail: 1800, association_tail: 1800, ties: 1 };
         transition snapshot(&model, &expected) {
-            true -> case_1(console)
-            false -> failed(console)
+            true -> case_1()
+            false -> failed()
         }
     }
-    state case_1(console: &mut Binding<Console>) {
+    state case_1() {
         let model: Model = Model { rows: [3, 3], columns: [2, 2, 2],
             observed: Table { cells: [2, 1, 0, 0, 1, 2] }, zeros: [0, 0, 0, 0, 0, 0] };
         let expected: Inference = Inference { status: 0, count: 7, partition: 1800, observed_weight: 180, score: 1728, denominator: 432, probability_tail: 1080, association_tail: 1080, ties: 6 };
         transition snapshot(&model, &expected) {
-            true -> case_2(console)
-            false -> failed(console)
+            true -> case_2()
+            false -> failed()
         }
     }
-    state case_2(console: &mut Binding<Console>) {
+    state case_2() {
         let model: Model = Model { rows: [2, 6], columns: [1, 2, 5],
             observed: Table { cells: [0, 0, 2, 1, 2, 3] }, zeros: [0, 0, 0, 0, 0, 0] };
         let expected: Inference = Inference { status: 0, count: 5, partition: 4704, observed_weight: 1680, score: 1536, denominator: 960, probability_tail: 4704, association_tail: 3024, ties: 1 };
         transition snapshot(&model, &expected) {
-            true -> case_3(console)
-            false -> failed(console)
+            true -> case_3()
+            false -> failed()
         }
     }
-    state case_3(console: &mut Binding<Console>) {
+    state case_3() {
         let model: Model = Model { rows: [3, 5], columns: [3, 3, 2],
             observed: Table { cells: [2, 0, 1, 1, 3, 1] }, zeros: [0, 0, 0, 0, 0, 0] };
         let expected: Inference = Inference { status: 0, count: 9, partition: 31360, observed_weight: 3360, score: 6528, denominator: 2160, probability_tail: 11200, association_tail: 11200, ties: 2 };
         transition snapshot(&model, &expected) {
-            true -> case_4(console)
-            false -> failed(console)
+            true -> case_4()
+            false -> failed()
         }
     }
-    state case_4(console: &mut Binding<Console>) {
+    state case_4() {
         let model: Model = Model { rows: [3, 3], columns: [2, 2, 2],
             observed: Table { cells: [0, 1, 2, 2, 1, 0] }, zeros: [1, 0, 0, 0, 0, 0] };
         let expected: Inference = Inference { status: 0, count: 2, partition: 360, observed_weight: 180, score: 1728, denominator: 432, probability_tail: 360, association_tail: 360, ties: 2 };
         transition snapshot(&model, &expected) {
-            true -> case_5(console)
-            false -> failed(console)
+            true -> case_5()
+            false -> failed()
         }
     }
-    state case_5(console: &mut Binding<Console>) {
+    state case_5() {
         let model: Model = Model { rows: [1, 2], columns: [1, 1, 1],
             observed: Table { cells: [1, 0, 0, 0, 1, 1] }, zeros: [0, 1, 1, 1, 0, 0] };
         let expected: Inference = Inference { status: 0, count: 1, partition: 6, observed_weight: 6, score: 18, denominator: 6, probability_tail: 6, association_tail: 6, ties: 1 };
         transition snapshot(&model, &expected) {
-            true -> case_6(console)
-            false -> failed(console)
+            true -> case_6()
+            false -> failed()
         }
     }
-    state case_6(console: &mut Binding<Console>) {
+    state case_6() {
         let model: Model = Model { rows: [3, 3], columns: [2, 2, 2],
             observed: Table { cells: [2, 1, 0, 0, 1, 2] }, zeros: [0, 0, 0, 0, 0, 0] };
         let expected: Inference = Inference { status: 0, count: 7, partition: 1800, observed_weight: 180, score: 1728, denominator: 432, probability_tail: 1080, association_tail: 1080, ties: 6 };
         transition snapshot(&model, &expected) {
-            true -> passed(console)
-            false -> failed(console)
+            true -> passed()
+            false -> failed()
         }
     }
-    state passed(console: &mut Binding<Console>) { console.write_line("PASS frozen_numerical_control"); console.exit_process(0); }
-    state failed(console: &mut Binding<Console>) { console.write_line("FAIL frozen_numerical_control"); console.exit_process(71); }
+    state passed() { Console::write_line("PASS frozen_numerical_control"); Console::exit_process(0); }
+    state failed() { Console::write_line("FAIL frozen_numerical_control"); Console::exit_process(71); }
 }

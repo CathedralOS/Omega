@@ -1,7 +1,6 @@
 // Expected exit: 2. Empty stdin is invalid; valid input returns 0.
 // Expected output contains: INVALID reaction input
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::numeric_conversion;
 use omega::language::core::float_operations;
 use domain::input;
@@ -9,9 +8,9 @@ use domain::model;
 use domain::rates;
 use domain::integrate;
 use domain::report;
-data Main { console: Binding<Console>; input: Input; problem: Problem; solution: Solution; }
+data Main { input: Input; problem: Problem; solution: Solution; }
 machine Main::main(main: &mut Main) reaches Console {
-    block Input::read(&mut main.input, &mut main.console);
+    block Input::read(&mut main.input);
     transition valid(&main.input) { true -> prepare(main) false -> invalid(main) }
     state prepare(main: &mut Main) {
         main.problem = problem(&main.input);
@@ -24,15 +23,15 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.solution.success { true -> report(main) false -> exhausted(main) }
     }
     state report(main: &mut Main) {
-        main.console.write_line("stiff_reaction_kinetics units=1e-12");
-        scaled(&mut main.console, main.solution.time); main.console.write(" ");
-        scaled(&mut main.console, main.solution.value.a); main.console.write(" ");
-        scaled(&mut main.console, main.solution.value.b); main.console.write(" ");
-        scaled(&mut main.console, main.solution.value.c); main.console.write(" ");
-        scaled(&mut main.console, main.solution.mass_error); main.console.write_line("");
-        integer64(&mut main.console, narrow_u64_to_i64_saturating(main.solution.accepted)); main.console.write(" ");
-        integer64(&mut main.console, narrow_u64_to_i64_saturating(main.solution.rejected)); main.console.write_line("");
+        Console::write_line("stiff_reaction_kinetics units=1e-12");
+        scaled(main.solution.time); Console::write(" ");
+        scaled(main.solution.value.a); Console::write(" ");
+        scaled(main.solution.value.b); Console::write(" ");
+        scaled(main.solution.value.c); Console::write(" ");
+        scaled(main.solution.mass_error); Console::write_line("");
+        integer64(narrow_u64_to_i64_saturating(main.solution.accepted)); Console::write(" ");
+        integer64(narrow_u64_to_i64_saturating(main.solution.rejected)); Console::write_line("");
     }
-    state invalid(main: &mut Main) { main.console.write_line("INVALID reaction input"); main.console.exit_process(2); }
-    state exhausted(main: &mut Main) { main.console.write_line("EXHAUSTED integration convergence"); main.console.exit_process(3); }
+    state invalid(main: &mut Main) { Console::write_line("INVALID reaction input"); Console::exit_process(2); }
+    state exhausted(main: &mut Main) { Console::write_line("EXHAUSTED integration convergence"); Console::exit_process(3); }
 }

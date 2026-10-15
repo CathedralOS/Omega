@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // The parser bounds bytes, tokens and magnitudes before arithmetic/storage.
 pub data Input {
@@ -12,8 +11,8 @@ pub data Input {
     index: u64;
 }
 
-pub machine Input::read(input: &mut Input, console: &mut Binding<Console>)
-invokes console;
+pub machine Input::read(input: &mut Input)
+invokes Console;
 reaches Console
 blocks;
 crashes Trap
@@ -23,44 +22,44 @@ crashes Trap
     input.number = 0;
     input.active = false;
     input.valid = true;
-    transition { _ -> scan(input, console) }
-    state scan(input: &mut Input, console: &mut Binding<Console>) {
+    transition { _ -> scan(input) }
+    state scan(input: &mut Input) {
         transition input.bytes <= 4096 {
-            true -> receive(input, console)
+            true -> receive(input)
             false -> invalid(input)
         }
     }
-    state receive(input: &mut Input, console: &mut Binding<Console>) {
-        transition block console.read_byte() {
+    state receive(input: &mut Input) {
+        transition block Console::read_byte() {
             ByteRead::Eof -> finish(input)
-            ByteRead::Byte { value } -> classify(input, console, value)
+            ByteRead::Byte { value } -> classify(input, value)
         }
     }
-    state classify(input: &mut Input, console: &mut Binding<Console>, value: i32) {
+    state classify(input: &mut Input, value: i32) {
         transition input.bytes < 4096 {
-            true -> byte(input, console, value)
+            true -> byte(input, value)
             false -> invalid(input)
         }
     }
-    state byte(input: &mut Input, console: &mut Binding<Console>, value: i32) {
+    state byte(input: &mut Input, value: i32) {
         input.bytes = input.bytes + 1;
         transition {
-            value >= 48 && value <= 57 -> digit(input, console, value)
-            value == 32 || value == 9 || value == 10 || value == 13 -> separator(input, console)
+            value >= 48 && value <= 57 -> digit(input, value)
+            value == 32 || value == 9 || value == 10 || value == 13 -> separator(input)
             _ -> invalid(input)
         }
     }
-    state digit(input: &mut Input, console: &mut Binding<Console>, value: i32) {
+    state digit(input: &mut Input, value: i32) {
         input.number = input.number * 10 + ((value - 48) as u64 in Wrapping);
         input.active = true;
         transition input.number <= 1000000000000 {
-            true -> scan(input, console)
+            true -> scan(input)
             false -> invalid(input)
         }
     }
-    state separator(input: &mut Input, console: &mut Binding<Console>) {
+    state separator(input: &mut Input) {
         Input::flush(input);
-        transition input.valid { true -> scan(input, console) false -> done() }
+        transition input.valid { true -> scan(input) false -> done() }
     }
     state finish(input: &mut Input) { Input::flush(input); }
     state invalid(input: &mut Input) { input.valid = false; }

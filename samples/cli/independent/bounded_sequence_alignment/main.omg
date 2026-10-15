@@ -4,21 +4,20 @@
 // Independent bounded local biological alignment. Every score and path is
 // computed from stdin at runtime; no fixture selection or reference imports.
 use omega_language_std::console;
-use omega::language::core::binding;
 use input::sequence;
 use alignment::local;
 use output::report;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let mut first: input::sequence::Sequence;
     let mut second: input::sequence::Sequence;
     let mut result: alignment::local::Alignment;
-    let status: i32 = block input::sequence::read_sequence(&main.console, &mut first);
+    let status: i32 = block input::sequence::read_sequence(&mut first);
     transition status == 0 { true -> read_second(main, &first, &mut second, &mut result) false -> diagnostic(main, status) }
     state read_second(main: &mut Main, first: &input::sequence::Sequence, second: &mut input::sequence::Sequence, result: &mut alignment::local::Alignment) {
-        let status: i32 = block input::sequence::read_sequence(&main.console, second);
+        let status: i32 = block input::sequence::read_sequence(second);
         transition status == 0 { true -> compute(main, first, second, result) false -> diagnostic(main, status) }
     }
     state compute(main: &mut Main, first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut alignment::local::Alignment) {
@@ -26,15 +25,15 @@ machine Main::main(main: &mut Main) reaches Console {
         transition valid { true -> emit(main, result) false -> internal(main) }
     }
     state emit(main: &mut Main, result: &alignment::local::Alignment) {
-        output::report::report(&main.console, result);
-        main.console.exit_process(0);
+        output::report::report(result);
+        Console::exit_process(0);
     }
     state diagnostic(main: &mut Main, status: i32) {
         transition status { 1 -> empty(main) 2 -> alphabet(main) 3 -> capacity(main) 4 -> missing(main) _ -> internal(main) }
     }
-    state empty(main: &mut Main) { main.console.write_line("ERROR empty-sequence"); main.console.exit_process(64); }
-    state alphabet(main: &mut Main) { main.console.write_line("ERROR alphabet-expected-ACGTN"); main.console.exit_process(64); }
-    state capacity(main: &mut Main) { main.console.write_line("ERROR sequence-exceeds-16"); main.console.exit_process(64); }
-    state missing(main: &mut Main) { main.console.write_line("ERROR missing-sequence"); main.console.exit_process(64); }
-    state internal(main: &mut Main) { main.console.write_line("ERROR internal-alignment"); main.console.exit_process(70); }
+    state empty(main: &mut Main) { Console::write_line("ERROR empty-sequence"); Console::exit_process(64); }
+    state alphabet(main: &mut Main) { Console::write_line("ERROR alphabet-expected-ACGTN"); Console::exit_process(64); }
+    state capacity(main: &mut Main) { Console::write_line("ERROR sequence-exceeds-16"); Console::exit_process(64); }
+    state missing(main: &mut Main) { Console::write_line("ERROR missing-sequence"); Console::exit_process(64); }
+    state internal(main: &mut Main) { Console::write_line("ERROR internal-alignment"); Console::exit_process(70); }
 }

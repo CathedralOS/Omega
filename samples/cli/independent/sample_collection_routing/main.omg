@@ -2,21 +2,19 @@
 // Expected exit: 64.
 // Expected output contains: INVALID: expected
 use omega_language_std::console;
-use omega::language::core::binding;
 use routing::model;
 use routing::search;
 use input::parse;
 use reporting::certificate;
 
 data Collection {
-    console: Binding<Console>;
     input: [u8; 12];
     plan: Plan;
     certificate: Certificate;
 }
 
 machine Collection::main(collection: &mut Collection) reaches Console {
-    let read: LineReadResult = block collection.console.read_line(&mut collection.input);
+    let read: LineReadResult = block Console::read_line(&mut collection.input);
     transition read {
         LineReadResult::LineComplete { count } -> newline(collection, count)
         LineReadResult::EndOfInput { count } -> eof(collection, count)
@@ -43,10 +41,10 @@ machine Collection::main(collection: &mut Collection) reaches Console {
     }
     state route(collection: &mut Collection) {
         solve(&collection.plan, &mut collection.certificate);
-        report(&mut collection.console, &collection.certificate);
+        report(&collection.certificate);
     }
     state invalid(collection: &mut Collection) {
-        collection.console.write_line("INVALID: expected C A B RA RB LA(2) LB(2) H(2), eleven digits; C=1..2, A/B=1..9, ready<=latest");
-        collection.console.exit_process(64);
+        Console::write_line("INVALID: expected C A B RA RB LA(2) LB(2) H(2), eleven digits; C=1..2, A/B=1..9, ready<=latest");
+        Console::exit_process(64);
     }
 }

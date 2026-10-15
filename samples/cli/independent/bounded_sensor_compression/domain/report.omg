@@ -3,111 +3,110 @@ use domain::model::SensorBlock;
 use domain::model::SensorStream;
 use domain::model::InputBuffer;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Render actual computed integers through the existing byte provider.
-pub machine number(console: &mut Binding<Console>, value: i32) reaches Console
-invokes console;
+pub machine number(value: i32) reaches Console
+invokes Console;
 requires value >= 0 && value <= 99999 {
-    transition { _ -> digit(console, value, 10000, false) }
-    state digit(console: &mut Binding<Console>, value: i32, divisor: i32, started: bool) {
+    transition { _ -> digit(value, 10000, false) }
+    state digit(value: i32, divisor: i32, started: bool) {
         transition divisor >= 1 && divisor <= 10000 && value >= 0 && value <= 99999 {
-            true -> decide(console, value, divisor, started)
+            true -> decide(value, divisor, started)
             _ -> done()
         }
     }
-    state decide(console: &mut Binding<Console>, value: i32, divisor: i32, started: bool)
+    state decide(value: i32, divisor: i32, started: bool)
     requires divisor >= 1 && divisor <= 10000 && value >= 0 && value <= 99999 {
         transition started || value >= divisor || divisor == 1 {
-            true -> emit(console, value, divisor)
-            _ -> next(console, value, divisor, started)
+            true -> emit(value, divisor)
+            _ -> next(value, divisor, started)
         }
     }
-    state emit(console: &mut Binding<Console>, value: i32, divisor: i32)
+    state emit(value: i32, divisor: i32)
     requires divisor >= 1 && divisor <= 10000 && value >= 0 && value <= 99999 {
-        console.write_byte(48 + value / divisor);
-        transition { _ -> next(console, value % divisor, divisor, true) }
+        Console::write_byte(48 + value / divisor);
+        transition { _ -> next(value % divisor, divisor, true) }
     }
-    state next(console: &mut Binding<Console>, value: i32, divisor: i32, started: bool)
+    state next(value: i32, divisor: i32, started: bool)
     requires divisor >= 1 && divisor <= 10000 {
         transition divisor > 1 {
-            true -> digit(console, value, divisor / 10, started)
+            true -> digit(value, divisor / 10, started)
             _ -> done()
         }
     }
     state done() { }
 }
 
-pub machine report(console: &mut Binding<Console>, stream: &SensorStream, records: &SensorBlock, maximum: i32) reaches Console
-invokes console;
+pub machine report(stream: &SensorStream, records: &SensorBlock, maximum: i32) reaches Console
+invokes Console;
 {
-    console.write("bytes:");
-    transition { _ -> bytes(console, stream, records, maximum, 0) }
-    state bytes(console: &mut Binding<Console>, stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32) {
+    Console::write("bytes:");
+    transition { _ -> bytes(stream, records, maximum, 0) }
+    state bytes(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32) {
         transition index >= 0 && index < stream.length && index < 53 {
-            true -> byte(console, stream, records, maximum, index)
-            _ -> reconstructed(console, stream, records, maximum)
+            true -> byte(stream, records, maximum, index)
+            _ -> reconstructed(stream, records, maximum)
         }
     }
-    state byte(console: &mut Binding<Console>, stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32)
+    state byte(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32)
     requires index >= 0 && index < 53 {
-        console.write_byte(32);
-        number(console, stream.bytes[index] as i32);
-        transition { _ -> bytes(console, stream, records, maximum, index + 1) }
+        Console::write_byte(32);
+        number(stream.bytes[index] as i32);
+        transition { _ -> bytes(stream, records, maximum, index + 1) }
     }
-    state reconstructed(console: &mut Binding<Console>, stream: &SensorStream, records: &SensorBlock, maximum: i32) {
-        console.write_byte(10);
-        console.write("reconstruction:");
-        transition { _ -> values(console, stream, records, maximum, 0) }
+    state reconstructed(stream: &SensorStream, records: &SensorBlock, maximum: i32) {
+        Console::write_byte(10);
+        Console::write("reconstruction:");
+        transition { _ -> values(stream, records, maximum, 0) }
     }
-    state values(console: &mut Binding<Console>, stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32) {
+    state values(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32) {
         transition index >= 0 && index < records.count && index < 16 {
-            true -> value(console, stream, records, maximum, index)
-            _ -> sizes(console, stream, records, maximum)
+            true -> value(stream, records, maximum, index)
+            _ -> sizes(stream, records, maximum)
         }
     }
-    state value(console: &mut Binding<Console>, stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32)
+    state value(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32)
     requires index >= 0 && index < 16 {
         let value: i32 = records.values[index];
         transition value >= 0 && value <= 4095 {
-            true -> emit_value(console, stream, records, maximum, index, value)
-            _ -> failure(console)
+            true -> emit_value(stream, records, maximum, index, value)
+            _ -> failure()
         }
     }
-    state emit_value(console: &mut Binding<Console>, stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32, value: i32)
+    state emit_value(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32, value: i32)
     requires index >= 0 && index < 16 && value >= 0 && value <= 4095 {
-        console.write_byte(32);
-        number(console, value);
-        transition { _ -> values(console, stream, records, maximum, index + 1) }
+        Console::write_byte(32);
+        number(value);
+        transition { _ -> values(stream, records, maximum, index + 1) }
     }
-    state sizes(console: &mut Binding<Console>, stream: &SensorStream, records: &SensorBlock, maximum: i32) {
-        console.write_byte(10);
+    state sizes(stream: &SensorStream, records: &SensorBlock, maximum: i32) {
+        Console::write_byte(10);
         transition records.count >= 1 && records.count <= 16 && stream.length >= 6 && stream.length <= 53 && records.tolerance >= 0 && records.tolerance <= 7 {
-            true -> metrics(console, stream, records, maximum)
-            _ -> failure(console)
+            true -> metrics(stream, records, maximum)
+            _ -> failure()
         }
     }
-    state metrics(console: &mut Binding<Console>, stream: &SensorStream, records: &SensorBlock, maximum: i32)
+    state metrics(stream: &SensorStream, records: &SensorBlock, maximum: i32)
     requires records.count >= 1 && records.count <= 16 && stream.length >= 6 && stream.length <= 53 && records.tolerance >= 0 && records.tolerance <= 7 {
-        console.write("raw_bytes: "); number(console, records.count * 2); console.write_byte(10);
-        console.write("encoded_bytes: "); number(console, stream.length); console.write_byte(10);
-        console.write("worst_bytes: "); number(console, 5 + records.count * 3); console.write_byte(10);
-        console.write("tolerance_units: "); number(console, records.tolerance); console.write_byte(10);
+        Console::write("raw_bytes: "); number(records.count * 2); Console::write_byte(10);
+        Console::write("encoded_bytes: "); number(stream.length); Console::write_byte(10);
+        Console::write("worst_bytes: "); number(5 + records.count * 3); Console::write_byte(10);
+        Console::write("tolerance_units: "); number(records.tolerance); Console::write_byte(10);
         transition maximum >= 0 && maximum <= records.tolerance && maximum <= 99999 {
-            true -> certified(console, maximum)
-            _ -> unverified(console)
+            true -> certified(maximum)
+            _ -> unverified()
         }
     }
-    state certified(console: &mut Binding<Console>, maximum: i32)
+    state certified(maximum: i32)
     requires maximum >= 0 && maximum <= 99999 {
-        console.write("max_error_units: "); number(console, maximum); console.write_byte(10);
-        console.write_line("certificate: verified against original records");
-        console.exit_process(0);
+        Console::write("max_error_units: "); number(maximum); Console::write_byte(10);
+        Console::write_line("certificate: verified against original records");
+        Console::exit_process(0);
     }
-    state unverified(console: &mut Binding<Console>) {
-        console.write_line("certificate: decode only; originals unavailable"); console.exit_process(0);
+    state unverified() {
+        Console::write_line("certificate: decode only; originals unavailable"); Console::exit_process(0);
     }
-    state failure(console: &mut Binding<Console>) {
-        console.write_line("error: internal report bounds"); console.exit_process(13);
+    state failure() {
+        Console::write_line("error: internal report bounds"); Console::exit_process(13);
     }
 }

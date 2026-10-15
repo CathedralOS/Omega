@@ -3,59 +3,58 @@ use demography::model;
 use demography::input;
 use demography::report;
 use demography::oracles;
-use omega::language::core::binding;
 // The ordinary sample harness supplies empty stdin; reject that input honestly.
 // Expected exit: 2.
 // Expected output contains: ERROR invalid input
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let verified: bool = reference_checks();
-    transition verified { true -> read_input(&main.console) false -> oracle_error(&main.console) }
-    state oracle_error(console: &Binding<Console>) { Console::write_line(console, "ERROR internal oracle"); Console::exit_process(console, 4); }
-    state read_input(console: &Binding<Console>) {
-        let steps: Parsed = block read_number(console);
-        let newborn: Parsed = block read_number(console);
-        let juvenile: Parsed = block read_number(console);
-        let adult: Parsed = block read_number(console);
-        let survival0: Parsed = block read_number(console);
-        let survival1: Parsed = block read_number(console);
-        let survival2: Parsed = block read_number(console);
-        let fertility0: Parsed = block read_number(console);
-        let fertility1: Parsed = block read_number(console);
-        let fertility2: Parsed = block read_number(console);
-        let migration0: Parsed = block read_number(console);
-        let migration1: Parsed = block read_number(console);
-        let migration2: Parsed = block read_number(console);
-        let complete: bool = block input_complete(console);
+    transition verified { true -> read_input() false -> oracle_error() }
+    state oracle_error() { Console::write_line("ERROR internal oracle"); Console::exit_process(4); }
+    state read_input() {
+        let steps: Parsed = block read_number();
+        let newborn: Parsed = block read_number();
+        let juvenile: Parsed = block read_number();
+        let adult: Parsed = block read_number();
+        let survival0: Parsed = block read_number();
+        let survival1: Parsed = block read_number();
+        let survival2: Parsed = block read_number();
+        let fertility0: Parsed = block read_number();
+        let fertility1: Parsed = block read_number();
+        let fertility2: Parsed = block read_number();
+        let migration0: Parsed = block read_number();
+        let migration1: Parsed = block read_number();
+        let migration2: Parsed = block read_number();
+        let complete: bool = block input_complete();
         let census: Census = Census { newborn: newborn.value, juvenile: juvenile.value, adult: adult.value };
         let schedule: Schedule = Schedule { survival0: survival0.value, survival1: survival1.value, survival2: survival2.value, fertility0: fertility0.value, fertility1: fertility1.value, fertility2: fertility2.value, migration0: migration0.value, migration1: migration1.value, migration2: migration2.value };
         transition steps.valid && newborn.valid && juvenile.valid && adult.valid && survival0.valid && survival1.valid && survival2.valid && fertility0.valid && fertility1.valid && fertility2.valid && migration0.valid && migration1.valid && migration2.valid && complete && steps.value >= 0 && steps.value <= 32 && valid_census(&census) && valid_schedule(&schedule) {
-            true -> forecast(console, census, schedule, steps.value)
-            false -> invalid(console)
+            true -> forecast(census, schedule, steps.value)
+            false -> invalid()
         }
     }
-    state invalid(console: &Binding<Console>) { Console::write_line(console, "ERROR invalid input"); Console::exit_process(console, 2); }
-    state forecast(console: &Binding<Console>, census: Census, schedule: Schedule, steps: i64 in Wrapping) {
-        Console::write_line(console, "year,newborn,juvenile,adult,total,births,deaths,migration");
+    state invalid() { Console::write_line("ERROR invalid input"); Console::exit_process(2); }
+    state forecast(census: Census, schedule: Schedule, steps: i64 in Wrapping) {
+        Console::write_line("year,newborn,juvenile,adult,total,births,deaths,migration");
         let initial: Balance = Balance { births: 0, deaths: 0, migration: 0, before: total(&census), after: total(&census) };
-        row(console, 0, &census, &initial);
-        transition { _ -> cycle(console, census, schedule, steps, 0) }
+        row(0, &census, &initial);
+        transition { _ -> cycle(census, schedule, steps, 0) }
     }
-    state cycle(console: &Binding<Console>, census: Census, schedule: Schedule, steps: i64 in Wrapping, year: i64 in Wrapping) {
-        transition year < steps { true -> step(console, census, schedule, steps, year) false -> done(console) }
+    state cycle(census: Census, schedule: Schedule, steps: i64 in Wrapping, year: i64 in Wrapping) {
+        transition year < steps { true -> step(census, schedule, steps, year) false -> done() }
     }
-    state step(console: &Binding<Console>, census: Census, schedule: Schedule, steps: i64 in Wrapping, year: i64 in Wrapping) {
+    state step(census: Census, schedule: Schedule, steps: i64 in Wrapping, year: i64 in Wrapping) {
         let mut next: Census = census;
         let balance: Balance = advance(&mut next, &schedule);
         transition valid_census(&next) && balance.after == balance.before + balance.births - balance.deaths + balance.migration {
-            true -> publish(console, next, schedule, steps, year + 1, balance)
-            false -> infeasible(console)
+            true -> publish(next, schedule, steps, year + 1, balance)
+            false -> infeasible()
         }
     }
-    state publish(console: &Binding<Console>, census: Census, schedule: Schedule, steps: i64 in Wrapping, year: i64 in Wrapping, balance: Balance) {
-        row(console, year, &census, &balance);
-        transition { _ -> cycle(console, census, schedule, steps, year) }
+    state publish(census: Census, schedule: Schedule, steps: i64 in Wrapping, year: i64 in Wrapping, balance: Balance) {
+        row(year, &census, &balance);
+        transition { _ -> cycle(census, schedule, steps, year) }
     }
-    state infeasible(console: &Binding<Console>) { Console::write_line(console, "ERROR infeasible cohort"); Console::exit_process(console, 3); }
-    state done(console: &Binding<Console>) { Console::exit_process(console, 0); }
+    state infeasible() { Console::write_line("ERROR infeasible cohort"); Console::exit_process(3); }
+    state done() { Console::exit_process(0); }
 }

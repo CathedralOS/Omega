@@ -1,35 +1,34 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 // All authored output integers have magnitude <= 51200000 (256 rows).
-machine number(console: &Binding<Console>, value: i32 in Wrapping) reaches Console {
+machine number(value: i32 in Wrapping) reaches Console {
     transition value < 0 {
-        true -> negative(console, value)
-        false -> digits(console, value, 100000000, false)
+        true -> negative(value)
+        false -> digits(value, 100000000, false)
     }
-    state negative(console: &Binding<Console>, value: i32 in Wrapping) {
-        console.write_byte(45);
-        transition { _ -> digits(console, 0 - value, 100000000, false) }
+    state negative(value: i32 in Wrapping) {
+        Console::write_byte(45);
+        transition { _ -> digits(0 - value, 100000000, false) }
     }
-    state digits(console: &Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) requires divisor > 0 {
+    state digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) requires divisor > 0 {
         let digit: i32 in Wrapping = value / divisor;
         transition digit != 0 || started || divisor == 1 {
-            true -> emit(console, value, divisor, digit)
-            false -> next(console, value, divisor, false)
+            true -> emit(value, divisor, digit)
+            false -> next(value, divisor, false)
         }
     }
-    state emit(console: &Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping) requires divisor > 0 {
-        console.write_byte((digit + 48) as i32);
-        transition { _ -> next(console, value % divisor, divisor, true) }
+    state emit(value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping) requires divisor > 0 {
+        Console::write_byte((digit + 48) as i32);
+        transition { _ -> next(value % divisor, divisor, true) }
     }
-    state next(console: &Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) requires divisor > 0 {
+    state next(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) requires divisor > 0 {
         transition divisor >= 10 {
-            true -> digits(console, value, divisor / 10, started)
+            true -> digits(value, divisor / 10, started)
             false -> done()
         }
     }
     state done() { }
 }
-machine field(console: &Binding<Console>, value: i32 in Wrapping) reaches Console {
-    console.write_byte(32);
-    number(console, value);
+machine field(value: i32 in Wrapping) reaches Console {
+    Console::write_byte(32);
+    number(value);
 }

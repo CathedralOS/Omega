@@ -9,16 +9,14 @@
 // Expected exit: 1.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     year: i32;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("leap_year: classifying 2024 with the div-4/100/400 compound rule");
+    Console::write_line("leap_year: classifying 2024 with the div-4/100/400 compound rule");
     main.year = 2024;
 
     transition main.year % 4 == 0 && main.year % 100 != 0 || main.year % 400 == 0 {
@@ -27,15 +25,15 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state leap(main: &mut Main) {
-        main.console.write_line("PASS: 2024 is a leap year (exit 1)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(1);
+        Console::write_line("PASS: 2024 is a leap year (exit 1)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(1);
     }
     state common(main: &mut Main) {
-        main.console.write_line("FAIL: 2024 misclassified as a common year (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("FAIL: 2024 misclassified as a common year (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
 }

@@ -5,37 +5,36 @@ use omega::language::core::numeric_conversion;
 use geometry::model;
 use input::parser;
 use output::report;
-use omega::language::core::binding;
 
 // Search every integer point in the supplied closed window. Each candidate
 // includes three signed squared-range residuals relative to the lower bound.
 // These are squared-distance units, not radial error. Search is deterministic,
 // ordered by y then x, and retains no candidate storage or hidden truncation.
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut bytes: [u8; 128];
     let mut problem: Problem;
-    let observed: LineReadResult = block Console::read_line(&main.console, &mut bytes);
+    let observed: LineReadResult = block Console::read_line(&mut bytes);
     transition observed {
-        LineReadResult::EndOfInput { count } -> input(&main.console, &bytes, count, &mut problem)
-        LineReadResult::LineComplete { count } -> input(&main.console, &bytes, count, &mut problem)
-        _ -> invalid(&main.console)
+        LineReadResult::EndOfInput { count } -> input(&bytes, count, &mut problem)
+        LineReadResult::LineComplete { count } -> input(&bytes, count, &mut problem)
+        _ -> invalid()
     }
-    state input(console: &Binding<Console>, bytes: &[u8], count: u64, problem: &mut Problem) {
+    state input(bytes: &[u8], count: u64, problem: &mut Problem) {
         transition count <= bytes.len {
-            true -> admitted(console, bytes, count, problem)
-            false -> invalid(console)
+            true -> admitted(bytes, count, problem)
+            false -> invalid()
         }
     }
-    state admitted(console: &Binding<Console>, bytes: &[u8], count: u64, problem: &mut Problem)
+    state admitted(bytes: &[u8], count: u64, problem: &mut Problem)
     requires count <= bytes.len
     {
         transition count == 0 {
-            true -> demo(console, problem)
-            false -> decode(console, bytes[..count], problem)
+            true -> demo(problem)
+            false -> decode(bytes[..count], problem)
         }
     }
-    state demo(console: &Binding<Console>, problem: &mut Problem) {
+    state demo(problem: &mut Problem) {
         // Three exact circles through (3,4): radii 5,5,3.
         problem.values[0] = -8; problem.values[1] = 8;
         problem.values[2] = -8; problem.values[3] = 8;
@@ -46,71 +45,71 @@ machine Main::main(main: &mut Main) reaches Console {
         problem.values[11] = 5; problem.values[12] = 5;
         problem.values[13] = 3; problem.values[14] = 1;
         problem.values[15] = 3; problem.values[16] = 3;
-        transition { _ -> search(console, problem, problem.values[0], problem.values[2], 0) }
+        transition { _ -> search(problem, problem.values[0], problem.values[2], 0) }
     }
-    state decode(console: &Binding<Console>, bytes: &[u8], problem: &mut Problem) {
+    state decode(bytes: &[u8], problem: &mut Problem) {
         let parsed: bool = parse(bytes, problem);
         transition parsed {
-            true -> validate(console, problem)
-            false -> invalid(console)
+            true -> validate(problem)
+            false -> invalid()
         }
     }
-    state validate(console: &Binding<Console>, problem: &Problem) {
+    state validate(problem: &Problem) {
         transition valid(problem) {
-            true -> search(console, problem, problem.values[0], problem.values[2], 0)
-            false -> invalid(console)
+            true -> search(problem, problem.values[0], problem.values[2], 0)
+            false -> invalid()
         }
     }
-    state search(console: &Binding<Console>, problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
+    state search(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
         transition feasible(problem, x, y) {
-            true -> candidate(console, problem, x, y, count)
-            false -> advance(console, problem, x, y, count)
+            true -> candidate(problem, x, y, count)
+            false -> advance(problem, x, y, count)
         }
     }
-    state candidate(console: &Binding<Console>, problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
-        Console::write(console, "candidate "); number(console, x); Console::write(console, " "); number(console, y);
-        Console::write(console, " residual2");
-        residuals(console, problem, x, y, 0);
-        Console::write_line(console, "");
-        transition { _ -> advance(console, problem, x, y, count + 1) }
+    state candidate(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
+        Console::write("candidate "); number(x); Console::write(" "); number(y);
+        Console::write(" residual2");
+        residuals(problem, x, y, 0);
+        Console::write_line("");
+        transition { _ -> advance(problem, x, y, count + 1) }
     }
-    state advance(console: &Binding<Console>, problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
+    state advance(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
         transition {
-            x < problem.values[1] -> search(console, problem, x + 1, y, count)
-            y < problem.values[3] -> search(console, problem, problem.values[0], y + 1, count)
-            _ -> summary(console, problem, count)
+            x < problem.values[1] -> search(problem, x + 1, y, count)
+            y < problem.values[3] -> search(problem, problem.values[0], y + 1, count)
+            _ -> summary(problem, count)
         }
     }
-    state summary(console: &Binding<Console>, problem: &Problem, count: i32 in Wrapping) {
-        Console::write(console, "count "); number(console, count); Console::write_line(console, "");
+    state summary(problem: &Problem, count: i32 in Wrapping) {
+        Console::write("count "); number(count); Console::write_line("");
         transition {
-            count == 0 -> inconsistent(console)
-            degenerate(problem) -> degenerate_result(console)
-            count == 1 -> unique(console)
-            _ -> ambiguous(console)
+            count == 0 -> inconsistent()
+            degenerate(problem) -> degenerate_result()
+            count == 1 -> unique()
+            _ -> ambiguous()
         }
     }
-    state inconsistent(console: &Binding<Console>) { Console::write_line(console, "status inconsistent"); Console::exit_process(console, 0); }
-    state degenerate_result(console: &Binding<Console>) { Console::write_line(console, "status degenerate"); Console::exit_process(console, 0); }
-    state unique(console: &Binding<Console>) { Console::write_line(console, "status unique"); Console::exit_process(console, 0); }
-    state ambiguous(console: &Binding<Console>) { Console::write_line(console, "status ambiguous"); Console::exit_process(console, 0); }
-    state invalid(console: &Binding<Console>) { Console::write_line(console, "error invalid input"); Console::exit_process(console, 64); }
+    state inconsistent() { Console::write_line("status inconsistent"); Console::exit_process(0); }
+    state degenerate_result() { Console::write_line("status degenerate"); Console::exit_process(0); }
+    state unique() { Console::write_line("status unique"); Console::exit_process(0); }
+    state ambiguous() { Console::write_line("status ambiguous"); Console::exit_process(0); }
+    state invalid() { Console::write_line("error invalid input"); Console::exit_process(64); }
 }
 
-machine residuals(console: &Binding<Console>, problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)
+machine residuals(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)
 reaches Console {
     transition index < 3 {
-        true -> emit(console, problem, x, y, index)
+        true -> emit(problem, x, y, index)
         false -> done()
     }
-    state emit(console: &Binding<Console>, problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)
+    state emit(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)
     requires index < 3
     {
         let offset: u64 = 5 + index * 4;
         let lower: i32 in Wrapping = problem.values[offset + 2];
         let residual: i32 in Wrapping = distance_squared(x, y, problem.values[offset], problem.values[offset + 1]) - lower * lower;
-        Console::write(console, " "); number(console, residual);
-        transition { _ -> residuals(console, problem, x, y, index + 1) }
+        Console::write(" "); number(residual);
+        transition { _ -> residuals(problem, x, y, index + 1) }
     }
     state done() { }
 }

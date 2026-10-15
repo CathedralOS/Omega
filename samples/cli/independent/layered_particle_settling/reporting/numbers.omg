@@ -1,35 +1,34 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 
 // Output is signed integer microunits, truncated toward zero. Fixed width makes
 // every zero and every negative value visible without relying on a format package.
-pub machine number(console: &mut Binding<Console>, value: i32) reaches Console invokes console; {
-    transition value < 0 { true -> negative(console, value) false -> positive(console, value) }
-    state negative(console: &mut Binding<Console>, value: i32) {
-        console.write_byte(45);
+pub machine number(value: i32) reaches Console invokes Console; {
+    transition value < 0 { true -> negative(value) false -> positive(value) }
+    state negative(value: i32) {
+        Console::write_byte(45);
         let magnitude: i32 in Wrapping = 0 - (value as i32 in Wrapping);
-        digits(console, magnitude as i32);
+        digits(magnitude as i32);
     }
-    state positive(console: &mut Binding<Console>, value: i32) {
-        console.write_byte(43);
-        digits(console, value);
+    state positive(value: i32) {
+        Console::write_byte(43);
+        digits(value);
     }
 }
 
-machine digits(console: &mut Binding<Console>, value: i32) reaches Console invokes console; {
+machine digits(value: i32) reaches Console invokes Console; {
     let magnitude: i32 in Wrapping = value as i32 in Wrapping;
-    console.write_byte(((magnitude / 10000000) % 10 + 48) as i32);
-    console.write_byte(((magnitude / 1000000) % 10 + 48) as i32);
-    console.write_byte(((magnitude / 100000) % 10 + 48) as i32);
-    console.write_byte(((magnitude / 10000) % 10 + 48) as i32);
-    console.write_byte(((magnitude / 1000) % 10 + 48) as i32);
-    console.write_byte(((magnitude / 100) % 10 + 48) as i32);
-    console.write_byte(((magnitude / 10) % 10 + 48) as i32);
-    console.write_byte((magnitude % 10 + 48) as i32);
+    Console::write_byte(((magnitude / 10000000) % 10 + 48) as i32);
+    Console::write_byte(((magnitude / 1000000) % 10 + 48) as i32);
+    Console::write_byte(((magnitude / 100000) % 10 + 48) as i32);
+    Console::write_byte(((magnitude / 10000) % 10 + 48) as i32);
+    Console::write_byte(((magnitude / 1000) % 10 + 48) as i32);
+    Console::write_byte(((magnitude / 100) % 10 + 48) as i32);
+    Console::write_byte(((magnitude / 10) % 10 + 48) as i32);
+    Console::write_byte((magnitude % 10 + 48) as i32);
 }
 
-pub machine micro(console: &mut Binding<Console>, value: f64) reaches Console invokes console; crashes Trap {
+pub machine micro(value: f64) reaches Console invokes Console; crashes Trap {
     let scaled: i32 in Trapping = I32::from_f64(value * 1000000.0);
-    number(console, scaled as i32);
+    number(scaled as i32);
 }

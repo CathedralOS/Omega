@@ -1,66 +1,65 @@
 module planner::output;
 use omega_language_std::console;
-use omega::language::core::binding;
 use planner::solver::TransportPlan;
 
 // Fixed signed four-digit objective keeps the table machine-readable. All
 // digit output is through the ordinary selected Console provider.
-pub machine emit_integer(console: &mut Binding<Console>, value: i32 in Wrapping) reaches Console
-invokes console;
+pub machine emit_integer(value: i32 in Wrapping) reaches Console
+invokes Console;
 {
     transition value < 0 {
-        true -> negative(console, 0 - value)
-        false -> positive(console, value)
+        true -> negative(0 - value)
+        false -> positive(value)
     }
-    state negative(console: &mut Binding<Console>, value: i32 in Wrapping) {
-        console.write_byte(45);
-        transition { _ -> digits(console, value, 1000) }
+    state negative(value: i32 in Wrapping) {
+        Console::write_byte(45);
+        transition { _ -> digits(value, 1000) }
     }
-    state positive(console: &mut Binding<Console>, value: i32 in Wrapping) {
-        console.write_byte(43);
-        transition { _ -> digits(console, value, 1000) }
+    state positive(value: i32 in Wrapping) {
+        Console::write_byte(43);
+        transition { _ -> digits(value, 1000) }
     }
-    state digits(console: &mut Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping)
+    state digits(value: i32 in Wrapping, divisor: i32 in Wrapping)
     requires divisor > 0
     {
         let digit: i32 in Wrapping = value / divisor % 10 + 48;
-        console.write_byte(digit as i32);
+        Console::write_byte(digit as i32);
         transition divisor >= 10 {
-            true -> digits(console, value, divisor / 10)
-            false -> finish(console)
+            true -> digits(value, divisor / 10)
+            false -> finish()
         }
     }
-    state finish(console: &mut Binding<Console>) { console.write_byte(10); }
+    state finish() { Console::write_byte(10); }
 }
-pub machine emit_plan(console: &mut Binding<Console>, plan: &TransportPlan) reaches Console
-invokes console;
+pub machine emit_plan(plan: &TransportPlan) reaches Console
+invokes Console;
 {
-    console.write_line("OPTIMAL: shipments");
-    transition { _ -> cell(console, plan, 0) }
-    state cell(console: &mut Binding<Console>, plan: &TransportPlan, index: u64) {
+    Console::write_line("OPTIMAL: shipments");
+    transition { _ -> cell(plan, 0) }
+    state cell(plan: &TransportPlan, index: u64) {
         transition index < 9 {
-            true -> write_cell(console, plan, index)
-            false -> total(console, plan)
+            true -> write_cell(plan, index)
+            false -> total(plan)
         }
     }
-    state write_cell(console: &mut Binding<Console>, plan: &TransportPlan, index: u64) {
+    state write_cell(plan: &TransportPlan, index: u64) {
         let digit: i32 in Wrapping = (plan.shipments[index] as i32 in Wrapping) + 48;
-        console.write_byte(digit as i32);
+        Console::write_byte(digit as i32);
         transition index % 3 == 2 {
-            true -> newline(console, plan, index)
-            false -> space(console, plan, index)
+            true -> newline(plan, index)
+            false -> space(plan, index)
         }
     }
-    state newline(console: &mut Binding<Console>, plan: &TransportPlan, index: u64) {
-        console.write_byte(10);
-        transition { _ -> cell(console, plan, index + 1) }
+    state newline(plan: &TransportPlan, index: u64) {
+        Console::write_byte(10);
+        transition { _ -> cell(plan, index + 1) }
     }
-    state space(console: &mut Binding<Console>, plan: &TransportPlan, index: u64) {
-        console.write_byte(32);
-        transition { _ -> cell(console, plan, index + 1) }
+    state space(plan: &TransportPlan, index: u64) {
+        Console::write_byte(32);
+        transition { _ -> cell(plan, index + 1) }
     }
-    state total(console: &mut Binding<Console>, plan: &TransportPlan) {
-        console.write("total_cost ");
-        emit_integer(console, plan.total);
+    state total(plan: &TransportPlan) {
+        Console::write("total_cost ");
+        emit_integer(plan.total);
     }
 }

@@ -1,144 +1,143 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
 use domain::model;
-use omega::language::core::binding;
 // Runtime recursion is tail-only. Keep pending decimal digits in private
 // fixed storage: every i64 needs at most 19 digits, including i64::MIN.
 data Digits { bytes: [i32; 20]; count: u64; }
-pub machine integer(console: &Binding<Console>, value: i64 in Saturating) reaches Console
+pub machine integer(value: i64 in Saturating) reaches Console
 invokes Console;
 {
     let mut output: Digits;
-    transition value < 0 { true -> negative(console, value, &mut output) false -> collect(console, value, &mut output) }
-    state negative(console: &Binding<Console>, value: i64 in Saturating, output: &mut Digits) {
-        Console::write(console, "-");
-        transition { _ -> collect(console, value, output) }
+    transition value < 0 { true -> negative(value, &mut output) false -> collect(value, &mut output) }
+    state negative(value: i64 in Saturating, output: &mut Digits) {
+        Console::write("-");
+        transition { _ -> collect(value, output) }
     }
-    state collect(console: &Binding<Console>, value: i64 in Saturating, output: &mut Digits) {
+    state collect(value: i64 in Saturating, output: &mut Digits) {
         transition output.count < 20 {
-            true -> remainder(console, value, output, value % 10)
-            false -> failed(console)
+            true -> remainder(value, output, value % 10)
+            false -> failed()
         }
     }
-    state remainder(console: &Binding<Console>, value: i64 in Saturating, output: &mut Digits, digit: i64 in Saturating)
+    state remainder(value: i64 in Saturating, output: &mut Digits, digit: i64 in Saturating)
     {
         transition digit < 0 {
-            true -> store(console, value, output, 0 - digit)
-            false -> store(console, value, output, digit)
+            true -> store(value, output, 0 - digit)
+            false -> store(value, output, digit)
         }
     }
-    state store(console: &Binding<Console>, value: i64 in Saturating, output: &mut Digits, digit: i64 in Saturating)
+    state store(value: i64 in Saturating, output: &mut Digits, digit: i64 in Saturating)
     {
         let count: u64 = output.count;
         transition count < 20 && digit >= 0 && digit <= 9 {
-            true -> write_stored(console, value, output, digit, count)
-            false -> failed(console)
+            true -> write_stored(value, output, digit, count)
+            false -> failed()
         }
     }
-    state write_stored(console: &Binding<Console>, value: i64 in Saturating, output: &mut Digits, digit: i64 in Saturating, index: u64)
+    state write_stored(value: i64 in Saturating, output: &mut Digits, digit: i64 in Saturating, index: u64)
     requires index < 20 && digit >= 0 && digit <= 9
     {
         output.bytes[index] = (digit + 48) as i32;
         output.count = index + 1;
         transition value / 10 == 0 {
-            true -> emit_digits(console, output, output.count)
-            false -> collect(console, value / 10, output)
+            true -> emit_digits(output, output.count)
+            false -> collect(value / 10, output)
         }
     }
-    state emit_digits(console: &Binding<Console>, output: &Digits, count: u64) {
+    state emit_digits(output: &Digits, count: u64) {
         transition count > 0 && count <= 20 {
-            true -> write_digit(console, output, count - 1)
+            true -> write_digit(output, count - 1)
             false -> done()
         }
     }
-    state write_digit(console: &Binding<Console>, output: &Digits, index: u64)
+    state write_digit(output: &Digits, index: u64)
     requires index < 20
     {
-        Console::write_byte(console, output.bytes[index]);
-        transition { _ -> emit_digits(console, output, index) }
+        Console::write_byte(output.bytes[index]);
+        transition { _ -> emit_digits(output, index) }
     }
-    state failed(console: &Binding<Console>) { Console::write_line(console, "FORMAT_FAILED"); Console::exit_process(console, 70); }
+    state failed() { Console::write_line("FORMAT_FAILED"); Console::exit_process(70); }
     state done() { }
 }
 // Emit nearest integer micro-units, with ties away from zero. All geometry
 // remains f64; quantization happens only at this presentation boundary.
-pub machine micro(console: &Binding<Console>, value: f64) reaches Console
+pub machine micro(value: f64) reaches Console
 invokes Console;
 {
-    transition value < 0.0 { true -> negative(console, value) false -> positive(console, value) }
-    state negative(console: &Binding<Console>, value: f64) {
-        Console::write(console, "-");
+    transition value < 0.0 { true -> negative(value) false -> positive(value) }
+    state negative(value: f64) {
+        Console::write("-");
         let rounded: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
-        integer(console, rounded);
+        integer(rounded);
     }
-    state positive(console: &Binding<Console>, value: f64) {
+    state positive(value: f64) {
         let rounded: i64 in Saturating = I64::from_f64(value * 1000000.0 + 0.5);
-        integer(console, rounded);
+        integer(rounded);
     }
 }
-pub machine emit(console: &Binding<Console>, partition: &Partition) reaches Console
+pub machine emit(partition: &Partition) reaches Console
 invokes Console;
 {
-    Console::write_line(console, "SERVICE_REGIONS micro_units=1000000");
-    transition { _ -> cell(console, partition, 0) }
-    state cell(console: &Binding<Console>, partition: &Partition, owner: u64) {
+    Console::write_line("SERVICE_REGIONS micro_units=1000000");
+    transition { _ -> cell(partition, 0) }
+    state cell(partition: &Partition, owner: u64) {
         transition owner < partition.site_count && owner < 8 {
-            true -> header(console, partition, owner)
-            false -> finish(console, partition)
+            true -> header(partition, owner)
+            false -> finish(partition)
         }
     }
-    state header(console: &Binding<Console>, partition: &Partition, owner: u64)
+    state header(partition: &Partition, owner: u64)
     requires owner < 8
     {
-        Console::write(console, "CELL "); integer(console, owner as i64 in Saturating);
-        Console::write(console, " AREA "); micro(console, partition.areas[owner]); Console::write_line(console, "");
-        transition { _ -> vertex(console, partition, owner, 0) }
+        Console::write("CELL "); integer(owner as i64 in Saturating);
+        Console::write(" AREA "); micro(partition.areas[owner]); Console::write_line("");
+        transition { _ -> vertex(partition, owner, 0) }
     }
-    state vertex(console: &Binding<Console>, partition: &Partition, owner: u64, index: u64)
+    state vertex(partition: &Partition, owner: u64, index: u64)
     requires owner < 8
     {
         transition index < partition.cells[owner].count && index < 32 {
-            true -> coordinate(console, partition, owner, index)
-            false -> adjacent(console, partition, owner, 0)
+            true -> coordinate(partition, owner, index)
+            false -> adjacent(partition, owner, 0)
         }
     }
-    state coordinate(console: &Binding<Console>, partition: &Partition, owner: u64, index: u64)
+    state coordinate(partition: &Partition, owner: u64, index: u64)
     requires owner < 8
     {
-        Console::write(console, "VERTEX "); micro(console, partition.cells[owner].x[index]);
-        Console::write(console, " "); micro(console, partition.cells[owner].y[index]); Console::write_line(console, "");
-        transition { _ -> vertex(console, partition, owner, index + 1) }
+        Console::write("VERTEX "); micro(partition.cells[owner].x[index]);
+        Console::write(" "); micro(partition.cells[owner].y[index]); Console::write_line("");
+        transition { _ -> vertex(partition, owner, index + 1) }
     }
-    state adjacent(console: &Binding<Console>, partition: &Partition, owner: u64, rival: u64)
+    state adjacent(partition: &Partition, owner: u64, rival: u64)
     requires owner < 8
     {
         transition rival < partition.site_count && rival < 8 {
-            true -> relation(console, partition, owner, rival)
-            false -> checked(console, partition, owner)
+            true -> relation(partition, owner, rival)
+            false -> checked(partition, owner)
         }
     }
-    state relation(console: &Binding<Console>, partition: &Partition, owner: u64, rival: u64)
+    state relation(partition: &Partition, owner: u64, rival: u64)
     requires owner < 8 && rival < 8
     {
         transition partition.adjacency[owner * 8 + rival] && rival != owner {
-            true -> connected(console, partition, owner, rival)
-            false -> adjacent(console, partition, owner, rival + 1)
+            true -> connected(partition, owner, rival)
+            false -> adjacent(partition, owner, rival + 1)
         }
     }
-    state connected(console: &Binding<Console>, partition: &Partition, owner: u64, rival: u64)
+    state connected(partition: &Partition, owner: u64, rival: u64)
     requires owner < 8
     {
-        Console::write(console, "ADJACENT "); integer(console, rival as i64 in Saturating); Console::write_line(console, "");
-        transition { _ -> adjacent(console, partition, owner, rival + 1) }
+        Console::write("ADJACENT "); integer(rival as i64 in Saturating); Console::write_line("");
+        transition { _ -> adjacent(partition, owner, rival + 1) }
     }
-    state checked(console: &Binding<Console>, partition: &Partition, owner: u64)
+    state checked(partition: &Partition, owner: u64)
     requires owner < 8
     {
-        Console::write_line(console, "NEAREST PASS");
-        transition { _ -> cell(console, partition, owner + 1) }
+        Console::write_line("NEAREST PASS");
+        transition { _ -> cell(partition, owner + 1) }
     }
-    state finish(console: &Binding<Console>, partition: &Partition) {
-        Console::write(console, "TOTAL_AREA "); micro(console, partition.total); Console::write_line(console, "");
-        Console::write_line(console, "PARTITION PASS");
+    state finish(partition: &Partition) {
+        Console::write("TOTAL_AREA "); micro(partition.total); Console::write_line("");
+        Console::write_line("PARTITION PASS");
     }
 }

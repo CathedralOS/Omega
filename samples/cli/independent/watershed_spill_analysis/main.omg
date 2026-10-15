@@ -1,18 +1,17 @@
 // Complete offline watershed workflow. Stdin: exactly 25 digits, whitespace
 // optional. EOF completes the raster; errors exit 2 without partial results.
 use omega_language_std::console;
-use omega::language::core::binding;
 use terrain::raster;
 use terrain::fill;
 use output::render;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let mut raster: Raster;
     transition { _ -> read(main, &mut raster, 0) }
     state read(main: &mut Main, raster: &mut Raster, count: i32 in Wrapping) {
-        let observed: ByteRead = block main.console.read_byte();
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> finish_input(main, raster, count)
             ByteRead::Byte { value } -> classify(main, raster, count, value)
@@ -49,25 +48,25 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state emit(main: &mut Main, raster: &Raster) {
-        main.console.write_line("filled");
-        grid(&mut main.console, &raster.filled);
-        main.console.write_line("outlets");
-        grid(&mut main.console, &raster.outlets);
-        main.console.write_line("parents");
-        grid(&mut main.console, &raster.parents);
-        main.console.write_line("volumes");
-        grid(&mut main.console, &raster.volumes);
-        main.console.write_line("total");
-        number(&mut main.console, raster.total);
-        main.console.write_byte(10);
-        main.console.exit_process(0);
+        Console::write_line("filled");
+        grid(&raster.filled);
+        Console::write_line("outlets");
+        grid(&raster.outlets);
+        Console::write_line("parents");
+        grid(&raster.parents);
+        Console::write_line("volumes");
+        grid(&raster.volumes);
+        Console::write_line("total");
+        number(raster.total);
+        Console::write_byte(10);
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("ERROR: expected exactly 25 elevation digits (0-9)");
-        main.console.exit_process(2);
+        Console::write_line("ERROR: expected exactly 25 elevation digits (0-9)");
+        Console::exit_process(2);
     }
     state internal_error(main: &mut Main) {
-        main.console.write_line("ERROR: drainage invariant failed");
-        main.console.exit_process(3);
+        Console::write_line("ERROR: drainage invariant failed");
+        Console::exit_process(3);
     }
 }

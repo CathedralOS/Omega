@@ -2,58 +2,57 @@ use omega_language_std::console;
 use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
 use model::kriging;
-use omega::language::core::binding;
 // Decimal scientific tokens retain sixteen significant digits without a fixed
 // point output range or silent saturation of large finite scientific values.
-pub machine number(console: &Binding<Console>, value: f64) reaches Console invokes Console; {
-    Console::write(console, " ");
-    transition value < 0.0 { true -> negative(console, value) false -> normalize(console, value, 0) }
-    state negative(console: &Binding<Console>, value: f64) { Console::write(console, "-"); transition { _ -> normalize(console, 0.0 - value, 0) } }
-    state normalize(console: &Binding<Console>, value: f64, exponent: i64 in Wrapping) {
+pub machine number(value: f64) reaches Console invokes Console; {
+    Console::write(" ");
+    transition value < 0.0 { true -> negative(value) false -> normalize(value, 0) }
+    state negative(value: f64) { Console::write("-"); transition { _ -> normalize(0.0 - value, 0) } }
+    state normalize(value: f64, exponent: i64 in Wrapping) {
         transition {
-            value >= 10.0 -> normalize(console, value / 10.0, exponent + 1)
-            value > 0.0 && value < 1.0 -> normalize(console, value * 10.0, exponent - 1)
-            _ -> mantissa(console, value, exponent)
+            value >= 10.0 -> normalize(value / 10.0, exponent + 1)
+            value > 0.0 && value < 1.0 -> normalize(value * 10.0, exponent - 1)
+            _ -> mantissa(value, exponent)
         }
     }
-    state mantissa(console: &Binding<Console>, value: f64, exponent: i64 in Wrapping) {
+    state mantissa(value: f64, exponent: i64 in Wrapping) {
         let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000000.0);
-        integer(console, scaled as i64 in Wrapping);
-        Console::write(console, "e"); integer(console, exponent - 15);
+        integer(scaled as i64 in Wrapping);
+        Console::write("e"); integer(exponent - 15);
     }
 }
-machine integer(console: &Binding<Console>, value: i64 in Wrapping) reaches Console invokes Console; {
-    transition value < 0 { true -> negative(console, value) false -> digit(console, value, 1000000000000000000, false) }
-    state negative(console: &Binding<Console>, value: i64 in Wrapping) { Console::write(console, "-"); transition { _ -> digit(console, 0 - value, 1000000000000000000, false) } }
-    state digit(console: &Binding<Console>, value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
+machine integer(value: i64 in Wrapping) reaches Console invokes Console; {
+    transition value < 0 { true -> negative(value) false -> digit(value, 1000000000000000000, false) }
+    state negative(value: i64 in Wrapping) { Console::write("-"); transition { _ -> digit(0 - value, 1000000000000000000, false) } }
+    state digit(value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
         let character: i64 in Wrapping = value / place;
-        transition character != 0 || started || place == 1 { true -> write(console, value, place, character) false -> advance(console, value, place, false) }
+        transition character != 0 || started || place == 1 { true -> write(value, place, character) false -> advance(value, place, false) }
     }
-    state write(console: &Binding<Console>, value: i64 in Wrapping, place: i64 in Wrapping, character: i64 in Wrapping) requires place > 0 {
-        Console::write_byte(console, narrow_i64_to_i32_saturating((character + 48) as i64)); transition { _ -> advance(console, value, place, true) }
+    state write(value: i64 in Wrapping, place: i64 in Wrapping, character: i64 in Wrapping) requires place > 0 {
+        Console::write_byte(narrow_i64_to_i32_saturating((character + 48) as i64)); transition { _ -> advance(value, place, true) }
     }
-    state advance(console: &Binding<Console>, value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
-        transition place >= 10 { true -> digit(console, value % place, place / 10, started) false -> done() }
+    state advance(value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
+        transition place >= 10 { true -> digit(value % place, place / 10, started) false -> done() }
     }
     state done() { }
 }
-pub machine emit(console: &Binding<Console>, problem: &Problem) reaches Console invokes Console; {
-    Console::write_line(console, "status ordinary-kriging; decimal scientific tokens");
-    transition { _ -> queries(console, problem, 0) }
-    state queries(console: &Binding<Console>, problem: &Problem, query: u64) {
-        transition query < problem.queries && query < 8 { true -> row(console, problem, query) false -> done() }
+pub machine emit(problem: &Problem) reaches Console invokes Console; {
+    Console::write_line("status ordinary-kriging; decimal scientific tokens");
+    transition { _ -> queries(problem, 0) }
+    state queries(problem: &Problem, query: u64) {
+        transition query < problem.queries && query < 8 { true -> row(problem, query) false -> done() }
     }
-    state row(console: &Binding<Console>, problem: &Problem, query: u64) requires query < 8 {
-        Console::write(console, "query"); number(console, problem.predictions[query]); number(console, problem.variances[query]);
-        number(console, problem.system_residuals[query]); number(console, problem.mean_residuals[query]); Console::write_line(console, "");
-        Console::write(console, "weights"); transition { _ -> weights(console, problem, query, 0) }
+    state row(problem: &Problem, query: u64) requires query < 8 {
+        Console::write("query"); number(problem.predictions[query]); number(problem.variances[query]);
+        number(problem.system_residuals[query]); number(problem.mean_residuals[query]); Console::write_line("");
+        Console::write("weights"); transition { _ -> weights(problem, query, 0) }
     }
-    state weights(console: &Binding<Console>, problem: &Problem, query: u64, index: u64) requires query < 8 {
-        transition index < problem.count && index < 8 { true -> weight(console, problem, query, index) false -> next(console, problem, query) }
+    state weights(problem: &Problem, query: u64, index: u64) requires query < 8 {
+        transition index < problem.count && index < 8 { true -> weight(problem, query, index) false -> next(problem, query) }
     }
-    state weight(console: &Binding<Console>, problem: &Problem, query: u64, index: u64) requires query < 8, index < 8 {
-        number(console, problem.weights[query * 8 + index]); transition { _ -> weights(console, problem, query, index + 1) }
+    state weight(problem: &Problem, query: u64, index: u64) requires query < 8, index < 8 {
+        number(problem.weights[query * 8 + index]); transition { _ -> weights(problem, query, index + 1) }
     }
-    state next(console: &Binding<Console>, problem: &Problem, query: u64) { Console::write_line(console, ""); transition { _ -> queries(console, problem, query + 1) } }
+    state next(problem: &Problem, query: u64) { Console::write_line(""); transition { _ -> queries(problem, query + 1) } }
     state done() { }
 }

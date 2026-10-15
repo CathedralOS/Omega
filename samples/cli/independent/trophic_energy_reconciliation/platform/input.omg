@@ -1,45 +1,44 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 // Finite decimal tokens, 0..1000. -1 means malformed, missing, or oversized.
 // Separators are ASCII space and LF. EOF terminates a token, never invents one.
-pub machine read_number(console: &mut Binding<Console>) -> i32 in Saturating
+pub machine read_number() -> i32 in Saturating
 reaches Console
-invokes console;
+invokes Console;
 blocks;
 crashes Trap
 {
-    transition { _ -> scan(console, 0, false, 0) }
-    state scan(console: &mut Binding<Console>, accumulated: i32 in Saturating, seen: bool, digits: u64) -> i32 in Saturating {
-        let observed: ByteRead = block console.read_byte();
+    transition { _ -> scan(0, false, 0) }
+    state scan(accumulated: i32 in Saturating, seen: bool, digits: u64) -> i32 in Saturating {
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> finish(accumulated, seen)
-            ByteRead::Byte { value } -> classify(console, accumulated, seen, digits, value)
+            ByteRead::Byte { value } -> classify(accumulated, seen, digits, value)
             _ -> (-1)
         }
     }
-    state classify(console: &mut Binding<Console>, accumulated: i32 in Saturating, seen: bool, digits: u64, byte: i32) -> i32 in Saturating {
+    state classify(accumulated: i32 in Saturating, seen: bool, digits: u64, byte: i32) -> i32 in Saturating {
         transition byte == 32 || byte == 10 {
-            true -> separator(console, accumulated, seen, digits)
-            false -> digit(console, accumulated, digits, byte)
+            true -> separator(accumulated, seen, digits)
+            false -> digit(accumulated, digits, byte)
         }
     }
-    state separator(console: &mut Binding<Console>, accumulated: i32 in Saturating, seen: bool, digits: u64) -> i32 in Saturating {
+    state separator(accumulated: i32 in Saturating, seen: bool, digits: u64) -> i32 in Saturating {
         transition seen {
             true -> (accumulated)
-            false -> scan(console, accumulated, seen, digits)
+            false -> scan(accumulated, seen, digits)
         }
     }
-    state digit(console: &mut Binding<Console>, accumulated: i32 in Saturating, digits: u64, byte: i32) -> i32 in Saturating {
+    state digit(accumulated: i32 in Saturating, digits: u64, byte: i32) -> i32 in Saturating {
         transition byte >= 48 && byte <= 57 && digits < 4 {
-            true -> accumulate(console, accumulated, digits, byte)
+            true -> accumulate(accumulated, digits, byte)
             false -> (-1)
         }
     }
-    state accumulate(console: &mut Binding<Console>, accumulated: i32 in Saturating, digits: u64, byte: i32) -> i32 in Saturating
+    state accumulate(accumulated: i32 in Saturating, digits: u64, byte: i32) -> i32 in Saturating
     requires digits < 4 {
         let next: i32 in Saturating = accumulated * 10 + (byte as i32 in Saturating) - 48;
         transition next <= 1000 {
-            true -> scan(console, next, true, digits + 1)
+            true -> scan(next, true, digits + 1)
             false -> (-1)
         }
     }
@@ -48,28 +47,28 @@ crashes Trap
     }
 }
 
-pub machine require_end(console: &mut Binding<Console>) -> bool reaches Console
-invokes console;
+pub machine require_end() -> bool reaches Console
+invokes Console;
 blocks;
 crashes Trap
 {
-    let observed: ByteRead = block console.read_byte();
+    let observed: ByteRead = block Console::read_byte();
     transition observed {
         ByteRead::Eof -> (true)
-        ByteRead::Byte { value } -> separator(console, value)
+        ByteRead::Byte { value } -> separator(value)
         _ -> (false)
     }
-    state separator(console: &mut Binding<Console>, value: i32) -> bool {
+    state separator(value: i32) -> bool {
         transition value == 32 || value == 10 {
-            true -> again(console)
+            true -> again()
             false -> (false)
         }
     }
-    state again(console: &mut Binding<Console>) -> bool {
-        let observed: ByteRead = block console.read_byte();
+    state again() -> bool {
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> (true)
-            ByteRead::Byte { value } -> separator(console, value)
+            ByteRead::Byte { value } -> separator(value)
             _ -> (false)
         }
     }

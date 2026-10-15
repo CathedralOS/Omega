@@ -1,12 +1,10 @@
 // Declared synthetic instrument model: A sensor fault, B power fault,
 // C shared environmental cause. Input contains complete joint weights.
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::logic;
 use domain::report;
 
 data Main {
-    console: Binding<Console>;
     input: [i32; 13];
     terms: [i32; 4];
     token: i32 in Wrapping;
@@ -33,7 +31,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state byte(main: &mut Main)
     requires main.bytes >= 0 && main.bytes < 256 {
         main.bytes = main.bytes + 1;
-        let observed: ByteRead = block main.console.read_byte();
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> end(main)
             ByteRead::Byte { value } -> classify(main, value)
@@ -169,9 +167,9 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state report(main: &mut Main) {
-        main.console.write("failure_ppm=");
-        number(&mut main.console, main.failure as i32);
-        main.console.write_line("/1000000");
+        Console::write("failure_ppm=");
+        number(main.failure as i32);
+        Console::write_line("/1000000");
         main.index = 0;
         transition { _ -> cuts(main) }
     }
@@ -189,9 +187,9 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state emit_cut(main: &mut Main) {
-        main.console.write("cut_mask=");
-        number(&mut main.console, main.index);
-        main.console.write_line("");
+        Console::write("cut_mask=");
+        number(main.index);
+        Console::write_line("");
         transition { _ -> next_cut(main) }
     }
     state next_cut(main: &mut Main)
@@ -265,12 +263,12 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state emit_audit(main: &mut Main)
     requires main.event >= 0 && main.event < 3 {
-        main.console.write("event="); number(&mut main.console, main.event);
-        main.console.write(" marginal_ppm="); number(&mut main.console, main.marginal as i32);
-        main.console.write(" repaired_ppm="); number(&mut main.console, main.repaired as i32);
-        main.console.write(" reduction_ppm="); number(&mut main.console, (main.failure - main.repaired) as i32);
-        main.console.write(" forced_ppm="); number(&mut main.console, main.forced as i32);
-        main.console.write_line("");
+        Console::write("event="); number(main.event);
+        Console::write(" marginal_ppm="); number(main.marginal as i32);
+        Console::write(" repaired_ppm="); number(main.repaired as i32);
+        Console::write(" reduction_ppm="); number((main.failure - main.repaired) as i32);
+        Console::write(" forced_ppm="); number(main.forced as i32);
+        Console::write_line("");
         // Refresh the Exact cursor bound after service calls, directly on the
         // increment edge. A state arrival fact is not a post-call guarantee.
         transition main.event >= 0 && main.event < 3 {
@@ -284,11 +282,11 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> event_loop(main) }
     }
     state done(main: &mut Main) {
-        main.console.write_line("AUDIT COMPLETE");
-        main.console.exit_process(0);
+        Console::write_line("AUDIT COMPLETE");
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("INVALID INPUT");
-        main.console.exit_process(2);
+        Console::write_line("INVALID INPUT");
+        Console::exit_process(2);
     }
 }

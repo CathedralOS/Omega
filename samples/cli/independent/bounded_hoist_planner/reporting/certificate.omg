@@ -1,52 +1,51 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use clearance::model;
 
 // Fixed-width decimal keeps every output field easy to compare as raw bytes.
-machine number(console: &mut Binding<Console>, value: i32 in Saturating) reaches Console
-invokes console;
+machine number(value: i32 in Saturating) reaches Console
+invokes Console;
 {
-    console.write_byte(((value / 100) % 10 + 48) as i32);
-    console.write_byte(((value / 10) % 10 + 48) as i32);
-    console.write_byte((value % 10 + 48) as i32);
-    console.write_byte(10);
+    Console::write_byte(((value / 100) % 10 + 48) as i32);
+    Console::write_byte(((value / 10) % 10 + 48) as i32);
+    Console::write_byte((value % 10 + 48) as i32);
+    Console::write_byte(10);
 }
 
-machine number5(console: &mut Binding<Console>, value: i32 in Saturating) reaches Console
-invokes console;
+machine number5(value: i32 in Saturating) reaches Console
+invokes Console;
 {
-    console.write_byte(((value / 10000) % 10 + 48) as i32);
-    console.write_byte(((value / 1000) % 10 + 48) as i32);
-    console.write_byte(((value / 100) % 10 + 48) as i32);
-    console.write_byte(((value / 10) % 10 + 48) as i32);
-    console.write_byte((value % 10 + 48) as i32);
-    console.write_byte(10);
+    Console::write_byte(((value / 10000) % 10 + 48) as i32);
+    Console::write_byte(((value / 1000) % 10 + 48) as i32);
+    Console::write_byte(((value / 100) % 10 + 48) as i32);
+    Console::write_byte(((value / 10) % 10 + 48) as i32);
+    Console::write_byte((value % 10 + 48) as i32);
+    Console::write_byte(10);
 }
 
-pub machine report(console: &mut Binding<Console>, certificate: &Certificate) reaches Console
-invokes console;
+pub machine report(certificate: &Certificate) reaches Console
+invokes Console;
 {
-    console.write_line("clearance_route_planner: synthetic span-height clearance model");
-    console.write_line("explored_words"); number5(console, 10000);
-    console.write_line("feasible_profiles"); number5(console, certificate.feasible);
-    console.write_line("optimal_ties"); number5(console, certificate.ties);
+    Console::write_line("clearance_route_planner: synthetic span-height clearance model");
+    Console::write_line("explored_words"); number5(10000);
+    Console::write_line("feasible_profiles"); number5(certificate.feasible);
+    Console::write_line("optimal_ties"); number5(certificate.ties);
     transition certificate.ties > 0 {
-        true -> optimal(console, certificate)
-        false -> infeasible(console)
+        true -> optimal(certificate)
+        false -> infeasible()
     }
-    state infeasible(console: &mut Binding<Console>) {
-        console.write_line("INFEASIBLE");
-        console.exit_process(2);
+    state infeasible() {
+        Console::write_line("INFEASIBLE");
+        Console::exit_process(2);
     }
-    state optimal(console: &mut Binding<Console>, certificate: &Certificate) {
-        console.write_line("OPTIMAL minimum_vertical_travel lexicographic_profile");
-        console.write_line("vertical_travel"); number(console, certificate.best.cost);
-        console.write_line("profile span_1 span_2 span_3 span_4");
-        number(console, certificate.best.heights[0]);
-        number(console, certificate.best.heights[1]);
-        number(console, certificate.best.heights[2]);
-        number(console, certificate.best.heights[3]);
-        console.write_line("final_height"); number(console, certificate.best.heights[3]);
-        console.exit_process(0);
+    state optimal(certificate: &Certificate) {
+        Console::write_line("OPTIMAL minimum_vertical_travel lexicographic_profile");
+        Console::write_line("vertical_travel"); number(certificate.best.cost);
+        Console::write_line("profile span_1 span_2 span_3 span_4");
+        number(certificate.best.heights[0]);
+        number(certificate.best.heights[1]);
+        number(certificate.best.heights[2]);
+        number(certificate.best.heights[3]);
+        Console::write_line("final_height"); number(certificate.best.heights[3]);
+        Console::exit_process(0);
     }
 }

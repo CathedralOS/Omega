@@ -8,7 +8,6 @@ use domain::report::number;
 use domain::report::integer;
 use data::fixtures::count;
 use data::fixtures::load;
-use omega::language::core::binding;
 
 // Select exactly one declared scenario with an ASCII digit then LF (or EOF).
 // The application consumes at most three bytes and never silently truncates.
@@ -24,140 +23,140 @@ data Application {
     total: f64;
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console
 crashes Trap
 {
     let mut application: Application;
-    let input: ByteRead = block Console::read_byte(&main.console);
+    let input: ByteRead = block Console::read_byte();
     transition input {
-        ByteRead::Byte { value } -> select(&main.console, &mut application, value)
-        _ -> invalid(&main.console)
+        ByteRead::Byte { value } -> select(&mut application, value)
+        _ -> invalid()
     }
-    state select(console: &Binding<Console>, application: &mut Application, value: i32) {
+    state select(application: &mut Application, value: i32) {
         transition value >= 48 && value <= 57 {
-            true -> delimiter(console, application, value)
-            _ -> invalid(console)
+            true -> delimiter(application, value)
+            _ -> invalid()
         }
     }
-    state delimiter(console: &Binding<Console>, application: &mut Application, value: i32) {
+    state delimiter(application: &mut Application, value: i32) {
         let wrapped: i32 in Wrapping = value as i32 in Wrapping;
         application.selection = (wrapped - 48) as i32;
-        let tail: ByteRead = block Console::read_byte(console);
+        let tail: ByteRead = block Console::read_byte();
         transition tail {
-            ByteRead::Eof -> start(console, application)
-            ByteRead::Byte { value: 10 } -> finish_input(console, application)
-            _ -> invalid(console)
+            ByteRead::Eof -> start(application)
+            ByteRead::Byte { value: 10 } -> finish_input(application)
+            _ -> invalid()
         }
     }
-    state finish_input(console: &Binding<Console>, application: &mut Application) {
-        let tail: ByteRead = block Console::read_byte(console);
-        transition tail { ByteRead::Eof -> start(console, application) _ -> invalid(console) }
+    state finish_input(application: &mut Application) {
+        let tail: ByteRead = block Console::read_byte();
+        transition tail { ByteRead::Eof -> start(application) _ -> invalid() }
     }
-    state start(console: &Binding<Console>, application: &mut Application) {
-        Console::write_line(console, "piston_cycle_work: kPa,L,J; work by piston");
-        Console::write_line(console, "stage,point,volume,pressure");
-        transition { _ -> stage(console, application, 0) }
+    state start(application: &mut Application) {
+        Console::write_line("piston_cycle_work: kPa,L,J; work by piston");
+        Console::write_line("stage,point,volume,pressure");
+        transition { _ -> stage(application, 0) }
     }
-    state stage(console: &Binding<Console>, application: &mut Application, index: u32) requires index <= 3 {
+    state stage(application: &mut Application, index: u32) requires index <= 3 {
         load(application.selection, index, &mut application.stage);
         let valid: bool = evaluate(&mut application.stage);
-        transition valid { true -> boundary(console, application, index) _ -> invalid_stage(console) }
+        transition valid { true -> boundary(application, index) _ -> invalid_stage() }
     }
-    state boundary(console: &Binding<Console>, application: &mut Application, index: u32) requires index <= 3 {
+    state boundary(application: &mut Application, index: u32) requires index <= 3 {
         transition index == 0 {
-            true -> first(console, application, index)
-            _ -> continuity(console, application, index)
+            true -> first(application, index)
+            _ -> continuity(application, index)
         }
     }
-    state first(console: &Binding<Console>, application: &mut Application, index: u32) requires index <= 3 {
+    state first(application: &mut Application, index: u32) requires index <= 3 {
         application.first_volume = application.stage.volume;
         application.first_pressure = application.stage.pressure;
-        transition { _ -> history(console, application, index) }
+        transition { _ -> history(application, index) }
     }
-    state continuity(console: &Binding<Console>, application: &mut Application, index: u32) requires index <= 3 {
+    state continuity(application: &mut Application, index: u32) requires index <= 3 {
         transition near(application.previous_volume, application.stage.volume)
             && near(application.previous_pressure, application.stage.pressure) {
-            true -> history(console, application, index)
-            _ -> discontinuity(console)
+            true -> history(application, index)
+            _ -> discontinuity()
         }
     }
-    state history(console: &Binding<Console>, application: &mut Application, index: u32) requires index <= 3 {
-        row(console, index as i32, 0, application.stage.volume, application.stage.pressure);
+    state history(application: &mut Application, index: u32) requires index <= 3 {
+        row(index as i32, 0, application.stage.volume, application.stage.pressure);
         let volume: f64 = (application.stage.volume + application.stage.end_volume) / 2.0;
         transition application.stage.isochoric {
-            true -> hold_middle(console, application, index, volume)
-            _ -> model_middle(console, application, index, volume)
+            true -> hold_middle(application, index, volume)
+            _ -> model_middle(application, index, volume)
         }
     }
-    state hold_middle(console: &Binding<Console>, application: &mut Application, index: u32, volume: f64) requires index <= 3 {
-        row(console, index as i32, 1, volume, (application.stage.pressure + application.stage.end_pressure) / 2.0);
-        transition { _ -> endpoint(console, application, index) }
+    state hold_middle(application: &mut Application, index: u32, volume: f64) requires index <= 3 {
+        row(index as i32, 1, volume, (application.stage.pressure + application.stage.end_pressure) / 2.0);
+        transition { _ -> endpoint(application, index) }
     }
-    state model_middle(console: &Binding<Console>, application: &mut Application, index: u32, volume: f64) requires index <= 3 {
-        row(console, index as i32, 1, volume, pressure_at(&application.stage, volume));
-        transition { _ -> endpoint(console, application, index) }
+    state model_middle(application: &mut Application, index: u32, volume: f64) requires index <= 3 {
+        row(index as i32, 1, volume, pressure_at(&application.stage, volume));
+        transition { _ -> endpoint(application, index) }
     }
-    state endpoint(console: &Binding<Console>, application: &mut Application, index: u32) requires index <= 3 {
-        row(console, index as i32, 2, application.stage.end_volume, application.stage.end_pressure);
-        Console::write(console, "work,"); integer(console, index as i32); Console::write(console, ",");
-        number(console, application.stage.work); Console::write_line(console, "");
+    state endpoint(application: &mut Application, index: u32) requires index <= 3 {
+        row(index as i32, 2, application.stage.end_volume, application.stage.end_pressure);
+        Console::write("work,"); integer(index as i32); Console::write(",");
+        number(application.stage.work); Console::write_line("");
         application.total = application.total + application.stage.work;
         application.previous_volume = application.stage.end_volume;
         application.previous_pressure = application.stage.end_pressure;
         transition application.stage.work >= 0.0 {
-            true -> expansion(console, application, index)
-            _ -> compression(console, application, index)
+            true -> expansion(application, index)
+            _ -> compression(application, index)
         }
     }
-    state expansion(console: &Binding<Console>, application: &mut Application, index: u32) requires index <= 3 {
+    state expansion(application: &mut Application, index: u32) requires index <= 3 {
         application.expansion = application.expansion + application.stage.work;
-        transition { _ -> next(console, application, index) }
+        transition { _ -> next(application, index) }
     }
-    state compression(console: &Binding<Console>, application: &mut Application, index: u32) requires index <= 3 {
+    state compression(application: &mut Application, index: u32) requires index <= 3 {
         application.compression = application.compression + application.stage.work;
-        transition { _ -> next(console, application, index) }
+        transition { _ -> next(application, index) }
     }
-    state next(console: &Binding<Console>, application: &mut Application, index: u32) requires index <= 3 {
+    state next(application: &mut Application, index: u32) requires index <= 3 {
         let count: u32 = count(application.selection);
         transition index + 1 < count && index < 3 {
-            true -> stage(console, application, index + 1)
-            _ -> balance(console, application)
+            true -> stage(application, index + 1)
+            _ -> balance(application)
         }
     }
-    state balance(console: &Binding<Console>, application: &mut Application) {
-        Console::write(console, "balance,"); number(console, application.expansion); Console::write(console, ",");
-        number(console, application.compression); Console::write(console, ","); number(console, application.total);
-        Console::write_line(console, "");
+    state balance(application: &mut Application) {
+        Console::write("balance,"); number(application.expansion); Console::write(",");
+        number(application.compression); Console::write(","); number(application.total);
+        Console::write_line("");
         transition near(application.total, application.expansion + application.compression) {
-            true -> closure(console, application)
-            _ -> bad_balance(console)
+            true -> closure(application)
+            _ -> bad_balance()
         }
     }
-    state closure(console: &Binding<Console>, application: &mut Application) {
+    state closure(application: &mut Application) {
         transition application.selection == 0 || application.selection == 1 {
-            true -> closed(console, application)
-            _ -> open(console)
+            true -> closed(application)
+            _ -> open()
         }
     }
-    state closed(console: &Binding<Console>, application: &mut Application) {
+    state closed(application: &mut Application) {
         transition near(application.previous_volume, application.first_volume)
             && near(application.previous_pressure, application.first_pressure) {
-            true -> complete(console)
-            _ -> bad_balance(console)
+            true -> complete()
+            _ -> bad_balance()
         }
     }
-    state complete(console: &Binding<Console>) { Console::write_line(console, "closed_cycle"); Console::exit_process(console, 0); }
-    state open(console: &Binding<Console>) { Console::write_line(console, "open_stage"); Console::exit_process(console, 0); }
-    state invalid(console: &Binding<Console>) { Console::write_line(console, "invalid_input"); Console::exit_process(console, 64); }
-    state invalid_stage(console: &Binding<Console>) { Console::write_line(console, "invalid_stage"); Console::exit_process(console, 65); }
-    state discontinuity(console: &Binding<Console>) { Console::write_line(console, "discontinuous_boundary"); Console::exit_process(console, 66); }
-    state bad_balance(console: &Binding<Console>) { Console::write_line(console, "invalid_cycle_balance"); Console::exit_process(console, 67); }
+    state complete() { Console::write_line("closed_cycle"); Console::exit_process(0); }
+    state open() { Console::write_line("open_stage"); Console::exit_process(0); }
+    state invalid() { Console::write_line("invalid_input"); Console::exit_process(64); }
+    state invalid_stage() { Console::write_line("invalid_stage"); Console::exit_process(65); }
+    state discontinuity() { Console::write_line("discontinuous_boundary"); Console::exit_process(66); }
+    state bad_balance() { Console::write_line("invalid_cycle_balance"); Console::exit_process(67); }
 }
 
-machine row(console: &Binding<Console>, stage: i32, point: i32, volume: f64, pressure: f64) reaches Console
+machine row(stage: i32, point: i32, volume: f64, pressure: f64) reaches Console
 crashes Trap
 {
-    integer(console, stage); Console::write(console, ","); integer(console, point); Console::write(console, ",");
-    number(console, volume); Console::write(console, ","); number(console, pressure); Console::write_line(console, "");
+    integer(stage); Console::write(","); integer(point); Console::write(",");
+    number(volume); Console::write(","); number(pressure); Console::write_line("");
 }

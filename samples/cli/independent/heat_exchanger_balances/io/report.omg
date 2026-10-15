@@ -4,67 +4,66 @@ use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
 use io::input;
 use model::stages;
-use omega::language::core::binding;
 
 // Nonnegative values in millidegrees/milliwatts; maximum 2,000,000,000.
-machine number(console: &Binding<Console>, value: f64) reaches Console {
+machine number(value: f64) reaches Console {
     // Within the declared 1e-7 physical-unit computation tolerance of a
     // half-milli threshold, treat the computed value as a tie. This avoids
     // rounding exact ties downward because affine propagation lost a few ulps.
     // It is a display policy, not an exact-rational promise for every input.
     let rounded: i32 in Saturating = I32::from_f64(value * 1000.0 + 0.5001);
     let integer: u32 = narrow_i32_to_u32_trapping(rounded as i32);
-    transition { _ -> digit(console, integer, 1000000000, false) }
-    state digit(console: &Binding<Console>, value: u32, place: u32, started: bool) requires place >= 1 {
+    transition { _ -> digit(integer, 1000000000, false) }
+    state digit(value: u32, place: u32, started: bool) requires place >= 1 {
         let character: u32 = value / place;
         transition character != 0 || started || place == 1 {
-            true -> write(console, value, place, character)
-            false -> advance(console, value, place, false)
+            true -> write(value, place, character)
+            false -> advance(value, place, false)
         }
     }
-    state write(console: &Binding<Console>, value: u32, place: u32, character: u32) requires place >= 1 {
+    state write(value: u32, place: u32, character: u32) requires place >= 1 {
         let character_code: u32 in Saturating = (character as u32 in Saturating) + 48;
-        Console::write_byte(console, narrow_u32_to_i32_trapping(character_code as u32));
-        transition { _ -> advance(console, value, place, true) }
+        Console::write_byte(narrow_u32_to_i32_trapping(character_code as u32));
+        transition { _ -> advance(value, place, true) }
     }
-    state advance(console: &Binding<Console>, value: u32, place: u32, started: bool) requires place >= 1 {
+    state advance(value: u32, place: u32, started: bool) requires place >= 1 {
         transition place >= 10 {
-            true -> digit(console, value % place, place / 10, started)
+            true -> digit(value % place, place / 10, started)
             false -> done()
         }
     }
     state done() { }
 }
-pub machine emit(console: &Binding<Console>, input: &io::input::Input, solution: &model::stages::Solution) reaches Console invokes Console; crashes Trap {
-    Console::write_line(console, "heat_exchanger_balances midpoint counterflow; temperature=mdegC heat=mW");
-    transition { _ -> node(console, input, solution, 0) }
-    state node(console: &Binding<Console>, input: &io::input::Input, solution: &model::stages::Solution, position: u32) {
+pub machine emit(input: &io::input::Input, solution: &model::stages::Solution) reaches Console invokes Console; crashes Trap {
+    Console::write_line("heat_exchanger_balances midpoint counterflow; temperature=mdegC heat=mW");
+    transition { _ -> node(input, solution, 0) }
+    state node(input: &io::input::Input, solution: &model::stages::Solution, position: u32) {
         transition position <= input.stages && position < 9 {
-            true -> row(console, input, solution, position)
-            false -> total(console, solution)
+            true -> row(input, solution, position)
+            false -> total(solution)
         }
     }
-    state row(console: &Binding<Console>, input: &io::input::Input, solution: &model::stages::Solution, position: u32) requires position < 9 {
-        Console::write(console, "node hot cold: ");
-        number(console, solution.hot[position]);
-        Console::write(console, " ");
-        number(console, solution.cold[position]);
-        Console::write_line(console, "");
+    state row(input: &io::input::Input, solution: &model::stages::Solution, position: u32) requires position < 9 {
+        Console::write("node hot cold: ");
+        number(solution.hot[position]);
+        Console::write(" ");
+        number(solution.cold[position]);
+        Console::write_line("");
         transition position < input.stages && position < 8 {
-            true -> heat(console, input, solution, position)
-            false -> total(console, solution)
+            true -> heat(input, solution, position)
+            false -> total(solution)
         }
     }
-    state heat(console: &Binding<Console>, input: &io::input::Input, solution: &model::stages::Solution, position: u32) requires position < 8 {
-        Console::write(console, "stage heat: ");
-        number(console, solution.heat[position]);
-        Console::write_line(console, "");
-        transition { _ -> node(console, input, solution, position + 1) }
+    state heat(input: &io::input::Input, solution: &model::stages::Solution, position: u32) requires position < 8 {
+        Console::write("stage heat: ");
+        number(solution.heat[position]);
+        Console::write_line("");
+        transition { _ -> node(input, solution, position + 1) }
     }
-    state total(console: &Binding<Console>, solution: &model::stages::Solution) {
-        Console::write(console, "total heat: ");
-        number(console, solution.total);
-        Console::write_line(console, "");
-        Console::write_line(console, "PASS enthalpy and cold boundary tolerance=1e-7");
+    state total(solution: &model::stages::Solution) {
+        Console::write("total heat: ");
+        number(solution.total);
+        Console::write_line("");
+        Console::write_line("PASS enthalpy and cold boundary tolerance=1e-7");
     }
 }
