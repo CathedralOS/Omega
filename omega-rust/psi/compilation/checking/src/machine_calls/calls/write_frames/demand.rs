@@ -269,6 +269,67 @@ impl<'program> CallFrameResolver<'program> {
         {
             return Some(Vec::new());
         }
+        self.statement_reference_transfer(machine, statement)
+            .map(|(_, _, _, effects)| super::stored_calls::public_effects(effects))
+    }
+
+    /// Reference inventory after destination and RHS evaluation, before the
+    /// assignment's own store. Operand calls can introduce descriptor leaves
+    /// absent at entry, so an entry inventory is not a complete store frontier.
+    /// Reuse the state walker's ordered slot transfer, without installing the
+    /// enclosing assignment or reconstructing its captured destination.
+    pub fn local_write_origins_before_store(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+        binding_is_stable: impl Fn(SymbolHandle, &[facts::PlaceSegment]) -> bool,
+    ) -> Option<Vec<LocalWriteOrigin>> {
+        let (state, index, mut prefix, effects) =
+            self.statement_reference_transfer(machine, statement)?;
+        super::stored_calls::apply(self.program, &mut prefix.stored, &effects);
+        let mut origins = super::caller_aliases::prefix_reference_origins(
+            self.program,
+            Some((state, index)),
+            &prefix.stored,
+            &[],
+            &[],
+        )?;
+        // Stored-slot transfer is current. Standalone alias bindings are an
+        // entry inventory: a replaced slot's produced row supersedes them,
+        // while an unaccounted binding change supplies an unknown origin.
+        let bindings = super::caller_aliases::prefix_reference_origins(
+            self.program,
+            Some((state, index)),
+            &[],
+            &prefix.aliases,
+            &prefix.divergent,
+        )?;
+        let stored_count = origins.len();
+        for mut binding in bindings {
+            if origins[..stored_count].iter().any(|origin| {
+                origin.local_symbol == binding.local_symbol
+                    && origin.local_segments == binding.local_segments
+            }) {
+                continue;
+            }
+            if !binding_is_stable(binding.local_symbol, &binding.local_segments) {
+                binding.source = None;
+            }
+            origins.push(binding);
+        }
+        Some(origins)
+    }
+
+    fn statement_reference_transfer(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+    ) -> Option<(
+        &State,
+        usize,
+        CollectedStatementPrefix,
+        Vec<super::stored_calls::SlotEffect>,
+    )> {
         let (state, _, index) = super::caller_aliases::caller_statement_at_site(
             self.program,
             machine,
@@ -284,7 +345,7 @@ impl<'program> CallFrameResolver<'program> {
             index,
             true,
         )?;
-        super::stored_calls::statement_effects(
+        let effects = super::stored_calls::statement_effects(
             self.program,
             machine,
             state,
@@ -292,8 +353,8 @@ impl<'program> CallFrameResolver<'program> {
             &prefix,
             &self.tables.symbols,
             &mut FrameInference::for_state(state.symbol),
-        )
-        .map(super::stored_calls::public_effects)
+        )?;
+        Some((state, index, prefix, effects))
     }
 
     /// A bare reference-local replacement changes its binding, not the storage

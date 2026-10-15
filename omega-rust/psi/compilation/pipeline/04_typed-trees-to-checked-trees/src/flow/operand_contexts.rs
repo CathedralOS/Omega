@@ -241,7 +241,14 @@ pub(crate) fn operand_observations_agree(
     second: &FlowOperandFact,
     place: &validation::CanonicalPlace,
 ) -> bool {
-    operand_sources_agree(program, flow, first, second, place, contents_overlap)
+    operand_sources_agree(
+        program,
+        flow,
+        first,
+        second,
+        place,
+        super::value_origins::ValueObservation::Contents,
+    )
 }
 
 /// Stored reference/descriptor identity is captured independently of its live
@@ -254,7 +261,14 @@ pub(crate) fn operand_bindings_agree(
     second: &FlowOperandFact,
     place: &validation::CanonicalPlace,
 ) -> bool {
-    operand_sources_agree(program, flow, first, second, place, binding_overwrite)
+    operand_sources_agree(
+        program,
+        flow,
+        first,
+        second,
+        place,
+        super::value_origins::ValueObservation::Binding,
+    )
 }
 
 fn operand_sources_agree(
@@ -263,8 +277,12 @@ fn operand_sources_agree(
     first: &FlowOperandFact,
     second: &FlowOperandFact,
     place: &validation::CanonicalPlace,
-    write_changes: SourceWriteRelation,
+    observation: super::value_origins::ValueObservation,
 ) -> bool {
+    let write_changes: SourceWriteRelation = match observation {
+        super::value_origins::ValueObservation::Contents => contents_overlap,
+        super::value_origins::ValueObservation::Binding => binding_overwrite,
+    };
     if std::ptr::eq(first, second) {
         return true;
     }
@@ -297,12 +315,13 @@ fn operand_sources_agree(
         else {
             return false;
         };
-        return !statement.completed_unknown_write
+        let (completed_writes, completed_unknown_write) = observation.statement_writes(statement);
+        return !completed_unknown_write
             && prefixes_agree(
                 program,
                 &flow.control,
                 earlier.entry_origin_writes,
-                statement.completed_writes,
+                completed_writes,
                 place,
                 write_changes,
             )
@@ -313,11 +332,12 @@ fn operand_sources_agree(
                         && statement.statement_index < later.statement_index
                 })
                 .all(|statement| {
+                    let (writes, unknown) = observation.statement_writes(statement);
                     entry_origin_is_stable_when(
                         program,
                         &flow.control,
-                        statement.completed_writes,
-                        statement.completed_unknown_write,
+                        writes,
+                        unknown,
                         place,
                         write_changes,
                     )

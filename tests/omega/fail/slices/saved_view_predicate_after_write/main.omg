@@ -1,0 +1,13 @@
+// The saved Boolean survives; its equation to current bytes does not.
+machine inspect(bytes: &[u8]) requires ascii_only(bytes) {}
+machine replace(bytes: &mut [u8]) requires bytes.len >= 1 {
+    let view: &mut [u8] = &mut bytes[0..1];
+    let saved: bool = ascii_only(view);
+    view[0] = 255;
+    transition saved {
+        true -> inspect(view)
+        false -> done()
+    }
+    state done() {}
+}
+machine main() {}

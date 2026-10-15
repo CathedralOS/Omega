@@ -31,7 +31,7 @@ pub(crate) fn close_storage_places_over_aliases(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    mut places: Vec<CanonicalPlace>,
+    places: Vec<CanonicalPlace>,
     resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     if places.is_empty() {
@@ -44,46 +44,50 @@ pub(crate) fn close_storage_places_over_aliases(
         .statement_at(state, statement_index)?;
     let resolver = resolver?;
     let origins = resolver.local_write_origins_before_statement(machine, statement)?;
+    close_storage_places_over_origins(program, state, statement_index, places, &origins)
+}
+
+/// Project physical writes into the names under which content facts live.
+/// The caller supplies the inventory at its observation frontier; a binding
+/// without preservation evidence is an unknown alias, never a disjoint one.
+pub(crate) fn close_storage_places_over_origins(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    mut places: Vec<CanonicalPlace>,
+    origins: &[validation::LocalWriteOrigin],
+) -> Option<Vec<CanonicalPlace>> {
     let storage = places.clone();
-    // Root normalization and per-origin place assembly are loop invariants:
-    // the same roots and aliases recur across every origin-by-place pair.
-    let mut normalized_roots: std::collections::HashMap<facts::PlaceRoot, facts::PlaceRoot> =
-        std::collections::HashMap::new();
     let mut seen: std::collections::HashSet<CanonicalPlace> = storage.iter().cloned().collect();
     for origin in origins {
+        // Image backing is distinct from unknown declaration storage. Its
+        // descriptor may be replaced (already in the physical footprint),
+        // but a declaration write cannot mutate the literal's backing bytes.
+        if origin
+            .source
+            .as_ref()
+            .is_some_and(|source| source.is_image_storage)
+        {
+            continue;
+        }
+        let mut alias = canonical_place_from_symbol(origin.local_symbol)?;
+        alias.segments.extend_from_slice(&origin.local_segments);
         if origin.source.is_none() {
             // This leaf can refer to any written storage. Retire its entire
             // local footprint rather than dropping all alias expansion and
             // losing even the current writer's known access route. This is
             // may-write invalidation, never evidence of a particular referent.
-            let mut alias = canonical_place_from_symbol(origin.local_symbol)?;
-            alias.segments.extend_from_slice(&origin.local_segments);
             if seen.insert(alias.clone()) {
                 places.push(alias);
             }
             continue;
         }
-        let (source, precision) = origin_place(program, state, statement_index, &origin)?;
-        let normalized_source_root = *normalized_roots
-            .entry(source.root)
-            .or_insert_with(|| source.root);
-        // The alias base is per-origin; it is built lazily so a `None` from
-        // `canonical_place_from_symbol` only surfaces when a root-matching
-        // place pair actually reaches it, as before.
-        let mut base_alias: Option<CanonicalPlace> = None;
+        let (source, precision) = origin_place(program, state, statement_index, origin)?;
         for place in &storage {
-            let normalized_place_root = *normalized_roots
-                .entry(place.root)
-                .or_insert_with(|| place.root);
-            if normalized_source_root != normalized_place_root {
+            if source.root != place.root {
                 continue;
             }
-            if base_alias.is_none() {
-                let mut alias = canonical_place_from_symbol(origin.local_symbol)?;
-                alias.segments.extend_from_slice(&origin.local_segments);
-                base_alias = Some(alias);
-            }
-            let mut alias = base_alias.clone().unwrap();
+            let mut alias = alias.clone();
             if !canonical_place_segments_may_overlap(program, &place.segments, &source.segments) {
                 continue;
             }

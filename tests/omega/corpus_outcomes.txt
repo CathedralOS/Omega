@@ -4399,6 +4399,8 @@ fail/slices/same_carrier_inline_cast_after_index_write rejected 765ms expected @
 	cannot prove index `position as u64` is within unknown slice length of `items` in read::entry
 fail/slices/same_carrier_inline_cast_wrong_collection rejected 765ms expected @2ab552549670+wt
 	cannot prove index `index as u64` is within unknown slice length of `other` in read::entry
+fail/slices/saved_view_predicate_after_write rejected 583ms expected @007d2ab5180c+wt
+	cannot prove requires contract for call inspect from replace: ascii_only(view) (needs fact `ascii_only(bytes)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/slices/scalar_copy_invalidated_domain rejected 888ms expected @a9ae30e1c334+wt
 	cannot prove assignment value `101` satisfies bounded target `items[1]` in `copy.entry`; expected 0..=100
 fail/slices/scalar_copy_missing_bounds rejected 1723ms expected @a9ae30e1c334+wt
@@ -4459,8 +4461,10 @@ fail/slices/utf8_subslice_byte_cut rejected 1820ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call inspect from relay: bytes[0..1] in [u8]::Utf8
 fail/slices/window_shrink_index_out_of_length rejected 1658ms expected @a9ae30e1c334+wt
 	cannot prove index `3` is within length 3
-fail/slices/written_subslice_loses_byte_predicate rejected 347ms expected @7451127fc8f8+wt
-	cannot prove requires contract for call inspect from replace: view in [u8]::Ascii (invalidated by prior mutation of view; view is part of [u8]::Ascii)
+fail/slices/written_nested_subslice_loses_byte_predicate rejected 587ms expected @007d2ab5180c+wt
+	cannot prove requires contract for call inspect from replace: inner in [u8]::Ascii (invalidated by prior mutation of inner; inner is part of [u8]::Ascii) in state `entry`
+fail/slices/written_subslice_loses_byte_predicate rejected 606ms expected @007d2ab5180c+wt
+	cannot prove requires contract for call inspect from replace: view in [u8]::Ascii (invalidated by prior mutation of view; view is part of [u8]::Ascii) in state `entry`
 fail/structs/affine_result_constructor_reuse rejected 1202ms expected @a9ae30e1c334+wt
 	cannot use `kind` in machine `Worker::wrap` state `wrap` (statement 1) after `kind` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `kind` first
 fail/structs/local_record_policy_erasure rejected 827ms expected @a9ae30e1c334+wt
@@ -7674,6 +7678,7 @@ pass/slices/copy_view_descriptor checked 9497ms @5041ef1af684+wt
 pass/slices/declared_view_fill checked 9650ms @5041ef1af684+wt
 pass/slices/disjoint_mut_subslice_windows_compile checked 1584ms @a9ae30e1c334+wt
 pass/slices/disjoint_mut_windows checked 9482ms @5041ef1af684+wt
+pass/slices/disjoint_window_predicate_after_repeated_write checked 664ms @007d2ab5180c+wt
 pass/slices/domained_runtime_end_subslice_exit checked 10917ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/element_view_write checked 9607ms @5041ef1af684+wt
 pass/slices/empty_fixed_array_slice_call_exit checked 10520ms check-target:macos_arm64 @a9ae30e1c334+wt

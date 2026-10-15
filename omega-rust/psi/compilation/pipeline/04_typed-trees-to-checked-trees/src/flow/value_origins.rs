@@ -34,6 +34,22 @@ enum OriginFrontier {
 }
 
 impl ValueObservation {
+    pub(crate) fn statement_writes(
+        self,
+        statement: &checked_trees::FlowStatementFact,
+    ) -> (arena::HandleSpan<checked_trees::FlowOperandReferent>, bool) {
+        match self {
+            Self::Contents => (
+                statement.completed_content_writes,
+                statement.completed_content_unknown_write,
+            ),
+            Self::Binding => (
+                statement.completed_writes,
+                statement.completed_unknown_write,
+            ),
+        }
+    }
+
     pub(crate) fn changed_by(
         self,
         program: &dyn ::validation::CheckingInput,
@@ -536,9 +552,7 @@ fn preserve_statement_effects(
                     operand.entry_origin_unknown_write,
                 )
             }
-            OriginFrontier::CompletedStatement => {
-                (stored.completed_writes, stored.completed_unknown_write)
-            }
+            OriginFrontier::CompletedStatement => observation.statement_writes(stored),
         };
         let stable = match observation {
             ValueObservation::Contents => super::operand_contexts::entry_origin_is_stable(

@@ -74,6 +74,8 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             stored_destination: Handle::invalid(),
             completed_writes: HandleSpan::empty(),
             completed_unknown_write: false,
+            completed_content_writes: HandleSpan::empty(),
+            completed_content_unknown_write: false,
             entry_semantic_contexts: *active_contexts,
             exit_semantic_contexts: HandleSpan::empty(),
             entry_constraints: *active_constraints,
@@ -321,6 +323,16 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 )
                 .map(|places| (*places).clone())
         };
+        let operand_writes = build
+            .control
+            .statements
+            .get(statement_fact)
+            .completed_writes;
+        let operand_unknown_write = build
+            .control
+            .statements
+            .get(statement_fact)
+            .completed_unknown_write;
         if let Some(writes) = &storage_writes {
             let mut completed = build
                 .control
@@ -352,6 +364,69 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 .get_mut(statement_fact)
                 .completed_unknown_write = true;
         }
+        // Keep the captured store footprint distinct from its content aliases.
+        // Historical predicates need the expanded names too, but recording an
+        // alias as a physical store would falsely replace its descriptor and
+        // lose the captured address on the next write through that view.
+        let content_writes = if statement.as_assignment().is_some() {
+            storage_writes.as_ref().and_then(|places| {
+                let origins = build.call_frames?.local_write_origins_before_store(
+                    machine,
+                    statement,
+                    |symbol, segments| {
+                        let Some(mut alias) = super::canonical_place_from_symbol(symbol) else {
+                            return false;
+                        };
+                        alias.segments.extend_from_slice(segments);
+                        super::operand_contexts::binding_origin_is_stable(
+                            program,
+                            &build.control,
+                            operand_writes,
+                            operand_unknown_write,
+                            &alias,
+                        )
+                    },
+                )?;
+                super::mutation::close_storage_places_over_origins(
+                    program,
+                    state,
+                    statement_index,
+                    places.clone(),
+                    &origins,
+                )
+            })
+        } else {
+            storage_writes.clone()
+        };
+        let mut completed_contents = build
+            .control
+            .statements
+            .get(statement_fact)
+            .completed_writes;
+        if let Some(places) = &content_writes {
+            for place in places.iter().filter(|place| {
+                storage_writes
+                    .as_ref()
+                    .is_none_or(|physical| !physical.contains(place))
+            }) {
+                let segments = build
+                    .control
+                    .operand_referent_segments
+                    .insert_many(place.segments.iter().copied());
+                build.control.operand_origin_writes.append_to_span(
+                    &mut completed_contents,
+                    checked_trees::FlowOperandReferent {
+                        root: place.root,
+                        segments,
+                    },
+                );
+            }
+        }
+        let completed = build.control.statements.get_mut(statement_fact);
+        completed.completed_content_writes = completed_contents;
+        completed.completed_content_unknown_write =
+            completed.completed_unknown_write || content_writes.is_none();
+        let storage_writes = content_writes;
         if storage_writes.is_none() {
             *active_contexts = HandleSpan::empty();
             *active_constraints = project_constraint_refs_to_active_contexts(

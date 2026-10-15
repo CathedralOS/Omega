@@ -114,6 +114,10 @@ pub struct CallWriteOrigins {
 /// coarse; exact structured coordinates are composed and checked independently.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalWriteSource {
+    /// Literal-produced image backing cannot alias writable declaration storage.
+    /// This category survives projection independently of coordinate precision;
+    /// an absent declaration root alone never establishes static backing.
+    pub is_image_storage: bool,
     pub recasts: Vec<RecastSource>,
     /// Logical recast carrier and selectors, separate from the raw backing.
     pub representation: Option<(super::TypeReferenceHandle, Vec<facts::PlaceSegment>)>,
@@ -153,6 +157,7 @@ impl LocalWriteSource {
         };
         let source = coordinate(self).append_relative(&coordinate(relative));
         Some(Self {
+            is_image_storage: self.is_image_storage,
             recasts: source.recasts,
             root: source.root,
             segments: source.segments,
@@ -167,6 +172,7 @@ impl LocalWriteSource {
 impl From<FramePlaceOrigin> for LocalWriteSource {
     fn from(origin: FramePlaceOrigin) -> Self {
         Self {
+            is_image_storage: origin.source.is_static(),
             recasts: origin.source.recasts,
             representation: origin.source.representation,
             path: origin.path,
@@ -438,7 +444,7 @@ pub(super) fn local_write_origins_before_statement(
     )
 }
 
-fn prefix_reference_origins(
+pub(super) fn prefix_reference_origins(
     program: &dyn crate::CheckingInput,
     position: Option<(&typed_trees::state::State, usize)>,
     stored: &[StoredLocalOrigins],

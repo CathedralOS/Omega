@@ -186,6 +186,12 @@ pub struct FlowStatementFact {
     /// final store. Transition rows retain only the fallthrough guard effects.
     pub completed_writes: HandleSpan<super::FlowOperandReferent>,
     pub completed_unknown_write: bool,
+    /// Content-observation footprint, including aliases of the final store.
+    /// These names retire historical predicates but do not mean that a
+    /// descriptor binding was overwritten. Binding preservation uses the
+    /// captured storage writes above; content preservation uses these rows.
+    pub completed_content_writes: HandleSpan<super::FlowOperandReferent>,
+    pub completed_content_unknown_write: bool,
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
     /// Live facts after this statement's mutations and value transfers, before
     /// any subsequent statement or proof output can restore an invariant.

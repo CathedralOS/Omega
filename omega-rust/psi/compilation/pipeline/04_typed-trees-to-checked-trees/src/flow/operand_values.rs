@@ -257,8 +257,8 @@ fn reaching_store_values<'capture>(
         if !super::entry_origin_is_stable(
             program,
             &flow.control,
-            statement.completed_writes,
-            statement.completed_unknown_write,
+            statement.completed_content_writes,
+            statement.completed_content_unknown_write,
             &source,
         ) {
             return None;

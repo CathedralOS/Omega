@@ -109,8 +109,8 @@ fn stable_copies(
                 crate::flow::entry_origin_is_stable(
                     program,
                     &facts.flow.control,
-                    later.completed_writes,
-                    later.completed_unknown_write,
+                    later.completed_content_writes,
+                    later.completed_content_unknown_write,
                     &destination,
                 )
             })

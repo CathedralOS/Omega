@@ -133,6 +133,7 @@ pub fn collect_parameter_bound_comparisons(
         return;
     };
     let relative = LocalWriteSource {
+        is_image_storage: false,
         root: parameter.symbol,
         segments: place.segments,
         representation: None,

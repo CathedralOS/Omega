@@ -1,0 +1,18 @@
+// A write retires the touched window's content predicate, not its extent or
+// a disjoint sibling's predicate. Repeated stores use the same descriptors.
+domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+machine inspect(bytes: &[u8] in Ascii) -> bool { bytes == "CD" }
+machine replace(bytes: &mut [u8]) crashes Trap
+requires ascii_only(bytes) && bytes.len >= 4 {
+    let left: &mut [u8] = &mut bytes[0..2];
+    let right: &mut [u8] = &mut bytes[2..4];
+    left[0] = 255;
+    left[1] = 65;
+    transition left.len == 2 && right.len == 2 && inspect(right) {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+machine main() {}

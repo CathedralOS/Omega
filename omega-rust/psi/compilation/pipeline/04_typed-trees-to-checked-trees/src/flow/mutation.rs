@@ -25,6 +25,7 @@ mod summary;
 
 pub(crate) use ceiling::signature_ceiling_places;
 pub(crate) use local_origins::close_storage_places_over_aliases;
+pub(crate) use local_origins::close_storage_places_over_origins;
 pub(crate) use local_origins::place_from_origin_path;
 pub(crate) use local_origins::rebase_exact_local_place;
 pub(crate) use local_origins::{OriginPrecision, origin_place, sole_local_referent_origin};
