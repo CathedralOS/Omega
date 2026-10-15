@@ -1,7 +1,16 @@
 // The completed copy keeps its old value only until this destination is written.
 // The source's surviving normal guarantee cannot justify the replacement value.
+use omega::language::core::float_operations;
+
 data Saved [copy] { amount: i32; }
 data Holder { amount: i32; }
+data SavedFloat [copy] { value: f64; }
+
+machine equal_float(left: f64, right: f64) requires left == right {}
+machine float_copies(value: f64) {
+    let saved: SavedFloat = SavedFloat { value: value };
+    equal_float(saved.value, value);
+}
 
 machine replace(holder: &mut Holder, replacement: i32)
 ensures holder.amount == replacement {
@@ -42,9 +51,48 @@ machine exercise(initial: i32, replacement: i32) {
     observe(saved, replacement);
 }
 
+// Saving one side does not retain equality to a subsequently changed input.
+machine changed_dependency(initial: i32, replacement: i32) {
+    let mut holder: Holder = Holder { amount: initial };
+    let mut expected: i32 = replacement;
+    replace(&mut holder, expected);
+    let saved: Saved = Saved { amount: holder.amount };
+    expected = initial;
+    observe(saved, expected);
+}
+
+// Identical source spelling at different write epochs is not value identity.
+machine distinct_captures(initial: i32, replacement: i32) {
+    let mut holder: Holder = Holder { amount: initial };
+    let first: Saved = Saved { amount: holder.amount };
+    replace(&mut holder, replacement);
+    let second: Saved = Saved { amount: holder.amount };
+    equal(first.amount, second.amount);
+}
+
+machine replace_either(first: &mut Holder, second: &mut Holder)
+ensures first.amount == 1 || second.amount == 2 {
+    second.amount = 2;
+}
+
+// A guaranteed disjunction cannot donate either branch as a separate fact.
+machine disjunctive_capture(initial: i32) {
+    let mut first: Holder = Holder { amount: initial };
+    let mut second: Holder = Holder { amount: initial };
+    replace_either(&mut first, &mut second);
+    let saved: Saved = Saved { amount: first.amount };
+    first.amount = 1;
+    observe(saved, 1);
+}
+
 machine main() {
     exercise(41, 9);
     scalar_inputs(41, 9);
     scalar_exit(41, 9);
     forwarded_inputs(41, 9);
+    changed_dependency(41, 9);
+    distinct_captures(41, 9);
+    disjunctive_capture(41);
+    let zero: f64 = 0.0;
+    float_copies(zero / zero);
 }

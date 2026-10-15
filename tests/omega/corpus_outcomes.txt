@@ -1652,11 +1652,15 @@ fail/contracts/case_requirement_selector_changed rejected 384ms expected @6c0183
 	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/case_requires_other_case_payload_read rejected 5075ms expected @a9ae30e1c334+wt
 	cannot prove selected case for payload access
-fail/contracts/copied_field_guarantee_after_overwrite rejected 381ms expected @359b1dba56f5
+fail/contracts/copied_field_guarantee_after_overwrite rejected 1175ms expected @ea24f0fe7101
+	cannot prove requires contract for call equal_float from float_copies: saved.value == value (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call equal from scalar_inputs: initial == replacement (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove ensures contract for exit from scalar_exit at statement 2: initial == replacement
 	cannot prove requires contract for call equal from forwarded_inputs: initial == replacement (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call observe from exercise: saved.amount == replacement (needs fact `saved.amount == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from changed_dependency: saved.amount == expected (needs fact `saved.amount == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call equal from distinct_captures: first.amount == second.amount (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from disjunctive_capture: saved.amount == 1 (needs fact `saved.amount == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/current_computed_scalar_guard_false_arm rejected 510ms expected @635eb3f2e180+wt
 	cannot prove requires contract for call selected from check: offset <= 256 (needs fact `offset <= 256` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call selected from check: width <= 256 - offset (needs fact `width <= 256 - offset` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -5639,8 +5643,9 @@ pass/calls/runtime_static_proof_only_namespace_exit checked 12468ms check-target
 pass/calls/runtime_static_tail_local_custody_exit checked 11726ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_static_tail_reordered_local_custody_exit checked 11934ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_std_math_sin_cos_exit checked 33684ms check-target:macos_arm64 @5c5bb7a1c2c2+wt
-pass/calls/runtime_stored_constructor_snapshots_exit checked 11619ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_stored_constructor_snapshots_exit checked 5330ms check-target:macos_arm64 @ea24f0fe7101
 pass/calls/runtime_stored_equal_observations_exit checked 11955ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_stored_field_constructor_snapshots_exit checked 2725ms check-target:macos_arm64 @ea24f0fe7101
 pass/calls/runtime_stored_reference_computation_argument_exit checked 4325ms check-target:macos_arm64 @af6b0f221559+wt
 pass/calls/runtime_structural_literal_call_initializer_exit checked 12783ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_temporary_lending_order_exit checked 12689ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -1,5 +1,45 @@
+use omega::language::core::float_operations;
+
 data Captured [copy] { first: i32; replaced: bool; second: i32; }
 data Holder { amount: i32; }
+data SavedBoolean [copy] { value: bool; }
+data SavedFloat [copy] { value: f64; }
+
+machine observe_float(saved: SavedFloat, value: f64, limit: f64)
+requires (saved.value < limit) == (value < limit)
+crashes Trap {
+    transition (saved.value < limit) == (value < limit) {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine copy_float(value: f64, limit: f64) crashes Trap {
+    let saved: SavedFloat = SavedFloat { value: value };
+    let copied: SavedFloat = saved;
+    observe_float(copied, value, limit);
+}
+
+machine observe_boolean(saved: SavedBoolean, expected: bool)
+requires saved.value == expected
+crashes Trap {
+    transition saved.value == expected {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine copy_boolean(value: bool) crashes Trap {
+    let mut saved: SavedBoolean;
+    saved = SavedBoolean { value: value };
+    let mut copied: SavedBoolean;
+    copied = saved;
+    observe_boolean(copied, value);
+}
 
 machine replace(holder: &mut Holder, replacement: i32) -> bool
 ensures holder.amount == replacement {
@@ -29,6 +69,16 @@ machine exercise(initial: i32, replacement: i32) crashes Trap {
     let mut assigned: Captured;
     assigned = saved;
     observe(assigned, initial, replacement);
+    holder.amount = initial;
+    observe(assigned, initial, replacement);
 }
 
-machine main() crashes Trap { exercise(41, 9); }
+machine main() crashes Trap {
+    exercise(41, 9);
+    copy_boolean(true);
+    copy_boolean(false);
+    copy_float(1.0, 2.0);
+    // Identical captured NaN values have identical comparisons, not IEEE equality.
+    let zero: f64 = 0.0;
+    copy_float(zero / zero, 2.0);
+}

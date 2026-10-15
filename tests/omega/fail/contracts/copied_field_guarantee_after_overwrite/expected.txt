@@ -2,3 +2,7 @@ cannot prove requires contract for call observe from exercise
 cannot prove requires contract for call equal from scalar_inputs
 cannot prove ensures contract for exit from scalar_exit
 cannot prove requires contract for call equal from forwarded_inputs
+cannot prove requires contract for call observe from changed_dependency
+cannot prove requires contract for call equal from distinct_captures
+cannot prove requires contract for call equal_float from float_copies
+cannot prove requires contract for call observe from disjunctive_capture

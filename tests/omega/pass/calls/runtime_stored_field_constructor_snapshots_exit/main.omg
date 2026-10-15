@@ -5,17 +5,18 @@
 // both observations prove `value.first == initial` and
 // `value.second == replacement`.
 data Captured [copy] { first: i32; replaced: bool; second: i32; }
-data Holder { amount: i32; }
+data Holder { amount: i32; spare: i32; }
 data Snapshot { value: Captured; spare: Captured; }
 
 machine replace(holder: &mut Holder, replacement: i32) -> bool
-ensures holder.amount == replacement {
+ensures holder.amount == replacement && holder.spare == replacement {
     holder.amount = replacement;
+    holder.spare = replacement;
     true
 }
 
 machine observe(value: Captured, initial: i32, replacement: i32)
-requires value.first == initial, value.second == replacement
+requires value.first == initial && value.second == replacement
 crashes Trap {
     transition value.replaced && value.first == initial && value.second == replacement {
         true -> done()
@@ -26,7 +27,7 @@ crashes Trap {
 }
 
 machine exercise(snapshot: &mut Snapshot, initial: i32, replacement: i32) crashes Trap {
-    let mut holder: Holder = Holder { amount: initial };
+    let mut holder: Holder = Holder { amount: initial, spare: initial };
     snapshot.value = Captured {
         first: holder.amount,
         replaced: replace(&mut holder, replacement),
@@ -34,6 +35,9 @@ machine exercise(snapshot: &mut Snapshot, initial: i32, replacement: i32) crashe
     };
     observe(snapshot.value, initial, replacement);
     snapshot.spare = snapshot.value;
+    observe(snapshot.spare, initial, replacement);
+    // Replacing the former source cannot change either completed snapshot.
+    holder.amount = initial;
     observe(snapshot.spare, initial, replacement);
 }
 
