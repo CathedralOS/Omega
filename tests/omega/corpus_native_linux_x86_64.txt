@@ -580,8 +580,7 @@ pass/calls/recursive_terminal_block_acknowledgement_exit built 17702ms exit:0 @6
 pass/calls/requires_carrier_ceiling_vacuous built 14936ms exit:70 @6c49683ce714
 pass/calls/requires_operand_flip_discharge built 15317ms exit:70 @6c49683ce714
 pass/calls/result_overload_terminal_arm_exit built 17502ms exit:0 @6c49683ce714
-pass/calls/resultless_native_callback_compile rejected 2093ms regressed-from:built @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
+pass/calls/resultless_native_callback_compile built 9115ms @4c4c955947d3
 pass/calls/retained_receiver_argument_order_exit built 15034ms exit:70 @6c49683ce714
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 14555ms exit:70 @6c49683ce714
 pass/calls/runtime_anonymous_result_local_namespace_exit built 15563ms exit:70 @6c49683ce714
@@ -975,7 +974,7 @@ pass/contracts/call_write_keeps_disjoint_guard_assert_exit built 17683ms exit:0 
 pass/contracts/call_write_keeps_disjoint_guard_exit built 14803ms exit:24 @6c49683ce714
 pass/contracts/carry_contract_decl checked 17809ms @6c49683ce714
 pass/contracts/case_requires_payload_field_read_exit built 17613ms exit:0 @6c49683ce714
-pass/contracts/current_computed_scalar_guard_exit built 10343ms exit:70 @e3b4d1c40373
+pass/contracts/current_computed_scalar_guard_exit built 9814ms exit:70 @4c4c955947d3
 pass/contracts/disequality_disjoin checked 17520ms @6c49683ce714
 pass/contracts/disjunctive_ensures checked 17589ms @6c49683ce714
 pass/contracts/distance_conjunction checked 17712ms @6c49683ce714
@@ -1677,7 +1676,7 @@ pass/float/owned_local_computed_float_store_exit built 32707ms exit:70 @6c49683c
 pass/float/public_boolean_result_contract_import_exit built 34951ms exit:0 @6c49683ce714
 pass/float/public_boolean_result_contract_match_import_exit built 34126ms exit:0 @6c49683ce714
 pass/float/public_boolean_result_contract_short_circuit_import_exit built 34178ms exit:0 @6c49683ce714
-pass/float/public_class_result_contract_import_exit built 12293ms exit:0 @e3b4d1c40373
+pass/float/public_class_result_contract_import_exit built 12354ms exit:0 @4c4c955947d3
 pass/float/public_integer_input_contract_guarded_import_exit built 34382ms exit:0 @6c49683ce714
 pass/float/public_integer_input_contract_import_exit built 34257ms exit:0 @6c49683ce714
 pass/float/public_integer_input_contract_state_import_exit built 34192ms exit:0 @6c49683ce714
@@ -1690,7 +1689,7 @@ pass/float/runtime_absolute_shared_call_operands_exit built 34650ms exit:70 @6c4
 pass/float/runtime_authored_max_selection_exit built 34926ms exit:70 @6c49683ce714
 pass/float/runtime_builtin_guard_application_exit built 35759ms exit:70 @6c49683ce714
 pass/float/runtime_builtin_ieee_order_exit built 35556ms exit:70 @6c49683ce714
-pass/float/runtime_classification_result_categories_exit built 13148ms exit:0 @e3b4d1c40373
+pass/float/runtime_classification_result_categories_exit built 12630ms exit:0 @4c4c955947d3
 pass/float/runtime_coercion_future_policy_exit built 34667ms exit:0 @6c49683ce714
 pass/float/runtime_exact_format_narrowing_exit built 34037ms exit:0 @6c49683ce714
 pass/float/runtime_exact_integer_coercion_exit built 33727ms exit:0 @6c49683ce714
@@ -1764,7 +1763,7 @@ pass/generics/machine_bound_satisfied_at_call checked 3434ms @6c49683ce714
 pass/generics/machine_indexed_stream_dispatch checked 17724ms @6c49683ce714
 pass/generics/machine_type_equations checked 3416ms @6c49683ce714
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 3536ms @6c49683ce714
-pass/generics/omitted_data_binder_range_equation built 5862ms exit:92 @e3b4d1c40373
+pass/generics/omitted_data_binder_range_equation built 5713ms exit:92 @4c4c955947d3
 pass/generics/omitted_fixed_domain_array_equation checked 3513ms @6c49683ce714
 pass/generics/open_computed_quantity_result built 15352ms exit:70 @6c49683ce714
 pass/generics/ranged_const_parameter_attached_shape built 14807ms exit:70 @6c49683ce714
@@ -1796,17 +1795,17 @@ pass/generics/runtime_const_data_multiple_instances_exit built 15237ms exit:70 @
 pass/generics/runtime_const_data_symbolic_expression_exit built 15168ms exit:70 @6c49683ce714
 pass/generics/runtime_const_data_where_fact_exit built 15528ms exit:70 @6c49683ce714
 pass/generics/runtime_const_extent_guard_floors_exit built 29860ms exit:0 @6c49683ce714
-pass/generics/runtime_constructor_equation_binder_carriers_exit built 6361ms exit:0 @e3b4d1c40373
+pass/generics/runtime_constructor_equation_binder_carriers_exit built 6060ms exit:0 @4c4c955947d3
 pass/generics/runtime_container_setter_matrix_exit built 15535ms exit:1 @6c49683ce714
 pass/generics/runtime_copied_indexed_case_subject_exit built 15609ms exit:70 @6c49683ce714
-pass/generics/runtime_equation_constructor_selected_const_exit built 6434ms exit:0 @e3b4d1c40373
-pass/generics/runtime_equation_named_array_actual_exit built 6350ms exit:0 @e3b4d1c40373
+pass/generics/runtime_equation_constructor_selected_const_exit built 6050ms exit:0 @4c4c955947d3
+pass/generics/runtime_equation_named_array_actual_exit built 6166ms exit:0 @4c4c955947d3
 pass/generics/runtime_finite_recursive_reference_catalog_exit built 18075ms exit:0 @6c49683ce714
 pass/generics/runtime_forwarded_generic_slice_result_exit built 17408ms exit:0 @6c49683ce714
 pass/generics/runtime_forwarded_value_contract_exit built 18165ms exit:0 @6c49683ce714
 pass/generics/runtime_generic_carrier_binder_equation_exit built 17623ms exit:0 @6c49683ce714
 pass/generics/runtime_generic_carrier_equation_context_exit built 18404ms exit:0 @6c49683ce714
-pass/generics/runtime_generic_carrier_equation_exit built 5630ms exit:7 @e3b4d1c40373
+pass/generics/runtime_generic_carrier_equation_exit built 5583ms exit:7 @4c4c955947d3
 pass/generics/runtime_generic_composite_field_arguments_exit built 17512ms exit:0 @6c49683ce714
 pass/generics/runtime_generic_multiple_specializations_exit built 14913ms exit:14 @6c49683ce714
 pass/generics/runtime_generic_qualified_constructor_shadow_exit built 18043ms exit:0 @6c49683ce714
@@ -2138,7 +2137,7 @@ pass/operators/runtime_declared_open_range_preserves_operand_snapshot_exit built
 pass/operators/runtime_declared_range_guarded_collection_exit built 17668ms exit:0 @6c49683ce714
 pass/operators/runtime_declared_reference_index_capture_exit built 17663ms exit:0 @6c49683ce714
 pass/operators/runtime_generic_reference_selector_snapshot_exit built 17638ms exit:0 @6c49683ce714
-pass/operators/runtime_named_unit_statement_effects_exit built 6181ms exit:0 @e3b4d1c40373
+pass/operators/runtime_named_unit_statement_effects_exit built 6074ms exit:0 @4c4c955947d3
 pass/operators/runtime_selected_operator_requires_after_effects_exit built 17646ms exit:0 @6c49683ce714
 pass/operators/runtime_xorshift_prng_exit built 15121ms exit:70 @6c49683ce714
 pass/operators/slice_index_bounds_from_operator_contract checked 3614ms @6c49683ce714
@@ -3107,7 +3106,7 @@ pass/text/runtime_view_local_record_local_field_store_exit built 6575ms exit:70 
 pass/text/runtime_view_local_state_transfer_exit built 6585ms exit:70 @d9f4c930251e+wt
 pass/text/state_parameter_byte_replacement_exit built 15107ms exit:70 @6c49683ce714
 pass/text/text_concat_assign checked 18236ms @6c49683ce714
-pass/text/utf8_boundary_established checked 1148ms @e3b4d1c40373
+pass/text/utf8_boundary_established checked 1037ms @4c4c955947d3
 pass/text/utf8_member_verdict rejected 15013ms @6c49683ce714
 	machine `LabelMessage::decode` state `field_1_view_validate` statement 0: call stores a borrowed value without a complete destination/backing relation
 pass/text/view_field_literal_store_outlives_helper_exit built 15276ms exit:70 @6c49683ce714
