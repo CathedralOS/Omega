@@ -65,6 +65,8 @@ pub struct BoundaryCallingPlanRealization {
     pub native_parameters: Vec<BoundaryNativeParameter>,
     pub(crate) materialized_signature: MaterializedBoundarySignature,
     pub policy_machine: String,
+    /// Exact target member retained when callback layout closes its signature.
+    pub(crate) policy_symbol: symbols::SymbolHandle,
     pub relationship_span: source::SourceSpan,
 }
 
@@ -895,6 +897,7 @@ pub fn close_outbound_callback_materializations(
             typed,
             &admission,
             &realization.policy_machine,
+            realization.policy_symbol,
             &signature,
             Some(build_time_evaluation::BuildTimeInvocationCustody::Source(
                 realization.relationship_span,

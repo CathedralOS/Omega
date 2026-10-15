@@ -305,7 +305,7 @@ pub fn compute_boundary_calling_plans(
             BuildTimeProgram::Checked(checked),
             &admission,
             &policy_machine,
-            Some(policy_symbol),
+            policy_symbol,
             &signature,
             Some(build_time_evaluation::BuildTimeInvocationCustody::Source(
                 relationship_span,
@@ -345,6 +345,7 @@ pub fn compute_boundary_calling_plans(
             native_parameters: signature.native_parameters.clone(),
             materialized_signature: signature,
             policy_machine,
+            policy_symbol,
             relationship_span,
         });
     }
@@ -377,6 +378,7 @@ pub(crate) fn evaluate_materialized_calling_policy_plan(
     typed: &TypedTrees,
     admission: &build_time_evaluation::BuildTimeAdmissionPlan,
     policy_machine: &str,
+    policy_symbol: symbols::SymbolHandle,
     signature: &MaterializedBoundarySignature,
     custody: Option<build_time_evaluation::BuildTimeInvocationCustody>,
 ) -> Result<ValidatedBoundaryEntryPlan, CallingPolicyRejection> {
@@ -384,7 +386,7 @@ pub(crate) fn evaluate_materialized_calling_policy_plan(
         BuildTimeProgram::Typed(typed),
         admission,
         policy_machine,
-        None,
+        policy_symbol,
         signature,
         custody,
     )
@@ -394,7 +396,7 @@ fn evaluate_selected_materialized_calling_policy_plan(
     program: BuildTimeProgram<'_>,
     admission: &build_time_evaluation::BuildTimeAdmissionPlan,
     policy_machine: &str,
-    policy_symbol: Option<symbols::SymbolHandle>,
+    policy_symbol: symbols::SymbolHandle,
     signature: &MaterializedBoundarySignature,
     custody: Option<build_time_evaluation::BuildTimeInvocationCustody>,
 ) -> Result<ValidatedBoundaryEntryPlan, CallingPolicyRejection> {
@@ -407,36 +409,17 @@ fn evaluate_selected_materialized_calling_policy_plan(
     }
 
     let arguments = vec![build_boundary_signature(signature)];
-    let value = if let Some(symbol) = policy_symbol {
-        admission
-            .evaluate_machine_symbol_for_invocation_measured(
-                program,
-                symbol,
-                arguments,
-                custody.unwrap_or(build_time_evaluation::BuildTimeInvocationCustody::Symbol(
-                    symbol,
-                )),
-            )
-            .map(|evaluation| evaluation.into_value())
-            .map_err(CallingPolicyRejection::from)?
-    } else {
-        match custody {
-            Some(custody) => admission.evaluate_machine_for_invocation(
-                program,
-                policy_machine,
-                arguments,
-                custody,
-            ),
-            None => admission.evaluate_machine(program, policy_machine, arguments),
-        }
-        .map_err(|rejection| CallingPolicyRejection {
-            reason: format!(
-                "build-time evaluation of calling policy `{policy_machine}` failed: {}",
-                rejection.reason
-            ),
-            source_span: rejection.source_span,
-        })?
-    };
+    let value = admission
+        .evaluate_machine_symbol_for_invocation_measured(
+            program,
+            policy_symbol,
+            arguments,
+            custody.unwrap_or(build_time_evaluation::BuildTimeInvocationCustody::Symbol(
+                policy_symbol,
+            )),
+        )
+        .map(|evaluation| evaluation.into_value())
+        .map_err(CallingPolicyRejection::from)?;
     let result = decode_boundary_plan_result(&value).map_err(|reason| {
         format!("calling policy `{policy_machine}` returned an invalid result: {reason}")
     })?;
