@@ -904,6 +904,7 @@ pass/collections/runtime_record_element_window_write_read_exit built 17477ms exi
 pass/collections/runtime_record_exclusive_element_extent_exit built 17693ms exit:0 @6c49683ce714
 pass/collections/runtime_record_slice_float_reads_exit built 36920ms exit:0 @6c49683ce714
 pass/collections/runtime_refined_element_view_call_write_exit built 17444ms exit:0 @6c49683ce714
+pass/collections/runtime_sequential_index_observations_exit built 5163ms exit:0 @ad45dccb1560
 pass/collections/runtime_shared_array_dot_product_exit built 7919ms exit:32 stdout:match @326ed531359e+wt
 pass/collections/runtime_shared_array_polynomial_exit built 7962ms exit:70 stdout:match @326ed531359e+wt
 pass/collections/runtime_shared_fixed_array_cycle_exit built 8261ms exit:42 stdout:match @326ed531359e+wt
