@@ -39,7 +39,14 @@ pub(super) fn retain(
         else {
             continue;
         };
-        let key = source_key(site, occurrence.source_target);
+        // Checking records the registrar as the requirement template, while a
+        // direct `Requirement::operation<Handler>(...)` call lowers through
+        // the closed application of that template. Both name one registrar.
+        let registrar = checked
+            .typed
+            .closed_requirement_application(occurrence.source_target)
+            .map_or(occurrence.source_target, |application| application.template);
+        let key = source_key(site, registrar);
         let first = requested.partition_point(|(candidate, _, _)| *candidate < key);
         for (_, _, registrar) in requested[first..]
             .iter_mut()
