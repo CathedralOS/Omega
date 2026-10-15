@@ -35,7 +35,8 @@ macro_rules! assign_calls {
 pub(super) fn assign_contract_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
-) {
+) -> Result<(), Vec<Diagnostic>> {
+    let conformance_scopes = super::scope::ConformanceTypeScopes::of(program)?;
     let attached_machines = super::scope::attached_machines(program);
     let trait_scopes = super::scope::TraitLexicalScopes::of(program);
     let SymbolResolvedTrees { roots, tables, .. } = program;
@@ -65,10 +66,23 @@ pub(super) fn assign_contract_reference_symbols(
         let data_definition = data_definitions
             .iter()
             .find(|definition| definition.symbol == machine.attached_data_symbol);
+        // Headers and bodies share the same lexical telescope. Owned map rows
+        // capture their conformance binders; attached methods also retain their
+        // carrier's binders, with local declarations shadowing both.
+        let invocation_scope = super::scope::declaration_type_scope(
+            data_type_parameters.span_or_empty(machine.type_parameters),
+            conformance_scopes.parameters(machine.symbol),
+        );
+        let lexical_scope = super::scope::declaration_type_scope(
+            &invocation_scope,
+            data_definition.map_or(&[], |definition| {
+                data_type_parameters.span_or_empty(definition.type_parameters)
+            }),
+        );
         let scope = scope_context.scope(
             machine.symbol,
             trait_scopes.requirements_of(machine.trait_default_origin.declaring_trait),
-            data_type_parameters.span_or_empty(machine.type_parameters),
+            &lexical_scope,
             machine.attached_data.as_ref(),
             machine.attached_data_symbol,
             data_definition.map(|definition| data_members.span_or_empty(definition.members)),
@@ -210,6 +224,7 @@ pub(super) fn assign_contract_reference_symbols(
             child_type_references,
         );
     }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]

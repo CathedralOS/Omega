@@ -3114,10 +3114,7 @@ pass/traits/equatable_record_equality_exit built 15111ms exit:70 @6c49683ce714
 pass/traits/equatable_string_field_equality_exit built 7794ms exit:70 @6c49683ce714
 pass/traits/equatable_synthesis checked 17778ms @6c49683ce714
 pass/traits/exact_edge_application_and_invocation_parameters built 15267ms exit:70 @6c49683ce714
-pass/traits/generic_map_applied_contract_exit rejected 2549ms @8665e38f912c
-	cannot prove ensures contract for exit from Identity::identity at statement 0: result <= Maximum
-	cannot prove ensures contract for exit from Identity::identity$specialized$424e8d1988a1e7b7$0 at statement 0: result <= Maximum
-	cannot prove ensures contract for exit from Identity::identity$specialized$424e8d1988a1e7b7$1 at statement 0: result <= Maximum
+pass/traits/generic_map_applied_contract_exit built 5118ms exit:0 @a9301bf2b152+wt
 pass/traits/generic_reference_forwarding_exit built 15271ms exit:1 @6c49683ce714
 pass/traits/generic_trait_parent_binds_requirement checked 3454ms @6c49683ce714
 pass/traits/implementation_argument_category_collision built 12374ms @6c49683ce714

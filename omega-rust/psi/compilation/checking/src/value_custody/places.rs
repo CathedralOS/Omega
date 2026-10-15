@@ -302,15 +302,13 @@ pub fn declared_place_type_raw(
 
     if let Some(path) = program.expression_table.name_path_node(handle)
         && program.expression_table.name_path_is_single_member(path)
-        && let Some(parameter) = program
-            .machine_type_parameters(current_machine)
-            .iter()
-            .find(|parameter| parameter.symbol == path.symbol)
+        && let Some(parameter) = program.data_type_parameter_by_symbol(path.symbol)
         && let typed_trees::data::TypeParameterKind::Const { type_reference }
         | typed_trees::data::TypeParameterKind::Value { type_reference } = parameter.kind
     {
-        // Static binders are immutable values of their declared carrier even
-        // before specialization. This type query grants no writable place.
+        // Captured conformance and callable binders keep the exact arena
+        // declaration named by this occurrence, even when they are outside
+        // the machine's local telescope. Their carrier grants no writable place.
         return Some(type_reference);
     }
 
