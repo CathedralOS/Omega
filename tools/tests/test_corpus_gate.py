@@ -670,12 +670,15 @@ class MainVerdicts(unittest.TestCase):
                 golden_records=[built]), 3)
         document = json.loads(self.json_path.read_text())
         self.assertEqual(document["observations"], [refused])
-        self.assertEqual(len(document["fixtures"]), 1)
-        change = document["fixtures"][0]
-        self.assertEqual(change["fixture"], "pass/host/buffer")
-        self.assertEqual(change["verdict"], "regressed")
-        self.assertEqual(change["before"]["status"], "built")
-        self.assertEqual(change["after"], refused)
+        self.assertEqual(document["fixtures"], [{
+            "fixture": refused["fixture"],
+            "verdict": "regressed",
+            "reasons": ["status built -> rejected", "exit 0 -> None",
+                        "diagnostics moved"],
+            "before": dict(built, regressed_from=None),
+            "after": dict(refused, regressed_from={
+                "status": "built", "facts": {"exit": "0"}}),
+        }])
         self.assertEqual(document["counts"]["fixtures"], 1)
         self.assertEqual(self.golden.read_text(), corpus_records.render([built]))
 

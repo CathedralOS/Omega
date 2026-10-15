@@ -2,6 +2,7 @@
 """Real commands and Git integration; no remote coordination or compiler mocks."""
 
 import copy
+import io
 import json
 import os
 from pathlib import Path
@@ -112,6 +113,168 @@ class QualificationTests(unittest.TestCase):
                         return_value=subprocess.CompletedProcess([], status, output, b"")):
                     with self.assertRaises(qualification.RecoveryError):
                         qualification.source_inputs(self.repository, self.base, ["src"])
+    def test_summary_run_preserves_full_evidence_and_failed_exit(self):
+        def execute():
+            output = io.StringIO()
+            revision = qualification.load(self.state)["revision"]
+            with mock.patch("sys.stdout", output):
+                status = qualification.main(["run", "--repository", str(self.repository),
+                    "--state", str(self.state), "--revision", str(revision),
+                    "--check", "values", "--summary-output"])
+            return status, json.loads(output.getvalue())
+        status, summary = execute()
+        self.assertEqual(status, 0)
+        self.assertEqual(summary["schema"], "omega-qualification-summary-v1")
+        self.assertEqual(summary["state"], str(self.state.resolve()))
+        presentation = self.root / "summary.json"
+        presentation.write_text(json.dumps(summary))
+        with self.assertRaisesRegex(qualification.RecoveryError, "unsupported qualification record"):
+            qualification.load(presentation)
+        record = qualification.load(self.state)
+        self.assertEqual(summary["latest_run"]["receipt"], record["runs"][-1]["receipt"])
+        self.assertTrue(record["runs"][-1]["source_stamps"])
+        receipt = Path(record["runs"][-1]["receipt"]["path"])
+        original_receipt = receipt.read_bytes()
+        original_run = copy.deepcopy(record["runs"][-1])
+        self.assertEqual(json.loads(qualification.state_output(record, self.state, False)), record)
+        self.assertEqual(json.loads(qualification.state_output(dict(binding="full"), None, True)),
+                         dict(binding="full"))
+        failing = self.commit("check.py", "raise SystemExit(7)\n")
+        self.assess(failing)
+        status, summary = execute()
+        self.assertEqual(status, 1)
+        self.assertEqual(summary["latest_run"]["exit"], 7)
+        record = qualification.load(self.state)
+        self.assertEqual(record["runs"][0], original_run)
+        self.assertEqual(receipt.read_bytes(), original_receipt)
+        with self.assertRaisesRegex(qualification.RecoveryError, "requires affected/final checks"):
+            qualification.validate(self.repository, self.state, failing, failing)
+        revision = record["revision"]
+        with mock.patch("sys.stdout", io.StringIO()), mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(qualification.main(["run", "--repository", str(self.repository),
+                "--state", str(self.state), "--revision", str(revision - 1),
+                "--check", "values", "--summary-output"]), 1)
+        self.assertEqual(qualification.load(self.state)["revision"], revision)
+
+    def test_snapshot_preserves_normal_utf8_encoding_refusals(self):
+        text = self.state.read_text(encoding="utf-8")
+        for payload in (text.encode("utf-16"), b"\xef\xbb\xbf" + text.encode("utf-8")):
+            with self.subTest(prefix=payload[:4]):
+                self.state.write_bytes(payload)
+                with self.assertRaisesRegex(qualification.RecoveryError, "missing or invalid JSON"):
+                    qualification.load(self.state)
+                with self.assertRaisesRegex(qualification.RecoveryError, "missing or invalid JSON"):
+                    qualification._RunSnapshot.read(self.state)
+
+    def test_snapshot_isolated_projection_and_single_use(self):
+        initial = qualification.load(self.state)
+        snap = qualification._RunSnapshot.read(self.state)
+        context = snap.context('values')
+        context['config']['checks'][0]['expected_exit'] = 99
+        with mock.patch.object(qualification, 'load', side_effect=AssertionError('unexpected decode')):
+            reserved = snap.update(self.state, 0, lambda r: r.update(marker='reserved'), retain=True)
+            self.assertEqual(reserved.revision, 1)
+            self.assertEqual(reserved.context('values')['config'], initial['config'])
+            with self.assertRaisesRegex(qualification.RecoveryError, 'already consumed'):
+                snap.context('values')
+            result = reserved.update(self.state, 1, lambda r: r.update(marker='finished'), retain=False)
+        self.assertEqual(result['config'], initial['config'])
+        self.assertEqual(result['revision'], 2)
+        self.assertEqual(qualification.load(self.state), result)
+        with self.assertRaisesRegex(qualification.RecoveryError, 'already consumed'):
+            reserved.context('values')
+
+    def test_snapshot_intervening_writer_preserves_stale_revision_guard(self):
+        snap = qualification._RunSnapshot.read(self.state)
+        current = qualification.update(self.state, 0, lambda r: r.update(marker='other writer'))
+        before = self.state.read_bytes()
+        with mock.patch.object(qualification, 'load', wraps=qualification.load) as loader:
+            with self.assertRaisesRegex(qualification.RecoveryError, 'stale qualification revision'):
+                snap.update(self.state, 0, lambda r: r.update(marker='lost writer'), retain=False)
+            self.assertEqual(loader.call_count, 1)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertEqual(qualification.load(self.state), current)
+        with self.assertRaisesRegex(qualification.RecoveryError, 'already consumed'):
+            snap.context('values')
+
+    def test_snapshot_malformed_replacement_refuses(self):
+        snap = qualification._RunSnapshot.read(self.state)
+        self.state.write_bytes(b'{malformed')
+        with self.assertRaisesRegex(qualification.RecoveryError, 'missing or invalid JSON'):
+            snap.update(self.state, 0, lambda r: None, retain=False)
+        self.assertEqual(self.state.read_bytes(), b'{malformed')
+        with self.assertRaisesRegex(qualification.RecoveryError, 'already consumed'):
+            snap.context('values')
+
+    def test_snapshot_same_content_replacement_is_safe(self):
+        snap = qualification._RunSnapshot.read(self.state)
+        before = self.state.read_bytes()
+        qualification.atomic_json(self.state, qualification.load(self.state), indent=None)
+        self.assertEqual(self.state.read_bytes(), before)
+        with mock.patch.object(qualification, 'load', side_effect=AssertionError('unnecessary decode')):
+            result = snap.update(self.state, 0, lambda r: r.update(marker='same bytes'), retain=False)
+        self.assertEqual(result['revision'], 1)
+        self.assertEqual(qualification.load(self.state), result)
+
+    def test_snapshot_path_mismatch_consumes_without_writing(self):
+        snap = qualification._RunSnapshot.read(self.state)
+        before = self.state.read_bytes()
+        other = self.root / 'other.json'
+        other.write_bytes(before)
+        with self.assertRaisesRegex(qualification.RecoveryError, 'snapshot path mismatch'):
+            snap.update(other, 0, lambda r: None, retain=False)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertEqual(other.read_bytes(), before)
+        with self.assertRaisesRegex(qualification.RecoveryError, 'already consumed'):
+            snap.context('values')
+
+    def test_snapshot_callback_failure_discards_dirty_memory(self):
+        snap = qualification._RunSnapshot.read(self.state)
+        before = self.state.read_bytes()
+
+        def fail(record):
+            record['runs'].append({'dirty': True})
+            raise RuntimeError('callback fault')
+        with self.assertRaisesRegex(RuntimeError, 'callback fault'):
+            snap.update(self.state, 0, fail, retain=True)
+        self.assertEqual(self.state.read_bytes(), before)
+        with self.assertRaisesRegex(qualification.RecoveryError, 'already consumed'):
+            snap.context('values')
+        self.assertEqual(qualification._RunSnapshot.read(self.state).revision, 0)
+
+    def test_snapshot_write_failure_discards_dirty_memory(self):
+        snap = qualification._RunSnapshot.read(self.state)
+        before = self.state.read_bytes()
+        with mock.patch.object(qualification.os, 'replace', side_effect=OSError('replace fault')):
+            with self.assertRaisesRegex(OSError, 'replace fault'):
+                snap.update(self.state, 0, lambda r: r.update(marker='dirty'), retain=True)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertEqual(list(self.root.glob('.evidence.json.*')), [])
+        with self.assertRaisesRegex(qualification.RecoveryError, 'already consumed'):
+            snap.context('values')
+
+    def test_snapshot_real_run_retains_receipts_without_redundant_decode(self):
+        with mock.patch.object(qualification, 'load', side_effect=AssertionError('redundant full-state decode')):
+            first, accepted = qualification.run_check(self.repository, self.state, 0, 'values')
+            self.assertTrue(accepted)
+            second, accepted = qualification.run_check(self.repository, self.state, first['revision'], 'values')
+            self.assertTrue(accepted)
+        self.assertEqual(len(second['runs']), 2)
+        self.assertEqual(second['runs'][0], first['runs'][0])
+        self.assertTrue(second['runs'][-1]['repeated_work'])
+        self.assertEqual(qualification.load(self.state), second)
+        for run in second['runs']:
+            receipt = Path(run['receipt']['path'])
+            self.assertEqual(qualification.file_digest(receipt), run['receipt']['sha256'])
+            self.assertEqual(json.loads(receipt.read_bytes()), {k: v for k, v in run.items() if k != 'receipt'})
+
+    def test_snapshot_running_reservation_is_not_overwritten(self):
+        qualification.update(self.state, 0, lambda r: r.update(running={'id': 'other', 'check': 'values', 'candidate': self.base}))
+        before = self.state.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, 'already running'):
+            qualification.run_check(self.repository, self.state, 1, 'values')
+        self.assertEqual(self.state.read_bytes(), before)
+
 
     def test_unrelated_main_change_reuses_without_running_command_again(self):
         self.assertTrue(self.run_check()[1])
@@ -151,6 +314,83 @@ class QualificationTests(unittest.TestCase):
         review = self.source_reuse_review(base)
         record = qualification.load(self.state)
         return qualification.attest_source_reuse(self.repository, self.state, record["revision"], "values", base, review)
+
+    def prepare_batch_source_reuse(self):
+        configuration = copy.deepcopy(self.config)
+        second = copy.deepcopy(configuration["checks"][0])
+        second["id"] = "other-values"
+        other_library = self.root / "other-producer.rlib"
+        other_library.write_bytes(b"other pinned dependency")
+        second["artifacts"] = [str(other_library)]
+        configuration["checks"].append(second)
+        record = qualification.load(self.state)
+        qualification.amend(self.state, record["revision"], configuration,
+                            "exercise independent review collection", base=self.base)
+        self.assertTrue(self.run_check()[1])
+        self.assertTrue(self.run_check("other-values")[1])
+        incoming = self.commit("src/program", "changed unexercised branch")
+        record = qualification.load(self.state)
+        reviews = []
+        for check in record["config"]["checks"]:
+            run = [value for value in record["runs"] if value["check"] == check["id"]][-1]
+            reviews.append(dict(binding=qualification.reuse_binding(
+                self.repository, record, check, run, incoming, incoming),
+                accepted=True, reviewer="independent fixture reviewer",
+                rationale="Complete exact delta does not affect the exercised branch."))
+        path = self.root / "batch-review.json"
+        document = dict(schema="qualification-source-reuse-batch-review-1", reviews=reviews)
+        path.write_text(json.dumps(document))
+        return incoming, record, path, document, other_library
+
+    def test_batch_source_reuse_registers_all_reviews_in_one_update(self):
+        incoming, before, path, _, _ = self.prepare_batch_source_reuse()
+        with mock.patch.object(qualification, "update", wraps=qualification.update) as update:
+            with mock.patch("sys.stdout", io.StringIO()):
+                status = qualification.main(["attest-source-reuse-batch", "--repository", str(self.repository),
+                    "--state", str(self.state), "--revision", str(before["revision"]),
+                    "--base", incoming, "--review", str(path), "--summary-output"])
+        self.assertEqual(status, 0)
+        self.assertEqual(update.call_count, 1)
+        record = qualification.load(self.state)
+        self.assertEqual(record["revision"], before["revision"] + 1)
+        self.assertEqual(record["runs"], before["runs"])
+        self.assertEqual(len(record["source_reuse"]), 2)
+        rows = self.assess(incoming)["assessments"][-1]["checks"]
+        self.assertEqual([row["action"] for row in rows], ["reuse", "reuse"])
+        self.assertEqual([row["observed_revision"] for row in rows], [self.base, self.base])
+        qualification.validate(self.repository, self.state, incoming, incoming)
+        path.write_text("{}")
+        self.assertTrue(all(row["action"] == "rerun" for row in self.assess(incoming)["assessments"][-1]["checks"]))
+
+    def test_batch_source_reuse_refuses_invalid_second_binding_without_partial_registration(self):
+        incoming, record, path, document, _ = self.prepare_batch_source_reuse()
+        document["reviews"][1]["binding"]["candidate"] = self.base
+        path.write_text(json.dumps(document))
+        before = self.state.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "exact observation"):
+            qualification.attest_source_reuse(self.repository, self.state, record["revision"], None, incoming, path)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertEqual(list(self.state.with_suffix(".records").glob("*.reuse.json")), [])
+
+    def test_batch_source_reuse_preserves_each_artifact_boundary(self):
+        incoming, record, path, _, other_library = self.prepare_batch_source_reuse()
+        other_library.write_bytes(b"substituted dependency")
+        before = self.state.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "only source changes"):
+            qualification.attest_source_reuse(self.repository, self.state, record["revision"], None, incoming, path)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertEqual(list(self.state.with_suffix(".records").glob("*.reuse.json")), [])
+
+    def test_batch_source_reuse_rejects_duplicate_or_empty_collections(self):
+        incoming, record, path, document, _ = self.prepare_batch_source_reuse()
+        for reviews in ([], [document["reviews"][0], document["reviews"][0]]):
+            with self.subTest(reviews=len(reviews)):
+                path.write_text(json.dumps(dict(schema=document["schema"], reviews=reviews)))
+                before = self.state.read_bytes()
+                with self.assertRaises(qualification.RecoveryError):
+                    qualification.attest_source_reuse(self.repository, self.state, record["revision"], None, incoming, path)
+                self.assertEqual(self.state.read_bytes(), before)
+                self.assertEqual(list(self.state.with_suffix(".records").glob("*.reuse.json")), [])
 
     def test_reviewed_unexercised_source_change_retains_original_observation(self):
         self.run_check()
@@ -428,6 +668,88 @@ class QualificationTests(unittest.TestCase):
         candidate = self.commit("wiki/spec/contract.md", "invented semantics in the same candidate")
         with self.assertRaisesRegex(qualification.RecoveryError, "retroactive authority"):
             self.assess(base)
+
+    def canonical_amendment_fixture(self):
+        (self.repository / "wiki/spec").mkdir(parents=True)
+        original_base = self.commit("wiki/spec/contract.md", "The prior canonical rule.\n")
+        self.assess(original_base)
+        original = copy.deepcopy(self.config)
+        review = copy.deepcopy(original["checks"][0])
+        review.update(id="review", kind="review", final=True)
+        original["checks"].append(review)
+        original["semantic_contracts"] = [dict(implementation=["src/program"],
+            contract="wiki/spec/contract.md", classification="missing_implementation",
+            reason="implement the existing canonical behavior", passages=["The prior canonical rule."])]
+        qualification.amend(self.state, 1, original, "retain prior canonical context")
+        self.assertTrue(self.run_check()[1])
+        historical = qualification.load(self.state)
+        next_base = self.commit("wiki/spec/contract.md", "The revised canonical rule.\n")
+        candidate = self.commit("src/program", "implementation of revised rule\n")
+        revised = copy.deepcopy(original)
+        revised["semantic_contracts"][0]["passages"] = ["The revised canonical rule."]
+        return original_base, next_base, candidate, revised, historical
+
+    def test_amend_transitions_to_explicit_canonical_base_and_preserves_history(self):
+        original_base, base, candidate, config, historical = self.canonical_amendment_fixture()
+        configuration = self.root / "revised-config.json"
+        configuration.write_text(json.dumps(config))
+        output, errors = io.StringIO(), io.StringIO()
+        with mock.patch("sys.stdout", output), mock.patch("sys.stderr", errors):
+            status = qualification.main(["amend", "--repository", str(self.repository),
+                "--state", str(self.state), "--revision", str(historical["revision"]),
+                "--config", str(configuration), "--base", base, "--summary-output",
+                "--reason", "reviewed incoming canonical change"])
+        self.assertEqual(status, 0, errors.getvalue())
+        record = qualification.load(self.state)
+        self.assertEqual(record["canonical_context"][0]["revision"], base)
+        self.assertEqual(record["canonical_context"][0]["blob"],
+                         self.git("rev-parse", base + ":wiki/spec/contract.md"))
+        self.assertEqual(record["runs"], historical["runs"])
+        self.assertEqual(record["assessments"], historical["assessments"])
+        self.assertEqual(record["definitions"][-1]["config"], historical["config"])
+        self.assertEqual(record["assessments"][-1]["base"], original_base)
+        self.assertEqual(json.loads(output.getvalue())["revision"], record["revision"])
+        assessment = qualification.assess(self.repository, self.state, record["revision"], base)
+        self.assertEqual(assessment["assessments"][-1]["candidate"], candidate)
+        self.assertTrue(all(row["action"] == "rerun" for row in assessment["assessments"][-1]["checks"]))
+
+    def test_canonical_amendment_without_new_base_still_refuses(self):
+        _, base, _, config, historical = self.canonical_amendment_fixture()
+        before = self.state.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "retroactive authority"):
+            qualification.amend(self.state, historical["revision"], config, "new passages")
+        with self.assertRaisesRegex(qualification.RecoveryError, "missing/stale"):
+            qualification.assess(self.repository, self.state, historical["revision"], base)
+        self.assertEqual(self.state.read_bytes(), before)
+
+    def test_canonical_amendment_refuses_backwards_base(self):
+        _, _, _, config, historical = self.canonical_amendment_fixture()
+        before = self.state.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "compatible ancestor"):
+            qualification.amend(self.state, historical["revision"], config,
+                                "cannot roll authority backwards", base=self.base)
+        self.assertEqual(self.state.read_bytes(), before)
+
+    def test_canonical_amendment_refuses_unrelated_base(self):
+        original, _, candidate, config, historical = self.canonical_amendment_fixture()
+        self.git("checkout", "-b", "unrelated-authority", original)
+        self.commit("check.py", "print('another branch')\n")
+        unrelated = self.commit("wiki/spec/contract.md", "The revised canonical rule.\n")
+        self.git("checkout", candidate)
+        before = self.state.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "compatible ancestor"):
+            qualification.amend(self.state, historical["revision"], config,
+                                "unrelated authority branch", base=unrelated)
+        self.assertEqual(self.state.read_bytes(), before)
+
+    def test_canonical_amendment_refuses_candidate_authored_contract_change(self):
+        _, base, _, config, historical = self.canonical_amendment_fixture()
+        self.commit("wiki/spec/contract.md", "The revised canonical rule.\nCandidate invention.\n")
+        before = self.state.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "retroactive authority"):
+            qualification.amend(self.state, historical["revision"], config,
+                                "candidate text cannot create authority", base=base)
+        self.assertEqual(self.state.read_bytes(), before)
 
     def test_language_change_mapping_cannot_replace_owner_authorization(self):
         config = copy.deepcopy(self.config)

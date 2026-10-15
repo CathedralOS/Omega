@@ -9,6 +9,7 @@ independent final review, package authority or remote publication freshness.
 """
 
 import argparse
+import copy
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -148,8 +149,10 @@ def source_inputs(repository, commit, paths):
 
     def entry_identity(path):
         query = subprocess.run(["git", "-C", str(repository), "rev-parse", commit + ":" + path],
-                               capture_output=True, text=True, timeout=30)
-        return query.stdout.strip() if query.returncode == 0 else None
+                               capture_output=True, timeout=30)
+        # A missing path can be echoed with arbitrary filesystem bytes in
+        # failure output. Only a successful object's ASCII identity needs decoding.
+        return query.stdout.strip().decode("ascii") if query.returncode == 0 else None
 
     # Batch ordinary object expressions without requiring newer Git protocols.
     # Delimiter-bearing paths retain argv lookup. Missing objects also need
@@ -372,13 +375,76 @@ def work_context_prompt(packet):
         "Semantic compliance still requires independent judgment.\n")
 
 
-def load(path):
-    record = read_json(path)
+def _validated_record(record):
     require(record.get("schema") == SCHEMA and type(record.get("revision")) is int,
             "unsupported qualification record")
     definition(record["config"])
     require(record["config_digest"] == digest(record["config"]), "qualification definition mismatch")
     return record
+
+
+def load(path):
+    return _validated_record(read_json(path))
+
+
+class _RunSnapshot:
+    """Single-use, privately owned decoded state for one run's two updates.
+
+    Readers receive only detached projections. A locked update compares the
+    current bytes before taking ownership; replacements use the normal loader.
+    No historical state, receipt, revision or admission is omitted.
+    """
+
+    @classmethod
+    def __from_persisted(cls, path, record, sha256):
+        snapshot = object.__new__(cls)
+        snapshot.__path = Path(path).resolve()
+        snapshot.__record = record
+        snapshot.__sha256 = sha256
+        return snapshot
+
+    @classmethod
+    def read(cls, path):
+        try:
+            payload = Path(path).read_bytes()
+            record = json.loads(payload.decode("utf-8"))
+        except (OSError, ValueError) as error:
+            raise RecoveryError("missing or invalid JSON record: " + str(path)) from error
+        return cls.__from_persisted(path, _validated_record(record), hashlib.sha256(payload).hexdigest())
+
+    def context(self, name):
+        require(self.__record is not None, "qualification snapshot already consumed")
+        record = self.__record
+        prior = next((row for row in reversed(record["runs"]) if row["check"] == name), None)
+        return copy.deepcopy(dict(repository=record["repository"], config=record["config"],
+            qualification_revision=record["qualification_revision"],
+            assessments=record["assessments"][-1:], runs=[prior] if prior else []))
+
+    @property
+    def revision(self):
+        require(self.__record is not None, "qualification snapshot already consumed")
+        return self.__record["revision"]
+
+    def update(self, path, expected, change, *, retain):
+        require(self.__record is not None, "qualification snapshot already consumed")
+        # Consume before any operation that can fail. A dirty or failed update
+        # must never leave an authoritative in-memory snapshot available again.
+        record, self.__record = self.__record, None
+        require(Path(path).resolve() == self.__path, "qualification snapshot path mismatch")
+        with exclusive(str(path) + ".lock"):
+            try:
+                unchanged = file_digest(path) == self.__sha256
+            except OSError:
+                unchanged = False
+            if not unchanged:
+                record = load(path)
+            require(record["revision"] == expected, "stale qualification revision; reread, do not overwrite")
+            change(record)
+            record["revision"] += 1
+            sha256 = atomic_json(path, record, indent=None, with_digest=True)
+            # Bind the exact successfully persisted payload while still locked,
+            # rather than hashing a file another writer could replace later.
+            return self.__from_persisted(path, record, sha256) if retain else record
 
 
 def update(path, expected, change):
@@ -387,7 +453,7 @@ def update(path, expected, change):
         require(record["revision"] == expected, "stale qualification revision; reread, do not overwrite")
         change(record)
         record["revision"] += 1
-        atomic_json(path, record)
+        atomic_json(path, record, indent=None)
         return record
 
 
@@ -406,7 +472,7 @@ def start(repository, path, base, config):
                       qualification_revision=head, config=config, config_digest=digest(config),
                       canonical_context=canonical_context, runs=[], assessments=[], running=None)
         record["source_ref"] = retain_source(repository, path, head)
-        atomic_json(path, record)
+        atomic_json(path, record, indent=None)
         # Register the active assessment in this worktree so ordinary verify
         # cannot accidentally forget it after a rebase makes a new SHA.
         atomic_json(active, dict(state=str(Path(path).resolve())))
@@ -424,13 +490,27 @@ def active_path(repository):
     return registration["state"]
 
 
-def amend(path, expected, config, reason):
+def amend(path, expected, config, reason, base=None):
+    """Retain history while adopting reviewed definitions and canonical context.
+
+    Changed incoming contracts can invalidate the old passages, so assessment
+    cannot precede their amendment. An explicit base may advance only along the
+    existing integration history and must already be an ancestor of the clean
+    candidate. This binds canonical authority; it creates no assessment or reuse.
+    """
     definition(config)
     require(reason, "amendment needs a reviewed reason")
     def change(record):
         require(not record["running"], "cannot amend while qualification command runs")
-        base = record["assessments"][-1]["base"] if record["assessments"] else record["base"]
-        record["canonical_context"] = contract_mapping(record["repository"], config, base, clean_head(record["repository"]))
+        previous_base = record["assessments"][-1]["base"] if record["assessments"] else record["base"]
+        candidate = clean_head(record["repository"])
+        canonical_base = previous_base if base is None else revision(record["repository"], base)
+        if base is not None:
+            for before, after in ((previous_base, canonical_base), (canonical_base, candidate)):
+                result = subprocess.run(["git", "-C", record["repository"],
+                                         "merge-base", "--is-ancestor", before, after])
+                require(result.returncode == 0, "integration base is not a compatible ancestor")
+        record["canonical_context"] = contract_mapping(record["repository"], config, canonical_base, candidate)
         record.setdefault("definitions", []).append(dict(config=record["config"],
             digest=record["config_digest"], reason=reason, revision=record["revision"]))
         record["config"] = config
@@ -506,6 +586,8 @@ def attest_source_reuse(repository, path, expected, name, base, review_path):
     The reviewer must bind the complete old/new blob delta to the exact accepted
     observation. This only covers source-change reasons in planning. Capture's
     producer/source equality and every non-source invalidation remain intact.
+    A None check selects a collection: all bindings are validated before any
+    receipt is created, then one locked update records the individual receipts.
     """
     candidate = clean_head(repository)
     revision(repository, base)
@@ -515,33 +597,49 @@ def attest_source_reuse(repository, path, expected, name, base, review_path):
     review = read_json(review_path)
     review_digest = file_digest(review_path)
     require(before == artifact_stamps([review_path]), "reuse review changed during capture")
+    require(isinstance(review, dict), "source reuse review must be an object")
+    if name is None:
+        require(review.get("schema") == "qualification-source-reuse-batch-review-1"
+                and isinstance(review.get("reviews"), list) and review["reviews"],
+                "batch source reuse needs a nonempty review collection")
+        reviews = review["reviews"]
+        require(all(isinstance(value, dict) and isinstance(value.get("binding"), dict)
+                    and isinstance(value["binding"].get("check"), str) for value in reviews),
+                "batch source reuse reviews need exact check bindings")
+        names = [value["binding"]["check"] for value in reviews]
+        require(len(names) == len(set(names)), "duplicate batch source reuse check")
+    else:
+        names, reviews = [name], [review]
     def change(record):
         require(record["repository"] == str(Path(repository).resolve()), "qualification worktree mismatch")
         require(not record["running"], "cannot attest while qualification command runs")
-        selected = [row for row in record["config"]["checks"] if row["id"] == name]
-        require(len(selected) == 1, "unknown source reuse check")
-        check = selected[0]
-        require(not check["final"], "final-candidate checks cannot receive source reuse attestations")
-        runs = [row for row in record["runs"] if row["check"] == name]
-        require(runs, "source reuse needs a prior observation")
-        run = runs[-1]
-        invalidations = reasons(repository, record, check, run, candidate)
-        require(invalidations and all(value.startswith("source_changed:") for value in invalidations),
-                "source reuse requires an accepted observation with only source changes")
-        binding = reuse_binding(repository, record, check, run, candidate, base)
-        require(review.get("binding") == binding and review.get("accepted") is True
-                and isinstance(review.get("reviewer"), str) and review["reviewer"].strip()
-                and isinstance(review.get("rationale"), str) and review["rationale"].strip(),
-                "independent reuse review must bind the exact observation, candidate and complete blob delta")
+        values = []
+        for selected_name, accepted_review in zip(names, reviews):
+            selected = [row for row in record["config"]["checks"] if row["id"] == selected_name]
+            require(len(selected) == 1, "unknown source reuse check")
+            check = selected[0]
+            require(not check["final"], "final-candidate checks cannot receive source reuse attestations")
+            runs = [row for row in record["runs"] if row["check"] == selected_name]
+            require(runs, "source reuse needs a prior observation")
+            run = runs[-1]
+            invalidations = reasons(repository, record, check, run, candidate)
+            require(invalidations and all(value.startswith("source_changed:") for value in invalidations),
+                    "source reuse requires an accepted observation with only source changes")
+            binding = reuse_binding(repository, record, check, run, candidate, base)
+            require(accepted_review.get("binding") == binding and accepted_review.get("accepted") is True
+                    and isinstance(accepted_review.get("reviewer"), str) and accepted_review["reviewer"].strip()
+                    and isinstance(accepted_review.get("rationale"), str) and accepted_review["rationale"].strip(),
+                    "independent reuse review must bind the exact observation, candidate and complete blob delta")
+            values.append(dict(schema="qualification-source-reuse-1", binding=binding,
+                               covered_reasons=invalidations,
+                               review=dict(path=str(review_path), sha256=review_digest)))
         require(clean_head(repository) == candidate, "candidate changed during reuse capture")
         require(before == artifact_stamps([review_path]), "reuse review changed during registration")
-        value = dict(schema="qualification-source-reuse-1", binding=binding,
-                     covered_reasons=invalidations,
-                     review=dict(path=str(review_path), sha256=review_digest))
-        destination = Path(path).with_suffix(".records") / (uuid.uuid4().hex + ".reuse.json")
-        require(not destination.exists(), "reuse receipt already exists")
-        atomic_json(destination, value)
-        record.setdefault("source_reuse", []).append(dict(path=str(destination), sha256=file_digest(destination)))
+        for value in values:
+            destination = Path(path).with_suffix(".records") / (uuid.uuid4().hex + ".reuse.json")
+            require(not destination.exists(), "reuse receipt already exists")
+            atomic_json(destination, value)
+            record.setdefault("source_reuse", []).append(dict(path=str(destination), sha256=file_digest(destination)))
     return update(path, expected, change)
 
 
@@ -596,7 +694,8 @@ def plan(repository, record, candidate, base=None):
 def run_check(repository, path, expected, name):
     started = time.monotonic()
     head = clean_head(repository)
-    record = load(path)
+    snapshot = _RunSnapshot.read(path)
+    record = snapshot.context(name)
     require(record["repository"] == str(Path(repository).resolve()), "qualification worktree mismatch")
     allowed = record["assessments"][-1]["candidate"] if record["assessments"] else record["qualification_revision"]
     require(head == allowed, "HEAD moved; assess the integrated candidate before requalification")
@@ -622,7 +721,7 @@ def run_check(repository, path, expected, name):
     def reserve(value):
         require(not value["running"], "qualification command already running; reconcile it first")
         value["running"] = dict(id=operation, check=name, candidate=head)
-    reserved = update(path, expected, reserve)
+    reserved = snapshot.update(path, expected, reserve, retain=True)
     directory = Path(path).parent / (Path(path).stem + ".records")
     directory.mkdir(parents=True, exist_ok=True)
     stdout, stderr = directory / (operation + ".stdout"), directory / (operation + ".stderr")
@@ -665,7 +764,7 @@ def run_check(repository, path, expected, name):
         require(value["running"] and value["running"]["id"] == operation, "command reservation changed")
         value["runs"].append(observation)
         value["running"] = None
-    result = update(path, reserved["revision"], finish)
+    result = reserved.update(path, reserved.revision, finish, retain=False)
     return result, exit_code == check["expected_exit"] and not invalidations
 
 
@@ -710,10 +809,28 @@ def _validate(repository, path, candidate, base):
                 candidate=candidate, base=base, checks=rows)
 
 
+def state_output(record, path, summary):
+    """Summaries present retained evidence; only the canonical state owns it."""
+    if not summary or record.get("schema") != SCHEMA:
+        return json.dumps(record, indent=2)
+    result = dict(schema="omega-qualification-summary-v1", state=str(Path(path).resolve()))
+    for key in ("revision", "base", "qualification_revision", "running", "source_ref"):
+        result[key] = record[key]
+    if record["runs"]:
+        latest = record["runs"][-1]
+        result["latest_run"] = {key: latest[key] for key in
+            ("id", "check", "revision", "exit", "invalidations", "duration_seconds", "receipt")}
+    if record["assessments"]:
+        result["latest_assessment"] = record["assessments"][-1]
+    return json.dumps(result, indent=2)
+
+
 def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("context", "handoff", "start", "amend", "run", "assess", "run-pending", "status", "attest-source-reuse", "source-reuse-context"))
+    parser.add_argument("command", choices=("context", "handoff", "start", "amend", "run", "assess", "run-pending", "status", "attest-source-reuse", "attest-source-reuse-batch", "source-reuse-context"))
     parser.add_argument("--repository", default=".")
+    parser.add_argument("--summary-output", action="store_true",
+                        help="present state command summaries; retain the complete canonical state")
     parser.add_argument("--state")
     parser.add_argument("--revision", type=int)
     parser.add_argument("--base")
@@ -766,18 +883,24 @@ def main(arguments=None):
             require(options.revision is not None, "mutation requires --revision from the last record")
             if options.command == "amend":
                 require(options.config, "amend needs --config")
-                result = amend(path, options.revision, read_json(options.config), options.reason)
-                print(json.dumps(result, indent=2))
+                result = amend(path, options.revision, read_json(options.config), options.reason, base=options.base)
+                print(state_output(result, path, options.summary_output))
                 return 0
             if options.command == "run":
                 require(options.check, "run needs --check")
                 result, accepted = run_check(repository, path, options.revision, options.check)
-                print(json.dumps(result, indent=2))
+                print(state_output(result, path, options.summary_output))
                 return 0 if accepted else 1
+            if options.command == "attest-source-reuse-batch":
+                require(options.base and options.review and not options.check,
+                        "batch source reuse needs --base and --review without --check")
+                result = attest_source_reuse(repository, path, options.revision, None, options.base, options.review)
+                print(state_output(result, path, options.summary_output))
+                return 0
             if options.command == "attest-source-reuse":
                 require(options.base and options.check and options.review, "source reuse needs --base, --check and --review")
                 result = attest_source_reuse(repository, path, options.revision, options.check, options.base, options.review)
-                print(json.dumps(result, indent=2))
+                print(state_output(result, path, options.summary_output))
                 return 0
             require(options.base, "assess needs the integrated --base")
             result = assess(repository, path, options.revision, options.base)
@@ -786,10 +909,10 @@ def main(arguments=None):
                     if row["action"] == "rerun":
                         result, accepted = run_check(repository, path, result["revision"], row["check"])
                         if not accepted:
-                            print(json.dumps(result, indent=2))
+                            print(state_output(result, path, options.summary_output))
                             return 1
                 result = assess(repository, path, result["revision"], options.base)
-        print(json.dumps(result, indent=2))
+        print(state_output(result, path, options.summary_output))
         return 0
     except (RecoveryError, OSError, subprocess.SubprocessError, KeyError, ValueError) as error:
         print("qualification: " + str(error), file=sys.stderr)

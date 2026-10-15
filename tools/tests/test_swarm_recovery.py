@@ -5,6 +5,7 @@ import copy
 from datetime import datetime, timedelta, timezone
 import io
 import gzip
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -97,6 +98,37 @@ class RecoveryTests(unittest.TestCase):
 
     def action(self, observation=None):
         return recovery.plan(self.record(), observation or self.observed())["lanes"][0]["action"]
+
+    def test_compact_records_keep_values_and_atomic_failure_guards(self):
+        record = self.record()
+        pretty = self.store.path.read_bytes()
+        atomic_json(self.store.path, record, indent=None)
+        compact = self.store.path.read_bytes()
+        self.assertEqual(self.record(), record)
+        self.assertLess(len(compact), len(pretty))
+        with self.assertRaises(ValueError):
+            atomic_json(self.store.path, dict(record, invalid=float("nan")), indent=None)
+        self.assertEqual(self.store.path.read_bytes(), compact)
+        with mock.patch("recovery_state.os.replace", side_effect=OSError("fault")):
+            with self.assertRaises(OSError):
+                atomic_json(self.store.path, dict(record, changed=True), indent=None)
+        self.assertEqual(self.store.path.read_bytes(), compact)
+        self.assertEqual(list(self.root.glob(".recovery.json.*")), [])
+        atomic_json(self.store.path, record)
+        self.assertEqual(self.store.path.read_bytes(), pretty)
+
+    def test_atomic_payload_digest_binds_only_successful_exact_bytes(self):
+        record = self.record()
+        digest = atomic_json(self.store.path, record, indent=None, with_digest=True)
+        before = self.store.path.read_bytes()
+        self.assertEqual(digest, hashlib.sha256(before).hexdigest())
+        self.assertEqual(json.loads(before), record)
+        with mock.patch("recovery_state.os.replace", side_effect=OSError("digest fault")):
+            with self.assertRaisesRegex(OSError, "digest fault"):
+                atomic_json(self.store.path, dict(record, changed=True),
+                            indent=None, with_digest=True)
+        self.assertEqual(self.store.path.read_bytes(), before)
+        self.assertIsNone(atomic_json(self.store.path, record))
 
     def test_interrupted_replace_keeps_old_complete_revision(self):
         before = self.store.path.read_bytes()

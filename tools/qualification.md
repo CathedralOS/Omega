@@ -156,6 +156,21 @@ python3 tools/qualification.py start --state build/qualification.json --base FUL
 python3 tools/qualification.py run-pending --state build/qualification.json --revision 0 --base FULL_BASE_SHA
 ```
 
+State updates retain complete history in compact JSON. Add `--summary-output`
+to state commands when repeated full-state output is costly. It emits a distinct
+`omega-qualification-summary-v1` presentation with the canonical state's absolute
+path and revision, latest immutable observation receipt and latest assessment.
+It preserves the command's actual exit status. The presentation cannot be loaded
+as qualification state; context, handoff and source-reuse packets remain complete.
+Default stdout remains the full state, and immutable receipt bytes stay unchanged.
+
+Within one capture, reservation and completion privately retain decoded state.
+Each locked update first compares the current file's exact bytes by SHA-256;
+changed bytes use the normal loader and stale-revision checks. Readers receive
+detached projections, and a snapshot is consumed once, including on failure.
+This avoids repeated decoding of large histories while preserving the complete
+canonical state, immutable receipts and ordinary capture checks.
+
 Retain this revision while qualifying. Another main commit is not a reason to
 rebase in the middle of a capture. Once ready, fetch main, inspect incoming
 changes, rebase and assess the new candidate **outside the landing queue**:
@@ -179,6 +194,15 @@ outside the captured check's exercised behavior. Record that review explicitly:
 python3 tools/qualification.py source-reuse-context --state build/qualification.json --base FULL_BASE_SHA --check CHECK_ID > build/source-scope-review.json
 python3 tools/qualification.py attest-source-reuse --state build/qualification.json --revision LAST_REVISION --base FULL_BASE_SHA --check CHECK_ID --review build/source-scope-review.json
 ```
+
+For several checks on the same candidate and base, place their complete accepted
+review objects in one JSON document with
+`"schema": "qualification-source-reuse-batch-review-1"` and a `"reviews"` array.
+Run `attest-source-reuse-batch` with `--state`, `--revision`, `--base` and
+`--review` pointing to that document. It validates every check and binding before
+creating individual immutable receipts, then persists the complete collection in
+one locked state update. Duplicate checks and empty collections are refused.
+This avoids serializing a large qualification history once per review.
 
 The context starts with `accepted: false`. An independent reviewer must inspect
 the complete old/new blob delta and check closure, supply their identity and
@@ -208,6 +232,15 @@ python3 tools/qualification.py run-pending --state build/qualification.json --re
 
 Amendment retains prior definitions and observations; changed definitions
 invalidate their evidence. Review the updated closure and integrated changes.
+
+When incoming main changes the focused canonical passages, the old configuration
+cannot assess those new contracts. Amend with `--base FULL_BASE_SHA` to bind the
+reviewed replacement passages to that incoming ancestor, then run ordinary
+`assess --base FULL_BASE_SHA`. The explicit base must descend from the latest
+assessed base and precede the clean candidate. Contract bytes must still match
+base and candidate exactly; candidate-authored specification changes remain
+refused. This amendment retains all definitions, observations and assessments;
+it does not create an assessment, grant reuse or satisfy final review.
 Do not amend a command/expected result merely to turn a failure into acceptance.
 
 ## Land the exact candidate

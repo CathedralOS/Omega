@@ -7,6 +7,7 @@ uses its own store; an absolute worktree path is not a transport identity.
 
 from contextlib import contextmanager
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -47,17 +48,19 @@ def exclusive(path):
                 fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
 
 
-def atomic_json(path, record):
+def atomic_json(path, record, *, indent=2, with_digest=False):
     """Readers see the old or new complete record, including on interruption.
 
     The temporary is on the same filesystem. A crash may leave a harmless
     temporary; it is never read as committed state. Directory fsync on POSIX
     also persists the rename. Windows supplies atomic replacement, but this
     helper makes no power-loss guarantee for a host's filesystem/controller.
+    When requested, return the SHA-256 of those exact persisted bytes only
+    after replacement and directory synchronization have succeeded.
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = (json.dumps(record, sort_keys=True, indent=2, allow_nan=False) + "\n").encode()
+    payload = (json.dumps(record, sort_keys=True, indent=indent, allow_nan=False) + "\n").encode()
     descriptor, temporary = tempfile.mkstemp(prefix="." + path.name + ".", dir=path.parent)
     try:
         with os.fdopen(descriptor, "wb") as stream:
@@ -74,6 +77,8 @@ def atomic_json(path, record):
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
+    if with_digest:
+        return hashlib.sha256(payload).hexdigest()
 
 
 def read_json(path):
