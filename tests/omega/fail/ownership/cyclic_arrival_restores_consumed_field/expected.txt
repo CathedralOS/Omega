@@ -1,1 +1,2 @@
-linear value `holder.token` was already transferred or consumed; it cannot be moved here
+cannot use `holder`
+after `holder.token` was transferred or consumed

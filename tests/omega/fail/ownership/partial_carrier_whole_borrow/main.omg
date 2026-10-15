@@ -1,0 +1,9 @@
+// A shared parameter still needs a complete value, not its residual frontier.
+data Part { value: i64; }
+data Carrier { part: Part; sibling: i64; }
+machine observe(carrier: &Carrier) -> i64 { carrier.sibling }
+machine main() -> i64 {
+    let carrier: Carrier = Carrier { part: Part { value: 17 }, sibling: 23 };
+    let detached: Part = carrier.part;
+    observe(&carrier)
+}

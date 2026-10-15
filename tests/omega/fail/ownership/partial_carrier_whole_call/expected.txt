@@ -1,0 +1,2 @@
+cannot use `carrier`
+after `carrier.part` was transferred or consumed

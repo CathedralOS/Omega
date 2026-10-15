@@ -1,0 +1,10 @@
+// Residual cleanup is not permission to pass an incomplete owner as a value.
+data Part { value: i64; }
+data Carrier<'storage> { part: Part; reference: &'storage i64; }
+machine consume(carrier: Carrier) -> i64 { carrier.part.value }
+machine main() -> i64 {
+    let backing: i64 = 17;
+    let carrier: Carrier = Carrier { part: Part { value: 23 }, reference: &backing };
+    let detached: Part = carrier.part;
+    consume(carrier)
+}

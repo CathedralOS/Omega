@@ -1,0 +1,18 @@
+// The same ancestor rule applies to a field of an owned state parameter.
+data Part { value: i64; }
+data Carrier { part: Part; sibling: i64; }
+data Envelope { carrier: Carrier; sibling: i64; }
+machine consume(carrier: Carrier) -> i64 { carrier.part.value }
+machine inspect(envelope: Envelope) -> i64 {
+    transition { _ -> next(envelope) }
+    state next(envelope: Envelope) -> i64 {
+        let detached: Part = envelope.carrier.part;
+        consume(envelope.carrier)
+    }
+}
+machine main() -> i64 {
+    inspect(Envelope {
+        carrier: Carrier { part: Part { value: 17 }, sibling: 23 },
+        sibling: 31
+    })
+}

@@ -3428,8 +3428,8 @@ fail/ownership/conditional_scalar_return_preserves_live_claim rejected 669ms exp
 	linear value `token` reaches scope exit without being consumed or transferred
 fail/ownership/copy_linear_conflict rejected 3ms expected @a9ae30e1c334+wt
 	tests/omega/fail/ownership/copy_linear_conflict/main.omg:3:30: type properties `[copy]` and `[linear]` are mutually exclusive; `copy` was already declared
-fail/ownership/cyclic_arrival_restores_consumed_field rejected 914ms expected @e12a9f3ff2a3
-	linear value `holder.token` was already transferred or consumed; it cannot be moved here
+fail/ownership/cyclic_arrival_restores_consumed_field rejected 338ms expected @d41afc784463+wt
+	cannot use `holder` in machine `main` state `spin` (statement 2) after `holder.token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `holder.token` first
 fail/ownership/duplicate_constructor_payload rejected 3699ms expected @8b4b5df96897+wt
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "duplicate", reason: "projected custody overlaps an earlier transfer or release", gap: None })
 fail/ownership/first_match_linear_frontier_mismatch rejected 250ms expected @dd6871ed0476
@@ -3530,10 +3530,16 @@ fail/ownership/owned_replacement_second_move_rejected rejected 1246ms expected @
 	cannot use `item` in machine `Main::main` state `main` (statement 4) after `item` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `item` first
 fail/ownership/owned_state_immutable_field_store rejected 857ms expected @a9ae30e1c334+wt
 	machine `unchanged` state `update` assignment cannot write `counter` because it is not mutable in this state (if `counter` is undeclared -- a typo -- no such field or local exists)
+fail/ownership/partial_carrier_whole_borrow rejected 264ms expected @e47dcb1ff6d8+wt
+	cannot use `carrier` in machine `main` state `entry` (statement 2) after `carrier.part` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `carrier.part` first
+fail/ownership/partial_carrier_whole_call rejected 265ms expected @e47dcb1ff6d8+wt
+	cannot use `carrier` in machine `main` state `entry` (statement 3) after `carrier.part` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `carrier.part` first
 fail/ownership/partial_linear_record_cleanup_keeps_debt rejected 1592ms expected @a9ae30e1c334+wt
 	linear value `value.required` reaches scope exit without being consumed or transferred
 	linear value `value.slot::Held.token` reaches scope exit without being consumed or transferred
 	linear value `known.slot::Held.token` reaches scope exit without being consumed or transferred
+fail/ownership/partial_nested_parameter_whole_call rejected 255ms expected @e47dcb1ff6d8+wt
+	cannot use `envelope.carrier` in machine `inspect` state `next` (statement 1) after `envelope.carrier.part` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `envelope.carrier.part` first
 fail/ownership/read_through_consumed_owner_rejected rejected 1142ms expected @a9ae30e1c334+wt
 	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
 fail/ownership/read_through_dropped_owner_rejected rejected 1226ms expected @a9ae30e1c334+wt
@@ -7108,6 +7114,7 @@ pass/ownership/mutable_array_view_compile checked 1657ms @a9ae30e1c334+wt
 pass/ownership/mutable_sum_reassign_compile checked 1739ms @a9ae30e1c334+wt
 pass/ownership/nested_field_loan_compile checked 1699ms @a9ae30e1c334+wt
 pass/ownership/param_member_write_compile checked 1690ms @a9ae30e1c334+wt
+pass/ownership/partial_carrier_refill_exit checked 5502ms check-target:macos_arm64 @e47dcb1ff6d8+wt
 pass/ownership/partial_field_move_compile checked 1630ms @a9ae30e1c334+wt
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 1816ms @a9ae30e1c334+wt
 pass/ownership/runtime_borrowed_captured_selector_exit checked 10886ms check-target:macos_arm64 @a9ae30e1c334+wt

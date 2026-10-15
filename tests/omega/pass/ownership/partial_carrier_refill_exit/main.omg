@@ -1,0 +1,36 @@
+// Moving one owned child preserves siblings. Replacing that exact child makes
+// the whole carrier available to an ordinary consuming call again.
+// Expected exit: 0.
+data Part { value: i64; }
+data Carrier { part: Part; sibling: i64; }
+data Envelope { carrier: Carrier; sibling: i64; }
+machine consume(carrier: Carrier) -> i64 { carrier.part.value }
+machine inspect(envelope: Envelope) -> bool {
+    transition { _ -> next(envelope) }
+    state next(envelope: Envelope) -> bool {
+        let mut restored: Envelope = envelope;
+        let detached: Part = restored.carrier.part;
+        let sibling: i64 = restored.carrier.sibling;
+        let outer: i64 = restored.sibling;
+        restored.carrier.part = Part { value: 29 };
+        let selected: i64 = consume(restored.carrier);
+        detached.value == 17 && sibling == 23 && outer == 31 && selected == 29
+    }
+}
+machine main() crashes Trap {
+    let mut carrier: Carrier = Carrier { part: Part { value: 17 }, sibling: 23 };
+    let detached: Part = carrier.part;
+    let sibling: i64 = carrier.sibling;
+    carrier.part = Part { value: 29 };
+    let result: i64 = consume(carrier);
+    let nested: bool = inspect(Envelope {
+        carrier: Carrier { part: Part { value: 17 }, sibling: 23 },
+        sibling: 31
+    });
+    transition detached.value == 17 && sibling == 23 && result == 29 && nested {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -29,9 +29,10 @@
 //!   the value, so the move applies once its statement completes; every later
 //!   use then reads a possibly consumed owner. A move no evaluated occurrence
 //!   claimed (an operand of an unreachable arm) never applies.
-//! - Only uses at or below a consumed place read through it. A use of a
-//!   partially moved ancestor keeps the partial-move rules: moving the whole
-//!   remaining complement after a projection is a separate, admitted shape.
+//! - A use at, below or above a consumed place observes absent storage. Partial
+//!   moves preserve disjoint siblings, not a whole ancestor value to pass to
+//!   another machine. Selected structural cleanup uses its exact residual
+//!   frontier without evaluating that ancestor as an authored value.
 //! - A store to the consumed place or to an enclosing owner re-establishes
 //!   it. A store into a strict projection of a consumed place would write
 //!   through storage that holds no value and rejects.
@@ -115,8 +116,8 @@ impl ConsumedOwners {
         }
     }
 
-    /// A read, borrow, receiver or move at or below a consumed place touches
-    /// storage that holds no established value.
+    /// A read, borrow, receiver or move overlapping a consumed place touches
+    /// storage that holds no complete established value.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_use(
         &self,
@@ -214,14 +215,13 @@ impl ConsumedOwners {
         }
     }
 
-    /// A use at or below a consumed place reads through it. A use of a
-    /// partially moved ancestor keeps the existing partial-move rules: a whole
-    /// transfer of the remaining complement settles it.
+    /// An ancestor observation also needs its missing subtree. Address-only
+    /// traversal is not an observation: the occurrence owner already retains
+    /// only each operation's maximal selected place, so disjoint siblings do
+    /// not spuriously observe their common parent.
     fn consumed_through(&self, place: &CanonicalPlace) -> Option<&ConsumedPlace> {
         self.consumed.iter().find(|consumed| {
-            consumed.root == place.root
-                && place.segments.len() >= consumed.path.len()
-                && place_paths_overlap(&place.segments, &consumed.path)
+            consumed.root == place.root && place_paths_overlap(&place.segments, &consumed.path)
         })
     }
 }

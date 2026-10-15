@@ -559,6 +559,7 @@ pass/ownership/linear_qualified_call_result_claims built 2522ms exit:0 interpret
 pass/ownership/linear_result_member_projection_arguments_exit built 1702ms exit:0 interpreter-exit:0 interpreter:agrees @6605065c28a7
 pass/ownership/linear_result_owners_residual_cleanup_exit built 1788ms exit:0 interpreter-exit:0 interpreter:agrees @6605065c28a7
 pass/ownership/linear_state_graph_claim_transport_exit built 3418ms exit:0 interpreter-exit:0 interpreter:agrees @4f5eb9941fad
+pass/ownership/partial_carrier_refill_exit built 6072ms exit:0 interpreter-exit:0 interpreter:agrees @e47dcb1ff6d8+wt
 pass/ownership/runtime_borrowed_captured_selector_exit built 1842ms exit:0 interpreter-exit:0 interpreter:agrees @fc0dd94dcf25
 pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit built 1683ms exit:42 interpreter-exit:42 interpreter:agrees @6cb668db83ab
 pass/ownership/runtime_borrowed_carried_loan_transform_exit built 1774ms exit:42 interpreter-exit:42 interpreter:agrees @84da89581e65
