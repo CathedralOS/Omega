@@ -18,9 +18,9 @@ pub(super) fn assign_data_symbols(
         .roots
         .data_definitions
         .for_each_mut(|data_definition| {
+            let declaration = next_child_of_kind(root_children, symbols, SymbolKind::Data);
             if !data_definition.symbol.is_valid() {
-                data_definition.symbol =
-                    next_child_of_kind(root_children, symbols, SymbolKind::Data);
+                data_definition.symbol = declaration;
             }
             let data_symbol = data_definition.symbol;
             let mut data_children = symbols.child_handles(data_symbol).into_iter().flatten();

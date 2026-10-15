@@ -6,8 +6,9 @@
 //! are matched by position, not looked up by name: it walks the root's
 //! children in the order `symbol_table::build_symbol_table` inserted them,
 //! skips the builtin type and function symbols and the fixed `core::*`
-//! mathematical declarations, and hands the remaining children to one step
-//! per declaration kind, in this order:
+//! mathematical declarations, and hands each kind its own ordered children.
+//! Seeded extension appends new cohorts without regrouping retained roots.
+//! Assignment visits these declaration kinds in this order:
 //!
 //! 1. domains (`domains`), then data (`data`);
 //! 2. named conformances, done here: each takes its symbol, then
@@ -18,8 +19,9 @@
 //!    measures and traits, each in its own child module;
 //! 4. wire schemas, done here.
 //!
-//! A declaration that already holds a valid symbol keeps it. Every step except
-//! wire schemas also assigns the declaration's own children (parameters,
+//! A declaration that already holds a valid symbol keeps it and still consumes
+//! its declaration slot. Every step except wire schemas also assigns the
+//! declaration's own children (parameters,
 //! fields, states) by the same positional walk over that declaration's
 //! children, and several resolve the type references in those children's
 //! signatures. Machine and trait assignment return diagnostics, which this
@@ -149,49 +151,67 @@ pub(super) fn assign_top_level_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) -> Vec<diagnostics::Diagnostic> {
-    let mut root_children = symbols.child_handles(symbols.root()).into_iter().flatten();
-
-    for _ in 0..builtin_type_symbols().len() {
-        let _ = root_children.next();
-    }
-    for _ in 0..builtin_function_symbols().len() {
-        let _ = root_children.next();
-    }
-    // The fixed `core::*` mathematical declarations occupy the slots before
-    // every authored declaration (see `FixedCoreDeclaration::ordinal`); they
-    // assign no authored declaration, so this walk only steps over them.
-    for _ in 0..FixedCoreDeclaration::COUNT {
-        let _ = root_children.next();
-    }
-
-    assign_domain_symbols(program, symbols, &mut root_children);
-    assign_data_symbols(program, symbols, &mut root_children);
+    // Seeded extension appends declaration cohorts after the retained roots.
+    // Each kind keeps its own declaration order across those cohorts; the
+    // combined root roster is no longer globally grouped by declaration kind.
+    let authored_children = symbols
+        .child_handles(symbols.root())
+        .into_iter()
+        .flatten()
+        .skip(
+            builtin_type_symbols().len()
+                + builtin_function_symbols().len()
+                + FixedCoreDeclaration::COUNT,
+        )
+        .collect::<Vec<_>>();
+    let children = |kind| {
+        authored_children
+            .iter()
+            .copied()
+            .filter(move |symbol| symbols.get(*symbol).kind == kind)
+    };
+    assign_domain_symbols(program, symbols, &mut children(SymbolKind::Domain));
+    assign_data_symbols(program, symbols, &mut children(SymbolKind::Data));
+    let mut conformance_children = children(SymbolKind::Conformance);
     let conformance_symbols = program
         .conformances
         .iter()
         .filter(|conformance| conformance.alias.is_some())
-        .map(|_| next_child_of_kind(&mut root_children, symbols, SymbolKind::Conformance))
+        .map(|_| next_child_of_kind(&mut conformance_children, symbols, SymbolKind::Conformance))
         .collect::<Vec<_>>();
     let mut conformance_symbols = conformance_symbols.into_iter();
     program.conformances.for_each_mut(|conformance| {
-        if conformance.alias.is_some() && !conformance.symbol.is_valid() {
-            conformance.symbol = conformance_symbols
+        if conformance.alias.is_some() {
+            let declaration = conformance_symbols
                 .next()
                 .unwrap_or_else(SymbolHandle::invalid);
+            if !conformance.symbol.is_valid() {
+                conformance.symbol = declaration;
+            }
         }
     });
     assign_conformance_parameter_symbols(program, symbols);
-    let mut diagnostics = assign_machine_symbols(program, symbols, &mut root_children);
-    assign_proposition_symbols(program, symbols, &mut root_children);
-    assign_mathematical_symbols(program, symbols, &mut root_children);
-    assign_root_operator_symbols(program, symbols, &mut root_children);
-    measures::assign_measure_symbols(program, symbols, &mut root_children);
-    diagnostics.extend(assign_trait_symbols(program, symbols, &mut root_children));
+    let mut diagnostics =
+        assign_machine_symbols(program, symbols, &mut children(SymbolKind::Machine));
+    assign_proposition_symbols(program, symbols, &mut children(SymbolKind::Proposition));
+    assign_mathematical_symbols(
+        program,
+        symbols,
+        &mut children(SymbolKind::MathematicalDefinition),
+    );
+    assign_root_operator_symbols(program, symbols, &mut children(SymbolKind::Operator));
+    measures::assign_measure_symbols(program, symbols, &mut children(SymbolKind::Measure));
+    diagnostics.extend(assign_trait_symbols(
+        program,
+        symbols,
+        &mut children(SymbolKind::Trait),
+    ));
 
+    let mut wire_children = children(SymbolKind::WireSchema);
     program.wire_schemas.for_each_mut(|wire_schema| {
+        let declaration = next_child_of_kind(&mut wire_children, symbols, SymbolKind::WireSchema);
         if !wire_schema.symbol.is_valid() {
-            wire_schema.symbol =
-                next_child_of_kind(&mut root_children, symbols, SymbolKind::WireSchema);
+            wire_schema.symbol = declaration;
         }
     });
 

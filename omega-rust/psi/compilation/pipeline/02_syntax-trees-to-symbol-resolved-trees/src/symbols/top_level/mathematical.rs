@@ -16,9 +16,9 @@ pub(super) fn assign_mathematical_symbols(
     let definitions = &mut program.roots.mathematical_definitions;
 
     definitions.for_each_mut(|definition| {
+        let declaration = next_child_of_kind(root_children, symbols, SymbolKind::MathematicalDefinition);
         if !definition.symbol.is_valid() {
-            definition.symbol =
-                next_child_of_kind(root_children, symbols, SymbolKind::MathematicalDefinition);
+            definition.symbol = declaration;
         }
         let mut children = symbols
             .child_handles(definition.symbol)

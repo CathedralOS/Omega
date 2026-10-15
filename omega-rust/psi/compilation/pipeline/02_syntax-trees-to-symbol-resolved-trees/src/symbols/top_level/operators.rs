@@ -37,8 +37,9 @@ pub(super) fn assign_operator_symbols(
     type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
     operator: &mut symbol_resolved_trees::operator::OperatorDefinition,
 ) {
+    let declaration = next_child_of_kind(siblings, symbols, SymbolKind::Operator);
     if !operator.symbol.is_valid() {
-        operator.symbol = next_child_of_kind(siblings, symbols, SymbolKind::Operator);
+        operator.symbol = declaration;
     }
     let mut operator_children = symbols.child_handles(operator.symbol).into_iter().flatten();
 

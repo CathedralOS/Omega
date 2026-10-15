@@ -12,8 +12,9 @@ pub(super) fn assign_measure_symbols(
     let references = &mut program.tables.declarations.child_type_references;
     let constraints = &program.tables.types.constraints;
     program.roots.measures.for_each_mut(|measure| {
+        let declaration = next_child_of_kind(root_children, symbols, SymbolKind::Measure);
         if !measure.symbol.is_valid() {
-            measure.symbol = next_child_of_kind(root_children, symbols, SymbolKind::Measure);
+            measure.symbol = declaration;
         }
         if let Some(parameter) = &mut measure.parameter {
             let mut children = symbols.child_handles(measure.symbol).into_iter().flatten();
