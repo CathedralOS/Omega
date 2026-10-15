@@ -5294,6 +5294,7 @@ pass/borrows/runtime_indexed_scalar_descriptor_call checked 10433ms check-target
 pass/borrows/runtime_indexed_shared_primitive_loan_call_exit checked 20445ms check-target:macos_arm64 @1b12798e27f4
 pass/borrows/runtime_indexed_stored_reference_call checked 10457ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_initialized_computed_case_copy_order_exit checked 3754ms check-target:macos_arm64 @7f27983f22b3+wt
+pass/borrows/runtime_local_reference_backing_state_exit checked 6198ms check-target:macos_arm64 @f6dc6c67924e+wt
 pass/borrows/runtime_measured_range_record_domains_exit checked 10402ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_mixed_static_dynamic_loan_header_exit checked 5848ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/borrows/runtime_mutable_byte_loan_read_exit checked 11104ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7337,7 +7338,7 @@ pass/proofs/numeric_state_contract_exit checked 11012ms check-target:macos_arm64
 pass/proofs/ordinary_denotational_requirement_published_termination_exit checked 11023ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/piecewise_call_result_arithmetic checked 1652ms @1f63ee648905+wt
 pass/proofs/polynomial_expand_core_nat checked 11957ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/proofs/post_mutation_guard_alias checked 32747ms check-target:linux_x86_64 @5b35eda9b8d6
+pass/proofs/post_mutation_guard_alias checked 6166ms check-target:linux_x86_64 @f6dc6c67924e+wt
 pass/proofs/post_mutation_guard_bound checked 33886ms check-target:macos_arm64 @5b35eda9b8d6
 pass/proofs/post_mutation_guard_nested_field checked 36088ms check-target:linux_x86_64 @5b35eda9b8d6
 pass/proofs/proof_addition_commutativity checked 1971ms @a9ae30e1c334+wt

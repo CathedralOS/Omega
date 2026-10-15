@@ -1,0 +1,41 @@
+// Expected exit: 0.
+// A forwarded reference retains its owned local, including a projected field
+// and a call-produced owner, until the receiving states finish observing it.
+data Context { count: u64; }
+data Envelope { context: Context; marker: u64; }
+
+machine make() -> Context { Context { count: 5 } }
+machine set(context: &mut Context) -> bool { context.count = 5; true }
+
+machine projected() crashes Trap {
+    let mut envelope: Envelope = Envelope { context: Context { count: 0 }, marker: 9 };
+    let alias: &mut Context = &mut envelope.context;
+    transition set(alias) && alias.count < 6 {
+        true -> bounded(alias)
+        false -> bad()
+    }
+    state bounded(value: &Context) requires value.count < 6 {
+        transition { _ -> observed(value) }
+    }
+    state observed(value: &Context) {
+        transition value.count == 5 { true -> done() false -> bad() }
+    }
+    state done() { }
+    state bad() { crash Trap; }
+}
+
+machine returned() crashes Trap {
+    let record: Context = make();
+    let alias: &Context = &record;
+    transition { _ -> observe(alias) }
+    state observe(value: &Context) {
+        transition value.count == 5 { true -> done() false -> bad() }
+    }
+    state done() { }
+    state bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    projected();
+    returned();
+}

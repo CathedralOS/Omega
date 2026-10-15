@@ -630,27 +630,20 @@ impl StateGraphEmission<'_, '_> {
                     };
                     if let Some(binding_ordinal) = loaned_binding {
                         let result = case_emission::result(state, binding_ordinal, operations)?;
-                        // A carried view lends the home of the local it was
+                        // A reference or view lends the home of the local it was
                         // formed from; that home stays live with the loan
                         // and dies with it, exactly as a directly lent one.
-                        let backing = match transfer.source {
-                            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { .. } => {
-                                super::super::result_custody::view_backing(
-                                    checked,
-                                    state,
-                                    binding_ordinal,
-                                )
-                                .map(|backing| {
-                                    case_emission::result(state, backing, operations)
-                                        .map(|home| (backing, home))
-                                })
-                                .transpose()?
-                                .filter(|(_, home)| {
-                                    home.multiplicity() == StructuralMultiplicity::Affine
-                                })
-                            }
-                            _ => None,
-                        };
+                        let backing = super::super::result_custody::local_loan_backing(
+                            checked,
+                            state,
+                            binding_ordinal,
+                        )
+                        .map(|backing| {
+                            case_emission::result(state, backing, operations)
+                                .map(|home| (backing, home))
+                        })
+                        .transpose()?
+                        .filter(|(_, home)| home.multiplicity() == StructuralMultiplicity::Affine);
                         // A shared loan of unrestricted storage has no death
                         // to place and records no cleanup home, whether the
                         // checked edge names the result directly or borrows a
