@@ -8,10 +8,7 @@ pub(in crate::execution::terminal_unit) fn state_flow(
     machine: SymbolHandle,
     state: SymbolHandle,
 ) -> Option<&checked_trees::FlowStateFact> {
-    facts.flow.control.states.iter().find_map(|(_, candidate)| {
-        (candidate.machine_symbol == machine && candidate.state_symbol == state)
-            .then_some(candidate)
-    })
+    facts.flow.control.state(machine, state)
 }
 
 /// Which authored parameter an argument or contract place roots at. A

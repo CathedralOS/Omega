@@ -14,6 +14,7 @@ pub(in crate::checks::ranges) struct RangeCallContext<'program> {
     borrows: &'program checked_trees::BorrowFacts,
     borrow_calls: &'program [checked_trees::BorrowCallFact],
     flow_calls: &'program [checked_trees::FlowCallFact],
+    flow_statements: &'program [checked_trees::FlowStatementFact],
     flow: &'program checked_trees::FlowFacts,
     call_frames: Option<&'program validation::CallFrameResolver<'program>>,
 }
@@ -26,22 +27,15 @@ impl<'program> RangeCallContext<'program> {
         flow: &'program checked_trees::FlowFacts,
         call_frames: Option<&'program validation::CallFrameResolver<'program>>,
     ) -> Self {
-        let borrow_calls = borrows
-            .states
-            .iter()
-            .find_map(|(_, owner)| {
-                (owner.machine_symbol == machine.symbol && owner.state_symbol == state.symbol)
-                    .then(|| borrows.calls.span_or_empty(owner.calls))
-            })
+        let borrow_calls = crate::flow::borrow_state_fact(borrows, machine.symbol, state.symbol)
+            .map(|(_, owner)| borrows.calls.span_or_empty(owner.calls))
             .unwrap_or(&[]);
-        let flow_calls = flow
-            .control
-            .states
-            .iter()
-            .find_map(|(_, owner)| {
-                (owner.machine_symbol == machine.symbol && owner.state_symbol == state.symbol)
-                    .then(|| flow.control.calls.span_or_empty(owner.calls))
-            })
+        let owner = flow.control.state(machine.symbol, state.symbol);
+        let flow_calls = owner
+            .map(|owner| flow.control.calls.span_or_empty(owner.calls))
+            .unwrap_or(&[]);
+        let flow_statements = owner
+            .map(|owner| flow.control.statements.span_or_empty(owner.statements))
             .unwrap_or(&[]);
         Self {
             machine,
@@ -49,6 +43,7 @@ impl<'program> RangeCallContext<'program> {
             borrows,
             borrow_calls,
             flow_calls,
+            flow_statements,
             flow,
             call_frames,
         }
@@ -68,15 +63,8 @@ impl<'program> RangeCallContext<'program> {
         statement_index: usize,
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Option<usize> {
-        let state = self.flow.control.states.iter().find_map(|(_, state)| {
-            (state.machine_symbol == self.machine.symbol && state.state_symbol == self.state.symbol)
-                .then_some(state)
-        })?;
         let statement = self
-            .flow
-            .control
-            .statements
-            .span_or_empty(state.statements)
+            .flow_statements
             .iter()
             .find(|statement| statement.statement_index == statement_index)?;
         let place = validation::canonical_place_from_expression_in_state(

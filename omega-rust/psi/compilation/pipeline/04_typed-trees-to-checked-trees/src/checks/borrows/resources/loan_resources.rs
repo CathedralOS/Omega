@@ -100,16 +100,18 @@ pub(crate) fn reconstruct_direct_borrow_resources(
     let mut diagnostics = Vec::new();
 
     for (_, state) in borrow.states.iter() {
-        let Some(flow_state) = flow.control.states.iter().find_map(|(_, candidate)| {
-            (candidate.machine_symbol == state.machine_symbol
-                && candidate.state_symbol == state.state_symbol)
-                .then_some(candidate)
-        }) else {
+        let Some(flow_state) = flow.control.state(state.machine_symbol, state.state_symbol) else {
             diagnostics.push(Diagnostic::error(
                 "checked direct-root borrow resource has no exact flow-state owner",
             ));
             continue;
         };
+
+        // Owner correspondence is required even for an empty roster, but no
+        // loan in the program can belong to this state's empty span.
+        if state.loans.is_empty() {
+            continue;
+        }
 
         for (loan_handle, loan) in borrow
             .loans
@@ -223,16 +225,16 @@ pub(crate) fn reconstruct_reborrow_resource_drafts(
     let mut diagnostics = Vec::new();
 
     for (_, state) in borrow.states.iter() {
-        let Some(flow_state) = flow.control.states.iter().find_map(|(_, candidate)| {
-            (candidate.machine_symbol == state.machine_symbol
-                && candidate.state_symbol == state.state_symbol)
-                .then_some(candidate)
-        }) else {
+        let Some(flow_state) = flow.control.state(state.machine_symbol, state.state_symbol) else {
             diagnostics.push(Diagnostic::error(
                 "checked direct-reborrow resource has no exact flow-state owner",
             ));
             continue;
         };
+
+        if state.loans.is_empty() {
+            continue;
+        }
 
         for (loan_handle, loan) in borrow
             .loans

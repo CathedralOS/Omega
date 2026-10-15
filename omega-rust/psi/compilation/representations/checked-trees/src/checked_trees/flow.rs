@@ -26,6 +26,8 @@ mod invalidations;
 mod operand;
 mod ownership;
 mod semantic_dependencies;
+mod state_rows;
+pub use state_rows::FlowStateTable;
 
 // Terminal plans the checker publishes for lowering: `terminal` holds the
 // plan carriers for each terminal machine kind, and `store_plans` the

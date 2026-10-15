@@ -158,7 +158,7 @@ fn apply_fact_pruning(
             .collect();
         let mut states = arena::Arena::default();
         states.insert_many(kept);
-        facts.flow.control.states = states;
+        facts.flow.control.states = states.into();
     }
     {
         let kept: Vec<checked_trees::MachineServiceReachRows> = facts

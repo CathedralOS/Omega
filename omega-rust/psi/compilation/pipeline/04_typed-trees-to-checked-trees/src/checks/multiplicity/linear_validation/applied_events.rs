@@ -62,12 +62,8 @@ pub(crate) fn apply_recorded_statement_events(
     let calls = facts
         .flow
         .control
-        .states
-        .iter()
-        .find(|(_, flow)| {
-            flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol
-        })
-        .map_or(&[][..], |(_, flow)| {
+        .state(machine.symbol, state.symbol)
+        .map_or(&[][..], |flow| {
             facts.flow.control.calls.span_or_empty(flow.calls)
         });
     let mut selected = super::super::selected_evaluation::SelectedEvaluation::new();

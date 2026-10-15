@@ -22,12 +22,7 @@ pub(crate) fn unique_state_flow<'flow>(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) -> Option<&'flow FlowStateFact> {
-    let mut states = flow.control.states.iter().filter_map(|(_, candidate)| {
-        (candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol)
-            .then_some(candidate)
-    });
-    let captured = states.next()?;
-    states.next().is_none().then_some(captured)
+    flow.control.unique_state(machine.symbol, state.symbol)
 }
 
 /// Array arguments discovered within the unique flow fact already resolved

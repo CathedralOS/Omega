@@ -248,13 +248,7 @@ pub(crate) fn infer_private_body_summaries(
         for invocation in &node.invocations {
             let state_flow = flow
                 .control
-                .states
-                .iter()
-                .find_map(|(_, state)| {
-                    (state.machine_symbol == node.machine
-                        && state.state_symbol == invocation.caller_state)
-                        .then_some(state)
-                })
+                .state(node.machine, invocation.caller_state)
                 .expect("a retained summary invocation has its flow state");
             let call_flow = flow
                 .control
@@ -478,12 +472,7 @@ fn machine_non_transition_invocation_sites(
     plan: &checked_trees::MachineContractPlan,
 ) -> Result<Vec<SummaryInvocationSite>, String> {
     let mut sites = Vec::new();
-    for (_, state) in flow
-        .control
-        .states
-        .iter()
-        .filter(|(_, state)| state.machine_symbol == plan.machine)
-    {
+    for state in flow.control.machine_states(plan.machine) {
         for call in flow.control.calls.span_or_empty(state.calls) {
             let site = validation::find_call_site(
                 program,

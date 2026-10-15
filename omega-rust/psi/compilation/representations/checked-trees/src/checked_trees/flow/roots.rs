@@ -135,7 +135,7 @@ pub struct FlowControlFacts {
     pub exits: Arena<FlowExitFact>,
     pub outgoing: Arena<super::FlowStateOutgoingFact>,
     pub exit_parameter_origins: Arena<super::FlowExitParameterOrigin>,
-    pub states: Arena<FlowStateFact>,
+    pub states: super::FlowStateTable,
     /// Call rows whose authored call selected execution replaced in the typed
     /// body after checking. The rows stay in `calls` because borrow
     /// certificates and computation roots hold their handles; execution
@@ -165,7 +165,7 @@ impl FlowControlFacts {
             exits,
             outgoing: Arena::default(),
             exit_parameter_origins: Arena::default(),
-            states,
+            states: states.into(),
             retired_calls: Vec::new(),
         }
     }
