@@ -108,10 +108,12 @@ impl CheckedStructuralControlSuccessorPlan {
         }
     }
 
-    /// The calls this edge runs to establish its fresh composite arguments,
-    /// in catalog order. They execute after the edge's selection, so their
-    /// effects and custody belong to this edge alone.
-    pub fn operand_calls(&self) -> impl Iterator<Item = &crate::CheckedUnitEffectOperationPlan> {
+    /// The complete preparation and establishment sequence for edge operands.
+    /// It executes after selection; calls and constructed values share its
+    /// custody boundary without flattening their evaluation order.
+    pub fn operand_operations(
+        &self,
+    ) -> impl Iterator<Item = &crate::CheckedUnitEffectOperationPlan> {
         self.transfers
             .iter()
             .filter_map(|transfer| match &transfer.source {
@@ -125,44 +127,13 @@ impl CheckedStructuralControlSuccessorPlan {
             .flat_map(|(operands, establishment)| {
                 operands.iter().chain(std::iter::once(establishment))
             })
+    }
+
+    /// Calls retained by the complete selected-edge operand sequence.
+    pub fn operand_calls(&self) -> impl Iterator<Item = &crate::CheckedUnitEffectOperationPlan> {
+        self.operand_operations()
             .flat_map(crate::CheckedUnitEffectOperationPlan::with_value_calls)
             .filter(|operation| operation.call().is_some())
-    }
-
-    /// How many of this edge's operand calls take the source state's result
-    /// `binding_ordinal` whole and owned.
-    pub fn operand_result_moves(&self, binding_ordinal: u32) -> usize {
-        self.operand_calls()
-            .flat_map(crate::CheckedUnitEffectOperationPlan::call_structural_arguments)
-            .filter(|argument| {
-                argument.source_structural_result_binding_ordinal() == Some(binding_ordinal)
-                    && argument.access == crate::CheckedStructuralAccess::Owned
-                    && argument.path.is_empty()
-            })
-            .count()
-    }
-
-    /// How many times this edge moves the source state's `result` out of
-    /// its home: a direct `StructuralResult` transfer to the target, or,
-    /// for a result carrying ownership debt, a whole owned operand of one of
-    /// the edge's operand calls. A copyable result's operand reads copy it
-    /// and leave its home intact. Edge cleanup subtracts exactly these moves:
-    /// an edge that moves a local must not also dispose of it, and a sibling
-    /// edge that does not move it still must.
-    pub fn result_moves(&self, result: &crate::CheckedUnitStructuralResultBindingPlan) -> usize {
-        let transfers = self
-            .transfers
-            .iter()
-            .filter(|transfer| {
-                matches!(transfer.source,
-                    CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
-                        if binding_ordinal == result.binding_ordinal)
-            })
-            .count();
-        if result.multiplicity == language_semantics::Multiplicity::Unrestricted {
-            return transfers;
-        }
-        transfers + self.operand_result_moves(result.binding_ordinal)
     }
 }
 

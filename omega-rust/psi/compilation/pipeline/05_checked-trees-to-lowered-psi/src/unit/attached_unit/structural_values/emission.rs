@@ -275,12 +275,31 @@ pub(crate) fn emit(
     // edge to carry it. And only a `Place` source aliases: a projection of a
     // call result names a temporary whose own residual complement nothing else
     // consumes, so that shape keeps the route it already had.
+    // A whole-value view that establishes no new membership leaves its
+    // operand's storage geometry unchanged. Keep projected storage visible
+    // through these views; a value establishing facts still needs its normal
+    // producer. The alias below independently rejoins every selected claim.
+    let mut storage_value = *value;
+    loop {
+        let node = structural_values(checked).nodes.get(storage_value);
+        let CheckedStructuralValueKind::Projection { source, path, .. } = &node.kind else {
+            break;
+        };
+        if !path.is_empty() || !node.qualification_decisions.is_empty() {
+            break;
+        }
+        storage_value = *source;
+    }
     if emission.sources.is_empty()
         && let CheckedStructuralValueKind::Projection {
             source,
             path,
             type_identity,
-        } = structural_values(checked).nodes.get(*value).kind.clone()
+        } = structural_values(checked)
+            .nodes
+            .get(storage_value)
+            .kind
+            .clone()
         && !path.is_empty()
         && matches!(
             structural_values(checked).nodes.get(source).kind,
@@ -1981,7 +2000,21 @@ impl Emission<'_, '_, '_> {
         source: StructuralArgument,
         value: CheckedStructuralValueHandle,
     ) -> Result<PlaceId, LoweringError> {
-        let node = structural_values(self.checked).nodes.get(value);
+        // A whole-value ascription preserves its operand's storage. Capture
+        // that input's consuming occurrence, before the completed ascription
+        // itself is handed to a call or successor. Those are distinct claims
+        // and coordinates even when both values share a physical carrier.
+        let mut consumed_value = value;
+        while let CheckedStructuralValueKind::Projection { source, path, .. } =
+            &structural_values(self.checked)
+                .nodes
+                .get(consumed_value)
+                .kind
+            && path.is_empty()
+        {
+            consumed_value = *source;
+        }
+        let node = structural_values(self.checked).nodes.get(consumed_value);
         let source_claims = super::super::claims::lower_owned_operand_claims(
             identities,
             self.checked,

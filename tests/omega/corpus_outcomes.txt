@@ -6354,6 +6354,7 @@ pass/domains/runtime_qualified_view_field_parameter_store_exit checked 4811ms ch
 pass/domains/runtime_result_domain_machine_overload_exit checked 12750ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_scalar_alias_zero_and_qualification_exit checked 12996ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_selected_nested_field_domain_exit checked 2724ms check-target:macos_arm64 @1e469c9b15bb
+pass/domains/runtime_structural_contract_erasure_exit checked 5362ms check-target:macos_arm64 @35062b135924+wt
 pass/domains/runtime_terminal_result_context_exit checked 14710ms check-target:macos_arm64 @8d3a0acb500a+wt
 pass/domains/semantic_cast_guard_chain_mint checked 2041ms @a9ae30e1c334+wt
 pass/domains/slice_domain_validator checked 4647ms check-target:macos_arm64 @e3e4be8878bd

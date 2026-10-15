@@ -73,6 +73,11 @@ pub(super) fn account(
         _ => None,
     };
     let construction_uses = construction_local_uses(facts, state.symbol, operations.iter())?;
+    let successors = terminator.successors();
+    let successor_construction_uses = successors
+        .iter()
+        .map(|edge| construction_local_uses(facts, state.symbol, edge.operand_operations()))
+        .collect::<Option<Vec<_>>>()?;
     // Return producers have the same value-place operands as ordinary
     // constructors, but each roster belongs to one mutually exclusive arm.
     // Keeping those inventories separate avoids counting sibling transfers
@@ -123,6 +128,32 @@ pub(super) fn account(
                         || argument.access == CheckedStructuralAccess::Owned)
                     && argument.path.is_empty()
             };
+        // An edge's complete operand sequence consumes existing homes just as
+        // the state body does. Construction and calls retain distinct source
+        // occurrences; neither may hide a duplicate move or a cleanup.
+        let successor_moves = successors
+            .iter()
+            .zip(&successor_construction_uses)
+            .map(|(edge, constructions)| {
+                let direct = edge.transfers.iter().filter(|transfer| matches!(
+                    transfer.source,
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
+                        if binding_ordinal == result.binding_ordinal
+                )).count();
+                let operands = if result.multiplicity == Multiplicity::Unrestricted {
+                    0
+                } else {
+                    edge.operand_calls()
+                        .flat_map(CheckedUnitEffectOperationPlan::call_structural_arguments)
+                        .filter(|argument| construction_owns_result(argument, operations.len()))
+                        .count()
+                        + constructions.iter().filter(|(_, argument)| {
+                            construction_owns_result(argument, operations.len())
+                        }).count()
+                };
+                (*edge, direct + operands)
+            })
+            .collect::<Vec<_>>();
         // Cleanup owns the value occupying its source at that operation, not
         // every value ever produced for the same local. Resolve named storage
         // through the same prefix query as operands: replacement can retire an
@@ -176,10 +207,7 @@ pub(super) fn account(
         // A partially transferring successor partition must not hide a move
         // after unconditional retirement merely because it has another exit.
         if retired_whole
-            && (terminator
-                .successors()
-                .iter()
-                .any(|edge| edge.result_moves(result) != 0)
+            && (successor_moves.iter().any(|(_, moves)| *moves != 0)
                 || terminator.return_arms().iter().any(|arm| {
                     arm.operation_dependencies().any(|operation| {
                         operation.with_value_calls().any(|operation| {
@@ -378,28 +406,25 @@ pub(super) fn account(
         // ordinary transfer count below must not book it as a second owner.
         let release_owned_view =
             view_source.is_some() && result.multiplicity == Multiplicity::Affine;
-        if release_owned_view
-            && terminator
-                .successors()
-                .iter()
-                .any(|edge| edge.result_moves(result) > 1)
-        {
+        if release_owned_view && successor_moves.iter().any(|(_, moves)| *moves > 1) {
             return None;
         }
         // A successor moves the result either as a direct transfer or, for
         // a result with ownership debt, into one of its own operand calls.
         let transferred = |edge: &CheckedStructuralControlSuccessorPlan| {
-            let transfers = edge.result_moves(result);
             // Unrestricted successor arguments are copies. Several target
             // parameters can observe the same completed local, while its
             // source home still has one disposition on this selected exit.
             // Affine and linear carriers must retain exactly one transfer.
             !release_owned_view
-                && if result.multiplicity == Multiplicity::Unrestricted {
-                    transfers != 0
-                } else {
-                    transfers == 1
-                }
+                && successor_moves.iter().any(|(candidate, transfers)| {
+                    std::ptr::eq(*candidate, edge)
+                        && if result.multiplicity == Multiplicity::Unrestricted {
+                            *transfers != 0
+                        } else {
+                            *transfers == 1
+                        }
+                })
         };
         // A hole-restore stores a whole owned result into borrowed
         // storage; custody moved into the field, which owns it after
@@ -1232,6 +1257,11 @@ fn construction_local_uses<'a, 'operation>(
                 }
                 CheckedStructuralValueKind::FixedArray { elements } => {
                     pending.extend(elements.iter().copied());
+                }
+                // Whole-value ascription carries the same owned operand.
+                // Projected subtrees retain their separate typed partition.
+                CheckedStructuralValueKind::Projection { source, path, .. } if path.is_empty() => {
+                    pending.push(*source)
                 }
                 _ => {}
             }

@@ -73,15 +73,6 @@ impl Builder<'_, '_> {
         })
     }
 
-    /// Whether `expression` is an explicit `as ... in Domain` qualification:
-    /// the one occurrence that adds a membership to the value it denotes.
-    pub(super) fn qualification_occurrence(&self, expression: ExpressionHandle) -> bool {
-        self.program
-            .expression_table
-            .cast_node(expression)
-            .is_some_and(|cast| !cast.semantic_domain.is_empty())
-    }
-
     /// A value cast that keeps its structural carrier -- an explicit domain
     /// qualification or an explicit erasure -- denotes its operand unchanged
     /// (`as` "never silently changes denotation", and no carrier transform

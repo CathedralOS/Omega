@@ -462,8 +462,7 @@ pass/build/selected_const_array_length_exit built 34117ms exit:0 @5171c625dc6a+w
 pass/build/sibling_module_service_exclusion_exit built 17506ms exit:0 @6c49683ce714
 pass/build/sibling_module_slot_family_rows_exit built 10897ms exit:70 @b1d84da832b5+wt
 pass/build/static_assumed_binding_spelling_exit built 17619ms exit:0 @6c49683ce714
-pass/build/uefi_entry_schema_same_leaf incomplete 7950ms @8665e38f912c
-	`launch` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: jump successor: loan transfer); in state `launch::entry`, statement 0
+pass/build/uefi_entry_schema_same_leaf built 8847ms @35062b135924+wt
 pass/build/uefi_os_handoff_invocation incomplete 6537ms @8665e38f912c
 	`Loader::run` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: jump successor: loan transfer); in state `Loader::run::run`, statement 0
 pass/calling/calling_count_boundaries_exit built 18565ms exit:70 @6c49683ce714
@@ -1357,6 +1356,7 @@ pass/domains/runtime_qualified_view_field_parameter_store_exit built 8045ms exit
 pass/domains/runtime_result_domain_machine_overload_exit built 14902ms exit:70 @6c49683ce714
 pass/domains/runtime_scalar_alias_zero_and_qualification_exit built 17467ms exit:0 @6c49683ce714
 pass/domains/runtime_selected_nested_field_domain_exit built 17961ms exit:0 @6c49683ce714
+pass/domains/runtime_structural_contract_erasure_exit built 5919ms exit:0 @35062b135924+wt
 pass/domains/runtime_terminal_result_context_exit built 29966ms exit:0 stdout:match @326ed531359e+wt
 pass/domains/semantic_cast_guard_chain_mint checked 3323ms @6c49683ce714
 pass/domains/slice_domain_validator built 14663ms @6c49683ce714

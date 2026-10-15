@@ -364,21 +364,17 @@ pub(super) fn validate_successors(
                             })
                             .flatten()
                     });
-                // Psi has checked the selected subtree's multiplicity and
-                // predicates against the destination. Only whole-root moves
-                // share the root's complete contract; a containing record's
-                // multiplicity and qualifications are not its field's.
-                let exact_source_owned_contract = live
+                // Psi checks the edge's value memberships, including explicit
+                // weakening. Physical transport retains storage access and
+                // whole-root multiplicity; predicate rosters change no bytes.
+                // A containing record's multiplicity is not its field's.
+                let source_storage_contract = live
                     .structural_homes
                     .get(&place)
                     .map(|home| {
                         home.access() == parameter.access
                             && (!binding.argument.path.is_empty()
-                                || (home.multiplicity() == parameter.multiplicity
-                                    && home.qualifications()
-                                        == parameter.qualifications.as_slice()
-                                    && home.projected_qualifications()
-                                        == parameter.projected_qualifications.as_slice()))
+                                || home.multiplicity() == parameter.multiplicity)
                     })
                     .or_else(|| {
                         function
@@ -389,10 +385,7 @@ pub(super) fn validate_successors(
                             .map(|source| {
                                 source.access == parameter.access
                                     && (!binding.argument.path.is_empty()
-                                        || (source.multiplicity == parameter.multiplicity
-                                            && source.qualifications == parameter.qualifications
-                                            && source.projected_qualifications
-                                                == parameter.projected_qualifications))
+                                        || source.multiplicity == parameter.multiplicity)
                             })
                     });
                 let leaf_copy_owned_contract = || {
@@ -450,7 +443,7 @@ pub(super) fn validate_successors(
                 });
                 if binding.parameter != parameter.place
                     || (parameter.access == terminal_psi::StructuralAccess::Owned
-                        && exact_source_owned_contract != Some(true)
+                        && source_storage_contract != Some(true)
                         && leaf_copy_owned_contract() != Some(true))
                     || !argument_type.is_some_and(|actual| {
                         if parameter.access == terminal_psi::StructuralAccess::Owned {

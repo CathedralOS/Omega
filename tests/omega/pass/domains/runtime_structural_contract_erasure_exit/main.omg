@@ -1,0 +1,35 @@
+// Expected exit: 0. Whole-value erasure retains its input's storage and custody.
+data Payload { count: u64; }
+domain Payload::Ready(value) requires value.count == 7;
+data Holder { payload: Payload in Ready; }
+machine produce() -> Payload in Ready { Payload { count: 7 } }
+
+machine from_parameter(value: Payload in Ready) -> u64 {
+    transition { _ -> bare(value as Payload) }
+    state bare(value: Payload) -> u64 { value.count }
+}
+machine from_local() -> u64 {
+    let value: Payload in Ready = produce();
+    transition { _ -> bare(value as Payload) }
+    state bare(value: Payload) -> u64 { value.count }
+}
+machine from_field() -> u64 {
+    let holder: Holder = Holder { payload: produce() };
+    transition { _ -> bare(holder.payload as Payload) }
+    state bare(value: Payload) -> u64 { value.count }
+}
+machine from_call() -> u64 {
+    transition { _ -> bare(produce() as Payload) }
+    state bare(value: Payload) -> u64 { value.count }
+}
+machine main() crashes Trap {
+    let parameter: u64 = from_parameter(produce());
+    let local: u64 = from_local();
+    let field: u64 = from_field();
+    let call: u64 = from_call();
+    transition parameter == 7 && local == 7 && field == 7 && call == 7 {
+        true -> done() false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

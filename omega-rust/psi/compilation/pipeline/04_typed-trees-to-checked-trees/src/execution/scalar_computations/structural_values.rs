@@ -260,11 +260,15 @@ impl Builder<'_, '_> {
                     return None;
                 }
                 self.retained_argument_owner(root, expected)?;
-            } else if !source_needs_establishment && !self.qualification_occurrence(expression) {
+            } else if !source_needs_establishment
+                && self.program.normalized_type_identity(
+                    self.structural_values.nodes.get(source).type_reference,
+                ) == self.program.normalized_type_identity(expected)
+            {
                 // A whole value has no residual complement to keep with an
                 // owner. An existing home transfers through its place unless
-                // an explicit qualification gives the value a membership that
-                // place lacks; that value is established afresh.
+                // the value's contract changes. Adding and erasing memberships
+                // both require a completed value with the receiving contract.
                 return None;
             }
         }
