@@ -23,10 +23,12 @@ requires 0 <= right && right <= 100
 
 data Main { console: Binding<Console>; }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console
+blocks;
+{
     // The selected implementation returns three, not builtin addition's eleven.
-    let selected: i32 = choose<ConstantThree>(5, 6);
-    let applied: i32 = choose<Selected<7>>(5, 6);
+    let selected: i32 = block choose<ConstantThree>(5, 6);
+    let applied: i32 = block choose<Selected<7>>(5, 6);
     let result: i32 in Wrapping = (selected as i32 in Wrapping) + (applied as i32 in Wrapping) - 7;
     main.console.exit_process(result as i32);
 }

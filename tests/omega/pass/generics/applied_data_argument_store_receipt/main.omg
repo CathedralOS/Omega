@@ -10,12 +10,13 @@ machine same<T>(item: T) -> T { item }
 machine take(value: Holder<Foo>) -> u8 { 0u8 }
 machine take_foo(value: Foo) -> u8 { 0u8 }
 machine concrete(item: Holder<Foo>, spare: Holder<Foo>, last: Holder<Foo>, nested: Holder<Box<Foo>>, shelf: &mut Shelf, flag: bool) -> Holder<Foo> {
-    let held: Holder<Foo> = same<Holder<Foo>>(item);
+    let mut held: Holder<Foo> = same<Holder<Foo>>(item);
     let boxed: Holder<Box<Foo>> = same<Holder<Box<Foo>>>(nested);
     let inner: Box<Foo> = boxed.value;
     let narrow: Holder<u8> = same<Holder<u8>>(Holder { value: 3u8 });
     let byte: u8 = narrow.value;
     let read: Foo = held.value;
+    held.value = Foo { tag: 0u8 };
     shelf.item = same<Foo>(inner.content);
     let taken: u8 = take_foo(read);
     shelf.slot = same<Holder<Foo>>(spare);

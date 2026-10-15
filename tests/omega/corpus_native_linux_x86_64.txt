@@ -68,6 +68,7 @@ pass/arithmetic/runtime_float_nan_comparison_exit built 32409ms exit:70 @6c49683
 pass/arithmetic/runtime_float_self_compare_nan_exit built 33695ms exit:70 @6c49683ce714
 pass/arithmetic/runtime_full_width_unsigned_quotient_exit built 17909ms exit:0 @6c49683ce714
 pass/arithmetic/runtime_guard_narrowed_transition_arg_exit built 15262ms exit:70 @6c49683ce714
+pass/arithmetic/runtime_guarded_read_count_assignment_exit built 10932ms exit:70 @f137abafccda+wt
 pass/arithmetic/runtime_immutable_unsigned_bitwise_bounds_exit built 17782ms exit:0 @6c49683ce714
 pass/arithmetic/runtime_integer_casts_exit built 15568ms exit:70 @6c49683ce714
 pass/arithmetic/runtime_min_max_clamp_narrowing_exit built 34538ms exit:70 @6c49683ce714
@@ -264,6 +265,7 @@ pass/borrows/runtime_array_primitive_reference_capture_exit built 17364ms exit:0
 pass/borrows/runtime_assignment_rhs_carrier_replacement_exit built 17751ms exit:0 @6c49683ce714
 pass/borrows/runtime_boundary_range_view_exit built 17746ms exit:0 @6c49683ce714
 pass/borrows/runtime_bounded_and_shared_field_loans_exit built 17634ms exit:0 @6c49683ce714
+pass/borrows/runtime_byte_view_element_loan_exit built 11017ms exit:70 @f137abafccda+wt
 pass/borrows/runtime_byte_view_element_reference_calls_exit built 17640ms exit:0 @6c49683ce714
 pass/borrows/runtime_captured_primitive_reference_exit built 15154ms exit:70 @6c49683ce714
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit built 14790ms exit:70 @6c49683ce714
@@ -281,6 +283,7 @@ pass/borrows/runtime_copied_byte_distinct_epochs_exit built 17899ms exit:0 @6c49
 pass/borrows/runtime_copied_byte_predicate_snapshot_exit built 17457ms exit:0 @6c49683ce714
 pass/borrows/runtime_copied_range_record_domains_exit built 17356ms exit:0 @6c49683ce714
 pass/borrows/runtime_cyclic_field_loan_release_exit built 14864ms exit:70 @6c49683ce714
+pass/borrows/runtime_direct_immutable_scalar_loan_exit built 6482ms exit:0 @f137abafccda+wt
 pass/borrows/runtime_discarded_reference_release_exit built 15108ms exit:70 @6c49683ce714
 pass/borrows/runtime_disjoint_child_loans_restore_parent_exit built 18234ms exit:0 @6c49683ce714
 pass/borrows/runtime_fixed_array_reference_slot_replacement_exit built 17800ms exit:0 @6c49683ce714
@@ -289,6 +292,7 @@ pass/borrows/runtime_forwarded_indexed_reference_exit rejected 17910ms @6c49683c
 	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(3)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/borrows/runtime_forwarded_primitive_state_loan_exit built 15061ms exit:70 @6c49683ce714
 pass/borrows/runtime_forwarded_reference_array_bounded_read_exit built 14943ms exit:70 @6c49683ce714
+pass/borrows/runtime_forwarded_view_field_domain_exit built 10996ms exit:70 @f137abafccda+wt
 pass/borrows/runtime_guarded_local_byte_loan_exit built 17370ms exit:0 @6c49683ce714
 pass/borrows/runtime_index_mut_loan_write_exit built 14681ms exit:0 @6c49683ce714
 pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit built 17856ms exit:0 stdout:match stderr:match @6c49683ce714
@@ -305,6 +309,7 @@ pass/borrows/runtime_indexed_stored_reference_call built 17528ms exit:0 @6c49683
 pass/borrows/runtime_initialized_computed_case_copy_order_exit built 17547ms exit:0 @6c49683ce714
 pass/borrows/runtime_measured_range_record_domains_exit built 17611ms exit:0 @6c49683ce714
 pass/borrows/runtime_mixed_static_dynamic_loan_header_exit built 17538ms exit:0 @6c49683ce714
+pass/borrows/runtime_mutable_byte_loan_read_exit built 6024ms exit:70 @f137abafccda+wt
 pass/borrows/runtime_mutable_primitive_reference_exit built 17290ms exit:0 @6c49683ce714
 pass/borrows/runtime_mutable_reference_array_bounded_read_exit built 14990ms exit:70 @6c49683ce714
 pass/borrows/runtime_mutable_reference_captures_selector_exit built 17763ms exit:0 @6c49683ce714
@@ -325,6 +330,9 @@ pass/borrows/runtime_recast_mut_loan_field_write_exit built 14833ms exit:0 @6c49
 pass/borrows/runtime_record_byte_region_loan_exit built 15327ms exit:50 @6c49683ce714
 pass/borrows/runtime_record_carried_loan_state_return_exit built 15495ms exit:42 @6c49683ce714
 pass/borrows/runtime_record_primitive_reference_capture_exit built 17845ms exit:0 @6c49683ce714
+pass/borrows/runtime_recursive_mutable_array_store_exit built 6343ms exit:70 @f137abafccda+wt
+pass/borrows/runtime_recursive_shared_array_read_exit built 6245ms exit:70 @f137abafccda+wt
+pass/borrows/runtime_reentered_mutable_array_loan_exit built 6229ms exit:70 @f137abafccda+wt
 pass/borrows/runtime_reference_aggregate_alias_replacement_exit built 12425ms exit:0 @6c49683ce714
 pass/borrows/runtime_reference_aggregate_array_alias_replacement_exit built 12270ms exit:0 @6c49683ce714
 pass/borrows/runtime_reference_aggregate_call_replacement_exit built 12242ms exit:0 @6c49683ce714
@@ -361,6 +369,7 @@ pass/borrows/runtime_selected_stored_carrier_child_exit built 17873ms exit:0 @6c
 pass/borrows/runtime_selected_stored_carrier_exit built 17650ms exit:0 @6c49683ce714
 pass/borrows/runtime_selected_stored_carrier_retired_parent_exit built 17467ms exit:0 @6c49683ce714
 pass/borrows/runtime_shared_carrier_storage_observation_exit built 14919ms exit:0 @6c49683ce714
+pass/borrows/runtime_shared_qualified_view_cycle_exit built 6182ms exit:70 @f137abafccda+wt
 pass/borrows/runtime_shared_qualified_view_scalar_choice_exit built 15085ms exit:70 @6c49683ce714
 pass/borrows/runtime_shared_reference_array_cohort_restoration_exit built 15079ms exit:70 @6c49683ce714
 pass/borrows/runtime_shared_reference_record_direct_payload_restoration_exit built 14923ms exit:70 @6c49683ce714
@@ -386,6 +395,7 @@ pass/borrows/runtime_tail_expression_views_exit built 15252ms exit:0 @6c49683ce7
 pass/borrows/runtime_tail_recursive_disjoint_field_fact_exit built 34511ms exit:0 @6c49683ce714
 pass/borrows/runtime_tail_recursive_nested_field_frame_exit built 34085ms exit:0 @6c49683ce714
 pass/borrows/runtime_tail_recursive_numeric_disjoint_field_fact_exit built 35068ms exit:0 @6c49683ce714
+pass/borrows/runtime_unit_call_mutable_view_local_exit built 5981ms exit:70 @f137abafccda+wt
 pass/borrows/runtime_whole_referent_case_store_exit built 15039ms exit:70 @6c49683ce714
 pass/borrows/runtime_whole_referent_payload_case_store_exit built 14935ms exit:70 @6c49683ce714
 pass/borrows/runtime_whole_referent_record_store_exit built 14753ms exit:70 @6c49683ce714
@@ -468,6 +478,7 @@ pass/build/described_runner_entry_left_exit built 14809ms exit:11 @6c49683ce714
 pass/build/described_runner_entry_right_exit built 15655ms exit:37 @6c49683ce714
 pass/build/discarded_provider_selection_exit built 24362ms exit:70 @6c49683ce714
 pass/build/entry_schema_same_leaf_exit built 17556ms exit:0 @6c49683ce714
+pass/build/explicit_lifetime_entry_context_exit built 6935ms exit:0 @f137abafccda+wt
 pass/build/freestanding_unselected_completion checked 11766ms @6c49683ce714
 pass/build/generated_source_selects_authored rejected 9077ms published:none @6c49683ce714
 	retained machine declaration differs from its indexed root child
@@ -1458,6 +1469,7 @@ pass/calls/nested_value_call_arg_compile built 14736ms exit:1 @6c49683ce714
 pass/calls/nested_where_binding checked 17699ms @6c49683ce714
 pass/calls/ordered_field_selector_calls_exit built 15127ms exit:70 @6c49683ce714
 pass/calls/owned_indirect_argument_complete_forwarding_exit built 17368ms exit:0 @6c49683ce714
+pass/calls/owned_mixed_overaligned_call built 6791ms exit:0 @f137abafccda+wt
 pass/calls/owned_overaligned_local_call built 20716ms exit:0 @6c49683ce714
 pass/calls/owned_state_parameter_call_exit built 14693ms exit:70 @6c49683ce714
 pass/calls/prefix_effectful_call checked 17462ms @6c49683ce714
@@ -1484,6 +1496,8 @@ pass/calls/runtime_borrowed_binding_field_state_loan_exit rejected 15188ms @6c49
 pass/calls/runtime_borrowed_float_formal_exchange_exit built 34438ms exit:70 @6c49683ce714
 pass/calls/runtime_boundary_computed_selector_order_exit rejected 19507ms @6c49683ce714
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(c_strnlen),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(u8\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/runtime_boundary_loop_projected_subslice_exit built 6132ms exit:70 @f137abafccda+wt
+pass/calls/runtime_boundary_projected_mutable_subslice_exit built 6350ms exit:70 @f137abafccda+wt
 pass/calls/runtime_call_carrier_partition_exit built 18059ms exit:0 @6c49683ce714
 pass/calls/runtime_call_result_element_guard_exit built 15042ms exit:70 @6c49683ce714
 pass/calls/runtime_call_statement_before_state_return_exit built 14780ms exit:42 @6c49683ce714
@@ -1543,6 +1557,7 @@ pass/calls/runtime_indexed_scalar_calls_exit built 14926ms exit:70 @6c49683ce714
 pass/calls/runtime_inherited_membership_argument_snapshot_exit built 17388ms exit:0 @6c49683ce714
 pass/calls/runtime_large_frame_foreign_call_floating_control_exit rejected 14874ms @6c49683ce714
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(external_absolute),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/runtime_large_structural_frame_exit built 7204ms exit:70 @f137abafccda+wt
 pass/calls/runtime_let_mut_reassign_exit built 15097ms exit:2 @6c49683ce714
 pass/calls/runtime_lifetime_only_constructor_result_exit built 15085ms exit:70 @6c49683ce714
 pass/calls/runtime_linear_guarded_owner_disposition_exit built 15667ms exit:0 @6c49683ce714
@@ -1775,6 +1790,7 @@ pass/collections/runtime_fixed_vec_round_trip_exit built 14780ms exit:70 @6c4968
 pass/collections/runtime_float_array_projection_return_exit built 33909ms exit:0 @6c49683ce714
 pass/collections/runtime_frame_indexed_param_read_exit built 15085ms exit:1 @6c49683ce714
 pass/collections/runtime_generic_record_slice_reads_exit built 37502ms exit:0 @6c49683ce714
+pass/collections/runtime_guarded_computed_index_exit built 6694ms exit:70 @f137abafccda+wt
 pass/collections/runtime_hoisted_index_write_exit built 14883ms exit:7 @6c49683ce714
 pass/collections/runtime_indexed_assignment_selector_snapshot_exit built 17495ms exit:0 @6c49683ce714
 pass/collections/runtime_indexed_boolean_field_guard_exit built 14717ms exit:70 @6c49683ce714
@@ -1784,8 +1800,10 @@ pass/collections/runtime_indexed_float_field_compare_exit built 32398ms exit:70 
 pass/collections/runtime_indexed_record_field_read_exit built 15120ms exit:70 @6c49683ce714
 pass/collections/runtime_indexed_struct_field_rmw_exit built 15414ms exit:1 @6c49683ce714
 pass/collections/runtime_indexed_successor_argument_exit built 14914ms exit:70 @6c49683ce714
+pass/collections/runtime_indexed_write_call_value_exit built 6290ms exit:70 @f137abafccda+wt
 pass/collections/runtime_initialized_array_state_loan_exit built 15861ms exit:70 @6c49683ce714
 pass/collections/runtime_maze_pathfind_exit built 17742ms exit:70 @6c49683ce714
+pass/collections/runtime_member_decrement_index_bound_exit built 6381ms exit:70 @f137abafccda+wt
 pass/collections/runtime_multi_field_element_view_domains_exit built 17516ms exit:0 @6c49683ce714
 pass/collections/runtime_narrow_computed_selector_read_exit built 17494ms exit:0 @6c49683ce714
 pass/collections/runtime_nested_array_view_call_write_exit built 18007ms exit:0 @6c49683ce714
@@ -1911,6 +1929,7 @@ pass/contracts/runtime_float_indexed_crash_guard_exit built 34245ms exit:0 @6c49
 pass/contracts/runtime_float_nested_crash_guard_exit built 34417ms exit:0 @6c49683ce714
 pass/contracts/runtime_float_unordered_crash_guard_exit built 35213ms exit:signal signal:4 @6c49683ce714
 pass/contracts/runtime_indexed_element_requirements_exit built 18761ms exit:0 @6c49683ce714
+pass/contracts/runtime_later_arm_call_requires_exit built 6467ms exit:70 @f137abafccda+wt
 pass/contracts/runtime_literal_view_extent_calls_exit built 17939ms exit:0 @6c49683ce714
 pass/contracts/runtime_projected_element_requirements_exit built 17660ms exit:0 @6c49683ce714
 pass/contracts/saved_call_case_guarantee_requires_exit built 17813ms exit:0 @6c49683ce714
@@ -2650,8 +2669,7 @@ pass/float/trapping_raw_finite_semantic_result_proof built 34285ms exit:0 @6c496
 pass/float/waterline_record_computed_return_exit built 33575ms exit:70 @6c49683ce714
 pass/float/x86_fma_plan_association built 32520ms @6c49683ce714
 pass/formatting/runtime_repeated_wrapping_decimal_format_exit built 14986ms exit:0 stdout:match @6c49683ce714
-pass/generics/applied_data_argument_store_receipt rejected 1238ms @6c49683ce714
-	cannot use `held` in machine `concrete` state `entry` (statement 9) after `held.value` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `held.value` first
+pass/generics/applied_data_argument_store_receipt checked 1524ms @f137abafccda+wt
 pass/generics/borrowed_applied_field_static_selection_exit built 18954ms exit:0 @6c49683ce714
 pass/generics/borrowed_applied_payload_field_static_selection checked 3761ms @6c49683ce714
 pass/generics/closed_generic_local_field_observation_exit built 17359ms exit:0 @6c49683ce714
@@ -2807,9 +2825,7 @@ pass/generics/runtime_mixed_generic_erased_sum_exit built 14609ms exit:70 @6c496
 pass/generics/runtime_nested_array_extent_binder_exit built 17601ms exit:0 @6c49683ce714
 pass/generics/runtime_nested_generic_instantiations_exit built 15019ms exit:30 @6c49683ce714
 pass/generics/runtime_qualified_closed_equation_exit built 17659ms exit:0 @6c49683ce714
-pass/generics/runtime_selected_operator_body_exit rejected 5191ms @6c49683ce714
-	call to `entry` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `entry` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+pass/generics/runtime_selected_operator_body_exit built 6504ms exit:3 @f137abafccda+wt
 pass/generics/runtime_static_requirement_complex_composition_exit built 48302ms exit:0 @6c49683ce714
 pass/generics/runtime_symbolic_receiver_extent_exit built 18148ms exit:0 @6c49683ce714
 pass/generics/runtime_value_generic_subject_exit built 15133ms exit:17 @6c49683ce714
@@ -2825,6 +2841,7 @@ pass/host/foreign_multiregister checked 17592ms @6c49683ce714
 pass/host/hfa_aggregate_entry checked 17062ms @6c49683ce714
 pass/host/intrinsic_machine_param checked 17369ms @6c49683ce714
 pass/host/process_exit_after_zero_payload_construction built 12383ms exit:70 @6c49683ce714
+pass/host/process_exit_explicit_standalone_domain_exit built 5244ms exit:70 @f137abafccda+wt
 pass/host/process_exit_i32_status_mapped built 21581ms exit:212 @6c49683ce714
 pass/host/process_exit_i32_status_ordered rejected 14876ms regressed-from:built @6c49683ce714
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
@@ -3437,6 +3454,7 @@ pass/providers/runtime_boundary_array_forwarding_exit built 15236ms exit:70 @6c4
 pass/providers/runtime_boundary_array_result_exit built 14968ms exit:70 @6c49683ce714
 pass/providers/runtime_boundary_linear_borrowed_argument_exit built 15359ms exit:70 @6c49683ce714
 pass/providers/runtime_boundary_linear_result_exit built 15277ms exit:70 @6c49683ce714
+pass/providers/runtime_boundary_owned_array_cycle_exit built 6339ms exit:70 @f137abafccda+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit built 15345ms exit:70 @6c49683ce714
 pass/providers/runtime_linear_provider_results_exit built 18304ms exit:0 @6c49683ce714
 pass/providers/runtime_named_provider_explicit_state_exit built 15464ms exit:70 @6c49683ce714
@@ -3503,6 +3521,7 @@ pass/recast/mutable_unsigned_signed_write_compile checked 3378ms @6c49683ce714
 pass/recast/narrow_signed_bits_view_compile checked 3390ms @6c49683ce714
 pass/recast/nested_operand_view_compile checked 3558ms @6c49683ce714
 pass/recast/recast_view_forward_compile checked 3394ms @6c49683ce714
+pass/recast/reference_view_shared_primitive_neighbor_exit built 7227ms exit:0 @f137abafccda+wt
 pass/recast/returned_same_type_view_capture_exit built 18122ms exit:0 @6c49683ce714
 pass/recast/returned_view_state_and_record_composition_exit built 17844ms exit:0 @6c49683ce714
 pass/recast/runtime_aggregate_slice_representation_recast_exit built 15419ms exit:70 @6c49683ce714
@@ -3861,6 +3880,8 @@ pass/termination/custom_measure_rank checked 17588ms @6c49683ce714
 pass/termination/custom_ranking_order_compile checked 3334ms @6c49683ce714
 pass/termination/default_order_nat_countdown_compile checked 3522ms @6c49683ce714
 pass/termination/default_order_slice_length_compile checked 2102ms @6c49683ce714
+pass/termination/distance_conjunction_guard_exit built 6319ms exit:70 @f137abafccda+wt
+pass/termination/distance_constant_bound_exit built 6247ms exit:70 @f137abafccda+wt
 pass/termination/external_result_ranked_arrival_compile checked 3642ms @6c49683ce714
 pass/termination/identity_measure_rank_range checked 1785ms @6c49683ce714
 pass/termination/identity_measure_widths checked 17608ms @6c49683ce714
@@ -3934,6 +3955,8 @@ pass/termination/remainder_actual_call_component checked 3424ms @6c49683ce714
 pass/termination/remainder_actual_endpoint checked 8813ms @6c49683ce714
 pass/termination/remainder_literal_call_component checked 3447ms @6c49683ce714
 pass/termination/runtime_bounded_distance_loop_exit_state_exit built 18092ms exit:0 @6c49683ce714
+pass/termination/runtime_bounded_distance_rankless_exit built 7489ms exit:0 @f137abafccda+wt
+pass/termination/runtime_call_result_short_circuit_rank_exit built 6701ms exit:70 @f137abafccda+wt
 pass/termination/runtime_computed_projected_measure_arrivals_exit built 9255ms exit:0 @6c49683ce714
 pass/termination/runtime_computed_result_rank_arrivals_exit built 17796ms exit:0 @6c49683ce714
 pass/termination/runtime_distance_crossed_header_exit built 17809ms exit:0 @6c49683ce714
@@ -3980,6 +4003,7 @@ pass/text/bounded_ascii_write checked 9378ms @6c49683ce714
 pass/text/bounded_byte_replace checked 8604ms @6c49683ce714
 pass/text/bounded_text_loan checked 18055ms @6c49683ce714
 pass/text/byte_content_store_continuation_exit built 15797ms exit:70 @6c49683ce714
+pass/text/byte_view_element_read_without_byte_declaration_exit built 7715ms exit:0 @f137abafccda+wt
 pass/text/copy_record_view_field_state_transfer_exit built 7681ms exit:70 @6c49683ce714
 pass/text/declared_record_view_field_fill_exit built 14960ms exit:70 @6c49683ce714
 pass/text/encoded_source_select checked 20446ms @6c49683ce714
@@ -4020,8 +4044,10 @@ pass/text/runtime_decimal_scalar_across_output_alternate_exit rejected 7729ms re
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
 pass/text/runtime_decimal_scalar_across_output_exit rejected 14818ms regressed-from:built+exit:70+stdout:match+stderr:match @6c49683ce714
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::read_byte),parameters(),result-dispatch())` resolves to 0 selected provider rows
+pass/text/runtime_element_guard_bounds_parse_exit built 6602ms exit:70 @f137abafccda+wt
 pass/text/runtime_inline_byte_case_payload_variants_exit built 18241ms exit:0 @6c49683ce714
 pass/text/runtime_inline_byte_case_values_exit built 18047ms exit:0 @6c49683ce714
+pass/text/runtime_later_arm_guard_reads_exit built 6483ms exit:70 @f137abafccda+wt
 pass/text/runtime_mixed_byte_field_equality_exit built 14812ms exit:70 @6c49683ce714
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 8176ms @6c49683ce714
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
@@ -4077,7 +4103,7 @@ pass/time/runtime_duration_units_and_scaling_exit built 37868ms exit:0 @6c49683c
 pass/time/runtime_fs_mtime_system_time_interop_exit built 51253ms @6c49683ce714
 pass/time/runtime_kernel_clock_wait_loans_exit built 18193ms exit:0 @6c49683ce714
 pass/time/runtime_time_elapsed_since_exit built 20561ms exit:70 @6c49683ce714
-pass/time/runtime_time_host_native_darwin_exit built 2494ms @9baafc0ace88
+pass/time/runtime_time_host_native_darwin_exit built 6772ms exit:70 @f137abafccda+wt
 pass/time/runtime_time_host_native_darwin_x86_64_exit built 19540ms @6c49683ce714
 pass/time/runtime_time_host_virtual_exit checked 15358ms @6c49683ce714
 pass/time/static_duration_accessors built 38266ms exit:70 @6c49683ce714

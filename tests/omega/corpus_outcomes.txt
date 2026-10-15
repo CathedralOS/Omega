@@ -6630,7 +6630,7 @@ pass/float/trapping_raw_finite_semantic_result_proof checked 11246ms check-targe
 pass/float/waterline_record_computed_return_exit checked 11575ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/float/x86_fma_plan_association checked 11382ms check-target:linux_x86_64 @9c4d1c444502
 pass/formatting/runtime_repeated_wrapping_decimal_format_exit checked 5204ms check-target:macos_arm64 @589aedee8ebc+wt
-pass/generics/applied_data_argument_store_receipt checked 4672ms @7c0518fd7afd+wt
+pass/generics/applied_data_argument_store_receipt checked 1629ms @f137abafccda+wt
 pass/generics/borrowed_applied_field_static_selection_exit checked 5556ms check-target:macos_arm64 @d1fa4738e67a+wt
 pass/generics/borrowed_applied_payload_field_static_selection checked 1827ms @d1fa4738e67a+wt
 pass/generics/closed_generic_local_field_observation_exit checked 10700ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6742,7 +6742,7 @@ pass/generics/runtime_mixed_generic_erased_sum_exit checked 12123ms check-target
 pass/generics/runtime_nested_array_extent_binder_exit checked 5585ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/generics/runtime_nested_generic_instantiations_exit checked 12950ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_qualified_closed_equation_exit checked 5819ms check-target:macos_arm64 @589aedee8ebc+wt
-pass/generics/runtime_selected_operator_body_exit checked 12237ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/runtime_selected_operator_body_exit checked 11640ms check-target:macos_arm64 @f137abafccda+wt
 pass/generics/runtime_static_requirement_complex_composition_exit checked 17350ms check-target:macos_arm64 @b338d531fce8
 pass/generics/runtime_symbolic_receiver_extent_exit checked 11324ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_value_generic_subject_exit checked 12414ms check-target:macos_arm64 @a9ae30e1c334+wt
