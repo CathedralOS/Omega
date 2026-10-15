@@ -1,0 +1,20 @@
+// A selected named policy map owns a target-family contract, not permission to
+// execute another deployment's body when the chosen deployment has no member.
+use omega_language_std::calling;
+
+data TargetPolicy {}
+TargetPolicyCalling satisfies CallingPolicy {
+    CallingPolicy::plan = TargetPolicy::plan;
+}
+
+macos_arm64 machine TargetPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult {
+    BoundaryPlanResult::Rejected {
+        reason: CallingPolicyRejection { reason: "unselected member" },
+    }
+}
+
+boundary trait LocalEntry: Calling<TargetPolicyCalling> {
+    machine enter(value: u64) -> u64;
+}
+
+machine main() {}

@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "calling_policy_missing_target_member");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

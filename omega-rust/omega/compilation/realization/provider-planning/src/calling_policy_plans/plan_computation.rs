@@ -145,12 +145,13 @@ pub(crate) fn evaluate_compatibility_boundary_entry_plan(
 /// evaluated applications in the realization output. Source trees are borrowed.
 pub fn compute_boundary_calling_plans(
     checked: &checked_trees::CheckedTrees,
-    native_target: NativeTarget,
+    target_profile: target::TargetProfile,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
     // Provider selection consumes the source judgment. Retain it through
     // policy admission rather than rechecking its internal call premises.
+    let native_target = target_profile.native_target();
     let typed = &checked.typed;
     let vocabularies =
         checked_trees::typed_trees::calling_vocabulary::standard_calling_vocabularies(typed);
@@ -226,6 +227,7 @@ pub fn compute_boundary_calling_plans(
                 &boundary_arguments,
                 policy_argument,
                 calling_policy_trait,
+                target_profile,
             )
             .map_err(|reason| {
                 vec![

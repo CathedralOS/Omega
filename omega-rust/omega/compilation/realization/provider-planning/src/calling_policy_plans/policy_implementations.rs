@@ -91,6 +91,7 @@ pub(crate) fn selected_policy_machine<'program>(
     boundary_arguments: &[TypeReferenceHandle],
     policy_argument: TypeReferenceHandle,
     calling_policy: &checked_trees::typed_trees::trait_definition::TraitDefinition,
+    target_profile: target::TargetProfile,
 ) -> Result<&'program checked_trees::typed_trees::machine::Machine, String> {
     let bindings = trait_type_bindings(typed, boundary, boundary_arguments);
     let selected = policy_static_argument(typed, policy_argument, &bindings)?;
@@ -163,7 +164,17 @@ pub(crate) fn selected_policy_machine<'program>(
             "calling policy row must select its realization machine's entry state".to_owned(),
         );
     }
-    Ok(machine)
+    // The implementation row selects the authored callable. A family head
+    // is its portable contract, not an executable policy body. Resolve that
+    // exact family on the selected deployment before build-time admission,
+    // as external binding producers and provider rows already do.
+    crate::target_machines::realized_machine(typed, machine, target_profile).ok_or_else(|| {
+        format!(
+            "calling policy realization `{}` has no body for target `{}`",
+            machine.name,
+            target_profile.target_name()
+        )
+    })
 }
 
 fn policy_static_argument(

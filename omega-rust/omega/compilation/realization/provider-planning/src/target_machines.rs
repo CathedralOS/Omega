@@ -173,7 +173,7 @@ fn called_machine(
 /// A head has no authored target or states; visiting it would hide both a
 /// missing member and calls inside the selected member. Exact member references
 /// instead keep their own target and never redirect into another sibling.
-fn realized_machine<'program>(
+pub(crate) fn realized_machine<'program>(
     typed: &'program TypedTrees,
     machine: &'program checked_trees::typed_trees::machine::Machine,
     target: TargetProfile,
