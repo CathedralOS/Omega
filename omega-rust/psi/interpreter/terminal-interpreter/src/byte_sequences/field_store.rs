@@ -78,8 +78,10 @@ impl TerminalExecution<'_> {
         }
         // Sharing immutable backing copies the semantic value. An indexed
         // destination mutation detaches it before changing any byte.
-        self.structural_byte_sequence_fields
-            .insert(destination_field, bytes.clone());
+        self.structural_byte_sequence_fields.insert(
+            destination_field,
+            ByteSequenceBinding::Immutable(bytes.clone()),
+        );
         Ok(())
     }
 
@@ -119,8 +121,18 @@ impl TerminalExecution<'_> {
                 Ok((cell, Some(capacity)))
             }
             terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                access:
+                    None
+                    | Some(
+                        terminal_psi::StructuralAccess::SharedBorrow
+                        | terminal_psi::StructuralAccess::MutableBorrow,
+                    ),
             } => Ok((cell, None)),
+            terminal_psi::ByteSequenceCarrier::BoundedView { access, capacity }
+                if access != Some(terminal_psi::StructuralAccess::WriteOnlyBorrow) =>
+            {
+                Ok((cell, Some(capacity)))
+            }
             _ => Err(malformed()),
         }
     }
@@ -193,7 +205,7 @@ impl TerminalExecution<'_> {
         match destination_field {
             Some(destination_field) => {
                 self.structural_byte_sequence_fields
-                    .insert(destination_field, view);
+                    .insert(destination_field, ByteSequenceBinding::Immutable(view));
             }
             None => {
                 // Replacing a descriptor transfers its observed window, not

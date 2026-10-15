@@ -57,7 +57,7 @@ fn unsigned(function: &AbstractFunction, bits: u16) -> Result<ScalarType, Loweri
 /// The bounded byte field `path`/`field` beneath a parameter or
 /// established owned home, as the structural argument its observations keep. Neither a
 /// length nor a byte read establishes a borrowed view or other authority.
-pub(super) fn readable_byte_field(
+pub(super) fn byte_field_observation(
     function: &AbstractFunction,
     types: &crate::lowering::structural_type_lookup::StructuralTypeLookup<'_>,
     prepared: &PreparedFunctionSignature,
@@ -65,6 +65,7 @@ pub(super) fn readable_byte_field(
     source: semantic_vocabulary::PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
+    observation: terminal_semantics::SequenceFieldObservation,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
     // The checked observation selects storage through ordered pointer crossings.
     let (structural_type, access) = field_root(function, types, prepared, live, source)?;
@@ -75,30 +76,11 @@ pub(super) fn readable_byte_field(
         field,
     )
     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-    // A shared view field is observed through its stored descriptor: the
-    // length is the descriptor's extent word and bytes live behind its
-    // pointer. Neither observation creates a borrow of that backing.
-    if !(matches!(
-        selected.field_type.byte_sequence_carrier(),
-        Some(
-            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                | terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: Some(StructuralAccess::SharedBorrow),
-                }
-        )
-    ) || matches!(
-        selected.field_type,
-        StructuralFieldType::Structural(child)
-            if types.get(&child).is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ElementView { .. }
-                        | StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                        )
-                )
-            })
-    )) {
+    if !terminal_semantics::sequence_field_allows_observation(
+        types.values().copied(),
+        &selected.field_type,
+        observation,
+    ) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(terminal_psi::StructuralArgument {
@@ -254,8 +236,16 @@ pub(super) fn lower(
             if result.scalar_type != unsigned(function, 64)? {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let source =
-                readable_byte_field(function, types, prepared, live, *source, path, *field)?;
+            let source = byte_field_observation(
+                function,
+                types,
+                prepared,
+                live,
+                *source,
+                path,
+                *field,
+                terminal_semantics::SequenceFieldObservation::Length,
+            )?;
             // Metadata keeps the original home and static projection. It
             // does not establish a borrowed view or grant byte-content access.
             let indices = field_indices(function, types, prepared, live, &source)?;
@@ -281,8 +271,16 @@ pub(super) fn lower(
             length,
             obligation,
         } => {
-            let argument =
-                readable_byte_field(function, types, prepared, live, *source, path, *field)?;
+            let argument = byte_field_observation(
+                function,
+                types,
+                prepared,
+                live,
+                *source,
+                path,
+                *field,
+                terminal_semantics::SequenceFieldObservation::Contents,
+            )?;
             // Content needs a shared or mutable borrow; a write-only borrow
             // may observe the live length but not the bytes. The index is
             // bounded by this same field's live length: the length operand

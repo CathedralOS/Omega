@@ -221,6 +221,7 @@ fn bound_view_roots_recurse(
             };
             let mut bound = false;
             for binding in &successor.structural_bindings {
+                let binding = &binding.semantic;
                 if binding.parameter != parameter {
                     continue;
                 }

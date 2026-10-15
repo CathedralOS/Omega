@@ -40,7 +40,7 @@ use primitives::encode_constraint_key;
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v51\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v52\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -503,6 +503,15 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
     }
     crate::codec_bytes::encode_len(bytes, successor.structural_bindings.len());
     for binding in &successor.structural_bindings {
+        crate::codec_bytes::encode_len(bytes, binding.source_indices.len());
+        for index in &binding.source_indices {
+            crate::codec_bytes::push_encoded(bytes, index.operand.value.get().to_le_bytes());
+            encode_scalar_type(bytes, index.operand.scalar_type);
+            crate::codec_bytes::push_encoded(bytes, index.stride.to_le_bytes());
+            optimization_core::encode_option_u64(bytes, index.extent);
+            crate::codec_bytes::push_encoded(bytes, index.obligation.get().to_le_bytes());
+            bytes.extend_from_slice(&index.accepted_fact.bytes());
+        }
         crate::codec_bytes::push_encoded(bytes, binding.semantic.parameter.get().to_le_bytes());
         crate::codec_bytes::push_encoded(
             bytes,

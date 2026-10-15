@@ -1,8 +1,9 @@
 //! Complete byte operands share construction checks across record and case fields.
-//! Return immutable backing only after the actual carrier, predicates, extent
-//! and custody agree; the caller stages it under its exact field namespace.
+//! Retain owned payloads or borrowed descriptors only after the actual carrier,
+//! predicates, extent and custody agree. Exclusive bindings move without
+//! observing/copying their backing; the caller stages the exact field slot.
 use super::storage::ConstructorValue;
-use crate::byte_sequences::ByteSequenceView;
+use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use std::collections::BTreeSet;
@@ -19,22 +20,22 @@ impl TerminalExecution<'_> {
         child: &ConstructorValue<'_>,
         frontier: &mut BTreeSet<StructuralAffineDiscard>,
         consumed: &mut Vec<StructuralArgument>,
-    ) -> Result<Option<ByteSequenceView>, TerminalInterpretError> {
+    ) -> Result<Option<ByteSequenceBinding>, TerminalInterpretError> {
         let Some(carrier) = declaration.field_type.byte_sequence_carrier() else {
             return Ok(None);
         };
         let ConstructorValue::Placed(child) = child else {
             return Err(malformed());
         };
-        let bytes = self
+        let binding = self
             .byte_sequence_values
             .get(&argument.place)
-            .ok_or_else(malformed)?
-            .immutable()?;
+            .ok_or_else(malformed)?;
         if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
             return Err(malformed());
         }
         if carrier.is_shared_readable_view() {
+            let bytes = binding.immutable()?;
             if !self
                 .program
                 .structural_types()
@@ -55,6 +56,7 @@ impl TerminalExecution<'_> {
             }
             self.stage_constructor_operand(argument, frontier, consumed)?;
         } else if let ByteSequenceCarrier::BoundedOwned { capacity } = carrier {
+            let bytes = binding.immutable()?;
             let predicates = terminal_semantics::byte_qualification_predicates_in(
                 self.program.catalogs.structural_domains.iter(),
                 child.structural_type,
@@ -73,9 +75,38 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
+        } else if carrier.is_borrowed() {
+            let declaration_type = self.program.structural_types();
+            let actual = declaration_type
+                .get(&child.structural_type)
+                .ok_or_else(malformed)?;
+            if terminal_semantics::byte_carrier_field_declaration(
+                declaration_type.values(),
+                carrier,
+            )
+            .is_none_or(|expected| expected.id != actual.id)
+                || matches!(binding, ByteSequenceBinding::Immutable(_))
+                || !child.projected_qualifications.is_empty()
+                || !terminal_semantics::byte_qualification_predicates_in(
+                    self.program.catalogs.structural_domains.iter(),
+                    child.structural_type,
+                    &child.qualifications,
+                )
+                .ok_or_else(malformed)?
+                .implies(declaration.field_type.byte_predicates())
+            {
+                return Err(malformed());
+            }
+            binding.validate_mutable_referent(self, child)?;
+            let length = self.byte_descriptor_length(binding, child)?;
+            if matches!(carrier, ByteSequenceCarrier::BoundedView { capacity, .. } if length != capacity)
+                || !self.stage_constructor_operand(argument, frontier, consumed)?
+            {
+                return Err(malformed());
+            }
         } else {
             return Err(malformed());
         }
-        Ok(Some(bytes.clone()))
+        Ok(Some(binding.clone()))
     }
 }

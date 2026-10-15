@@ -52,9 +52,10 @@ pub use control_flow::{
     LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarComparison,
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
     LegalizedScalarParameter, LegalizedScalarReturn, LegalizedScalarReturnValue,
-    LegalizedScalarSuccessor, LegalizedScalarTerminator, LegalizedStructuralCasePayload,
-    LegalizedStructuralCaseSource, LegalizedStructuralCaseSuccessor, LegalizedValueDefinition,
-    SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
+    LegalizedScalarSuccessor, LegalizedScalarTerminator, LegalizedStructuralBinding,
+    LegalizedStructuralCasePayload, LegalizedStructuralCaseSource,
+    LegalizedStructuralCaseSuccessor, LegalizedValueDefinition, SaturatingCarrier,
+    SaturatingOperation, TrappingForm, TrappingOperation,
 };
 
 pub mod identity;

@@ -1,0 +1,26 @@
+// Owning or replacing a shared descriptor cannot authorize its pending store.
+data Bundle<'storage> { raw: &'storage [u8]; }
+
+machine replace_carrier<'storage>(home: &write Bundle<'storage>, replacement: &'storage [u8]) -> u8
+ensures result == 65 {
+    home = Bundle { raw: replacement };
+    65
+}
+
+machine overwrite<'storage>(home: Bundle<'storage>, replacement: &'storage [u8]) {
+    transition home.raw.len > 0 {
+        true -> store(home, replacement)
+        false -> done()
+    }
+    state store(mut home: Bundle<'storage>, replacement: &'storage [u8])
+    requires home.raw.len > 0 {
+        home.raw[0] = replace_carrier(&write home, replacement);
+    }
+    state done() {}
+}
+
+machine main() {
+    let first: [u8; 1] = [11];
+    let second: [u8; 1] = [21];
+    overwrite(Bundle { raw: &first[..] }, &second[..]);
+}

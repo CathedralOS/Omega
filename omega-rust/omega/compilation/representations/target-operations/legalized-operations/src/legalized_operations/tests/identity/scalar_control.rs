@@ -64,13 +64,16 @@ fn structural_control_identity_binds_descriptor_telescope_and_actual_source() {
             target: id(503),
             bindings: Vec::new(),
             fuel: Vec::new(),
-            structural_bindings: vec![abstract_operations::AbstractStructuralBinding {
-                parameter: id(500),
-                argument: terminal_psi::StructuralArgument {
-                    place: id(504),
-                    path: Vec::new(),
-                    access: terminal_psi::StructuralAccess::SharedBorrow,
+            structural_bindings: vec![crate::LegalizedStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
+                    parameter: id(500),
+                    argument: terminal_psi::StructuralArgument {
+                        place: id(504),
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                    },
                 },
+                indices: Vec::new(),
             }],
         },
         effect: EffectLink {
@@ -89,10 +92,10 @@ fn structural_control_identity_binds_descriptor_telescope_and_actual_source() {
         match mutation {
             0 => block.structural_parameters[0].position = 1,
             1 => block.structural_parameters[0].structural_type = id(505),
-            2 => successor.structural_bindings[0].parameter = id(506),
-            3 => successor.structural_bindings[0].argument.place = id(507),
+            2 => successor.structural_bindings[0].semantic.parameter = id(506),
+            3 => successor.structural_bindings[0].semantic.argument.place = id(507),
             _ => {
-                successor.structural_bindings[0].argument.access =
+                successor.structural_bindings[0].semantic.argument.access =
                     terminal_psi::StructuralAccess::MutableBorrow
             }
         }
@@ -276,5 +279,71 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
             }
         }
         assert_identity_drift(identity, &changed);
+    }
+}
+
+#[test]
+fn structural_edge_identity_and_liveness_retain_selector_evidence() {
+    let mut plan = scalar_call_unit_plan();
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    plan.scalar_functions[0].blocks[0].terminator = LegalizedScalarTerminator::Jump {
+        successor: LegalizedScalarSuccessor {
+            edge: id(502),
+            target: id(503),
+            bindings: Vec::new(),
+            fuel: Vec::new(),
+            cleanup_calls: Vec::new(),
+            structural_bindings: vec![crate::LegalizedStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
+                    parameter: id(500),
+                    argument: terminal_psi::StructuralArgument {
+                        place: id(504),
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                    },
+                },
+                indices: vec![crate::LegalizedRuntimeIndexOperand {
+                    operand: abstract_operations::AbstractResult {
+                        value: id(510),
+                        scalar_type,
+                    },
+                    stride: 16,
+                    extent: Some(4),
+                    obligation: id(511),
+                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                        [3; 32],
+                    ),
+                }],
+            }],
+        },
+        effect: EffectLink {
+            input: 0,
+            output: 1,
+        },
+        ownership: Vec::new(),
+    };
+    assert!(plan.scalar_functions[0].references_value(id(510)));
+    assert!(!plan.scalar_functions[0].references_value(id(512)));
+    let original = legalized_operation_plan_identity(&plan);
+    for mutation in 0..6 {
+        let mut changed = plan.clone();
+        let LegalizedScalarTerminator::Jump { successor, .. } =
+            &mut changed.scalar_functions[0].blocks[0].terminator
+        else {
+            panic!("jump fixture");
+        };
+        let index = &mut successor.structural_bindings[0].indices[0];
+        match mutation {
+            0 => index.operand.value = id(512),
+            1 => index.stride = 8,
+            2 => index.extent = Some(5),
+            3 => index.obligation = id(513),
+            4 => {
+                index.accepted_fact =
+                    optimization_core::AcceptedObligationFactIdentity::from_bytes([4; 32])
+            }
+            _ => successor.structural_bindings[0].indices.clear(),
+        }
+        assert_identity_drift(original, &changed);
     }
 }

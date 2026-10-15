@@ -221,6 +221,31 @@ pub struct SelectedSuccessor {
 pub struct SelectedStructuralBinding {
     pub semantic: abstract_operations::AbstractStructuralBinding,
     pub transport: SelectedStructuralTransport,
+    /// Selectors in the final contiguous source region. Earlier pointer
+    /// crossings carry their evidence on their own preparation loads.
+    pub source_indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
+}
+
+impl SelectedStructuralBinding {
+    /// Footprints for a source snapshot, never for an address-only loan.
+    pub fn source_read_roles(&self) -> impl Iterator<Item = super::SelectedMemoryAccessRole> + '_ {
+        self.source_indices
+            .iter()
+            .map(
+                |index| super::SelectedMemoryAccessRole::ReadIndexedPrimitive {
+                    index: index.operand.value,
+                    stride: index.stride,
+                    extent: index.extent,
+                    obligation: index.obligation,
+                    accepted_fact: index.accepted_fact,
+                },
+            )
+            .chain(
+                self.source_indices
+                    .is_empty()
+                    .then_some(super::SelectedMemoryAccessRole::ReadPlace),
+            )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

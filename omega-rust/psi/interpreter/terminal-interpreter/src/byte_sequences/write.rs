@@ -50,11 +50,14 @@ impl TerminalExecution<'_> {
             if let Some((producer, structural_type)) = result {
                 let operation = machine.operation(producer).ok_or_else(malformed)?;
                 let result = operation.result.structural().ok_or_else(malformed)?;
-                if !matches!(
-                    operation.kind,
-                    OperationKind::EstablishMutableElementView { .. }
-                        | OperationKind::ByteSequenceSubslice { .. }
-                ) || result.place != place
+                // A completed readable descriptor carries the same backing
+                // permission whether established here or returned by a call.
+                // Its exact live affine home and binding are still required.
+                if terminal_semantics::descriptor_results::result_access(
+                    self.program.structural_types().values(),
+                    result,
+                ) != Some(StructuralAccess::MutableBorrow)
+                    || result.place != place
                     || result.structural_type != structural_type
                     || result.multiplicity != StructuralMultiplicity::Affine
                     || !result.qualification_establishments.is_empty()
@@ -77,7 +80,11 @@ impl TerminalExecution<'_> {
             } else {
                 let parameter = machine.structural_parameter(place).ok_or_else(malformed)?;
                 if parameter.access != StructuralAccess::MutableBorrow
-                    || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    || (parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                        && !terminal_semantics::view_descriptor_parameter(
+                            parameter,
+                            self.program.structural_types().values(),
+                        ))
                 {
                     return Err(malformed());
                 }
@@ -298,7 +305,9 @@ impl TerminalExecution<'_> {
                     MutableByteSequenceStorage::Field(field) => self
                         .structural_byte_sequence_fields
                         .get(&field)
-                        .and_then(|bytes| bytes.get(index))
+                        .ok_or_else(malformed)?
+                        .immutable()?
+                        .get(index)
                         .copied()
                         .ok_or_else(malformed),
                     MutableByteSequenceStorage::Owned(home) => self
@@ -345,7 +354,12 @@ impl TerminalExecution<'_> {
                 (Some(self.byte_owner_bytes_mut(&home)?), byte_index)
             }
             MutableByteSequenceStorage::Field(field) => (
-                self.structural_byte_sequence_fields.get_mut(&field),
+                Some(
+                    self.structural_byte_sequence_fields
+                        .get_mut(&field)
+                        .ok_or_else(malformed)?
+                        .immutable_mut()?,
+                ),
                 byte_index,
             ),
             MutableByteSequenceStorage::Array { backing, offset } => {

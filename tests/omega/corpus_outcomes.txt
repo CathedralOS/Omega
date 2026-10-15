@@ -4274,6 +4274,8 @@ fail/slices/captured_range_end_after_selector_replacement rejected 1574ms expect
 	cannot prove subslice range end bound `0..__hoist_15` is within unknown slice length
 fail/slices/captured_range_end_for_other_descriptor rejected 1631ms expected @a9ae30e1c334+wt
 	cannot prove subslice range end bound `0..__hoist_14` is within unknown slice length
+fail/slices/captured_shared_view_destination rejected 131ms expected @096f2ecfd243+wt
+	machine `overwrite` state `store` assignment requires mutable source access through every reference crossed by its destination
 fail/slices/copied_record_window_insufficient_extent rejected 1560ms @a9ae30e1c334+wt
 	cannot prove requires contract for call visit from Main::exercise: 1 < rooms.len (needs fact `index < rooms.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/slices/declared_window_does_not_inherit_builtin_extent rejected 1542ms expected @a9ae30e1c334+wt
@@ -6136,12 +6138,14 @@ pass/control_flow/runtime_exclusive_state_loan_shared_handoff_exit checked 11418
 pass/control_flow/runtime_far_case_tag_dispatch_exit checked 11611ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_float_payload_snapshot_after_case_replacement_exit checked 7246ms check-target:macos_arm64 @aef42baa7504+wt
 pass/control_flow/runtime_guard_case_survives_disjoint_conjunct_exit checked 11582ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/control_flow/runtime_guarded_edge_preparation_exit checked 2860ms check-target:macos_arm64 @096f2ecfd243+wt
 pass/control_flow/runtime_heterogeneous_static_parent_state_loan_exit checked 5670ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/control_flow/runtime_index_state_child_loan_exit checked 5776ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/control_flow/runtime_index_state_grandchild_loan_exit checked 5662ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/control_flow/runtime_index_state_loan_forwarding_exit checked 5769ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/control_flow/runtime_index_state_loan_snapshot_exit checked 5656ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/control_flow/runtime_indexed_case_dispatch_exit checked 12121ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/control_flow/runtime_indexed_edge_regions_exit checked 2914ms check-target:macos_arm64 @096f2ecfd243+wt
 pass/control_flow/runtime_integer_literal_dispatch_exit checked 11951ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_later_state_shared_array_loan checked 11481ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_local_record_array_byte_render_exit checked 16908ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7271,6 +7275,7 @@ pass/ownership/runtime_borrowed_sum_empty_restore_exit checked 11399ms check-tar
 pass/ownership/runtime_borrowed_sum_identity_restore_exit checked 10689ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_borrowed_sum_retag_exit checked 11555ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_borrowed_window_crash_exit checked 11064ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/ownership/runtime_captured_byte_destination_exit checked 2807ms check-target:macos_arm64 @096f2ecfd243+wt
 pass/ownership/runtime_captured_construction_selector_exit checked 11041ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_captured_replacement_selector_exit checked 10842ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_captured_selector_call_exit checked 11584ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7306,6 +7311,7 @@ pass/ownership/runtime_selected_constructed_argument_exit checked 4178ms check-t
 pass/ownership/runtime_selected_linear_temporary_exit checked 4250ms check-target:macos_arm64 @dd6871ed0476
 pass/ownership/runtime_selected_reference_local_exit checked 11154ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_selective_constructed_owner_custody_exit checked 3460ms check-target:macos_arm64 @1a353f2e117b+wt
+pass/ownership/runtime_stored_byte_view_return_exit checked 2808ms check-target:macos_arm64 @096f2ecfd243+wt
 pass/ownership/runtime_unknown_affine_case_discard_exit checked 10704ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_view_parameter_element_window_exit checked 11550ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_whole_borrowed_transform_exit checked 12004ms check-target:macos_arm64 @a9ae30e1c334+wt

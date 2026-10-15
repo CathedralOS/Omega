@@ -117,7 +117,7 @@ impl TerminalExecution<'_> {
                 continue;
             }
             if let Some((value, binding)) =
-                self.prepare_shared_descriptor_argument(parameter, argument)?
+                self.prepare_byte_descriptor_argument(parameter, argument)?
             {
                 if value != *resolved || values.insert(parameter.place, binding).is_some() {
                     return Err(malformed());
@@ -166,25 +166,10 @@ impl TerminalExecution<'_> {
                 }
                 continue;
             }
-            if !carrier.is_borrowed()
-                || !is_direct_borrowed_rebinding(
-                    parameter,
-                    argument,
-                    resolved,
-                    &self.program.structural_types(),
-                )
-                || !argument.path.is_empty()
-            {
-                return Err(malformed());
-            }
-            let bytes = crate::custody::verified_structural_place(
-                &self.byte_sequence_values,
-                argument.place,
-            )?;
-            let bytes = self.reborrow_byte_sequence_binding(bytes, resolved, parameter.access)?;
-            if values.insert(parameter.place, bytes).is_some() {
-                return Err(malformed());
-            }
+            // Borrowed descriptors already use the same authenticated
+            // projection/reborrow operation above. No whole-root fallback
+            // may reinterpret a missing field binding as another descriptor.
+            return Err(malformed());
         }
         Ok(values)
     }

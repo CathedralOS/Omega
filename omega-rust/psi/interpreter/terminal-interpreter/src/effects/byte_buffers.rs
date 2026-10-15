@@ -142,7 +142,8 @@ impl BoundaryArguments {
                 | ByteSequenceBinding::MutableArray { .. } => StructuralAccess::MutableBorrow,
             };
             if parameter.access != access
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || (parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    && !terminal_semantics::view_descriptor_parameter(parameter, types.values()))
                 || !parameter.projected_qualifications.is_empty()
                 || match &binding {
                     ByteSequenceBinding::MutableField { referent, .. }
@@ -441,7 +442,7 @@ impl TerminalExecution<'_> {
         local_array_roots: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
     {
-        if let Some(prepared) = self.prepare_shared_descriptor_argument(parameter, argument)? {
+        if let Some(prepared) = self.prepare_byte_descriptor_argument(parameter, argument)? {
             return Ok(Some(prepared));
         }
         if let Some(prepared) = self.prepare_owner_view_argument(parameter, argument)? {
@@ -541,6 +542,7 @@ impl TerminalExecution<'_> {
                 .structural_byte_sequence_fields
                 .get(destination)
                 .ok_or_else(malformed)?
+                .immutable()?
                 .bytes();
             if bytes.len() as u128 > u128::from(*capacity) {
                 return Err(malformed());
@@ -643,6 +645,7 @@ impl TerminalExecution<'_> {
             capacity,
             parent_type,
             referent: parent,
+            descriptor_home: None,
         };
         binding.validate_mutable_referent(
             self,
@@ -757,6 +760,7 @@ impl TerminalExecution<'_> {
             home,
             capacity,
             referent: owner.clone(),
+            descriptor_home: None,
         };
         binding.validate_mutable_referent(self, owner)?;
         Ok(binding)
@@ -836,6 +840,7 @@ impl TerminalExecution<'_> {
                         field: field.id,
                     })
                     .ok_or_else(malformed)?
+                    .immutable()?
                     .clone();
                 parent.path.push(StructuralPathSegment::Field(identity));
                 (StructuralRuntimePlace::from(&parent), bytes, capacity)
@@ -871,7 +876,8 @@ impl TerminalExecution<'_> {
         let bytes = self
             .structural_byte_sequence_fields
             .get(&source)
-            .ok_or_else(malformed)?;
+            .ok_or_else(malformed)?
+            .immutable()?;
         let bytes = match carrier {
             ByteSequenceCarrier::BorrowedView { .. } => bytes.clone(),
             ByteSequenceCarrier::BoundedOwned { .. } => {

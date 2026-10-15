@@ -82,9 +82,9 @@ pub fn is_static_projection(path: &[StructuralPathSegment]) -> bool {
     })
 }
 
-/// A retained-address projection permits typed reference crossings, but no
-/// newly evaluated selector. The carrier supplies its runtime address;
-/// source custody and lifetime admission remain separate requirements.
+/// A retained-address projection permits typed reference crossings and already
+/// evaluated selectors. Each runtime selector carries its occurrence's bounds
+/// obligation; this vocabulary query grants neither that evidence nor custody.
 pub fn is_address_projection(path: &[StructuralPathSegment]) -> bool {
     path.iter().all(|segment| {
         matches!(
@@ -93,6 +93,7 @@ pub fn is_address_projection(path: &[StructuralPathSegment]) -> bool {
                 | StructuralPathSegment::Case(_)
                 | StructuralPathSegment::FixedIndex(_)
                 | StructuralPathSegment::Referent
+                | StructuralPathSegment::RuntimeIndex { .. }
         )
     })
 }
@@ -187,7 +188,7 @@ pub fn borrowed_referent_type<'a>(
 }
 
 /// The referent type an address-join argument names: `path` resolved from
-/// `root` through record or selected-case fields and in-bounds fixed indexes.
+/// `root` through record or selected-case fields and retained element indexes.
 /// An element view contributes its own live extent as the index bound. A leaf
 /// field resolves to the catalog's unique standalone declaration of the
 /// storage a loan of it addresses (`owner_loans::loaned_field_type`): a
@@ -285,8 +286,16 @@ pub fn referent_type<'a>(
             // extent discharges the bound, and the path still names one
             // element's address.
             (
-                StructuralPathSegment::FixedIndex(_),
+                StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. },
                 StructuralTypeShape::ElementView { element, .. },
+            ) => unique(
+                &mut declarations
+                    .clone()
+                    .filter(|declaration| declaration.id == *element),
+            )?,
+            (
+                StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::FixedArray { element, .. },
             ) => unique(
                 &mut declarations
                     .clone()

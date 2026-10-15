@@ -170,9 +170,15 @@ pub struct RetiredFlowCall {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowStatementFact {
     pub statement_index: usize,
-    /// Completed value before destination evaluation and storage. Zero for
+    /// Completed RHS after destination evaluation, before storage. Zero for
     /// statements without a stored value; children retain their own epochs.
     pub stored_value: arena::Handle<super::FlowOperandFact>,
+    /// Destination evaluation before the RHS and the store. This retains
+    /// the completed address and any descriptor observations produced while
+    /// forming it, not a read of the old value or permission to dispose it.
+    /// Replacement checks must join this occurrence to residual storage and
+    /// reference custody; post-RHS origins may already name another backing.
+    pub store_target: arena::Handle<super::FlowOperandFact>,
     /// Exact established destination in the semantic place arena. Dynamic or
     /// unresolved destinations cannot supply a reaching value capture.
     pub stored_destination: facts::PlaceHandle,

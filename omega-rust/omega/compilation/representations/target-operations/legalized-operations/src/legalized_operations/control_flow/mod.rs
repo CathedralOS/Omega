@@ -13,8 +13,8 @@ pub use scalar_graph::{
     LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarComparison,
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
     LegalizedScalarParameter, LegalizedScalarReturn, LegalizedScalarReturnValue,
-    LegalizedScalarSuccessor, LegalizedScalarTerminator, LegalizedStructuralCaseSource,
-    LegalizedValueDefinition,
+    LegalizedScalarSuccessor, LegalizedScalarTerminator, LegalizedStructuralBinding,
+    LegalizedStructuralCaseSource, LegalizedValueDefinition,
 };
 mod structural_case;
 pub use structural_case::{LegalizedStructuralCasePayload, LegalizedStructuralCaseSuccessor};

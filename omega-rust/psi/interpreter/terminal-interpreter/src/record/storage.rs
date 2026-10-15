@@ -227,7 +227,10 @@ impl<'execution> ConstructorValue<'execution> {
 #[derive(Default)]
 pub(crate) struct ConstructorStorage {
     scalars: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
-    bytes: BTreeMap<StructuralByteSequenceRuntimeField, ByteSequenceView>,
+    bytes: BTreeMap<
+        StructuralByteSequenceRuntimeField,
+        crate::byte_sequences::binding::ByteSequenceBinding,
+    >,
     views: BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
     references: BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     primitives: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
@@ -261,7 +264,7 @@ impl ConstructorStorage {
     pub(crate) fn stage_byte_field(
         &mut self,
         destination: StructuralByteSequenceRuntimeField,
-        bytes: ByteSequenceView,
+        bytes: crate::byte_sequences::binding::ByteSequenceBinding,
     ) {
         self.bytes.insert(destination, bytes);
     }
@@ -516,8 +519,12 @@ impl ConstructorStorage {
                     field,
                     ..
                 }) => {
-                    self.bytes
-                        .insert(field.clone(), bytes.detached_descriptor());
+                    self.bytes.insert(
+                        field.clone(),
+                        crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
+                            bytes.detached_descriptor(),
+                        ),
+                    );
                 }
                 Some(crate::byte_sequences::binding::ByteSequenceBinding::MutableOwner {
                     home,
@@ -610,6 +617,14 @@ impl ConstructorStorage {
             crate::structural_storage::cells(&execution.structural_byte_sequence_fields, source)
         {
             if let Some(parent) = relocate(&field.parent) {
+                if !transfers_custody
+                    && !matches!(
+                        bytes,
+                        crate::byte_sequences::binding::ByteSequenceBinding::Immutable(_)
+                    )
+                {
+                    return Err(malformed());
+                }
                 self.bytes.insert(field.relocated(parent), bytes.clone());
             }
         }

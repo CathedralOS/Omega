@@ -131,6 +131,67 @@ mod tests {
     }
 
     #[test]
+    fn structural_snapshot_identity_retains_every_selector_coordinate() {
+        use semantic_vocabulary::{
+            IntegerSign, IntegerType, ObligationId, PlaceId, ScalarType, ValueId,
+        };
+        let mut original = successor(2, 1, 3);
+        original
+            .structural_bindings
+            .push(crate::SelectedStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
+                    parameter: PlaceId::new(4).unwrap(),
+                    argument: terminal_psi::StructuralArgument {
+                        place: PlaceId::new(5).unwrap(),
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                    },
+                },
+                transport: crate::SelectedStructuralTransport::Unused,
+                source_indices: vec![legalized_operations::LegalizedRuntimeIndexOperand {
+                    operand: abstract_operations::AbstractResult {
+                        value: ValueId::new(6).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                        ),
+                    },
+                    stride: 16,
+                    extent: Some(7),
+                    obligation: ObligationId::new(8).unwrap(),
+                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                        [9; 32],
+                    ),
+                }],
+            });
+        let encode = |value: &SelectedSuccessor| {
+            let mut bytes = Vec::new();
+            super::encode_successor(&mut bytes, value);
+            bytes
+        };
+        let canonical = encode(&original);
+        for mutation in 0..7 {
+            let mut changed = original.clone();
+            let index = &mut changed.structural_bindings[0].source_indices[0];
+            match mutation {
+                0 => index.operand.value = ValueId::new(10).unwrap(),
+                1 => {
+                    index.operand.scalar_type =
+                        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
+                }
+                2 => index.stride += 1,
+                3 => index.extent = None,
+                4 => index.obligation = ObligationId::new(11).unwrap(),
+                5 => {
+                    index.accepted_fact =
+                        optimization_core::AcceptedObligationFactIdentity::from_bytes([12; 32])
+                }
+                _ => changed.structural_bindings[0].source_indices.clear(),
+            }
+            assert_ne!(encode(&changed), canonical, "selector mutation {mutation}");
+        }
+    }
+
+    #[test]
     fn signed_less_than_identity_retains_predicate_and_successor_order() {
         let terminator = SelectedTerminator::ConditionalBranchI64LessThan {
             instruction: instruction(SelectedInstructionKind::ConditionalBranchI64LessThan),

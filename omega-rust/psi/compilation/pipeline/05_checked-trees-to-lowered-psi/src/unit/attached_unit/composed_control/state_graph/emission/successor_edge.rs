@@ -238,21 +238,29 @@ impl StateGraphEmission<'_, '_> {
                             )
                             .and_then(|()| {
                                 case_emission::result(state, result.binding_ordinal, operations)
+                                    .map(|binding| binding.into_owned())
                                     .and_then(|binding| {
                                         let place = binding.place();
-                                        let suffix = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                                        let suffix = crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
                                             identities, &presentation.path, binding.structural_type(),
-                                            &self.catalogs.structural_types, None,
-                                            &mut std::iter::empty(), None,
+                                            &self.catalogs.structural_types,
                                         )?;
                                         // A completed move can name a subtree
                                         // of an existing owner. Its path is
                                         // part of the value, not an optional
                                         // hint: dropping it transfers the
                                         // containing record instead.
-                                        argument_path = binding.path().to_vec();
-                                        argument_path.extend(suffix);
-                                        completed_binding = Some(binding.into_owned());
+                                        let prepared = binding.path().iter().cloned()
+                                            .map(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static)
+                                            .chain(suffix).collect::<Vec<_>>();
+                                        let mut calls = self.catalogs.scalar_calls.emission_context();
+                                        argument_path = crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
+                                            &prepared, edge_evaluation.current_structural_place(place),
+                                            Some(&edge_values), &mut std::iter::empty(), Some(&mut calls),
+                                            Some((next_value, operations)),
+                                        )?;
+                                        self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                                        completed_binding = Some(binding);
                                         Ok(place)
                                     })
                             });
@@ -335,18 +343,24 @@ impl StateGraphEmission<'_, '_> {
                                 }
                             }
                             let suffix =
-                                crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                                crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
                                     identities,
                                     &subject.path,
                                     storage.selected_type,
                                     &self.catalogs.structural_types,
-                                    Some(&edge_values),
-                                    &mut selectors.into_iter(),
-                                    Some(&mut calls),
                                 )?;
                             let root = storage.place;
-                            let mut path = storage.path;
-                            path.extend(suffix);
+                            // The selected edge owns the operand frame. Keep
+                            // its actual storage prefix before emitting view
+                            // extents and selector obligations, just as for a
+                            // reference formation in an ordinary operation.
+                            let prepared = storage.path.into_iter()
+                                .map(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static)
+                                .chain(suffix).collect::<Vec<_>>();
+                            let path = crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
+                                &prepared, root, Some(&edge_values), &mut selectors.into_iter(),
+                                Some(&mut calls), Some((next_value, operations)),
+                            )?;
                             self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
                             if carrier_type_identity.is_valid()
                                 && let Some(group) = self.captured_loans.group(target, target_index as u32)
@@ -507,30 +521,25 @@ impl StateGraphEmission<'_, '_> {
                             // an owned move instead retains the original root
                             // and path on the edge. The edge transaction first
                             // captures that subtree, then disposes its complement.
-                            let (source, root_type) = match subject.source {
-                                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                                    parameter_index,
-                                } => {
-                                    let parameter = state_parameters.get(parameter_index as usize).ok_or(
-                                        LoweringError::Unsupported(
-                                            "Unit graph projected subject descriptor disappeared",
-                                        ),
-                                    )?;
-                                    (parameter.place, parameter.structural_type)
+                            let storage = edge_evaluation.cleanup_storage(
+                                &subject.source, state_parameters, |binding| {
+                                    let produced = case_emission::result(state, binding, operations)?;
+                                    Ok(produced.as_ref().into())
                                 },
-                                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                    binding_ordinal,
-                                } => {
-                                    let result = case_emission::result(
-            state, binding_ordinal, operations)?;
-                                    (result.place(), result.structural_type())
-                                },
-                                _ => return unsupported(
-            "Unit graph projected value has no established root"),
-                            };
-                            let source = edge_evaluation.current_structural_place(
-            source);
-                            let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(identities, &subject.path, root_type, &self.catalogs.structural_types, None, &mut std::iter::empty(), None)?;
+                            )?;
+                            let source = storage.place;
+                            let suffix = crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
+                                identities, &subject.path, storage.selected_type, &self.catalogs.structural_types,
+                            )?;
+                            let prepared = storage.path.into_iter()
+                                .map(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static)
+                                .chain(suffix).collect::<Vec<_>>();
+                            let mut calls = self.catalogs.scalar_calls.emission_context();
+                            let path = crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
+                                &prepared, source, Some(&edge_values), &mut std::iter::empty(),
+                                Some(&mut calls), Some((next_value, operations)),
+                            )?;
+                            self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
                             if target_parameter.multiplicity != language_semantics::Multiplicity::Unrestricted {
                                 argument_path = path;
                                 source

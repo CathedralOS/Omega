@@ -382,6 +382,19 @@ pub(in crate::legalization) fn byte_read(
     {
         return None;
     }
+    let selected = terminal_semantics::projected_field_declaration(
+        types.iter(),
+        structural_type,
+        path,
+        *field,
+    )?;
+    if !terminal_semantics::sequence_field_allows_observation(
+        types.iter(),
+        &selected.field_type,
+        terminal_semantics::SequenceFieldObservation::Contents,
+    ) {
+        return None;
+    }
     crate::structural_inputs::structural_reference_input::projected_byte_field(
         structural_type,
         path,

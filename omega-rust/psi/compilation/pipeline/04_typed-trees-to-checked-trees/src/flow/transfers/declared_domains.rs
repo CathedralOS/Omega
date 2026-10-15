@@ -21,6 +21,7 @@ pub(super) fn establish(
     statement_index: usize,
     statement: &StatementNode,
     target_place: PlaceHandle,
+    target_is_exact: bool,
     mut candidate_targets: Vec<CanonicalPlace>,
     assignment_source_contexts: HandleSpan<FlowSemanticContextRef>,
     refs: &mut HandleSpan<facts::FactRef>,
@@ -91,7 +92,9 @@ pub(super) fn establish(
                 semantic_domain,
             },
         };
-    for (domain_symbol, semantic_domain) in &declared_target_domains {
+    for (domain_symbol, semantic_domain) in
+        declared_target_domains.iter().filter(|_| target_is_exact)
+    {
         let fact = semantic.append_fact(membership_fact(
             target_place,
             *domain_symbol,
@@ -101,12 +104,14 @@ pub(super) fn establish(
     }
     let target = semantic.places.get(target_place);
     let target_segments = semantic.place_segments.span_or_empty(target.segments);
-    if target_segments.iter().any(|segment| {
-        matches!(
-            segment,
-            facts::PlaceSegment::Index { .. } | facts::PlaceSegment::FixedIndex { .. }
-        )
-    }) {
+    if target_is_exact
+        && target_segments.iter().any(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Index { .. } | facts::PlaceSegment::FixedIndex { .. }
+            )
+        })
+    {
         // The write checker establishes the destination's declared predicate
         // on the selected element. Its uniform collection siblings keep their
         // old predicate, even when a context containing several entry facts is

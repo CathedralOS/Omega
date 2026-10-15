@@ -12,6 +12,7 @@ mod provider;
 mod read_result;
 mod settlements;
 mod signature;
+pub(super) use call::{decode_runtime_indices, encode_runtime_indices};
 pub(super) use declarations::{decode_semantic_argument, encode_semantic_argument};
 pub(super) use function::{
     decode_contracts, decode_invocation_site, decode_local_slot, encode_contracts,

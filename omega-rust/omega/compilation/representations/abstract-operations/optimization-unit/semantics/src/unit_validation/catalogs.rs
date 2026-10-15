@@ -384,13 +384,27 @@ fn validate_structural_field_range_authority(
         // Edge-owned receivers use the same immutable source-cut catalog as
         // instruction paths. Equal numeric edge/operation IDs are distinct
         // owners, and a bound from another edge cannot authorize this one.
-        for (edge, actions) in node.operation.cleanup_rosters() {
-            for (_, obligation) in actions.iter().flat_map(|action| {
-                action
-                    .path()
+        let paths = node
+            .successors
+            .iter()
+            .flat_map(|edge| {
+                edge.structural_bindings
                     .iter()
-                    .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
-            }) {
+                    .map(move |binding| (edge.psi_edge, binding.argument.path.as_slice()))
+            })
+            .chain(
+                node.operation
+                    .cleanup_rosters()
+                    .into_iter()
+                    .flat_map(|(edge, actions)| {
+                        actions.iter().map(move |action| (edge, action.path()))
+                    }),
+            );
+        for (edge, path) in paths {
+            for (_, obligation) in path
+                .iter()
+                .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
+            {
                 if !unit.accepted_obligation_facts.iter().any(|fact| {
                     fact.machine == function.machine
                         && fact.owner == optimization_unit::PsiProvenance::Edge(edge)
@@ -493,7 +507,7 @@ fn validate_structural_field_range_authority(
                         types.values().copied(),
                         root.structural_type,
                         root.multiplicity,
-                        root.backing_access(&types),
+                        root.backing_access(types.values().copied()),
                         &destination.path,
                         terminal_psi::StructuralAccess::MutableBorrow,
                     )

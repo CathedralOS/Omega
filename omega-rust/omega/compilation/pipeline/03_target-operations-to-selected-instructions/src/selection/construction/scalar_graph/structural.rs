@@ -63,7 +63,7 @@ pub(super) use element_views::element_observation;
 pub(super) struct Transport {
     pub(super) result_pointer: Option<VirtualRegisterId>,
     pub pointers: Vec<(PlaceId, VirtualRegisterId)>,
-    views: Vec<ByteViewHomes>,
+    pub(super) views: Vec<ByteViewHomes>,
     pub(super) element_views: Vec<ElementViewHomes>,
     pub fragments: Vec<(PlaceId, u32, VirtualRegisterId)>,
     pub slots: Vec<SelectedOutgoingArgumentSlot>,
@@ -595,6 +595,24 @@ fn memory(
     byte_count: u32,
     role: SelectedMemoryAccessRole,
 ) -> Result<(), SelectedInstructionError> {
+    memory_at_origin(
+        builder,
+        selected_instructions::SelectedMemoryAccessOrigin::Operation(row.operation),
+        place,
+        byte_offset,
+        byte_count,
+        role,
+    )
+}
+
+fn memory_at_origin(
+    builder: &mut Builder<'_>,
+    origin: selected_instructions::SelectedMemoryAccessOrigin,
+    place: PlaceId,
+    byte_offset: u32,
+    byte_count: u32,
+    role: SelectedMemoryAccessRole,
+) -> Result<(), SelectedInstructionError> {
     builder.transport.memory.push(SelectedMemoryAccess {
         instruction: SelectedInstructionId(
             builder
@@ -603,7 +621,7 @@ fn memory(
                 .try_into()
                 .map_err(|_| invalid())?,
         ),
-        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(row.operation),
+        origin,
         place,
         byte_offset,
         byte_count,

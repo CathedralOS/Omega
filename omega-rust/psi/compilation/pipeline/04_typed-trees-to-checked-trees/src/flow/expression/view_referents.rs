@@ -19,10 +19,11 @@ impl Execution<'_, '_, '_> {
         expression: ExpressionHandle,
         receiver: &FlowOperandFact,
     ) -> HandleSpan<FlowOperandReferent> {
-        let is_view = self
-            .context
-            .expression_result_type_at(self.program, self.machine, self.state, expression)
-            .is_some_and(|reference| self.is_view_type(reference));
+        let is_view = expression != self.reference_slot_target
+            && self
+                .context
+                .expression_result_type_at(self.program, self.machine, self.state, expression)
+                .is_some_and(|reference| self.is_view_type(reference));
         let Some(member) = self.program.expression_table.member_node(expression) else {
             return HandleSpan::empty();
         };

@@ -4,6 +4,58 @@ use terminal_psi::{
     StructuralTypeShape, find_structural_case, live_field_by_id,
 };
 
+/// Metadata and payload observation are different permissions on a sequence.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum SequenceFieldObservation {
+    Length,
+    Contents,
+}
+
+/// Check only the selected field's declared backing ceiling. The caller still
+/// authenticates its root, crossed loans, geometry and observation operands.
+/// Owning the containing record cannot make a write-only view readable; its
+/// descriptor metadata remains available without observing payload contents.
+pub fn sequence_field_allows_observation<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    field: &terminal_psi::StructuralFieldType,
+    observation: SequenceFieldObservation,
+) -> bool {
+    let access = if let Some(carrier) = field.byte_sequence_carrier() {
+        match carrier {
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => StructuralAccess::Owned,
+            terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+            | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. } => {
+                access.unwrap_or(StructuralAccess::SharedBorrow)
+            }
+        }
+    } else if let Some(identity) = field.as_structural() {
+        let mut matching = types.filter(|row| row.id == identity);
+        let Some(declaration) = matching.next() else {
+            return false;
+        };
+        if matching.next().is_some() {
+            return false;
+        }
+        match declaration.shape {
+            StructuralTypeShape::ElementView { access, .. }
+            | StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { access },
+            ) => access.unwrap_or(StructuralAccess::SharedBorrow),
+            StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+            ) => StructuralAccess::Owned,
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedView {
+                access,
+                ..
+            }) => access.unwrap_or(StructuralAccess::SharedBorrow),
+            _ => return false,
+        }
+    } else {
+        return false;
+    };
+    observation == SequenceFieldObservation::Length || access != StructuralAccess::WriteOnlyBorrow
+}
+
 /// The original record carrier reached by exact declaration-local field IDs.
 /// The runtime path names come from those declarations, never from source spelling.
 pub struct RecordFieldCarrier {

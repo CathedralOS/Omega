@@ -177,7 +177,7 @@ enum DestinationShape {
 }
 
 impl<'a> IndexedWriteTarget<'a> {
-    fn store(self) -> &'a CheckedStorePlan {
+    pub(crate) fn store(self) -> &'a CheckedStorePlan {
         match self {
             Self::ByteField(store) => store,
             Self::Bytes { store, .. } | Self::ElementView { store, .. } => store,
@@ -374,6 +374,35 @@ impl<'a> IndexedWriteTarget<'a> {
 }
 
 impl Destination {
+    pub(crate) fn capture_descriptor(
+        &mut self,
+        source: PlaceId,
+        mut path: Vec<StructuralPathSegment>,
+    ) -> Result<(), LoweringError> {
+        match &mut self.shape {
+            DestinationShape::ElementView { descriptor, .. } => {
+                descriptor.place = source;
+                descriptor.path = path;
+            }
+            DestinationShape::ByteView if path.is_empty() => {}
+            DestinationShape::ByteField { .. } if path.is_empty() => {
+                // A captured field view is now a whole descriptor alias; its
+                // original predicate decisions remain on this same store.
+                self.shape = DestinationShape::ByteView;
+            }
+            DestinationShape::ByteField { path: carrier, .. } => {
+                if !matches!(path.pop(), Some(StructuralPathSegment::Field(_))) {
+                    return unsupported("captured byte field lost its declared field projection");
+                }
+                *carrier = path;
+            }
+            _ => return unsupported("captured byte descriptor is not a whole view"),
+        }
+        self.place = source;
+        self.descriptor_steps.clear();
+        Ok(())
+    }
+
     pub(crate) fn set_descriptor_path(&mut self, path: Vec<StructuralPathSegment>) {
         if let DestinationShape::ElementView { descriptor, .. } = &mut self.shape {
             descriptor.path = path;

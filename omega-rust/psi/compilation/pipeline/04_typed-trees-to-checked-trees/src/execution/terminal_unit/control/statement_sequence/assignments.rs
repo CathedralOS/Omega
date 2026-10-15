@@ -88,19 +88,6 @@ pub(super) fn plan(
         windows,
         structural_results,
     } = planner;
-    // One authored assignment can decompose into several stores —
-    // a whole-record replacement emits one field store per member —
-    // so drain every store rooted at this statement, in order.
-    let mut consumed = false;
-    while let Some(store) =
-        stores.next_if(|store| store.store_statement_index() == Some(statement_index))
-    {
-        operations.push(store);
-        consumed = true;
-    }
-    if consumed {
-        return Some(AssignmentPlan::Planned);
-    }
     if let Some(capture) = super::super::super::borrowed_windows::capture_assignment_destination(
         program,
         facts,
@@ -113,6 +100,21 @@ pub(super) fn plan(
         assignment,
     ) {
         operations.push(capture);
+    }
+    // Every store consumes the same pre-RHS destination, including stores
+    // planned earlier and assignments whose RHS emits a separate call.
+    // One authored assignment can decompose into several stores —
+    // a whole-record replacement emits one field store per member —
+    // so drain every store rooted at this statement, in order.
+    let mut consumed = false;
+    while let Some(store) =
+        stores.next_if(|store| store.store_statement_index() == Some(statement_index))
+    {
+        operations.push(store);
+        consumed = true;
+    }
+    if consumed {
+        return Some(AssignmentPlan::Planned);
     }
     // Establish every primitive array element before the replacement. Reading
     // the receiver itself is therefore safe: no element can observe an earlier

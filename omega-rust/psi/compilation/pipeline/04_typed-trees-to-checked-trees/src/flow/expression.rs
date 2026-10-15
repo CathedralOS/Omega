@@ -83,6 +83,15 @@ pub(super) struct Execution<'a, 'b, 'plans> {
     operand_writes: Vec<Option<Vec<CanonicalPlace>>>,
     entry_origin_writes: HandleSpan<checked_trees::FlowOperandReferent>,
     entry_origin_unknown_write: bool,
+    /// Only the final destination of a descriptor replacement names its slot.
+    /// Intermediate view projections still load their original referent.
+    reference_slot_target: ExpressionHandle,
+}
+
+pub(super) struct StatementEvaluation {
+    pub(super) stored_value: Handle<checked_trees::FlowOperandFact>,
+    pub(super) store_target: Handle<checked_trees::FlowOperandFact>,
+    pub(super) writes: EvaluatedWritePrefix,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -101,7 +110,7 @@ pub(super) fn append_statement_calls<'plans>(
     state_calls: &mut HandleSpan<FlowCallFact>,
     contexts: &mut HandleSpan<FlowSemanticContextRef>,
     constraints: &mut HandleSpan<FlowConstraintRef>,
-) -> (Handle<checked_trees::FlowOperandFact>, EvaluatedWritePrefix) {
+) -> StatementEvaluation {
     let mut execution = Execution::new(
         program,
         borrow,
@@ -118,8 +127,47 @@ pub(super) fn append_statement_calls<'plans>(
         constraints,
     );
     let mut stored_value = Handle::invalid();
+    let mut store_target = Handle::invalid();
     match statement {
         StatementNode::Assignment(assignment) => {
+            let mut owned_frames = None;
+            let replaces_reference = super::shared_call_frames_or(
+                execution.context.call_frames,
+                program,
+                &mut owned_frames,
+            )
+            .and_then(|frames| frames.assignment_replaces_reference_binding(machine, statement));
+            if replaces_reference == Some(true) {
+                execution.reference_slot_target = assignment.target;
+            }
+            // Form the destination without observing its contents. RHS calls
+            // may change a descriptor or selector; they cannot redirect this
+            // completed address. Its constraints describe only this epoch.
+            let first_write = execution.operand_writes.len();
+            let mut children = HandleSpan::empty();
+            let mut referents = None;
+            execution.evaluate_expression(
+                assignment.target,
+                TypeReferenceHandle::invalid(),
+                contexts,
+                constraints,
+                &mut children,
+                &mut referents,
+            );
+            if replaces_reference.is_some() {
+                let captured = execution.capture_place_operand(
+                    assignment.target,
+                    first_write,
+                    children,
+                    referents,
+                    *contexts,
+                    *constraints,
+                );
+                store_target = execution.context.control.operands.append(captured);
+            }
+            // Unknown slot identity is an unknown write, never a singleton
+            // pointee selected by assuming that replacement classification failed.
+            execution.reference_slot_target = ExpressionHandle::invalid();
             // The captured RHS describes the value installed by this store,
             // not the loan used to reach it. Keep a reference descriptor only
             // for actual binding replacement; a storage write captures its
@@ -134,16 +182,6 @@ pub(super) fn append_statement_calls<'plans>(
                 constraints,
             );
             stored_value = execution.context.control.operands.append(evaluated.capture);
-            // Assignment evaluates its value before resolving the destination.
-            // Schedule target children without treating the target as a read.
-            execution.evaluate_expression(
-                assignment.target,
-                TypeReferenceHandle::invalid(),
-                contexts,
-                constraints,
-                &mut HandleSpan::empty(),
-                &mut None,
-            );
         }
         StatementNode::LocalData(local) => {
             let evaluated = execution.evaluated_operand_as(
@@ -208,7 +246,11 @@ pub(super) fn append_statement_calls<'plans>(
         }
         StatementNode::AssemblyFact(_) | StatementNode::Transition(_) => {}
     }
-    (stored_value, execution.write_prefix())
+    StatementEvaluation {
+        stored_value,
+        store_target,
+        writes: execution.write_prefix(),
+    }
 }
 
 impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
@@ -324,6 +366,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             operand_writes: Vec::new(),
             entry_origin_writes: HandleSpan::empty(),
             entry_origin_unknown_write: false,
+            reference_slot_target: ExpressionHandle::invalid(),
         }
     }
 
@@ -494,8 +537,30 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             contexts,
             constraints,
         );
+        let capture = self.capture_place_operand(
+            expression,
+            first_write,
+            children,
+            referents,
+            *contexts,
+            *constraints,
+        );
+        EvaluatedOperand { boolean, capture }
+    }
+
+    /// Retain an already formed address. Unlike value evaluation, assignment
+    /// capture publishes no result facts about the destination's old contents.
+    fn capture_place_operand(
+        &mut self,
+        expression: ExpressionHandle,
+        first_write: usize,
+        children: HandleSpan<checked_trees::FlowOperandChild>,
+        referents: Option<HandleSpan<checked_trees::FlowOperandReferent>>,
+        contexts: HandleSpan<FlowSemanticContextRef>,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> checked_trees::FlowOperandFact {
         let referents = referents.unwrap_or_else(|| {
-            if self.operand_is_view(expression) {
+            if expression != self.reference_slot_target && self.operand_is_view(expression) {
                 return self.reference_operand_referents(expression);
             }
             // An owned container has its own address even when some children
@@ -520,9 +585,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             self.append_referent_places(&[place])
         });
         let mut capture =
-            self.capture_operand(expression, first_write, *contexts, *constraints, referents);
+            self.capture_operand(expression, first_write, contexts, constraints, referents);
         capture.children = children;
-        EvaluatedOperand { boolean, capture }
+        capture
     }
 
     pub(in crate::flow) fn write_prefix(&self) -> EvaluatedWritePrefix {

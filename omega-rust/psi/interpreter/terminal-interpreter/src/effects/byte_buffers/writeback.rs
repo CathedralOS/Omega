@@ -208,9 +208,10 @@ impl BoundaryByteBufferBinding {
                 }
             }
             ByteSequenceBinding::MutableField { field, .. } => {
-                execution
-                    .structural_byte_sequence_fields
-                    .insert(field, ByteSequenceView::new(buffer.bytes));
+                execution.structural_byte_sequence_fields.insert(
+                    field,
+                    ByteSequenceBinding::Immutable(ByteSequenceView::new(buffer.bytes)),
+                );
             }
             ByteSequenceBinding::MutableOwner { home, .. } => {
                 *execution.byte_owner_bytes_mut(&home)? = ByteSequenceView::new(buffer.bytes);

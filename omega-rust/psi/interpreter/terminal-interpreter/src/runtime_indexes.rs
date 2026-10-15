@@ -1,7 +1,7 @@
 //! Runtime-index segments at execution.
 //!
 //! A `RuntimeIndex { index, .. }` segment selects the element its value
-//! names. Before an operation runs, every such segment in its projections
+//! names. Before an operation or selected successor runs, every such segment in its projections
 //! becomes the `FixedIndex` the current value selects, and the operation then
 //! executes exactly as it would over that static path: no operation keeps a
 //! second, runtime-index-aware copy of its projection handling. Source checking

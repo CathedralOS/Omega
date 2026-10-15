@@ -753,20 +753,29 @@ impl TerminalExecution<'_> {
         }
         // A whole-view reborrow captures the existing descriptor, including a
         // stored field's window. Its carrier home is not the collection backing.
-        let borrowed_view =
-            if collection.extent == terminal_semantics::CollectionExtent::StoredLength {
-                let resolved =
-                    self.resolve_live_projection(source.place, &source.path, source.access)?;
-                let view = self.element_view_argument(source, &resolved)?;
-                Some(view.subslice(0, view.len(), access).ok_or_else(malformed)?)
-            } else {
-                None
-            };
+        let borrowed_view = if collection.extent
+            == terminal_semantics::CollectionExtent::StoredLength
+            && !matches!(descriptor, StructuralTypeShape::ByteSequence(_))
+        {
+            let resolved =
+                self.resolve_live_projection(source.place, &source.path, source.access)?;
+            let view = self.element_view_argument(source, &resolved)?;
+            Some(view.subslice(0, view.len(), access).ok_or_else(malformed)?)
+        } else {
+            None
+        };
         let collection_length = match collection.extent {
             terminal_semantics::CollectionExtent::Fixed(length) => length,
             terminal_semantics::CollectionExtent::StoredLength => {
-                u64::try_from(borrowed_view.as_ref().ok_or_else(malformed)?.len())
-                    .map_err(|_| malformed())?
+                if matches!(descriptor, StructuralTypeShape::ByteSequence(_)) {
+                    let selected =
+                        self.resolve_live_projection(source.place, &source.path, source.access)?;
+                    let binding = self.byte_descriptor_binding(source, &selected)?;
+                    self.byte_descriptor_length(&binding, &selected)?
+                } else {
+                    u64::try_from(borrowed_view.as_ref().ok_or_else(malformed)?.len())
+                        .map_err(|_| malformed())?
+                }
             }
             // An owned byte carrier's live count is dynamic; its byte-view
             // establishment enters the byte-array channel, which reads that
@@ -780,7 +789,7 @@ impl TerminalExecution<'_> {
             _ => return Err(malformed()),
         };
         let extent = usize::try_from(collection_length).map_err(|_| malformed())?;
-        let mut descriptor_value = TerminalStructuralValue {
+        let descriptor_value = TerminalStructuralValue {
             // Static result places recur across ordinary-call activations.
             // The descriptor, unlike its declaration, owns a fresh runtime
             // home through the execution-wide storage identity allocator.
@@ -799,7 +808,7 @@ impl TerminalExecution<'_> {
                     &collection,
                     &mut cursor,
                 )?;
-                let (value, binding) = if let Some(window) = &selected_window {
+                let (_value, binding) = if let Some(window) = &selected_window {
                     self.narrow_byte_sequence_binding(
                         &binding,
                         &value,
@@ -811,28 +820,10 @@ impl TerminalExecution<'_> {
                     (value, binding)
                 };
                 let binding = if access == StructuralAccess::MutableBorrow {
-                    let mut binding = binding;
-                    if matches!(
-                        descriptor,
-                        StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BoundedView { .. }
-                        )
-                    ) {
-                        // The owned pointer carrier and borrowed array have
-                        // distinct identities, as an ordinary reference does.
-                        // Its backing/window stays in the exact array binding.
-                        let crate::byte_sequences::binding::ByteSequenceBinding::MutableArray {
-                            descriptor_home,
-                            ..
-                        } = &mut binding
-                        else {
-                            return Err(malformed());
-                        };
-                        *descriptor_home = Some(descriptor_value.clone());
-                    } else {
-                        descriptor_value = value;
-                    }
-                    binding
+                    // Every descriptor owns a distinct home, whether its
+                    // extent is fixed or live. Retiring or moving that home
+                    // must never prune the retained referent's storage.
+                    binding.with_descriptor_home(descriptor_value.clone())
                 } else {
                     crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
                         binding

@@ -129,7 +129,7 @@ pub(super) fn project(
                 return Err(Error::custody());
             };
             Ok(LegalizedScalarTerminator::Jump {
-                successor: successor(edge),
+                successor: successor(edge, function, plan, unit)?,
                 effect: node.effect,
                 ownership: node.ownership.clone(),
             })
@@ -140,8 +140,8 @@ pub(super) fn project(
             };
             Ok(LegalizedScalarTerminator::Conditional {
                 condition: *condition,
-                when_true: successor(when_true),
-                when_false: successor(when_false),
+                when_true: successor(when_true, function, plan, unit)?,
+                when_false: successor(when_false, function, plan, unit)?,
                 effect: node.effect,
                 ownership: node.ownership.clone(),
             })
@@ -190,13 +190,34 @@ pub(super) fn project(
     }
     Ok(result)
 }
-fn successor(edge: &optimization_unit::OptimizationEdge) -> LegalizedScalarSuccessor {
-    LegalizedScalarSuccessor {
+fn successor(
+    edge: &optimization_unit::OptimizationEdge,
+    function: &optimization_unit::PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+) -> Result<LegalizedScalarSuccessor, LegalizationError> {
+    let structural_bindings = edge.structural_bindings.iter().map(|binding| {
+        let indices = if binding.argument.path.iter().any(|segment| segment.runtime_index().is_some()) {
+            let root = scalar_graph_input::primitive_locals::read_root_type(function, binding.argument.place)
+                .ok_or(Error::custody())?;
+            // Preserve selector regions even when the endpoint is an inline
+            // field without a standalone nominal declaration. This geometry
+            // grants no custody; every index joins its real edge certificate.
+            let geometry = crate::structural_inputs::structural_reference_input::reference_formation_geometry(
+                root, &binding.argument.path, &plan.structural_types,
+            ).ok_or(Error::custody())?;
+            crate::legalization::runtime_indices::operands(
+                function, unit, optimization_unit::PsiProvenance::Edge(edge.psi_edge), &geometry.elements,
+            )?
+        } else { Vec::new() };
+        Ok(legalized_operations::LegalizedStructuralBinding { semantic: binding.clone(), indices })
+    }).collect::<Result<Vec<_>, LegalizationError>>()?;
+    Ok(LegalizedScalarSuccessor {
         edge: edge.psi_edge,
         target: edge.target,
         bindings: edge.bindings.clone(),
-        structural_bindings: edge.structural_bindings.clone(),
+        structural_bindings,
         fuel: edge.fuel.clone(),
         cleanup_calls: Vec::new(),
-    }
+    })
 }

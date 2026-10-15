@@ -70,6 +70,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         let statement_fact = build.control.statements.append(FlowStatementFact {
             statement_index,
             stored_value: Handle::invalid(),
+            store_target: Handle::invalid(),
             stored_destination: Handle::invalid(),
             completed_writes: HandleSpan::empty(),
             completed_unknown_write: false,
@@ -153,7 +154,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             {
                 call_index += 1;
             }
-            let (stored_value, writes) = super::expression::append_statement_calls(
+            let evaluated = super::expression::append_statement_calls(
                 program,
                 borrow,
                 proof,
@@ -170,9 +171,10 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 active_constraints,
             );
             let retained = build.control.statements.get_mut(statement_fact);
-            retained.stored_value = stored_value;
-            retained.completed_writes = writes.writes;
-            retained.completed_unknown_write = writes.unknown;
+            retained.stored_value = evaluated.stored_value;
+            retained.store_target = evaluated.store_target;
+            retained.completed_writes = evaluated.writes.writes;
+            retained.completed_unknown_write = evaluated.writes.unknown;
         }
 
         // Assignment evaluates its RHS under the entry loans above, then
@@ -260,9 +262,24 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             state.symbol,
             statement_index,
             statement,
+            build.control.statements.get(statement_fact).store_target,
         );
         if let Some(write) = &mut write {
-            let contexts = crate::flow::active_context_handles(build, *active_contexts);
+            let captured_destination = build.control.statements.get(statement_fact).store_target;
+            let contexts = if build.control.operands.is_valid(captured_destination) {
+                build
+                    .contexts
+                    .constraint_refs
+                    .span_or_empty(build.control.operands.get(captured_destination).constraints)
+                    .iter()
+                    .filter_map(|constraint| match constraint.kind {
+                        FlowConstraintKind::SemanticContext { context } => Some(context),
+                        _ => None,
+                    })
+                    .collect()
+            } else {
+                crate::flow::active_context_handles(build, *active_contexts)
+            };
             let (target, stable) = super::transfers::narrow_pinned_selectors(
                 program,
                 semantic,
@@ -274,8 +291,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             write.target_place = target;
             write.stable_value_target = stable && write.target_is_exact;
         }
-        let storage_writes = if let Some(write) =
-            write.as_ref().filter(|write| write.stable_value_target)
+        let storage_writes = if let Some(write) = write.as_ref()
             && statement.as_assignment().is_some()
         {
             let target = super::canonical_place_from_semantic_place(
@@ -283,16 +299,17 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 semantic,
                 semantic.places.get(write.target_place),
             );
-            target.and_then(|target| {
-                super::close_storage_places_over_aliases(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    statement_index,
-                    vec![target],
-                    build.call_frames,
-                )
+            target.map(|target| {
+                if write.target_is_exact {
+                    vec![target]
+                } else {
+                    write.candidate_targets.clone()
+                }
             })
+        } else if statement.as_assignment().is_some() {
+            // A failed address capture supplies no exact destination and no
+            // preservation theorem. Clear live observations conservatively.
+            None
         } else {
             build
                 .statement_storage_writes_at(
@@ -367,7 +384,10 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 .iter()
                 .map(|context_ref| context_ref.context)
                 .collect();
-            for place in &mut mutated_places {
+            for place in mutated_places
+                .iter_mut()
+                .filter(|_| statement.as_assignment().is_none())
+            {
                 crate::flow::narrow_pinned_index_segments(
                     program,
                     semantic,

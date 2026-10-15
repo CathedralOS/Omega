@@ -77,7 +77,7 @@ pub(super) fn snapshot(
             byte_size,
             lineage_place: binding.semantic.argument.place,
             lineage_offset: source_byte_offset,
-            read_place: Some(binding.semantic.argument.place),
+            read_binding: Some(binding),
             write_local: None,
         })?;
         snapshots.push(Snapshot {
@@ -148,7 +148,7 @@ pub(super) fn store(
             byte_size,
             lineage_place: binding.semantic.argument.place,
             lineage_offset: snapshot.source_byte_offset,
-            read_place: None,
+            read_binding: None,
             write_local: Some((binding.semantic.parameter, destination)),
         })?;
     }
@@ -159,14 +159,14 @@ pub(super) fn store(
 /// Snapshot writes and reads are private frame accesses, like allocator scratch;
 /// assigning them the input place would invent a semantic write or let a later
 /// source write appear to change the frozen snapshot.
-struct CopyExtent {
+struct CopyExtent<'binding> {
     source: VirtualRegisterId,
     source_offset: u32,
     destination: VirtualRegisterId,
     byte_size: u32,
     lineage_place: PlaceId,
     lineage_offset: u32,
-    read_place: Option<PlaceId>,
+    read_binding: Option<&'binding SelectedStructuralBinding>,
     write_local: Option<(PlaceId, LocalStorageSlotId)>,
 }
 
@@ -334,15 +334,19 @@ impl EdgeStorage<'_> {
                     provenance(self.edge),
                     self.catalog,
                 )?);
-            if let Some(place) = extent.read_place {
-                self.memory.push(SelectedMemoryAccess {
-                    instruction: load,
-                    origin: SelectedMemoryAccessOrigin::Edge(self.edge),
-                    place,
-                    byte_offset,
-                    byte_count: u32::from(width),
-                    role: SelectedMemoryAccessRole::ReadPlace,
-                });
+            if let Some(binding) = extent.read_binding {
+                self.memory.extend(
+                    binding
+                        .source_read_roles()
+                        .map(|role| SelectedMemoryAccess {
+                            instruction: load,
+                            origin: SelectedMemoryAccessOrigin::Edge(self.edge),
+                            place: binding.semantic.argument.place,
+                            byte_offset,
+                            byte_count: u32::from(width),
+                            role,
+                        }),
+                );
             }
             let (destination, displacement) = self.memory_pointer(
                 extent.destination,

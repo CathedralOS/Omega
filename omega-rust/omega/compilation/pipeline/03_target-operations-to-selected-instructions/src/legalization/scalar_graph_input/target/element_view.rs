@@ -28,13 +28,11 @@ impl Checker<'_> {
         requested: terminal_psi::StructuralAccess,
     ) -> bool {
         use terminal_psi::StructuralAccess as Access;
-        let Some(actual) =
-            super::super::byte_views::descriptor_result(self.optimized, source, self.types)
-                .map(|_| Access::SharedBorrow)
-                .or_else(|| {
-                    optimization_unit_semantics::structural_place_access(self.optimized, source)
-                })
-        else {
+        let Some(actual) = optimization_unit_semantics::structural_place_backing_access(
+            self.optimized,
+            source,
+            self.types.iter(),
+        ) else {
             return false;
         };
         if !matches!(

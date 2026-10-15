@@ -9,11 +9,11 @@ pub(in crate::legalization) fn descriptor_geometry(
     source: &StructuralArgument,
     types: &[StructuralTypeDeclaration],
 ) -> Option<crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry> {
-    let actual = optimization_unit_semantics::structural_place_access(function, source.place)
-        .or_else(|| {
-            super::byte_views::descriptor_result(function, source.place, types)
-                .map(|_| StructuralAccess::SharedBorrow)
-        })?;
+    let actual = optimization_unit_semantics::structural_place_backing_access(
+        function,
+        source.place,
+        types.iter(),
+    )?;
     if !matches!(
         source.access,
         StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow

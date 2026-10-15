@@ -31,6 +31,7 @@ pub(crate) enum ByteSequenceBinding {
         capacity: u64,
         parent_type: StructuralTypeId,
         referent: TerminalStructuralValue,
+        descriptor_home: Option<TerminalStructuralValue>,
     },
     /// An exclusive loan of a declared bounded owner. Its bytes stay at the
     /// original frame or typed subtree home throughout the loan.
@@ -38,6 +39,7 @@ pub(crate) enum ByteSequenceBinding {
         home: ByteOwnerHome,
         capacity: u64,
         referent: TerminalStructuralValue,
+        descriptor_home: Option<TerminalStructuralValue>,
     },
 }
 
@@ -54,6 +56,53 @@ pub(crate) enum ByteOwnerHome {
 }
 
 impl ByteSequenceBinding {
+    pub(crate) fn descriptor_home(&self) -> Option<&TerminalStructuralValue> {
+        match self {
+            Self::Immutable(_) => None,
+            Self::MutableArray {
+                descriptor_home,
+                referent,
+                ..
+            }
+            | Self::MutableField {
+                descriptor_home,
+                referent,
+                ..
+            }
+            | Self::MutableOwner {
+                descriptor_home,
+                referent,
+                ..
+            } => Some(descriptor_home.as_ref().unwrap_or(referent)),
+        }
+    }
+    pub(crate) fn immutable_mut(
+        &mut self,
+    ) -> Result<&mut ByteSequenceView, TerminalInterpretError> {
+        match self {
+            Self::Immutable(view) => Ok(view),
+            _ => Err(malformed()),
+        }
+    }
+
+    /// Only an authenticated frame or declaration-keyed field lookup calls
+    /// this. It relocates descriptor metadata, not referent storage. A captured
+    /// descriptor may outlive replacement of its former slot on the RHS.
+    pub(crate) fn with_descriptor_home(mut self, home: TerminalStructuralValue) -> Self {
+        match &mut self {
+            Self::Immutable(view) => *view = view.clone().with_descriptor_home(home),
+            Self::MutableArray {
+                descriptor_home, ..
+            }
+            | Self::MutableField {
+                descriptor_home, ..
+            }
+            | Self::MutableOwner {
+                descriptor_home, ..
+            } => *descriptor_home = Some(home),
+        }
+        self
+    }
     pub(crate) fn immutable(&self) -> Result<&ByteSequenceView, TerminalInterpretError> {
         match self {
             Self::Immutable(view) => Ok(view),
@@ -102,8 +151,7 @@ impl ByteSequenceBinding {
             };
             return if value == descriptor_home.as_ref().unwrap_or(referent)
                 && descriptor_home.as_ref().is_none_or(|home| {
-                    home.path.is_empty()
-                        && home.structural_type == referent.structural_type
+                    home.structural_type == referent.structural_type
                         && home.qualifications.is_empty()
                         && home.projected_qualifications.is_empty()
                 })
@@ -123,6 +171,7 @@ impl ByteSequenceBinding {
             home,
             capacity,
             referent,
+            descriptor_home,
         } = self
         {
             // A formal's type cannot authenticate an unrelated subtree cell.
@@ -135,7 +184,7 @@ impl ByteSequenceBinding {
                             == referent.structural_type
                 }
             };
-            return if value == referent
+            return if value == descriptor_home.as_ref().unwrap_or(referent)
                 && exact_home
                 && structural_types
                     .get(&referent.structural_type)
@@ -158,6 +207,7 @@ impl ByteSequenceBinding {
             capacity,
             parent_type,
             referent,
+            descriptor_home,
         } = self
         else {
             return Err(malformed());
@@ -166,7 +216,7 @@ impl ByteSequenceBinding {
         else {
             return Err(malformed());
         };
-        if value != referent
+        if value != descriptor_home.as_ref().unwrap_or(referent)
             || field.parent.opaque_identity != referent.opaque_identity
             || field.parent.path != prefix
             || (!referent.qualifications.is_empty()
@@ -203,6 +253,48 @@ impl ByteSequenceBinding {
 }
 
 impl TerminalExecution<'_> {
+    /// Field lookup has already authenticated the parent and declaration. Read
+    /// metadata from the retained binding without observing payload contents.
+    pub(crate) fn byte_field_length(
+        &self,
+        field: &StructuralByteSequenceRuntimeField,
+    ) -> Result<u64, TerminalInterpretError> {
+        let binding = self
+            .structural_byte_sequence_fields
+            .get(field)
+            .ok_or_else(malformed)?;
+        match binding {
+            ByteSequenceBinding::Immutable(bytes) => {
+                u64::try_from(bytes.len()).map_err(|_| malformed())
+            }
+            _ => self
+                .byte_descriptor_length(binding, binding.descriptor_home().ok_or_else(malformed)?),
+        }
+    }
+
+    /// Payload consumers first authenticate the selected field's read ceiling.
+    /// Shared observation snapshots the exact retained window, never its slot
+    /// or the containing record's storage.
+    pub(crate) fn byte_field_snapshot(
+        &self,
+        field: &StructuralByteSequenceRuntimeField,
+    ) -> Result<ByteSequenceView, TerminalInterpretError> {
+        let binding = self
+            .structural_byte_sequence_fields
+            .get(field)
+            .ok_or_else(malformed)?;
+        if let ByteSequenceBinding::Immutable(bytes) = binding {
+            return Ok(bytes.clone());
+        }
+        self.reborrow_byte_sequence_binding(
+            binding,
+            binding.descriptor_home().ok_or_else(malformed)?,
+            StructuralAccess::SharedBorrow,
+        )?
+        .immutable()
+        .cloned()
+    }
+
     /// Select a declared byte owner at its live home. Inline fields have no
     /// standalone declaration and retain their declaration-keyed storage;
     /// every other projection keeps the selected nominal type and memberships.
@@ -316,9 +408,7 @@ impl TerminalExecution<'_> {
                     .structural_byte_sequence_fields
                     .get(&cell)
                     .ok_or_else(malformed)?;
-                return Ok(ByteSequenceBinding::Immutable(
-                    bytes.clone().with_descriptor_home(selected.clone()),
-                ));
+                return Ok(bytes.clone().with_descriptor_home(selected.clone()));
             }
         }
         if let Some(bytes) = self
@@ -428,7 +518,7 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)
     }
 
-    /// Transfer a fixed view's descriptor with its exact producer custody.
+    /// Transfer a view's descriptor with its exact producer custody.
     /// Ownership applies to the descriptor, never the caller's bytes: retain
     /// the binding's existing home/window and exclusive/shared permission.
     /// A mutable descriptor is affine; only a shared descriptor is copyable.
@@ -439,9 +529,7 @@ impl TerminalExecution<'_> {
         resolved: &TerminalStructuralValue,
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
     {
-        let Some(StructuralTypeShape::ByteSequence(
-            terminal_psi::ByteSequenceCarrier::BoundedView { access, capacity },
-        )) = self
+        let Some(StructuralTypeShape::ByteSequence(carrier)) = self
             .program
             .structural_types()
             .get(&parameter.structural_type)
@@ -449,9 +537,16 @@ impl TerminalExecution<'_> {
         else {
             return Ok(None);
         };
-        if parameter.access != StructuralAccess::Owned {
+        if parameter.access != StructuralAccess::Owned || !carrier.is_borrowed() {
             return Ok(None);
         }
+        let (access, capacity) = match *carrier {
+            terminal_psi::ByteSequenceCarrier::BorrowedView { access } => (access, None),
+            terminal_psi::ByteSequenceCarrier::BoundedView { access, capacity } => {
+                (access, Some(capacity))
+            }
+            _ => return Ok(None),
+        };
         let owned_source = self
             .owned_block_source(argument.place)
             .is_some_and(|source| {
@@ -460,51 +555,57 @@ impl TerminalExecution<'_> {
                     && source.multiplicity == parameter.multiplicity
             })
             || self.owned_result_matches(argument.place, parameter);
-        if !owned_source
-            || argument.access != StructuralAccess::Owned
+        if argument.access != StructuralAccess::Owned
             || !argument.path.is_empty()
             || parameter.structural_type != resolved.structural_type
-            || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
-            || !resolved.qualifications.is_empty()
             || !resolved.projected_qualifications.is_empty()
         {
             return Err(malformed());
         }
         let binding = self.byte_descriptor_binding(argument, resolved)?;
         let permission_matches = match &binding {
-            ByteSequenceBinding::Immutable(_) => {
+            ByteSequenceBinding::Immutable(bytes) => {
+                // Copying an unrestricted shared descriptor neither owns nor
+                // copies its referent. Authenticate readable carrier custody
+                // and the formal's actual byte domains, just as a shared loan
+                // does; qualifications do not make descriptor words affine.
+                self.validate_descriptor_borrow(argument, StructuralAccess::SharedBorrow)?;
                 parameter.multiplicity == StructuralMultiplicity::Unrestricted
                     && matches!(access, None | Some(StructuralAccess::SharedBorrow))
+                    && terminal_semantics::byte_literal_qualifications_hold_in(
+                        self.program.catalogs.structural_domains.iter(),
+                        parameter.structural_type,
+                        &parameter.qualifications,
+                        bytes.bytes(),
+                    )
             }
-            ByteSequenceBinding::MutableArray { .. } => {
+            ByteSequenceBinding::MutableArray { .. }
+            | ByteSequenceBinding::MutableField { .. }
+            | ByteSequenceBinding::MutableOwner { .. } => {
                 parameter.multiplicity == StructuralMultiplicity::Affine
                     && matches!(access, None | Some(StructuralAccess::MutableBorrow))
-            }
-            ByteSequenceBinding::MutableField { .. } | ByteSequenceBinding::MutableOwner { .. } => {
-                false
+                    && owned_source
+                    && parameter.qualifications.is_empty()
+                    && resolved.qualifications.is_empty()
             }
         };
-        if !permission_matches || self.byte_descriptor_length(&binding, resolved)? != *capacity {
+        let length = self.byte_descriptor_length(&binding, resolved)?;
+        if !permission_matches || capacity.is_some_and(|capacity| length != capacity) {
             return Err(malformed());
         }
         Ok(Some((resolved.clone(), binding)))
     }
 
-    pub(crate) fn prepare_shared_descriptor_argument(
+    pub(crate) fn prepare_byte_descriptor_argument(
         &self,
         parameter: &terminal_psi::StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
     {
-        if argument.path.is_empty()
-            && self
-                .byte_sequence_values
-                .get(&argument.place)
-                .is_some_and(|binding| !matches!(binding, ByteSequenceBinding::Immutable(_)))
-        {
-            // Exclusive descriptors retain their existing reborrow/attenuation
-            // owner; a shared shape alone cannot recategorize that authority.
+        if parameter.access == StructuralAccess::Owned {
+            // Ownership transfer is admitted from the actual producer, not a
+            // borrowed descriptor's geometry or the access of its backing.
             return Ok(None);
         }
         if !self.structural_values.contains_key(&argument.place) {
@@ -521,18 +622,17 @@ impl TerminalExecution<'_> {
             .program
             .structural_types()
             .get(&value.structural_type)
-            .is_some_and(|row| row.shape.is_shared_readable_byte_view())
+            .is_some_and(|row| row.shape.is_borrowed_byte_carrier())
         {
             return Ok(None);
         }
-        // Shared descriptor words are unrestricted values: a loan supplies a
-        // shared formal, while an owned transfer supplies an owned join slot.
-        // Neither owns or copies the backing octets. Exclusive bindings above
-        // cannot enter this route, and custody still has to agree on both ends.
+        // A loan captures the actual descriptor, whether frame-local or in a
+        // field. Declared geometry grants no read/write permission: authenticate
+        // every source crossing before retaining or attenuating its binding.
         if parameter.structural_type != value.structural_type
             || !matches!(
                 parameter.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::Owned
+                terminal_psi::reading_borrow_pair_pattern!()
             )
             || argument.access != parameter.access
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
@@ -544,24 +644,30 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let bytes = self.shared_byte_descriptor(argument, &value)?;
+        self.validate_descriptor_borrow(argument, parameter.access)?;
+        let binding = self.byte_descriptor_binding(argument, &value)?;
+        let binding = self.reborrow_byte_sequence_binding(&binding, &value, parameter.access)?;
         // A lent descriptor must satisfy every domain the formal names
         // (structural access, shared view fields). The checked call proved
         // that implication; execution fails closed on the actual bytes
         // rather than trusting whichever domains the source value spells,
         // and the formal then holds the descriptor under those domains.
-        if !terminal_semantics::byte_literal_qualifications_hold_in(
+        if parameter.access == StructuralAccess::MutableBorrow {
+            if !parameter.qualifications.is_empty() || !value.qualifications.is_empty() {
+                return Err(malformed());
+            }
+        } else if !terminal_semantics::byte_literal_qualifications_hold_in(
             self.program.catalogs.structural_domains.iter(),
             parameter.structural_type,
             &parameter.qualifications,
-            bytes.bytes(),
+            binding.immutable()?.bytes(),
         ) {
             return Err(malformed());
         }
         let mut value = value;
         value.absorb_qualifications(&parameter.qualifications);
-        let bytes = bytes.with_descriptor_home(value.clone());
-        Ok(Some((value, ByteSequenceBinding::Immutable(bytes))))
+        let binding = binding.with_descriptor_home(value.clone());
+        Ok(Some((value, binding)))
     }
 
     /// Reborrow a live byte descriptor, retaining its home for exclusive use
@@ -604,6 +710,7 @@ impl TerminalExecution<'_> {
                 .structural_byte_sequence_fields
                 .get(field)
                 .ok_or_else(malformed)?
+                .immutable()?
                 .clone(),
             ByteSequenceBinding::MutableOwner { home, .. } => self.byte_owner_bytes(home)?.clone(),
             ByteSequenceBinding::Immutable(_) => unreachable!(),
@@ -625,7 +732,8 @@ impl TerminalExecution<'_> {
             } => (
                 self.structural_byte_sequence_fields
                     .get(field)
-                    .ok_or_else(malformed)?,
+                    .ok_or_else(malformed)?
+                    .immutable()?,
                 *capacity,
             ),
             ByteSequenceBinding::MutableOwner { home, capacity, .. } => {

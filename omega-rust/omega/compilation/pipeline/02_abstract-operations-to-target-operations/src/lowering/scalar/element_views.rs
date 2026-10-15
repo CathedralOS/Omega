@@ -517,11 +517,11 @@ pub(in crate::lowering) fn resolve_element_view(
                 structural_type: result.structural_type,
             },
             result.structural_type,
-            match result.multiplicity {
-                StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,
-                StructuralMultiplicity::Affine => StructuralAccess::MutableBorrow,
-                StructuralMultiplicity::Linear => return Err(invalid()),
-            },
+            terminal_semantics::descriptor_results::result_access(
+                structural_types.values().copied(),
+                result,
+            )
+            .ok_or_else(invalid)?,
         ));
     }
     if let Some(AbstractOperation::EstablishElementView {
@@ -769,7 +769,19 @@ fn established_source(
     ),
     LoweringError,
 > {
-    let invalid = || super::descriptor_operands::refusal(function, &(source, element, region));
+    let invalid = || {
+        super::descriptor_operands::refusal(
+            function,
+            &(
+                source,
+                element,
+                region,
+                function.structural_parameter(source.place),
+                backings.homes.get(&source.place),
+                backings.address_joins.contains(&source.place),
+            ),
+        )
+    };
     // A `&[u8]` view over `collection[a..b]` ends its projection in a
     // `FixedByteRange` window: the field path still names the fixed byte
     // array and the window contributes the descriptor's own byte offset and

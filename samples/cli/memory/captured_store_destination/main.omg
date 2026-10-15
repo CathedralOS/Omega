@@ -1,0 +1,177 @@
+// Expected exit: 0.
+// An RHS rebind changes the carrier, not the already captured store address.
+data Bundle<'storage> { raw: &'storage mut [u64; 2]; }
+data Cell { value: u64; }
+data CellBundle<'storage> { raw: &'storage mut Cell; }
+data ViewBundle<'storage> { raw: &'storage mut [u64]; }
+data ByteBundle<'storage> { raw: &'storage mut [u8]; }
+data ByteBacking { bytes: [u8; 4]; }
+
+machine replace_byte_carrier<'storage>(home: &write ByteBundle<'storage>, replacement: &'storage mut [u8]) -> u8
+ensures result == 65 {
+    home = ByteBundle { raw: replacement };
+    65
+}
+
+machine retain_byte_carrier<'storage>(bytes: &'storage mut [u8]) -> ByteBundle<'storage> {
+    ByteBundle { raw: bytes }
+}
+
+machine write_captured_bytes<'storage>(home: ByteBundle<'storage>, replacement: &'storage mut [u8]) {
+    transition home.raw.len > 0 {
+        true -> ready(home, replacement)
+        false -> done()
+    }
+    state ready(mut home: ByteBundle<'storage>, replacement: &'storage mut [u8])
+    requires home.raw.len > 0 {
+        home.raw[0] = replace_byte_carrier(&write home, replacement);
+    }
+    state done() {}
+}
+
+machine captured_byte_window() crashes Trap {
+    let mut first: ByteBacking = ByteBacking { bytes: [10, 11, 12, 13] };
+    let mut second: [u8; 2] = [21, 22];
+    let bundle: ByteBundle = retain_byte_carrier(&mut first.bytes[1..3]);
+    write_captured_bytes(bundle, &mut second[..]);
+    let empty: ByteBundle = ByteBundle { raw: &mut first.bytes[0..0] };
+    write_captured_bytes(empty, &mut second[..]);
+    transition first.bytes[0] == 10 && first.bytes[1] == 65
+        && first.bytes[2] == 12 && first.bytes[3] == 13
+        && second[0] == 21 && second[1] == 22 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine require_written(value: u64) requires value == 65 {}
+
+machine replace_carrier<'storage>(home: &write Bundle<'storage>, replacement: &'storage mut [u64; 2]) -> u64
+ensures result == 65 {
+    home = Bundle { raw: replacement };
+    65
+}
+
+machine replace_cell_carrier<'storage>(home: &write CellBundle<'storage>, replacement: &'storage mut Cell) -> u64
+ensures result == 65 {
+    home = CellBundle { raw: replacement };
+    65
+}
+
+machine replace_across_states<'storage>(home: &write Bundle<'storage>, replacement: &'storage mut [u64; 2], choose: bool) -> u64
+ensures result == 65 {
+    home = Bundle { raw: replacement };
+    transition choose {
+        true -> left()
+        false -> right()
+    }
+    state left() -> u64 { 65 }
+    state right() -> u64 { 65 }
+}
+
+machine replace_view_carrier<'storage>(home: &write ViewBundle<'storage>, replacement: &'storage mut [u64]) -> u64
+ensures result == 65 {
+    home = ViewBundle { raw: replacement };
+    65
+}
+
+machine write_captured_view<'storage>(home: ViewBundle<'storage>, replacement: &'storage mut [u64]) {
+    transition home.raw.len > 0 {
+        true -> ready(home, replacement)
+        false -> done()
+    }
+    state ready(mut home: ViewBundle<'storage>, replacement: &'storage mut [u64])
+    requires home.raw.len > 0 {
+        home.raw[0] = replace_view_carrier(&write home, replacement);
+    }
+    state done() {}
+}
+
+machine captured_view() crashes Trap {
+    let mut first: [u64; 2] = [11, 12];
+    let mut second: [u64; 2] = [21, 22];
+    let bundle: ViewBundle = ViewBundle { raw: &mut first[..] };
+    write_captured_view(bundle, &mut second[..]);
+    transition first[0] == 65 && second[0] == 21 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine captured_empty_view() crashes Trap {
+    let mut first: [u64; 0] = [];
+    let mut second: [u64; 2] = [21, 22];
+    let bundle: ViewBundle = ViewBundle { raw: &mut first[..] };
+    write_captured_view(bundle, &mut second[..]);
+    transition second[0] == 21 && second[1] == 22 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine captured_field() crashes Trap {
+    let mut first: Cell = Cell { value: 11 };
+    let mut second: Cell = Cell { value: 21 };
+    let mut bundle: CellBundle = CellBundle { raw: &mut first };
+    bundle.raw.value = replace_cell_carrier(&write bundle, &mut second);
+    transition first.value == 65 && second.value == 21 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine captured_dynamic_index() crashes Trap {
+    let mut first: [u64; 2] = [11, 12];
+    let mut second: [u64; 2] = [21, 22];
+    let mut bundle: Bundle = Bundle { raw: &mut first };
+    let selector: u64 = 0;
+    bundle.raw[selector] = replace_carrier(&write bundle, &mut second);
+    transition first[0] == 65 && second[0] == 21 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine captured_branch(choose: bool) crashes Trap {
+    let mut first: [u64; 2] = [11, 12];
+    let mut second: [u64; 2] = [21, 22];
+    let mut bundle: Bundle = Bundle { raw: &mut first };
+    bundle.raw[0] = replace_across_states(&write bundle, &mut second, choose);
+    transition first[0] == 65 && second[0] == 21 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    captured_byte_window();
+    captured_view();
+    captured_empty_view();
+    captured_field();
+    captured_dynamic_index();
+    captured_branch(true);
+    captured_branch(false);
+    let mut first: [u64; 2] = [11, 12];
+    let mut second: [u64; 2] = [21, 22];
+    let mut bundle: Bundle = Bundle { raw: &mut first };
+    bundle.raw[0] = replace_carrier(&write bundle, &mut second);
+    require_written(first[0]);
+    transition first[0] == 65 && second[0] == 21 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -29,6 +29,7 @@ pub(in crate::flow) fn statement_write(
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
+    store_target: arena::Handle<checked_trees::FlowOperandFact>,
 ) -> Option<StatementWrite> {
     // An assignment through a reference local of finite candidate origins
     // (flow/reference_places) rewrites exactly one candidate with a value the
@@ -53,76 +54,34 @@ pub(in crate::flow) fn statement_write(
             ),
         ),
         StatementNode::Assignment(assignment) => {
-            // A write through a local `&mut` alias establishes its facts on
-            // the exact storage it aliases -- the same place invalidation
-            // retires -- so `alias.out = "XXX"` and `label_alias = "hello"`
-            // close the window on the aliased field. A local binding
-            // replacement rebinds the reference itself and an ambiguous
-            // origin proves nothing exact, so both keep the alias place.
-            let target_place = build
-                .canonical_place_at(program, state_symbol, statement_index, assignment.target)
-                .map(|canonical| {
-                    let mut owned_frames = None;
-                    let writes_through_alias = crate::flow::shared_call_frames_or(
-                        build.call_frames,
-                        program,
-                        &mut owned_frames,
-                    )
-                    .zip(
-                        build
-                            .machine_index(program, machine_symbol)
-                            .map(|index| &program.machines()[index]),
-                    )
-                    .and_then(|(resolver, machine)| {
-                        resolver.assignment_write_target(machine, statement)
-                    })
-                    // An unclassified target is a write through a
-                    // reference local the resolver has no origin for;
-                    // only a local binding replacement keeps the alias.
-                    .is_none_or(|target| {
-                        matches!(target, validation::AssignmentWriteTarget::Storage { .. })
-                    });
-                    if !writes_through_alias {
-                        return canonical;
-                    }
-                    match crate::flow::rebase_exact_local_place(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        canonical.clone(),
-                        build.call_frames,
-                    ) {
-                        Some(exact) => exact,
-                        None => {
-                            target_is_exact = false;
-                            if let Some(root) = canonical.root.as_symbol()
-                                && let Some(candidates) = build.reference_candidate_places_at(
-                                    program,
-                                    state_symbol,
-                                    statement_index,
-                                    root,
-                                )
-                            {
-                                candidate_targets = candidates
-                                    .iter()
-                                    .cloned()
-                                    .map(|mut candidate| {
-                                        candidate.segments.extend_from_slice(&canonical.segments);
-                                        candidate
-                                    })
-                                    .collect();
-                            }
-                            canonical
-                        }
-                    }
+            // Address composition already distinguishes a descriptor slot
+            // from its pointee. Consume that completed operation, never a
+            // post-RHS alias relation or a declaration's old initializer.
+            if !build.control.operands.is_valid(store_target) {
+                return None;
+            }
+            let captured = build.control.operands.get(store_target);
+            let targets = build
+                .control
+                .operand_referents
+                .span_or_empty(captured.referents)
+                .iter()
+                .map(|referent| CanonicalPlace {
+                    root: referent.root,
+                    segments: build
+                        .control
+                        .operand_referent_segments
+                        .span_or_empty(referent.segments)
+                        .to_vec(),
                 })
-                .map(|canonical| {
-                    crate::semantic::places::append_place(
-                        semantic,
-                        canonical.root,
-                        &canonical.segments,
-                    )
-                })?;
+                .collect::<Vec<_>>();
+            let target = targets.first()?;
+            let target_place =
+                crate::semantic::places::append_place(semantic, target.root, &target.segments);
+            if targets.len() != 1 {
+                target_is_exact = false;
+                candidate_targets = targets;
+            }
             let source_place = contextual_expression_place(
                 program,
                 semantic,

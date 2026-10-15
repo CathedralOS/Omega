@@ -368,7 +368,7 @@ pub(in crate::lowering) fn resolve_byte_view(
         descriptor_result(function, place, structural_types, backings.homes)
         && structural_types
             .get(&result.structural_type)
-            .is_some_and(|row| row.shape.is_borrowed_byte_view())
+            .is_some_and(|row| row.shape.is_borrowed_byte_carrier())
     {
         if backings
             .homes
@@ -384,7 +384,11 @@ pub(in crate::lowering) fn resolve_byte_view(
                 place,
                 structural_type: result.structural_type,
             },
-            StructuralAccess::SharedBorrow,
+            terminal_semantics::descriptor_results::result_access(
+                structural_types.values().copied(),
+                result,
+            )
+            .ok_or_else(invalid)?,
         ));
     }
     if let Some((psi_operation, result)) = owned_byte_result(function, place, structural_types) {

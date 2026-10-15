@@ -13,7 +13,10 @@
 //! Assignment destination capture runs before those RHS operations. The shared
 //! ledger retains its home and completed selectors for cleanup and stores, so
 //! a later call cannot redirect an earlier selected assignment by changing an
-//! index. Capturing coordinates introduces no loan or ownership transfer.
+//! index or descriptor. Indirect storage binds its backing at a private loan
+//! parameter before the RHS; the inline suffix retains evaluated coordinates.
+//! Capture neither reads old contents nor transfers their ownership, and never
+//! grants authority beyond the original projection's access ceiling.
 //!
 //! A frame borrows the parameters, structural type roster, evaluation, value
 //! namespace, identity counters, operation buffer and scalar-call context of
@@ -234,10 +237,12 @@ impl OperationFrame<'_, '_> {
         match operation {
             CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
                 statement_index,
+                destination_expression,
                 destination,
             } => self.windows.capture_assignment_destination(
                 identities,
                 destination,
+                *destination_expression,
                 &self.parameters,
                 self.structural_types.declarations(),
                 self.type_ids,
@@ -254,6 +259,8 @@ impl OperationFrame<'_, '_> {
                 self.next_value,
                 self.next_block,
                 self.next_edge,
+                self.next_place,
+                self.private_places,
                 self.operations,
             ),
             CheckedUnitEffectOperationPlan::PortWrite {

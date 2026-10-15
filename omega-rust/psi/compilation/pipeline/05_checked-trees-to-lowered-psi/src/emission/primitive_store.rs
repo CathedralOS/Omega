@@ -18,6 +18,7 @@ use terminal_psi::live_field;
 /// exclusive parameter projection and evaluates exactly one authored RHS.
 pub(crate) struct Destination {
     pub(crate) place: PlaceId,
+    pub(crate) root_type: StructuralTypeId,
     pub(crate) path: Vec<ProjectionStep>,
     pub(crate) scalar_restriction: Option<StructuralFieldType>,
     pub(crate) scalar_type: ScalarType,
@@ -29,10 +30,12 @@ pub(crate) fn parameter_destination(
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
 ) -> Result<Destination, LoweringError> {
-    if !matches!(
+    let writable = matches!(
         parameter.access,
         terminal_psi::exclusive_borrow_pair_pattern!()
-    ) || parameter.multiplicity == StructuralMultiplicity::Linear
+    ) || (!path.is_empty() && parameter.access == super::StructuralAccess::Owned);
+    if !writable
+        || parameter.multiplicity == StructuralMultiplicity::Linear
         || (path.is_empty() && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
         || !parameter.qualifications.is_empty()
     {
@@ -44,6 +47,7 @@ pub(crate) fn parameter_destination(
         lower_destination_path(identities, parameter.structural_type, path, types)?;
     Ok(Destination {
         place: parameter.place,
+        root_type: parameter.structural_type,
         path,
         scalar_restriction,
         scalar_type,
@@ -58,6 +62,7 @@ pub(crate) fn emit_assignment(
     state: symbols::SymbolHandle,
     statement_index: u32,
     destination: Destination,
+    structural_types: &[StructuralTypeDeclaration],
     receiving_range: Option<&checked_trees::CheckedPrimitiveReceivingRange>,
     role: CheckedScalarExpressionRole,
     value: &checked_trees::CheckedScalarStoreValue,
@@ -169,10 +174,20 @@ pub(crate) fn emit_assignment(
         }
         None
     };
+    let path =
+        super::runtime_elements::complete_path(destination.path, indexes, calls, operations)?;
+    super::runtime_elements::observe_element_extent(
+        destination.place,
+        destination.root_type,
+        &path,
+        structural_types,
+        next_value,
+        operations,
+    )?;
     Ok(OperationKind::WriteOnlyPrimitiveStore {
         range_obligation,
         destination: destination.place,
-        path: super::runtime_elements::complete_path(destination.path, indexes, calls, operations)?,
+        path,
         value: value.id,
     })
 }
@@ -349,8 +364,8 @@ pub(crate) fn indexed_element_scalar_type(
 /// against its declared record, and return the steps and the structural
 /// type they select. Each runtime element names a distinct selector of the
 /// assignment's target.
-/// The walk's current position: a declared structural type, or a byte
-/// carrier's element — the u8 scalar that rides no declared identity.
+/// Storage uses retained declarations, including byte elements. IEEE field
+/// observations may additionally carry their scalar presentation directly.
 type Walked = terminal_semantics::Position;
 
 fn walk_path(
@@ -397,66 +412,30 @@ fn walk_path(
                     StructuralFieldType::IeeeFloat(format) => {
                         Walked::ScalarField(ScalarType::IeeeFloat(format))
                     }
-                    _ => {
-                        return unsupported(
-                            "primitive projection requires a plain IEEE or structural field",
-                        );
-                    }
+                    _ => Walked::Declared(
+                        terminal_semantics::runtime_structural_path_tip(
+                            types.iter(),
+                            structural_type,
+                            &[Segment::Field(field.identity)],
+                        )
+                        .ok_or(LoweringError::Unsupported(
+                            "primitive projection field has no exact retained declaration",
+                        ))?
+                        .id,
+                    ),
                 }
-            }
-            (
-                CheckedUnitStructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => {
-                result.push(ProjectionStep::Static(Segment::FixedIndex(*index)));
-                Walked::Declared(*element)
-            }
-            (
-                CheckedUnitStructuralPathSegment::RuntimeIndex(runtime),
-                StructuralTypeShape::FixedArray { element, .. }
-                | StructuralTypeShape::ElementView { element, .. },
-            ) => {
-                // Every checked selector vocabulary walks a fixed array the
-                // same way: assignment indexes, parameter and local
-                // positions, and stored-field snapshots each name a distinct
-                // runtime element of the projection.
-                result.push(super::runtime_elements::selector_step(runtime));
-                Walked::Declared(*element)
-            }
-            (
-                CheckedUnitStructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::ElementView { element, .. },
-            ) => {
-                // The descriptor declares the element type, never its live
-                // bound. Even a literal selector needs an extent obligation.
-                result.push(ProjectionStep::RuntimeIndexLiteral { index: *index });
-                Walked::Declared(*element)
             }
             (
                 segment @ (CheckedUnitStructuralPathSegment::FixedIndex(_)
                 | CheckedUnitStructuralPathSegment::RuntimeIndex(_)),
-                StructuralTypeShape::ByteSequence(carrier),
+                StructuralTypeShape::FixedArray { .. }
+                | StructuralTypeShape::ElementView { .. }
+                | StructuralTypeShape::ByteSequence(_),
             ) => {
-                match segment {
-                    CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                        if let terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } =
-                            carrier
-                            && *index >= *capacity
-                        {
-                            return unsupported(
-                                "primitive projection has an incompatible or out-of-bounds path",
-                            );
-                        }
-                        result.push(ProjectionStep::Static(Segment::FixedIndex(*index)));
-                    }
-                    CheckedUnitStructuralPathSegment::RuntimeIndex(runtime) => {
-                        // A repeated operand still selects a new element of
-                        // this carrier and owns its own positional bound.
-                        result.push(super::runtime_elements::selector_step(runtime));
-                    }
-                    _ => {}
-                }
-                Walked::ByteElement
+                let (step, element) =
+                    super::structural_scalar_store::element_selection(declaration, segment, types)?;
+                result.push(step);
+                Walked::Declared(element)
             }
             _ => {
                 return unsupported(

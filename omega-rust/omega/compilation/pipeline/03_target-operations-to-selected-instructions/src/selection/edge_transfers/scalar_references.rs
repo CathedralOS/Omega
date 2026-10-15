@@ -31,6 +31,31 @@ struct Emission<'state> {
 }
 
 impl Emission<'_> {
+    fn source_reads(
+        &mut self,
+        binding: &SelectedStructuralBinding,
+        byte_offset: u32,
+    ) -> Result<(), SelectedInstructionError> {
+        let instruction = self
+            .instructions
+            .last()
+            .ok_or_else(|| super::invalid(self.function))?
+            .id;
+        self.memory.extend(
+            binding
+                .source_read_roles()
+                .map(|role| SelectedMemoryAccess {
+                    instruction,
+                    origin: SelectedMemoryAccessOrigin::Edge(self.edge),
+                    place: binding.semantic.argument.place,
+                    byte_offset,
+                    byte_count: 8,
+                    role,
+                }),
+        );
+        Ok(())
+    }
+
     fn emit(
         &mut self,
         kind: SelectedInstructionKind,
@@ -166,8 +191,9 @@ pub(super) fn snapshot(
                     &[pointer],
                     place,
                     byte_offset,
-                    Some((8, SelectedMemoryAccessRole::ReadPlace)),
+                    None,
                 )?;
+                emission.source_reads(binding, byte_offset)?;
                 let codec_offset = byte_offset.checked_add(8).ok_or_else(error)?;
                 let codec = emission.emit(
                     SelectedInstructionKind::Load64 { byte_offset: 8 },
@@ -175,8 +201,9 @@ pub(super) fn snapshot(
                     &[pointer],
                     place,
                     codec_offset,
-                    Some((8, SelectedMemoryAccessRole::ReadPlace)),
+                    None,
                 )?;
+                emission.source_reads(binding, codec_offset)?;
                 (address, codec)
             }
             SelectedScalarReferenceSource::Canonical { codec } => {

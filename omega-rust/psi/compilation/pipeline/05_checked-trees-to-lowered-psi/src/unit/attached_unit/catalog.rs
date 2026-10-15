@@ -565,7 +565,17 @@ pub(crate) fn lower_unit_structural_type_roots(
         {
             return Ok(());
         }
-        let plan = selected_declaration(plans, identity)?;
+        let plan = selected_declaration(plans, identity).map_err(|error| match error {
+            LoweringError::MissingUnitStructuralType(_) => {
+                LoweringError::MissingUnitStructuralType(format!(
+                    "{identity:?} ({})",
+                    checked
+                        .type_identity_text(identity)
+                        .unwrap_or_else(|| "unresolved identity".to_owned())
+                ))
+            }
+            error => error,
+        })?;
         active.push(identity);
         match &plan.shape {
             CheckedUnitStructuralTypeShape::BindingCarrier => {}
@@ -574,25 +584,19 @@ pub(crate) fn lower_unit_structural_type_roots(
             // independently. Following this edge enumerates an infinite set
             // for otherwise finite values such as Chain<T> -> &Chain<[T; 2]>.
             CheckedUnitStructuralTypeShape::Reference { .. } => {}
-            // Bounded byte backing has an implicit u8 element, owned or
+            // Byte backing has an implicit u8 element, owned or
             // viewed. Preserve that declared dependency just like a fixed
             // array's explicit element; range establishment uses the same
             // collection operation even when no local structural-value node
             // constructs a view.
-            CheckedUnitStructuralTypeShape::ByteSequence(
-                checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }
-                | checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. },
-            ) => collect(
+            CheckedUnitStructuralTypeShape::ByteSequence(_) => collect(
                 checked,
                 plans,
                 checked.type_identity_by_text(BYTE_VIEW_ELEMENT_TYPE_IDENTITY),
                 active,
                 selected,
             )?,
-            // Dynamic byte descriptors have no implicit backing extent.
-            // Their element-view establishment roots u8 through the operation.
-            CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
-            | CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
+            CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
             // A borrowed `&[T]` view is the runtime-length descriptor over an
             // element type that must itself reach the catalog.
             CheckedUnitStructuralTypeShape::BorrowedSliceView {

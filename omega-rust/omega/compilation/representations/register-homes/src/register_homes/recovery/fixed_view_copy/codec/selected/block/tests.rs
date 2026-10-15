@@ -47,6 +47,24 @@ fn successor_scalar_reference_preserves_both_storage_interpretations() {
     original
         .structural_bindings
         .push(SelectedStructuralBinding {
+            source_indices: vec![legalized_operations::LegalizedRuntimeIndexOperand {
+                operand: abstract_operations::AbstractResult {
+                    value: ValueId::new(14).unwrap(),
+                    scalar_type: ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .unwrap(),
+                    ),
+                },
+                stride: 16,
+                extent: None,
+                obligation: semantic_vocabulary::ObligationId::new(15).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [16; 32],
+                ),
+            }],
             semantic: abstract_operations::AbstractStructuralBinding {
                 parameter: PlaceId::new(31).unwrap(),
                 argument: terminal_psi::StructuralArgument {
@@ -227,6 +245,7 @@ fn borrowed_value_binding_retains_semantic_place_and_exact_storage() {
     original
         .structural_bindings
         .push(SelectedStructuralBinding {
+            source_indices: Vec::new(),
             semantic: abstract_operations::AbstractStructuralBinding {
                 parameter: PlaceId::new(31).unwrap(),
                 argument: terminal_psi::StructuralArgument {
@@ -467,6 +486,7 @@ fn whole_value_transport_round_trips_exact_storage_and_rejects_invalid_extents()
     original
         .structural_bindings
         .push(SelectedStructuralBinding {
+            source_indices: Vec::new(),
             semantic: abstract_operations::AbstractStructuralBinding {
                 parameter: semantic_vocabulary::PlaceId::new(12).unwrap(),
                 argument: terminal_psi::StructuralArgument {
@@ -555,6 +575,7 @@ fn address_transport_round_trips_both_bases_and_rejects_forged_carriers() {
         original
             .structural_bindings
             .push(SelectedStructuralBinding {
+                source_indices: Vec::new(),
                 semantic: abstract_operations::AbstractStructuralBinding {
                     parameter: join,
                     argument: terminal_psi::StructuralArgument {

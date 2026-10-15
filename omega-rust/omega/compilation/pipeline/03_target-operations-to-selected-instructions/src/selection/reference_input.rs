@@ -29,6 +29,68 @@ pub(super) struct ReferenceAddress {
     pub(super) indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
 }
 
+/// The supplying occurrence's permission, separate from pointer geometry and
+/// the access requested by a consumer. Descriptor ownership owns its slot,
+/// never the backing that slot describes.
+pub(super) struct SourceAccess {
+    pub structural_type: StructuralTypeId,
+    pub multiplicity: StructuralMultiplicity,
+    pub access: StructuralAccess,
+}
+
+pub(super) fn source_access(
+    function: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<SourceAccess> {
+    let signature = function.structural.as_ref()?;
+    if let Some(parameter) = super::arrival_parameter_input::parameter(function, place) {
+        let access = if parameter.access == StructuralAccess::Owned
+            && terminal_semantics::descriptor_results::is_descriptor(
+                signature.structural_types.iter(),
+                parameter.structural_type,
+            ) {
+            terminal_semantics::descriptor_results::descriptor_value_access(
+                signature.structural_types.iter(),
+                parameter.structural_type,
+                parameter.multiplicity,
+            )?
+        } else {
+            parameter.access
+        };
+        return Some(SourceAccess {
+            structural_type: parameter.structural_type,
+            multiplicity: parameter.multiplicity,
+            access,
+        });
+    }
+    if let Some((_, result)) = super::aggregate_result_input::operation_result(function, place) {
+        let access = if terminal_semantics::descriptor_results::is_descriptor(
+            signature.structural_types.iter(),
+            result.structural_type,
+        ) {
+            super::established_view_input::view_access(function, place)?
+        } else {
+            StructuralAccess::Owned
+        };
+        return Some(SourceAccess {
+            structural_type: result.structural_type,
+            multiplicity: result.multiplicity,
+            access,
+        });
+    }
+    let semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+        structural_type, ..
+    } = signature.structural_place(place)?.kind
+    else {
+        return None;
+    };
+    Some(SourceAccess {
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: super::established_view_input::view_access(function, place)?,
+    })
+}
+
 pub(in crate::selection) fn borrowed_scalar_source(
     function: &LegalizedScalarFunction,
     place: PlaceId,
@@ -381,16 +443,12 @@ pub(super) fn referent_projection<'path>(
     let crossing = path
         .iter()
         .rposition(|segment| *segment == StructuralPathSegment::Referent)?;
-    let (structural_type, multiplicity, access) =
+    let (structural_type, multiplicity) =
         if let Some((_, result)) = super::aggregate_result_input::home(function, place) {
             if !result.qualification_establishments.is_empty() || !result.claims.is_empty() {
                 return None;
             }
-            (
-                result.structural_type,
-                result.multiplicity,
-                StructuralAccess::Owned,
-            )
+            (result.structural_type, result.multiplicity)
         } else {
             let parameter = super::arrival_parameter_input::parameter(function, place)?;
             if !parameter.qualifications.is_empty()
@@ -404,12 +462,12 @@ pub(super) fn referent_projection<'path>(
             {
                 return None;
             }
-            (
-                parameter.structural_type,
-                parameter.multiplicity,
-                parameter.access,
-            )
+            (parameter.structural_type, parameter.multiplicity)
         };
+    let source = source_access(function, place)?;
+    if source.structural_type != structural_type || source.multiplicity != multiplicity {
+        return None;
+    }
     let declarations = &function.structural.as_ref()?.structural_types;
     // Keep the incoming carrier's authority distinct from the referent's.
     // Fragmented writes request mutable access because they read sibling bits.
@@ -418,7 +476,7 @@ pub(super) fn referent_projection<'path>(
             declarations.iter(),
             structural_type,
             multiplicity,
-            access,
+            source.access,
             path,
             required_access,
         )

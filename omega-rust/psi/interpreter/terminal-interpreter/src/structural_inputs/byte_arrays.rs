@@ -14,7 +14,6 @@ use std::collections::BTreeMap;
 use storage::{ArrayStorage, ArrayStorageHome};
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralArgument;
-use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralParameterDeclaration;
 use terminal_psi::StructuralPathSegment;
 use terminal_psi::StructuralTypeDeclaration;
@@ -22,7 +21,8 @@ use terminal_psi::StructuralTypeShape;
 
 /// Initialized contents of a true fixed u8 array reachable from an entry input.
 /// The static field/index path is relative to the dense structural argument. Exactly the declared
-/// positive number of bytes is required; missing contents are never initialized.
+/// number of bytes is required, including an established empty backing;
+/// missing contents are never initialized.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalStructuralByteArrayValue {
     pub argument_index: u32,
@@ -41,7 +41,7 @@ pub(crate) fn byte_array_length(
         ..
     }) = types.get(&array)?.shape
     {
-        return (capacity != 0).then_some(capacity);
+        return Some(capacity);
     }
     let StructuralTypeShape::FixedArray { element, length } = types.get(&array)?.shape else {
         return None;
@@ -51,8 +51,7 @@ pub(crate) fn byte_array_length(
     else {
         return None;
     };
-    (length != 0
-        && !element.is_address()
+    (!element.is_address()
         && element.sign() == semantic_vocabulary::IntegerSign::Unsigned
         && element.bits() == 8)
         .then_some(length)
@@ -244,32 +243,24 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         if collection.storage == terminal_semantics::CollectionStorage::Borrowed {
-            // A pointer-only bounded collection already carries its original
-            // array home. Re-establishment changes descriptor type, never the
-            // owner's activation, backing identity, or retained window.
-            if !source.path.is_empty() {
-                return Err(malformed());
-            }
-            let value = self
-                .structural_values
-                .get(&source.place)
-                .ok_or_else(malformed)?;
-            let binding = self
-                .byte_sequence_values
-                .get(&source.place)
-                .ok_or_else(malformed)?;
-            // A borrowed backing is pointer-carried, so its declared capacity
-            // is the descriptor's whole extent.
-            let terminal_semantics::CollectionExtent::Fixed(capacity) = collection.extent else {
-                return Err(malformed());
-            };
+            // Fixed and runtime-length descriptors retain the same original
+            // backing and selected window, including a descriptor in a field.
+            // The fixed form additionally owes its exact declared extent.
+            let value = self.resolve_live_projection(source.place, &source.path, source.access)?;
+            let binding = self.byte_descriptor_binding(source, &value)?;
+            let length = self.byte_descriptor_length(&binding, &value)?;
             if !value.qualifications.is_empty()
-                || self.byte_sequence_length(source.place)? != capacity
+                || match collection.extent {
+                    terminal_semantics::CollectionExtent::Fixed(capacity) => length != capacity,
+                    terminal_semantics::CollectionExtent::StoredLength => false,
+                    _ => true,
+                }
             {
                 return Err(malformed());
             }
-            let mut binding = self.reborrow_byte_sequence_binding(binding, value, source.access)?;
-            let mut value = value.clone();
+            let mut binding =
+                self.reborrow_byte_sequence_binding(&binding, &value, source.access)?;
+            let mut value = value;
             value.structural_type = view_type;
             match &mut binding {
                 ByteSequenceBinding::MutableArray {
@@ -410,9 +401,13 @@ impl TerminalExecution<'_> {
         // A qualified formal takes no array presentation below; it may
         // still name a qualified view field another binder presents.
         let qualified = !parameter.qualifications.is_empty();
-        if parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.projected_qualifications.is_empty()
-            || argument.access != parameter.access
+        // An affine descriptor still borrows its original bytes. Share the
+        // arrival contract with call and block consumers instead of treating
+        // descriptor lifetime as ownership of the referent.
+        if !terminal_semantics::view_descriptor_parameter(
+            parameter,
+            self.program.structural_types().values(),
+        ) || argument.access != parameter.access
             || self
                 .live_claims
                 .values()
@@ -550,7 +545,6 @@ impl TerminalExecution<'_> {
                 };
                 if !window.backing_path.is_empty()
                     || window.offset != 0
-                    || window.length == 0
                     || bytes.len() as u128 != u128::from(window.length)
                     || !value.projected_qualifications.is_empty()
                 {

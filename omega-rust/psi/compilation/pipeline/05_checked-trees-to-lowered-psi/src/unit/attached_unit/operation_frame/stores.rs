@@ -253,7 +253,7 @@ impl OperationFrame<'_, '_> {
             }
             return Ok(());
         }
-        let destination = match destination {
+        let mut destination = match destination {
             checked_trees::CheckedStoreRoot::Parameter { position } => {
                 let parameter = store_parameter(&self.evaluation.structural_parameters, *position)?;
                 crate::emission::primitive_store::parameter_destination(
@@ -275,8 +275,19 @@ impl OperationFrame<'_, '_> {
                 let home = homes.next().ok_or(LoweringError::Unsupported(
                     "primitive store lost its structural local destination",
                 ))?;
-                if homes.next().is_some() || home.argument.access != StructuralAccess::Owned {
-                    return unsupported("primitive store local has no unique owned home");
+                // A projected scalar store writes the captured backing, not
+                // the local descriptor. Retain its actual exclusive access;
+                // whole-home replacement still requires ownership.
+                let projected = !home.argument.path.is_empty() || !path.is_empty();
+                let writable = match home.argument.access {
+                    StructuralAccess::Owned => true,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {
+                        projected
+                    }
+                    StructuralAccess::SharedBorrow => false,
+                };
+                if homes.next().is_some() || !writable {
+                    return unsupported("primitive store local has no unique writable home");
                 }
                 let source = home.argument.clone();
                 let declared = home.structural_type;
@@ -293,7 +304,7 @@ impl OperationFrame<'_, '_> {
                         path,
                         self.structural_types.declarations(),
                     )?;
-                // An owned alias contributes its existing static prefix before
+                // A captured alias contributes its existing static prefix before
                 // this assignment's complete checked projection.
                 let mut composed = source
                     .path
@@ -304,12 +315,25 @@ impl OperationFrame<'_, '_> {
                 composed.extend(steps);
                 crate::emission::primitive_store::Destination {
                     place: source.place,
+                    root_type: self.declared_storage_type(source.place)?,
                     path: composed,
                     scalar_restriction,
                     scalar_type,
                 }
             }
         };
+        let (_, source) = self.window_destination(store.destination.root)?;
+        if let Some((place, path)) =
+            self.windows
+                .captured_assignment_place(identities, statement_index, &source, path)?
+        {
+            destination.place = place;
+            destination.root_type = self.declared_storage_type(place)?;
+            destination.path = path
+                .into_iter()
+                .map(crate::emission::runtime_elements::ProjectionStep::Static)
+                .collect();
+        }
         let kind = crate::emission::primitive_store::emit_assignment(
             identities,
             self.checked,
@@ -317,6 +341,7 @@ impl OperationFrame<'_, '_> {
             self.state,
             statement_index,
             destination,
+            self.structural_types.declarations(),
             match &store.destination.leaf {
                 CheckedStoreLeaf::Primitive { receiving_range } => receiving_range.as_ref(),
                 _ => unreachable!("primitive store dispatch"),
@@ -488,29 +513,43 @@ impl OperationFrame<'_, '_> {
             &self.evaluation.structural_parameters,
             self.structural_types.declarations(),
         )?;
-        let descriptor_selectors = crate::emission::runtime_elements::evaluate_selectors(
-            identities,
-            &destination.descriptor_steps,
-            self.checked,
-            self.machine,
-            self.state,
+        let (_, source) = self.window_destination(target.store().destination.root)?;
+        let captured = self.windows.captured_indexed_destination(
             leaf.statement_index(),
-            self.evaluation,
-            self.source_value_count,
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-            self.calls,
+            &source,
+            &target.store().destination.path,
         )?;
-        let descriptor_path = crate::emission::runtime_elements::complete_path(
-            std::mem::take(&mut destination.descriptor_steps),
-            descriptor_selectors,
-            self.calls,
-            self.operations,
-        )?;
-        destination.set_descriptor_path(descriptor_path);
+        let captured_index = if let Some(captured) = captured {
+            destination.capture_descriptor(captured.source, captured.path)?;
+            Some(captured.coordinate)
+        } else {
+            None
+        };
+        if captured_index.is_none() {
+            let descriptor_selectors = crate::emission::runtime_elements::evaluate_selectors(
+                identities,
+                &destination.descriptor_steps,
+                self.checked,
+                self.machine,
+                self.state,
+                leaf.statement_index(),
+                self.evaluation,
+                self.source_value_count,
+                self.values,
+                self.next_value,
+                self.next_block,
+                self.next_edge,
+                self.operations,
+                self.calls,
+            )?;
+            let descriptor_path = crate::emission::runtime_elements::complete_path(
+                std::mem::take(&mut destination.descriptor_steps),
+                descriptor_selectors,
+                self.calls,
+                self.operations,
+            )?;
+            destination.set_descriptor_path(descriptor_path);
+        }
         // Scalar positions are stable, but earlier operations may have
         // established owned or borrowed storage since the namespace began.
         // Join the current local homes before lowering either indexed operand.
@@ -523,11 +562,15 @@ impl OperationFrame<'_, '_> {
             .with_place_observations(&self.evaluation.place_observations);
         // The plan's index is the checked expression bound at the target's
         // selector, or a `&mut collection[index]` view local's coordinate.
-        let index = bindings.expression(
-            identities,
-            &self.checked.facts.proven_scalar_indexes,
-            leaf.index(),
-        )?;
+        let index = if captured_index.is_none() {
+            Some(bindings.expression(
+                identities,
+                &self.checked.facts.proven_scalar_indexes,
+                leaf.index(),
+            )?)
+        } else {
+            None
+        };
         // A completed call-result source must be joined before adding private
         // staging slots to the scalar namespace. Pure source expressions name
         // that same authored prefix, even when the RHS later creates a join.
@@ -542,14 +585,20 @@ impl OperationFrame<'_, '_> {
         let decisions = destination.source_decisions(self.checked, leaf)?;
         let selector_position = self.values.len();
         let coordinate_type = terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?;
-        let coordinate = crate::emission::indexed_write::emit_index_coordinate(
-            &index,
-            decisions.index,
-            self.values,
-            self.next_value,
-            &mut self.calls.next_obligation_identity,
-            self.operations,
-        )?;
+        let coordinate = if let Some(coordinate) = captured_index {
+            coordinate
+        } else {
+            crate::emission::indexed_write::emit_index_coordinate(
+                index.as_ref().ok_or(LoweringError::Unsupported(
+                    "indexed write has neither a captured coordinate nor a selector",
+                ))?,
+                decisions.index,
+                self.values,
+                self.next_value,
+                &mut self.calls.next_obligation_identity,
+                self.operations,
+            )?
+        };
         // Ordinary scalar continuations forward every retained value. Give the
         // selected coordinate a private slot before the RHS expands, then read
         // its rebound slot, not the destination expression, at the final store.
@@ -690,10 +739,13 @@ impl OperationFrame<'_, '_> {
             checked_trees::CheckedStoreRoot::Parameter { position } => {
                 let destination =
                     store_parameter(&self.evaluation.structural_parameters, position)?;
-                if destination.access != StructuralAccess::MutableBorrow
-                    || destination.multiplicity
-                        != terminal_psi::StructuralMultiplicity::Unrestricted
-                    || !destination.qualifications.is_empty()
+                if !matches!(
+                    destination.access,
+                    terminal_psi::mutating_access_pair_pattern!()
+                ) || !matches!(
+                    destination.multiplicity,
+                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
+                ) || !destination.qualifications.is_empty()
                     || !destination.projected_qualifications.is_empty()
                 {
                     return unsupported("element-view write parameter lost mutable custody");
@@ -883,7 +935,7 @@ impl OperationFrame<'_, '_> {
         // A parameter destination roots the store at its borrowed place; an
         // owned structural local roots it at the local's live home place,
         // resolved through the structural-local roster.
-        let (destination_place, destination_type, mut lowered) = match root {
+        let (mut destination_place, mut destination_type, mut lowered) = match root {
             checked_trees::CheckedStoreRoot::Parameter { position } => {
                 let destination =
                     store_parameter(&self.evaluation.structural_parameters, position)?;
@@ -931,6 +983,27 @@ impl OperationFrame<'_, '_> {
             }
         };
         lowered.bind_range_decision(self.checked, primitive_type, range_decision)?;
+        let (_, source) = self.window_destination(store.destination.root)?;
+        if let Some((place, mut path)) = self.windows.captured_assignment_place(
+            identities,
+            store.statement_index,
+            &source,
+            &store.destination.path,
+        )? {
+            if path.pop()
+                != Some(terminal_psi::StructuralPathSegment::Field(
+                    identities.intern(&field_identity.spelling()),
+                ))
+            {
+                return unsupported("captured scalar field lost its declaration projection");
+            }
+            destination_place = place;
+            destination_type = self.declared_storage_type(place)?;
+            lowered.steps = path
+                .into_iter()
+                .map(crate::emission::runtime_elements::ProjectionStep::Static)
+                .collect();
+        }
         // The carrier's runtime elements are evaluated before the value.
         let indexes = crate::emission::runtime_elements::evaluate_selectors(
             identities,
@@ -971,6 +1044,27 @@ impl OperationFrame<'_, '_> {
         )?;
         self.push_unit(kind);
         Ok(())
+    }
+
+    /// Resolve declaration geometry from the retained physical home, never a
+    /// source binding whose current value may have changed during the RHS.
+    fn declared_storage_type(&self, place: PlaceId) -> Result<StructuralTypeId, LoweringError> {
+        self.evaluation
+            .structural_root_parameters()
+            .find(|parameter| parameter.place == place)
+            .map(|parameter| parameter.structural_type)
+            .or_else(|| {
+                self.operations.operations.iter().find_map(|operation| {
+                    operation
+                        .result
+                        .structural()
+                        .filter(|result| result.place == place)
+                        .map(|result| result.structural_type)
+                })
+            })
+            .ok_or(LoweringError::Unsupported(
+                "store lost its physical root declaration",
+            ))
     }
 
     /// A descriptor's live extent owns runtime bounds through either a scalar
@@ -1112,6 +1206,11 @@ impl OperationFrame<'_, '_> {
         };
         let hole = window_place(source, &store.destination.path, type_identity);
         require_parameter_window_root(&self.parameters, &hole, self.evaluation)?;
+        let displacement = self.windows.captured_displacement_expression(
+            store.statement_index,
+            &hole.source,
+            &hole.path,
+        );
         let moved = self.emit_window_move(
             identities,
             store.statement_index,
@@ -1123,7 +1222,7 @@ impl OperationFrame<'_, '_> {
                 multiplicity: language_semantics::Multiplicity::Unrestricted,
                 local: Default::default(),
             },
-            typed_trees::expression::ExpressionHandle::invalid(),
+            displacement,
         )?;
         // The moved-out leaf is an internal temporary, not an authored
         // result — declare it as a private temporary so the verifier finds

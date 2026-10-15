@@ -414,7 +414,7 @@ pub(crate) fn lower_structural_field_steps<'a>(
             }
             CheckedUnitStructuralPathSegment::FixedIndex(_)
             | CheckedUnitStructuralPathSegment::RuntimeIndex(_) => {
-                let (step, element) = element_selection(field_owner, segment)?;
+                let (step, element) = element_selection(field_owner, segment, structural_types)?;
                 if matches!(step, ProjectionStep::AssignmentIndex { .. }) && steps.contains(&step) {
                     return unsupported("structural scalar store carrier path is unsupported");
                 }
@@ -455,9 +455,10 @@ pub(crate) fn lower_structural_field_steps<'a>(
 /// bound re-proves against that extent when the operation executes. Scalar
 /// stores and restoration windows share this one decision: Terminal has no
 /// static crossing into an element view.
-fn element_selection(
+pub(super) fn element_selection(
     owner: &StructuralTypeDeclaration,
     segment: &CheckedUnitStructuralPathSegment,
+    structural_types: &[StructuralTypeDeclaration],
 ) -> Result<(ProjectionStep, StructuralTypeId), LoweringError> {
     let (element, view) = match &owner.shape {
         StructuralTypeShape::FixedArray { element, length } => {
@@ -468,6 +469,18 @@ fn element_selection(
             (*element, false)
         }
         StructuralTypeShape::ElementView { element, .. } => (*element, true),
+        StructuralTypeShape::ByteSequence(_) => {
+            let element = StructuralFieldType::Scalar(terminal_scalar_type(
+                checked_trees::types::PrimitiveType::U8,
+            )?)
+            .leaf_declaration(structural_types.iter())
+            .ok_or(LoweringError::Unsupported(
+                "byte element has no unique retained scalar declaration",
+            ))?;
+            // A bounded owner's capacity is not its live extent. Every byte
+            // carrier uses an observed length, including literal selectors.
+            (element.id, true)
+        }
         _ => return unsupported("structural element carrier is not a fixed array or view"),
     };
     let step = match segment {
@@ -560,7 +573,6 @@ pub(crate) fn lower_window_path<'a>(
                 let mut carriers = fields.iter().filter(|field| {
                     field.identity == identities.intern(&identity.spelling())
                         && !field.relevance.is_erased()
-                        && matches!(field.field_type, StructuralFieldType::Structural(_))
                 });
                 let carrier = carriers.next();
                 if carrier.is_none() || carriers.next().is_some() {
@@ -570,18 +582,30 @@ pub(crate) fn lower_window_path<'a>(
                 steps.push(ProjectionStep::Static(StructuralPathSegment::Field(
                     identities.intern(&identity.spelling()),
                 )));
-                let Some(nested) = carrier.field_type.as_structural() else {
-                    unreachable!("carrier shape was checked above")
-                };
+                let nested = terminal_semantics::runtime_structural_path_tip(
+                    structural_types.iter(),
+                    field_owner.id,
+                    &[StructuralPathSegment::Field(carrier.identity)],
+                )
+                .map(|row| row.id)
+                .ok_or(LoweringError::Unsupported(
+                    "structural window carrier has no exact retained declaration",
+                ))?;
                 field_owner = terminal_psi::find_structural_type(structural_types, nested).ok_or(
                     LoweringError::Unsupported("structural window nested carrier type is absent"),
                 )?;
             }
             CheckedUnitStructuralPathSegment::FixedIndex(_)
             | CheckedUnitStructuralPathSegment::RuntimeIndex(_) => {
-                borrowed_backing |=
-                    matches!(field_owner.shape, StructuralTypeShape::ElementView { .. });
-                let (step, element) = element_selection(field_owner, segment)?;
+                borrowed_backing |= matches!(
+                    field_owner.shape,
+                    StructuralTypeShape::ElementView { .. }
+                        | StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                                | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                        )
+                );
+                let (step, element) = element_selection(field_owner, segment, structural_types)?;
                 if !(matches!(step, ProjectionStep::AssignmentIndex { .. })
                     && steps.contains(&step))
                 {

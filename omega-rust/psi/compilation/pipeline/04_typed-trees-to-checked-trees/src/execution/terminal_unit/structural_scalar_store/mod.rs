@@ -501,7 +501,10 @@ fn plan_assignment(
         .path
         .iter()
         .any(|segment| matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_)));
-    if !static_carrier && matches!(destination.root, Root::Local { .. }) && !destination.view_loan {
+    if !static_carrier
+        && matches!(destination.root, Root::Local { .. })
+        && !destination.loan_type.is_valid()
+    {
         return None;
     }
     if let Some(capacity) = byte_leaf {

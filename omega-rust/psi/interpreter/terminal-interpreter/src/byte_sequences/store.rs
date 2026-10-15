@@ -64,7 +64,8 @@ impl TerminalExecution<'_> {
         // Immutable backing snapshots the whole input before changing the owner.
         match owner {
             ReplacedOwner::Field(field) => {
-                self.structural_byte_sequence_fields.insert(field, bytes);
+                self.structural_byte_sequence_fields
+                    .insert(field, ByteSequenceBinding::Immutable(bytes));
             }
             ReplacedOwner::Declared(home) => {
                 *self.byte_owner_bytes_mut(&home)? = bytes.detached_descriptor();

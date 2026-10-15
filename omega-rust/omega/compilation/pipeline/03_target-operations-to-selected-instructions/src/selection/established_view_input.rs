@@ -76,7 +76,7 @@ pub(super) fn transferred(source: &LegalizedScalarFunction, place: PlaceId) -> b
             successor
                 .structural_bindings
                 .iter()
-                .any(|binding| binding.argument.place == place)
+                .any(|binding| binding.semantic.argument.place == place)
         })
     })
 }

@@ -219,14 +219,25 @@ fn address_join_argument(
     // Requiring an empty or identical predicate roster here confuses storage
     // transport with semantic admission and rejects ordinary qualified arrays.
     // Access, live custody and exact projected type still determine the address.
+    let accessible = |root, multiplicity, access| {
+        terminal_semantics::reference_source_projection_accessible(
+            structural_types.values().copied(),
+            root,
+            multiplicity,
+            access,
+            &argument.path,
+            argument.access,
+        )
+    };
     let root_type = if let Some(home) = live.structural_homes.get(&argument.place) {
         ((parameter.access == terminal_psi::StructuralAccess::SharedBorrow
             || home
                 .operation_result()
                 .is_some_and(|(_, result)| result.place == argument.place))
             && !home.has_claims()
-            && home.multiplicity() != terminal_psi::StructuralMultiplicity::Linear)
-            .then(|| home.structural_type())
+            && home.multiplicity() != terminal_psi::StructuralMultiplicity::Linear
+            && accessible(home.structural_type(), home.multiplicity(), home.access()))
+        .then(|| home.structural_type())
     } else if let Some(source) = function.structural_parameter(argument.place) {
         (abstract_operations::control_flow::address_joins::loan_access_permitted(
             structural_types.values().copied(),
@@ -234,8 +245,9 @@ fn address_join_argument(
             &argument.path,
             source.access,
             parameter.access,
-        ) && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear)
-            .then_some(source.structural_type)
+        ) && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+            && accessible(source.structural_type, source.multiplicity, source.access))
+        .then_some(source.structural_type)
     } else if live.address_joins.contains(&argument.place) {
         function
             .block_structural_parameters()
@@ -247,19 +259,29 @@ fn address_join_argument(
                     &argument.path,
                     source.access,
                     parameter.access,
-                )
+                ) && accessible(source.structural_type, source.multiplicity, source.access)
             })
             .map(|source| source.structural_type)
     } else {
-        // An element view is a readable descriptor root: a static index
-        // beneath it names one element's address, lent shared only.
+        // A live view lends a selected element under the permission carried
+        // by its actual producer, not the geometry of its descriptor slot.
         (parameter.access == terminal_psi::StructuralAccess::SharedBorrow)
-            .then(|| {
-                live.views
-                    .get(&argument.place)
-                    .map(|(_, structural_type)| *structural_type)
+            .then_some(())
+            .and_then(|_| {
+                let (producer, structural_type) = live.views.get(&argument.place)?;
+                let (_, result) = function
+                    .operations
+                    .iter()
+                    .find(|operation| operation.psi_operation() == Some(*producer))?
+                    .structural_result()?;
+                let access = terminal_semantics::descriptor_results::result_access(
+                    structural_types.values().copied(),
+                    result,
+                )?;
+                (result.structural_type == *structural_type
+                    && accessible(*structural_type, result.multiplicity, access))
+                .then_some(*structural_type)
             })
-            .flatten()
     };
     root_type.and_then(|root| {
         abstract_operations::control_flow::address_joins::borrowed_referent_type(

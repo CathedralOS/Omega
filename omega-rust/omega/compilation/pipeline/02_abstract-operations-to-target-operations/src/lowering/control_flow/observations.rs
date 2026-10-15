@@ -664,7 +664,7 @@ fn byte_sequence_operand_gate(
             field,
             length,
         } => {
-            let authority = super::primitive_storage::readable_byte_field(
+            let authority = super::primitive_storage::byte_field_observation(
                 function,
                 structural_types,
                 prepared,
@@ -672,6 +672,7 @@ fn byte_sequence_operand_gate(
                 source.place,
                 &source.path,
                 *field,
+                terminal_semantics::SequenceFieldObservation::Contents,
             )?;
             if source.access != terminal_psi::StructuralAccess::SharedBorrow
                 || authority.access == terminal_psi::StructuralAccess::WriteOnlyBorrow

@@ -643,9 +643,18 @@ pub(crate) fn build_checked_unit_effect_plans(
                 }))
         }))
         .collect::<BTreeSet<_>>();
+    // Ordinary and composed bodies name the same operation dependencies.
+    // In particular a captured destination can be the sole user of a scalar
+    // storage declaration; do not prune it merely because no value binding or
+    // signature names that type.
     for operation in candidates
         .iter()
         .flat_map(|plan| &plan.operations)
+        .chain(composed_machines.iter().flat_map(|plan| {
+            plan.states
+                .iter()
+                .flat_map(|state| state.operation_dependencies())
+        }))
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     {
         // Every structural argument carrier — a copied `&T` leaf, a `&[T]`
@@ -662,6 +671,11 @@ pub(crate) fn build_checked_unit_effect_plans(
             }
         }
         match operation {
+            CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
+                destination, ..
+            } => {
+                retained_type_identities.insert(destination.type_identity);
+            }
             // A boundary result retains its own type; an ordinary structural
             // result's types belong to its callee's Unit body.
             CheckedUnitEffectOperationPlan::Call(call) => match (call.route(), call.result()) {
@@ -727,27 +741,6 @@ pub(crate) fn build_checked_unit_effect_plans(
                 retained_type_identities.insert(source.type_identity);
             }
             _ => {}
-        }
-    }
-    // Composed machines carry the same operation plans inside their states;
-    // a view subslice bound or passed there borrows the same storage and
-    // names its backing identity the same way.
-    for operation in composed_machines.iter().flat_map(|plan| {
-        plan.states.iter().flat_map(|state| {
-            state
-                .operation_dependencies()
-                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-        })
-    }) {
-        for argument in operation.call_structural_arguments() {
-            if let Some(storage_type_identity) = argument.subslice_storage_type_identity() {
-                retained_type_identities.insert(storage_type_identity);
-            }
-        }
-        if let CheckedUnitEffectOperationPlan::EstablishViewSubslice { source, .. } = operation {
-            if let Some(storage_type_identity) = source.subslice_storage_type_identity() {
-                retained_type_identities.insert(storage_type_identity);
-            }
         }
     }
     // A local loan's referee may have no signature or operation root.

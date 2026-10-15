@@ -1,0 +1,34 @@
+// Expected exit: 0.
+data Outer { bytes: [u8; 2]; }
+data Bundle<'storage> { raw: &'storage mut [u8]; }
+machine replace_carrier<'storage>(home: &write Bundle<'storage>, replacement: &'storage mut [u8]) -> u8
+ensures result == 65 {
+    home = Bundle { raw: replacement };
+    65
+}
+machine write_selected<'storage>(home: Bundle<'storage>, replacement: &'storage mut [u8]) {
+    transition home.raw.len > 0 {
+        true -> ready(home, replacement)
+        false -> done()
+    }
+    state ready(mut home: Bundle<'storage>, replacement: &'storage mut [u8])
+    requires home.raw.len > 0 {
+        home.raw[0] = replace_carrier(&write home, replacement);
+    }
+    state done() {}
+}
+machine make_bundle<'storage>(bytes: &'storage mut [u8]) -> Bundle<'storage> {
+    Bundle { raw: bytes }
+}
+machine main() crashes Trap {
+    let mut first: Outer = Outer { bytes: [11, 12] };
+    let mut second: [u8; 2] = [21, 22];
+    let bundle: Bundle = make_bundle(&mut first.bytes[..]);
+    write_selected(bundle, &mut second[..]);
+    transition first.bytes[0] == 65 && second[0] == 21 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

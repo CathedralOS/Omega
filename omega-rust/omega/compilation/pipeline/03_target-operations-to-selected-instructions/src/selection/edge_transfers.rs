@@ -8,11 +8,14 @@ mod descriptors;
 mod scalar_references;
 pub(super) use construction::prepare;
 
-/// Selection scratch: edge-owned calls are materialized with the caller's
-/// storage facts, then installed only in the selected edge's transfer block.
-pub(in crate::selection) struct EdgeCleanup {
+/// Selection scratch owned by one selected edge. Address preparation precedes
+/// every input snapshot; cleanup follows all snapshots and precedes writes.
+/// Keeping both phases off the predecessor prevents speculative pointer loads
+/// on an untaken edge and preserves the predecessor's branch flags.
+pub(in crate::selection) struct EdgeWork {
     pub edge: semantic_vocabulary::EdgeId,
-    pub instructions: Vec<selected_instructions::SelectedInstruction>,
+    pub preparation: Vec<selected_instructions::SelectedInstruction>,
+    pub cleanup: Vec<selected_instructions::SelectedInstruction>,
 }
 
 fn invalid(function: usize) -> SelectedInstructionError {

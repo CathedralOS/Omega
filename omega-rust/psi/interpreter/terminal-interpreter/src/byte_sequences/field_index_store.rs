@@ -28,13 +28,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let (source_field, capacity) = self.readable_byte_field(*source, path, *field)?;
-        let bytes = self
-            .structural_byte_sequence_fields
-            .get(&source_field)
-            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                *source,
-            ))?;
-        let length = u64::try_from(bytes.len()).map_err(|_| malformed())?;
+        let length = self.byte_field_length(&source_field)?;
         if capacity.is_some_and(|capacity| length > capacity) {
             return Err(malformed());
         }
@@ -93,7 +87,8 @@ impl TerminalExecution<'_> {
             .get_mut(&destination_field)
             .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
                 *destination,
-            ))?;
+            ))?
+            .immutable_mut()?;
         if u64::try_from(bytes.len()).ok() != Some(live_length) {
             return Err(malformed());
         }
@@ -133,12 +128,7 @@ impl TerminalExecution<'_> {
         if capacity.is_some_and(|capacity| live_length > capacity) || byte_index >= live_length {
             return Err(malformed());
         }
-        let bytes = self
-            .structural_byte_sequence_fields
-            .get(&source_field)
-            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                *source,
-            ))?;
+        let bytes = self.byte_field_snapshot(&source_field)?;
         if u64::try_from(bytes.len()).ok() != Some(live_length) {
             return Err(malformed());
         }

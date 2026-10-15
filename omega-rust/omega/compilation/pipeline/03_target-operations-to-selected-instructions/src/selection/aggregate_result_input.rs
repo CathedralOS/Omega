@@ -76,7 +76,7 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
         successor
             .structural_bindings
             .iter()
-            .any(|binding| binding.argument.place == place)
+            .any(|binding| binding.semantic.argument.place == place)
     };
     let forwarded = source.blocks.iter().any(|block| match &block.terminator {
         legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } => binds(successor),
@@ -921,7 +921,11 @@ pub(crate) struct BlockParameterProjection {
     pub(crate) transport: selected_instructions::SelectedStructuralTransport,
     /// Ordered pointer loads before the selected storage. The edge snapshots
     /// the final descriptor or address before replacing any destination home.
-    pub(crate) descriptor_offsets: Vec<u32>,
+    pub(crate) pointer_slots:
+        Vec<crate::structural_inputs::structural_reference_input::PointerSlot>,
+    pub(crate) indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
+    /// An SSA view's coordinate origin lies inside its retained backing.
+    pub(crate) base_byte_offset: Option<selected_instructions::VirtualRegisterId>,
 }
 
 pub(super) fn block_parameter_transport(
@@ -929,8 +933,11 @@ pub(super) fn block_parameter_transport(
     target: semantic_vocabulary::BlockId,
     parameter: &terminal_psi::StructuralParameterDeclaration,
     argument: &terminal_psi::StructuralArgument,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     pointers: &[(PlaceId, selected_instructions::VirtualRegisterId)],
     local_slots: &[selected_instructions::SelectedLocalStorageSlot],
+    element_views: &[super::element_view_homes::ElementViewHomes],
+    byte_views: &[super::byte_view_homes::ByteViewHomes],
 ) -> Option<BlockParameterProjection> {
     use selected_instructions::{LocalStorageSlotId, SelectedStructuralTransport};
     use terminal_semantics::BorrowedReferentPresentation;
@@ -943,9 +950,12 @@ pub(super) fn block_parameter_transport(
     {
         return None;
     }
-    let mut descriptor_offsets = Vec::new();
+    let mut pointer_slots = Vec::new();
     let mut presented_type = None;
     let source_byte_offset = if argument.access == StructuralAccess::Owned {
+        if !indices.is_empty() {
+            return None;
+        }
         let declarations = &source.structural.as_ref()?.structural_types;
         let root = super::address_join_input::root_type(
             source,
@@ -978,6 +988,19 @@ pub(super) fn block_parameter_transport(
         let root = super::established_view_input::view_type(source, argument.place)
             .or_else(|| super::established_view_input::element_view_type(source, argument.place))
             .or_else(|| super::reference_input::root_type(source, argument.place))?;
+        let supplied = super::reference_input::source_access(source, argument.place)?;
+        if supplied.structural_type != root
+            || !terminal_semantics::descriptor_source_projection_accessible(
+                declarations.iter(),
+                root,
+                supplied.multiplicity,
+                supplied.access,
+                &argument.path,
+                argument.access,
+            )
+        {
+            return None;
+        }
         let geometry =
             crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
                 root,
@@ -985,23 +1008,28 @@ pub(super) fn block_parameter_transport(
                 declarations,
             )?;
         if !geometry.readable
-            || !geometry.elements.is_empty()
+            || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+                indices,
+                &geometry.elements,
+            )
             || geometry
                 .pointer_slots
                 .iter()
-                .any(|slot| !slot.indices.is_empty())
+                .any(|slot| slot.scalar_descriptor)
         {
             return None;
         }
         presented_type = Some(geometry.selected);
-        descriptor_offsets.extend(geometry.pointer_slots.iter().map(|slot| slot.byte_offset));
+        pointer_slots = geometry.pointer_slots;
         geometry.byte_offset
     };
     let shape = block_parameter_shape(source, parameter)?;
     if shape.byte_size == 0 {
         return Some(BlockParameterProjection {
             transport: SelectedStructuralTransport::Unused,
-            descriptor_offsets,
+            pointer_slots,
+            indices: indices.to_vec(),
+            base_byte_offset: None,
         });
     }
     let destination = LocalStorageSlotId::StructuralBlockParameter {
@@ -1018,12 +1046,34 @@ pub(super) fn block_parameter_transport(
             parameter.structural_type,
         )?
     };
+    let storage_offset = pointer_slots
+        .first()
+        .map_or(source_byte_offset, |slot| slot.byte_offset);
+    let storage_bytes = if pointer_slots.is_empty() {
+        match presentation {
+            BorrowedReferentPresentation::Unchanged => shape.byte_size,
+            BorrowedReferentPresentation::AddressOfBacking { byte_count } => {
+                u32::try_from(byte_count).ok()?
+            }
+        }
+    } else {
+        8
+    };
+    let (base, base_byte_offset) = super::address_join_input::projection_base(
+        argument.place,
+        storage_offset,
+        storage_bytes,
+        &mut pointer_slots,
+        pointers,
+        local_slots,
+        element_views,
+        byte_views,
+    )?;
     let transport = match presentation {
         BorrowedReferentPresentation::Unchanged => {
-            let pointer = pointers
-                .iter()
-                .find(|(place, _)| *place == argument.place)?
-                .1;
+            let selected_instructions::SelectedAddressBase::Register(pointer) = base else {
+                return None;
+            };
             SelectedStructuralTransport::WholeValue {
                 argument: pointer,
                 source_byte_offset,
@@ -1034,16 +1084,9 @@ pub(super) fn block_parameter_transport(
         }
         BorrowedReferentPresentation::AddressOfBacking { byte_count } => {
             let byte_count = u32::try_from(byte_count).ok()?;
-            let base = super::address_join_input::storage_base(
-                argument.place,
-                0,
-                byte_count,
-                pointers,
-                local_slots,
-            )?;
             SelectedStructuralTransport::Address {
                 base,
-                byte_offset: 0,
+                byte_offset: source_byte_offset,
                 byte_count,
                 destination,
             }
@@ -1051,7 +1094,9 @@ pub(super) fn block_parameter_transport(
     };
     Some(BlockParameterProjection {
         transport,
-        descriptor_offsets,
+        pointer_slots,
+        indices: indices.to_vec(),
+        base_byte_offset,
     })
 }
 

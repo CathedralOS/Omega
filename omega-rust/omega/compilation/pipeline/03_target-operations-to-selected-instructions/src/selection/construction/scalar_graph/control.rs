@@ -353,11 +353,16 @@ fn successor(
     builder: &mut Builder<'_>,
     next: &LegalizedScalarSuccessor,
 ) -> Result<SelectedSuccessor, SelectedInstructionError> {
+    let preparation_start = builder.instructions.len();
+    builder.block_body_end.get_or_insert(preparation_start);
+    // Empty producers settle on the predecessor's terminator. Detached edge
+    // preparation must not move their unconditional provenance onto one arm.
+    let pending_provenance = std::mem::take(&mut builder.pending_provenance);
     let position = order
         .iter()
         .position(|index| source.blocks[*index].id == next.target)
         .ok_or(SelectedInstructionError::custody())?;
-    Ok(SelectedSuccessor {
+    let successor = SelectedSuccessor {
         structural_case: None,
         role: selected_instructions::SelectedSuccessorRole::Semantic,
         psi_edge: next.edge,
@@ -368,54 +373,48 @@ fn successor(
         structural_bindings: next
             .structural_bindings
             .iter()
-            .map(|semantic| {
+            .map(|binding| {
+                let semantic = &binding.semantic;
                 // An address join receives its referent's address; the edge
                 // bridge forms it from the lending root's storage.
-                if let Some((_, parameter)) =
+                let projection = if let Some((_, parameter)) =
                     crate::selection::address_join_input::join(source, semantic.parameter)
                 {
-                    let projection = crate::selection::address_join_input::projection(
+                    crate::selection::address_join_input::projection(
                         source,
                         next.target,
                         parameter,
                         &semantic.argument,
+                        &binding.indices,
                         &builder.transport.pointers,
                         &builder.transport.local_slots,
                         &builder.transport.element_views,
+                        &builder.transport.views,
                     )
-                    .ok_or(SelectedInstructionError::custody())?;
-                    return Ok(selected_instructions::SelectedStructuralBinding {
-                        semantic: semantic.clone(),
-                        transport: project_block_storage(
-                            builder,
-                            next.edge,
-                            semantic.argument.place,
-                            projection,
-                        )?,
-                    });
-                }
-                let parameter = source
-                    .block(next.target)
-                    .and_then(|block| block.structural_parameter(semantic.parameter))
-                    .ok_or(SelectedInstructionError::custody())?;
-                let projection =
+                } else {
+                    let parameter = source
+                        .block(next.target)
+                        .and_then(|block| block.structural_parameter(semantic.parameter))
+                        .ok_or(SelectedInstructionError::custody())?;
                     crate::selection::aggregate_result_input::block_parameter_transport(
                         source,
                         next.target,
                         parameter,
                         &semantic.argument,
+                        &binding.indices,
                         &builder.transport.pointers,
                         &builder.transport.local_slots,
+                        &builder.transport.element_views,
+                        &builder.transport.views,
                     )
-                    .ok_or(SelectedInstructionError::custody())?;
+                }
+                .ok_or(SelectedInstructionError::custody())?;
+                let (transport, source_indices) =
+                    project_block_storage(builder, next.edge, semantic.argument.place, projection)?;
                 Ok(selected_instructions::SelectedStructuralBinding {
                     semantic: semantic.clone(),
-                    transport: project_block_storage(
-                        builder,
-                        next.edge,
-                        semantic.argument.place,
-                        projection,
-                    )?,
+                    transport,
+                    source_indices,
                 })
             })
             .collect::<Result<Vec<_>, SelectedInstructionError>>()?,
@@ -449,7 +448,16 @@ fn successor(
             })
             .collect::<Result<Vec<_>, SelectedInstructionError>>()?,
         fuel: next.fuel.clone(),
-    })
+    };
+    let preparation = builder.instructions[preparation_start..].to_vec();
+    if !preparation.is_empty() {
+        builder
+            .edge_work_at(next.edge)?
+            .preparation
+            .extend(preparation);
+    }
+    builder.pending_provenance = pending_provenance;
+    Ok(successor)
 }
 
 /// Descriptor loads only form an already-admitted loan's address. They do not
@@ -460,11 +468,21 @@ fn project_block_storage(
     edge: semantic_vocabulary::EdgeId,
     place: semantic_vocabulary::PlaceId,
     projection: crate::selection::aggregate_result_input::BlockParameterProjection,
-) -> Result<selected_instructions::SelectedStructuralTransport, SelectedInstructionError> {
+) -> Result<
+    (
+        selected_instructions::SelectedStructuralTransport,
+        Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
+    ),
+    SelectedInstructionError,
+> {
     use selected_instructions::{SelectedAddressBase, SelectedStructuralTransport};
     let mut transport = projection.transport;
-    if projection.descriptor_offsets.is_empty() {
-        return Ok(transport);
+    if transport == SelectedStructuralTransport::Unused
+        || (projection.pointer_slots.is_empty()
+            && projection.indices.is_empty()
+            && projection.base_byte_offset.is_none())
+    {
+        return Ok((transport, Vec::new()));
     }
     let mut base = match transport {
         SelectedStructuralTransport::Address { base, .. }
@@ -486,28 +504,32 @@ fn project_block_storage(
             pointer
         }
     };
-    for byte_offset in projection.descriptor_offsets {
-        let output = super::structural::transport_register(builder, place, byte_offset)?;
-        builder
-            .transport
-            .memory
-            .push(selected_instructions::SelectedMemoryAccess {
-                instruction: selected_instructions::SelectedInstructionId(
-                    builder
-                        .instructions
-                        .len()
-                        .try_into()
-                        .map_err(|_| SelectedInstructionError::custody())?,
-                ),
-                origin: selected_instructions::SelectedMemoryAccessOrigin::Edge(edge),
-                place,
-                byte_offset,
-                byte_count: 8,
-                role: selected_instructions::SelectedMemoryAccessRole::ReadPlace,
-            });
-        builder.emit_load64(byte_offset, pointer, output, provenance.clone())?;
+    if let Some(offset) = projection.base_byte_offset {
+        let output = super::structural::transport_register(builder, place, 0)?;
+        builder.emit_byte_view_address(pointer, offset, output, provenance.clone())?;
         pointer = output;
     }
+    let (pointer, tail_start) = super::structural::runtime_address::cross_references_at_site(
+        builder,
+        provenance.clone(),
+        selected_instructions::SelectedMemoryAccessOrigin::Edge(edge),
+        place,
+        pointer,
+        &projection.indices,
+        &projection.pointer_slots,
+    )?;
+    let source_indices = projection
+        .indices
+        .get(tail_start..)
+        .ok_or(SelectedInstructionError::custody())?;
+    let pointer = super::structural::runtime_address::scale_at_site(
+        builder,
+        provenance,
+        place,
+        0,
+        pointer,
+        source_indices,
+    )?;
     base = SelectedAddressBase::Register(pointer);
     match &mut transport {
         SelectedStructuralTransport::Address {
@@ -519,7 +541,7 @@ fn project_block_storage(
         SelectedStructuralTransport::WholeValue { argument, .. } => *argument = pointer,
         _ => return Err(SelectedInstructionError::custody()),
     }
-    Ok(transport)
+    Ok((transport, source_indices.to_vec()))
 }
 
 pub(super) fn block_order(

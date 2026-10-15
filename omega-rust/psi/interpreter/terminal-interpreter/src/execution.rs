@@ -104,10 +104,12 @@ pub struct TerminalExecution<'artifact> {
     /// projected call observes the same field without native layout claims.
     pub(crate) structural_scalar_fields:
         BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
-    /// Owned byte contents are keyed by referent identity, not a callee-local
-    /// parameter. Immutable backing implements a logical copy of the live prefix.
-    pub(crate) structural_byte_sequence_fields:
-        BTreeMap<StructuralByteSequenceRuntimeField, ByteSequenceView>,
+    /// Byte fields retain either owned payloads or borrowed descriptors. Moving
+    /// a record relocates the slot, never the descriptor's backing/window.
+    pub(crate) structural_byte_sequence_fields: BTreeMap<
+        StructuralByteSequenceRuntimeField,
+        crate::byte_sequences::binding::ByteSequenceBinding,
+    >,
     /// Stored element descriptors retain their original backing and window.
     /// Their field homes survive borrowed calls independently of frame-local IDs.
     pub(crate) structural_element_view_fields:

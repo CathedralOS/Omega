@@ -270,6 +270,9 @@ pub enum CheckedUnitEffectOperationPlan {
     /// they do not read a selector again after the RHS changes its storage.
     CaptureAssignmentDestination {
         statement_index: u32,
+        /// Exact target occurrence. Displacement names this occurrence;
+        /// an independently evaluated RHS value never does, even at the same path.
+        destination_expression: typed_trees::expression::ExpressionHandle,
         destination: CheckedUnitStructuralArgumentPlan,
     },
     EstablishReference {
@@ -362,9 +365,9 @@ pub enum CheckedUnitEffectOperationPlan {
     MoveStructuralField {
         result: CheckedUnitStructuralResultBindingPlan,
         source: CheckedUnitStructuralArgumentPlan,
-        /// Evaluated value occurrence whose anonymous custody the checker
-        /// established. Named results instead retain their declared home.
-        /// Zero denotes an internal displacement with no authored value owner.
+        /// Evaluated value occurrence, or the exact assignment-target occurrence
+        /// for internal displacement. The latter uses the destination's earlier
+        /// captured address; a real RHS extraction evaluates its own source.
         expression: typed_trees::expression::ExpressionHandle,
     },
     /// Finish the body after cleanup, yielding its retained structural/scalar

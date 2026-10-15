@@ -75,6 +75,18 @@ pub fn descriptor_argument_accessible(
         )
 }
 
+/// Backing access is distinct from owning a descriptor's carrier. Resolve it
+/// from the same admitted source contract used by call and reference checking;
+/// exact projection, current availability and loan compatibility remain owed.
+pub fn structural_place_backing_access<'types>(
+    function: &optimization_unit::PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+    types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+) -> Option<terminal_psi::StructuralAccess> {
+    unit_validation::operation_contracts::structural_source_contract(function, place)
+        .map(|source| source.backing_access(types))
+}
+
 /// Declaration-side owned or exclusive storage for whole-referent restoration.
 /// Producer-derived view access follows its actual backing contract; an owned
 /// descriptor alone does not grant referent access. The receiving custody walk

@@ -88,10 +88,16 @@ pub(in crate::legalization) fn extent(
                         .blocks
                         .iter()
                         .any(|block| block.structural_parameters.contains(root))
-                        && abstract_operations::control_flow::address_joins::is_address_join_in(
+                        && (abstract_operations::control_flow::address_joins::is_address_join_in(
                             root,
                             &plan.structural_types,
-                        )))
+                        ) || (matches!(
+                            root.access,
+                            terminal_psi::exclusive_borrow_pair_pattern!()
+                        ) && terminal_semantics::view_descriptor_parameter(
+                            root,
+                            plan.structural_types.iter(),
+                        )))))
                 || (root.access == StructuralAccess::MutableBorrow
                     && function
                         .entry_claim_declarations

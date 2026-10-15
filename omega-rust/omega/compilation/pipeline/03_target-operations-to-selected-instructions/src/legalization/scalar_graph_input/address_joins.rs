@@ -224,6 +224,12 @@ pub(in crate::legalization) fn edge_bindings(
                 }
                 binding.parameter == declaration.place
                     && binding.argument.access == declaration.access
+                    && optimization_unit_semantics::descriptor_argument_accessible(
+                        function,
+                        &binding.argument,
+                        &plan.structural_types,
+                        declaration.access,
+                    )
                     && abstract_operations::control_flow::address_joins::is_address_projection(
                         &binding.argument.path,
                     )

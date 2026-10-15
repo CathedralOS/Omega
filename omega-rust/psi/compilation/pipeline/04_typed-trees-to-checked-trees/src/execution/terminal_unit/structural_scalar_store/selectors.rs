@@ -27,8 +27,7 @@ impl TargetSelectors {
     /// Admit every indexed step of `target`, or `None` when one of them is
     /// not an element of a declared fixed array or slice: a range (a
     /// subslice), a literal outside a declared extent, a selector into a
-    /// byte view or bounded byte field (those keep their live-length
-    /// stores), or a runtime selector whose scalar coordinate the
+    /// non-collection carrier, or a runtime selector whose scalar coordinate the
     /// statement does not retain. A slice carries no declared literal
     /// extent, so its steps leave every index unproven here for the
     /// segment's Terminal obligation.
@@ -67,18 +66,10 @@ impl TargetSelectors {
                             // A slice's extent is live, not declared: no literal
                             // bound exists to check, and the emitted segment's
                             // Terminal obligation re-proves `index < extent`
-                            // against the view's own length witness. A byte
-                            // element keeps its established byte-view
-                            // vocabulary instead — its live-length stores
-                            // resolve elsewhere.
-                            TypeReferenceNode::Slice { element_type } => {
-                                if program.primitive_type_reference(*element_type)
-                                    == Some(typed_trees::types::PrimitiveType::U8)
-                                {
-                                    return None;
-                                }
-                                None
-                            }
+                            // against the view's own length witness. Selector
+                            // capture is independent of byte/element operation
+                            // vocabulary: both must retain the pre-RHS address.
+                            TypeReferenceNode::Slice { .. } => None,
                             _ => return None,
                         };
                     match program.expression_table.expression(indexed.index) {

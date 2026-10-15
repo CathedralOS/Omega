@@ -142,7 +142,11 @@ pub(super) fn writable_bytes(
     let Some(declaration) = terminal_psi::find_structural_type(types, structural_type) else {
         return false;
     };
-    match optimization_unit_semantics::structural_place_access(function, place) {
+    match optimization_unit_semantics::structural_place_backing_access(
+        function,
+        place,
+        types.iter(),
+    ) {
         Some(terminal_psi::StructuralAccess::MutableBorrow) => {
             // A locally derived mutable descriptor is affine; an incoming
             // loan can be unrestricted. Neither multiplicity grants access:

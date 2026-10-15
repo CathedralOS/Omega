@@ -87,8 +87,10 @@ pub fn collection_view_descriptor(
 }
 
 /// Match a collection to the establishment's exact element declaration.
-/// Bounded byte backing has implicit primitive `u8` elements; another scalar
-/// with the same width, or an owned/dynamic byte carrier, cannot substitute.
+/// Byte backing has implicit primitive `u8` elements; another scalar with
+/// the same width cannot substitute. Residence and extent remain independent:
+/// a dynamic view stores its count, while an inline owner's capacity only
+/// bounds the live count in its header.
 pub fn collection_backing<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     collection: StructuralTypeId,
@@ -120,10 +122,7 @@ fn collection_shape_backing<'types>(
             storage: CollectionStorage::Inline,
         }),
         StructuralTypeShape::ByteSequence(carrier)
-            if matches!(
-                carrier,
-                ByteSequenceCarrier::BoundedView { .. } | ByteSequenceCarrier::BoundedOwned { .. }
-            ) && types.clone().any(|declaration| {
+            if types.clone().any(|declaration| {
                 declaration.id == element
                     && matches!(declaration.shape,
                             StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
@@ -131,20 +130,18 @@ fn collection_shape_backing<'types>(
                                     && integer.bits() == 8 && !integer.is_address())
             }) =>
         {
-            let (ByteSequenceCarrier::BoundedView { capacity, .. }
-            | ByteSequenceCarrier::BoundedOwned { capacity }) = carrier
-            else {
-                unreachable!("carrier is bounded by the guard")
-            };
             Some(CollectionBacking {
                 // A bounded view's declared capacity is its descriptor
                 // extent. An owned carrier's live length sits in its header
                 // word; capacity only bounds it.
                 extent: match carrier {
-                    ByteSequenceCarrier::BoundedOwned { .. } => {
+                    ByteSequenceCarrier::BoundedOwned { capacity } => {
                         CollectionExtent::LiveLength { capacity }
                     }
-                    _ => CollectionExtent::Fixed(capacity),
+                    ByteSequenceCarrier::BoundedView { capacity, .. } => {
+                        CollectionExtent::Fixed(capacity)
+                    }
+                    ByteSequenceCarrier::BorrowedView { .. } => CollectionExtent::StoredLength,
                 },
                 // Owned backing holds its elements directly; a bounded view
                 // is the referent pointer the descriptor carries instead.

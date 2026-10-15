@@ -15,7 +15,16 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
         for instruction in &block.instructions {
             instruction.visit_scalar_operands(|value| pending.push(value));
         }
-        let mut bind = |successor: &legalized_operations::LegalizedScalarSuccessor| {
+        let mut bind = |successor: &legalized_operations::LegalizedScalarSuccessor,
+                        pending: &mut Vec<ValueId>| {
+            // These coordinates are physical reads even when no instruction
+            // or ordinary scalar successor parameter otherwise uses them.
+            pending.extend(
+                successor
+                    .structural_bindings
+                    .iter()
+                    .flat_map(|binding| binding.indices.iter().map(|index| index.operand.value)),
+            );
             for binding in &successor.bindings {
                 incoming
                     .entry(binding.parameter)
@@ -36,7 +45,7 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                     pending.push(value);
                 }
             }
-            Terminator::Jump { successor, .. } => bind(successor),
+            Terminator::Jump { successor, .. } => bind(successor, &mut pending),
             Terminator::Conditional {
                 condition,
                 when_true,
@@ -44,8 +53,8 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 ..
             } => {
                 pending.push(*condition);
-                bind(when_true);
-                bind(when_false);
+                bind(when_true, &mut pending);
+                bind(when_false, &mut pending);
             }
             Terminator::Crash { .. } | Terminator::StructuralCase { .. } => {}
         }

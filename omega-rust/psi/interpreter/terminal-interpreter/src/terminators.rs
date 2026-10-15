@@ -128,6 +128,25 @@ impl TerminalExecution<'_> {
             structural_arguments,
             cleanup_actions,
         } = successor;
+        // Only the selected edge evaluates its retained coordinates. Freeze
+        // every path before snapshotting operands, cleanup or home replacement,
+        // exactly as operation projections resolve before operation dispatch.
+        let mut selected_arguments = structural_arguments.to_vec();
+        for (declared, selected) in structural_arguments.iter().zip(&mut selected_arguments) {
+            if declared
+                .path
+                .iter()
+                .any(|segment| segment.runtime_index().is_some())
+            {
+                self.select_runtime_projection(
+                    declared.place,
+                    self.live_structural_type(declared.place)?,
+                    &declared.path,
+                    &mut selected.path,
+                )?;
+            }
+        }
+        let structural_arguments = selected_arguments.as_slice();
         let bindings = self.prepare_block_bindings(target, arguments, structural_arguments)?;
         let cleanup_actions =
             bindings.prepare_cleanup_actions(self, structural_arguments, cleanup_actions)?;

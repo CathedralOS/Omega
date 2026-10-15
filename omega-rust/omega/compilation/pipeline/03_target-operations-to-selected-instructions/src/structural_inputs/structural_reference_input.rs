@@ -2689,9 +2689,7 @@ pub(crate) fn projected_byte_field(
         terminal_semantics::projected_field_declaration(declarations.iter(), root, path, field)?;
     let (capacity, length_word) = match selected.field_type.byte_sequence_carrier() {
         Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) => (Some(capacity), 0),
-        Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
-            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-        }) => (None, 8),
+        Some(terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) => (None, 8),
         _ => match selected
             .field_type
             .as_structural()
@@ -2701,9 +2699,7 @@ pub(crate) fn projected_byte_field(
             Some(
                 StructuralTypeShape::ElementView { .. }
                 | StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                    },
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                 ),
             ) => (None, 8),
             _ => return None,

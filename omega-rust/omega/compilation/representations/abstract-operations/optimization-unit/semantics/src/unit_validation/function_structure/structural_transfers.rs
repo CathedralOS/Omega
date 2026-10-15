@@ -106,7 +106,10 @@ pub(super) fn validate(
                     && types
                         .get(&parameter.structural_type)
                         .is_some_and(|declaration| {
-                            matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+                            terminal_semantics::descriptor_results::is_descriptor(
+                                types.values().copied(),
+                                declaration.id,
+                            )
                         })
                     && !source.is_some_and(|(root, access, multiplicity)| {
                         terminal_semantics::descriptor_source_projection_accessible(
@@ -247,7 +250,7 @@ pub(super) fn validate(
                     ) && super::super::operation_contracts::structural_source_contract(
                         function, binding.argument.place,
                     ).is_some_and(|source| {
-                        let access = source.backing_access(types);
+                        let access = source.backing_access(types.values().copied());
                         (if matches!(
                             parameter.access,terminal_psi::exclusive_borrow_pair_pattern!()) {
                             super::super::operation_contracts::structural_access_can_supply(
@@ -265,6 +268,10 @@ pub(super) fn validate(
                         } else {
                             access != StructuralAccess::WriteOnlyBorrow
                         }) && source.multiplicity != StructuralMultiplicity::Linear
+                            && terminal_semantics::reference_source_projection_accessible(
+                                types.values().copied(), source.structural_type, source.multiplicity,
+                                access, &binding.argument.path, parameter.access,
+                            )
                             && source.borrowed_qualifications_match(&binding.argument.path, parameter)
                             && abstract_operations::control_flow::address_joins::borrowed_referent_type(
                                 types.values().copied(),

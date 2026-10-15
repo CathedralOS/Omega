@@ -1,0 +1,28 @@
+// Expected exit: 0. Only the selected successor prepares its stored-view address.
+data Cell [copy] { value: u64; }
+data Window<'storage> { values: &'storage mut [Cell]; }
+
+machine choose<'storage>(left: &mut [Window<'storage>], right: &mut [Window<'storage>]) -> u64
+requires right.len >= 1 {
+    transition left.len > 0 {
+        true -> count(left[0].values)
+        false -> count(right[0].values)
+    }
+    state count(values: &[Cell]) -> u64 { values.len }
+}
+
+machine main() crashes Trap {
+    let mut left_values: [Cell; 2] = [Cell { value: 1 }, Cell { value: 2 }];
+    let mut right_values: [Cell; 3] = [Cell { value: 3 }, Cell { value: 4 }, Cell { value: 5 }];
+    let mut left: [Window; 1] = [Window { values: &mut left_values[..] }];
+    let mut right: [Window; 1] = [Window { values: &mut right_values[..] }];
+    let mut empty: [Window; 0] = [];
+    let left_count: u64 = choose(&mut left[..], &mut right[..]);
+    let right_count: u64 = choose(&mut empty[..], &mut right[..]);
+    transition left_count == 2 && right_count == 3 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -104,18 +104,27 @@ fn source_checked_obligation_facts(
                 });
             }
         }
-        // Bounds already checked for a captured cleanup place belong to its
-        // edge, not to a fabricated instruction or a later replacement store.
-        // Several actions may use the same capture; the edge/obligation key
-        // retains that one source judgment just as an operation's paths do.
+        // Successor projections and captured cleanup places carry bounds at
+        // their own edge, not at a fabricated instruction or a later store.
+        // Retain every already-checked path occurrence under that exact owner;
+        // sharing an obligation number never borrows another edge's judgment.
         for node in function.block_nodes() {
-            for (edge, actions) in node.operation.cleanup_rosters() {
-                for (_, obligation) in actions.iter().flat_map(|action| {
-                    action
-                        .path()
-                        .iter()
-                        .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
-                }) {
+            let paths =
+                node.successors
+                    .iter()
+                    .flat_map(|edge| {
+                        edge.structural_bindings
+                            .iter()
+                            .map(move |binding| (edge.psi_edge, binding.argument.path.as_slice()))
+                    })
+                    .chain(node.operation.cleanup_rosters().into_iter().flat_map(
+                        |(edge, actions)| actions.iter().map(move |action| (edge, action.path())),
+                    ));
+            for (edge, path) in paths {
+                for (_, obligation) in path
+                    .iter()
+                    .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
+                {
                     let owner = optimization_unit::PsiProvenance::Edge(edge);
                     if coordinates.insert((function.machine, owner, obligation)) {
                         facts.push(optimization_unit::AcceptedObligationFact::new(

@@ -94,7 +94,6 @@ fn select_function(
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
     let order = control::block_order(source)?;
-    let mut edge_cleanups = Vec::new();
     let catalog = environment.constraints();
     let materialize = row(catalog, constraints.keys.materialize_i64)?;
     let [operand] = materialize.operands.as_slice() else {
@@ -112,7 +111,8 @@ fn select_function(
         pending_result_origins: Vec::new(),
         instructions: Vec::new(),
         case_blocks: Vec::new(),
-        case_body_end: None,
+        block_body_end: None,
+        edge_work: Vec::new(),
         definitions: Vec::new(),
         transport: structural::Transport::default(),
     };
@@ -535,7 +535,7 @@ fn select_function(
         {
             return Err(invalid());
         }
-        let body_end = builder.case_body_end.take().unwrap_or(
+        let body_end = builder.block_body_end.take().unwrap_or(
             builder
                 .instructions
                 .len()
@@ -563,19 +563,8 @@ fn select_function(
                 let edge = owner.edge().ok_or_else(invalid)?;
                 let start = builder.instructions.len();
                 cleanup_call::emit(*owner, call, effect, &mut builder, environment)?;
-                if edge_cleanups.last().is_none_or(
-                    |cleanup: &crate::selection::edge_transfers::EdgeCleanup| cleanup.edge != edge,
-                ) {
-                    edge_cleanups.push(crate::selection::edge_transfers::EdgeCleanup {
-                        edge,
-                        instructions: Vec::new(),
-                    });
-                }
-                edge_cleanups
-                    .last_mut()
-                    .ok_or_else(invalid)?
-                    .instructions
-                    .extend_from_slice(&builder.instructions[start..]);
+                let instructions = builder.instructions[start..].to_vec();
+                builder.edge_work_at(edge)?.cleanup.extend(instructions);
             }
         }
     }
@@ -606,7 +595,7 @@ fn select_function(
         constraints,
         catalog,
         environment,
-        edge_cleanups,
+        builder.edge_work,
     )?;
     Ok(selected)
 }
@@ -627,11 +616,35 @@ struct Builder<'a> {
     pending_result_origins: Vec<VirtualRegisterId>,
     instructions: Vec<SelectedInstruction>,
     case_blocks: Vec<SelectedBlock>,
-    case_body_end: Option<usize>,
+    block_body_end: Option<usize>,
+    edge_work: Vec<crate::selection::edge_transfers::EdgeWork>,
     definitions: Vec<(ValueId, VirtualRegisterId, ValueDefinitionSite, ScalarType)>,
 }
 
 impl Builder<'_> {
+    fn edge_work_at(
+        &mut self,
+        edge: semantic_vocabulary::EdgeId,
+    ) -> Result<&mut crate::selection::edge_transfers::EdgeWork, SelectedInstructionError> {
+        let position = self
+            .edge_work
+            .iter()
+            .position(|work| work.edge == edge)
+            .unwrap_or_else(|| {
+                let position = self.edge_work.len();
+                self.edge_work
+                    .push(crate::selection::edge_transfers::EdgeWork {
+                        edge,
+                        preparation: Vec::new(),
+                        cleanup: Vec::new(),
+                    });
+                position
+            });
+        self.edge_work
+            .get_mut(position)
+            .ok_or_else(SelectedInstructionError::custody)
+    }
+
     fn settle_provenance(
         &mut self,
         provenance: SelectedInstructionProvenance,

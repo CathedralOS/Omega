@@ -66,12 +66,10 @@ pub(super) struct Destination<'a> {
     /// carrier the authored store writes at, distinct from the rejoined
     /// leaf's own primitive.
     pub(super) recast_view: Option<typed_trees::types::PrimitiveType>,
-    /// The local root is an exclusive borrowed view established by the loan
-    /// ledger (`let view: &mut T = ...`), not owned storage: its referent
-    /// extents admit runtime element selectors whatever the referee's
-    /// declared shape — slice, record, or fixed array — where an owned
-    /// record local lowers a static carrier only.
-    pub(super) view_loan: bool,
+    /// The exact exclusive reference local's declared type, or zero for an
+    /// owned/parameter root. Keep its shell: the referent alone cannot decide
+    /// whether storage is a pointer slot or a byte/element descriptor.
+    pub(super) loan_type: typed_trees::types::TypeReferenceHandle,
     /// The target's admitted element selectors, when every indexed step is
     /// an element of a declared fixed array.
     selectors: Option<super::selectors::TargetSelectors>,
@@ -266,7 +264,7 @@ pub(super) fn resolve<'a>(
         place,
         dynamic_index,
         recast_view,
-        view_loan: false,
+        loan_type: Default::default(),
         selectors,
         root_type,
         root_owner,
@@ -292,7 +290,7 @@ fn local_destination<'a>(
         place,
         dynamic_index,
         recast_view: None,
-        view_loan: false,
+        loan_type: Default::default(),
         selectors,
         root_type,
         root_owner: validation::field_domains::data_definition_for_field_type(program, root_type),
@@ -495,16 +493,19 @@ impl<'a> Destination<'a> {
     ) -> Option<StorageProjection<'a>> {
         let mut projection = self.walk(program, &self.full_segments(program)?)?;
         // Primitive operations name the entire path from the stored root.
-        // A retained loan's root owns its reference descriptor, regardless of
-        // whether its referent is a scalar, record or fixed array. Slice loans
-        // instead own an element-view descriptor with no pointer-slot crossing.
-        let root_type = validation::unwrapped_type_reference(program, self.root_type)?;
-        if self.view_loan
-            && !matches!(
-                program.type_reference_table.type_reference(root_type),
-                TypeReferenceNode::Slice { .. }
-            )
-        {
+        // Stored references retain an explicit pointer crossing. Dynamic
+        // slices and fixed-byte views instead name their descriptor's backing
+        // directly; adding a stored-reference hop would dereference it twice.
+        let descriptor = self.loan_type.is_valid()
+            && (validation::slice_view_shell(program, self.loan_type, &[]).is_some()
+                || matches!(
+                    validation::byte_sequence_carrier(program, self.loan_type, &[]),
+                    Some(
+                        checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
+                            | checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }
+                    )
+                ));
+        if self.loan_type.is_valid() && !descriptor {
             projection
                 .path
                 .insert(0, CheckedUnitStructuralPathSegment::Referent);
@@ -1022,7 +1023,7 @@ fn exclusive_reference_local_root<'a>(
         place,
         dynamic_index,
         recast_view: None,
-        view_loan: true,
+        loan_type: local.type_reference,
         selectors,
         root_type: referee,
         root_owner: validation::field_domains::data_definition_for_field_type(program, referee),

@@ -330,6 +330,21 @@ fn validate_owned_field_operand(
     if !argument.path.is_empty() {
         return Err(LegalizationError::custody());
     }
+    if let Some(carrier) = field.byte_sequence_carrier()
+        && carrier.is_borrowed()
+    {
+        // An inline field stores the same descriptor value as a structural
+        // child. Rejoin its exact canonical carrier and ordinary value source;
+        // readable versus exclusive backing never changes descriptor geometry.
+        // Copy/transfer and permission remain the retained source judgments.
+        let expected = terminal_semantics::byte_carrier_field_declaration(types.iter(), carrier)
+            .ok_or(LegalizationError::custody())?;
+        return if owned_projected_field_source(function, argument, types)? == expected.id {
+            Ok(())
+        } else {
+            Err(LegalizationError::custody())
+        };
+    }
     // Whole byte operands also include literal descriptors and qualified shared
     // parameters. Read their common declaration/producer contract rather than
     // reconstructing another list of permitted constructor source shapes.
@@ -347,13 +362,6 @@ fn validate_owned_field_operand(
         Some(expected @ terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) => {
             access == terminal_psi::StructuralAccess::Owned
                 && *actual == terminal_psi::StructuralTypeShape::ByteSequence(expected)
-        }
-        Some(carrier) if carrier.is_shared_readable_view() => {
-            matches!(
-                access,
-                terminal_psi::StructuralAccess::Owned
-                    | terminal_psi::StructuralAccess::SharedBorrow
-            ) && actual.is_shared_readable_byte_view()
         }
         _ => false,
     };
@@ -402,16 +410,22 @@ pub(super) fn owned_projected_field_source(
     argument: &terminal_psi::StructuralArgument,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<semantic_vocabulary::StructuralTypeId, LegalizationError> {
-    // A view descriptor is a value whose backing remains borrowed.
-    // Rejoin its exact declaration; this does not turn a borrowed aggregate
-    // into an owned element or grant mutable access to descriptor backing.
+    // A descriptor is a value whose backing remains borrowed, whether it was
+    // introduced by a parameter, literal, or completed operation. Rejoin the
+    // common source contract and exact declared type, not a producer roster.
+    // This identity query does not grant copying or mutable backing access;
+    // source ownership and reference-custody replay retain those obligations.
     if argument.path.is_empty()
         && argument.access == terminal_psi::StructuralAccess::Owned
-        && let Some(parameter) = function.arrival_parameter(argument.place)
-        && parameter.qualifications.is_empty()
-        && terminal_semantics::view_descriptor_parameter(parameter, types.iter())
+        && optimization_unit_semantics::structural_place_access(function, argument.place).is_some()
+        && let Some(declaration) = function.structural_place(argument.place)
+        && let Some(actual) = optimization_unit::declared_structural_type(function, declaration)
+        && terminal_semantics::descriptor_results::is_descriptor(types.iter(), actual)
     {
-        return Ok(parameter.structural_type);
+        // This is source identity, not predicate establishment. Qualified
+        // descriptor parameters retain their memberships and receiving proofs;
+        // they do not become different pointer/extent layouts.
+        return Ok(actual);
     }
     let root = owned_field_source(function, argument.place)?;
     if argument.path.is_empty() {

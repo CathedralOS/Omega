@@ -73,7 +73,7 @@ pub(super) fn lower(
                 field,
                 length,
             } => {
-                let authority = super::primitive_storage::readable_byte_field(
+                let authority = super::primitive_storage::byte_field_observation(
                     function,
                     types,
                     prepared,
@@ -81,6 +81,7 @@ pub(super) fn lower(
                     source.place,
                     &source.path,
                     *field,
+                    terminal_semantics::SequenceFieldObservation::Contents,
                 )?;
                 if source.access != StructuralAccess::SharedBorrow
                     || authority.access == StructuralAccess::WriteOnlyBorrow

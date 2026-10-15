@@ -33,14 +33,21 @@ impl StructuralSourceContract<'_> {
     /// Owning an unrestricted descriptor owns its carrier value, not mutable
     /// permission over its backing. Explicit incoming loans keep their declared
     /// access; this ceiling applies before selecting any element of the view.
-    pub(crate) fn backing_access(
+    pub(crate) fn backing_access<'types>(
         &self,
-        types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+        types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
     ) -> terminal_psi::StructuralAccess {
+        if self.access == terminal_psi::StructuralAccess::Owned
+            && let Some(result) = self.operation_result
+            && let Some(access) =
+                terminal_semantics::descriptor_results::result_access(types.clone(), result)
+        {
+            return access;
+        }
         if self.access == terminal_psi::StructuralAccess::Owned
             && self.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && terminal_semantics::descriptor_results::is_shared_descriptor(
-                types.values().copied(),
+                types,
                 self.structural_type,
             )
         {
@@ -356,7 +363,10 @@ where
         // also fit the backing permission; Owned is not permission to mutate
         // through a returned or copied shared descriptor.
         if argument.access != terminal_psi::StructuralAccess::Owned
-            && !structural_access_can_supply(source.backing_access(types), argument.access)
+            && !structural_access_can_supply(
+                source.backing_access(types.values().copied()),
+                argument.access,
+            )
         {
             return false;
         }

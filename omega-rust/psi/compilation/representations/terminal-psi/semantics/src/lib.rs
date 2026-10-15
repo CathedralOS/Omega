@@ -136,9 +136,10 @@ pub use proof_bearing_scalar::{
     proof_bearing_scalar_semantic_row, validate_proof_bearing_scalar_semantic_rows,
 };
 pub use record_field::{
-    CasePayloadCarrier, RecordFieldCarrier, case_payload_carrier, observed_field_backing_access,
-    observed_field_declaration, projected_field_declaration, record_field_carrier,
-    runtime_structural_field, static_field_projection,
+    CasePayloadCarrier, RecordFieldCarrier, SequenceFieldObservation, case_payload_carrier,
+    observed_field_backing_access, observed_field_declaration, projected_field_declaration,
+    record_field_carrier, runtime_structural_field, sequence_field_allows_observation,
+    static_field_projection,
 };
 pub use reference_views::{
     descriptor_source_projection_accessible, is_shared_reference_carrier,

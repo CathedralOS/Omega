@@ -154,7 +154,7 @@ pub(super) fn owned_assignment_source(
     })
 }
 
-/// Retain the assignment target once, before evaluating any structural RHS.
+/// Retain the assignment target once, before evaluating its RHS.
 /// The target is independent of its replacement's producer and of the fixed
 /// leaves a whole-array replacement will store beneath it.
 pub(super) fn capture_assignment_destination(
@@ -258,16 +258,10 @@ pub(super) fn capture_assignment_destination(
         path.push(CheckedUnitStructuralPathSegment::Referent);
     }
     let declared = stored;
-    // Byte/scalar stores already own their target evaluation in their store
-    // operation. This capture belongs to structural replacement sequencing.
-    if program.primitive_type_reference(declared).is_some()
-        || super::types::byte_sequence_carrier(program, declared, &[]).is_some()
-    {
-        return None;
-    }
     Some(
         CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
             statement_index,
+            destination_expression: target,
             destination: CheckedUnitStructuralArgumentPlan {
                 source,
                 path,

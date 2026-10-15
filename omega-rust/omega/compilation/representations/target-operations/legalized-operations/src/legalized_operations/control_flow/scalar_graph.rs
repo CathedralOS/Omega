@@ -1181,11 +1181,20 @@ pub struct LegalizedRuntimeIndexOperand {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LegalizedStructuralBinding {
+    /// Source custody and destination identity remain the semantic binding.
+    pub semantic: abstract_operations::AbstractStructuralBinding,
+    /// Address selectors with the accepted facts owned by this exact edge.
+    /// Geometry alone cannot supply a bound or make an edge-only value dead.
+    pub indices: Vec<LegalizedRuntimeIndexOperand>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarSuccessor {
     pub edge: EdgeId,
     pub target: BlockId,
     pub bindings: Vec<ValueBinding>,
-    pub structural_bindings: Vec<abstract_operations::AbstractStructuralBinding>,
+    pub structural_bindings: Vec<LegalizedStructuralBinding>,
     pub fuel: Vec<FuelSettlement>,
     /// Ordinary calls owned by this edge, executed before successor binding.
     pub cleanup_calls: Vec<(target_operations::CallSiteOwner, LegalizedScalarCall)>,
@@ -1322,6 +1331,12 @@ impl LegalizedScalarTerminator {
                 .bindings
                 .iter()
                 .any(|binding| binding.argument == value)
+                || successor.structural_bindings.iter().any(|binding| {
+                    binding
+                        .indices
+                        .iter()
+                        .any(|index| index.operand.value == value)
+                })
         };
         match self {
             Self::ExternalCompletion { arguments, .. } => arguments
@@ -1473,6 +1488,7 @@ impl LegalizedScalarSuccessor {
     ) -> Option<&abstract_operations::AbstractStructuralBinding> {
         self.structural_bindings
             .iter()
+            .map(|binding| &binding.semantic)
             .find(|binding| binding.parameter == parameter)
     }
 }

@@ -19,7 +19,7 @@
 //! construction consumes it without a second compiler validation pass.
 use super::{
     Builder, IntegerSign, LegalizedScalarInstruction, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory_at_origin,
     transport_register,
 };
 use crate::SelectedInstructionError;
@@ -231,13 +231,33 @@ pub(super) fn footprint(
     indices: &[LegalizedRuntimeIndexOperand],
     written: Written,
 ) -> Result<(), SelectedInstructionError> {
+    footprint_at_origin(
+        builder,
+        selected_instructions::SelectedMemoryAccessOrigin::Operation(row.operation),
+        place,
+        byte_offset,
+        byte_count,
+        indices,
+        written,
+    )
+}
+
+fn footprint_at_origin(
+    builder: &mut Builder<'_>,
+    origin: selected_instructions::SelectedMemoryAccessOrigin,
+    place: PlaceId,
+    byte_offset: u32,
+    byte_count: u32,
+    indices: &[LegalizedRuntimeIndexOperand],
+    written: Written,
+) -> Result<(), SelectedInstructionError> {
     if indices.is_empty() {
         let role = if matches!(written, Written::None) {
             SelectedMemoryAccessRole::ReadPlace
         } else {
             SelectedMemoryAccessRole::WritePlace
         };
-        return memory(builder, row, place, byte_offset, byte_count, role);
+        return memory_at_origin(builder, origin, place, byte_offset, byte_count, role);
     }
     for index in indices {
         let role = match written {
@@ -264,7 +284,7 @@ pub(super) fn footprint(
                 accepted_fact: index.accepted_fact,
             },
         };
-        memory(builder, row, place, byte_offset, byte_count, role)?;
+        memory_at_origin(builder, origin, place, byte_offset, byte_count, role)?;
     }
     Ok(())
 }
@@ -275,6 +295,28 @@ pub(super) fn footprint(
 pub(in crate::selection) fn cross_references(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    pointer: VirtualRegisterId,
+    indices: &[LegalizedRuntimeIndexOperand],
+    pointer_slots: &[crate::structural_inputs::structural_reference_input::PointerSlot],
+) -> Result<(VirtualRegisterId, usize), SelectedInstructionError> {
+    cross_references_at_site(
+        builder,
+        super::provenance(row),
+        selected_instructions::SelectedMemoryAccessOrigin::Operation(row.operation),
+        place,
+        pointer,
+        indices,
+        pointer_slots,
+    )
+}
+
+/// Pointer preparation is the same ordered operation on a selected edge and
+/// within a block. Its actual owner supplies provenance and memory origin.
+pub(in crate::selection) fn cross_references_at_site(
+    builder: &mut Builder<'_>,
+    provenance: SelectedInstructionProvenance,
+    origin: selected_instructions::SelectedMemoryAccessOrigin,
     place: PlaceId,
     mut pointer: VirtualRegisterId,
     indices: &[LegalizedRuntimeIndexOperand],
@@ -290,12 +332,25 @@ pub(in crate::selection) fn cross_references(
             return Err(invalid());
         }
         let slot_indices = indices.get(slot.indices.clone()).ok_or(invalid())?;
-        let address = scale(builder, row, place, slot.byte_offset, pointer, slot_indices)?;
-        let (address, displacement) =
-            super::memory_pointer(builder, row, place, address, slot.byte_offset, 8)?;
-        footprint(
+        let address = scale_at_site(
             builder,
-            row,
+            provenance.clone(),
+            place,
+            slot.byte_offset,
+            pointer,
+            slot_indices,
+        )?;
+        let (address, displacement) = super::displaced_memory_pointer(
+            builder,
+            place,
+            address,
+            slot.byte_offset,
+            8,
+            provenance.clone(),
+        )?;
+        footprint_at_origin(
+            builder,
+            origin,
             place,
             slot.byte_offset,
             8,
@@ -303,7 +358,7 @@ pub(in crate::selection) fn cross_references(
             Written::None,
         )?;
         let loaded = super::transport_register(builder, place, slot.byte_offset)?;
-        builder.emit_load64(displacement, address, loaded, super::provenance(row))?;
+        builder.emit_load64(displacement, address, loaded, provenance.clone())?;
         pointer = loaded;
         leaf_index = slot.indices.end;
     }

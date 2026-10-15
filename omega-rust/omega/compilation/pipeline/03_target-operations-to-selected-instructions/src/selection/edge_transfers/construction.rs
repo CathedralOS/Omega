@@ -20,15 +20,15 @@ pub(in crate::selection) fn prepare(
     constraints: &SelectedSelectionConstraints,
     catalog: &ValidatedRegisterConstraintCatalog,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
-    mut cleanups: Vec<super::EdgeCleanup>,
+    mut edge_work: Vec<super::EdgeWork>,
 ) -> Result<(), SelectedInstructionError> {
     let source_count = function.blocks.len();
     // Detached cleanup rows already own IDs and call/memory contracts. Reserve
     // them before allocating snapshots, copies, or continuation instructions.
     let mut next_instruction = instruction_count(function)
-        + cleanups
+        + edge_work
             .iter()
-            .map(|cleanup| cleanup.instructions.len())
+            .map(|work| work.preparation.len() + work.cleanup.len())
             .sum::<usize>();
     let mut bridges = Vec::new();
     let mut unbridged_fallthroughs = Vec::new();
@@ -47,15 +47,21 @@ pub(in crate::selection) fn prepare(
             .into_iter()
             .enumerate()
         {
-            let mut cleanup = cleanups
+            let work = edge_work
                 .iter()
-                .position(|cleanup| {
+                .position(|work| {
                     successor.role == SelectedSuccessorRole::Semantic
-                        && cleanup.edge == successor.psi_edge
+                        && work.edge == successor.psi_edge
                 })
-                .map(|position| cleanups.remove(position).instructions)
-                .unwrap_or_default();
+                .map(|position| edge_work.remove(position));
+            let (preparation, mut cleanup) = work.map_or_else(
+                || (Vec::new(), Vec::new()),
+                |work| (work.preparation, work.cleanup),
+            );
             if successor.structural_case.is_some() {
+                if !preparation.is_empty() {
+                    return Err(invalid(function_index));
+                }
                 if let Some(bridge) = structural_case::prepare(
                     function_index,
                     successor,
@@ -86,7 +92,8 @@ pub(in crate::selection) fn prepare(
                     SelectedValueTransport::Unused => None,
                 })
                 .collect::<Vec<_>>();
-            if cleanup.is_empty()
+            if preparation.is_empty()
+                && cleanup.is_empty()
                 && active.is_empty()
                 && successor.structural_bindings.iter().all(|binding| {
                     binding.transport == selected_instructions::SelectedStructuralTransport::Unused
@@ -125,7 +132,7 @@ pub(in crate::selection) fn prepare(
             let mut continuation = successor.clone();
             continuation.role = SelectedSuccessorRole::EdgeTransferContinuation;
             continuation.fuel.clear();
-            let mut instructions = Vec::new();
+            let mut instructions = preparation;
             let mut snapshots = Vec::new();
             let mut transfers = Vec::new();
             let mut descriptors = Vec::new();
@@ -283,7 +290,7 @@ pub(in crate::selection) fn prepare(
             }
         }
     }
-    if !cleanups.is_empty() {
+    if !edge_work.is_empty() {
         return Err(invalid(function_index));
     }
     function.blocks.extend(bridges);

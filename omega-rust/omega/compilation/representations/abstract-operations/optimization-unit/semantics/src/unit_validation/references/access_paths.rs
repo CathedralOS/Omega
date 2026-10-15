@@ -63,7 +63,7 @@ pub(crate) fn access_referent_tail(
     project_referent_tail(
         types,
         signature.structural_type,
-        signature.backing_access(types),
+        signature.backing_access(types.values().copied()),
         source,
     )
 }

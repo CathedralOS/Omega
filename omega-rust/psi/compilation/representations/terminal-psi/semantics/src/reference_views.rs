@@ -300,7 +300,9 @@ pub fn descriptor_source_projection_accessible<'types>(
     path: &[terminal_psi::StructuralPathSegment],
     requested: terminal_psi::StructuralAccess,
 ) -> bool {
-    use terminal_psi::{StructuralAccess, StructuralPathSegment, StructuralTypeShape};
+    use terminal_psi::{
+        ByteSequenceCarrier, StructuralAccess, StructuralPathSegment, StructuralTypeShape,
+    };
     if !reference_source_projection_accessible(
         types.clone(),
         root,
@@ -321,6 +323,29 @@ pub fn descriptor_source_projection_accessible<'types>(
     {
         match access {
             Some(access) if !requested.admits_referent(*access) => return false,
+            None if path.len() != region_start && requested != StructuralAccess::SharedBorrow => {
+                return false;
+            }
+            _ => {}
+        }
+    }
+    let carrier = crate::runtime_structural_field(types.clone(), root, path)
+        .and_then(|field| field.field_type.byte_sequence_carrier())
+        .or_else(|| {
+            crate::runtime_structural_path_tip(types.clone(), root, path).and_then(|row| match row
+                .shape
+            {
+                StructuralTypeShape::ByteSequence(carrier) => Some(carrier),
+                _ => None,
+            })
+        });
+    if let Some(
+        ByteSequenceCarrier::BorrowedView { access }
+        | ByteSequenceCarrier::BoundedView { access, .. },
+    ) = carrier
+    {
+        match access {
+            Some(access) if !requested.admits_referent(access) => return false,
             None if path.len() != region_start && requested != StructuralAccess::SharedBorrow => {
                 return false;
             }

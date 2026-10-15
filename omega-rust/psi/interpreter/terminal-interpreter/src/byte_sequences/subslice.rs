@@ -138,7 +138,7 @@ impl TerminalExecution<'_> {
         source: &TerminalStructuralValue,
         window: std::ops::Range<usize>,
         access: StructuralAccess,
-        mut destination: TerminalStructuralValue,
+        destination: TerminalStructuralValue,
     ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
         if window.start > window.end
             || !matches!(
@@ -179,6 +179,7 @@ impl TerminalExecution<'_> {
                 array_type,
                 offset,
                 length,
+                referent,
                 ..
             } => {
                 binding.validate_mutable_referent(self, source)?;
@@ -195,9 +196,9 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 }
                 if access == StructuralAccess::MutableBorrow {
-                    destination = source.clone();
-                    destination.path = array.referent.path.clone();
-                    destination
+                    let mut referent = referent.clone();
+                    referent.path = array.referent.path.clone();
+                    referent
                         .path
                         .push(terminal_psi::StructuralPathSegment::FixedByteRange { start, end });
                     let narrowed = ByteSequenceBinding::MutableArray {
@@ -205,8 +206,8 @@ impl TerminalExecution<'_> {
                         array_type: *array_type,
                         offset: start,
                         length: end - start,
-                        referent: destination.clone(),
-                        descriptor_home: None,
+                        referent,
+                        descriptor_home: Some(destination.clone()),
                     };
                     narrowed.validate_mutable_referent(self, &destination)?;
                     narrowed

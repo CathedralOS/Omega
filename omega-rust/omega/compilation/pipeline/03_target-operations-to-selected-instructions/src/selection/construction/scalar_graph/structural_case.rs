@@ -314,7 +314,7 @@ pub(super) fn build(
             when_nonzero,
         };
         if ordinal == 0 {
-            builder.case_body_end = Some(builder.instructions.len() - 1);
+            builder.block_body_end = Some(builder.instructions.len() - 1);
             first = Some(terminator);
         } else {
             builder.case_blocks.push(SelectedBlock {

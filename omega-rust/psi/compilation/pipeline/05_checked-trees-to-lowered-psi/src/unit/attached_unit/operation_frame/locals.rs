@@ -341,6 +341,7 @@ impl OperationFrame<'_, '_> {
         let place = self.windows.emit_move(
             identities,
             moved,
+            expression,
             result,
             result_claims,
             &self.parameters,

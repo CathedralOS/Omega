@@ -306,6 +306,7 @@ pub(crate) struct StructuralArgumentUse {
     pub place: PlaceId,
     pub source_byte_offset: u32,
     pub byte_size: u32,
+    pub source_read_roles: Vec<selected_instructions::SelectedMemoryAccessRole>,
     pub loads: Vec<SelectedInstructionId>,
     pub dedicated_reload: bool,
 }
@@ -1076,6 +1077,7 @@ pub(super) fn derive_runtime_spill<'source>(
                     place: binding.semantic.argument.place,
                     source_byte_offset,
                     byte_size,
+                    source_read_roles: binding.source_read_roles().collect(),
                     loads: Vec::new(),
                     dedicated_reload: false,
                 });
@@ -1661,7 +1663,11 @@ pub(super) fn derive_runtime_spill<'source>(
         > = std::collections::BTreeMap::new();
         for access in &function.memory_accesses {
             if let SelectedMemoryAccessOrigin::Edge(edge) = access.origin
-                && access.role == SelectedMemoryAccessRole::ReadPlace
+                && matches!(
+                    access.role,
+                    SelectedMemoryAccessRole::ReadPlace
+                        | SelectedMemoryAccessRole::ReadIndexedPrimitive { .. }
+                )
             {
                 chunk_loads
                     .entry((edge, access.place))
@@ -1707,7 +1713,22 @@ pub(super) fn derive_runtime_spill<'source>(
             for access in accesses.iter().filter(|access| {
                 access.byte_offset >= pending.source_byte_offset
                     && access.byte_offset - pending.source_byte_offset < pending.byte_size
+                    && pending.source_read_roles.contains(&access.role)
+                    && owners
+                        .get(&access.instruction)
+                        .is_some_and(|&(owner, position)| {
+                            owner == pending.block
+                                && block.instructions[position]
+                                    .operands
+                                    .first()
+                                    .is_some_and(|operand| operand.virtual_register == register)
+                        })
             }) {
+                // A multidimensional selector contributes several evidence
+                // rows to one physical snapshot load. Reload that load once.
+                if pending.loads.contains(&access.instruction) {
+                    continue;
+                }
                 let Some(width) = next_chunk(pending.byte_size, offset) else {
                     return Err(RuntimeSpillError::UnsupportedUse);
                 };

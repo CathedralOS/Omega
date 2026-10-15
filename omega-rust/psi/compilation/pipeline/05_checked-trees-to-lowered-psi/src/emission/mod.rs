@@ -30,6 +30,7 @@ use crate::terminal_identities::{
 };
 
 pub(crate) mod affine_cleanup;
+mod assignment_destination;
 pub(crate) mod claim_bindings;
 pub(crate) mod continuation_identities;
 pub(crate) mod continuation_specialization;

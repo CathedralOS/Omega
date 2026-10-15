@@ -254,6 +254,7 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
     }
     length(bytes, successor.structural_bindings.len());
     for binding in &successor.structural_bindings {
+        super::structural::encode_runtime_indices(bytes, &binding.source_indices);
         crate::codec_bytes::push_encoded(bytes, binding.semantic.parameter.get().to_le_bytes());
         super::structural::encode_semantic_argument(bytes, &binding.semantic.argument);
         match binding.transport {
@@ -364,6 +365,7 @@ fn decode_successor(
     let count = cursor.length()?;
     let mut structural_bindings = Vec::with_capacity(count.min(cursor.remaining()));
     for _ in 0..count {
+        let source_indices = super::structural::decode_runtime_indices(cursor)?;
         let semantic = abstract_operations::AbstractStructuralBinding {
             parameter: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
             argument: super::structural::decode_semantic_argument(cursor)?,
@@ -467,6 +469,7 @@ fn decode_successor(
         structural_bindings.push(selected_instructions::SelectedStructuralBinding {
             semantic,
             transport,
+            source_indices,
         });
     }
     Ok(SelectedSuccessor {

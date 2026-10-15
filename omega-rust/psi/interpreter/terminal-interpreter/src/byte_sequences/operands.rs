@@ -32,15 +32,18 @@ impl TerminalExecution<'_> {
                 // The resolved binding and extent belong to this descriptor,
                 // not to the pointer carrier at the operand's root place.
                 self.byte_descriptor_length(&binding, &selected)?;
-                binding.immutable()?.clone()
+                self.reborrow_byte_sequence_binding(
+                    &binding,
+                    &selected,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                )?
+                .immutable()?
+                .clone()
             }
             ByteSequenceOperand::Field { source, field, .. } => {
                 let (key, capacity) =
                     self.readable_byte_field(source.place, &source.path, *field)?;
-                let bytes = self
-                    .structural_byte_sequence_fields
-                    .get(&key)
-                    .ok_or_else(malformed)?;
+                let bytes = self.byte_field_snapshot(&key)?;
                 if capacity.is_some_and(|capacity| bytes.len() as u128 > u128::from(capacity)) {
                     return Err(malformed());
                 }

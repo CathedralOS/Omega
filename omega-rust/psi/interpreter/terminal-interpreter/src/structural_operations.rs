@@ -502,7 +502,7 @@ impl TerminalExecution<'_> {
                             namespace: StructuralFieldNamespace::for_carrier(leaf.path()),
                             field: *field,
                         },
-                        ByteSequenceView::new(Vec::new()),
+                        ByteSequenceBinding::Immutable(ByteSequenceView::new(Vec::new())),
                     );
                 }
                 terminal_semantics::ZeroedStructuralLeaf::CaseField {
@@ -1666,6 +1666,7 @@ impl TerminalExecution<'_> {
                 self.structural_byte_sequence_fields
                     .get(&cell)
                     .ok_or_else(malformed)?
+                    .immutable()?
                     .clone()
             };
             // ByteSequenceView clones its backing handle and exact window.

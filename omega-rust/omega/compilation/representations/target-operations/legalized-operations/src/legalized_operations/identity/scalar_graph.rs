@@ -1166,8 +1166,9 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &LegalizedScalarSuccessor) {
     encode_bindings(bytes, &successor.bindings);
     encode_len(bytes, successor.structural_bindings.len());
     for binding in &successor.structural_bindings {
-        crate::codec_bytes::push_encoded(bytes, binding.parameter.get().to_le_bytes());
-        super::structural_types::encode_structural_argument(bytes, &binding.argument);
+        crate::codec_bytes::push_encoded(bytes, binding.semantic.parameter.get().to_le_bytes());
+        super::structural_types::encode_structural_argument(bytes, &binding.semantic.argument);
+        encode_runtime_indices(bytes, &binding.indices);
     }
     encode_fuel(bytes, &successor.fuel);
 }

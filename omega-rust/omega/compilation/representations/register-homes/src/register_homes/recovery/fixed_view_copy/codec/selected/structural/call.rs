@@ -235,7 +235,7 @@ pub(super) fn decode_call(
 
 /// Ordinary and normalized foreign calls retain the same evaluated selector
 /// custody. The extent and accepted fact are part of each operand's bytes.
-pub(super) fn encode_runtime_indices(
+pub(in super::super) fn encode_runtime_indices(
     bytes: &mut Vec<u8>,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) {
@@ -253,7 +253,7 @@ pub(super) fn encode_runtime_indices(
     }
 }
 
-pub(super) fn decode_runtime_indices(
+pub(in super::super) fn decode_runtime_indices(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, FixedViewCopyDecodeError> {
     let count = cursor.length()?;

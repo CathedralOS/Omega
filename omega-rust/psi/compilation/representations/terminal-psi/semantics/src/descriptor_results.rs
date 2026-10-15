@@ -94,7 +94,7 @@ pub fn is_descriptor<'a>(
         return false;
     };
     declarations.next().is_none()
-        && (declaration.shape.is_borrowed_byte_view()
+        && (declaration.shape.is_borrowed_byte_carrier()
             || matches!(declaration.shape, StructuralTypeShape::ElementView { .. }))
 }
 
@@ -115,7 +115,10 @@ pub fn descriptor_value_access<'a>(
     }
     let access = match declaration.shape {
         StructuralTypeShape::ElementView { access, .. }
-        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }) => access,
+        | StructuralTypeShape::ByteSequence(
+            ByteSequenceCarrier::BorrowedView { access }
+            | ByteSequenceCarrier::BoundedView { access, .. },
+        ) => access,
         _ => return None,
     };
     let access = access.unwrap_or(if multiplicity == StructuralMultiplicity::Affine {
@@ -152,6 +155,16 @@ pub fn is_shared_descriptor<'a>(
                     ..
                 }
             ))
+}
+
+/// Backing access of a readable result, selected by the same declaration and
+/// multiplicity judgment as other descriptor values. Inventory grants no access.
+pub fn result_access<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    result: &terminal_psi::StructuralOperationResult,
+) -> Option<StructuralAccess> {
+    descriptor_value_access(types, result.structural_type, result.multiplicity)
+        .filter(|access| matches!(access, terminal_psi::reading_borrow_pair_pattern!()))
 }
 
 /// Every possible backing of a normal shared descriptor result. A literal has

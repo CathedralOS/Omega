@@ -419,7 +419,14 @@ fn window_root(
                             && parameter.structural_type == root.structural_type
                     }))
                     || super::transfers::address_parameter(function, live, root.place)
-                        == Some(root))
+                        == Some(root)
+                    // A view arrival retains descriptor words rather than a
+                    // referent-address ABI slot. Its live borrowed declaration
+                    // supplies the same window authority; descriptor ownership
+                    // does not. Element bounds remain on the selected child.
+                    || (live.block_views.contains(&root.place)
+                        && matches!(root.access, terminal_psi::exclusive_borrow_pair_pattern!())
+                        && function.block_structural_parameter(root.place) == Some(root)))
         }
         // An owned local home's authority is its live home row: the producer
         // completed it under transferable custody. Its original claims do not

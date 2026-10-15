@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance. Versioned fixed-view-copy artifact envelope.
 //!
-//! Owns admission and authentication order. V71 retains stored element-view
-//! backing access independently of the descriptor's physical geometry.
+//! Owns admission and authentication order. V72 retains structural edge
+//! selectors and their accepted facts through descriptor snapshots.
 //! Atomic field identity remains distinct from its scalar representation.
 //! Every older envelope is rejected before its payload is interpreted.
 
@@ -32,7 +32,8 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 69 retains exact placed-call formal-to-argument bindings.
 // Version 70 combines quotient representations with placed-call bindings.
 // Version 71 retains element-view access ceilings in structural declarations.
-const VERSION: u32 = 71;
+// Version 72 retains indexed source evidence on structural edge snapshots.
+const VERSION: u32 = 72;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.

@@ -309,12 +309,20 @@ pub(crate) fn observe_element_extent(
         .ok_or(LoweringError::Unsupported(
             "runtime element extent has an unresolved structural prefix",
         ))?;
-        if !matches!(
-            owner.shape,
-            terminal_psi::StructuralTypeShape::ElementView { .. }
-        ) {
-            continue;
-        }
+        let source = terminal_psi::StructuralArgument {
+            place: destination,
+            path: prefix.to_vec(),
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+        };
+        let kind = match owner.shape {
+            terminal_psi::StructuralTypeShape::ElementView { .. } => {
+                terminal_psi::OperationKind::ElementViewLength { source }
+            }
+            terminal_psi::StructuralTypeShape::ByteSequence(_) => {
+                terminal_psi::OperationKind::ByteSequenceLength { source }
+            }
+            _ => continue,
+        };
         let length = crate::terminal_identities::value_id(
             crate::terminal_identities::allocate_dense(next_value)?,
         );
@@ -329,13 +337,7 @@ pub(crate) fn observe_element_extent(
                     checked_trees::types::PrimitiveType::U64,
                 )?,
             ),
-            kind: terminal_psi::OperationKind::ElementViewLength {
-                source: terminal_psi::StructuralArgument {
-                    place: destination,
-                    path: prefix.to_vec(),
-                    access: terminal_psi::StructuralAccess::SharedBorrow,
-                },
-            },
+            kind,
         });
     }
     Ok(())

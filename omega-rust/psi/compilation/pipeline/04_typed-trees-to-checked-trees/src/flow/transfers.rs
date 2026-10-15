@@ -71,6 +71,40 @@ pub(super) fn propagate_statement_transfers(
     };
     let stable_value_target = write.stable_value_target;
 
+    if !write.target_is_exact {
+        // A weak store selects one captured alternative. Only membership
+        // already live on a candidate can survive a proved domain-preserving
+        // replacement; no candidate receives the new scalar value or a new
+        // qualification merely because it was one possible destination.
+        declared_domains::establish(
+            program,
+            semantic,
+            build,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            statement,
+            target_place,
+            false,
+            write.candidate_targets,
+            assignment_source_contexts,
+            &mut refs,
+        );
+        if !refs.is_empty() {
+            publish_statement_contexts(
+                semantic,
+                build,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                refs,
+                active_contexts,
+                active_constraints,
+            );
+        }
+        return;
+    }
+
     if stable_value_target {
         build
             .control
@@ -314,6 +348,7 @@ pub(super) fn propagate_statement_transfers(
         statement_index,
         statement,
         target_place,
+        true,
         candidate_targets,
         assignment_source_contexts,
         &mut refs,

@@ -118,7 +118,7 @@ pub(crate) fn validate_checked_write_only_slice(
                         && receiver::record(program, root).is_none()
                     {
                         diagnostics.push(Diagnostic::error(format!(
-                            "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, integer scalars qualified only by closed literal ranges or a lone arithmetic policy, carriers qualified only by plain declared domains, recursively literal fixed arrays whose ultimate elements are unrestricted primitive scalars or statically discardable material records or sums, forwarding-only byte slices, non-generic invariant-free checked records, and closed statically discardable material sums as atomic whole values",
+                            "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, integer scalars qualified only by closed literal ranges or a lone arithmetic policy, carriers qualified only by plain declared domains, recursively literal fixed arrays whose ultimate elements are unrestricted primitive scalars or statically discardable material records or sums, forwarding-only byte slices, closed invariant-free checked records, and closed statically discardable material sums as atomic whole values",
                             machine.name,
                             state.name,
                             root.name,
@@ -294,11 +294,9 @@ fn closed_write_only_data(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
-    let symbol = &program
-        .type_reference_table
-        .type_reference(type_reference)
-        .as_named_symbol()?;
-    closed_write_only_data_by_symbol(program, *symbol)
+    let definition = program.closed_data_definition(type_reference)?;
+    checked_write_only_data_shape(program, definition)?;
+    definition.where_facts.is_empty().then_some(definition)
 }
 
 fn closed_write_only_data_by_symbol(
@@ -317,8 +315,18 @@ fn closed_write_only_data_shape_by_symbol(
     symbol: SymbolHandle,
 ) -> Option<&DataDefinition> {
     let definition = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
+    checked_write_only_data_shape(program, definition)
+}
+
+fn checked_write_only_data_shape<'program>(
+    program: &dyn crate::CheckingInput,
+    definition: &'program DataDefinition,
+) -> Option<&'program DataDefinition> {
+    // Lifetime binders do not make the represented shape open. In particular,
+    // a descriptor-only carrier still uses the checked descriptor-cleanup
+    // transaction; its region arguments retain ordinary formation and lifetime
+    // obligations, not a different non-observation or disposal rule.
     (definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
-        && definition.lifetime_parameters.is_empty()
         && program.data_type_parameters(definition).is_empty()
         && definition.quotient.is_none()
         && !definition.zero_gated)
@@ -329,11 +337,8 @@ fn write_only_record_shape(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
-    let symbol = program
-        .type_reference_table
-        .type_reference(type_reference)
-        .as_named_symbol()?;
-    let definition = closed_write_only_data_shape_by_symbol(program, symbol)?;
+    let definition = program.closed_data_definition(type_reference)?;
+    checked_write_only_data_shape(program, definition)?;
     (DataDefinition::shape_kind_from_members(program.data_members(definition))
         == DataShapeKind::Record)
         .then_some(definition)
@@ -1170,7 +1175,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, an integer primitive carrying only an arithmetic-policy constraint, or a carrier qualified only by plain declared domains whose membership is proven on the stored value, a whole eligible statically discardable record or closed statically discardable material sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or statically discardable material records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named or non-plain domain qualification, element and range stores into a domain-qualified carrier, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through closed invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, an integer primitive carrying only an arithmetic-policy constraint, or a carrier qualified only by plain declared domains whose membership is proven on the stored value, a whole eligible statically discardable record or closed statically discardable material sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or statically discardable material records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named or non-plain domain qualification, element and range stores into a domain-qualified carrier, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 

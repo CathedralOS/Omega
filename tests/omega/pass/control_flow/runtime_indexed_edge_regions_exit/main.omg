@@ -1,0 +1,48 @@
+// Expected exit: 0. Selectors retain their own regions across stored pointers.
+data Cell [copy] { value: u64; }
+data Window<'storage> { values: &'storage mut [Cell]; }
+data Group<'storage> { windows: &'storage mut [Window<'storage>]; }
+
+machine update<'storage>(groups: &mut [Group<'storage>], group_position: u64, window_position: u64, position: u64) -> bool {
+    transition group_position < groups.len {
+        true -> in_group(groups, group_position, window_position, position)
+        false -> false
+    }
+    state in_group(groups: &mut [Group<'storage>], group_position: u64, window_position: u64, position: u64) -> bool
+    requires group_position < groups.len {
+        transition window_position < groups[group_position].windows.len {
+            true -> in_window(groups, group_position, window_position, position)
+            false -> false
+        }
+    }
+    state in_window(groups: &mut [Group<'storage>], group_position: u64, window_position: u64, position: u64) -> bool
+    requires group_position < groups.len && window_position < groups[group_position].windows.len {
+        transition position < groups[group_position].windows[window_position].values.len {
+            true -> store(groups, group_position, window_position, position)
+            false -> false
+        }
+    }
+    state store(groups: &mut [Group<'storage>], group_position: u64, window_position: u64, position: u64) -> bool
+    requires group_position < groups.len && window_position < groups[group_position].windows.len
+        && position < groups[group_position].windows[window_position].values.len {
+        groups[group_position].windows[window_position].values[position] = Cell { value: 73 };
+        true
+    }
+}
+
+machine main() crashes Trap {
+    let mut values: [Cell; 4] = [Cell { value: 11 }, Cell { value: 23 }, Cell { value: 37 }, Cell { value: 41 }];
+    let mut windows: [Window; 1] = [Window { values: &mut values[1..3] }];
+    let mut groups: [Group; 1] = [Group { windows: &mut windows[..] }];
+    let changed: bool = update(&mut groups[..], 0, 0, 1);
+    let empty: bool = update(&mut groups[0..0], 0, 0, 0);
+    let absent_window: bool = update(&mut groups[..], 0, 1, 0);
+    let absent_value: bool = update(&mut groups[..], 0, 0, 2);
+    transition changed && !empty && !absent_window && !absent_value
+        && values[0].value == 11 && values[1].value == 23 && values[2].value == 73 && values[3].value == 41 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -71,9 +71,11 @@ pub(crate) fn projection(
     target: BlockId,
     parameter: &StructuralParameterDeclaration,
     argument: &terminal_psi::StructuralArgument,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     pointers: &[(PlaceId, VirtualRegisterId)],
     local_slots: &[SelectedLocalStorageSlot],
     element_views: &[crate::selection::element_view_homes::ElementViewHomes],
+    byte_views: &[crate::selection::byte_view_homes::ByteViewHomes],
 ) -> Option<super::aggregate_result_input::BlockParameterProjection> {
     let signature = source.structural.as_ref()?;
     if argument.access != parameter.access
@@ -103,6 +105,19 @@ pub(crate) fn projection(
     else {
         return None;
     };
+    let supplied = super::reference_input::source_access(source, argument.place)?;
+    if supplied.structural_type != root
+        || !terminal_semantics::reference_source_projection_accessible(
+            signature.structural_types.iter(),
+            root,
+            supplied.multiplicity,
+            supplied.access,
+            &argument.path,
+            argument.access,
+        )
+    {
+        return None;
+    }
     // Rejoin the selected endpoint and every stored pointer's permission from
     // this consumer's catalog before deriving runtime descriptor loads.
     if abstract_operations::control_flow::address_joins::borrowed_referent_type(
@@ -114,49 +129,32 @@ pub(crate) fn projection(
     {
         return None;
     }
-    let mut projection_root = root;
-    let mut segment_start = 0;
-    let mut descriptor_offsets = Vec::new();
-    let mut retained_scalar_descriptor = None;
-    for (position, segment) in argument.path.iter().enumerate() {
-        if *segment != terminal_psi::StructuralPathSegment::Referent {
-            continue;
-        }
-        let (reference, offset) =
-            crate::structural_inputs::structural_reference_input::leaf_copy_projection(
-                projection_root,
-                &argument.path[segment_start..position],
-                &signature.structural_types,
-            )?;
-        let terminal_psi::StructuralTypeShape::Reference { referent, .. } =
-            signature.structural_type(reference)?.shape
-        else {
-            return None;
-        };
-        if crate::structural_inputs::structural_reference_input::scalar_storage_type(
-            referent,
+    let mut geometry =
+        crate::structural_inputs::structural_reference_input::reference_source_geometry(
+            root,
+            &argument.path,
             &signature.structural_types,
-        )
-        .is_some()
-        {
-            if position + 1 != argument.path.len() {
-                return None;
-            }
-            retained_scalar_descriptor = Some((referent, offset));
-            break;
-        }
-        descriptor_offsets.push(offset);
-        projection_root = referent;
-        segment_start = position + 1;
-    }
-    let Some((referent, byte_offset)) = retained_scalar_descriptor.or_else(|| {
-        crate::structural_inputs::structural_reference_input::leaf_copy_projection(
-            projection_root,
-            &argument.path[segment_start..],
-            &signature.structural_types,
-        )
-    }) else {
+        )?;
+    if !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+        indices,
+        &geometry.elements,
+    ) {
         return None;
+    }
+    let referent = geometry.selected;
+    // Scalar loans retain the descriptor home, not just its pointer word.
+    // Snapshotting below transports the actual address and codec together.
+    let retained_scalar_descriptor = geometry
+        .pointer_slots
+        .last()
+        .is_some_and(|slot| slot.scalar_descriptor);
+    let byte_offset = if retained_scalar_descriptor {
+        if argument.path.last() != Some(&terminal_psi::StructuralPathSegment::Referent) {
+            return None;
+        }
+        geometry.pointer_slots.pop()?.byte_offset
+    } else {
+        geometry.byte_offset
     };
     let Some(lent) = crate::structural_inputs::structural_reference_input::shape(
         referent,
@@ -171,18 +169,21 @@ pub(crate) fn projection(
         referent,
         &signature.structural_types,
     );
-    let descriptor = retained_scalar_descriptor.is_some()
+    let descriptor = retained_scalar_descriptor
         || argument.path.is_empty()
             && super::reference_input::borrowed_scalar_source(source, argument.place).is_some();
     let codec = scalar.and_then(|_| {
         crate::structural_inputs::structural_reference_input::projected_scalar_codec(
-            projection_root,
-            &argument.path[segment_start..],
+            root,
+            &argument.path,
             &signature.structural_types,
         )
     });
-    let storage_offset = descriptor_offsets.first().copied().unwrap_or(byte_offset);
-    let storage_bytes = if !descriptor_offsets.is_empty() {
+    let storage_offset = geometry
+        .pointer_slots
+        .first()
+        .map_or(byte_offset, |slot| slot.byte_offset);
+    let storage_bytes = if !geometry.pointer_slots.is_empty() {
         8
     } else if descriptor {
         16
@@ -191,23 +192,16 @@ pub(crate) fn projection(
     } else {
         lent.byte_size
     };
-    let base = if let Some(view) = element_views
-        .iter()
-        .find(|view| view.place == argument.place)
-    {
-        // An element view's backing pointer is already live: the join
-        // receives the element's address at the projected offset beneath
-        // it — not the descriptor's own storage.
-        SelectedAddressBase::Register(view.backing_pointer)
-    } else {
-        storage_base(
-            argument.place,
-            storage_offset,
-            storage_bytes,
-            pointers,
-            local_slots,
-        )?
-    };
+    let (base, base_byte_offset) = projection_base(
+        argument.place,
+        storage_offset,
+        storage_bytes,
+        &mut geometry.pointer_slots,
+        pointers,
+        local_slots,
+        element_views,
+        byte_views,
+    )?;
     if scalar.is_some() {
         let source = if descriptor {
             selected_instructions::SelectedScalarReferenceSource::Descriptor
@@ -226,7 +220,9 @@ pub(crate) fn projection(
                     place: parameter.place,
                 },
             },
-            descriptor_offsets,
+            pointer_slots: geometry.pointer_slots,
+            indices: indices.to_vec(),
+            base_byte_offset,
         });
     }
     Some(super::aggregate_result_input::BlockParameterProjection {
@@ -239,8 +235,46 @@ pub(crate) fn projection(
                 place: parameter.place,
             },
         },
-        descriptor_offsets,
+        pointer_slots: geometry.pointer_slots,
+        indices: indices.to_vec(),
+        base_byte_offset,
     })
+}
+
+/// A projected view starts at its live backing coordinate, whereas a whole
+/// descriptor starts at its home. Only the initial backing crossing is already
+/// realized by the SSA view; nested descriptor loads retain their own regions.
+pub(super) fn projection_base(
+    place: PlaceId,
+    byte_offset: u32,
+    byte_count: u32,
+    pointer_slots: &mut Vec<crate::structural_inputs::structural_reference_input::PointerSlot>,
+    pointers: &[(PlaceId, VirtualRegisterId)],
+    local_slots: &[SelectedLocalStorageSlot],
+    element_views: &[super::element_view_homes::ElementViewHomes],
+    byte_views: &[super::byte_view_homes::ByteViewHomes],
+) -> Option<(SelectedAddressBase, Option<VirtualRegisterId>)> {
+    let view = element_views
+        .iter()
+        .find(|view| view.place == place)
+        .map(|view| (view.backing_pointer, view.byte_offset))
+        .or_else(|| {
+            byte_views
+                .iter()
+                .find(|view| view.place == place)
+                .map(|view| (view.backing_pointer, view.byte_offset))
+        });
+    if !pointer_slots.is_empty()
+        && let Some((pointer, offset)) = view
+    {
+        let first = pointer_slots.first()?;
+        if first.byte_offset != 0 || first.indices != (0..0) || first.scalar_descriptor {
+            return None;
+        }
+        pointer_slots.remove(0);
+        return Some((SelectedAddressBase::Register(pointer), Some(offset)));
+    }
+    storage_base(place, byte_offset, byte_count, pointers, local_slots).map(|base| (base, None))
 }
 
 /// Find the original storage address without reading or copying its contents.

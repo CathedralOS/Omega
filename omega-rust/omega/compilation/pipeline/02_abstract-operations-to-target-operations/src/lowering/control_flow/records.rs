@@ -1,4 +1,7 @@
 //! Record and selected case construction retain declared field tuples in one home.
+//! A borrowed view member receives a descriptor value, not owned backing.
+//! Geometry uses the exact carrier declaration for every view access; copying
+//! versus transfer remains the source value's multiplicity and live custody.
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
@@ -195,18 +198,13 @@ pub(super) fn establish(
                 let descriptor_member = match field_type {
                     StructuralFieldType::Structural(child) => {
                         types.get(child).is_some_and(|child| {
-                            matches!(
-                                child.shape,
-                                StructuralTypeShape::ElementView { .. }
-                                    | StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                                    )
-                            )
+                            matches!(child.shape, StructuralTypeShape::ElementView { .. })
+                                || child.shape.is_borrowed_byte_carrier()
                         })
                     }
                     field_type => field_type
                         .byte_sequence_carrier()
-                        .is_some_and(|carrier| carrier.is_shared_readable_view()),
+                        .is_some_and(|carrier| carrier.is_borrowed()),
                 };
                 let nested = match field_type {
                     StructuralFieldType::Structural(nested) => *nested,
@@ -222,16 +220,26 @@ pub(super) fn establish(
                         }
                         nested
                     }
-                    // The declared `&[u8]` member spells its descriptor as a
-                    // standalone borrowed view; the source carries that shape.
+                    // Inline byte fields retain access on the field, while
+                    // standalone values use the canonical carrier declaration.
+                    // Compare that exact geometry without treating shared-read
+                    // permission as a requirement for moving a descriptor.
                     _ if descriptor_member => {
                         let nested = live
                             .structural_observation_type(function, argument.place)
                             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-                        if !types.get(&nested).is_some_and(|declaration| {
-                            declaration.shape.is_shared_readable_byte_view()
-                        }) {
-                            return Err(LoweringError::unsupported_control_flow(function.machine));
+                        let expected = field_type.byte_sequence_carrier().and_then(|carrier| {
+                            terminal_semantics::byte_carrier_field_declaration(
+                                types.values().copied(),
+                                carrier,
+                            )
+                        });
+                        if expected.is_none_or(|declaration| declaration.id != nested) {
+                            return Err(LoweringError::InvalidStructuralValueInput {
+                                machine: function.machine,
+                                place: argument.place,
+                                reason: "the view descriptor differs from its receiving field carrier",
+                            });
                         }
                         nested
                     }
