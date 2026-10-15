@@ -509,6 +509,8 @@ fail/borrows/array_carried_reference_range_narrowing rejected 2882ms expected @a
 	machine `Main::main` state `main` local `observed` stores a value not provably within its declared range: the range is a store-enforced invariant every read trusts (indexes, exact arithmetic), so the stored value must be proven to honor it. Narrow the value with a dominating guard, a dependent bound, or a requires coupling -- or widen/remove the range
 fail/borrows/array_element_loan_before_establishment rejected 1574ms expected @a9ae30e1c334+wt
 	cannot prove default-domain field requirement for call inspect from main::entry: parameter value.value requires i32::Positive
+fail/borrows/array_projection_duplicate_exclusive_transfer rejected 787ms expected @c1d3bd9711c2+wt
+	machine `duplicate` returns `carrier` as mutable more than once
 fail/borrows/assignment_rhs_carrier_preserves_final_backing rejected 537ms expected @1d894d08858b+wt
 	statement 5 mutates `third.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 6 and it is released at state exit)
 fail/borrows/assignment_rhs_carrier_preserves_sibling_backing rejected 449ms expected @1d894d08858b+wt

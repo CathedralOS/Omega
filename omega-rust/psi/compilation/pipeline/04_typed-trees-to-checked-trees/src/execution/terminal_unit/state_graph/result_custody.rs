@@ -14,6 +14,9 @@
 //! every claim established by that statement.
 //! For a holder with captured loans, whole physical cleanup realizes its
 //! checked release. Both inventories must close; they are one result death.
+//! Projected transfers and residual descriptor releases can jointly exhaust an
+//! array. Their exact typed frontier replaces store-only partition recognition;
+//! covering a nominal owner's fields still cannot discharge its own cleanup.
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
     CheckedStructuralControlSuccessorPlan, CheckedUnitEffectOperationPlan,
@@ -407,7 +410,7 @@ pub(super) fn account(
         // Match the producer occurrence, not a named home's historical origin:
         // rebinding already transferred that result, and later stores from the
         // receiving home must not count as a second result disposition.
-        let mut stored_parts = operations
+        let stored_parts = operations
             .iter()
             .skip(producer_index + 1)
             .filter_map(|operation| {
@@ -420,23 +423,68 @@ pub(super) fn account(
             .collect::<Vec<_>>();
         let stored = if result.multiplicity == Multiplicity::Unrestricted {
             !stored_parts.is_empty()
-        } else if let [whole] = stored_parts.as_slice()
-            && whole.path.is_empty()
-            && whole.type_identity == result.type_identity
-        {
-            true
         } else {
-            stored_parts.sort_by(|left, right| left.path.cmp(&right.path));
-            let mut remaining = stored_parts.as_slice();
-            !remaining.is_empty()
+            matches!(stored_parts.as_slice(), [whole]
+                if whole.path.is_empty() && whole.type_identity == result.type_identity)
+        };
+        // A parent's custody can end through several projected receivers, not
+        // just through stores. The retained typed transfer graph owns operand
+        // identity and access; accounting asks whether its guaranteed frontier
+        // exhausts this parent. Each receiver still owes its own disposition.
+        // Whole moves retain their separate operation accounting below, and an
+        // incomplete frontier still requires the ordinary residual cleanup.
+        let projected_disposition = if result.multiplicity == Multiplicity::Unrestricted {
+            false
+        } else {
+            let mut paths = super::super::storage_transfers::transfers(
+                program,
+                facts,
+                structural_results,
+                result.binding_ordinal,
+                operations,
+            )?
+            .definite;
+            // Definite paths are coverage, not transfer occurrences: mutually
+            // exclusive alternatives may establish the same guarantee. Keep
+            // the actual occurrences in the transfer graph for move checking.
+            paths.sort();
+            paths.dedup();
+            // Transferred children and independently released residual loans
+            // form one parent disposition. A release must name this exact
+            // result and a projected descriptor; a child's whole release is
+            // that child's obligation, not another receipt for this parent.
+            paths.extend(consumers.iter().filter_map(|operation| {
+                let CheckedUnitEffectOperationPlan::ReleaseReference {
+                    source,
+                    path,
+                    defer_to_exit: false,
+                    ..
+                } = operation
+                else {
+                    return None;
+                };
+                (source
+                    == &(CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: result.binding_ordinal,
+                    })
+                    && !path.is_empty())
+                .then(|| path.clone())
+            }));
+            // Physical releases are occurrences, not alternative guarantees.
+            // Preserve duplicates and overlaps with a moved path so the exact
+            // partition rejects a second disposition of the same child.
+            paths.sort();
+            let mut remaining = paths.as_slice();
+            !paths.is_empty()
+                && paths.iter().all(|path| !path.is_empty())
                 && producer_claim_paths(program, facts, operation).is_some_and(|claims| {
-                    stored_parts.iter().all(|part| {
-                        claims.iter().all(|claim| {
-                            part.path.len() <= claim.len() || !part.path.starts_with(claim)
-                        })
+                    paths.iter().all(|path| {
+                        claims
+                            .iter()
+                            .all(|claim| path.len() <= claim.len() || !path.starts_with(claim))
                     })
                 })
-                && stored_partition(
+                && disposed_partition(
                     shapes,
                     result.type_identity,
                     &mut Vec::new(),
@@ -775,6 +823,7 @@ pub(super) fn account(
             result.multiplicity == Multiplicity::Unrestricted && occurrence_end.is_some();
         let implicit_disposition = consumed
             || stored
+            || projected_disposition
             || copied_into_construction
             || copied_into_byte_store
             || observed_by_call
@@ -850,25 +899,23 @@ fn producer_claim_paths(
         .collect()
 }
 
-/// A completed store partition accounts for exactly one whole incoming value.
+/// A completed disposition partition accounts for exactly one whole source value.
 /// Arrays own their elements, so all of an array's children can transfer its
 /// custody. Other values remain indivisible here: covering a record's fields
 /// does not discharge its own nominal cleanup. The caller separately preserves
-/// containing claims. Consume sorted actual operands, checking child identities
-/// and rejecting duplicates, missing siblings and overlapping whole/child moves.
-fn stored_partition(
+/// containing claims. These paths come from typed owned operands, not from
+/// receiver shape or source syntax. Consume their sorted guaranteed coverage,
+/// rejecting missing siblings and overlapping ancestor/descendant coverage.
+fn disposed_partition(
     shapes: &super::ShapeCollector<'_>,
     identity: typed_trees::type_identity::TypeIdentityId,
     prefix: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-    remaining: &mut &[&CheckedUnitStructuralArgumentPlan],
+    remaining: &mut &[Vec<checked_trees::CheckedUnitStructuralPathSegment>],
 ) -> bool {
     let Some(first) = remaining.first() else {
         return false;
     };
-    if first.path == *prefix {
-        if first.type_identity != identity {
-            return false;
-        }
+    if first == prefix {
         *remaining = &remaining[1..];
         return true;
     }
@@ -880,7 +927,7 @@ fn stored_partition(
         return false;
     };
     // A declared extent never authorizes work proportional to an unchecked
-    // integer. Each nonempty child needs at least one actual store operand.
+    // integer. Each nonempty child needs at least one actual transferred path.
     let Some(length) = length.literal() else {
         return false;
     };
@@ -891,7 +938,7 @@ fn stored_partition(
         prefix.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
             index,
         ));
-        let complete = stored_partition(shapes, *element_type_identity, prefix, remaining);
+        let complete = disposed_partition(shapes, *element_type_identity, prefix, remaining);
         prefix.pop();
         if !complete {
             return false;

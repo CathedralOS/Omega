@@ -1,0 +1,16 @@
+data Cell { value: i32; spare: i32; }
+data Pair { first: Cell; second: Cell; }
+machine collect(source: &mut Pair) -> [&mut Cell; 2] {
+    [&mut source.first, &mut source.second]
+}
+machine main() crashes Trap {
+    let mut pair: Pair;
+    let messages: [&mut Cell; 2] = collect(&mut pair);
+    let first: &mut Cell = messages[0];
+    first.value = 11;
+    transition pair.first.value == 11 {
+        true -> done() false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

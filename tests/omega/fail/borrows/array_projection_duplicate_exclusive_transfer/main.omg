@@ -1,0 +1,5 @@
+machine duplicate<'storage>(carrier: [&'storage mut i32; 2]) -> [&'storage mut i32; 2] {
+    [carrier[0], carrier[0]]
+}
+
+machine main() -> i32 { 0 }

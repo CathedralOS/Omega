@@ -406,11 +406,28 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 continue;
             }
         }
-        let Some((result, true)) = operation.discardable_structural_result() else {
+        let Some((result, _)) = operation.discardable_structural_result() else {
             continue;
         };
         if result.multiplicity != Multiplicity::Affine || result.statement_index >= statement_index
         {
+            continue;
+        }
+        // Composed states clear the return-discard flag while selecting their
+        // exits. That scheduling choice is not retirement of a stored loan.
+        // Consult the actual whole cleanup instead, so a partially transferred
+        // carrier still releases its remaining descriptors at their boundaries.
+        let source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: result.binding_ordinal,
+        };
+        if operations.iter().chain(&pending).any(|operation| {
+            matches!(operation, CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                cleanup_actions, ..
+            } if cleanup_actions.iter().any(|action| {
+                *action.source() == source && action.path().is_empty()
+                    && action.type_identity() == result.type_identity
+            }))
+        }) {
             continue;
         }
         let Some(StatementNode::LocalData(local)) = program

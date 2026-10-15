@@ -23,6 +23,15 @@ pub enum CodecError {
     StringTooLong(&'static str),
     InvalidUtf8(&'static str),
     MalformedStructuralFoundation(&'static str),
+    /// A malformed operation retains its portable owner and position so the
+    /// diagnostic identifies the producer to repair, not just the failed rule.
+    MalformedOperationFoundation {
+        machine: String,
+        state: String,
+        block: semantic_vocabulary::BlockId,
+        operation: semantic_vocabulary::OperationId,
+        reason: &'static str,
+    },
     PlacementPlan(String),
     PlacedPlan(terminal_semantics::PlacedPlanError),
     PlacedRamCorrespondence(String),

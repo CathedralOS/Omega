@@ -1,6 +1,9 @@
 //! Place-rooted leaf types and copy/borrow custody for structural
 //! establishment. A canonical place's borrowability and the leaf type a
 //! projected path selects are decided here, ahead of value production.
+//! Source use multiplicity is not stored-carrier custody: a reference array
+//! can be reusable source syntax while its descriptors must transfer or retire.
+//! Copy selection uses the same custody query as result publication.
 
 use super::super::{ExpressionHandle, ExpressionNode, SymbolHandle, TypeReferenceNode};
 use typed_trees::types::TypeReferenceHandle;
@@ -159,7 +162,14 @@ pub(super) fn copied_place_type(
     let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
         return false;
     };
-    if program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted {
+    // Source reference uses are unrestricted, but stored descriptors own a
+    // loan lifetime. Arrays inherit that custody recursively. Copy selection
+    // must use the same carrier multiplicity as result publication, otherwise
+    // projecting an exclusive descriptor from an array copies its permission.
+    // The shared-descriptor observation above is the explicit exception.
+    if validation::reference_result_custody::result_multiplicity(program, reference)
+        != language_semantics::Multiplicity::Unrestricted
+    {
         return false;
     }
     // Copying established array storage preserves its element qualifications;

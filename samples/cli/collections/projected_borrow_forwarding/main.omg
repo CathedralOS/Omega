@@ -1,0 +1,55 @@
+// Expected exit: 0
+// The returned view retains the supplied element, not its outer container.
+// Aliasing and forwarding keep its captured selector when the cursor changes.
+data Cell { value: i32; spare: i32; }
+data Envelope { cells: [Cell; 2]; cursor: u64 [0..=1]; marker: i32; }
+
+machine pick(cell: &mut Cell) -> &mut i32 { &mut cell.value }
+machine forward(value: &mut i32) -> &mut i32 { value }
+
+machine exercise(envelope: &mut Envelope) -> bool {
+    envelope.cursor = 1;
+    let cell: &mut Cell = &mut envelope.cells[envelope.cursor];
+    let selected: &mut i32 = forward(pick(cell));
+    envelope.cursor = 0;
+    envelope.marker = 7;
+    selected = 29;
+    envelope.cells[1].value == 29 && envelope.marker == 7 && envelope.cursor == 0
+}
+
+machine exercise_composed(envelope: &mut Envelope) -> bool {
+    transition { _ -> nested(envelope) }
+    state nested(envelope: &mut Envelope) -> bool {
+        envelope.cursor = 1;
+        let cell: &mut Cell = &mut envelope.cells[envelope.cursor];
+        let selected: &mut i32 = forward(forward(pick(cell)));
+        envelope.cursor = 0;
+        envelope.marker = 7;
+        selected = 29;
+        envelope.cells[1].value == 29 && envelope.marker == 7 && envelope.cursor == 0
+    }
+}
+
+data Pair { first: Cell; second: Cell; }
+machine collect(source: &mut Pair) -> [&mut Cell; 2] {
+    [&mut source.first, &mut source.second]
+}
+machine exercise_pair() -> bool {
+    let mut pair: Pair;
+    let messages: [&mut Cell; 2] = collect(&mut pair);
+    let first: &mut Cell = messages[0];
+    let second: &mut Cell = messages[1];
+    first.value = 11;
+    second.value = 70;
+    pair.first.value == 11 && pair.second.value == 70
+}
+
+machine main() crashes Trap {
+    let mut envelope: Envelope;
+    transition exercise(&mut envelope) && exercise_composed(&mut envelope) && exercise_pair() {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

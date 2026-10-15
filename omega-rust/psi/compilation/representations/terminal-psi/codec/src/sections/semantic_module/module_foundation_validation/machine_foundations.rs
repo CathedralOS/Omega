@@ -40,8 +40,32 @@ pub(super) fn validate_machine(
     validate_parameter_places(machine)?;
     validate_entry_claims(module, machine)?;
     validate_loan_completions(module, machine)?;
-    for operation in machine.operations() {
-        validate_operation_foundation(module, machine, operation)?;
+    for block in &machine.blocks {
+        for operation in &block.operations {
+            validate_operation_foundation(module, machine, operation).map_err(|error| {
+                let CodecError::MalformedStructuralFoundation(reason) = error else {
+                    return error;
+                };
+                let declaration = machine.declaration.as_ref();
+                CodecError::MalformedOperationFoundation {
+                    machine: declaration
+                        .and_then(|declaration| {
+                            module.identities.text(declaration.machine.identity())
+                        })
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| format!("{:?}", machine.id)),
+                    state: declaration
+                        .and_then(|declaration| {
+                            module.identities.text(declaration.state.identity())
+                        })
+                        .unwrap_or("synthetic")
+                        .to_owned(),
+                    block: block.id,
+                    operation: operation.id,
+                    reason,
+                }
+            })?;
+        }
     }
     validate_operation_result_places(machine)?;
     for block in &machine.blocks {
