@@ -10,6 +10,7 @@ independent final review, package authority or remote publication freshness.
 
 import argparse
 import copy
+import csv
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -457,6 +458,124 @@ def update(path, expected, change):
         return record
 
 
+
+
+def require_stopped_pid(pid):
+    require(type(pid) is int and pid > 0, "invalid stopped process identity")
+    if os.name == "nt":
+        # Windows os.kill(pid, 0) can terminate a process; use its read-only
+        # process query instead. A live/reused PID always refuses recovery.
+        result = subprocess.run(["tasklist", "/FI", "PID eq " + str(pid), "/FO", "CSV", "/NH"],
+                                capture_output=True, text=True, timeout=30)
+        require(result.returncode == 0, "cannot establish stopped process identity")
+        require(not any(len(row) > 1 and row[1] == str(pid)
+                        for row in csv.reader(result.stdout.splitlines())),
+                "interruption process is still live or its PID was reused")
+        return
+    result = subprocess.run(["ps", "-p", str(pid), "-o", "pid=,stat="],
+                            capture_output=True, text=True, timeout=30)
+    if result.returncode == 1 and not result.stdout.strip() and not result.stderr.strip():
+        return
+    require(result.returncode == 0, "cannot establish stopped process identity")
+    rows = [row.split() for row in result.stdout.splitlines() if row.strip()]
+    require(len(rows) == 1 and len(rows[0]) == 2 and rows[0][0] == str(pid),
+            "unknown stopped process identity response")
+    # A reparented zombie cannot execute or spawn children. Its descendants
+    # still require the independent full-tree judgment; absence alone is not it.
+    require(rows[0][1].startswith("Z"),
+            "interruption process is still live or its PID was reused")
+
+
+def recover_interrupted(repository, path, expected, review_path):
+    """Record a stopped capture without asserting its lost inputs or exit.
+
+    The independent executor review supplies process-tree evidence, not runtime
+    authority. Recovery never accepts a command, recreates before-stamps, or
+    erases a failed attempt. Normal assessment and a fresh run remain required.
+    """
+    path, review_path = Path(path).resolve(), Path(review_path).resolve()
+    recovered_at_head = clean_head(repository)
+    review_hash = file_digest(review_path)
+    review = read_json(review_path)
+    require(isinstance(review, dict), "independent interruption review must be an object")
+    require(review.get("schema") == "qualification-interruption-review-v1"
+            and review.get("accepted") is True
+            and isinstance(review.get("reviewer"), str) and review["reviewer"].strip()
+            and isinstance(review.get("rationale"), str) and review["rationale"].strip(),
+            "independent interruption review required")
+    evidence_reference = review.get("process_evidence", {})
+    require(isinstance(evidence_reference, dict), "interruption process evidence reference required")
+    evidence_path = Path(evidence_reference.get("path", "")).resolve()
+    require(evidence_path.is_file() and file_digest(evidence_path) == evidence_reference.get("sha256"),
+            "interruption process evidence changed")
+    evidence = read_json(evidence_path)
+    require(isinstance(evidence, dict), "interruption process evidence must be an object")
+    require(evidence.get("schema") == "qualification-stopped-process-tree-v1"
+            and evidence.get("controller_stopped") is True
+            and evidence.get("qualification_stopped") is True
+            and evidence.get("children_stopped") is True
+            and evidence.get("unresolved_processes") == []
+            and isinstance(evidence.get("stopped_pids"), list),
+            "complete stopped executor process-tree evidence required")
+    try:
+        observed = datetime.fromisoformat(evidence["observed_utc"])
+        age = (datetime.now(timezone.utc) - observed).total_seconds()
+    except (KeyError, TypeError, ValueError):
+        raise RecoveryError("invalid interruption process evidence time")
+    require(0 <= age <= 600, "stale interruption process evidence")
+    def require_stopped_processes():
+        for pid in evidence["stopped_pids"]:
+            require_stopped_pid(pid)
+    require_stopped_processes()
+    def change(record):
+        require(record["repository"] == str(Path(repository).resolve()), "qualification worktree mismatch")
+        running = record["running"]
+        require(isinstance(running, dict), "no interrupted reservation")
+        require(git(repository, "merge-base", running["candidate"], recovered_at_head) == running["candidate"],
+                "recovery source must descend from the interrupted candidate")
+        require_stopped_processes()
+        require(0 <= (datetime.now(timezone.utc) - observed).total_seconds() <= 600,
+                "stale interruption process evidence")
+        binding = dict(state=str(path), state_sha256=file_digest(path), state_revision=expected,
+                       running=running, config_digest=record["config_digest"])
+        require(review.get("binding") == binding and evidence.get("binding") == binding,
+                "interruption review must bind the exact state and reservation")
+        require(review.get("recovered_at_head") == recovered_at_head,
+                "interruption review must bind the current recovery source")
+        require(clean_head(repository) == recovered_at_head
+                and file_digest(review_path) == review_hash
+                and file_digest(evidence_path) == evidence_reference["sha256"],
+                "interruption review or source changed during recovery")
+        check = next((row for row in record["config"]["checks"] if row["id"] == running["check"]), None)
+        require(check is not None, "interrupted check no longer defined")
+        directory = path.with_suffix(".records")
+        require(not (directory / (running["id"] + ".json")).exists(),
+                "completed observation exists; reconcile its custody before recovery")
+        streams = {}
+        for name in ("stdout", "stderr"):
+            stream = directory / (running["id"] + "." + name)
+            require(stream.is_file(), "interrupted stream missing; preserve and reconcile")
+            streams[name] = dict(path=str(stream.resolve()), sha256=file_digest(stream))
+        observation = dict(id=running["id"], check=running["check"], revision=running["candidate"],
+                           definition=digest(check), command=check["command"], exit=None,
+                           invalidations=["command_unfinished", "interrupted_capture_unavailable"],
+                           source_inputs={}, artifacts={}, environment={}, producer=None,
+                           source_stamps={}, artifact_stamps={}, duration_seconds=None,
+                           repeated_work=False, utc=datetime.now(timezone.utc).isoformat(),
+                           capture_status="unavailable: original before-identities and exit were lost",
+                           recovery=dict(recovered_at_head=recovered_at_head, binding=binding,
+                                         review=dict(path=str(review_path), sha256=review_hash),
+                                         process_evidence=evidence_reference), **streams)
+        # A failed state replacement may leave an unregistered immutable receipt.
+        # Retain it; another exact recovery creates a new receipt, never overwrites.
+        destination = directory / (uuid.uuid4().hex + ".interrupted.json")
+        atomic_json(destination, observation)
+        observation["receipt"] = dict(path=str(destination), sha256=file_digest(destination))
+        record["runs"].append(observation)
+        record["running"] = None
+    return update(path, expected, change)
+
+
 def start(repository, path, base, config):
     repository = Path(repository).resolve()
     head = clean_head(repository)
@@ -827,7 +946,7 @@ def state_output(record, path, summary):
 
 def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("context", "handoff", "start", "amend", "run", "assess", "run-pending", "status", "attest-source-reuse", "attest-source-reuse-batch", "source-reuse-context"))
+    parser.add_argument("command", choices=("context", "handoff", "start", "amend", "run", "assess", "run-pending", "status", "attest-source-reuse", "attest-source-reuse-batch", "source-reuse-context", "recover-interrupted"))
     parser.add_argument("--repository", default=".")
     parser.add_argument("--summary-output", action="store_true",
                         help="present state command summaries; retain the complete canonical state")
@@ -839,7 +958,7 @@ def main(arguments=None):
     parser.add_argument("--reason")
     parser.add_argument("--role", choices=("implementation", "review", "continuation"))
     parser.add_argument("--previous", help="prior handoff JSON for focused continuation fingerprint comparison")
-    parser.add_argument("--review", help="independent source-reuse review JSON with the exact observation/blob binding")
+    parser.add_argument("--review", help="independent source-reuse or interruption review JSON with the exact binding")
     options = parser.parse_args(arguments)
     try:
         repository = Path(options.repository).resolve()
@@ -881,6 +1000,11 @@ def main(arguments=None):
                           accepted=False, reviewer=None, rationale=None)
         else:
             require(options.revision is not None, "mutation requires --revision from the last record")
+            if options.command == "recover-interrupted":
+                require(options.review, "interruption recovery needs --review")
+                result = recover_interrupted(repository, path, options.revision, options.review)
+                print(state_output(result, path, options.summary_output))
+                return 0
             if options.command == "amend":
                 require(options.config, "amend needs --config")
                 result = amend(path, options.revision, read_json(options.config), options.reason, base=options.base)

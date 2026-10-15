@@ -70,6 +70,36 @@ streams and a bounded timeout. Supply fixture input through the validator.
 An unfinished command is not acceptance; reconcile any surviving children using
 the existing executor recovery procedure before continuing.
 
+If the controller and its entire command subtree have stopped before writing an
+observation, use `recover-interrupted --state PATH --revision N --review FILE`.
+The independent review uses schema `qualification-interruption-review-v1`,
+`accepted:true`, reviewer/rationale, the clean current `recovered_at_head`, and
+an exact `binding` containing the absolute state path, its SHA-256, revision,
+unchanged `running` object and configuration digest. Its `process_evidence`
+references a SHA-pinned JSON executor adapter observation with schema
+`qualification-stopped-process-tree-v1`, the same binding, `observed_utc`,
+`controller_stopped`, `qualification_stopped`, `children_stopped`, an empty
+`unresolved_processes` list, and `stopped_pids`. The adapter and independent
+review must establish the entire original process tree is drained, including
+unknown or reparented children; an exited shell or command-name search alone is
+insufficient. Evidence must be at most ten minutes old, and each supplied PID
+must still be absent or a read-only POSIX query must confirm a nonexecuting
+zombie. Zombies cannot execute or spawn; their descendants still require the
+complete tree judgment. Windows uses read-only `tasklist`, never a signal.
+The reviewer field records the external decision; it does
+not authenticate independence or replace actual executor observation.
+
+Recovery preserves every prior result and raw stream, records an immutable
+nonaccepted attempt with unknown exit, duration and before-identities, and
+clears only the exactly bound reservation under the normal lock. It refuses a
+completed orphan observation, which requires custody reconciliation instead.
+A failed state replacement can leave an unregistered immutable interruption
+receipt; preserve it and repeat only after checking the unchanged state and
+fresh evidence. The source at recovery may be a descendant containing the
+recovery tool repair; it never replaces the interrupted attempt's original
+candidate. Assess normally afterward and rerun the interrupted check. Recovery
+supplies no runtime, package, filesystem, source-reuse or publication authority.
+
 Set `final:true` for checks that must observe the exact integrated candidate,
 including user-required final review. Dependency equality cannot carry these
 checks across a SHA change. Landing's exact-SHA build check remains mandatory

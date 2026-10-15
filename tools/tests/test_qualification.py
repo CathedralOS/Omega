@@ -981,5 +981,150 @@ class QualificationTests(unittest.TestCase):
             qualification.is_capture_link(SimpleNamespace(st_mode=stat.S_IFDIR, st_reparse_tag=0xDEADBEEF))
 
 
+class InterruptedQualificationTests(unittest.TestCase):
+    setUp = QualificationTests.setUp
+    git = QualificationTests.git
+    # Exercise real locked state/receipt files; process evidence is an explicit
+    # unit-test adapter judgment, never evidence about a live executor.
+    def interruption(self, stopped_pids=None):
+        record = qualification.load(self.state)
+        operation = "interrupted-fixture"
+        def reserve(value):
+            value["running"] = dict(id=operation, check="values", candidate=self.base)
+        record = qualification.update(self.state, record["revision"], reserve)
+        directory = self.state.with_suffix(".records")
+        directory.mkdir(exist_ok=True)
+        for name in ("stdout", "stderr"):
+            (directory / (operation + "." + name)).write_bytes(b"partial evidence\n")
+        binding = dict(state=str(self.state.resolve()), state_sha256=qualification.file_digest(self.state),
+                       state_revision=record["revision"], running=record["running"],
+                       config_digest=record["config_digest"])
+        evidence = self.root / "stopped.json"
+        qualification.atomic_json(evidence, dict(schema="qualification-stopped-process-tree-v1",
+            observed_utc=qualification.datetime.now(qualification.timezone.utc).isoformat(),
+            controller_stopped=True, qualification_stopped=True, children_stopped=True,
+            unresolved_processes=[], stopped_pids=stopped_pids or [], binding=binding))
+        review = self.root / "interruption-review.json"
+        qualification.atomic_json(review, dict(schema="qualification-interruption-review-v1",
+            accepted=True, reviewer="independent test adapter", rationale="Stopped test process tree",
+            recovered_at_head=self.base, binding=binding,
+            process_evidence=dict(path=str(evidence), sha256=qualification.file_digest(evidence))))
+        return record, review, evidence
+
+    def test_recovery_preserves_history_and_forces_fresh_run(self):
+        previous, accepted = qualification.run_check(self.repository, self.state, 0, "values")
+        self.assertTrue(accepted)
+        record, review, _ = self.interruption()
+        result = qualification.recover_interrupted(self.repository, self.state, record["revision"], review)
+        self.assertIsNone(result["running"])
+        self.assertEqual(result["runs"][:-1], previous["runs"])
+        failed = result["runs"][-1]
+        self.assertIsNone(failed["exit"])
+        self.assertIsNone(failed["duration_seconds"])
+        self.assertEqual(failed["source_inputs"], {})
+        self.assertIn("prior_run_not_accepted", qualification.reasons(
+            self.repository, result, self.config["checks"][0], failed, self.base))
+        rerun, accepted = qualification.run_check(self.repository, self.state, result["revision"], "values")
+        self.assertTrue(accepted)
+        self.assertEqual(len(rerun["runs"]), 3)
+
+    def test_recovery_refuses_stale_or_mismatched_binding(self):
+        record, review, _ = self.interruption()
+        before = self.state.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "stale qualification"):
+            qualification.recover_interrupted(self.repository, self.state, record["revision"] - 1, review)
+        value = json.loads(review.read_text());value["binding"]["running"]["id"] = "different"
+        qualification.atomic_json(review, value)
+        with self.assertRaisesRegex(qualification.RecoveryError, "exact state and reservation"):
+            qualification.recover_interrupted(self.repository, self.state, record["revision"], review)
+        self.assertEqual(self.state.read_bytes(), before)
+
+    def test_recovery_refuses_live_process_and_tampered_evidence(self):
+        record, review, evidence = self.interruption([os.getpid()])
+        before = self.state.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "still live"):
+            qualification.recover_interrupted(self.repository, self.state, record["revision"], review)
+        evidence.write_text(evidence.read_text() + " ")
+        with self.assertRaisesRegex(qualification.RecoveryError, "evidence changed"):
+            qualification.recover_interrupted(self.repository, self.state, record["revision"], review)
+        self.assertEqual(self.state.read_bytes(), before)
+
+    def test_recovery_refuses_missing_tree_judgment_and_expired_evidence(self):
+        record, review, evidence = self.interruption()
+        value = json.loads(evidence.read_text());value["children_stopped"] = False
+        qualification.atomic_json(evidence, value)
+        document = json.loads(review.read_text());document["process_evidence"]["sha256"] = qualification.file_digest(evidence)
+        qualification.atomic_json(review, document)
+        with self.assertRaisesRegex(qualification.RecoveryError, "complete stopped"):
+            qualification.recover_interrupted(self.repository, self.state, record["revision"], review)
+        value["children_stopped"] = True;value["observed_utc"] = "2000-01-01T00:00:00+00:00"
+        qualification.atomic_json(evidence, value)
+        document["process_evidence"]["sha256"] = qualification.file_digest(evidence)
+        qualification.atomic_json(review, document)
+        with self.assertRaisesRegex(qualification.RecoveryError, "stale interruption"):
+            qualification.recover_interrupted(self.repository, self.state, record["revision"], review)
+
+    def test_recovery_preserves_orphan_receipt_after_atomic_failure(self):
+        record, review, _ = self.interruption()
+        before = self.state.read_bytes();original = qualification.atomic_json
+        def fail_state(path, *arguments, **keywords):
+            if Path(path) == self.state:raise OSError("replacement failure")
+            return original(path, *arguments, **keywords)
+        with mock.patch.object(qualification, "atomic_json", side_effect=fail_state):
+            with self.assertRaisesRegex(OSError, "replacement failure"):
+                qualification.recover_interrupted(self.repository, self.state, record["revision"], review)
+        self.assertEqual(self.state.read_bytes(), before)
+        orphan = next(self.state.with_suffix(".records").glob("*.interrupted.json"))
+        saved = orphan.read_bytes()
+        result = qualification.recover_interrupted(self.repository, self.state, record["revision"], review)
+        self.assertIsNone(result["running"])
+        self.assertEqual(orphan.read_bytes(), saved)
+
+    def test_recovery_keeps_original_candidate_after_tool_commit(self):
+        record, review, _ = self.interruption()
+        (self.repository / "recovery-tool.txt").write_text("tool repair\n")
+        self.git("add", "recovery-tool.txt");self.git("commit", "-m", "tools: recover interrupted records")
+        head = self.git("rev-parse", "HEAD")
+        value = json.loads(review.read_text());value["recovered_at_head"] = head
+        qualification.atomic_json(review, value)
+        result = qualification.recover_interrupted(self.repository, self.state, record["revision"], review)
+        self.assertEqual(result["runs"][-1]["revision"], self.base)
+        self.assertEqual(result["runs"][-1]["recovery"]["recovered_at_head"], head)
+
+    def test_windows_process_probe_is_read_only(self):
+        result = SimpleNamespace(returncode=0, stdout='"omega.exe","25","Console","1","512 K"\n')
+        with mock.patch.object(qualification.os, "name", "nt"), \
+             mock.patch.object(qualification.os, "kill") as kill, \
+             mock.patch.object(qualification.subprocess, "run", return_value=result) as query:
+            with self.assertRaisesRegex(qualification.RecoveryError, "still live"):
+                qualification.require_stopped_pid(25)
+            result.stdout = "INFO: No tasks match the specified criteria.\n"
+            qualification.require_stopped_pid(25)
+            kill.assert_not_called()
+            self.assertEqual(query.call_args.args[0][0], "tasklist")
+
+    @unittest.skipIf(os.name == "nt", "POSIX process-query protocol")
+    def test_process_probe_accepts_confirmed_zombie_but_refuses_live_or_unknown(self):
+        result = SimpleNamespace(returncode=0, stdout="25 Z\n", stderr="")
+        with mock.patch.object(qualification.subprocess, "run", return_value=result):
+            qualification.require_stopped_pid(25)
+            result.stdout = "25 S\n"
+            with self.assertRaisesRegex(qualification.RecoveryError, "still live"):
+                qualification.require_stopped_pid(25)
+            result.returncode = 1;result.stdout = ""
+            qualification.require_stopped_pid(25)
+            result.stderr = "permission denied"
+            with self.assertRaisesRegex(qualification.RecoveryError, "cannot establish"):
+                qualification.require_stopped_pid(25)
+
+    def test_recovery_refuses_completed_observation(self):
+        record, review, _ = self.interruption()
+        (self.state.with_suffix(".records") / "interrupted-fixture.json").write_text("{}")
+        before = self.state.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "completed observation exists"):
+            qualification.recover_interrupted(self.repository, self.state, record["revision"], review)
+        self.assertEqual(self.state.read_bytes(), before)
+
+
 if __name__ == "__main__":
     unittest.main()
