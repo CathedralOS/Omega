@@ -1,0 +1,23 @@
+// Source checking must refuse an internal call before policy evaluation.
+use omega_language_std::calling;
+
+data LocalPolicy {}
+LocalCalling satisfies CallingPolicy {
+    CallingPolicy::plan = LocalPolicy::plan;
+}
+
+machine LocalPolicy::bounded(value: u64) -> bool
+requires value <= 1
+{ true }
+
+machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult {
+    let observed: bool = LocalPolicy::bounded(signature.parameter_count);
+    BoundaryPlanResult::Rejected {
+        reason: CallingPolicyRejection { reason: "unproved helper ran" },
+    }
+}
+
+boundary trait LocalEntry: Calling<LocalCalling> {
+    machine enter(value: u64) -> u64;
+}
+machine main() {}

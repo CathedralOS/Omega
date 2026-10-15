@@ -20,7 +20,7 @@ use crate::calling_policy_plans::{
     BoundaryCallingPlanRealization, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
     BoundaryValueClass, BoundaryValueField, BoundaryValueShape, MaterializedBoundarySignature,
 };
-use build_time_evaluation::BuildTimeValue;
+use build_time_evaluation::{BuildTimeProgram, BuildTimeValue};
 use calling_conventions::callback_nominal_report_fingerprint;
 use calling_conventions::{
     BoundaryEntryPlan, BoundaryPlanResult, CallSignature, CallingPolicy, NativePlace,
@@ -144,11 +144,14 @@ pub(crate) fn evaluate_compatibility_boundary_entry_plan(
 /// every method in the boundary service surface, and retain only canonical
 /// evaluated applications in the realization output. Source trees are borrowed.
 pub fn compute_boundary_calling_plans(
-    typed: &TypedTrees,
+    checked: &checked_trees::CheckedTrees,
     native_target: NativeTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
+    // Provider selection consumes the source judgment. Retain it through
+    // policy admission rather than rechecking its internal call premises.
+    let typed = &checked.typed;
     let vocabularies =
         checked_trees::typed_trees::calling_vocabulary::standard_calling_vocabularies(typed);
     if vocabularies.is_empty() {
@@ -297,7 +300,7 @@ pub fn compute_boundary_calling_plans(
     ) in pending
     {
         let validated = evaluate_selected_materialized_calling_policy_plan(
-            typed,
+            BuildTimeProgram::Checked(checked),
             &admission,
             &policy_machine,
             Some(policy_symbol),
@@ -376,7 +379,7 @@ pub(crate) fn evaluate_materialized_calling_policy_plan(
     custody: Option<build_time_evaluation::BuildTimeInvocationCustody>,
 ) -> Result<ValidatedBoundaryEntryPlan, CallingPolicyRejection> {
     evaluate_selected_materialized_calling_policy_plan(
-        typed,
+        BuildTimeProgram::Typed(typed),
         admission,
         policy_machine,
         None,
@@ -386,7 +389,7 @@ pub(crate) fn evaluate_materialized_calling_policy_plan(
 }
 
 fn evaluate_selected_materialized_calling_policy_plan(
-    typed: &TypedTrees,
+    program: BuildTimeProgram<'_>,
     admission: &build_time_evaluation::BuildTimeAdmissionPlan,
     policy_machine: &str,
     policy_symbol: Option<symbols::SymbolHandle>,
@@ -405,7 +408,7 @@ fn evaluate_selected_materialized_calling_policy_plan(
     let value = if let Some(symbol) = policy_symbol {
         admission
             .evaluate_machine_symbol_for_invocation_measured(
-                typed,
+                program,
                 symbol,
                 arguments,
                 custody.unwrap_or(build_time_evaluation::BuildTimeInvocationCustody::Symbol(
@@ -416,10 +419,13 @@ fn evaluate_selected_materialized_calling_policy_plan(
             .map_err(CallingPolicyRejection::from)?
     } else {
         match custody {
-            Some(custody) => {
-                admission.evaluate_machine_for_invocation(typed, policy_machine, arguments, custody)
-            }
-            None => admission.evaluate_machine(typed, policy_machine, arguments),
+            Some(custody) => admission.evaluate_machine_for_invocation(
+                program,
+                policy_machine,
+                arguments,
+                custody,
+            ),
+            None => admission.evaluate_machine(program, policy_machine, arguments),
         }
         .map_err(|rejection| CallingPolicyRejection {
             reason: format!(

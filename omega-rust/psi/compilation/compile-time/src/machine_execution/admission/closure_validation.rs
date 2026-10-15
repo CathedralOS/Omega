@@ -5,11 +5,11 @@ use typed_trees::machine::Machine;
 
 use super::BuildTimeCallEdge;
 
-/// `discharge_authored_requires` is set only for a concrete invocation whose
-/// own checked probe re-runs ordinary contract checking at snapshot arguments.
-/// The premise is still enforced there — at the exact concrete call — so the
-/// closure walk stands down on that axis alone; termination, linear carriers,
-/// and the other floor obligations keep applying unchanged.
+/// `discharge_authored_requires` records ordinary contract checking of either
+/// the concrete invocation at snapshot arguments or the internal call sites
+/// behind an unconditional entry. The latter can reuse the same checked program.
+/// The closure walk stands down on that axis alone; termination, linear
+/// carriers, and the other floor obligations keep applying unchanged.
 pub(super) fn checked_closure_violation(
     call_edges: &[BuildTimeCallEdge],
     program: &TypedTrees,

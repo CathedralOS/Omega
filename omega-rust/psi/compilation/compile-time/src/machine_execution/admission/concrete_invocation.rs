@@ -19,6 +19,8 @@
 //! caller's own facts. When the entry carries no premise, a clean checked
 //! lowering of the demanded checking closure proves it for any arguments, so an
 //! argument-carrying policy or layout invocation needs no synthesized call.
+//! Post-check evaluation borrows that judgment from the same checked program;
+//! early typed-only evaluation still establishes it on the demanded closure.
 //!
 //! Every other floor axis — service reach, suspension, blocking,
 //! termination, linear carriers, declaration-selection authority — is
@@ -31,6 +33,7 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableTransition, TransitionTargetNode};
 
+use super::BuildTimeProgram;
 use super::closure_validation::has_authored_requires;
 
 /// Whether a private checked probe discharges `machine`'s authored
@@ -114,17 +117,26 @@ pub(super) fn zero_argument_invocation_discharges(
 /// Whether ordinary checking alone discharges every authored `requires`
 /// premise in `machine`'s call closure, whatever the invocation's arguments.
 /// Holds only when neither the machine nor its entry state carries an
-/// authored premise and its demanded closure survives ordinary checked lowering;
-/// an entry premise keeps its concrete routes or the conservative fence.
+/// authored premise and ordinary checking has established its internal calls.
+/// Reuse that judgment when supplied; otherwise check the demanded closure.
+/// An entry premise keeps its concrete routes or the conservative fence.
 pub(super) fn argument_independent_closure_discharges(
-    program: &TypedTrees,
+    input: BuildTimeProgram<'_>,
     machine: &Machine,
 ) -> Result<bool, String> {
+    let program = input.typed();
     let entry_is_unconditional = !has_authored_requires(program.machine_contracts(machine))
         && entry_state(program, machine)
             .is_some_and(|entry| !has_authored_requires(program.state_contracts(entry)));
     if !entry_is_unconditional {
         return Ok(false);
+    }
+    // The same immutable checked program already established all internal
+    // call/transition premises. This proves nothing about entry arguments,
+    // hence the unconditional-entry test above remains mandatory. The caller
+    // still checks every independent execution-admission axis.
+    if matches!(input, BuildTimeProgram::Checked(_)) {
+        return Ok(true);
     }
     // A layout policy may be admitted before unrelated runtime declarations
     // have their authoritative layout/accessor plans. Those declarations are

@@ -7,11 +7,14 @@
 //! closure must carry the ordinary termination guarantee, and no reachable
 //! checked body may declare an unadmitted linear runtime carrier. Authority,
 //! finer resource admission, and failure remain independent axes and are added
-//! here as their checked plans become available. Authored preconditions reject
-//! until the pre-check invocation supplies a checked proof context. Escaping
-//! mutation is excluded by the evaluator's fresh-value/snapshot boundary.
+//! here as their checked plans become available. Authored entry preconditions
+//! need a checked invocation proof; internal premises behind an unconditional
+//! entry use the source judgment. Post-check callers borrow that same checked
+//! program rather than replaying checking. Escaping mutation is excluded by
+//! the evaluator's fresh-value/snapshot boundary.
 
 use checked_interpreter::{BuildMachineEvaluationRequest, BuildTimeOperationEvaluation};
+use checked_trees::CheckedTrees;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use symbols::SymbolHandle;
@@ -95,6 +98,26 @@ impl std::fmt::Display for BuildTimeAdmissionRejection {
 pub enum BuildTimeInvocationCustody {
     Source(source::SourceSpan),
     Symbol(SymbolHandle),
+}
+
+/// The program whose machine is evaluated. Early positions have only typed
+/// input; post-check positions retain the judgment already produced by Psi.
+/// Borrow the checked carrier itself so that its judgment cannot be paired
+/// with a different typed program. Neither variant grants execution authority
+/// or proves preconditions on the invocation's supplied arguments.
+#[derive(Clone, Copy)]
+pub enum BuildTimeProgram<'program> {
+    Typed(&'program TypedTrees),
+    Checked(&'program CheckedTrees),
+}
+
+impl<'program> BuildTimeProgram<'program> {
+    fn typed(self) -> &'program TypedTrees {
+        match self {
+            Self::Typed(program) => program,
+            Self::Checked(program) => &program.typed,
+        }
+    }
 }
 
 pub struct BuildTimeAdmissionPlan {
@@ -263,7 +286,7 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         machine: &Machine,
     ) -> Result<(), BuildTimeAdmissionRejection> {
-        self.require_floor(program, machine, None, false)
+        self.require_floor(BuildTimeProgram::Typed(program), machine, None, false)
     }
 
     pub fn require_common_floor_for_invocation(
@@ -272,7 +295,12 @@ impl BuildTimeAdmissionPlan {
         machine: &Machine,
         custody: BuildTimeInvocationCustody,
     ) -> Result<(), BuildTimeAdmissionRejection> {
-        self.require_floor(program, machine, Some(custody), false)
+        self.require_floor(
+            BuildTimeProgram::Typed(program),
+            machine,
+            Some(custody),
+            false,
+        )
     }
 
     /// Common floor for one concrete invocation whose own checked probe
@@ -288,7 +316,12 @@ impl BuildTimeAdmissionPlan {
         machine: &Machine,
         custody: BuildTimeInvocationCustody,
     ) -> Result<(), BuildTimeAdmissionRejection> {
-        self.require_floor(program, machine, Some(custody), true)
+        self.require_floor(
+            BuildTimeProgram::Typed(program),
+            machine,
+            Some(custody),
+            true,
+        )
     }
 
     /// Whether `machine`'s call closure carries any authored `requires`
@@ -352,11 +385,12 @@ impl BuildTimeAdmissionPlan {
 
     fn require_floor(
         &self,
-        program: &TypedTrees,
+        input: BuildTimeProgram<'_>,
         machine: &Machine,
         custody: Option<BuildTimeInvocationCustody>,
         discharge_authored_requires: bool,
     ) -> Result<(), BuildTimeAdmissionRejection> {
+        let program = input.typed();
         crate::validate_selected_operators(program, &self.selected_operators)?;
         let service_summary = self
             .service_reaches
@@ -402,7 +436,7 @@ impl BuildTimeAdmissionPlan {
         // source sites, whatever this invocation's arguments.
         let discharge_authored_requires = discharge_authored_requires
             || (self.closure_includes_authored_requires(program, machine)
-                && concrete_invocation::argument_independent_closure_discharges(program, machine)?);
+                && concrete_invocation::argument_independent_closure_discharges(input, machine)?);
         let closure_violation = checked_closure_violation(
             &self.call_edges,
             program,
@@ -463,14 +497,15 @@ impl BuildTimeAdmissionPlan {
     /// with that position's normalized-plan owner.
     pub fn evaluate_machine(
         &self,
-        program: &TypedTrees,
+        input: BuildTimeProgram<'_>,
         machine_name: &str,
         arguments: Vec<BuildTimeValue>,
     ) -> Result<BuildTimeValue, BuildTimeAdmissionRejection> {
+        let program = input.typed();
         let machine = program
             .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
-        self.require_common_floor(program, machine)?;
+        self.require_floor(input, machine, None, false)?;
         checked_interpreter::evaluate_build_time_machine(
             program,
             BuildMachineEvaluationRequest::named(machine_name, arguments),
@@ -481,15 +516,16 @@ impl BuildTimeAdmissionPlan {
 
     pub fn evaluate_machine_for_invocation(
         &self,
-        program: &TypedTrees,
+        input: BuildTimeProgram<'_>,
         machine_name: &str,
         arguments: Vec<BuildTimeValue>,
         custody: BuildTimeInvocationCustody,
     ) -> Result<BuildTimeValue, BuildTimeAdmissionRejection> {
+        let program = input.typed();
         let machine = program
             .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
-        self.require_common_floor_for_invocation(program, machine, custody)?;
+        self.require_floor(input, machine, Some(custody), false)?;
         checked_interpreter::evaluate_build_time_machine(
             program,
             BuildMachineEvaluationRequest::named(machine_name, arguments),
@@ -504,17 +540,18 @@ impl BuildTimeAdmissionPlan {
     /// evaluator usage stays attached to the returned structured value.
     pub fn evaluate_machine_symbol_for_invocation_measured(
         &self,
-        program: &TypedTrees,
+        input: BuildTimeProgram<'_>,
         machine_symbol: SymbolHandle,
         arguments: Vec<BuildTimeValue>,
         custody: BuildTimeInvocationCustody,
     ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
+        let program = input.typed();
         let machine = program.machine(machine_symbol).ok_or_else(|| {
             format!(
                 "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
             )
         })?;
-        self.require_common_floor_for_invocation(program, machine, custody)?;
+        self.require_floor(input, machine, Some(custody), false)?;
         checked_interpreter::evaluate_build_time_machine(
             program,
             BuildMachineEvaluationRequest::symbol(machine_symbol, arguments),
@@ -601,7 +638,12 @@ impl BuildTimeAdmissionPlan {
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         let discharge =
             self.zero_argument_invocation_discharge(program, machine, &arguments, custody);
-        self.require_floor(program, machine, custody, discharge)?;
+        self.require_floor(
+            BuildTimeProgram::Typed(program),
+            machine,
+            custody,
+            discharge,
+        )?;
         let value = checked_interpreter::evaluate_build_time_machine(
             program,
             BuildMachineEvaluationRequest {

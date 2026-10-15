@@ -1,0 +1,38 @@
+// The helper's guarded state has a proved premise. Evaluation must reach
+// the policy's authored rejection, not reject the internal contract.
+use omega_language_std::calling;
+
+data LocalPolicy {}
+LocalCalling satisfies CallingPolicy {
+    CallingPolicy::plan = LocalPolicy::plan;
+}
+
+machine LocalPolicy::bounded(value: u64) -> bool {
+    transition value < 2 {
+        true -> accept(value)
+        false -> false
+    }
+    state accept(value: u64) -> bool requires value <= 1 { true }
+}
+
+machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult {
+    transition LocalPolicy::bounded(signature.parameter_count) {
+        true -> observed()
+        false -> unexpected()
+    }
+    state observed() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "checked helper observed" },
+        }
+    }
+    state unexpected() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "wrong helper result" },
+        }
+    }
+}
+
+boundary trait LocalEntry: Calling<LocalCalling> {
+    machine enter(value: u64) -> u64;
+}
+machine main() {}

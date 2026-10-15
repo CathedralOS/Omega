@@ -1,0 +1,22 @@
+// Satisfaction proves this literal premise, so the body reaches policy
+// admission. The existing entry-premise fence must still require a concrete
+// invocation judgment; a checked body is not an unconditional entry.
+use omega_language_std::calling;
+
+data LocalPolicy {}
+LocalCalling satisfies CallingPolicy {
+    CallingPolicy::plan = LocalPolicy::plan;
+}
+
+machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+requires 0 == 0
+{
+    BoundaryPlanResult::Rejected {
+        reason: CallingPolicyRejection { reason: "entry premise was ignored" },
+    }
+}
+
+boundary trait LocalEntry: Calling<LocalCalling> {
+    machine enter(value: u64) -> u64;
+}
+machine main() {}

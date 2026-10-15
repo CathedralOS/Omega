@@ -189,7 +189,7 @@ fn prepare_target_provider_selection(
         .unwrap_or_else(target::NativeTarget::host);
     let mut boundary_calling_plan_realizations =
         provider_planning::calling_policy_plans::compute_boundary_calling_plans(
-            typed,
+            &source.program,
             selected_native_target,
             &build_config.opaque_representation_selections,
             package_inputs,

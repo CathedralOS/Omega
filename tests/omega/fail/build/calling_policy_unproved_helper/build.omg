@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "calling_policy_unproved_helper");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+}

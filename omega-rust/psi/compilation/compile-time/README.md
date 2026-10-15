@@ -298,9 +298,14 @@ The [semantic-evaluation contract](../../../../wiki/spec/language/evaluation.md)
 is broader than the current implementation. [admission.rs](src/machine_execution/admission.rs)
 owns the common reachable-closure floor; its
 [closure validator](src/machine_execution/admission/closure_validation.rs) rejects
-authored `requires` in a reachable machine/callable closure unless the caller
-supplies discharged concrete-invocation evidence. Ordinary initializer calls
-obtain that evidence from checked invocation summaries, not interpretation.
+authored `requires` in a reachable machine/callable closure unless ordinary
+contract checking discharges them. Ordinary initializer calls obtain that
+evidence from checked invocation summaries, not interpretation. An unconditional
+entry needs only the source judgment for its internal call and transition
+premises: early typed-only evaluation checks its demanded closure, while
+post-check policy evaluation borrows the same immutable `CheckedTrees` instead
+of repeating that check. Neither route proves a premise on arbitrary entry
+arguments or grants execution authority.
 It also rejects declared linear runtime carriers across attached/machine-owned
 data, parameters/results, and locals using structural multiplicity, and rejects
 recursive call cycles without admitted termination evidence. These are

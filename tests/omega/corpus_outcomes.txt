@@ -1010,6 +1010,12 @@ fail/build/build_machine_wrong_arity rejected 1ms expected @a9ae30e1c334+wt
 	tests/omega/fail/build/build_machine_wrong_arity/build.omg: invalid project build declaration: package build machine must have exactly one parameter: `builder: &mut Build`
 fail/build/calling_policy_authored_rejection rejected 1123ms expected @a9ae30e1c334+wt
 	calling policy rejected the boundary: local
+fail/build/calling_policy_checked_helper_rejection rejected 1107ms expected @d9b96683b9fa+wt
+	calling policy rejected the boundary: checked helper observed
+fail/build/calling_policy_entry_premise rejected 1112ms expected @d9b96683b9fa+wt
+	machine `LocalPolicy::plan` is not build-time admissible: machine `LocalPolicy::plan` has an authored `requires` premise along `LocalPolicy::plan`; pre-check semantic evaluation has no checked invocation proof for that premise; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/build/calling_policy_unproved_helper rejected 952ms expected @d9b96683b9fa+wt
+	cannot prove requires contract for call bounded from LocalPolicy::plan: signature.parameter_count <= 1 (needs fact `value <= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `plan`
 fail/build/captured_named_input_missing_slot rejected 5188ms expected published:none @a9ae30e1c334+wt
 	build-time evaluation of `build` failed: named build input `absent` is not assigned to this activation
 fail/build/captured_source_write_grant_refused rejected 5667ms expected published:none @a9ae30e1c334+wt

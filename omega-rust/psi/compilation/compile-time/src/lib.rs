@@ -70,7 +70,7 @@ pub use layouts::schema_reflection::normalized_schema_report_fingerprint;
 pub use layouts::wire_plans::compute_wire_plans;
 pub use machine_execution::admission::{
     BuildTimeAdmissionPlan, BuildTimeAdmissionRejection, BuildTimeInvocationCustody,
-    BuildTimeSelectionAuthority,
+    BuildTimeProgram, BuildTimeSelectionAuthority,
 };
 pub use machine_execution::build_activation::{
     admit_toolchain_build_activation, is_exact_toolchain_build_prelude_data,
