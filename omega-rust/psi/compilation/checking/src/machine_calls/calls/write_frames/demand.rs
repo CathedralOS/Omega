@@ -571,14 +571,15 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
-    /// Every storage origin the actual assignment writes. An empty set denotes
-    /// a reference binding replacement; unavailable provenance stays `None`.
-    pub fn assignment_destination_origins(
+    /// Performed destinations and reference origins share the captured store
+    /// prefix and exposure checks. An empty destination set denotes binding
+    /// replacement; unavailable provenance stays `None`.
+    pub fn assignment_storage_origins(
         &self,
         machine: &Machine,
         statement: &StatementNode,
-    ) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
-        super::caller_aliases::assignment_destination_origins(
+    ) -> Option<super::caller_aliases::AssignmentStorageOrigins> {
+        super::caller_aliases::assignment_storage_origins(
             self.program,
             machine,
             &self.tables.symbols,

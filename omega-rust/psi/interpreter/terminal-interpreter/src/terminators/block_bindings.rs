@@ -857,7 +857,11 @@ impl TerminalExecution<'_> {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
         let claims = bound_claims;
-        let mut affine_destinations = bind_affine_frontier(descriptor_parameters, &structural)?;
+        let mut affine_destinations = bind_affine_frontier(
+            descriptor_parameters,
+            &structural,
+            &self.program.structural_types(),
+        )?;
         // A whole affine value arrives with the claims it carried; its new
         // debt is the same complement of those linear regions.
         crate::custody::exclude_linear_regions(

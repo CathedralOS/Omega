@@ -1,0 +1,8 @@
+data Partition<'storage> { values: &'storage mut [i32]; count: u64; }
+machine store<'storage>(partitions: &mut [Partition<'storage>], mut selected: u64, replacement: u64)
+requires selected < partitions.len && partitions[selected].count < partitions[selected].values.len {
+    let output: &mut [Partition<'storage>] = &mut partitions[..];
+    selected = replacement;
+    let copied: u64 = selected;
+    output[copied].values[output[copied].count] = 7;
+}

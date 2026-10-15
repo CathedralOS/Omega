@@ -758,15 +758,10 @@ pub(crate) fn parameter_shape<'declaration>(
             | StructuralAccess::MutableBorrow
             | StructuralAccess::WriteOnlyBorrow,
             terminal_psi::nonlinear_multiplicity_pair_pattern!(),
-        ) if parameter.multiplicity == StructuralMultiplicity::Unrestricted
-            || declarations.iter().any(|declaration| {
-                declaration.id == parameter.structural_type
-                    && matches!(
-                        declaration.shape,
-                        terminal_psi::record_or_fixed_array_shape_pattern!()
-                    )
-            }) =>
-        {
+        ) => {
+            // Carrier multiplicity controls lifetime, not the borrowed ABI.
+            // In particular, an affine descriptor arrival has the same storage
+            // geometry as an unrestricted arrival of the same type and access.
             internal_borrow_shape(parameter.structural_type, declarations)
         }
         _ => None,

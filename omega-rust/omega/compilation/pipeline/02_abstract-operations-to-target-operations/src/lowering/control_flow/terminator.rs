@@ -12,8 +12,9 @@ use target_operations::{TargetControlSuccessor, TargetControlTerminator};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction};
 
 /// A materialized descriptor owns its carrier, not the borrowed backing.
-/// The live definition is installed only after view/access reconstruction; rejoin
-/// its exact producer and result contract before accepting a no-code discard.
+/// A live descriptor comes from an operation or a block arrival. Rejoin its
+/// exact establishment contract before accepting a no-code discard; a block
+/// binding is not an owned backing home and has no operation-result producer.
 /// Copyability permits independent descriptors; it does not keep a replaced
 /// descriptor alive or authorize disposal of a linear carrier.
 fn disposable_view_carrier(
@@ -21,25 +22,39 @@ fn disposable_view_carrier(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
     place: PlaceId,
-) -> bool {
-    let Some(result) = live.view_result(function, place) else {
-        return false;
+) -> Option<StructuralMultiplicity> {
+    let (structural_type, multiplicity) = if live.views.contains_key(&place) {
+        let result = live.view_result(function, place)?;
+        if !matches!(
+            result.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ) || !result.claims.is_empty()
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
+        {
+            return None;
+        }
+        (result.structural_type, result.multiplicity)
+    } else {
+        if !live.block_views.contains(&place) {
+            return None;
+        }
+        let parameter = function.arrival_parameter(place)?;
+        if !parameter.is_unqualified_root() {
+            return None;
+        }
+        (parameter.structural_type, parameter.multiplicity)
     };
-    matches!(
-        result.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) && result.claims.is_empty()
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.qualification_establishments.is_empty()
-        && types
-            .get(&result.structural_type)
-            .is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::ElementView { .. }
-                ) || declaration.shape.is_borrowed_byte_view()
-            })
+    types
+        .get(&structural_type)
+        .is_some_and(|declaration| {
+            matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::ElementView { .. }
+            ) || declaration.shape.is_borrowed_byte_view()
+        })
+        .then_some(multiplicity)
 }
 
 /// Rejoin the selected cleanup action to existing owned storage. The checked
@@ -113,7 +128,7 @@ pub(super) fn plain_home_cleanup(
                 // captured by another carrier.
                 if owned_root_type(live, function, *place).is_none()
                     && !live.retired_reference_roots.contains(place)
-                    && !disposable_view_carrier(live, function, structural_types, *place)
+                    && disposable_view_carrier(live, function, structural_types, *place).is_none()
                 {
                     return Err(LoweringError::InvalidStructuralValueInput {
                         machine: function.machine,
@@ -132,11 +147,9 @@ pub(super) fn plain_home_cleanup(
                 });
             }
             TerminalAffineCleanupAction::DiscardRoot(place) => {
-                if live.views.contains_key(place) {
-                    if !live
-                        .view_result(function, *place)
-                        .is_some_and(|result| result.multiplicity == StructuralMultiplicity::Affine)
-                        || !disposable_view_carrier(live, function, structural_types, *place)
+                if live.views.contains_key(place) || live.block_views.contains(place) {
+                    if disposable_view_carrier(live, function, structural_types, *place)
+                        != Some(StructuralMultiplicity::Affine)
                     {
                         return Err(LoweringError::InvalidStructuralValueInput {
                             machine: function.machine,
@@ -405,14 +418,12 @@ pub(super) fn lower_terminator(
                             .get(source)
                             .filter(|_| {
                                 result.multiplicity == StructuralMultiplicity::Unrestricted
-                                    || (live.view_result(function, *source).is_some_and(|source| {
-                                        source.multiplicity == StructuralMultiplicity::Affine
-                                    }) && disposable_view_carrier(
+                                    || disposable_view_carrier(
                                         live,
                                         function,
                                         structural_types,
                                         *source,
-                                    ))
+                                    ) == Some(StructuralMultiplicity::Affine)
                             })
                             .map(|(_, identity)| *identity)
                     })

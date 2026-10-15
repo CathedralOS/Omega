@@ -134,22 +134,20 @@ pub(super) fn cleanup(
         {
             return Some((structural_type, StructuralMultiplicity::Affine));
         }
-        if let Some(parameter) = function.structural_parameter(place) {
-            return (parameter.access == terminal_psi::StructuralAccess::Owned)
-                .then_some((parameter.structural_type, parameter.multiplicity));
+        if let Some(parameter) = function.arrival_parameter(place) {
+            // A descriptor arrival owns its carrier lifetime even when its
+            // payload is a loan. Reconstruct that declaration as for a produced
+            // descriptor; this grants no ownership of its borrowed backing.
+            return (parameter.access == terminal_psi::StructuralAccess::Owned
+                || (parameter.is_unqualified_root()
+                    && terminal_semantics::view_descriptor_parameter(
+                        parameter,
+                        structural_types.iter(),
+                    )))
+            .then_some((parameter.structural_type, parameter.multiplicity));
         }
-        match super::structural_case::source_owner(function, place).ok()? {
-            legalized_operations::LegalizedStructuralCaseSource::OperationResult {
-                result, ..
-            } => Some((result.structural_type, result.multiplicity)),
-            legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
-                declaration,
-                ..
-            } => (declaration.access == terminal_psi::StructuralAccess::Owned)
-                .then_some((declaration.structural_type, declaration.multiplicity)),
-            legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => None,
-        }
+        let (_, result) = super::structural_case::source_result(function, place).ok()?;
+        Some((result.structural_type, result.multiplicity))
     };
     let discardable = |place| {
         owner(place).is_some_and(|(_, multiplicity)| multiplicity == StructuralMultiplicity::Affine)

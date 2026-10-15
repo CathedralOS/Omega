@@ -1,0 +1,28 @@
+// Expected exit: 0. Selected-edge cleanup retires carriers, not captured backing.
+machine fill(items: &mut [i32], choose: bool)
+requires items.len >= 3 {
+    let intermediate: &mut [i32] = &mut items;
+    let child: &mut [i32] = &mut intermediate[1..2];
+    transition choose {
+        true -> store(child, 17)
+        false -> store(child, 23)
+    }
+    state store(child: &mut [i32], value: i32)
+    requires child.len == 1 {
+        child[0] = value;
+    }
+}
+
+machine main() crashes Trap {
+    let mut first: [i32; 3] = [3, 5, 7];
+    let mut second: [i32; 3] = [11, 13, 19];
+    fill(&mut first[..], true);
+    fill(&mut second[..], false);
+    transition first[0] == 3 && first[1] == 17 && first[2] == 7
+        && second[0] == 11 && second[1] == 23 && second[2] == 19 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

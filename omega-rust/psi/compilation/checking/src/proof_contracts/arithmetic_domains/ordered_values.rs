@@ -362,6 +362,16 @@ fn build_operand(
     if !expression.is_valid() || depth >= 128 {
         return None;
     }
+    // A builtin whole view preserves coordinates. Resolve that geometry at
+    // observation time, never by replaying a local reference initializer.
+    if let Some(source) = crate::value_custody::places::whole_collection_view_source(
+        program,
+        machine,
+        Some(state),
+        expression,
+    ) {
+        return build_operand(program, machine, state, source, depth + 1, frames);
+    }
     if let Some(collection) = collection_length_receiver(program, machine, Some(state), expression)
     {
         return Some(Operand::CollectionLength(Box::new(build_operand(
@@ -374,6 +384,9 @@ fn build_operand(
         )?)));
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => {
+            build_operand(program, machine, state, borrow.target, depth + 1, frames)
+        }
         ExpressionNode::Integer(literal) => {
             Some(Operand::Integer(literal.clone(), literal.landing()))
         }

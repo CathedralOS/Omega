@@ -1,4 +1,4 @@
-//! Integer facts carried by a copied value, independent of its old storage.
+//! Integer facts carried by a value binding and its scalar descendants.
 //!
 //! Scalar leaves consume the intervals already established by expression
 //! checking. Record and array constructors compose those leaves, and ordinary
@@ -6,6 +6,8 @@
 //! destination invalidation, so overlapping stores cannot erase the new value.
 //! The supplying environment has already crossed value-evaluation effects;
 //! this owner never replays an initializer or independently summarizes calls.
+//! Reference bindings transport observations of live storage, not a frozen
+//! referent. Ordinary alias-aware writes must still retire those observations.
 
 use super::value_environment::StoredIntegerRange;
 use super::{Interval, ValueEnvironment, ordered_values, place_path};
@@ -50,25 +52,27 @@ impl CopiedIntegerValue {
         local: &typed_trees::statement::TableLocalData,
         environment: &ValueEnvironment,
     ) {
-        if !program
-            .primitive_type_reference(local.type_reference)
-            .is_some_and(|primitive| primitive.is_fixed_integer())
-        {
-            return;
-        }
         let destination = ordered_values::Operand::Place {
             root: local.symbol,
             path: local.name.as_str().to_owned(),
         };
-        self.capture_relations(
+        let written = [local.name.as_str().to_owned()];
+        let observed = self.capture_relations(
             program,
             machine,
             state,
             local.initial_value,
-            destination,
-            &[local.name.as_str().to_owned()],
+            &destination,
+            &written,
             environment,
         );
+        if program
+            .primitive_type_reference(local.type_reference)
+            .is_some_and(|primitive| primitive.is_fixed_integer())
+            && let Some(observed) = observed
+        {
+            self.capture_scalar_equality(observed, destination, &written);
+        }
     }
 
     /// Stores capture the same scalar value as local bindings. Other operands
@@ -104,15 +108,17 @@ impl CopiedIntegerValue {
         if destination.static_path().is_none() {
             return;
         }
-        self.capture_relations(
+        if let Some(observed) = self.capture_relations(
             program,
             machine,
             Some(state),
             assignment.value,
-            destination,
+            &destination,
             written,
             environment,
-        );
+        ) {
+            self.capture_scalar_equality(observed, destination, written);
+        }
     }
 
     fn capture_relations(
@@ -121,15 +127,12 @@ impl CopiedIntegerValue {
         machine: &typed_trees::machine::Machine,
         state: Option<&typed_trees::state::State>,
         expression: ExpressionHandle,
-        destination: ordered_values::Operand,
+        destination: &ordered_values::Operand,
         written: &[String],
         environment: &ValueEnvironment,
-    ) {
-        let Some(observed) = state
-            .and_then(|state| ordered_values::operand(program, machine, state, expression, None))
-        else {
-            return;
-        };
+    ) -> Option<ordered_values::Operand> {
+        let observed = state
+            .and_then(|state| ordered_values::operand(program, machine, state, expression, None))?;
         let mut bindings = Vec::new();
         for relation in &environment.ordered_values {
             retain_places(&relation.left, &observed, &mut bindings);
@@ -139,6 +142,15 @@ impl CopiedIntegerValue {
         bindings.push((observed.clone(), destination.clone()));
         self.ordered_relations =
             ordered_values::rebind_relations(&environment.ordered_values, &bindings);
+        Some(observed)
+    }
+
+    fn capture_scalar_equality(
+        &mut self,
+        observed: ordered_values::Operand,
+        destination: ordered_values::Operand,
+        written: &[String],
+    ) {
         // A successfully evaluated scalar initializer and its new binding
         // denote the same value. Retain that relationship while the observed
         // inputs remain current, so hoisting arithmetic does not discard its

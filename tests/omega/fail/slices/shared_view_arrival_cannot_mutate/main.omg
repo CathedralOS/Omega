@@ -1,0 +1,12 @@
+machine write(items: &[i32]) {
+    let intermediate: &[i32] = &items;
+    let output: &mut [i32] = &mut intermediate[..];
+    transition output.len > 0 {
+        true -> store(output)
+        false -> done()
+    }
+    state store(output: &mut [i32]) requires output.len > 0 {
+        output[0] = 23;
+    }
+    state done() {}
+}

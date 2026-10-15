@@ -87,6 +87,23 @@ fn structural_origin(
     ))
 }
 
+/// Value and descriptor equality require the original resolved namespace.
+/// Conservative write paths may name enclosing bytes, but a recast can change
+/// element count and field interpretation without changing their address.
+pub(super) fn exact_origin_place(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    origin: &validation::LocalWriteOrigin,
+) -> Option<CanonicalPlace> {
+    let source = origin.source.as_ref()?;
+    if !source.recasts.is_empty() || source.representation.is_some() {
+        return None;
+    }
+    let (place, precision) = structural_origin(program, state, statement_index, source)?;
+    (precision == OriginPrecision::Exact).then_some(place)
+}
+
 /// A frozen window is an exact descriptor origin, not an unknown element.
 /// It retains its collection dimension; the type query below checks the
 /// underlying carrier without pretending the window selected one child.

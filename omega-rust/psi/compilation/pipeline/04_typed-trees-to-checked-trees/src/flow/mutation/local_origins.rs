@@ -265,10 +265,7 @@ pub(crate) fn rebase_exact_local_place(
     {
         return None;
     }
-    let (canonical, precision) = origin_place(program, state, statement_index, origin)?;
-    if precision != OriginPrecision::Exact {
-        return None;
-    }
+    let canonical = coordinates::exact_origin_place(program, state, statement_index, origin)?;
     // The origin may be a captured view window. Its first child projection
     // uses that window's coordinates, while subsequent array dimensions
     // belong to the selected value. Share the captured-operand address join

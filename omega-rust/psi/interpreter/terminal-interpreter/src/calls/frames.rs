@@ -305,6 +305,7 @@ impl TerminalExecution<'_> {
         let mut callee_affine_frontier = crate::custody::bind_affine_frontier(
             &callee.structural_parameters,
             &structural_values,
+            &self.program.structural_types(),
         )?;
         let (remaining_claims, live_claims) = transfer_claims(
             &self.program.structural_types(),

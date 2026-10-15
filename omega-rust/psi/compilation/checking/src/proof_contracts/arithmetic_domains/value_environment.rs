@@ -327,16 +327,16 @@ impl ValueEnvironment {
         frames: Option<&crate::CallFrameResolver<'_>>,
         written: &[String],
     ) {
-        let destinations = (!self.ordered_values.is_empty() || !self.boolean_values.is_empty())
+        let storage = (!self.ordered_values.is_empty() || !self.boolean_values.is_empty())
             .then(|| {
                 let target = statement.as_assignment()?.target;
                 crate::place_has_builtin_coordinates(program, machine, state, target)
                     .then_some(())?;
-                frames?.assignment_destination_origins(machine, statement)
+                frames?.assignment_storage_origins(machine, statement)
             })
             .flatten();
         self.invalidate_storage(written, |operand| {
-            operand.survives_assignment(written, destinations.as_deref())
+            operand.survives_assignment(written, storage.as_ref())
         });
     }
 

@@ -1,0 +1,6 @@
+machine write(bytes: &mut [u8; 8], position: u64)
+requires position < bytes.len {
+    let words: &mut [u16] = &mut bytes[0] as &mut [u16];
+    let alias: &mut [u16] = &mut words[..];
+    alias[position] = 0;
+}

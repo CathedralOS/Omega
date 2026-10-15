@@ -28,12 +28,27 @@ impl RangeFacts<'_> {
         {
             return;
         }
+        // A builtin whole view preserves the source coordinates. Resolve that
+        // geometry at capture, before adjoining future destination projections;
+        // a range selector is not an additional element dimension.
+        let captured =
+            validation::whole_collection_view_source(program, machine, Some(state), captured)
+                .unwrap_or(captured);
         let Some(source) = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             self.statement_index,
             captured,
-        ) else {
+        )
+        .and_then(|place| {
+            crate::flow::rebase_exact_local_place(
+                program,
+                state.symbol,
+                self.statement_index,
+                place,
+                self.checked_calls.and_then(|context| context.call_frames()),
+            )
+        }) else {
             return;
         };
         if !matches!(source.root, facts::PlaceRoot::Symbol(root) if root.is_valid()) {
@@ -42,6 +57,7 @@ impl RangeFacts<'_> {
         let transferable = self.preserved_expression_labels(program, machine, state, Some(&[]));
         let originals = self.expression_dependencies.clone();
         let prefix = self.statement_index.saturating_add(1);
+        let bound_lookup = self.bound_lookup();
         for (expression, _) in program.expression_table.iter_expressions() {
             let Some(candidate) = validation::canonical_place_from_expression_in_state(
                 program,
@@ -61,8 +77,11 @@ impl RangeFacts<'_> {
             {
                 continue;
             }
-            let mut rebased = source.clone();
-            rebased.extend_segments(&candidate.segments);
+            let Some(rebased) =
+                crate::flow::project_captured_view_place(source.clone(), &candidate.segments)
+            else {
+                continue;
+            };
             for original in &originals {
                 if !transferable.contains(&original.label) {
                     continue;
@@ -80,9 +99,19 @@ impl RangeFacts<'_> {
                     state.symbol,
                     self.statement_index,
                     subject,
-                ) else {
+                )
+                .and_then(|place| {
+                    crate::flow::rebase_exact_local_place(
+                        program,
+                        state.symbol,
+                        self.statement_index,
+                        place,
+                        self.checked_calls.and_then(|context| context.call_frames()),
+                    )
+                }) else {
                     continue;
                 };
+                let mut uses_frozen_selector = false;
                 let same_place = original_place.root == rebased.root
                     && original_place.segments.len() == rebased.segments.len()
                     && original_place.segments.iter().zip(&rebased.segments).all(
@@ -96,9 +125,28 @@ impl RangeFacts<'_> {
                                     self.current_scalar_observation(program, machine, state, *left);
                                 let right = self
                                     .current_scalar_observation(program, machine, state, *right);
-                                program
+                                if program
                                     .expression_table
                                     .expressions_structurally_equal(left, right)
+                                {
+                                    return true;
+                                }
+                                let same_value = super::captures::integer_value_identity(
+                                    program,
+                                    bound_lookup,
+                                    state,
+                                    left,
+                                )
+                                .is_some_and(|value| {
+                                    super::captures::integer_value_identity(
+                                        program,
+                                        bound_lookup,
+                                        state,
+                                        right,
+                                    ) == Some(value)
+                                });
+                                uses_frozen_selector |= same_value;
+                                same_value
                             } else {
                                 crate::flow::canonical_place_segments_equal(program, *left, *right)
                             }
@@ -108,17 +156,29 @@ impl RangeFacts<'_> {
                     continue;
                 }
                 let mut dependencies = Vec::new();
+                // Typed uses may spell an immutable selector copy introduced
+                // later. Read through its shared frozen-value identity, then
+                // require all resulting roots to exist at this capture. A
+                // future mutable read or new computed value cannot pass that
+                // currency check merely because its declaration exists.
                 if !collect_reads(
                     program,
                     machine,
                     state,
-                    prefix,
+                    if uses_frozen_selector {
+                        program
+                            .statement_table
+                            .statements(state.statement_nodes)
+                            .len()
+                    } else {
+                        prefix
+                    },
                     expression,
                     self.checked_calls,
                     self.checked_operators,
                     &mut dependencies,
                     0,
-                    self.bound_lookup(),
+                    bound_lookup,
                 ) || !dependencies
                     .iter()
                     .all(|read| reads::root_is_current(program, machine, state, prefix, read.root))

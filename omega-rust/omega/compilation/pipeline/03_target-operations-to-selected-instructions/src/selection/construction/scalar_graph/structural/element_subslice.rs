@@ -43,9 +43,13 @@ pub(super) fn create(
         matches!((&source.shape, &result.shape),
             (terminal_psi::StructuralTypeShape::ElementView { element: source, .. },
              terminal_psi::StructuralTypeShape::ElementView { element: result, .. }) if source == result));
+    if crate::selection::established_view_input::view_access(function, result.place).is_none() {
+        return Err(SelectedInstructionError::custody_because(
+            "element subslice does not retain readable source descriptor access",
+        ));
+    }
     if row.result.is_some()
         || !same_element
-        || crate::selection::established_view_input::view_access(function, result.place).is_none()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()

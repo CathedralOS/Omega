@@ -382,8 +382,11 @@ impl<'artifact> TerminalExecution<'artifact> {
         let values = bind_arguments(&machine.parameters, scalar_arguments)?;
         let structural_values =
             bind_structural_arguments(&machine.structural_parameters, structural_arguments)?;
-        let live_affine_frontier =
-            bind_affine_frontier(&machine.structural_parameters, &structural_values)?;
+        let live_affine_frontier = bind_affine_frontier(
+            &machine.structural_parameters,
+            &structural_values,
+            &program.structural_types(),
+        )?;
         let live_claims = bind_entry_claims(
             &machine.entry_claims,
             &machine.content_entry_claims,

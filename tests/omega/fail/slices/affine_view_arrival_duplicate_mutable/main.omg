@@ -1,0 +1,16 @@
+machine split(items: &mut [i32]) {
+    let intermediate: &mut [i32] = &mut items;
+    transition { _ -> alias(intermediate, intermediate) }
+    state alias(first: &mut [i32], second: &mut [i32]) {
+        transition first.len > 0 && second.len > 0 {
+            true -> store(first, second)
+            false -> done()
+        }
+    }
+    state store(first: &mut [i32], second: &mut [i32])
+    requires first.len > 0 && second.len > 0 {
+        first[0] = 1;
+        second[0] = 2;
+    }
+    state done() {}
+}

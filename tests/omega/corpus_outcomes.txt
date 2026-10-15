@@ -4244,6 +4244,8 @@ fail/relevance/static_proof_borrow_requires_storage rejected 820ms expected @a9a
 	machine `Natural::inspect` state `inspect` parameter `value` mentions proof-only `Natural`, which has no runtime layout
 fail/relevance/static_proof_result_cannot_materialize rejected 836ms expected @a9ae30e1c334+wt
 	call to proof machine `answer` has no runtime result; use it only in a proof or erased context, or as a statement citation
+fail/slices/affine_view_arrival_duplicate_mutable rejected 660ms expected @096f2ecfd243+wt
+	state `alias` receives `intermediate` as mutable more than once
 fail/slices/bare_range_at_mutable_field rejected 218ms expected @0421c3e6f7c9+wt
 	construction of `Window` field `cells` receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`
 fail/slices/bare_range_at_mutable_local rejected 263ms expected @0421c3e6f7c9+wt
@@ -4337,6 +4339,22 @@ fail/slices/predicate_scalar_store_invalid_membership rejected 5777ms expected @
 	cannot prove the value assigned to `items[1]` in main is in domain `i32::Selected`; a place declared `in i32::Selected` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/slices/projected_descriptor_index_requires_live_bound rejected 1577ms expected @a9ae30e1c334+wt
 	cannot prove index `position` is within unknown slice length of `envelope.window.cells` in read::entry
+fail/slices/reborrowed_count_overwrite rejected 199ms expected @096f2ecfd243+wt
+	exact arithmetic in machine `increment` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/slices/reborrowed_future_mutable_selector rejected 649ms expected @096f2ecfd243+wt
+	cannot prove index `copied` is within unknown slice length of `output` in store::entry
+	cannot prove index `copied` is within unknown slice length of `output` in store::entry
+	cannot prove index `output[copied].count` is within unknown slice length of `output[copied].values` in store::entry
+fail/slices/reborrowed_recast_keeps_element_extent rejected 592ms expected @096f2ecfd243+wt
+	cannot prove index `position` is within unknown slice length of `alias` in write::entry
+fail/slices/reborrowed_reference_retarget rejected 595ms expected @096f2ecfd243+wt
+	cannot prove index `selected` is within unknown slice length of `output` in store::entry
+	cannot prove index `selected` is within unknown slice length of `output` in store::entry
+	cannot prove index `output[selected].count` is within unknown slice length of `output[selected].values` in store::entry
+fail/slices/reborrowed_replaced_descriptor rejected 610ms expected @096f2ecfd243+wt
+	cannot prove index `output[selected].count` is within unknown slice length of `output[selected].values` in store::entry
+fail/slices/reborrowed_window_does_not_inherit_whole_bounds rejected 146ms expected @096f2ecfd243+wt
+	exact arithmetic in machine `increment` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/slices/rebound_subslice_loses_byte_predicate rejected 339ms expected @7451127fc8f8+wt
 	cannot prove requires contract for call inspect from replace: view in [u8]::Ascii (invalidated by prior mutation of view; view is part of [u8]::Ascii)
 fail/slices/record_length_field_is_not_collection_extent rejected 1573ms expected @a9ae30e1c334+wt
@@ -4378,6 +4396,8 @@ fail/slices/scalar_store_does_not_establish_sibling rejected 1694ms expected @a9
 	reading `values[1]` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `u64[in Positive]`
 fail/slices/shared_subslice_state_cannot_lend_mutable rejected 178ms expected @9c4d1c444502+wt
 	argument `items` for state `forwarded` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/slices/shared_view_arrival_cannot_mutate rejected 146ms expected @096f2ecfd243+wt
+	machine `write` state `entry` local `output` requires mutable source access; shared or immutable storage cannot supply it
 fail/slices/signed_slice_index_upper_only rejected 1061ms expected @e6088bf995e6
 	cannot prove index `index` is non-negative
 fail/slices/signed_slice_range_upper_only rejected 1708ms expected @a9ae30e1c334+wt
@@ -7659,6 +7679,7 @@ pass/slices/projected_slice_length checked 10180ms @5041ef1af684+wt
 pass/slices/qualified_subslice_composition_exit checked 4161ms check-target:macos_arm64 @7451127fc8f8+wt
 pass/slices/recursive_subslice_element_accumulator_exit checked 13843ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/requires_field_count_alias_index_compile checked 1934ms @a9ae30e1c334+wt
+pass/slices/runtime_affine_view_edge_cleanup_exit checked 3338ms check-target:macos_arm64 @096f2ecfd243+wt
 pass/slices/runtime_anonymous_slice_argument_return_exit checked 5805ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_boolean_alias_guard_transport_exit checked 13319ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_borrowed_noncopy_array_argument_exit checked 13156ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7721,6 +7742,7 @@ pass/slices/runtime_range_qualified_scalar_copy_exit checked 10905ms check-targe
 pass/slices/runtime_range_qualified_scalar_copy_local_exit checked 12523ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_range_qualified_scalar_dynamic_store_exit checked 12966ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_range_qualified_scalar_store_phi_exit checked 12890ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/runtime_reborrowed_partition_append_exit checked 3521ms check-target:macos_arm64 @096f2ecfd243+wt
 pass/slices/runtime_returned_range_extent_contract_exit checked 14564ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_same_carrier_inline_cast_index_exit checked 8205ms check-target:macos_arm64 @2ab552549670+wt
 pass/slices/runtime_saturating_array_element_guard_exit checked 12581ms check-target:macos_arm64 @a9ae30e1c334+wt

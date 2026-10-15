@@ -631,22 +631,29 @@ pub(crate) fn bind_structural_primitive_values(
 pub(crate) fn bind_affine_frontier(
     parameters: &[StructuralParameterDeclaration],
     values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
 ) -> Result<BTreeSet<StructuralAffineDiscard>, TerminalInterpretError> {
-    bind_affine_frontier_types(parameters, |place| {
+    bind_affine_frontier_types(parameters, structural_types, |place| {
         values.get(&place).map(|value| value.structural_type)
     })
 }
 
 pub(crate) fn bind_affine_frontier_types(
     parameters: &[StructuralParameterDeclaration],
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     source_type: impl Fn(PlaceId) -> Option<StructuralTypeId>,
 ) -> Result<BTreeSet<StructuralAffineDiscard>, TerminalInterpretError> {
     let mut frontier = BTreeSet::new();
-    // Only owned parameters incur disposal debt; referent multiplicity does
-    // not turn a loan into ownership.
+    // Owned values and affine descriptor carriers incur disposal debt. A
+    // descriptor's root is its carrier, never its borrowed elements; ordinary
+    // address loans still owe no disposal of the referent they identify.
     for parameter in parameters.iter().filter(|parameter| {
         parameter.multiplicity == StructuralMultiplicity::Affine
-            && parameter.access == StructuralAccess::Owned
+            && (parameter.access == StructuralAccess::Owned
+                || terminal_semantics::view_descriptor_parameter(
+                    parameter,
+                    structural_types.values(),
+                ))
     }) {
         let structural_type = source_type(parameter.place).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),

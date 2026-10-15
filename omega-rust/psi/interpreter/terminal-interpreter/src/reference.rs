@@ -129,8 +129,10 @@ pub(crate) fn discard_structural_value(
 
 impl TerminalExecution<'_> {
     /// Borrowed entry and state arrivals retain descriptor storage without an
-    /// affine owner entry in this frame. Its declared authority bounds every
-    /// reference crossing. Owned carrier availability follows its declared
+    /// referent owner entry in this frame. Affine loan carriers still retain
+    /// their declared access; their multiplicity does not own the referent.
+    /// Declared authority bounds every reference crossing. Owned carrier
+    /// availability follows its declared
     /// multiplicity: affine storage has a disposal frontier; linear storage
     /// remains resident under its exact live claim.
     fn reference_carrier_access(
@@ -149,7 +151,7 @@ impl TerminalExecution<'_> {
             .filter(|parameter| parameter.access != StructuralAccess::Owned)
         {
             if parameter.structural_type != owner.structural_type
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || parameter.multiplicity == StructuralMultiplicity::Linear
                 || !matches!(
                     parameter.access,
                     terminal_psi::reading_borrow_pair_pattern!()
@@ -230,7 +232,7 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             if parameter.access != StructuralAccess::Owned {
-                return (parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                return (parameter.multiplicity != StructuralMultiplicity::Linear
                     && access_covers(parameter.access, requested))
                 .then_some(())
                 .ok_or_else(malformed);

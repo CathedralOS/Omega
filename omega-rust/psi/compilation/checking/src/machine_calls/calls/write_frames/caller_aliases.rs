@@ -94,6 +94,13 @@ pub struct LocalWriteOrigin {
     pub source: Option<LocalWriteSource>,
 }
 
+/// Store destinations and live reference bindings from one captured prefix.
+/// Consumers compare footprints; these rows grant no equality or access.
+pub struct AssignmentStorageOrigins {
+    pub destinations: Vec<LocalWriteSource>,
+    pub references: Option<Vec<LocalWriteOrigin>>,
+}
+
 /// Storage captured by one exact invocation. Each operand keeps all possible
 /// origins; `None` is unknown and `Some([])` means no caller storage. These
 /// coordinates do not grant permission to access the referents.
@@ -230,14 +237,14 @@ pub(super) fn assignment_write_paths(
 /// Address provenance of the performed store, not the contents before it.
 /// The same recorded assignment prefix distinguishes replacing a reference
 /// slot from writing its referent and retains every current alias alternative.
-pub(super) fn assignment_destination_origins(
+pub(super) fn assignment_storage_origins(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     machine_symbols: &super::MachineSymbols<'_>,
     statement: &StatementNode,
     state_assignments: &StateAssignments<'_>,
-) -> Option<Vec<LocalWriteSource>> {
+) -> Option<AssignmentStorageOrigins> {
     let (state, _, index) =
         caller_statement_owner(program, machine, CallerWriteSite::Statement(statement))?;
     let assignments = state_assignments(state);
@@ -246,7 +253,10 @@ pub(super) fn assignment_destination_origins(
         evidence.target,
         AssignmentWriteTarget::LocalBindingReplacement { .. }
     ) {
-        return Some(Vec::new());
+        return Some(AssignmentStorageOrigins {
+            destinations: Vec::new(),
+            references: Some(Vec::new()),
+        });
     }
     let assignment = statement.as_assignment()?;
     let mut inference = FrameInference::for_state(state.symbol);
@@ -311,7 +321,16 @@ pub(super) fn assignment_destination_origins(
             }
         }
     }
-    Some(destinations)
+    Some(AssignmentStorageOrigins {
+        destinations,
+        references: prefix_reference_origins(
+            program,
+            Some((state, index)),
+            &evidence.stored,
+            &evidence.aliases,
+            &evidence.divergent,
+        ),
+    })
 }
 
 fn assignment_evidence(
@@ -406,22 +425,39 @@ pub(super) fn local_write_origins_before_statement(
             stored: Vec::new(),
         },
     };
-    let mut origins = evidence
-        .stored
-        .into_iter()
-        .flat_map(|local| local.references)
+    let position = match site {
+        CallerPrefixSite::Tracked { state, index, .. } => Some((state, index)),
+        CallerPrefixSite::Untracked => None,
+    };
+    prefix_reference_origins(
+        program,
+        position,
+        &evidence.stored,
+        &evidence.aliases,
+        &evidence.divergent,
+    )
+}
+
+fn prefix_reference_origins(
+    program: &dyn crate::CheckingInput,
+    position: Option<(&typed_trees::state::State, usize)>,
+    stored: &[StoredLocalOrigins],
+    aliases: &[(String, FramePlaceOrigin)],
+    divergent: &[(String, Vec<FramePlaceOrigin>)],
+) -> Option<Vec<LocalWriteOrigin>> {
+    let mut origins = stored
+        .iter()
+        .flat_map(|local| &local.references)
         .map(|leaf| LocalWriteOrigin {
             local_symbol: leaf.local_symbol,
-            local_segments: leaf.local_segments,
-            source: leaf.origin.map(LocalWriteSource::from),
+            local_segments: leaf.local_segments.clone(),
+            source: leaf.origin.clone().map(LocalWriteSource::from),
         })
         .collect::<Vec<_>>();
-    if evidence.aliases.is_empty() && evidence.divergent.is_empty() {
+    if aliases.is_empty() && divergent.is_empty() {
         return Some(origins);
     }
-    let CallerPrefixSite::Tracked { state, index, .. } = site else {
-        return None;
-    };
+    let (state, index) = position?;
     let preceding = &program.statement_table.statements(state.statement_nodes)[..index];
     let local_symbol = |name: &str| {
         preceding
@@ -446,19 +482,19 @@ pub(super) fn local_write_origins_before_statement(
         local_segments: Vec::new(),
         source: Some(LocalWriteSource::from(origin)),
     };
-    for (name, origin) in evidence.aliases {
-        origins.push(alias_origin(local_symbol(&name)?, origin));
+    for (name, origin) in aliases {
+        origins.push(alias_origin(local_symbol(name)?, origin.clone()));
     }
     // A divergent binding names one of several proven referents. A write
     // through it may land on any of them, so each candidate is its own origin
     // of the same local; omitting the binding would let consumers treat the
     // write as private to the local.
-    for (name, candidates) in evidence.divergent {
-        let local_symbol = local_symbol(&name)?;
+    for (name, candidates) in divergent {
+        let local_symbol = local_symbol(name)?;
         origins.extend(
             candidates
-                .into_iter()
-                .map(|origin| alias_origin(local_symbol, origin)),
+                .iter()
+                .map(|origin| alias_origin(local_symbol, origin.clone())),
         );
     }
     Some(origins)

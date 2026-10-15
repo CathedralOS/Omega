@@ -85,22 +85,18 @@ fn view_access_with_budget(
             if parameters.next().is_some()
                 || declaration.kind != expected_kind
                 || expected_type.is_some_and(|identity| identity != parameter.structural_type)
-                || parameter.multiplicity != M::Unrestricted
+                || !terminal_semantics::view_descriptor_parameter(
+                    parameter,
+                    signature.structural_types.iter(),
+                )
                 || (!parameter.qualifications.is_empty()
                     && !(parameter.access == A::SharedBorrow
                         && signature.structural_types.iter().any(|row| {
                             row.id == parameter.structural_type
                                 && row.shape.is_borrowed_byte_carrier()
                         })))
-                || !parameter.projected_qualifications.is_empty()
-                || !matches!(parameter.access, A::SharedBorrow | A::MutableBorrow)
                 || (copied_whole && parameter.access != A::SharedBorrow)
                 || !supplies(parameter.access, required)
-                || !signature.structural_types.iter().any(|row| {
-                    row.id == parameter.structural_type
-                        && (matches!(row.shape, StructuralTypeShape::ElementView { .. })
-                            || row.shape.is_borrowed_byte_carrier())
-                })
             {
                 return None;
             }
