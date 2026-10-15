@@ -1,6 +1,5 @@
 use omega::language::core::external_binding;
 use omega::language::core::layout;
-use omega::language::core::binding;
 // A plan-laid record recasts to its exact byte-shaped foreign ABI:
 // `value as &mut ForeignByte` hands `&mut SignedByte<PortableByte>` storage
 // to the `i8` view `bzero`/`memcmp` consume — `reaches A + B` unions both
@@ -51,21 +50,21 @@ macos_arm64 machine compare_binding() -> ForeignBinding<26, 7, 0> {
 }
 macos_arm64 machine compare_bytes(left: &RawView, right: &RawView, count: u64) -> i32
     satisfies CompareByte::compare via compare_binding();
-machine compare(compare_byte: &Binding<CompareByte>, left: &RawView, right: &RawView) -> i32 reaches CompareByte {
-    CompareByte::compare(compare_byte, left, right, 1)
+machine compare(left: &RawView, right: &RawView) -> i32 reaches CompareByte {
+    CompareByte::compare(left, right, 1)
 }
-machine clear(clear_byte: &Binding<ClearByte>, value: &mut RawView) reaches ClearByte {
+machine clear(value: &mut RawView) reaches ClearByte {
     let physical: &ForeignByte = value as &ForeignByte;
-    ClearByte::clear(clear_byte, &mut value.value as &mut ForeignByte, 1);
+    ClearByte::clear(&mut value.value as &mut ForeignByte, 1);
 }
-data Main { bytes: [u8; 2]; expected: [u8; 1]; compare_byte: Binding<CompareByte>; }
+data Main { bytes: [u8; 2]; expected: [u8; 1]; }
 machine Main::main(main: &mut Main) reaches CompareByte + ClearByte {
     main.bytes[0] = 128;
     main.bytes[1] = 85;
     main.expected[0] = 128;
     let view: &mut RawView = &mut main.bytes[0] as &mut RawView;
     let expected: &RawView = &main.expected[0] as &RawView;
-    let result: i32 = compare(&main.compare_byte, view, expected);
+    let result: i32 = compare(view, expected);
     transition result == 0 {
         true -> done()
         _ -> bad()

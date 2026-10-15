@@ -1,12 +1,11 @@
 use omega::language::core::numeric_conversion;
 // Timespec and scalar reads share one supplied clock model. Out-parameters
 // retain the original record/array backing through helpers and captures.
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub data Instant [copy] { seconds: i64; nanoseconds: i64; marker: i64; }
 data Holder { prefix: i64; instant: Instant; suffix: i64; }
-data Main { clock: Binding<ClockProbe>; holder: Holder; pair: [i64; 2]; request: Instant; }
+data Main { holder: Holder; pair: [i64; 2]; request: Instant; }
 pub boundary trait ClockProbe {
     machine read(selector: i32, instant: &mut Instant) -> i32;
     machine read_pair(selector: u32, pair: &mut [i64; 2]) -> i32;
@@ -83,10 +82,10 @@ macos_arm64 machine ClockImports::sleep_unit(request: &Instant, remainder: u64)
 linux_x86_64 machine ClockImports::sleep_unit(request: &Instant, remainder: u64)
     satisfies ClockProbe::sleep_unit via linux_nanosleep_binding();
 
-machine read(clock: &Binding<ClockProbe>, selector: i32, instant: &mut Instant) -> i32
-    reaches ClockProbe { clock.read(selector, instant) }
-machine sleep(clock: &Binding<ClockProbe>, request: &Instant) -> i32
-    reaches ClockProbe { clock.sleep(request, 1) }
+machine read(selector: i32, instant: &mut Instant) -> i32
+    reaches ClockProbe { ClockProbe::read(selector, instant) }
+machine sleep(request: &Instant) -> i32
+    reaches ClockProbe { ClockProbe::sleep(request, 1) }
 
 machine Main::main(main: &mut Main) reaches ClockProbe crashes Trap {
     main.holder.prefix = 17;
@@ -99,21 +98,21 @@ machine Main::main(main: &mut Main) reaches ClockProbe crashes Trap {
     main.request.seconds = 0;
     main.request.nanoseconds = 3000000;
     main.request.marker = 41;
-    let first_status: i32 = read(&main.clock, 6, &mut main.holder.instant);
+    let first_status: i32 = read(6, &mut main.holder.instant);
     let before_seconds: i64 = main.holder.instant.seconds;
     let before_nanoseconds: i64 = main.holder.instant.nanoseconds;
-    let before: u64 = main.clock.nanoseconds(6);
-    let waited: i32 = main.clock.wait(0, 0, 3);
-    let after_poll: u64 = main.clock.nanoseconds(6);
+    let before: u64 = ClockProbe::nanoseconds(6);
+    let waited: i32 = ClockProbe::wait(0, 0, 3);
+    let after_poll: u64 = ClockProbe::nanoseconds(6);
     let request: &Instant = &main.request;
-    let slept: i32 = sleep(&main.clock, request);
-    let after_sleep: u64 = main.clock.nanoseconds(6);
-    main.clock.sleep_unit(&main.request, 1);
-    let after_unit_sleep: u64 = main.clock.nanoseconds(6);
+    let slept: i32 = sleep(request);
+    let after_sleep: u64 = ClockProbe::nanoseconds(6);
+    ClockProbe::sleep_unit(&main.request, 1);
+    let after_unit_sleep: u64 = ClockProbe::nanoseconds(6);
     let captured: &mut Instant = &mut main.holder.instant;
-    let second_status: i32 = read(&main.clock, 6, captured);
-    let after: u64 = main.clock.nanoseconds(6);
-    let wall_status: i32 = main.clock.read_pair(0, &mut main.pair);
+    let second_status: i32 = read(6, captured);
+    let after: u64 = ClockProbe::nanoseconds(6);
+    let wall_status: i32 = ClockProbe::read_pair(0, &mut main.pair);
     transition first_status == 0 && second_status == 0 && wall_status == 0 && waited == 0
         && slept == 0 && after_sleep > after_poll && after_unit_sleep > after_sleep
         && main.request.seconds == 0 && main.request.nanoseconds == 3000000

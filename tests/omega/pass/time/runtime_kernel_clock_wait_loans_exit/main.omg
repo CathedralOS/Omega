@@ -1,11 +1,10 @@
 // Exact Linux syscall offers share one clock domain. Requests are read-only
 // original loans; clock writes cover only the native 16-byte prefix.
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub data Instant [copy] { seconds: i64; nanoseconds: i64; marker: i64; }
 data Holder { prefix: i64; instant: Instant; suffix: i64; }
-data Main { clock: Binding<ClockProbe>; holder: Holder; request: Instant; }
+data Main { holder: Holder; request: Instant; }
 pub boundary trait ClockProbe {
     machine read(selector: i32, instant: &mut Instant) -> i64;
     machine sleep(request: &Instant, remainder: u64) -> i64;
@@ -26,10 +25,10 @@ linux_x86_64 machine ClockImports::sleep_unit(request: &Instant, remainder: u64)
 linux_arm64 machine ClockImports::sleep_unit(request: &Instant, remainder: u64)
     satisfies ClockProbe::sleep_unit via ForeignBinding::Syscall(101);
 
-machine read(clock: &Binding<ClockProbe>, instant: &mut Instant) -> i64
-    reaches ClockProbe { clock.read(1, instant) }
-machine sleep(clock: &Binding<ClockProbe>, request: &Instant) -> i64
-    reaches ClockProbe { clock.sleep(request, 1) }
+machine read(instant: &mut Instant) -> i64
+    reaches ClockProbe { ClockProbe::read(1, instant) }
+machine sleep(request: &Instant) -> i64
+    reaches ClockProbe { ClockProbe::sleep(request, 1) }
 
 machine Main::main(main: &mut Main) reaches ClockProbe crashes Trap {
     main.holder.prefix = 17;
@@ -40,21 +39,21 @@ machine Main::main(main: &mut Main) reaches ClockProbe crashes Trap {
     main.request.seconds = -1;
     main.request.nanoseconds = 0;
     main.request.marker = 41;
-    let negative_status: i64 = sleep(&main.clock, &main.request);
+    let negative_status: i64 = sleep(&main.request);
     main.request.seconds = 0;
     main.request.nanoseconds = 1000000000;
-    let unnormalized_status: i64 = sleep(&main.clock, &main.request);
+    let unnormalized_status: i64 = sleep(&main.request);
     main.request.nanoseconds = 3000000;
-    let first_status: i64 = read(&main.clock, &mut main.holder.instant);
+    let first_status: i64 = read(&mut main.holder.instant);
     let before_seconds: i64 = main.holder.instant.seconds;
     let before_nanoseconds: i64 = main.holder.instant.nanoseconds;
     let captured: &Instant = &main.request;
     // The signal-free successful native operation never accesses remainder.
     // A non-null numerical carrier must not invent a null precondition.
-    let waited: i64 = sleep(&main.clock, captured);
-    main.clock.sleep_unit(&main.request, 1);
+    let waited: i64 = sleep(captured);
+    ClockProbe::sleep_unit(&main.request, 1);
     let output: &mut Instant = &mut main.holder.instant;
-    let second_status: i64 = read(&main.clock, output);
+    let second_status: i64 = read(output);
     transition negative_status == -22 && unnormalized_status == -22
         && first_status == 0 && second_status == 0 && waited == 0
         && before_seconds >= 0 && before_nanoseconds >= 0 && before_nanoseconds < 1000000000

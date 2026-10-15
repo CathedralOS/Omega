@@ -1,5 +1,4 @@
 // clock_gettime writes its two-word prefix, not the larger loan's tail padding.
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub data Instant { seconds: i64; nanoseconds: i64; marker: u8; }
@@ -8,7 +7,7 @@ pub boundary trait ClockProbe {
 }
 data ClockImports {}
 data Holder { before: i64; instant: Instant; after: i64; }
-data Main { clock: Binding<ClockProbe>; holder: Holder; }
+data Main { holder: Holder; }
 
 macos_arm64 machine timespec_binding() -> ForeignBinding<26, 14, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -27,8 +26,8 @@ macos_arm64 machine ClockImports::read(selector: u32, instant: &mut Instant) -> 
 linux_x86_64 machine ClockImports::read(selector: u32, instant: &mut Instant) -> i32
     satisfies ClockProbe::read via linux_x86_64_timespec_binding();
 
-machine read(clock: &Binding<ClockProbe>, instant: &mut Instant) -> i32
-    reaches ClockProbe { clock.read(6, instant) }
+machine read(instant: &mut Instant) -> i32
+    reaches ClockProbe { ClockProbe::read(6, instant) }
 
 machine Main::main(main: &mut Main) reaches ClockProbe crashes Trap {
     main.holder.before = 17;
@@ -36,7 +35,7 @@ machine Main::main(main: &mut Main) reaches ClockProbe crashes Trap {
     main.holder.instant.nanoseconds = -1;
     main.holder.instant.marker = 31;
     main.holder.after = 29;
-    let status: i32 = read(&main.clock, &mut main.holder.instant);
+    let status: i32 = read(&mut main.holder.instant);
     transition status == 0 && main.holder.instant.seconds >= 0
         && main.holder.instant.nanoseconds >= 0 && main.holder.instant.nanoseconds < 1000000000
         && main.holder.instant.marker == 31 && main.holder.before == 17 && main.holder.after == 29 {

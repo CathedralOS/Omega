@@ -1,6 +1,5 @@
 // A checked adapter exposes the encoded record's exact byte-shaped foreign ABI.
 use omega::language::core::external_binding;
-use omega::language::core::binding;
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField
 where size <= 4096, 1 <= align, align <= 16,
@@ -65,9 +64,9 @@ macos_arm64 machine clear_bytes(value: &mut ForeignByte, count: u64)
 
 linux_x86_64 machine clear_bytes(value: &mut ForeignByte, count: u64)
     satisfies ClearByte::clear via linux_x86_64_clear_binding();
-machine clear(clear_byte: &Binding<ClearByte>, value: &mut RawView) reaches ClearByte {
+machine clear(value: &mut RawView) reaches ClearByte {
     let physical: &mut ForeignByte = value as &mut ForeignByte;
-    ClearByte::clear(clear_byte, physical, 1);
+    ClearByte::clear(physical, 1);
 }
 
 pub boundary trait CompareByte {
@@ -93,19 +92,19 @@ macos_arm64 machine compare_bytes(left: &RawView, right: &RawView, count: u64) -
 
 linux_x86_64 machine compare_bytes(left: &RawView, right: &RawView, count: u64) -> i32
     satisfies CompareByte::compare via linux_x86_64_compare_binding();
-machine compare(compare_byte: &Binding<CompareByte>, left: &RawView, right: &RawView) -> i32 reaches CompareByte {
-    CompareByte::compare(compare_byte, left, right, 1)
+machine compare(left: &RawView, right: &RawView) -> i32 reaches CompareByte {
+    CompareByte::compare(left, right, 1)
 }
-data Main { bytes: [u8; 2]; expected: [u8; 1]; compare_byte: Binding<CompareByte>; clear_byte: Binding<ClearByte>; }
+data Main { bytes: [u8; 2]; expected: [u8; 1]; }
 machine Main::main(main: &mut Main) reaches CompareByte + ClearByte crashes Trap {
     main.bytes[0] = 128;
     main.bytes[1] = 85;
     main.expected[0] = 128;
     let view: &mut RawView = &mut main.bytes[0] as &mut RawView;
     let expected: &RawView = &main.expected[0] as &RawView;
-    let result: i32 = compare(&main.compare_byte, view, expected);
+    let result: i32 = compare(view, expected);
     let initial: i64 = view.value.value;
-    clear(&main.clear_byte, view);
+    clear(view);
     transition result == 0 && initial == -128 && view.value.value == 0 && main.bytes[1] == 85 {
         true -> done()
         _ -> bad()
