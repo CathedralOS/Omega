@@ -1990,8 +1990,7 @@ pass/control_flow/record_result_dispatch_compile checked 3284ms @6c49683ce714
 pass/control_flow/renamed_payload_guard_dispatch_compile checked 3354ms @6c49683ce714
 pass/control_flow/requires_bound_dispatch_compile checked 3437ms @6c49683ce714
 pass/control_flow/runtime_boolean_equality_copied_record_instances_exit built 14950ms exit:70 @6c49683ce714
-pass/control_flow/runtime_boundary_case_subject_exit incomplete 7603ms @6c49683ce714
-	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
+pass/control_flow/runtime_boundary_case_subject_exit built 11607ms exit:70 @b27e73ef57dd+wt
 pass/control_flow/runtime_bounded_scalar_storage_exit built 17900ms exit:0 @6c49683ce714
 pass/control_flow/runtime_branch_parameter_cleanup_exit built 17676ms exit:0 @6c49683ce714
 pass/control_flow/runtime_branch_transfer_owned_record_exit built 14947ms exit:70 @6c49683ce714
@@ -2001,10 +2000,8 @@ pass/control_flow/runtime_captured_case_reference_child_arm_forwarding_exit buil
 pass/control_flow/runtime_captured_local_remutated_field_exit built 14956ms exit:70 @6c49683ce714
 pass/control_flow/runtime_compare_pair_dispatch_exit built 14669ms exit:70 @6c49683ce714
 pass/control_flow/runtime_completed_readonly_home_replacement_exit built 18480ms exit:0 @6c49683ce714
-pass/control_flow/runtime_computed_case_subject_call_operand_exit incomplete 7643ms @6c49683ce714
-	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 2
-pass/control_flow/runtime_computed_case_subject_single_evaluation_exit incomplete 7611ms @6c49683ce714
-	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state graph: structural result has no selected disposition); in state `Main::main::again`, statement 0
+pass/control_flow/runtime_computed_case_subject_call_operand_exit built 11594ms exit:70 @b27e73ef57dd+wt
+pass/control_flow/runtime_computed_case_subject_single_evaluation_exit built 5960ms exit:70 @b27e73ef57dd+wt
 pass/control_flow/runtime_computed_index_state_loan_exit built 17824ms exit:0 @6c49683ce714
 pass/control_flow/runtime_conditional_index_state_loan_exit built 17821ms exit:0 @6c49683ce714
 pass/control_flow/runtime_copy_result_conditional_successor_reuse_exit built 15286ms exit:0 @6c49683ce714

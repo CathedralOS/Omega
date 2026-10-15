@@ -339,13 +339,13 @@ impl StatementOrder<'_> {
         // Later guards and payload receivers name the dispatch's saved
         // result. They neither invoke the producer nor observe its consumed
         // operands again; its canonical occurrence keeps the ordinary walk.
-        if validation::saved_dispatch_subject(
+        let saved_subject = validation::saved_dispatch_subject(
             self.program,
             self.state,
             self.statement_index,
             expression,
-        )
-        .is_some_and(|(statement, subject)| {
+        );
+        if saved_subject.is_some_and(|(statement, subject)| {
             statement != self.statement_index || subject != expression
         }) {
             return;
@@ -472,6 +472,24 @@ impl StatementOrder<'_> {
         self.push(StatementStep::Complete(expression));
         if let Some(first) = invocation {
             self.hold_through_completion(first);
+        }
+        // Capturing a computed dispatch subject also observes its completed
+        // value for discrimination. Publish that ordinary observation in the
+        // shared inventory so its anonymous owner is established once and its
+        // selected exit retains the remaining disposal, just like a projected
+        // observation of a completed value. Named subjects already observe
+        // their existing storage above.
+        if saved_subject.is_some()
+            && let Some(place) = validation::canonical_place_from_expression_in_state(
+                self.program,
+                self.state.symbol,
+                self.statement_index,
+                expression,
+            )
+            && place.root == facts::PlaceRoot::Expression(expression)
+            && place.segments.is_empty()
+        {
+            self.push(StatementStep::Observe { place, expression });
         }
         self.complete_moves(expression, conditional);
     }
