@@ -661,7 +661,7 @@ pub(crate) fn signature_operational(
     };
     super::callback_requirements::visit(
         program,
-        program.state_signature_type_parameters(signature),
+        super::callback_requirements::opaque_signature_parameters(program, signature),
         &super::declared_signature_invocations(program, signature),
         |invoked| {
             operational.may_suspend |= invoked.suspends;

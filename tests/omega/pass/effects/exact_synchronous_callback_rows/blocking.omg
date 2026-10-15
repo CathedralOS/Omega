@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 pub boundary trait BlockingHandler {
     machine wait() -> u64 blocks;
@@ -11,6 +10,6 @@ pub boundary trait BlockingRegistrar {
 }
 machine wait_callback() -> u64 satisfies BlockingHandler::wait blocks; { 7 }
 
-machine execute_blocking(registrar: &mut Binding<BlockingRegistrar>) -> u64 {
-    block registrar.execute<wait_callback>()
+machine execute_blocking() -> u64 reaches BlockingRegistrar {
+    block BlockingRegistrar::execute<wait_callback>()
 }

@@ -1464,8 +1464,7 @@ pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit built 14954ms exit:70 
 pass/effects/boundary_explicit_capability_rows checked 1634ms @7c1edd43e7e4+wt
 pass/effects/checked_boundary_unused_callback checked 3445ms @6c49683ce714
 pass/effects/checked_callback_provider_ceiling checked 3334ms @6c49683ce714
-pass/effects/exact_synchronous_callback_rows rejected 477ms @8665e38f912c
-	call to `execute` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
+pass/effects/exact_synchronous_callback_rows checked 1004ms @fef885d565a2+wt
 pass/effects/finite_requirement_block_acknowledged_exit built 9220ms exit:0 @326ed531359e+wt
 pass/effects/generic_callback_schema_reach checked 3436ms @6c49683ce714
 pass/effects/nominal_callback_const_reach checked 3852ms @6c49683ce714

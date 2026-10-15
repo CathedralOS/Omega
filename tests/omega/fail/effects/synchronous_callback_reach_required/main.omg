@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 pub boundary trait Read {}
 pub boundary trait Handler { machine read() -> u64 reaches Read; }
@@ -10,6 +9,6 @@ pub boundary trait Registrar {
 machine read_callback() -> u64 satisfies Handler::read reaches Read { 7 }
 
 // Opaque synchronous entry cannot hide the exact callback's read capability.
-machine missing_capability(registrar: &mut Binding<Registrar>) -> u64 {
-    registrar.execute<read_callback>()
+machine missing_capability() -> u64 reaches Registrar {
+    Registrar::execute<read_callback>()
 }

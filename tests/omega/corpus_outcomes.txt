@@ -2435,8 +2435,8 @@ fail/effects/provider_authored_reach_beyond_invocation rejected 920ms expected @
 	machine `Provider::measure` state `measure` does not satisfy trait `Measure` machine `measure`: service `Length` is not allowed by the trait requirement
 fail/effects/synchronous_callback_block_required rejected 337ms expected @c5a7c1ce1957+wt
 	call to `execute` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-fail/effects/synchronous_callback_reach_required rejected 338ms expected @c5a7c1ce1957+wt
-	machine `missing_capability` publishes service reach `<none>` but its checked body reaches undeclared service `Read`
+fail/effects/synchronous_callback_reach_required rejected 473ms expected @fef885d565a2+wt
+	machine `missing_capability` publishes service reach `Registrar` but its checked body reaches undeclared service `Read`
 fail/effects/top_level_callback_block_required rejected 342ms expected @c5a7c1ce1957+wt
 	call to `execute` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/effects/top_level_callback_reach_required rejected 337ms expected @c5a7c1ce1957+wt

@@ -975,7 +975,7 @@ fn extend_invoked_binding_services(
 ) {
     extend_invoked_callback_services(
         program,
-        program.state_signature_type_parameters(signature),
+        super::callback_requirements::opaque_signature_parameters(program, signature),
         &super::declared_signature_invocations(program, signature),
         reach,
     );

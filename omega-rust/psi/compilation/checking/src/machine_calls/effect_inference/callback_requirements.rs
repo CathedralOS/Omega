@@ -26,6 +26,20 @@ pub(super) fn opaque_machine_parameters<'program>(
     }
 }
 
+/// A closed requirement erases executable binders, while its opaque callback
+/// ceiling still belongs to the exact authored declaration telescope. Keep
+/// the same declaration axis as opaque machine specializations.
+pub(super) fn opaque_signature_parameters<'program>(
+    program: &'program dyn crate::CheckingInput,
+    signature: &'program StateSignature,
+) -> &'program [TypeParameter] {
+    let declaration = program
+        .closed_requirement_application(signature.symbol)
+        .and_then(|application| program.trait_machine_signature(application.template))
+        .map_or(signature, |(_, declaration)| declaration);
+    program.state_signature_type_parameters(declaration)
+}
+
 pub(super) fn visit(
     program: &dyn crate::CheckingInput,
     parameters: &[TypeParameter],
@@ -60,7 +74,7 @@ pub(super) fn visit(
             let signature = contract.signature();
             consume(signature);
             pending.push((
-                program.state_signature_type_parameters(signature),
+                opaque_signature_parameters(program, signature),
                 super::declared_signature_invocations(program, signature),
             ));
         }

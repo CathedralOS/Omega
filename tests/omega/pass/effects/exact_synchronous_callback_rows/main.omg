@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use blocking;
 
 pub boundary trait Read {}
@@ -20,12 +19,12 @@ pub boundary trait Registrar {
 
 machine read_callback() -> u64 satisfies Handler::read reaches Read { 7 }
 
-machine execute(registrar: &mut Binding<Registrar>) -> u64 reaches Read {
-    registrar.execute<read_callback>()
+machine execute() -> u64 reaches Registrar, Read {
+    Registrar::execute<read_callback>()
 }
 
-machine register(registrar: &mut Binding<Registrar>) {
-    registrar.register<read_callback>();
+machine register() reaches Registrar {
+    Registrar::register<read_callback>();
 }
 
 
