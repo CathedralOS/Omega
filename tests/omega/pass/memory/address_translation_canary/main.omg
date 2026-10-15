@@ -120,8 +120,7 @@ machine observe_release(obligations: &TranslationReleaseObligations) {
 
 // The Cathedral-shaped driver: install one owned mapping, then tear it down
 // and discharge its TLB debt, recovering both ranges' authority.
-machine install_and_teardown(source: Extent in Granted,
-    destination: Extent in Granted) -> Reclaimed
+machine install_and_teardown(source: Extent in Granted, destination: Extent in Granted) -> Reclaimed
 requires
     source.length == destination.length
 reaches TranslationAuthority + MachineControl
@@ -155,8 +154,10 @@ reaches TranslationAuthority + MachineControl
 // the mapping while `destination` is consumed as before. Teardown ends the
 // loan rather than returning a source, so the caller's own `source`
 // authority is what resumes after the shootdown is discharged.
-machine borrowed_install_and_teardown(source: Extent in Granted,
-    destination: Extent in Granted) -> Reclaimed
+machine borrowed_install_and_teardown(
+    source: Extent in Granted,
+    destination: Extent in Granted
+) -> Reclaimed
 requires
     source.length == destination.length
 reaches TranslationAuthority + MachineControl
@@ -195,9 +196,11 @@ reaches TranslationAuthority + MachineControl
 // local translation on the installed carrier, the release crossing returns
 // both ranges' custody plus the owed shootdown, and `discharge` completes
 // the cross-core debt.
-machine cathedral_install_and_teardown(tables: CathedralPageTables,
+machine cathedral_install_and_teardown(
+    tables: CathedralPageTables,
     source: Extent in Granted,
-    destination: Extent in Granted) -> CathedralReclaimed
+    destination: Extent in Granted
+) -> CathedralReclaimed
 requires
     source.length == destination.length
 reaches TranslationAuthority + TranslationHardware + MachineControl
@@ -238,9 +241,11 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
 // carrier records only ranges -- so the identical Pending -> Installed ->
 // teardown sequence runs with the package's `install_huge`/`remove_huge`
 // where the four-level driver used `install`/`remove`.
-machine cathedral_huge_install_and_teardown(tables: CathedralPageTables,
+machine cathedral_huge_install_and_teardown(
+    tables: CathedralPageTables,
     source: Extent in Granted,
-    destination: Extent in Granted) -> CathedralReclaimed
+    destination: Extent in Granted
+) -> CathedralReclaimed
 requires
     source.length == destination.length
 reaches TranslationAuthority + TranslationHardware + MachineControl

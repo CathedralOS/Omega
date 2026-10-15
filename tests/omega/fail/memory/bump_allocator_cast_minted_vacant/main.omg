@@ -22,8 +22,7 @@ pub boundary trait ExtentPartition {
         == Granted::content(&result);
 }
 
-machine exercise(extent: Extent,
-    tail: Extent in Granted & Vacant) -> Extent
+machine exercise(extent: Extent, tail: Extent in Granted & Vacant) -> Extent
 reaches ExtentPartition
 {
     let forged: Extent in Vacant = extent as Extent in Vacant;

@@ -100,11 +100,14 @@ machine Main::main(main: &mut Main) reaches Console {
         && f64_positive_payload_ok;
 
     transition f32_negative_payload_ok {
-        true -> check_f32_negative_nan(main, f32_negative_nan_ok,
+        true -> check_f32_negative_nan(
+            main,
+            f32_negative_nan_ok,
             f32_zero_ok,
             f32_positive_nan_ok,
             f32_positive_payload_ok,
-            f64_ok)
+            f64_ok
+        )
         false -> bad_f32_negative_payload(main)
     }
 

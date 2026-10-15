@@ -66,8 +66,7 @@ pub boundary trait TranslationAuthority {
     machine unmap(active: Mapping in Installed) -> Unmapped;
 }
 
-machine unmap_early(source: Extent in Granted,
-    destination: Extent in Granted) -> Unmapped
+machine unmap_early(source: Extent in Granted, destination: Extent in Granted) -> Unmapped
 requires
     source.length == destination.length
 reaches TranslationAuthority

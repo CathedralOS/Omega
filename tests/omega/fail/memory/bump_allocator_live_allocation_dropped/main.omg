@@ -50,15 +50,13 @@ reaches ExtentPartition
     }
 }
 
-machine abandon(whole: Extent in Granted & Vacant,
-    capacity: u64) -> Extent
+machine abandon(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
     48 <= capacity;
     capacity == whole.length
 reaches ExtentPartition
 {
-    let issued: Issued = allocate(Bump { tail: whole, remaining: capacity },
-        16,);
+    let issued: Issued = allocate(Bump { tail: whole, remaining: capacity }, 16);
     let tail: Extent in Granted & Vacant = issued.strategy.tail;
     tail as Extent
 }

@@ -77,8 +77,10 @@ pub data ClearedLeaf {
 // terminal entry for the pending carrier's recorded source frame, and the
 // root activates. The same carrier is returned pending -- the authority's
 // receipt crossing is what requalifies it.
-pub machine CathedralPageTables::install(tables: CathedralPageTables,
-    pending: Mapping in Pending) -> WalkedInstall
+pub machine CathedralPageTables::install(
+    tables: CathedralPageTables,
+    pending: Mapping in Pending
+) -> WalkedInstall
 reaches TranslationHardware + MachineControl
 invokes TranslationHardware;
 {
@@ -114,8 +116,10 @@ invokes TranslationHardware;
 // leaf index is the same `level_index` the install computed for this base,
 // so the cleared slot is the entry the install wrote. The carrier stays
 // installed until the authority's `unmap` receipt releases it.
-pub machine CathedralPageTables::remove(tables: CathedralPageTables,
-    active: Mapping in Installed) -> ClearedLeaf
+pub machine CathedralPageTables::remove(
+    tables: CathedralPageTables,
+    active: Mapping in Installed
+) -> ClearedLeaf
 reaches TranslationHardware + MachineControl
 invokes TranslationHardware;
 {
@@ -139,8 +143,10 @@ invokes TranslationHardware;
 // earlier and needs no `pt` table at all. The entry encoding is unchanged --
 // granularity is which table slot the terminal lands in, not a different
 // bit pattern -- and the provider still finishes by activating the root.
-pub machine CathedralPageTables::install_huge(tables: CathedralPageTables,
-    pending: Mapping in Pending) -> WalkedInstall
+pub machine CathedralPageTables::install_huge(
+    tables: CathedralPageTables,
+    pending: Mapping in Pending
+) -> WalkedInstall
 reaches TranslationHardware + MachineControl
 invokes TranslationHardware;
 {
@@ -169,8 +175,10 @@ invokes TranslationHardware;
 // `EMPTY` overwrite, and the same local invalidation -- a stale huge
 // translation is still one page-mapping entry to the hardware, only
 // spanning more of the address space.
-pub machine CathedralPageTables::remove_huge(tables: CathedralPageTables,
-    active: Mapping in Installed) -> ClearedLeaf
+pub machine CathedralPageTables::remove_huge(
+    tables: CathedralPageTables,
+    active: Mapping in Installed
+) -> ClearedLeaf
 reaches TranslationHardware + MachineControl
 invokes TranslationHardware;
 {
