@@ -91,6 +91,12 @@ pub enum LegalizationError {
     ReferenceResult {
         reason: &'static str,
     },
+    /// Disposal selected storage that an independently reconstructed loan still
+    /// protects. Preserve the selected home instead of requiring trace builds.
+    ReferenceDisposalConflict {
+        machine: semantic_vocabulary::MachineId,
+        place: semantic_vocabulary::PlaceId,
+    },
 }
 
 impl std::fmt::Display for LegalizationError {

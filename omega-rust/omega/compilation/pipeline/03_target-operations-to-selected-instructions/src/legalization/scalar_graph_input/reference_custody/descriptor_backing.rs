@@ -233,6 +233,7 @@ pub(super) fn overlaps(
     machine: semantic_vocabulary::MachineId,
     place: PlaceId,
     path: &[StructuralPathSegment],
+    activation_local: bool,
     origin_overlaps: &impl Fn(&[terminal_psi::ReferenceOriginProjection]) -> bool,
 ) -> bool {
     match backing {
@@ -250,6 +251,14 @@ pub(super) fn overlaps(
         Backing::Source(Root::Alternatives(origins)) => origins
             .iter()
             .any(|origin| origin.root == place && origin_overlaps(&origin.path)),
+        // The captured value is outside this activation's owned inline homes.
+        // Keep its conservative geometry for accesses to external storage;
+        // ordinary in-body backing still protects its actual owned region.
+        Backing::Descriptor {
+            origin:
+                DescriptorSourceOrigin::IncomingSlot(_) | DescriptorSourceOrigin::IncomingContents(_),
+            ..
+        } if activation_local => false,
         Backing::Descriptor { geometry, .. } => match geometry {
             // Formation tokens carry no disjoint physical storage evidence.
             DescriptorCallOrigin::PlacedFormation { .. } => true,

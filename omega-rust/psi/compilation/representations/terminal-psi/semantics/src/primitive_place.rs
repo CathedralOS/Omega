@@ -391,6 +391,38 @@ pub fn runtime_structural_path_tip<'a>(
     }
 }
 
+/// Whether a typed projection stays inside its root's inline storage. A
+/// descriptor field itself is inline; selecting its referent or an element
+/// leaves that storage. Runtime selection within an owned array does not.
+/// This says nothing about ownership of the root or authority over its bytes.
+pub fn projection_stays_in_inline_storage<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    walk_primitive_projection_with_policy(
+        declarations.clone(),
+        root,
+        path,
+        plain_scalar_field,
+        |_| {},
+        |current, segment| {
+            if matches!(segment, StructuralPathSegment::Referent) {
+                return false;
+            }
+            !matches!(
+                segment,
+                StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::RuntimeIndex { .. }
+                    | StructuralPathSegment::RepresentationView { .. }
+            ) || current.is_none_or(|current| {
+                !crate::descriptor_results::is_descriptor(declarations.clone(), current)
+            })
+        },
+    )
+    .is_some()
+}
+
 /// A finite inline storage selection, independent of which descriptors are
 /// resident. Keep declared coverage separate from residence: inactive case
 /// payloads may have no cells, but missing unconditional cells are not coverage.

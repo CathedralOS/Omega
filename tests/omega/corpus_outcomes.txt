@@ -4174,6 +4174,22 @@ fail/recast/boolean_view_requires_byte_region_representation rejected 870ms expe
 	machine `read` state `entry`: a shared recast may weaken established facts but cannot strengthen them; a raw byte region cannot establish the target's representation facts
 fail/recast/boolean_view_requires_source_representation rejected 981ms expected @a9ae30e1c334+wt
 	machine `read` state `entry`: a shared recast may weaken established facts but cannot strengthen them; source facts do not establish the target representation
+fail/recast/borrowed_byte_changed_extent rejected 177ms expected @e76af65b0403
+	machine `main` state `entry`: cannot prove the recast's 8-byte footprint fits the live byte slice: the offset must be nonnegative and offset + 8 must not exceed its length
+fail/recast/borrowed_byte_collection_predicate rejected 591ms expected @e76af65b0403
+	cannot prove default-domain field requirement for return from main at statement 2: bytes requires [u8]::Ascii
+fail/recast/borrowed_byte_footprint_short rejected 181ms expected @e76af65b0403
+	machine `main` state `entry`: cannot prove the recast's 8-byte footprint fits the live byte slice: the offset must be nonnegative and offset + 8 must not exceed its length
+fail/recast/borrowed_byte_mutable_source_facts rejected 175ms expected @e76af65b0403
+	machine `main` state `entry`: a mutable byte-region recast must preserve the source element's representation facts in BOTH directions
+fail/recast/borrowed_byte_offset_short rejected 168ms expected @e76af65b0403
+	machine `main` state `entry`: cannot prove the recast's 8-byte footprint fits the live byte slice: the offset must be nonnegative and offset + 8 must not exceed its length
+fail/recast/borrowed_byte_overlapping_loan rejected 599ms expected @e76af65b0403
+	statement 1 mutates `bytes[7]` while local borrow `value` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/recast/borrowed_byte_shared_to_mutable rejected 167ms expected @e76af65b0403
+	machine `main` state `entry` local `value` requires mutable source access; shared or immutable storage cannot supply it
+fail/recast/borrowed_byte_strengthening rejected 180ms expected @e76af65b0403
+	machine `main` state `entry`: a shared recast may weaken established facts but cannot strengthen them; a raw byte region cannot establish the target's representation facts
 fail/recast/boundary_equality_retired_by_out_argument_write rejected 827ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `read`: cannot bound the recast offset `size` -- the region holds 12 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition size <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
 fail/recast/boundary_postcondition_aliased_write rejected 1036ms expected @2430f497a77c+wt
@@ -4184,6 +4200,8 @@ fail/recast/boundary_postcondition_reinterpreted_scalar rejected 1036ms expected
 	cannot prove index `main.source.first` is within length 8 in Main::main::main
 fail/recast/boundary_postcondition_wrong_backing_scalar rejected 982ms expected @2430f497a77c+wt
 	cannot prove index `main.source.count` is within length 8 in Main::main::main
+fail/recast/byte_record_field_predicate rejected 598ms expected @e76af65b0403
+	cannot prove default-domain field requirement for return from Packet::main at statement 2: packet.bytes requires [u8; N]::Ascii
 fail/recast/field_precondition_call_invalidated_before_capture rejected 944ms expected @a9ae30e1c334+wt
 	machine `capture` state `entry`: cannot bound the recast offset `cursor.offset` -- the region holds 32 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition cursor.offset <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
 fail/recast/field_precondition_invalidated_before_capture rejected 896ms expected @a9ae30e1c334+wt
@@ -7581,6 +7599,7 @@ pass/ranges/subject_guard_compound_index_successor checked 1818ms @a9ae30e1c334+
 pass/ranges/subject_unsigned_computed_index_lower_bound checked 1562ms @a9ae30e1c334+wt
 pass/ranges/sum_payload_range_arith_narrowed_exit checked 11383ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/bool_byte_view_compile checked 1567ms @a9ae30e1c334+wt
+pass/recast/borrowed_byte_scalar_views_exit checked 6868ms check-target:macos_arm64 @e76af65b0403
 pass/recast/boundary_postcondition_backing_scalar_exit checked 3377ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/boundary_postcondition_disjoint_aliased_write_exit checked 3345ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/callee_returned_aggregate_view_exit checked 6275ms check-target:macos_arm64 @22286cb27fcc

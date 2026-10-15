@@ -972,6 +972,17 @@ fn storage_access_conflicts(
     path: &[StructuralPathSegment],
     requested: StructuralAccess,
 ) -> bool {
+    // Captured ingress pointees cannot occupy a home owned by this activation.
+    // A borrowed arrival or a projection through a descriptor is not such a
+    // home. Resolve this from the typed path, not its flattened overlap region:
+    // flattening intentionally marks incoming pointees as indirect and would
+    // otherwise make a reference conflict with disposal of its own carrier.
+    let activation_local = function.arrival_parameter(place).map_or_else(
+        || super::structural_case::source_result(function, place).is_ok(),
+        |parameter| parameter.access == StructuralAccess::Owned,
+    ) && source_contract(function, custody, place).is_some_and(|root| {
+        terminal_semantics::projection_stays_in_inline_storage(types.iter(), root, path)
+    });
     let origin_overlaps = |origin_path: &[ReferenceOriginProjection]| {
         let Some(origin) = source_contract(function, custody, place)
             .and_then(|root| {
@@ -1008,7 +1019,14 @@ fn storage_access_conflicts(
             return false;
         }
         reference.backing.iter().any(|backing| {
-            descriptor_backing::overlaps(backing, function.machine, place, path, &origin_overlaps)
+            descriptor_backing::overlaps(
+                backing,
+                function.machine,
+                place,
+                path,
+                activation_local,
+                &origin_overlaps,
+            )
         })
     })
 }
@@ -2596,7 +2614,10 @@ fn apply_cleanup_actions(
             &[],
             StructuralAccess::Owned,
         ) {
-            return Err(invalid());
+            return Err(LegalizationError::ReferenceDisposalConflict {
+                machine: function.machine,
+                place,
+            });
         }
         discard_owned(function, custody, types, place, event)?;
     }

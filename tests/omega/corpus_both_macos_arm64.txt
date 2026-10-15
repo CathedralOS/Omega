@@ -656,6 +656,7 @@ pass/providers/same_name_requirement_dispatch_exit built 5125ms exit:70 interpre
 pass/providers/same_name_requirement_right_dispatch_exit built 5107ms exit:70 interpreter-exit:70 interpreter:agrees @292c990572a9+wt
 pass/providers/selected_const_provider_call_identity_exit built 2803ms exit:70 interpreter-exit:70 interpreter:agrees @c8e8e86a6e1b
 pass/providers/specialized_mixed_structural_result_operator_hosted_native built 5262ms exit:0 interpreter-exit:0 interpreter:agrees @7084889a08d8+wt
+pass/recast/borrowed_byte_scalar_views_exit built 6798ms exit:0 interpreter-exit:0 interpreter:agrees @e76af65b0403
 pass/recast/runtime_aggregate_slice_representation_recast_exit built 5319ms exit:70 interpreter-exit:70 interpreter:agrees @9765a474ac87+wt
 pass/recast/runtime_authored_toolchain_type_shadow_exit built 1662ms exit:0 interpreter-exit:0 interpreter:agrees @bf3bd23a63c0
 pass/recast/runtime_bool_representation_recast_exit built 1700ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
