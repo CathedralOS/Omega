@@ -83,7 +83,7 @@ pub enum NativeEntryBridgeError {
     InvalidParameterJoin,
     UnsupportedValueTransport,
     MissingScalarCodec,
-    NoVolatileScratch,
+    NoUnoccupiedScratch,
     FrameOverflow,
     Encoding,
     ReplayMismatch,
@@ -865,17 +865,28 @@ pub fn emit_native_entry_bridge(
             MachineRegister::X86R9,
         ],
     };
+    // Scratch registers are the bridge's own writes. Prefer those the inbound
+    // promise already lets this entry clobber. A promise that preserves every
+    // candidate still leaves an unoccupied one usable: it joins the saved set
+    // below, so its caller value is stored before first use and restored last.
+    let volatile = |register| inbound.ordinary_clobbers.contains(register);
     let mut scratch = candidates
         .iter()
         .copied()
-        .filter(|register| inbound.ordinary_clobbers.contains(*register) && !occupied(*register));
-    let scratch_register = scratch.next().ok_or(Error::NoVolatileScratch)?;
+        .filter(|register| volatile(*register) && !occupied(*register))
+        .chain(
+            candidates
+                .iter()
+                .copied()
+                .filter(|register| !volatile(*register) && !occupied(*register)),
+        );
+    let scratch_register = scratch.next().ok_or(Error::NoUnoccupiedScratch)?;
     let indirect = transports
         .iter()
         .chain(result.iter())
         .any(|transport| transport.source.is_indirect() || transport.destination.is_indirect());
     let address_scratch = if request.target.architecture == Architecture::Aarch64 || indirect {
-        scratch.next().ok_or(Error::NoVolatileScratch)?
+        scratch.next().ok_or(Error::NoUnoccupiedScratch)?
     } else {
         scratch_register
     };
@@ -957,20 +968,26 @@ pub fn emit_native_entry_bridge(
     // are inputs; only direct result registers (and x64's result-pointer echo)
     // supersede the caller's old register value.
     let internal_writes = RegisterSet::new(
-        internal.ordinary_clobbers.as_slice().iter().copied().chain(
-            transports
-                .iter()
-                .flat_map(|transport| transport.destination.pieces())
-                .chain(
-                    result
-                        .iter()
-                        .flat_map(|transport| transport.source.pieces()),
-                )
-                .filter_map(|piece| match piece.location {
-                    WordLocation::Register(register) => Some(register),
-                    WordLocation::Stack(_) => None,
-                }),
-        ),
+        internal
+            .ordinary_clobbers
+            .as_slice()
+            .iter()
+            .copied()
+            .chain([scratch_register, address_scratch])
+            .chain(
+                transports
+                    .iter()
+                    .flat_map(|transport| transport.destination.pieces())
+                    .chain(
+                        result
+                            .iter()
+                            .flat_map(|transport| transport.source.pieces()),
+                    )
+                    .filter_map(|piece| match piece.location {
+                        WordLocation::Register(register) => Some(register),
+                        WordLocation::Stack(_) => None,
+                    }),
+            ),
     );
     let result_output = |register| match result.as_ref().map(|transport| &transport.destination) {
         Some(ValueStorage::Direct(pieces)) => pieces.iter().any(
@@ -1375,6 +1392,35 @@ mod tests {
                 .windows(9)
                 .any(|bytes| bytes == [0x44, 0x0f, 0x10, 0xbc, 0x24, 160, 0, 0, 0])
         );
+        validate_native_entry_bridge(&bridge).unwrap();
+    }
+
+    #[test]
+    fn fully_preserving_inbound_promise_saves_borrowed_scratch() {
+        let target = NativeTarget::linux_x64();
+        let mut request = request(target, vec![], vec![], &[], &[], None);
+        // Neither promise clobbers anything, so only the bridge's own scratch
+        // use can put a register in the saved set.
+        request.inbound.ordinary_clobbers = RegisterSet::default();
+        request.internal.ordinary_clobbers = RegisterSet::default();
+        let bridge = emit_native_entry_bridge(request).unwrap();
+        let before_call = &bridge.bytes()[..bridge.call_field_offset() - 1];
+        let after_call = &bridge.bytes()[bridge.call_field_offset() + 4..];
+        // R11 is the first scratch candidate. Like every promise-excluded
+        // write it is stored to the frame before first use and loaded after
+        // the call: REX.WR, MOV r/m64 (0x89 store, 0x8b load), ModRM reg=R11
+        // with an RSP-based SIB address at any displacement.
+        let moves_r11 = |bytes: &[u8], opcode: u8| {
+            bytes.windows(4).any(|window| {
+                window[0] == 0x4c
+                    && window[1] == opcode
+                    && window[2] & 0x38 == 0x18
+                    && window[2] & 0x07 == 0x04
+                    && window[3] == 0x24
+            })
+        };
+        assert!(moves_r11(before_call, 0x89));
+        assert!(moves_r11(after_call, 0x8b));
         validate_native_entry_bridge(&bridge).unwrap();
     }
 
