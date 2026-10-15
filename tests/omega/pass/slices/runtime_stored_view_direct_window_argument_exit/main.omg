@@ -1,0 +1,29 @@
+data Cell [copy] { value: u32; tag: u64; }
+data Window<'input> { values: &'input mut [Cell]; }
+
+machine select<'input>(windows: &'input mut [Window<'input>]) -> &'input mut [Cell]
+requires windows.len == 2 {
+    &mut windows[1].values[..]
+}
+machine observe(values: &[Cell]) -> bool {
+    transition values.len == 1 {
+        true -> inspect(values)
+        false -> false
+    }
+    state inspect(values: &[Cell]) -> bool requires values.len == 1 {
+        values[0].value == 7 && values[0].tag == 17
+    }
+}
+machine main() crashes Trap {
+    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
+    let mut other: [Cell; 1] = [Cell { value: 11, tag: 31 }];
+    let mut windows: [Window; 2] = [Window { values: &mut other[..] }, Window { values: &mut original[..] }];
+    let returned: &mut [Cell] = select(&mut windows[..]);
+    let valid: bool = observe(returned);
+    transition valid && original[0].value == 7 && other[0].value == 11 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

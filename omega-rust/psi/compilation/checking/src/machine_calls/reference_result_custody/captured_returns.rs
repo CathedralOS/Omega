@@ -1132,6 +1132,29 @@ impl Captures<'_> {
                 return Some((output, selected));
             };
             selected = crate::peel_declared_constraints(self.program, selected);
+            // A window that ends the path narrows a slice without selecting an
+            // element. Its origin is the collection it narrows, presented as
+            // that collection is: a view formal presents its descriptor, as
+            // the unprojected region below does. The descriptor retains the
+            // captured window and bound. A window over a fixed array presents
+            // a different type and stays unexpressed here.
+            let trailing_window = position + 1 == segments.len()
+                && match segments[position] {
+                    facts::PlaceSegment::FixedRange { .. } => true,
+                    facts::PlaceSegment::Index { expression } => !is_element_selection(expression),
+                    _ => false,
+                };
+            if trailing_window {
+                let collection = crate::reference_shell(self.program, selected)
+                    .map_or(selected, |shell| {
+                        crate::peel_declared_constraints(self.program, shell.referee)
+                    });
+                return matches!(
+                    self.program.type_reference_table.type_reference(collection),
+                    TypeReferenceNode::Slice { .. }
+                )
+                .then_some((output, selected));
+            }
             if let Some(shell) = crate::reference_shell(self.program, selected) {
                 output.push(CheckedReferenceOriginProjection::Exact(
                     CheckedUnitStructuralPathSegment::Referent,

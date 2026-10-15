@@ -208,11 +208,11 @@ pub fn validate_callable_borrow_refinement(
     // or a matching spelling cannot manufacture that authority. Retain the
     // enumerated output Type handles: a reference's referee and phantom Type
     // operands do not acquire the physical leaf's elision.
-    sources_refine(
+    let refined = sources_refine(
         program,
         &required_frontier.sources,
         &actual_frontier.sources,
-    )?;
+    );
     let mut input_leaves = actual_frontier.inputs.iter().flatten();
     let input_region = input_leaves.next().and_then(|input| {
         input_leaves
@@ -227,6 +227,26 @@ pub fn validate_callable_borrow_refinement(
         .filter(|output| output.lifetime.is_none())
         .filter_map(|output| input_region.map(|region| (output.reference, region.clone())))
         .collect::<Vec<_>>();
+    if let Err(error) = refined {
+        // An actual whose elided result could come from several input
+        // regions is unresolved, not refined. When the required callable
+        // names one relation, a definite region-identity mismatch is the
+        // refusal the program can act on; report it before the gap.
+        if matches!(actual_frontier.sources, ViewReturnSource::Ambiguous(_))
+            && !matches!(required_frontier.sources, ViewReturnSource::Ambiguous(_))
+        {
+            super::region_correspondence::validate(
+                program,
+                &required,
+                &actual,
+                &required_frontier.regions,
+                &actual_frontier.regions,
+                &application.elided,
+                &output_elisions,
+            )?;
+        }
+        return Err(error);
+    }
     super::region_correspondence::validate(
         program,
         &required,
