@@ -472,11 +472,11 @@ fn resolve_structural_path(
             // the type's literal.
             (
                 StructuralPathSegment::FixedIndex(_),
-                StructuralTypeShape::ElementView { element },
+                StructuralTypeShape::ElementView { element, .. },
             ) => *element,
             (
                 StructuralPathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::ElementView { element },
+                StructuralTypeShape::ElementView { element, .. },
             ) => *element,
             _ => return None,
         };

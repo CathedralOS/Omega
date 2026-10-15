@@ -41,7 +41,7 @@ impl LegalizedOperationPlanIdentity {
 pub mod legality;
 pub use legality::LegalizedExactIntegerOperator;
 pub mod calls;
-pub(crate) use calls::LegalizedCallSourceError;
+pub use calls::LegalizedCallSourceError;
 pub use calls::{
     LegalizedBoundarySettlement, LegalizedCallUnitParameter, LegalizedStructuralContract,
     NativeCallOrigin,

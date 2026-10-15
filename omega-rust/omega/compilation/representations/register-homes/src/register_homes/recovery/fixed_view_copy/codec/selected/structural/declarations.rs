@@ -82,9 +82,13 @@ pub(super) fn encode_type(
             bytes.push(1);
             encode_byte_sequence_carrier(bytes, *carrier);
         }
-        StructuralTypeShape::ElementView { element } => {
+        StructuralTypeShape::ElementView { element, access } => {
             bytes.push(8);
             crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
+            bytes.push(u8::from(access.is_some()));
+            if let Some(access) = access {
+                encode_access(bytes, *access);
+            }
         }
         StructuralTypeShape::Record { fields, storage } => {
             match storage {
@@ -157,6 +161,14 @@ pub(super) fn decode_type(
         7 => StructuralTypeShape::Reference {
             referent: decode_id(cursor, StructuralTypeId::new)?,
             access: decode_access(cursor)?,
+        },
+        8 => StructuralTypeShape::ElementView {
+            element: decode_id(cursor, StructuralTypeId::new)?,
+            access: if decode_bool(cursor)? {
+                Some(decode_access(cursor)?)
+            } else {
+                None
+            },
         },
         1 => StructuralTypeShape::ByteSequence(decode_byte_sequence_carrier(cursor)?),
         2 => StructuralTypeShape::Record {

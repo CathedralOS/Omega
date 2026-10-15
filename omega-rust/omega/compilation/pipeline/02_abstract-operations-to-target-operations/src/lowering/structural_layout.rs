@@ -1228,7 +1228,7 @@ pub(super) fn runtime_storage_projection<'types>(
                     // A view's storage is element-contiguous like the
                     // array's; its bound lives in the verifier's extent
                     // obligation rather than a literal type length.
-                    StructuralTypeShape::ElementView { element } => *element,
+                    StructuralTypeShape::ElementView { element, .. } => *element,
                     _ => return Err(LoweringError::UnknownStructuralType(structural_type)),
                 };
                 let shape = structural_shape(element, declarations, cache, active)?;

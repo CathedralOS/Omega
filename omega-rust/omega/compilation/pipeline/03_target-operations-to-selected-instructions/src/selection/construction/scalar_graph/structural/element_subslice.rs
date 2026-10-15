@@ -28,10 +28,23 @@ pub(super) fn create(
     else {
         return Err(invalid());
     };
+    let signature = function.structural.as_ref().ok_or_else(|| invalid())?;
+    let (geometry, _) =
+        super::descriptor_operands::source_geometry(function, source).ok_or_else(|| invalid())?;
+    let source_shape = signature
+        .structural_types
+        .iter()
+        .find(|row| row.id == geometry.selected);
+    let result_shape = signature
+        .structural_types
+        .iter()
+        .find(|row| row.id == result.structural_type);
+    let same_element = source_shape.zip(result_shape).is_some_and(|(source, result)|
+        matches!((&source.shape, &result.shape),
+            (terminal_psi::StructuralTypeShape::ElementView { element: source, .. },
+             terminal_psi::StructuralTypeShape::ElementView { element: result, .. }) if source == result));
     if row.result.is_some()
-        || super::descriptor_operands::source_geometry(function, source)
-            .map(|(geometry, _)| geometry.selected)
-            != Some(result.structural_type)
+        || !same_element
         || crate::selection::established_view_input::view_access(function, result.place).is_none()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()

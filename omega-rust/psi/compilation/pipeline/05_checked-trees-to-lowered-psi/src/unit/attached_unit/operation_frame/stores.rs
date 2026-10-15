@@ -483,11 +483,34 @@ impl OperationFrame<'_, '_> {
         target: IndexedWriteTarget<'_>,
     ) -> Result<(), LoweringError> {
         let leaf = target.leaf()?;
-        let destination = target.destination(
+        let mut destination = target.destination(
             identities,
             &self.evaluation.structural_parameters,
             self.structural_types.declarations(),
         )?;
+        let descriptor_selectors = crate::emission::runtime_elements::evaluate_selectors(
+            identities,
+            &destination.descriptor_steps,
+            self.checked,
+            self.machine,
+            self.state,
+            leaf.statement_index(),
+            self.evaluation,
+            self.source_value_count,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+        )?;
+        let descriptor_path = crate::emission::runtime_elements::complete_path(
+            std::mem::take(&mut destination.descriptor_steps),
+            descriptor_selectors,
+            self.calls,
+            self.operations,
+        )?;
+        destination.set_descriptor_path(descriptor_path);
         // Scalar positions are stable, but earlier operations may have
         // established owned or borrowed storage since the namespace began.
         // Join the current local homes before lowering either indexed operand.

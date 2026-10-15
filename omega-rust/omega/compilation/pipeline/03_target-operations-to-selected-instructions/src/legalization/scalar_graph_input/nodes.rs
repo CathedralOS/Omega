@@ -571,15 +571,27 @@ pub(super) fn validate(
             // Source authority follows the shared descriptor lineage query,
             // not the producer family. Narrowing preserves its parent's loan;
             // affine descriptor custody alone cannot create mutable access.
-            let mutable_view =
-                optimization_unit_semantics::structural_place_access(optimized, *destination)
-                    == Some(terminal_psi::StructuralAccess::MutableBorrow);
+            let geometry = super::element_views::descriptor_geometry(optimized, destination, types);
+            let mutable_view = destination.access == terminal_psi::StructuralAccess::MutableBorrow
+                && geometry.as_ref().is_some_and(|geometry| geometry.readable);
+            let element = geometry.and_then(|geometry| {
+                types
+                    .iter()
+                    .find_map(|declaration| match declaration.shape {
+                        terminal_psi::StructuralTypeShape::ElementView { element, .. }
+                            if declaration.id == geometry.selected =>
+                        {
+                            Some(element)
+                        }
+                        _ => None,
+                    })
+            });
             if result.is_some()
                 || !node.definitions.is_empty()
                 || !mutable_view
                 || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
                 || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
-                || super::byte_views::element_type(optimized, *destination, types).and_then(
+                || element.and_then(
                     |element| terminal_semantics::element_view_leaf_scalar(types, element, path),
                 ) != value_type(optimized, *value)
                 // A scalar store has the same native storage carriers as a

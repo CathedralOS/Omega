@@ -1050,6 +1050,7 @@ pub(crate) fn collection_view_region_geometry(
     let view_element = match &find_structural_type(declarations, view_type)?.shape {
         StructuralTypeShape::ElementView {
             element: view_element,
+            ..
         } => Some(*view_element),
         shape if shape.is_borrowed_byte_carrier() => None,
         _ => return None,
@@ -2057,7 +2058,7 @@ fn project_storage<'types>(
                     StructuralTypeShape::FixedArray { element, length } => {
                         (*element, Some(*length))
                     }
-                    StructuralTypeShape::ElementView { element } => (*element, None),
+                    StructuralTypeShape::ElementView { element, .. } => (*element, None),
                     _ => return None,
                 };
                 let element_shape = shape(element, declarations)?;

@@ -662,7 +662,7 @@ fn walk_carrier_prefix<'a>(
             CheckedUnitStructuralPathSegment::RuntimeIndex(runtime) => {
                 let element = match &declaration.shape {
                     StructuralTypeShape::FixedArray { element, .. }
-                    | StructuralTypeShape::ElementView { element } => *element,
+                    | StructuralTypeShape::ElementView { element, .. } => *element,
                     _ => {
                         return unsupported(
                             "representation view store runtime index requires an array",

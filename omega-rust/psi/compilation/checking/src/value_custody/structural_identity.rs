@@ -135,7 +135,10 @@ pub fn stored_structural_type_identity(
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> typed_trees::type_identity::TypeIdentityId {
-    if stores_reference_shape(program, type_reference, substitutions) {
+    if stores_reference_shape(program, type_reference, substitutions)
+        || (slice_view_shell(program, type_reference, substitutions).is_some()
+            && byte_sequence_carrier(program, type_reference, substitutions).is_none())
+    {
         return program.storage_type_identity(TypeIdentityRequest {
             binders,
             substitutions,

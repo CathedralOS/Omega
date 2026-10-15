@@ -33,21 +33,24 @@ pub(super) fn lower(
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    if live.lengths.get(length) != Some(destination) {
+    let values = observations::scalar_values(live, &prepared.scalar_parameters)?;
+    if !crate::lowering::scalar::descriptor_operands::observes_count(
+        function,
+        &values,
+        *length,
+        destination,
+        false,
+    ) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let values = observations::scalar_values(live, &prepared.scalar_parameters)?;
-    let (view, view_structural_type) =
-        crate::lowering::scalar::element_views::mutable_element_view_for_place(
+    let (view_structural_type, indices) =
+        crate::lowering::scalar::descriptor_operands::descriptor_projection(
             function,
             structural_types,
-            &prepared.parameters,
             live.element_view_backings(),
-            &values,
-            &live.lengths,
-            *destination,
+            destination,
         )?;
-    let StructuralTypeShape::ElementView { element } = &structural_types
+    let StructuralTypeShape::ElementView { element, .. } = &structural_types
         .get(&view_structural_type)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?
         .shape
@@ -77,8 +80,8 @@ pub(super) fn lower(
     operations.push(TargetUnitOperation::ElementViewWrite {
         path: path.clone(),
         psi_operation: *psi_operation,
-        destination: *destination,
-        view,
+        destination: destination.clone(),
+        indices,
         index: index_value.into_target_source(*index),
         value: element_value,
         length: *length,

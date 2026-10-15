@@ -2615,7 +2615,7 @@ fn borrowed_sources(
         .block_structural_parameters()
         .filter(|parameter| {
             parameter.access != StructuralAccess::Owned
-                && !terminal_semantics::descriptor_results::is_shared_descriptor(
+                && !terminal_semantics::descriptor_results::is_descriptor(
                     types.iter(),
                     parameter.structural_type,
                 )

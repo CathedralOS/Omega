@@ -157,7 +157,7 @@ impl Replay<'_> {
                 let root_type = *machine.place_types.get(&source)?;
                 // A current incoming view refers to caller-owned elements,
                 // not to a fictitious inline array in its carrier.
-                if is_shared_descriptor(self.types.iter(), root_type)
+                if is_descriptor(self.types.iter(), root_type)
                     && projection.path.is_empty()
                     && self.parameter(machine, source).is_some()
                 {

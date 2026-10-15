@@ -65,7 +65,13 @@ pub enum StructuralTypeShape {
     /// structural elements. The extent is the view's own stored runtime
     /// length, not part of the type identity; the viewed storage remains
     /// owned by its referent root.
-    ElementView { element: StructuralTypeId },
+    ElementView {
+        element: StructuralTypeId,
+        /// Stored descriptor types retain their declared backing ceiling.
+        /// Canonical whole descriptors use occurrence custody instead. Owning
+        /// a container never upgrades the permission of its stored views.
+        access: Option<crate::StructuralAccess>,
+    },
     Record {
         /// Declaration order is semantic. Field IDs must nevertheless be
         /// strictly increasing so the same record has one canonical spelling.
@@ -732,7 +738,7 @@ fn structural_type_contains_by<'types>(
                     pending.push(*element);
                 }
             }
-            StructuralTypeShape::ElementView { element } => pending.push(*element),
+            StructuralTypeShape::ElementView { element, .. } => pending.push(*element),
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::BindingCarrier
             | StructuralTypeShape::PrimitiveScalar(_)

@@ -217,13 +217,17 @@ impl LegalizedScalarInstruction {
                 value,
                 length,
                 ..
-            }
-            | LegalizedScalarInstructionKind::ElementViewWrite {
+            } => [*index, *value, *length].into_iter().for_each(visit),
+            LegalizedScalarInstructionKind::ElementViewWrite {
                 index,
                 value,
                 length,
+                indices,
                 ..
-            } => [*index, *value, *length].into_iter().for_each(visit),
+            } => {
+                indices.iter().for_each(|index| visit(index.operand.value));
+                [*index, *value, *length].into_iter().for_each(visit);
+            }
             LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => {
                 [*index, *length].into_iter().for_each(visit)
             }
@@ -727,7 +731,8 @@ pub enum LegalizedScalarInstructionKind {
     /// `&mut [T]` parameter or a mutable establishment result.
     ElementViewWrite {
         path: Vec<terminal_psi::StructuralPathSegment>,
-        destination: semantic_vocabulary::PlaceId,
+        destination: terminal_psi::StructuralArgument,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
         index: ValueId,
         value: ValueId,
         length: ValueId,

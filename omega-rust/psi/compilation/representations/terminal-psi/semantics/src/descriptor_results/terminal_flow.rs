@@ -83,7 +83,7 @@ pub(super) fn adapt(
                 }
                 step.definitions
                     .push(DescriptorLocation::whole(result.place));
-                if !is_shared_descriptor(module.structural_types.iter(), result.structural_type)
+                if !is_descriptor(module.structural_types.iter(), result.structural_type)
                     && !slot_kind.is_slot(&module.structural_types, result.structural_type)
                 {
                     graph.originations.entry(position).or_default().push((
@@ -267,13 +267,12 @@ pub(super) fn adapt(
                     } else {
                         step.may_escape = true;
                     }
-                    if (is_shared_descriptor(
-                        module.structural_types.iter(),
-                        result?.structural_type,
-                    ) || module.structural_types.iter().any(|ty| {
-                        ty.id == result.unwrap().structural_type
-                            && matches!(ty.shape, StructuralTypeShape::Reference { .. })
-                    })) && let Some(origins) = graph.originations.get_mut(&position)
+                    if (is_descriptor(module.structural_types.iter(), result?.structural_type)
+                        || module.structural_types.iter().any(|ty| {
+                            ty.id == result.unwrap().structural_type
+                                && matches!(ty.shape, StructuralTypeShape::Reference { .. })
+                        }))
+                        && let Some(origins) = graph.originations.get_mut(&position)
                     {
                         origins.retain(|(location, _)| location != &destination);
                     }
@@ -374,7 +373,7 @@ pub(super) fn adapt(
                         step.derivations.push((source, destination.clone()));
                         // Reseating contents retains the destination storage home.
                         if destination.path.is_empty()
-                            && !is_shared_descriptor(
+                            && !is_descriptor(
                                 module.structural_types.iter(),
                                 *graph.place_types.get(&destination.root)?,
                             )

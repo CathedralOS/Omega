@@ -107,7 +107,7 @@ pub fn optimized_catalog_graph<'function, 'boundary>(
         boundaries,
         types,
         operation,
-        kernel::DescriptorSlotKind::SharedViews,
+        kernel::DescriptorSlotKind::Views,
         |_, _| false,
     )
 }
@@ -397,7 +397,7 @@ fn adapt(
             if let Some(result) = result {
                 let destination = DescriptorLocation::whole(result.place);
                 step.definitions.push(destination.clone());
-                if !kernel::is_shared_descriptor(types.iter(), result.structural_type)
+                if !kernel::is_descriptor(types.iter(), result.structural_type)
                     && !slot_kind.is_slot(types, result.structural_type)
                 {
                     graph.originations.entry(position).or_default().push((
@@ -550,7 +550,7 @@ fn adapt(
                     }
                     // Copying an aggregate makes fresh carrier storage while
                     // its descendant descriptor slots retain their backing.
-                    if (kernel::is_shared_descriptor(types.iter(), result.structural_type)
+                    if (kernel::is_descriptor(types.iter(), result.structural_type)
                         || types.iter().any(|ty| {
                             ty.id == result.structural_type
                                 && matches!(ty.shape, StructuralTypeShape::Reference { .. })
@@ -646,7 +646,7 @@ fn adapt(
                         step.derivations.push((source, destination.clone()));
                         // Reseating contents retains the destination storage home.
                         if destination.path.is_empty()
-                            && !kernel::is_shared_descriptor(
+                            && !kernel::is_descriptor(
                                 types.iter(),
                                 *graph.place_types.get(&destination.root)?,
                             )

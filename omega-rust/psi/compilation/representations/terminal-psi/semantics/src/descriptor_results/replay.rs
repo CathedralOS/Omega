@@ -234,11 +234,13 @@ fn may_contain_descriptor(
                 may_contain_descriptor(kind, types, ty, active)
             }
             _ => {
-                kind == DescriptorSlotKind::SharedViews
+                kind == DescriptorSlotKind::Views
                     && field
                         .field_type
                         .byte_sequence_carrier()
-                        .is_some_and(|carrier| carrier.is_shared_readable_view())
+                        .is_some_and(|carrier| {
+                            matches!(carrier, ByteSequenceCarrier::BorrowedView { .. })
+                        })
             }
         })
     };
@@ -265,14 +267,15 @@ fn may_contain_descriptor(
 /// Neither inventory grants copyability, observation, or access authority.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DescriptorSlotKind {
-    SharedViews,
+    /// Borrowed descriptor storage, independent of its backing access ceiling.
+    Views,
     References,
     PlacedOrigins,
 }
 impl DescriptorSlotKind {
     pub fn is_slot(self, types: &[StructuralTypeDeclaration], ty: StructuralTypeId) -> bool {
         match self {
-            Self::SharedViews => is_shared_descriptor(types.iter(), ty),
+            Self::Views => is_descriptor(types.iter(), ty),
             Self::PlacedOrigins => find_structural_type(types, ty).is_some_and(|declaration| {
                 matches!(
                     declaration.shape,
@@ -425,16 +428,18 @@ fn indirect_contents_contain_slot(
             }
             _ => {
                 behind_view
-                    && kind == DescriptorSlotKind::SharedViews
+                    && kind == DescriptorSlotKind::Views
                     && field
                         .field_type
                         .byte_sequence_carrier()
-                        .is_some_and(|carrier| carrier.is_shared_readable_view())
+                        .is_some_and(|carrier| {
+                            matches!(carrier, ByteSequenceCarrier::BorrowedView { .. })
+                        })
             }
         })
     };
     let contains = match &declaration.shape {
-        StructuralTypeShape::ElementView { element } => {
+        StructuralTypeShape::ElementView { element, .. } => {
             indirect_contents_contain_slot(kind, types, *element, true, active)
         }
         StructuralTypeShape::FixedArray { element, .. }
@@ -529,7 +534,7 @@ pub fn descriptor_slots(
     root: PlaceId,
     structural_type: StructuralTypeId,
 ) -> Option<Vec<DescriptorLocation>> {
-    DescriptorSlotKind::SharedViews.slots(types, root, structural_type)
+    DescriptorSlotKind::Views.slots(types, root, structural_type)
 }
 
 /// Inventory known slots without letting an unrelated opaque pointer erase
@@ -539,7 +544,7 @@ pub fn descriptor_slot_inventory(
     root: PlaceId,
     structural_type: StructuralTypeId,
 ) -> Option<DescriptorSlotInventory> {
-    DescriptorSlotKind::SharedViews.inventory(types, root, structural_type)
+    DescriptorSlotKind::Views.inventory(types, root, structural_type)
 }
 
 fn slot_inventory(
@@ -589,11 +594,12 @@ fn slot_inventory(
                         terminal_psi::StructuralFieldType::Structural(ty) => {
                             walk(kind, types, ty, child, active, result)?
                         }
-                        _ if kind == DescriptorSlotKind::SharedViews
-                            && field
-                                .field_type
-                                .byte_sequence_carrier()
-                                .is_some_and(|carrier| carrier.is_shared_readable_view()) =>
+                        _ if kind == DescriptorSlotKind::Views
+                            && field.field_type.byte_sequence_carrier().is_some_and(
+                                |carrier| {
+                                    matches!(carrier, ByteSequenceCarrier::BorrowedView { .. })
+                                },
+                            ) =>
                         {
                             result.slots.push(child)
                         }
@@ -635,11 +641,12 @@ fn slot_inventory(
                         terminal_psi::StructuralFieldType::Structural(ty) => {
                             walk(kind, types, ty, child, active, result)?
                         }
-                        _ if kind == DescriptorSlotKind::SharedViews
-                            && field
-                                .field_type
-                                .byte_sequence_carrier()
-                                .is_some_and(|carrier| carrier.is_shared_readable_view()) =>
+                        _ if kind == DescriptorSlotKind::Views
+                            && field.field_type.byte_sequence_carrier().is_some_and(
+                                |carrier| {
+                                    matches!(carrier, ByteSequenceCarrier::BorrowedView { .. })
+                                },
+                            ) =>
                         {
                             result.slots.push(child)
                         }

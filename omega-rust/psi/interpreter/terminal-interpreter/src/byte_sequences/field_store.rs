@@ -271,7 +271,7 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             let descriptor_type = self.live_structural_type(root)?;
-            let StructuralTypeShape::ElementView { element } = self
+            let StructuralTypeShape::ElementView { element, .. } = self
                 .program
                 .structural_types()
                 .get(&descriptor_type)

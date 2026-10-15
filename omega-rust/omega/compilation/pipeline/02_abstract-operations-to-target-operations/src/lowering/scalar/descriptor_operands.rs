@@ -33,22 +33,32 @@ pub(in crate::lowering) fn descriptor_projection(
     ) {
         return Err(invalid());
     }
-    let (root, access) = function
+    let (root, access, multiplicity) = function
         .arrival_parameter(source.place)
-        .map(|parameter| (parameter.structural_type, parameter.access))
+        .map(|parameter| {
+            (
+                parameter.structural_type,
+                parameter.access,
+                parameter.multiplicity,
+            )
+        })
         .or_else(|| {
             backings
                 .homes
                 .get(&source.place)
-                .map(|home| (home.structural_type(), home.access()))
+                .map(|home| (home.structural_type(), home.access(), home.multiplicity()))
         })
         .or_else(|| {
             // Completed descriptors can retain their words in SSA instead of
             // allocating a home. This joins the live producer's declared
             // storage carrier; it grants no access to the borrowed backing.
-            backings
-                .view_result(function, source.place)
-                .map(|result| (result.structural_type, StructuralAccess::Owned))
+            backings.view_result(function, source.place).map(|result| {
+                (
+                    result.structural_type,
+                    StructuralAccess::Owned,
+                    result.multiplicity,
+                )
+            })
         })
         .or_else(|| {
             function.operations.iter().find_map(|operation| {
@@ -70,7 +80,11 @@ pub(in crate::lowering) fn descriptor_projection(
                             ..
                         } if identity == structural_type.id
                     ))
-                .then_some((structural_type.id, StructuralAccess::SharedBorrow))
+                .then_some((
+                    structural_type.id,
+                    StructuralAccess::SharedBorrow,
+                    terminal_psi::StructuralMultiplicity::Unrestricted,
+                ))
             })
         })
         .ok_or_else(invalid)?;
@@ -79,6 +93,21 @@ pub(in crate::lowering) fn descriptor_projection(
         || access == StructuralAccess::MutableBorrow
             && source.access == StructuralAccess::SharedBorrow)
     {
+        return Err(invalid());
+    }
+    let requested = if source.access == StructuralAccess::Owned {
+        StructuralAccess::SharedBorrow
+    } else {
+        source.access
+    };
+    if !terminal_semantics::descriptor_source_projection_accessible(
+        structural_types.values().copied(),
+        root,
+        multiplicity,
+        access,
+        &source.path,
+        requested,
+    ) {
         return Err(invalid());
     }
     let regions = crate::lowering::structural_layout::reference_projection_regions(
@@ -158,7 +187,7 @@ pub(in crate::lowering) fn storage_backs_view_parameter(
         return false;
     };
     let view_element = match &declaration.shape {
-        StructuralTypeShape::ElementView { element } => Some(*element),
+        StructuralTypeShape::ElementView { element, .. } => Some(*element),
         shape if shape.is_borrowed_byte_carrier() => None,
         _ => return false,
     };

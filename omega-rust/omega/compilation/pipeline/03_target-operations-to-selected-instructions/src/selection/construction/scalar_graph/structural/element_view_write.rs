@@ -19,7 +19,8 @@ pub(super) fn write(
 ) -> Result<(), SelectedInstructionError> {
     let LegalizedScalarInstructionKind::ElementViewWrite {
         ref path,
-        destination,
+        ref destination,
+        ref indices,
         index,
         value,
         length,
@@ -40,26 +41,16 @@ pub(super) fn write(
     {
         return Err(invalid());
     }
-    let stride = super::element_views::element_stride(function, builder, destination)
+    let stride = super::descriptor_operands::element_stride(function, destination)
         .ok_or_else(|| invalid())?;
     let Some(signature) = function.structural.as_ref() else {
         return Err(invalid());
     };
-    let Some(view_type) =
-        crate::selection::established_view_input::element_view_type(function, destination)
+    let Some((_, StructuralTypeShape::ElementView { element, .. })) =
+        super::descriptor_operands::source_geometry(function, destination)
     else {
         return Err(invalid());
     };
-    let element = signature
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|declaration| declaration.id == view_type)
-        .and_then(|declaration| match declaration.shape {
-            StructuralTypeShape::ElementView { element } => Some(element),
-            _ => None,
-        })
-        .ok_or_else(|| invalid())?;
     // Preserve the whole element stride while independently selecting the
     // authored scalar leaf inside each element.
     let (byte_offset, byte_count) =
@@ -70,10 +61,14 @@ pub(super) fn write(
             signature.structural_types.as_slice(),
         )
         .ok_or_else(|| invalid())?;
-    let pointer = super::element_views::element_backing_pointer(builder, row, destination)?;
+    let pointer = if destination.path.is_empty() {
+        super::element_views::element_backing_pointer(builder, row, destination.place)?
+    } else {
+        super::descriptor_operands::backing(function, builder, row, destination, indices)?
+    };
     let physical_index = scaled_element_index(
         builder,
-        destination,
+        destination.place,
         stride,
         index_register,
         index,
@@ -85,7 +80,7 @@ pub(super) fn write(
     memory(
         builder,
         row,
-        destination,
+        destination.place,
         byte_offset,
         u32::from(byte_count),
         SelectedMemoryAccessRole::WriteElementView {
@@ -95,7 +90,7 @@ pub(super) fn write(
             accepted_fact,
         },
     )?;
-    let address = transport_register(builder, destination, 0)?;
+    let address = transport_register(builder, destination.place, 0)?;
     builder.emit_byte_view_address(
         pointer,
         physical_index,

@@ -1,0 +1,50 @@
+// Expected exit: 0.
+// The outer selector chooses a descriptor, not an element of its backing.
+data Output<'storage> { values: &'storage mut [i32]; }
+
+machine replacement(value: i32) -> i32 {
+    transition value > 0 {
+        true -> positive(value)
+        false -> negative(value)
+    }
+    state positive(value: i32) -> i32 { value ^ 1 }
+    state negative(value: i32) -> i32 { value ^ 2 }
+}
+
+machine write<'storage>(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, value: i32) -> bool {
+    transition selected < 2 {
+        true -> choose(outputs, selected, position, value)
+        false -> false
+    }
+    state choose(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, value: i32) -> bool
+    requires selected < 2 {
+        transition position < outputs[selected].values.len {
+            true -> store(outputs, selected, position, value)
+            false -> false
+        }
+    }
+    state store(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, value: i32) -> bool
+    requires selected < 2 && position < outputs[selected].values.len {
+        outputs[selected].values[position] = replacement(value);
+        let mut captured_selector: u64 = selected;
+        let selected_output: &mut Output<'storage> = &mut outputs[captured_selector];
+        // Updating the selector cannot redirect the already captured reference.
+        captured_selector = 0;
+        selected_output.values[0] = replacement(value ^ 4);
+        true
+    }
+}
+
+machine main() crashes Trap {
+    let mut left: [i32; 1] = [-1];
+    let mut right: [i32; 2] = [-1, -1];
+    let mut outputs: [Output; 2] = [Output { values: &mut left[..] }, Output { values: &mut right[..] }];
+    let written: bool = write(&mut outputs, 1, 1, 18);
+    let refused: bool = write(&mut outputs, 0, 1, 29);
+    transition written && !refused && left[0] == -1 && right[0] == 23 && right[1] == 19 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

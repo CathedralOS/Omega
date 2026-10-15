@@ -643,7 +643,12 @@ fn scan_operation(
             pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
         }
         O::ElementViewWrite { destination, .. } => {
-            pending.attribute(context, *destination, Vec::new(), AccessKind::Write);
+            pending.attribute(
+                context,
+                destination.place,
+                runtime_prefix(&destination.path),
+                AccessKind::Write,
+            );
         }
         abstract_operations::byte_len_or_field_read_pattern!(source, path, field, ..) => {
             let mut view = runtime_prefix(path);

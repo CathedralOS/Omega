@@ -223,7 +223,7 @@ impl TerminalExecution<'_> {
                 )?;
                 Some(parameter.structural_type)
             }
-            StructuralTypeShape::ElementView { element } => {
+            StructuralTypeShape::ElementView { element, .. } => {
                 let root_type = self.live_structural_type(argument.place).ok()?;
                 let collection_type =
                     crate::custody::resolve_structural_path_type(&types, root_type, &argument.path)

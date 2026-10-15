@@ -891,6 +891,23 @@ impl TerminalExecution<'_> {
         } else {
             None
         };
+        // A borrowed element descriptor presents the same pointer/count pair
+        // without its stored access shell. Keep its opaque home and captured
+        // path; the companion view still owns backing permission and extent.
+        if argument.access != StructuralAccess::Owned
+            && self
+                .program
+                .structural_types()
+                .get(&expected)
+                .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
+            && terminal_semantics::borrowed_referent_matches(
+                self.program.structural_types().values(),
+                value.structural_type,
+                expected,
+            )
+        {
+            value.structural_type = expected;
+        }
         Ok((value, backing))
     }
 
@@ -1250,7 +1267,7 @@ impl TerminalExecution<'_> {
                     // a re-view must not become an untyped backing path.
                     aggregate_view = match tip {
                         Some(AggregateViewTip::Aggregate { view, .. }) => {
-                            let StructuralTypeShape::ElementView { element } = types
+                            let StructuralTypeShape::ElementView { element, .. } = types
                                 .get(&view.structural_type)
                                 .ok_or_else(malformed)?
                                 .shape

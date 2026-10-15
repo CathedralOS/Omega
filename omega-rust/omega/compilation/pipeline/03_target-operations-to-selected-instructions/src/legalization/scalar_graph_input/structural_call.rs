@@ -111,7 +111,16 @@ pub(in crate::legalization) fn argument_at(
                 Some(destination_parameter.structural_type),
                 &plan.structural_types,
             )
-            .is_some_and(|(selected, _, _)| selected == destination_parameter.structural_type)
+            .is_some_and(|(selected, _, _)| {
+                matches!(
+                    terminal_semantics::borrowed_referent_presentation(
+                        plan.structural_types.iter(),
+                        selected,
+                        destination_parameter.structural_type,
+                    ),
+                    Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+                )
+            })
         })
     {
         return super::aggregate_results::borrowed_arguments::reconstruct(
@@ -291,13 +300,12 @@ fn view_argument(
         });
     let access = if completed.is_some() {
         let (_, result) = super::structural_case::source_result(caller, semantic.place)?;
-        match result.multiplicity {
-            terminal_psi::StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,
-            terminal_psi::StructuralMultiplicity::Affine => StructuralAccess::MutableBorrow,
-            terminal_psi::StructuralMultiplicity::Linear => {
-                return Err(LegalizationError::custody());
-            }
-        }
+        terminal_semantics::descriptor_results::descriptor_value_access(
+            structural_types.iter(),
+            result.structural_type,
+            result.multiplicity,
+        )
+        .ok_or_else(LegalizationError::custody)?
     } else {
         optimization_unit_semantics::structural_place_access(caller, semantic.place)
             .ok_or(LegalizationError::custody())?
@@ -399,11 +407,14 @@ fn view_argument(
         }
         (source.structural_type, parameter.placement.clone().into())
     };
-    if structural_type != destination_parameter.structural_type
-        || call
-            .parameters
-            .get(parameter_ordinal)
-            .is_none_or(|parameter| parameter.shape != carrier)
+    if !terminal_semantics::borrowed_referent_matches(
+        structural_types.iter(),
+        structural_type,
+        destination_parameter.structural_type,
+    ) || call
+        .parameters
+        .get(parameter_ordinal)
+        .is_none_or(|parameter| parameter.shape != carrier)
     {
         return Err(LegalizationError::custody());
     }
@@ -412,7 +423,7 @@ fn view_argument(
         access: semantic.access,
         path: Vec::new(),
         root_structural_type: structural_type,
-        structural_type,
+        structural_type: destination_parameter.structural_type,
         shape: carrier,
         source_byte_offset: 0,
         fixed_array_length: None,

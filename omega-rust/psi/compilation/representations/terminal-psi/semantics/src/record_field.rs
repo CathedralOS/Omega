@@ -278,7 +278,7 @@ fn walk_record_fields<'types>(
                     }
                     *element
                 }
-                StructuralTypeShape::ElementView { element } => {
+                StructuralTypeShape::ElementView { element, .. } => {
                     crosses_view = true;
                     *element
                 }

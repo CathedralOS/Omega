@@ -72,6 +72,7 @@ pub(super) fn establish(
     match &declaration.shape {
         StructuralTypeShape::ElementView {
             element: view_element,
+            ..
         } if *view_element == *element => {}
         // A `&[u8]` result declares its view over the `u8` element instead of
         // an `ElementView` shell; the descriptor shape is identical. A bounded

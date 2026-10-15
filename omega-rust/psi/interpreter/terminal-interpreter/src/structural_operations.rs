@@ -1523,7 +1523,23 @@ impl TerminalExecution<'_> {
             operation,
         )
         .is_some();
-        if leaf.structural_type != result.structural_type && !quotient_adaptation {
+        let occurrence_access = copy_path
+            .is_empty()
+            .then(|| {
+                self.element_view_values
+                    .get(&source)
+                    .map(|descriptor| descriptor.access())
+            })
+            .flatten();
+        if leaf.structural_type != result.structural_type
+            && !quotient_adaptation
+            && !terminal_semantics::shared_descriptor_copy_matches(
+                self.program.structural_types().values(),
+                leaf.structural_type,
+                occurrence_access,
+                result.structural_type,
+            )
+        {
             // A record leaf copy out of a byte carrier mints fresh storage:
             // the resolved `u8` element is where the region starts and the
             // record's scalar leaves decode little-endian out of the
@@ -1692,6 +1708,9 @@ impl TerminalExecution<'_> {
                     .get(&StructuralRuntimePlace::from(&leaf))
                     .ok_or_else(malformed)?
             };
+            if descriptor.access() != StructuralAccess::SharedBorrow {
+                return Err(malformed());
+            }
             let descriptor = descriptor.detached_descriptor();
             if self.element_view_values.contains_key(&result.place) {
                 return Err(malformed());

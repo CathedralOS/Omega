@@ -20,17 +20,6 @@ impl Checker<'_> {
         )
     }
 
-    /// A mutable element view admits only the exclusive loan — an indexed
-    /// element store's destination may never name a shared descriptor.
-    pub(super) fn mutable_element_view(&self, view: &TargetElementView, source: PlaceId) -> bool {
-        self.element_view_access(
-            view,
-            source,
-            &[],
-            terminal_psi::StructuralAccess::MutableBorrow,
-        )
-    }
-
     fn element_view_access(
         &self,
         view: &TargetElementView,

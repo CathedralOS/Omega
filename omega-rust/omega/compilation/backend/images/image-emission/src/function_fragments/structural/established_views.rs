@@ -186,8 +186,14 @@ fn local_location(
     } else if !matches!(
         argument.access,
         terminal_psi::reading_borrow_pair_pattern!()
-    ) || argument.root_structural_type != argument.structural_type
-        || argument.shape != ValueShape::borrowed_reference(byte_size, 8)
+    ) || !matches!(
+        terminal_semantics::borrowed_referent_presentation(
+            declarations.iter(),
+            argument.root_structural_type,
+            argument.structural_type,
+        ),
+        Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+    ) || argument.shape != ValueShape::borrowed_reference(byte_size, 8)
         || argument.source_byte_offset != 0
         || argument.fixed_array_length.is_some()
         || argument.element_stride.is_some()

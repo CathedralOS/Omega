@@ -913,6 +913,10 @@ pub(crate) fn validate_structural_root_operations(
                                     let expected = result.structural_type;
                                     let selected = crate::unit_validation::structural_catalog::resolve_leaf_copy_path(structural_types, signature.structural_type, path);
                                     selected == Some(expected)
+                                        || selected.is_some_and(|selected| terminal_semantics::shared_descriptor_copy_matches(
+                                            structural_types.values().copied(), selected,
+                                            path.is_empty().then_some(signature.access), expected,
+                                        ))
                                         || (path.is_empty() && abstract_operations::quotients::licensed_copy(
                                             &unit.structural_types, function.machine, *psi_operation, *source,
                                             signature.structural_type, result,

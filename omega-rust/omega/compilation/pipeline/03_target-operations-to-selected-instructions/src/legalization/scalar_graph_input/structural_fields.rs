@@ -608,7 +608,7 @@ fn runtime_path(
                     }
                     // An element view's live extent is the bound proven by
                     // its producer; the index names one member.
-                    terminal_psi::StructuralTypeShape::ElementView { element }
+                    terminal_psi::StructuralTypeShape::ElementView { element, .. }
                         if position + 1 == path.len() =>
                     {
                         element

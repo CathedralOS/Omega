@@ -467,7 +467,7 @@ fn element_selection(
             }
             (*element, false)
         }
-        StructuralTypeShape::ElementView { element } => (*element, true),
+        StructuralTypeShape::ElementView { element, .. } => (*element, true),
         _ => return unsupported("structural element carrier is not a fixed array or view"),
     };
     let step = match segment {
@@ -507,13 +507,33 @@ pub(crate) fn lower_window_path<'a>(
     path: &[CheckedUnitStructuralPathSegment],
     structural_types: &'a [StructuralTypeDeclaration],
 ) -> Result<(Vec<ProjectionStep>, WindowLeaf<'a>, bool), LoweringError> {
-    let (mut field_owner, mut steps) = structural_field_root(root_type, structural_types)?;
+    let mut field_owner = terminal_psi::find_structural_type(structural_types, root_type).ok_or(
+        LoweringError::Unsupported("structural window root type is absent"),
+    )?;
+    let mut steps = Vec::new();
     // Owning a descriptor does not own its pointee. Remember crossings while
     // resolving the path, including element views nested in owned records.
-    let mut borrowed_backing = !steps.is_empty();
+    let mut borrowed_backing = false;
+    // An empty restoration window denotes the whole referent, as specified
+    // by window_place; it is not replacement of the loan's descriptor slot.
+    if path.is_empty() {
+        let (owner, crossings) = structural_field_root(root_type, structural_types)?;
+        field_owner = owner;
+        borrowed_backing = !crossings.is_empty();
+        steps = crossings;
+    }
     let mut cursor = path;
     while let Some((segment, rest)) = cursor.split_first() {
         cursor = rest;
+        // Explicit crossings consume the stored reference once. Implicit
+        // selection through a reference normalizes only when selecting a
+        // member or element, just as the scalar-field geometry does.
+        if !matches!(segment, CheckedUnitStructuralPathSegment::Referent) {
+            let (owner, crossings) = structural_field_root(field_owner.id, structural_types)?;
+            field_owner = owner;
+            borrowed_backing |= !crossings.is_empty();
+            steps.extend(crossings);
+        }
         match segment {
             CheckedUnitStructuralPathSegment::Field(identity) if identity.is_valid() => {
                 let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &field_owner.shape

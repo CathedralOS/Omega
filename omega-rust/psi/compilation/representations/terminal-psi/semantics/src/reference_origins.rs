@@ -406,7 +406,7 @@ pub fn collection_element_type<'types>(
         .find(|declaration| declaration.id == collection)?;
     match declaration.shape {
         StructuralTypeShape::FixedArray { element, .. }
-        | StructuralTypeShape::ElementView { element } => Some(element),
+        | StructuralTypeShape::ElementView { element, .. } => Some(element),
         StructuralTypeShape::ByteSequence(_) => {
             let mut matching = types.filter(|declaration| declaration.scalar_restriction.is_none()
                 && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))

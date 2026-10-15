@@ -416,9 +416,13 @@ pub(super) fn encode_structural_type(
             bytes.u8(1);
             encode_byte_carrier(bytes, *carrier);
         }
-        StructuralTypeShape::ElementView { element } => {
+        StructuralTypeShape::ElementView { element, access } => {
             bytes.u8(8);
             bytes.id(*element);
+            match access {
+                Some(access) => encode_access(bytes, *access),
+                None => bytes.u8(0),
+            }
         }
         StructuralTypeShape::Record { fields, storage } => {
             match storage {

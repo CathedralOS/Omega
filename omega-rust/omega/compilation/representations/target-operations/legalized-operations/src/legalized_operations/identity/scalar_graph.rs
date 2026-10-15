@@ -742,6 +742,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 LegalizedScalarInstructionKind::ElementViewWrite {
                     path,
                     destination,
+                    indices,
                     index,
                     value,
                     length,
@@ -750,13 +751,9 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 } => {
                     bytes.push(44);
                     super::structural_types::encode_structural_path(bytes, path);
-                    for identity in [
-                        destination.get(),
-                        index.get(),
-                        value.get(),
-                        length.get(),
-                        obligation.get(),
-                    ] {
+                    super::structural_types::encode_structural_argument(bytes, destination);
+                    encode_runtime_indices(bytes, indices);
+                    for identity in [index.get(), value.get(), length.get(), obligation.get()] {
                         crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
                     }
                     bytes.extend_from_slice(&accepted_fact.bytes());

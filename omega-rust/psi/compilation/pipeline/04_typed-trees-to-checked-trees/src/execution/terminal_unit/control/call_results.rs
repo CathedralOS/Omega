@@ -222,7 +222,7 @@ pub(crate) fn checked_structural_result_type(
         return Some(CheckedUnitStructuralResultBindingPlan {
             statement_index: 0,
             binding_ordinal: 0,
-            type_identity: shapes.add_type(result_type, binders, &[])?,
+            type_identity: shapes.add_stored_type(result_type, binders, &[])?,
             multiplicity: validation::reference_result_custody::result_multiplicity(
                 program,
                 result_type,

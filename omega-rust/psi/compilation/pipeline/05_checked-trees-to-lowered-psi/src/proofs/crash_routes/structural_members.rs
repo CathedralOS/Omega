@@ -22,7 +22,7 @@ fn indexed_element_type(
             }
             Ok(*element)
         }
-        StructuralTypeShape::ElementView { element } => Ok(*element),
+        StructuralTypeShape::ElementView { element, .. } => Ok(*element),
         _ => unsupported("structural contract index receiver is not a collection"),
     }
 }
@@ -326,7 +326,7 @@ pub(crate) fn lower_structural_indexed_term(
                 ))?;
                 match &declaration.shape {
                     StructuralTypeShape::FixedArray { element, .. }
-                    | StructuralTypeShape::ElementView { element } => {
+                    | StructuralTypeShape::ElementView { element, .. } => {
                         selected = StructuralFieldType::Structural(*element);
                         None
                     }

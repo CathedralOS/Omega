@@ -395,19 +395,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
             // — `add_type` alone peels the borrow and leaves it missing.
             checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { leaf, .. } => {
                 let binders = machine_binders(program, machine);
-                if crate::execution::terminal_unit::types::borrowed_named_view(program, *leaf) {
-                    let _ = shapes.add_view_type(
-                        *leaf,
-                        &binders,
-                        language_semantics::ReferenceAccess::Shared,
-                    )?;
-                } else if crate::execution::terminal_unit::types::borrowed_slice_view(
-                    program, *leaf,
-                ) {
-                    let _ = shapes.add_slice_view_type(*leaf, &binders)?;
-                } else {
-                    let _ = shapes.add_type(*leaf, &binders, &[])?;
-                }
+                shapes.add_stored_type(*leaf, &binders, &[])?;
             }
             checked_trees::CheckedStructuralValueKind::Reference {
                 source,

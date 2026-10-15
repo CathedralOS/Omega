@@ -118,7 +118,11 @@ pub(super) fn argument(
                     | StructuralAccess::WriteOnlyBorrow
             )
             || declaration.multiplicity != StructuralMultiplicity::Unrestricted
-            || projected_type != declaration.structural_type
+            || !terminal_semantics::borrowed_referent_matches(
+                types.values().copied(),
+                projected_type,
+                declaration.structural_type,
+            )
             || home.access() != StructuralAccess::Owned
             || crate::lowering::structural_layout::internal_parameter_shape(
                 projected_type,
@@ -138,7 +142,7 @@ pub(super) fn argument(
             access: argument.access,
             path: argument.path.clone(),
             root_structural_type: home.structural_type(),
-            structural_type: projected_type,
+            structural_type: declaration.structural_type,
             shape: destination.shape,
             source_byte_offset,
             fixed_array_length: None,
@@ -192,7 +196,11 @@ pub(super) fn argument(
         }
         (source.structural_type, source.placement.clone().into())
     };
-    if identity != declaration.structural_type {
+    if !terminal_semantics::borrowed_referent_matches(
+        types.values().copied(),
+        identity,
+        declaration.structural_type,
+    ) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(TargetStructuralArgument {
@@ -200,7 +208,7 @@ pub(super) fn argument(
         access: argument.access,
         path: Vec::new(),
         root_structural_type: identity,
-        structural_type: identity,
+        structural_type: declaration.structural_type,
         shape: destination.shape,
         source_byte_offset: 0,
         fixed_array_length: None,
@@ -467,13 +475,12 @@ pub(super) fn byte_argument(
             types,
             &live.structural_homes,
         ) {
-        let access = match result.multiplicity {
-            terminal_psi::StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,
-            terminal_psi::StructuralMultiplicity::Affine => StructuralAccess::MutableBorrow,
-            terminal_psi::StructuralMultiplicity::Linear => {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
-        };
+        let access = terminal_semantics::descriptor_results::descriptor_value_access(
+            types.values().copied(),
+            result.structural_type,
+            result.multiplicity,
+        )
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if !(argument.access == access
             || access == StructuralAccess::MutableBorrow
                 && argument.access == StructuralAccess::SharedBorrow)
@@ -581,7 +588,11 @@ pub(super) fn byte_argument(
         }
         (source.structural_type, source.placement.clone().into())
     };
-    if identity != declaration.structural_type {
+    if !terminal_semantics::borrowed_referent_matches(
+        types.values().copied(),
+        identity,
+        declaration.structural_type,
+    ) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(TargetStructuralArgument {
@@ -589,7 +600,7 @@ pub(super) fn byte_argument(
         access: argument.access,
         path: Vec::new(),
         root_structural_type: identity,
-        structural_type: identity,
+        structural_type: declaration.structural_type,
         shape: destination.shape,
         source_byte_offset: 0,
         fixed_array_length: None,

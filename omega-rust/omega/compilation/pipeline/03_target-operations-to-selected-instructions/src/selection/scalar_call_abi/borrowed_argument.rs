@@ -123,7 +123,14 @@ pub(super) fn validate_borrowed_argument(
                     &signature.structural_types,
                 )?;
             (target.root_structural_type == root
-                && target.structural_type == selected
+                && matches!(
+                    terminal_semantics::borrowed_referent_presentation(
+                        signature.structural_types.iter(),
+                        selected,
+                        target.structural_type,
+                    ),
+                    Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+                )
                 && target.source_byte_offset == offset
                 && crate::structural_inputs::structural_reference_input::runtime_indices_match(
                     indices, &elements,
@@ -235,7 +242,11 @@ pub(super) fn validate_borrowed_argument(
                 &signature.structural_types,
             )?;
                 if target.root_structural_type != view_type
-                    || target.structural_type != selected
+                    || !terminal_semantics::borrowed_referent_matches(
+                        signature.structural_types.iter(),
+                        selected,
+                        target.structural_type,
+                    )
                     || target.source_byte_offset != offset
                     || target.fixed_array_length.is_some()
                     || target.element_stride.is_some()
@@ -302,7 +313,11 @@ pub(super) fn validate_borrowed_argument(
                     &signature.structural_types,
                 )?;
             if target.root_structural_type != joined.structural_type
-                || target.structural_type != selected
+                || !terminal_semantics::borrowed_referent_matches(
+                    signature.structural_types.iter(),
+                    selected,
+                    target.structural_type,
+                )
                 || target.source_byte_offset != offset
                 || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
                     indices, &elements,

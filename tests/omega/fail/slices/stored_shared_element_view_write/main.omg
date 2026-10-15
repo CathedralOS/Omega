@@ -1,0 +1,20 @@
+// A writable containing record does not grant mutable access to shared backing.
+data Input<'storage> { values: &'storage [i32]; }
+
+machine overwrite<'storage>(input: &mut Input<'storage>) {
+    transition input.values.len > 0 {
+        true -> store(input)
+        false -> done()
+    }
+    state store(input: &mut Input<'storage>)
+    requires input.values.len > 0 {
+        input.values[0] = 9;
+    }
+    state done() {}
+}
+
+machine main() {
+    let values: [i32; 1] = [3];
+    let mut input: Input = Input { values: &values[..] };
+    overwrite(&mut input);
+}

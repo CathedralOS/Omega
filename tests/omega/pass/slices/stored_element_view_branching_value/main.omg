@@ -1,0 +1,38 @@
+// Expected exit: 0.
+// Destination selectors must survive the RHS's short-circuit continuation.
+data Output<'storage> { values: &'storage mut [bool]; }
+
+machine enabled() -> bool { true }
+
+machine write<'storage>(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, flag: bool) -> bool {
+    transition selected < 2 {
+        true -> choose(outputs, selected, position, flag)
+        false -> false
+    }
+    state choose(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, flag: bool) -> bool
+    requires selected < 2 {
+        transition position < outputs[selected].values.len {
+            true -> store(outputs, selected, position, flag)
+            false -> false
+        }
+    }
+    state store(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, flag: bool) -> bool
+    requires selected < 2 && position < outputs[selected].values.len {
+        outputs[selected].values[position] = flag && enabled();
+        true
+    }
+}
+
+machine main() crashes Trap {
+    let mut left: [bool; 1] = [true];
+    let mut right: [bool; 2] = [false, false];
+    let mut outputs: [Output; 2] = [Output { values: &mut left[..] }, Output { values: &mut right[..] }];
+    let first: bool = write(&mut outputs, 1, 1, true);
+    let second: bool = write(&mut outputs, 0, 0, false);
+    transition first && second && !left[0] && !right[0] && right[1] {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

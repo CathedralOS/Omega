@@ -100,7 +100,7 @@ impl<'a> StructuralTypeLookup<'a> {
                 (
                     StructuralPathSegment::FixedIndex(_)
                     | StructuralPathSegment::RuntimeIndex { .. },
-                    StructuralTypeShape::ElementView { element },
+                    StructuralTypeShape::ElementView { element, .. },
                 ) => *element,
                 _ => return None,
             };

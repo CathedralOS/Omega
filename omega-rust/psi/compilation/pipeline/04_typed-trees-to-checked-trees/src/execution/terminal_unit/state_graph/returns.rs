@@ -125,7 +125,7 @@ pub(in crate::execution::terminal_unit) fn signature(
             // callee descriptor home. Access determines its loan custody; the
             // element/byte view declaration remains the same carrier.
             (
-                shapes.add_type(reference, &[], &[])?,
+                shapes.add_stored_type(reference, &[], &[])?,
                 validation::reference_result_custody::binding_multiplicity(program, reference),
             )
         } else if pointer_result {

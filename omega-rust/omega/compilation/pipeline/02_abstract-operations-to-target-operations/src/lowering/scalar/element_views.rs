@@ -391,7 +391,7 @@ fn element_leaf_offset(
     scalar: ScalarType,
 ) -> Option<u32> {
     let StructuralTypeDeclaration {
-        shape: StructuralTypeShape::ElementView { element },
+        shape: StructuralTypeShape::ElementView { element, .. },
         ..
     } = structural_types.get(&view_structural_type)?
     else {
@@ -549,7 +549,9 @@ pub(in crate::lowering) fn resolve_element_view(
             || !structural_types
                 .get(&result.structural_type)
                 .is_some_and(|declaration| match &declaration.shape {
-                    StructuralTypeShape::ElementView { element: declared } => declared == element,
+                    StructuralTypeShape::ElementView {
+                        element: declared, ..
+                    } => declared == element,
                     StructuralTypeShape::ByteSequence(_) => {
                         declaration.shape.is_borrowed_byte_carrier()
                             && structural_types
@@ -712,7 +714,19 @@ pub(in crate::lowering) fn resolve_element_view(
         }
         _ => return Err(invalid()),
     };
-    if source_type != result.structural_type {
+    // Stored descriptors retain their access ceiling in their type. A newly
+    // borrowed window may use the canonical presentation of the same element;
+    // its loan access was established independently above.
+    if !structural_types
+        .get(&source_type)
+        .zip(structural_types.get(&result.structural_type))
+        .is_some_and(|(source, result)| {
+            matches!((&source.shape, &result.shape),
+            (StructuralTypeShape::ElementView { element: source, .. },
+             StructuralTypeShape::ElementView { element: result, access: ceiling })
+                if source == result && ceiling.is_none_or(|ceiling| ceiling == access))
+        })
+    {
         return Err(invalid());
     }
     Ok((
@@ -729,36 +743,6 @@ pub(in crate::lowering) fn resolve_element_view(
         result.structural_type,
         access,
     ))
-}
-
-/// A writable descriptor uses the same source-chain and geometry replay as
-/// observations. Affine result custody alone never creates mutable access.
-pub(in crate::lowering) fn mutable_element_view_for_place(
-    function: &AbstractFunction,
-    structural_types: &StructuralTypeLookup<'_>,
-    parameters: &[TargetStructuralParameter],
-    backings: ElementViewBackings<'_>,
-    values: &BTreeMap<ValueId, KnownScalar>,
-    lengths: &BTreeMap<ValueId, PlaceId>,
-    place: PlaceId,
-) -> Result<(TargetElementView, StructuralTypeId), LoweringError> {
-    let (view, structural_type, access) = resolve_element_view(
-        function,
-        structural_types,
-        parameters,
-        backings,
-        values,
-        lengths,
-        place,
-        &mut Vec::new(),
-    )?;
-    if access != StructuralAccess::MutableBorrow {
-        return Err(super::descriptor_operands::refusal(
-            function,
-            &(place, structural_type, access, &view),
-        ));
-    }
-    Ok((view, structural_type))
 }
 
 /// Resolve an establishment's collection argument to its exact backing

@@ -270,9 +270,11 @@ impl OperationKind {
             Self::StructuralByteSequenceFieldByteStore { destination, .. }
             | Self::WriteOnlyPrimitiveStore { destination, .. }
             | Self::StructuralScalarFieldStore { destination, .. }
-            | Self::ByteSequenceWrite { destination, .. }
-            | Self::ElementViewWrite { destination, .. } => {
+            | Self::ByteSequenceWrite { destination, .. } => {
                 *destination = map(*destination, StructuralAccess::WriteOnlyBorrow);
+            }
+            Self::ElementViewWrite { destination, .. } => {
+                destination.place = map(destination.place, destination.access);
             }
             Self::ByteSequenceStore {
                 destination,
@@ -379,6 +381,11 @@ impl OperationKind {
             | Self::ElementViewSubslice { source, .. } => {
                 projections.push(argument_projection(source));
             }
+            Self::ElementViewWrite { destination, .. } => {
+                // Runtime selectors locate the descriptor. The independent
+                // path inside one element is restricted to static leaves.
+                projections.push(argument_projection(destination));
+            }
             Self::PrimitiveScalarRead { source, path }
             | Self::ElementViewRead { source, path, .. }
             | Self::AtomicAccess {
@@ -452,7 +459,6 @@ impl OperationKind {
             | Self::ByteSequenceRead { .. }
             | Self::ByteSequenceWrite { .. }
             | Self::ByteSequenceStore { .. }
-            | Self::ElementViewWrite { .. }
             | Self::EstablishTrivialAffineLocal { .. }
             | Self::AtomicFence { .. }
             | call_and_scalar_constant_operations!()
@@ -488,8 +494,10 @@ impl OperationKind {
             | Self::ElementViewSubslice { source, .. } => {
                 paths.push(&mut source.path);
             }
+            Self::ElementViewWrite { destination, .. } => {
+                paths.push(&mut destination.path);
+            }
             Self::ReleaseReference { path, .. }
-            | Self::ElementViewWrite { path, .. }
             | Self::PrimitiveScalarRead { path, .. }
             | Self::ElementViewRead { path, .. }
             | Self::AtomicAccess { path, .. }

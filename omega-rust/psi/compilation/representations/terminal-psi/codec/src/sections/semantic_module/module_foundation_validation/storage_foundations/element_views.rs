@@ -17,7 +17,12 @@ fn element_view_result_place(
         && result.claims.is_empty()
         && module.structural_types.iter().any(|row| {
             row.id == result.structural_type
-                && (matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                && (matches!(row.shape, StructuralTypeShape::ElementView { access, .. }
+                    if access.is_none_or(|access| match multiplicity {
+                        StructuralMultiplicity::Unrestricted => access == terminal_psi::StructuralAccess::SharedBorrow,
+                        StructuralMultiplicity::Affine => access == terminal_psi::StructuralAccess::MutableBorrow,
+                        StructuralMultiplicity::Linear => false,
+                    }))
                     // A `&[u8]` view is the same establishment over `u8`
                     // elements; the byte carrier keeps no element field.
                     || row.shape.is_borrowed_byte_view()
@@ -152,7 +157,15 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         return malformed("element subslice has no source declaration");
     };
     let selected = validate_structural_path(module, root, &source.path)?;
-    if selected != result.structural_type
+    let same_element = module
+        .structural_type(selected)
+        .zip(module.structural_type(result.structural_type))
+        .is_some_and(|(source, result)| {
+            matches!((&source.shape, &result.shape),
+            (StructuralTypeShape::ElementView { element: source, .. },
+             StructuralTypeShape::ElementView { element: result, .. }) if source == result)
+        });
+    if !same_element
         || (result.multiplicity == StructuralMultiplicity::Affine
             && !matches!(
                 source.access,
@@ -209,7 +222,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             .structural_types
             .iter()
             .find_map(|row| match (row.id == source_type, &row.shape) {
-                (true, StructuralTypeShape::ElementView { element }) => Some(*element),
+                (true, StructuralTypeShape::ElementView { element, .. }) => Some(*element),
                 _ => None,
             })
     else {

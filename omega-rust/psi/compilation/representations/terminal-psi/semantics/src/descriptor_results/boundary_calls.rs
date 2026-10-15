@@ -131,7 +131,7 @@ pub fn boundary_completion_preserves_descriptor_storage<'types>(
                     StructuralTypeShape::ByteSequence(carrier) if carrier.is_borrowed() => {
                         return true;
                     }
-                    StructuralTypeShape::ElementView { element } => {
+                    StructuralTypeShape::ElementView { element, .. } => {
                         return super::plain_owned_shape(types.clone(), *element);
                     }
                     _ => {}

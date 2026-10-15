@@ -1,0 +1,83 @@
+// Expected exit: 0.
+// A runtime-selected visitor writes matching values into caller-owned storage.
+// The scan stops when that supplied output fills; it does not allocate results.
+data Matches<'output> { values: &'output mut [i32]; count: u64; }
+
+trait Visitor<Output> {
+    machine emit(output: &mut Output, value: i32) -> bool;
+}
+
+machine append<'storage>(output: &mut Matches<'storage>, value: i32) -> bool {
+    transition output.count < output.values.len {
+        true -> store(output, value)
+        false -> false
+    }
+    state store(output: &mut Matches<'storage>, value: i32) -> bool
+    requires output.count < output.values.len {
+        output.values[output.count] = value;
+        output.count = output.count + 1;
+        true
+    }
+}
+
+Exact<'storage> satisfies Visitor<Matches<'storage>> {
+    machine emit(output: &mut Matches<'storage>, value: i32) -> bool {
+        append(output, value)
+    }
+}
+
+Tagged<'storage> satisfies Visitor<Matches<'storage>> {
+    machine emit(output: &mut Matches<'storage>, value: i32) -> bool {
+        append(output, value ^ 1)
+    }
+}
+
+machine scan<'storage>(visitor: dyn Visitor<Matches<'storage>>, input: &[i32], output: &mut Matches<'storage>) -> u64 {
+    transition { _ -> next(visitor, input, output, 0) }
+    state next(visitor: dyn Visitor<Matches<'storage>>, input: &[i32], output: &mut Matches<'storage>, position: u64) -> u64
+    requires position <= input.len {
+        transition position < input.len {
+            true -> inspect(visitor, input, output, position)
+            false -> output.count
+        }
+    }
+    state inspect(visitor: dyn Visitor<Matches<'storage>>, input: &[i32], output: &mut Matches<'storage>, position: u64) -> u64
+    requires position < input.len {
+        transition input[position] > 0 {
+            true -> emit(visitor, input, output, position)
+            false -> next(visitor, input, output, position + 1)
+        }
+    }
+    state emit(visitor: dyn Visitor<Matches<'storage>>, input: &[i32], output: &mut Matches<'storage>, position: u64) -> u64
+    requires position < input.len {
+        let accepted: bool = Visitor::emit(visitor, output, input[position]);
+        transition accepted {
+            true -> next(visitor, input, output, position + 1)
+            false -> output.count
+        }
+    }
+}
+
+machine main() crashes Trap {
+    let input: [i32; 5] = [-3, 7, 0, -1, 9];
+    let mut exact: [i32; 3] = [-1, -1, -1];
+    let mut tagged: [i32; 3] = [-1, -1, -1];
+    let mut short: [i32; 1] = [-1];
+    let mut selected: dyn Visitor<Matches> = Exact as dyn Visitor<Matches>;
+    let mut exact_output: Matches = Matches { values: &mut exact[..], count: 0 };
+    let count: u64 = scan(selected, &input, &mut exact_output);
+    selected = Tagged as dyn Visitor<Matches>;
+    let mut tagged_output: Matches = Matches { values: &mut tagged[..], count: 0 };
+    let tagged_count: u64 = scan(selected, &input, &mut tagged_output);
+    let mut short_output: Matches = Matches { values: &mut short[..], count: 0 };
+    let short_count: u64 = scan(selected, &input, &mut short_output);
+    let empty_count: u64 = scan(selected, input[..0], &mut short_output);
+    transition count == 2 && exact[0] == 7 && exact[1] == 9 && exact[2] == -1
+        && tagged_count == 2 && tagged[0] == 6 && tagged[1] == 8 && tagged[2] == -1
+        && short_count == 1 && short[0] == 6 && empty_count == 1 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

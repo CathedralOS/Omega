@@ -7,6 +7,40 @@
 
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 
+/// Materialize a shared element descriptor without copying its backing.
+/// Stored descriptors carry their own permission; a canonical source needs
+/// the access of its authenticated occurrence. Readability alone cannot copy
+/// an exclusive descriptor. Availability and result custody remain separate.
+pub fn shared_descriptor_copy_matches<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    source: StructuralTypeId,
+    occurrence_access: Option<StructuralAccess>,
+    destination: StructuralTypeId,
+) -> bool {
+    let Some(StructuralTypeShape::ElementView {
+        element: source_element,
+        access: source_access,
+    }) = types
+        .clone()
+        .find(|row| row.id == source)
+        .map(|row| &row.shape)
+    else {
+        return false;
+    };
+    let Some(StructuralTypeShape::ElementView {
+        element: destination_element,
+        access: Some(StructuralAccess::SharedBorrow),
+    }) = types
+        .clone()
+        .find(|row| row.id == destination)
+        .map(|row| &row.shape)
+    else {
+        return false;
+    };
+    source_element == destination_element
+        && source_access.or(occurrence_access) == Some(StructuralAccess::SharedBorrow)
+}
+
 /// Shared references can be copied even when their materialized carriers have
 /// affine retirement custody. Fixed arrays inherit this distinction from their
 /// elements, including nested arrays; the referent itself is never copied.
@@ -30,6 +64,12 @@ pub fn is_shared_reference_carrier<'types>(
         }
         match declaration.shape {
             StructuralTypeShape::Reference { access, .. } => {
+                return access == StructuralAccess::SharedBorrow;
+            }
+            StructuralTypeShape::ElementView {
+                access: Some(access),
+                ..
+            } => {
                 return access == StructuralAccess::SharedBorrow;
             }
             StructuralTypeShape::FixedArray { element, .. } => structural_type = element,
@@ -202,17 +242,20 @@ pub fn reference_source_projection_accessible<'types>(
             }
             StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => {
                 let declaration = crate::runtime_structural_path_tip(types.clone(), root, prefix);
-                // A formal or crossed reference has explicit backing access.
-                // A directly contained ElementView has no field-local access
-                // contract. This declaration walk cannot grant exclusive use
-                // without the selected descriptor occurrence's authority.
-                if position != region_start
-                    && declaration.is_some_and(|row| {
-                        matches!(row.shape, StructuralTypeShape::ElementView { .. })
-                    })
-                    && requested != StructuralAccess::SharedBorrow
+                if let Some(StructuralTypeShape::ElementView { access, .. }) =
+                    declaration.map(|row| &row.shape)
                 {
-                    return false;
+                    match access {
+                        Some(access) if !requested.admits_referent(*access) => return false,
+                        // Canonical descriptors rely on an explicit occurrence;
+                        // storing that geometry alone grants no mutable loan.
+                        None if position != region_start
+                            && requested != StructuralAccess::SharedBorrow =>
+                        {
+                            return false;
+                        }
+                        _ => {}
+                    }
                 }
                 // Inline fields carry their own access contract. Their
                 // canonical geometry declaration can erase that access, so it
@@ -238,6 +281,48 @@ pub fn reference_source_projection_accessible<'types>(
                 {
                     return false;
                 }
+            }
+            _ => {}
+        }
+    }
+    true
+}
+
+/// Permission to use a selected descriptor's backing, rather than to borrow
+/// or replace its storage slot. Container ownership cannot upgrade a stored
+/// shared view; canonical descriptors rely on their explicit root/reference
+/// occurrence. Availability and overlapping loans remain separate judgments.
+pub fn descriptor_source_projection_accessible<'types>(
+    types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    multiplicity: terminal_psi::StructuralMultiplicity,
+    authority: terminal_psi::StructuralAccess,
+    path: &[terminal_psi::StructuralPathSegment],
+    requested: terminal_psi::StructuralAccess,
+) -> bool {
+    use terminal_psi::{StructuralAccess, StructuralPathSegment, StructuralTypeShape};
+    if !reference_source_projection_accessible(
+        types.clone(),
+        root,
+        multiplicity,
+        authority,
+        path,
+        requested,
+    ) {
+        return false;
+    }
+    let path = reference_source_storage_path(types.clone(), root, path);
+    let region_start = path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)
+        .map_or(0, |position| position + 1);
+    if let Some(StructuralTypeShape::ElementView { access, .. }) =
+        crate::runtime_structural_path_tip(types.clone(), root, path).map(|row| &row.shape)
+    {
+        match access {
+            Some(access) if !requested.admits_referent(*access) => return false,
+            None if path.len() != region_start && requested != StructuralAccess::SharedBorrow => {
+                return false;
             }
             _ => {}
         }

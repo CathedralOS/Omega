@@ -30,7 +30,7 @@ pub(super) fn element_stride(
         .as_slice()
         .iter()
         .find(|declaration| declaration.id == view_type)?;
-    let StructuralTypeShape::ElementView { element } = &declaration.shape else {
+    let StructuralTypeShape::ElementView { element, .. } = &declaration.shape else {
         return None;
     };
     let shape = crate::structural_inputs::structural_reference_input::shape(
@@ -117,7 +117,7 @@ fn element_view_read(
         .iter()
         .find(|declaration| declaration.id == view_type)
         .and_then(|declaration| match declaration.shape {
-            StructuralTypeShape::ElementView { element } => Some(element),
+            StructuralTypeShape::ElementView { element, .. } => Some(element),
             _ => None,
         })
         .ok_or_else(|| invalid())?;

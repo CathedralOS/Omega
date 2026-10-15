@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance. Versioned fixed-view-copy artifact envelope.
 //!
-//! Owns admission and authentication order. V52 adds evaluated runtime selector
-//! operands for normalized foreign-call arguments to V51's owned cleanup paths.
+//! Owns admission and authentication order. V71 retains stored element-view
+//! backing access independently of the descriptor's physical geometry.
 //! Atomic field identity remains distinct from its scalar representation.
 //! Every older envelope is rejected before its payload is interpreted.
 
@@ -31,7 +31,8 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 68 retains input-relative returned-region extent.
 // Version 69 retains exact placed-call formal-to-argument bindings.
 // Version 70 combines quotient representations with placed-call bindings.
-const VERSION: u32 = 70;
+// Version 71 retains element-view access ceilings in structural declarations.
+const VERSION: u32 = 71;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.

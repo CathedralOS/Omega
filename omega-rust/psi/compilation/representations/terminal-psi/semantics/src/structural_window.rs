@@ -120,7 +120,7 @@ pub fn structural_window_projection<'types>(
             // to its containing carrier; this query resolves only its type.
             (
                 StructuralPathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::ElementView { element },
+                StructuralTypeShape::ElementView { element, .. },
             ) => *element,
             _ => return None,
         };

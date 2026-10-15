@@ -369,7 +369,7 @@ pub(super) fn call_result<'a>(
             result.structural_type,
             &source.structural.as_ref()?.structural_types,
         )?,
-        _ if terminal_semantics::descriptor_results::is_shared_descriptor(
+        _ if terminal_semantics::descriptor_results::is_descriptor(
             source.structural.as_ref()?.structural_types.iter(),
             result.structural_type,
         ) && matches!(
@@ -420,7 +420,7 @@ pub(super) fn returned_descriptor<'a>(
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         || !declared.projected_qualifications.is_empty()
-        || !terminal_semantics::descriptor_results::is_shared_descriptor(
+        || !terminal_semantics::descriptor_results::is_descriptor(
             signature.structural_types.iter(),
             identity,
         )

@@ -50,9 +50,13 @@ pub(crate) fn encode_structural_type(
             writer.u8(4);
             super::structural_field_wire::encode_byte_sequence_carrier(writer, *carrier);
         }
-        StructuralTypeShape::ElementView { element } => {
+        StructuralTypeShape::ElementView { element, access } => {
             writer.u8(8);
             writer.id(*element);
+            writer.boolean(access.is_some());
+            if let Some(access) = access {
+                super::structural_signature_wire::encode_structural_access(writer, *access);
+            }
         }
         StructuralTypeShape::Record { fields, storage } => {
             writer.u8(match storage {
@@ -195,6 +199,13 @@ pub(crate) fn decode_structural_type(
         },
         8 => StructuralTypeShape::ElementView {
             element: reader.id("StructuralTypeId")?,
+            access: if reader.boolean()? {
+                Some(super::structural_signature_wire::decode_structural_access(
+                    reader,
+                )?)
+            } else {
+                None
+            },
         },
         2 => StructuralTypeShape::FixedArray {
             element: reader.id("StructuralTypeId")?,

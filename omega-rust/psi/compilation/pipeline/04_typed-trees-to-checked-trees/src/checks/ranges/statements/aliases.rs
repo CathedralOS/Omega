@@ -40,11 +40,14 @@ pub(in crate::checks::ranges) fn seed_local_alias_facts(
     );
     seed_ensured_call_result_bounds(program, facts, &target_label, value);
     remainder_bounds::seed(program, machine, state, facts, value, &target_label);
+    facts.alias_place_facts(program, machine, state, value, symbol);
 
     // The local inherits the proven index/range facts of whatever stable place
     // the value aliases. The source label must be the full display name (e.g.
     // `room.exit_count`), since that is how the facts were keyed when seeded.
-    let Some(source_label) = alias_source_label(program, machine, state, value) else {
+    let Some(source_label) =
+        alias_source_label(program, machine, state, facts.statement_index, value)
+    else {
         // A local bound to ARITHMETIC (`let index = self.length - 1`) is a
         // value alias: at the binding point it names exactly the value the
         // arithmetic label denotes, so index-POSITION facts keyed on that
@@ -123,19 +126,37 @@ fn alias_source_label(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    value: ExpressionHandle,
+    statement_index: usize,
+    mut value: ExpressionHandle,
 ) -> Option<String> {
-    match program.expression_table.expression(value) {
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
-            Some(program.expression_table.display_name(value))
-        }
-        ExpressionNode::Borrow(inner) => alias_source_label(program, machine, state, inner.target),
-        ExpressionNode::Indexed(_) => {
-            validation::whole_collection_view_source(program, machine, Some(state), value)
-                .map(|source| program.expression_table.display_name(source))
-        }
-        _ => None,
+    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(value) {
+        value = borrow.target;
     }
+    value = validation::whole_collection_view_source(program, machine, Some(state), value)
+        .unwrap_or(value);
+    if !validation::place_has_builtin_coordinates(program, machine, Some(state), value) {
+        return None;
+    }
+    let place = validation::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        value,
+    )?;
+    // A narrowed window changes element coordinates. Its independent extent
+    // seeding below cannot donate the source's element-position facts.
+    if !matches!(place.root, facts::PlaceRoot::Symbol(root) if root.is_valid())
+        || place.segments.iter().any(|segment| match segment {
+            facts::PlaceSegment::FixedRange { .. } => true,
+            facts::PlaceSegment::Index { expression } => {
+                program.expression_table.range_node(*expression).is_some()
+            }
+            _ => false,
+        })
+    {
+        return None;
+    }
+    Some(program.expression_table.display_name(value))
 }
 
 /// Seeds window-shrinking facts when a local is bound to a subslice `base[a..b]`

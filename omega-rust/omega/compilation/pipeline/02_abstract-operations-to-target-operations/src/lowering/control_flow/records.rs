@@ -400,7 +400,7 @@ pub(super) fn establish_structural_local(
     // A declared descriptor local's home is read as a shared view once its
     // whole-slot store installs a descriptor; verification proved that store
     // reaches every read.
-    if terminal_semantics::descriptor_results::is_shared_descriptor(
+    if terminal_semantics::descriptor_results::is_descriptor(
         types.values().copied(),
         result.structural_type,
     ) && live

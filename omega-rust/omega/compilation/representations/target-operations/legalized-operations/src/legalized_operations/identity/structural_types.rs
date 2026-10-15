@@ -38,6 +38,34 @@ mod parameter_tests;
 #[cfg(test)]
 mod scalar_refinement_tests;
 
+#[test]
+fn element_view_encoding_distinguishes_access_ceilings() {
+    let mut encodings = Vec::new();
+    for access in [
+        None,
+        Some(StructuralAccess::SharedBorrow),
+        Some(StructuralAccess::MutableBorrow),
+        Some(StructuralAccess::WriteOnlyBorrow),
+    ] {
+        let declaration = StructuralTypeDeclaration {
+            quotient_carrier: None,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: true,
+            scalar_restriction: None,
+            id: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(1),
+            shape: StructuralTypeShape::ElementView {
+                element: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                access,
+            },
+        };
+        let mut bytes = Vec::new();
+        encode_structural_type(&mut bytes, &declaration);
+        assert!(!encodings.contains(&bytes));
+        encodings.push(bytes);
+    }
+}
+
 pub(super) fn encode_structural_parameter(
     bytes: &mut Vec<u8>,
     parameter: &StructuralParameterDeclaration,
@@ -294,9 +322,14 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
             bytes.push(1);
             encode_byte_sequence_carrier(bytes, *carrier);
         }
-        StructuralTypeShape::ElementView { element } => {
+        StructuralTypeShape::ElementView { element, access } => {
             bytes.push(8);
             crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
+            // Equal geometry does not make stored backing permissions equal.
+            bytes.push(u8::from(access.is_some()));
+            if let Some(access) = access {
+                encode_access(bytes, *access);
+            }
         }
         StructuralTypeShape::Record { fields, storage } => {
             match storage {

@@ -221,11 +221,11 @@ fn resolve_path<'types>(
             // as its verified obligation.
             (
                 terminal_psi::StructuralPathSegment::FixedIndex(_),
-                terminal_psi::StructuralTypeShape::ElementView { element },
+                terminal_psi::StructuralTypeShape::ElementView { element, .. },
             ) => *element,
             (
                 terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
-                terminal_psi::StructuralTypeShape::ElementView { element },
+                terminal_psi::StructuralTypeShape::ElementView { element, .. },
             ) => *element,
             _ => return None,
         };

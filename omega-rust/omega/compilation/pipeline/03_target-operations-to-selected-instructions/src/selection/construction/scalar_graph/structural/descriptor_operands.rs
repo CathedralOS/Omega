@@ -123,7 +123,7 @@ pub(super) fn element_stride(
     function: &LegalizedScalarFunction,
     source: &StructuralArgument,
 ) -> Option<u32> {
-    let (_, StructuralTypeShape::ElementView { element }) = source_geometry(function, source)?
+    let (_, StructuralTypeShape::ElementView { element, .. }) = source_geometry(function, source)?
     else {
         return None;
     };

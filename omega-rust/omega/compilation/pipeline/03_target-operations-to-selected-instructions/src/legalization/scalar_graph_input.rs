@@ -316,9 +316,10 @@ pub(super) fn match_input(
             && (!unit.structural_types.iter().any(|declaration| {
                 declaration.id == result.structural_type
                     && match &declaration.shape {
-                        terminal_psi::StructuralTypeShape::ElementView { element: declared } => {
-                            declared == element
-                        }
+                        terminal_psi::StructuralTypeShape::ElementView {
+                            element: declared,
+                            ..
+                        } => declared == element,
                         // Byte view carriers declare an implicit exact `u8`
                         // element instead of an `ElementView` shell. The
                         // independent geometry audit checks declared extent

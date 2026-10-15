@@ -678,7 +678,7 @@ pub(in crate::lowering) fn descriptor_result<'a>(
         && result.projected_qualifications.is_empty()
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
-        && terminal_semantics::descriptor_results::is_shared_descriptor(
+        && terminal_semantics::descriptor_results::is_descriptor(
             types.values().copied(),
             result.structural_type,
         ))

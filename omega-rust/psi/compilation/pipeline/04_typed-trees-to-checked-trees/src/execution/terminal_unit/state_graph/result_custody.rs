@@ -807,6 +807,9 @@ pub(super) fn account(
         // admitted access leaves the unrestricted carrier without affine
         // transfer debt; exclusive access still owes the consumer's exact
         // loan checks. Access is not a second multiplicity classification.
+        // The admitted operand names the occurrence it observes. Its formal
+        // presentation can differ from the stored descriptor's identity, so
+        // do not repeat representation correspondence as a custody equality.
         let observed_by_call = result.multiplicity == Multiplicity::Unrestricted
             && operations[producer_index + 1..]
                 .iter()
@@ -814,7 +817,6 @@ pub(super) fn account(
                 .any(|argument| {
                     argument.source_structural_result_binding_ordinal()
                         == Some(result.binding_ordinal)
-                        && argument.type_identity == result.type_identity
                         && argument.path.is_empty()
                 });
         // A whole local rebind retires the previous unrestricted occurrence

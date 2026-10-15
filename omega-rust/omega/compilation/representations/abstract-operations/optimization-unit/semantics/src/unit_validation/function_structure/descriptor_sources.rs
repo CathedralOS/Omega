@@ -72,9 +72,10 @@ pub(super) fn valid(
             .map(|declaration| &declaration.shape);
         let carrier_matches = match (&shape, result_shape) {
             (
-                StructuralTypeShape::ElementView { element },
+                StructuralTypeShape::ElementView { element, .. },
                 Some(StructuralTypeShape::ElementView {
                     element: result_element,
+                    ..
                 }),
             ) => element == result_element,
             (
@@ -158,6 +159,16 @@ fn source_shape(
         function,
         source.place,
     )?;
+    if !terminal_semantics::descriptor_source_projection_accessible(
+        types.values().copied(),
+        signature.structural_type,
+        signature.multiplicity,
+        signature.backing_access(types),
+        &source.path,
+        requested,
+    ) {
+        return None;
+    }
     let byte_qualified = types
         .get(&signature.structural_type)
         .is_some_and(|declaration| {

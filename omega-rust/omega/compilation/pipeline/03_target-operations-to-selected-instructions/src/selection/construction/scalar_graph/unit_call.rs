@@ -24,7 +24,22 @@ pub(super) fn emit(
         return Err(SelectedInstructionError::custody());
     }
     call.validate_source(&operation.ownership)
-        .map_err(|_| SelectedInstructionError::custody())?;
+        .map_err(|reason| {
+            SelectedInstructionError::custody_because(match reason {
+                legalized_operations::LegalizedCallSourceError::ProviderIdentityMismatch => {
+                    "call provider identity differs from its installed source"
+                }
+                legalized_operations::LegalizedCallSourceError::ArgumentSignatureMismatch => {
+                    "call arguments differ from the installed provider signature"
+                }
+                legalized_operations::LegalizedCallSourceError::CompletionEvidenceMismatch => {
+                    "call completion evidence differs from its source"
+                }
+                legalized_operations::LegalizedCallSourceError::OwnershipMismatch => {
+                    "call ownership events differ from its source transfers"
+                }
+            })
+        })?;
     let key = crate::selection::scalar_call_abi::unit_key(call, environment)
         .ok_or_else(|| SelectedInstructionError::custody())?;
     crate::selection::scalar_call_abi::validate(

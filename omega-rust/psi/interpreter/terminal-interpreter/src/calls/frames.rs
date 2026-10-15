@@ -213,7 +213,22 @@ impl TerminalExecution<'_> {
             if !matches!(declaration.shape, StructuralTypeShape::ElementView { .. }) {
                 continue;
             }
-            let view = self.element_view_argument(argument, resolved)?;
+            // Lookup uses the source's physical descriptor identity. The
+            // callee may present its canonical borrowed type at that same
+            // home; this must never choose another descriptor or window.
+            let stored =
+                self.resolve_live_projection(argument.place, &argument.path, argument.access)?;
+            if stored.opaque_identity != resolved.opaque_identity
+                || stored.path != resolved.path
+                || !terminal_semantics::borrowed_referent_matches(
+                    self.program.structural_types().values(),
+                    stored.structural_type,
+                    resolved.structural_type,
+                )
+            {
+                return Err(malformed());
+            }
+            let view = self.element_view_argument(argument, &stored)?;
             let access = if parameter.access == StructuralAccess::Owned {
                 // Argument preparation owns transfer authority and qualification
                 // implication. This companion carries the selected descriptor,

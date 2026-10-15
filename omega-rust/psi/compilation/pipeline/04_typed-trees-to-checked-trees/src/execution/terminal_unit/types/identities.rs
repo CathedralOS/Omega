@@ -71,6 +71,18 @@ pub(crate) fn byte_sequence_type_identity(
 
 pub(in crate::execution) use validation::type_graph_requires_nominal_drop;
 
+/// Join stored reference identity to its borrowed presentation without
+/// erasing the source declaration. Access and custody remain the edge's checks.
+pub(in crate::execution::terminal_unit) fn stored_type_presents_borrowed(
+    program: &dyn ::validation::CheckingInput,
+    source: TypeReferenceHandle,
+    stored: typed_trees::type_identity::TypeIdentityId,
+    borrowed: typed_trees::type_identity::TypeIdentityId,
+) -> bool {
+    validation::stored_structural_type_identity(program, source, &[], &[]) == stored
+        && base_type_identity(program, source, &[], &[]) == Some(borrowed)
+}
+
 pub(in crate::execution::terminal_unit) fn is_unit(
     program: &dyn ::validation::CheckingInput,
     mut type_reference: TypeReferenceHandle,

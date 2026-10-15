@@ -272,7 +272,11 @@ pub(super) fn validate(
             if matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.access != StructuralAccess::Owned)
             {
                 validate_borrowed_argument(source, call, operation, argument_index)
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(|| {
+                        SelectedInstructionError::custody_because(
+                            "borrowed call argument does not match its retained source geometry and ABI",
+                        )
+                    })?;
             }
         }
     }
@@ -294,15 +298,18 @@ pub(super) fn validate(
     let result = call.call_plan.result.as_ref();
     // Every materialized structural result transports its complete value,
     // including a reference descriptor. Custody never substitutes for bytes.
-    let aggregate = if call.structural_result.is_some() {
-        Some(
+    let aggregate =
+        if call.structural_result.is_some() {
+            Some(
             crate::selection::aggregate_result_input::call_result(source, call)
-                .ok_or_else(invalid)?
+                .ok_or_else(|| SelectedInstructionError::custody_because(
+                    "structural call result does not match its declared result home and ABI",
+                ))?
                 .1,
         )
-    } else {
-        None
-    };
+        } else {
+            None
+        };
     if unit_key(call, environment) != Some(key)
         || environment.constraint(key) != Some(row)
         || row.key != key

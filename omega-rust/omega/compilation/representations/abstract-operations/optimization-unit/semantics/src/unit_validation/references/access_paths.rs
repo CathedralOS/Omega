@@ -134,7 +134,7 @@ pub(crate) fn access_path_type(
             terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => {
                 match types.get(&current)?.shape {
                     terminal_psi::StructuralTypeShape::FixedArray { element, .. }
-                    | terminal_psi::StructuralTypeShape::ElementView { element } => element,
+                    | terminal_psi::StructuralTypeShape::ElementView { element, .. } => element,
                     _ => return None,
                 }
             }

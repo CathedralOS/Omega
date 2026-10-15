@@ -106,12 +106,12 @@ fn collection_shape_backing<'types>(
     element: StructuralTypeId,
 ) -> Option<CollectionBacking> {
     match *shape {
-        StructuralTypeShape::ElementView { element: actual } if actual == element => {
-            Some(CollectionBacking {
-                extent: CollectionExtent::StoredLength,
-                storage: CollectionStorage::Borrowed,
-            })
-        }
+        StructuralTypeShape::ElementView {
+            element: actual, ..
+        } if actual == element => Some(CollectionBacking {
+            extent: CollectionExtent::StoredLength,
+            storage: CollectionStorage::Borrowed,
+        }),
         StructuralTypeShape::FixedArray {
             element: actual,
             length,

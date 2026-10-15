@@ -1,0 +1,9 @@
+// Replacing the descriptor invalidates its previous length, including alias facts.
+data Output<'storage> { values: &'storage mut [i32]; }
+machine replace<'storage>(output: &mut Output<'storage>, replacement: &'storage mut [i32], position: u64)
+requires position < output.values.len {
+    let alias: &mut Output<'storage> = &mut output;
+    alias.values = replacement;
+    alias.values[position] = 9;
+}
+machine main() {}

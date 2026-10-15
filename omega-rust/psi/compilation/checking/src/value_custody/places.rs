@@ -137,6 +137,17 @@ pub(crate) fn validate_assignment_target_handle(
              because it is not mutable in this state (if `{root_name}` is undeclared -- a typo -- \
              no such field or local exists)"
         )));
+    } else if !crate::value_custody::reference_access::assignment_place_permits_write(
+        program,
+        machine,
+        current_state,
+        writable_roots.statements,
+        target,
+    ) {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{machine_name}` state `{state_name}` assignment requires mutable source access \
+             through every reference crossed by its destination"
+        )));
     }
 }
 

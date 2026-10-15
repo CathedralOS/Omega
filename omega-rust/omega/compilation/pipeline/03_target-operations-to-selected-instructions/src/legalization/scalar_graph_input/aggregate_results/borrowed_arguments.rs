@@ -240,7 +240,12 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
         .parameters
         .get(callee.scalar_parameter_count() + position)
         .ok_or(LegalizationError::custody())?;
-    if selected != destination.structural_type || placement.shape != shape {
+    if !terminal_semantics::borrowed_referent_matches(
+        plan.structural_types.iter(),
+        selected,
+        destination.structural_type,
+    ) || placement.shape != shape
+    {
         return Err(LegalizationError::custody());
     }
     Ok(target_operations::TargetStructuralArgument {
@@ -248,7 +253,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
         access: argument.access,
         path: argument.path.clone(),
         root_structural_type: root,
-        structural_type: selected,
+        structural_type: destination.structural_type,
         shape,
         source_byte_offset: offset,
         fixed_array_length: None,

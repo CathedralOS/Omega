@@ -333,7 +333,7 @@ impl<'program> ShapeCollector<'program> {
     /// admit different referees. An exclusive shell lends whatever it
     /// borrows — a `&mut u8`, a `&mut Record` or a `&mut [T]` — while a
     /// shared shell registers here only over a named or generic referee;
-    /// `&'a [T]` shared views register through `add_slice_view_type`.
+    /// Stored slice descriptors register through `add_stored_type`.
     pub(in crate::execution::terminal_unit) fn add_view_type(
         &mut self,
         reference: TypeReferenceHandle,
@@ -372,28 +372,6 @@ impl<'program> ShapeCollector<'program> {
             substitutions,
             referent_identity,
             access.into(),
-        )
-    }
-
-    /// A `&'a [T]` borrowed view also spells its own type reference — the same
-    /// `Reference` shell `add_view_type` keeps for `&'a V`. Its referent is
-    /// the view carrier `add_type` mints from the whole reference, so `&[u8]`
-    /// registers the `slice(u8)` byte view and `&[T]` its element view.
-    pub(in crate::execution::terminal_unit) fn add_slice_view_type(
-        &mut self,
-        reference: TypeReferenceHandle,
-        binders: &[(SymbolHandle, String)],
-    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
-        if !borrowed_slice_view(self.program, reference) {
-            return None;
-        }
-        let referent_identity = self.add_type(reference, binders, &[])?;
-        self.add_reference_shape(
-            reference,
-            binders,
-            &[],
-            referent_identity,
-            CheckedStructuralAccess::SharedBorrow,
         )
     }
 
@@ -480,6 +458,44 @@ impl<'program> ShapeCollector<'program> {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let reference = substituted_formal_type(self.program, reference, substitutions);
+        if let Some(shell) = validation::slice_view_shell(self.program, reference, substitutions)
+            && byte_sequence_carrier(self.program, reference, substitutions).is_none()
+        {
+            let canonical = self.add_type(reference, binders, substitutions)?;
+            let identity = validation::stored_structural_type_identity(
+                self.program,
+                reference,
+                binders,
+                substitutions,
+            );
+            let mut stored = self.types.get(&canonical)?.clone();
+            let CheckedUnitStructuralTypeShape::BorrowedSliceView { access, .. } =
+                &mut stored.shape
+            else {
+                return None;
+            };
+            *access = Some(match shell.access {
+                language_semantics::ReferenceAccess::Shared => {
+                    CheckedStructuralAccess::SharedBorrow
+                }
+                language_semantics::ReferenceAccess::Mutable => {
+                    CheckedStructuralAccess::MutableBorrow
+                }
+                language_semantics::ReferenceAccess::WriteOnly => {
+                    CheckedStructuralAccess::WriteOnlyBorrow
+                }
+            });
+            stored.identity = identity;
+            if self
+                .types
+                .get(&identity)
+                .is_some_and(|existing| existing != &stored)
+            {
+                return None;
+            }
+            self.types.insert(identity, stored);
+            return Some(identity);
+        }
         if validation::stores_reference_shape(self.program, reference, substitutions) {
             structural_access_for_type_reference(self.program, reference)?;
             let shell = validation::reference_shell(self.program, reference)?;
@@ -619,6 +635,7 @@ impl<'program> ShapeCollector<'program> {
                 identity: identity,
                 shape: CheckedUnitStructuralTypeShape::BorrowedSliceView {
                     element_type_identity: element_type_identity?,
+                    access: None,
                 },
             };
             if self
@@ -1366,6 +1383,7 @@ impl<'program> ShapeCollector<'program> {
                     }
                     | CheckedUnitStructuralTypeShape::BorrowedSliceView {
                         element_type_identity,
+                        ..
                     } => {
                         retained.insert(*element_type_identity);
                     }

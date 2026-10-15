@@ -84,7 +84,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Placed views, quotients and captured closed conformances share this schema.
 // Conditional descriptor origins share immediate supplier dependencies.
 // Mixed structural calls carry outcome-specific selections.
-pub(crate) const FORMAT_MARKER: u16 = 159;
+// Element writes retain full descriptor operands; stored element descriptors
+// retain their declaration-side backing access ceiling.
+pub(crate) const FORMAT_MARKER: u16 = 160;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

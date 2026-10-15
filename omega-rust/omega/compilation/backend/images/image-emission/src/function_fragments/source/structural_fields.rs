@@ -420,7 +420,7 @@ fn field_carrier(
             (
                 terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
                 terminal_psi::StructuralTypeShape::FixedArray { element, .. }
-                | terminal_psi::StructuralTypeShape::ElementView { element },
+                | terminal_psi::StructuralTypeShape::ElementView { element, .. },
             ) => *element,
             (
                 terminal_psi::StructuralPathSegment::Referent,
@@ -1064,7 +1064,7 @@ pub(super) fn retained(
                         }
                         *element
                     }
-                    terminal_psi::StructuralTypeShape::ElementView { element }
+                    terminal_psi::StructuralTypeShape::ElementView { element, .. }
                         if position + 1 == carrier_path.len() =>
                     {
                         *element

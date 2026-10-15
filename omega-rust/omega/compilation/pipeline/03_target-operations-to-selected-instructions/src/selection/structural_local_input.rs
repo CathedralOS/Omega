@@ -24,7 +24,7 @@ pub(super) fn storage<'a>(
         // Only a descriptor home declares qualifications: byte predicates of
         // its contents, which leave its storage shape unchanged.
         || (!result.qualifications.is_empty()
-            && !terminal_semantics::descriptor_results::is_shared_descriptor(
+            && !terminal_semantics::descriptor_results::is_descriptor(
                 declarations.iter(),
                 result.structural_type,
             ))

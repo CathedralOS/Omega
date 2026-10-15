@@ -672,7 +672,8 @@ pub enum OperationKind {
     /// custody of the view: a parameter declared `&mut [T]`, or an
     /// operation-result place no shared-view establishment produced.
     ElementViewWrite {
-        destination: PlaceId,
+        /// The descriptor coordinate, independent of the leaf inside an element.
+        destination: StructuralArgument,
         path: Vec<StructuralPathSegment>,
         index: ValueId,
         value: ValueId,

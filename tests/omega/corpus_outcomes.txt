@@ -4371,6 +4371,26 @@ fail/slices/state_projected_bound_wrong_field rejected 632ms expected @f329f97f5
 	cannot prove index `inner` is within unknown slice length of `windows[outer].other` in replace::store
 fail/slices/stored_bound_replaces_old_value rejected 1251ms expected @82646dcce47b+wt
 	cannot prove index `cursor.offset` is within length 64 in read::replace
+fail/slices/stored_element_view_sibling_bounds rejected 540ms expected @ef9160ae9c0b+wt
+	cannot prove index `position` is within unknown slice length of `output.right` in overwrite::entry
+fail/slices/stored_shared_element_view_write rejected 164ms expected @ef9160ae9c0b+wt
+	machine `overwrite` state `store` assignment requires mutable source access through every reference crossed by its destination
+fail/slices/stored_shared_view_mutable_call rejected 151ms expected @ef9160ae9c0b+wt
+	argument `values` for state `entry` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/slices/stored_view_alias_replacement_bounds rejected 540ms expected @ef9160ae9c0b+wt
+	cannot prove index `position` is within unknown slice length of `alias.values` in replace::entry
+fail/slices/stored_view_callee_changed_selector_bounds rejected 499ms expected @ef9160ae9c0b+wt
+	cannot prove index `0` is within unknown slice length of `output.values` in overwrite::entry
+fail/slices/stored_view_changed_selector_bounds rejected 544ms expected @ef9160ae9c0b+wt
+	cannot prove index `0` is within unknown slice length of `output.values` in overwrite::entry
+fail/slices/stored_write_only_view_mutable_call rejected 156ms expected @ef9160ae9c0b+wt
+	machine `misuse` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
+	data `Output` field `values` uses `&write` outside the checked direct callable and local view surface; write-only stored fields and nested generic arguments are not implemented yet
+	argument `values` for state `entry` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access
+fail/slices/stored_write_only_view_shared_call rejected 159ms expected @ef9160ae9c0b+wt
+	machine `misuse` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
+	data `Output` field `values` uses `&write` outside the checked direct callable and local view surface; write-only stored fields and nested generic arguments are not implemented yet
+	argument `values` for state `entry` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access
 fail/slices/subslice_range_operator_contract_unproven rejected 1808ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` value call to `Slice::range` violates required fact `start <= end && end <= items.len`: the instantiated fact is structurally false
 fail/slices/termination_slice_length_order_unimplemented rejected 310ms expected @dca1c7cd7e6f+wt
@@ -7580,6 +7600,7 @@ pass/slices/extent_no_wrap checked 9596ms @5041ef1af684+wt
 pass/slices/extent_surface checked 9610ms @5041ef1af684+wt
 pass/slices/fixed_array_slice_state_arguments_exit checked 11453ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/fused_entry_slice_call checked 9300ms @5041ef1af684+wt
+pass/slices/generic_projected_array_write checked 2968ms check-target:macos_arm64 @ef9160ae9c0b+wt
 pass/slices/guarded_match_slice_index_exit checked 11459ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/guarded_param_subslice checked 9539ms @5041ef1af684+wt
 pass/slices/guarded_slice_parameter_bounded_subslice_compile checked 1635ms @a9ae30e1c334+wt
@@ -7701,6 +7722,8 @@ pass/slices/state_projected_selector_bounds checked 1811ms @f329f97f57f7+wt
 pass/slices/state_record_array_mutable_view_exit checked 11644ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/state_record_array_shared_child_view_exit checked 11883ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/static_data_computed_index_hoists checked 1997ms @a9ae30e1c334+wt
+pass/slices/stored_element_view_branching_value checked 2991ms check-target:macos_arm64 @ef9160ae9c0b+wt
+pass/slices/stored_element_view_runtime_destination checked 3006ms check-target:macos_arm64 @ef9160ae9c0b+wt
 pass/slices/subslice_folded_bound_facts_compile checked 1564ms @a9ae30e1c334+wt
 pass/slices/subslice_folded_facts checked 10191ms @5041ef1af684+wt
 pass/slices/subslice_literal_bounds_compile checked 1743ms @a9ae30e1c334+wt

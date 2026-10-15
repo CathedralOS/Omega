@@ -53,7 +53,7 @@ impl TerminalExecution<'_> {
                     .ok_or_else(malformed)?
                     .shape
                 {
-                    StructuralTypeShape::ElementView { element } => element,
+                    StructuralTypeShape::ElementView { element, .. } => element,
                     _ => return Err(malformed()),
                 }
             } else {

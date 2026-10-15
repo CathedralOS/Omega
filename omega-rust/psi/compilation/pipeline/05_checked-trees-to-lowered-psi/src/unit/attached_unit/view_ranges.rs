@@ -128,7 +128,7 @@ pub(crate) fn element_type(
             "element view lost its descriptor carrier",
         ))?;
     match declaration.shape {
-        terminal_psi::StructuralTypeShape::ElementView { element } => Ok(element),
+        terminal_psi::StructuralTypeShape::ElementView { element, .. } => Ok(element),
         terminal_psi::StructuralTypeShape::ByteSequence(_) => {
             let identity = crate::terminal_identities::byte_view_element_identity(
                 checked
@@ -413,9 +413,9 @@ pub(crate) fn storage(
                     ))?,
             )
         }
-        terminal_psi::StructuralTypeShape::ElementView { element }
+        terminal_psi::StructuralTypeShape::ElementView { element, .. }
             if range.family == ViewFamily::Elements
-                && view.shape == (terminal_psi::StructuralTypeShape::ElementView { element }) =>
+                && matches!(view.shape, terminal_psi::StructuralTypeShape::ElementView { element: actual, .. } if actual == element) =>
         {
             None
         }

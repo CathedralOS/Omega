@@ -521,16 +521,7 @@ pub(super) fn plan(
         // presentation of its referent. Slice views are different carriers:
         // they retain their element-view descriptor, not a reference to an
         // unsized slice. Classify storage here, not function-result admission.
-        let type_identity = if validation::reference_result_custody::stored_loan_parts(
-            program,
-            local.type_reference,
-        )
-        .is_some()
-        {
-            shapes.add_reference_type(local.type_reference, binders)?
-        } else {
-            shapes.add_type(local.type_reference, binders, &[])?
-        };
+        let type_identity = shapes.add_stored_type(local.type_reference, binders, &[])?;
         // A local's checked initializer judgments need the same domain/carrier
         // catalogue as signature judgments. Register their theory here even
         // when no machine parameter happens to mention those domains; this

@@ -132,6 +132,7 @@ pub enum CheckedUnitStructuralTypeShape {
     /// it stays a target-side implementation detail.
     BorrowedSliceView {
         element_type_identity: TypeIdentityId,
+        access: Option<super::CheckedStructuralAccess>,
     },
     /// A closed pure sum. Each case owns its exact payload-field roster; an
     /// empty roster is the payload-less case form.

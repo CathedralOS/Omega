@@ -66,7 +66,8 @@ pub(crate) fn collect_value_roots(
             }
         }
         checked_trees::CheckedStructuralValueKind::Place(source)
-        | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. } => {
+        | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. }
+        | checked_trees::CheckedStructuralValueKind::MutableSliceView { source, .. } => {
             roots.push(source.type_identity);
         }
         checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
@@ -109,38 +110,15 @@ pub(crate) fn collect_value_roots(
                 if let checked_trees::CheckedStructuralRecordFieldValue::Structural(nested) =
                     field.value
                 {
-                    // A nested view's node names its backing storage, never
-                    // the view itself: `source.type_identity` is the array or
-                    // record the range reads from. The field's declared type
-                    // carries the view, so peel it to the view carrier the way
-                    // the checked identity already spells it.
-                    if matches!(
-                        checked
-                            .facts
-                            .values
-                            .structural_values
-                            .nodes
-                            .get(nested)
-                            .kind,
-                        checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
-                            | checked_trees::CheckedStructuralValueKind::MutableSliceView { .. }
-                    ) {
-                        let mut view = field.type_reference;
-                        while let checked_trees::types::TypeReferenceNode::Reference {
-                            referee,
-                            ..
-                        }
-                        | checked_trees::types::TypeReferenceNode::Constrained {
-                            base_type: referee,
-                            ..
-                        } = checked.type_reference_table.type_reference(view)
-                        {
-                            view = *referee;
-                        }
-                        roots.push(checked.type_identity(
-                            typed_trees::type_identity::TypeIdentityRequest::ordinary(view),
-                        ));
-                    }
+                    // A field stores its declared carrier, including a view's
+                    // access shell. Its initializer separately roots the backing
+                    // it reads; a borrowed formal's peeled identity is neither.
+                    roots.push(validation::stored_structural_type_identity(
+                        &checked.typed,
+                        field.type_reference,
+                        &[],
+                        &[],
+                    ));
                     collect_value_roots(checked, nested, roots)?;
                 }
             }
@@ -619,6 +597,7 @@ pub(crate) fn lower_unit_structural_type_roots(
             // element type that must itself reach the catalog.
             CheckedUnitStructuralTypeShape::BorrowedSliceView {
                 element_type_identity,
+                ..
             } => {
                 collect(checked, plans, *element_type_identity, active, selected)?;
             }
@@ -758,8 +737,12 @@ pub(crate) fn lower_unit_structural_type_roots(
             }
             CheckedUnitStructuralTypeShape::BorrowedSliceView {
                 element_type_identity,
+                access,
             } => StructuralTypeShape::ElementView {
                 element: lookup_type_id(&type_ids, element_type_identity)?,
+                access: access.map(
+                    crate::expression_preparation::bindings::structural_paths::terminal_access,
+                ),
             },
             CheckedUnitStructuralTypeShape::Record { fields, storage } => {
                 let mut field_identities = BTreeSet::new();

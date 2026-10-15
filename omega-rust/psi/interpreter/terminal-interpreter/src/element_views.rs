@@ -513,6 +513,7 @@ impl TerminalExecution<'_> {
         match descriptor {
             StructuralTypeShape::ElementView {
                 element: view_element,
+                ..
             } if *view_element == element => {}
             StructuralTypeShape::ByteSequence(_)
                 if descriptor.is_borrowed_byte_carrier()
@@ -1053,11 +1054,13 @@ impl TerminalExecution<'_> {
         if !terminal_scalar_belongs_to_type(element) {
             return Err(malformed());
         }
-        let Some(view) = self.element_view_values.get(destination).cloned() else {
-            return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                *destination,
-            ));
-        };
+        self.validate_descriptor_borrow(destination, StructuralAccess::MutableBorrow)?;
+        let selected = self.resolve_live_projection(
+            destination.place,
+            &destination.path,
+            StructuralAccess::MutableBorrow,
+        )?;
+        let view = self.element_view_argument(destination, &selected)?.clone();
         if view.access != StructuralAccess::MutableBorrow || view.len() != length || index >= length
         {
             return Err(malformed());
@@ -1211,6 +1214,16 @@ impl TerminalExecution<'_> {
         let source_value = self.resolve_live_projection(source.place, &source.path, access)?;
         let view = self.element_view_argument(source, &source_value)?.clone();
         let machine = self.program.verified_machine(self.current_machine)?;
+        let types = self.program.structural_types();
+        let same_element = types
+            .get(&source_value.structural_type)
+            .zip(types.get(&result.structural_type))
+            .is_some_and(|(source, result)| {
+                matches!((&source.shape, &result.shape),
+                (StructuralTypeShape::ElementView { element: source, .. },
+                 StructuralTypeShape::ElementView { element: result, access: ceiling })
+                    if source == result && ceiling.is_none_or(|ceiling| ceiling == access))
+            });
         if result.place == source.place
             || !machine.structural_places.iter().any(|place| {
                 place.id == result.place
@@ -1221,7 +1234,7 @@ impl TerminalExecution<'_> {
                         }
             })
             || view.len() != length
-            || source_value.structural_type != result.structural_type
+            || !same_element
             || !crate::reference::access_covers(view.access, access)
             || !source_value.qualifications.is_empty()
             || !result.qualifications.is_empty()

@@ -436,7 +436,7 @@ fn prepare_argument_projection<'a>(
                         }
                         Tip::Declaration(declaration(*element)?)
                     }
-                    Some(StructuralTypeShape::ElementView { element }) => {
+                    Some(StructuralTypeShape::ElementView { element, .. }) => {
                         Tip::Declaration(declaration(*element)?)
                     }
                     _ => match bytes {
@@ -459,7 +459,7 @@ fn prepare_argument_projection<'a>(
                 tip = match shape {
                     Some(
                         StructuralTypeShape::FixedArray { element, .. }
-                        | StructuralTypeShape::ElementView { element },
+                        | StructuralTypeShape::ElementView { element, .. },
                     ) => Tip::Declaration(declaration(*element)?),
                     _ if bytes.is_some() => Tip::ByteElement,
                     _ => {

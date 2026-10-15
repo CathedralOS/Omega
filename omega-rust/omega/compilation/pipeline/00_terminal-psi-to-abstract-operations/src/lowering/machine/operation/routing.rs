@@ -436,7 +436,7 @@ pub(super) fn lower(
         } => Ok(AbstractOperation::ElementViewWrite {
             path: path.clone(),
             psi_operation: operation.id,
-            destination: *destination,
+            destination: destination.clone(),
             index: *index,
             value: *value,
             length: *length,

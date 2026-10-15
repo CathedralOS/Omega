@@ -1,0 +1,7 @@
+// A long sibling cannot donate bounds to another descriptor in the same root.
+data Output<'storage> { left: &'storage mut [i32]; right: &'storage mut [i32]; }
+
+machine overwrite<'storage>(output: &mut Output<'storage>, position: u64)
+requires position < output.left.len {
+    output.right[position] = 9;
+}

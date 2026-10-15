@@ -169,7 +169,7 @@ pub(crate) fn requires_materialized_host_custody(
             }
             StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
             StructuralTypeShape::FixedArray { element, .. }
-            | StructuralTypeShape::ElementView { element } => pending.push(*element),
+            | StructuralTypeShape::ElementView { element, .. } => pending.push(*element),
             StructuralTypeShape::Record {
                 fields: members, ..
             } => fields.extend(members),

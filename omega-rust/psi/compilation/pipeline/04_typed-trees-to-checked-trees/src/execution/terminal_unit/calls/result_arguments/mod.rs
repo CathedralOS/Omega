@@ -293,6 +293,19 @@ fn argument_contract(
     } else {
         whole_local_storage_type(program, source_state, place, result)
     };
+    // A stored descriptor keeps its reference shell's access ceiling, while a
+    // borrowed formal presents the canonical view geometry. Rejoin both from
+    // the same declared source type; equality of payload shapes alone cannot
+    // authorize an unrelated result or change the call's checked loan access.
+    let result_presents_formal = result.type_identity == target_identity
+        || storage_type.or(produced_type).is_some_and(|source| {
+            crate::execution::terminal_unit::types::stored_type_presents_borrowed(
+                program,
+                source,
+                result.type_identity,
+                target_identity,
+            )
+        });
     // A local array lends the same element view as an array parameter or
     // field. The local keeps its backing identity; the call presents only
     // the checked view, with its exact loan replayed below.
@@ -360,7 +373,7 @@ fn argument_contract(
         ) && crate::execution::terminal_unit::types::slice_view_carrier(
             program,
             parameter.type_reference,
-        ) && result.type_identity == target_identity)
+        ) && result_presents_formal)
             || (access == CheckedStructuralAccess::SharedBorrow
                 && crate::execution::terminal_unit::types::borrowed_named_view(
                     program,
@@ -444,7 +457,7 @@ fn argument_contract(
                 program,
                 parameter.type_reference,
             )))
-        && result.type_identity == target_identity
+        && result_presents_formal
         && let Some(source) = place.root.as_expression()
         && source == expression
     {

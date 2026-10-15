@@ -384,7 +384,7 @@ pub(super) fn lower_terminator(
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             plain_home_cleanup(function, live, structural_types, cleanup_actions)?;
             let cleanup_actions = cleanup_actions.clone();
-            if terminal_semantics::descriptor_results::is_shared_descriptor(
+            if terminal_semantics::descriptor_results::is_descriptor(
                 structural_types.values().copied(),
                 result.structural_type,
             ) {

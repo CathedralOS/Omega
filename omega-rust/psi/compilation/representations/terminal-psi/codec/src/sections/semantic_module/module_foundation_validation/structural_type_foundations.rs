@@ -197,7 +197,10 @@ pub(super) fn validate_type_shape(
                 return malformed("fixed array references an unknown structural element type");
             }
         }
-        StructuralTypeShape::ElementView { element } => {
+        StructuralTypeShape::ElementView { element, access } => {
+            if *access == Some(terminal_psi::StructuralAccess::Owned) {
+                return malformed("element view cannot declare owned backing access");
+            }
             if !has_structural_type(module, *element) {
                 return malformed("element view references an unknown structural element type");
             }

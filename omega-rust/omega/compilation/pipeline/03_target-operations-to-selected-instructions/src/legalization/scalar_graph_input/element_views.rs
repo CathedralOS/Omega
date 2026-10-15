@@ -46,6 +46,16 @@ pub(in crate::legalization) fn descriptor_geometry(
             super::literals::declaration_producer(function, source.place)
                 .map(|(_, identity)| identity)
         })?;
+    let requested = if source.access == StructuralAccess::Owned {
+        StructuralAccess::SharedBorrow
+    } else {
+        source.access
+    };
+    if !optimization_unit_semantics::descriptor_argument_accessible(
+        function, source, types, requested,
+    ) {
+        return None;
+    }
     crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
         root,
         &source.path,

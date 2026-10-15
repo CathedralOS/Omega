@@ -221,6 +221,26 @@ where
         let Some(source) = structural_source_contract(caller, argument.place) else {
             return false;
         };
+        // A view formal borrows the selected descriptor's backing, not its
+        // containing record. Check every stored ceiling before comparing its
+        // canonical borrowed presentation below.
+        if types.get(&parameter.structural_type).is_some_and(|row| {
+            matches!(
+                row.shape,
+                terminal_psi::StructuralTypeShape::ElementView { .. }
+            )
+        }) && argument.access != terminal_psi::StructuralAccess::Owned
+            && !terminal_semantics::descriptor_source_projection_accessible(
+                types.values().copied(),
+                source.structural_type,
+                source.multiplicity,
+                source.access,
+                &argument.path,
+                argument.access,
+            )
+        {
+            return false;
+        }
         let borrowed_owner_expected = parameter.access != terminal_psi::StructuralAccess::Owned
             && types
                 .get(&parameter.structural_type)
@@ -284,8 +304,13 @@ where
                 && argument.access == parameter.access
                 && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && (bounded_owner_presentation
-                    || (selected == Some(parameter.structural_type)
-                        && source.borrowed_qualifications_match(&argument.path, parameter)));
+                    || (selected.is_some_and(|actual| {
+                        terminal_semantics::borrowed_referent_matches(
+                            types.values().copied(),
+                            actual,
+                            parameter.structural_type,
+                        )
+                    }) && source.borrowed_qualifications_match(&argument.path, parameter)));
             if !admitted {
                 return false;
             }
@@ -596,6 +621,15 @@ where
             None
         }
         .or_else(|| resolve_runtime_projection(types, source.structural_type, &argument.path));
+        let type_matches = actual_type.is_some_and(|actual| {
+            actual == parameter.structural_type
+                || (argument.access != terminal_psi::StructuralAccess::Owned
+                    && terminal_semantics::borrowed_referent_matches(
+                        types.values().copied(),
+                        actual,
+                        parameter.structural_type,
+                    ))
+        });
         if actual_type.is_none()
             && !byte_field_presentation
             && !fixed_array_presentation
@@ -614,9 +648,9 @@ where
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && (source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 || completed_affine_result)
-            && actual_type == Some(parameter.structural_type);
+            && type_matches;
         if (!path_shape_matches && !fixed_array_presentation)
-            || (actual_type != Some(parameter.structural_type)
+            || (!type_matches
                 && !fixed_array_presentation
                 && !byte_field_presentation
                 && !bounded_owner_presentation)
@@ -1176,7 +1210,38 @@ fn view_access(
                 if !structural_access_can_supply(source.access, required) {
                     return None;
                 }
-                expected_type = source.path.is_empty().then_some(structural_type);
+                // A subslice retains the element type, not necessarily its
+                // source descriptor's stored access shell. The source's own
+                // declaration supplies the exact identity for this next hop;
+                // descriptor operation validation checks the presentation.
+                expected_type = if source.path.is_empty() {
+                    Some(
+                        if let Some(parameter) = caller.arrival_parameter(source.place) {
+                            parameter.structural_type
+                        } else {
+                            // Read geometry, not another access contract. Calling
+                            // structural_source_contract here reenters this walk
+                            // while scanning unrelated view results, including
+                            // the very subslice whose source we are resolving.
+                            let declaration = caller
+                                .structural_places
+                                .iter()
+                                .find(|declaration| declaration.id == source.place)?;
+                            match declaration.kind {
+                                StructuralPlaceKind::OperationResult {
+                                    structural_type, ..
+                                }
+                                | StructuralPlaceKind::ByteSequenceLiteral {
+                                    structural_type,
+                                    ..
+                                } => structural_type,
+                                _ => return None,
+                            }
+                        },
+                    )
+                } else {
+                    None
+                };
                 place = source.place;
             }
             O::EstablishElementView {

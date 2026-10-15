@@ -116,7 +116,7 @@ pub fn structural_read_scalar_type<'a>(
                             }
                             Target::Declaration(*element)
                         }
-                        StructuralTypeShape::ElementView { element } => {
+                        StructuralTypeShape::ElementView { element, .. } => {
                             Target::Declaration(*element)
                         }
                         StructuralTypeShape::ByteSequence(carrier) => Target::Bytes(*carrier),

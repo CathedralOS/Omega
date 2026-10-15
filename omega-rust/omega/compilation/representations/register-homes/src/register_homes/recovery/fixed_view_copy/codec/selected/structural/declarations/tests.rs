@@ -11,6 +11,37 @@ use crate::register_homes::recovery::fixed_view_copy::codec::selected::structura
 use selected_instructions::effects::program::identity::encode_path;
 
 #[test]
+fn element_view_encoding_round_trips_each_access_ceiling() {
+    let mut encodings = Vec::new();
+    for access in [
+        None,
+        Some(StructuralAccess::SharedBorrow),
+        Some(StructuralAccess::MutableBorrow),
+        Some(StructuralAccess::WriteOnlyBorrow),
+    ] {
+        let declaration = StructuralTypeDeclaration {
+            quotient_carrier: None,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: true,
+            scalar_restriction: None,
+            id: StructuralTypeId::new(2).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(1),
+            shape: StructuralTypeShape::ElementView {
+                element: StructuralTypeId::new(1).unwrap(),
+                access,
+            },
+        };
+        let mut bytes = Vec::new();
+        encode_type(&mut bytes, &declaration).unwrap();
+        assert!(!encodings.contains(&bytes));
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_type(&mut cursor).unwrap(), declaration);
+        assert_eq!(cursor.remaining(), 0);
+        encodings.push(bytes);
+    }
+}
+
+#[test]
 fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subject() {
     use semantic_vocabulary::{Proposition, ScalarRefinement, ScalarTerm, ScalarType, ValueId};
     use terminal_psi::{BindingRelevance, StructuralFieldDeclaration, StructuralFieldType};

@@ -82,7 +82,59 @@ pub enum DescriptorSourceOrigin {
     IncomingContents(DescriptorContentsQuery),
 }
 
-/// Shape only: access, multiplicity and origin remain separate judgments.
+/// Descriptor storage, independently of the permission it carries. Native
+/// transport uses this query; shared observation must use is_shared_descriptor
+/// and still establish current access and custody.
+pub fn is_descriptor<'a>(
+    types: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+) -> bool {
+    let mut declarations = types.into_iter().filter(|item| item.id == structural_type);
+    let Some(declaration) = declarations.next() else {
+        return false;
+    };
+    declarations.next().is_none()
+        && (declaration.shape.is_borrowed_byte_view()
+            || matches!(declaration.shape, StructuralTypeShape::ElementView { .. }))
+}
+
+/// The backing permission carried by a descriptor value, not permission over
+/// its storage slot. Affine retirement never widens a declared access ceiling.
+/// Canonical descriptors keep access on their occurrence, where unrestricted
+/// results are shared and affine results are exclusive. Provenance and current
+/// loan availability remain independent checks.
+pub fn descriptor_value_access<'a>(
+    types: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+    multiplicity: StructuralMultiplicity,
+) -> Option<StructuralAccess> {
+    let mut declarations = types.into_iter().filter(|item| item.id == structural_type);
+    let declaration = declarations.next()?;
+    if declarations.next().is_some() || multiplicity == StructuralMultiplicity::Linear {
+        return None;
+    }
+    let access = match declaration.shape {
+        StructuralTypeShape::ElementView { access, .. }
+        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }) => access,
+        _ => return None,
+    };
+    let access = access.unwrap_or(if multiplicity == StructuralMultiplicity::Affine {
+        StructuralAccess::MutableBorrow
+    } else {
+        StructuralAccess::SharedBorrow
+    });
+    match access {
+        StructuralAccess::SharedBorrow => Some(access),
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            if multiplicity == StructuralMultiplicity::Affine =>
+        {
+            Some(access)
+        }
+        _ => None,
+    }
+}
+
+/// Shared descriptor shape; multiplicity and origin remain separate judgments.
 pub fn is_shared_descriptor<'a>(
     types: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
@@ -93,7 +145,13 @@ pub fn is_shared_descriptor<'a>(
     };
     declarations.next().is_none()
         && (declaration.shape.is_shared_readable_byte_view()
-            || matches!(declaration.shape, StructuralTypeShape::ElementView { .. }))
+            || matches!(
+                declaration.shape,
+                StructuralTypeShape::ElementView {
+                    access: None | Some(StructuralAccess::SharedBorrow),
+                    ..
+                }
+            ))
 }
 
 /// Every possible backing of a normal shared descriptor result. A literal has
@@ -431,9 +489,7 @@ pub fn terminal_graph(module: &TerminalModule) -> Vec<DescriptorMachine> {
     module
         .machines
         .iter()
-        .filter_map(|machine| {
-            terminal_flow::adapt(module, machine, DescriptorSlotKind::SharedViews)
-        })
+        .filter_map(|machine| terminal_flow::adapt(module, machine, DescriptorSlotKind::Views))
         .collect()
 }
 

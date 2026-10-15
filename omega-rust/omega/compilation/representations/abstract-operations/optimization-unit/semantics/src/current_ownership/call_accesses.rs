@@ -240,7 +240,7 @@ pub(crate) fn argument_storage_is_closed(
             Some(StructuralTypeShape::ByteSequence(carrier)) if carrier.is_borrowed() => {
                 return true;
             }
-            Some(StructuralTypeShape::ElementView { element }) => {
+            Some(StructuralTypeShape::ElementView { element, .. }) => {
                 return storage_cannot_retain_loan(types, *element, established);
             }
             _ => {}

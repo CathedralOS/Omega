@@ -61,8 +61,10 @@ impl AbstractOperation {
             | Self::EstablishElementView { source, .. } => exclusive(std::slice::from_ref(source)),
             Self::PrimitiveLocalStore { destination, .. }
             | Self::ByteSequenceWrite { destination, .. }
-            | Self::ElementViewWrite { destination, .. }
             | Self::ByteSequenceStore { destination, .. } => region(*destination, &[], None),
+            Self::ElementViewWrite { destination, .. } => {
+                region(destination.place, &destination.path, None)
+            }
             Self::StructuralByteSequenceFieldByteStore {
                 destination,
                 path,

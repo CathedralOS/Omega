@@ -147,7 +147,7 @@ fn requires_contents(
             }
             // A borrowed view's element is referent-owned; traverse it so the
             // reachability answer tracks the viewed element type.
-            StructuralTypeShape::ElementView { element } => {
+            StructuralTypeShape::ElementView { element, .. } => {
                 pending.push(*element);
                 continue;
             }

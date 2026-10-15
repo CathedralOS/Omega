@@ -50,6 +50,31 @@ pub fn structural_place_access(
         .map(|source| source.access)
 }
 
+/// Intersect an operand's requested permission with the home and every stored
+/// reference or view ceiling. This describes declared access, not liveness,
+/// bounds, or the absence of overlapping active loans.
+pub fn descriptor_argument_accessible(
+    function: &optimization_unit::PsiOptimizationFunction,
+    argument: &terminal_psi::StructuralArgument,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    requested: terminal_psi::StructuralAccess,
+) -> bool {
+    let Some(source) =
+        unit_validation::operation_contracts::structural_source_contract(function, argument.place)
+    else {
+        return false;
+    };
+    requested.admits(argument.access)
+        && terminal_semantics::descriptor_source_projection_accessible(
+            types.iter(),
+            source.structural_type,
+            source.multiplicity,
+            source.access,
+            &argument.path,
+            requested,
+        )
+}
+
 /// Declaration-side owned or exclusive storage for whole-referent restoration.
 /// Producer-derived view access follows its actual backing contract; an owned
 /// descriptor alone does not grant referent access. The receiving custody walk

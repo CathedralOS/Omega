@@ -357,15 +357,14 @@ fn plan_assignment(
     // same live view extent and uses the same captured outer selector. Only a
     // primitive leaf is an element-view scalar store; a reference-valued leaf
     // such as a byte-view field keeps its own descriptor store below.
-    if (!destination.place.segments.is_empty() || destination.dynamic_index.is_some())
-        && element_stores::element_reference(program, state, &destination).is_some()
-        && destination
-            .storage_projection(program)
-            .is_some_and(|projection| {
-                program
+    if destination
+        .storage_projection(program)
+        .is_some_and(|projection| {
+            projection.element_view_index.is_some()
+                && program
                     .primitive_type_reference(projection.type_reference)
                     .is_some()
-            })
+        })
     {
         destination.exclusive_authority(program, state, roots, trace)?;
         return element_stores::store(

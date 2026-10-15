@@ -348,7 +348,36 @@ pub(in crate::legalization) fn leaf_copy_layout(
             result,
             function.block_nodes().map(|node| &node.operation),
         );
-    if endpoint != result.structural_type && !byte_carrier && !quotient {
+    let occurrence_access = match path {
+        abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty() => function
+            .arrival_parameter(source)
+            .map(|parameter| parameter.access)
+            .or_else(|| {
+                function.block_nodes().find_map(|node| {
+                    let (_, result) = node.operation.structural_result()?;
+                    (result.place == source)
+                        .then(|| {
+                            terminal_semantics::descriptor_results::descriptor_value_access(
+                                plan.structural_types.iter(),
+                                result.structural_type,
+                                result.multiplicity,
+                            )
+                        })
+                        .flatten()
+                })
+            }),
+        _ => None,
+    };
+    if endpoint != result.structural_type
+        && !byte_carrier
+        && !quotient
+        && !terminal_semantics::shared_descriptor_copy_matches(
+            plan.structural_types.iter(),
+            endpoint,
+            occurrence_access,
+            result.structural_type,
+        )
+    {
         return Err(LegalizationError::custody());
     }
     // Geometry copies descriptor bytes; the independent custody replay joins

@@ -595,11 +595,11 @@ fn validate_reference_origin_path(
             // the owning operation, as for the fixed-array siblings.
             (
                 StructuralPathSegment::FixedIndex(_),
-                StructuralTypeShape::ElementView { element },
+                StructuralTypeShape::ElementView { element, .. },
             ) => *element,
             (
                 StructuralPathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::ElementView { element },
+                StructuralTypeShape::ElementView { element, .. },
             ) => *element,
         };
     }
@@ -1193,7 +1193,15 @@ fn validate_structural_arguments(
             Some(endpoint) => endpoint,
             None => validate_structural_path(module, actual_type, &argument.path)?,
         };
-        if actual_type != expected.structural_type {
+        if actual_type != expected.structural_type
+            && !(argument.access == expected.access
+                && argument.access != terminal_psi::StructuralAccess::Owned
+                && terminal_semantics::borrowed_referent_matches(
+                    module.structural_types.iter(),
+                    actual_type,
+                    expected.structural_type,
+                ))
+        {
             return malformed("structural argument has the wrong concrete type");
         }
     }

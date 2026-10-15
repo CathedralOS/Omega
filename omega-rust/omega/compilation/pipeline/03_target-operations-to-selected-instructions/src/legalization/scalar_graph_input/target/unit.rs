@@ -706,7 +706,7 @@ pub(super) fn validate_operation(
                 path,
                 psi_operation,
                 destination,
-                view,
+                indices,
                 index,
                 value,
                 length,
@@ -726,7 +726,14 @@ pub(super) fn validate_operation(
             && destination == expected_destination
             && length == expected_length
             && obligation == expected_obligation
-            && checker.mutable_element_view(view, *expected_destination)
+            && super::super::element_views::descriptor_geometry(
+                optimized,
+                expected_destination,
+                &unit.structural_types,
+            )
+            .is_some_and(|geometry| {
+                geometry.readable && runtime_indices_rejoin(indices, &geometry.elements, sources)
+            })
             && sources
                 .iter()
                 .any(|(identity, source)| identity == expected_index && source == index)

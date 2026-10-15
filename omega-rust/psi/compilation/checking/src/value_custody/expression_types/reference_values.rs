@@ -799,6 +799,26 @@ fn reference_access_permits(source: ReferenceAccess, required: ReferenceAccess) 
     )
 }
 
+/// A store replaces the selected slot, not a reference held in that slot's
+/// referent. Check every crossed reference but leave the endpoint unpeeled:
+/// replacing a shared descriptor is legal through mutable containing storage,
+/// while indexing through that descriptor cannot authorize a write.
+pub(crate) fn place_permits_storage_write(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    root: symbols::SymbolHandle,
+    root_type: TypeReferenceHandle,
+) -> bool {
+    selected_value_type(
+        program,
+        expression,
+        &mut Vec::new(),
+        Some((root, root_type)),
+        Some(ReferenceAccess::WriteOnly),
+    )
+    .is_some()
+}
+
 fn projection_receiver_type(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,

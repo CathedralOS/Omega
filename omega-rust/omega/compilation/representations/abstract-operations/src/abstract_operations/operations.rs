@@ -215,7 +215,7 @@ pub enum AbstractOperation {
     ElementViewWrite {
         path: Vec<terminal_psi::StructuralPathSegment>,
         psi_operation: OperationId,
-        destination: PlaceId,
+        destination: StructuralArgument,
         index: ValueId,
         value: ValueId,
         length: ValueId,
@@ -900,7 +900,6 @@ impl AbstractOperation {
                 .unwrap_or_default(),
             Self::PrimitiveScalarRead { path, .. }
             | Self::ElementViewRead { path, .. }
-            | Self::ElementViewWrite { path, .. }
             | Self::ReleaseReference { path, .. }
             | Self::WriteOnlyPrimitiveStore { path, .. }
             | Self::StructuralScalarFieldStore { path, .. }
@@ -912,6 +911,11 @@ impl AbstractOperation {
             | Self::StructuralByteSequenceFieldLength { path, .. }
             | Self::StructuralByteSequenceFieldRead { path, .. }
             | Self::MoveStructuralField { path, .. } => vec![path.as_slice()],
+            Self::ElementViewWrite {
+                destination, path, ..
+            } => {
+                vec![destination.path.as_slice(), path.as_slice()]
+            }
             Self::StructuralLeafCopy { path, .. } => match path {
                 super::StructuralCopyPath::Ordinary(path) => vec![path.as_slice()],
                 super::StructuralCopyPath::Case(_) => Vec::new(),

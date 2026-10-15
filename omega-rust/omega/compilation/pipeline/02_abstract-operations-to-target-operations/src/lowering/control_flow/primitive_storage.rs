@@ -496,7 +496,7 @@ pub(super) fn lower(
                             }
                             // An element view's live extent is the bound proven
                             // by its producer; the index names one member.
-                            StructuralTypeShape::ElementView { element }
+                            StructuralTypeShape::ElementView { element, .. }
                                 if position + 1 == carrier_end =>
                             {
                                 element

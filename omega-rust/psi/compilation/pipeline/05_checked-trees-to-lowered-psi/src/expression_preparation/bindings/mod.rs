@@ -1750,7 +1750,7 @@ pub(crate) fn element_views(
         .iter()
         .filter_map(|(_, parameter)| {
             let shape = find_structural_type(types, parameter.structural_type)?;
-            let terminal_psi::StructuralTypeShape::ElementView { element } = shape.shape else {
+            let terminal_psi::StructuralTypeShape::ElementView { element, .. } = shape.shape else {
                 return None;
             };
             let element = find_structural_type(types, element)?;

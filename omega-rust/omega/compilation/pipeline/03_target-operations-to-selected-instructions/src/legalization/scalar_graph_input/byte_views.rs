@@ -209,7 +209,7 @@ pub(in crate::legalization) fn descriptor_return(
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         || !declared.projected_qualifications.is_empty()
-        || !terminal_semantics::descriptor_results::is_shared_descriptor(
+        || !terminal_semantics::descriptor_results::is_descriptor(
             types.iter(),
             declared.structural_type,
         )
@@ -250,7 +250,7 @@ pub(in crate::legalization) fn element_type(
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
     let identity = view_type(function, place, types)?;
     match terminal_psi::find_structural_type(types, identity)?.shape {
-        terminal_psi::StructuralTypeShape::ElementView { element } => Some(element),
+        terminal_psi::StructuralTypeShape::ElementView { element, .. } => Some(element),
         _ => None,
     }
 }
@@ -330,7 +330,7 @@ pub(in crate::legalization) fn descriptor_result(
     ) && result.projected_qualifications.is_empty()
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
-        && terminal_semantics::descriptor_results::is_shared_descriptor(
+        && terminal_semantics::descriptor_results::is_descriptor(
             types.iter(),
             result.structural_type,
         )

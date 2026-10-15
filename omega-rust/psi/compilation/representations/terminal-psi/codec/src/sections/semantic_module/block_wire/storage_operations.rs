@@ -288,7 +288,7 @@ pub(super) fn decode_byte_sequence_write(
 
 pub(super) fn encode_element_view_write(
     writer: &mut Writer,
-    destination: PlaceId,
+    destination: StructuralArgument,
     path: Vec<StructuralPathSegment>,
     index: ValueId,
     value: ValueId,
@@ -296,7 +296,9 @@ pub(super) fn encode_element_view_write(
     obligation: ObligationId,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::ELEMENT_VIEW_WRITE);
-    writer.id(destination);
+    writer.id(destination.place);
+    super::super::structural_signature_wire::encode_structural_access(writer, destination.access);
+    encode_structural_path(writer, "element write descriptor path", &destination.path)?;
     encode_structural_path(writer, "element write path", &path)?;
     writer.id(index);
     writer.id(value);
@@ -309,7 +311,11 @@ pub(super) fn decode_element_view_write(
     reader: &mut Reader<'_>,
 ) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::ElementViewWrite {
-        destination: reader.id("PlaceId")?,
+        destination: StructuralArgument {
+            place: reader.id("PlaceId")?,
+            access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+            path: decode_structural_path(reader)?,
+        },
         path: decode_structural_path(reader)?,
         index: reader.id("ValueId")?,
         value: reader.id("ValueId")?,

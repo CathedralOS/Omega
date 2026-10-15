@@ -473,15 +473,31 @@ fn validate_structural_field_range_authority(
                 obligation,
             } => {
                 let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
-                let root =
-                    super::operation_contracts::structural_source_contract(function, *destination)
-                        .ok_or_else(|| invalid.clone())?;
-                let Some(StructuralTypeShape::ElementView { element }) =
-                    types.get(&root.structural_type).map(|row| &row.shape)
+                let root = super::operation_contracts::structural_source_contract(
+                    function,
+                    destination.place,
+                )
+                .ok_or_else(|| invalid.clone())?;
+                let selected = terminal_semantics::runtime_structural_path_tip(
+                    types.values().copied(),
+                    root.structural_type,
+                    &destination.path,
+                )
+                .ok_or_else(|| invalid.clone())?;
+                let Some(StructuralTypeShape::ElementView { element, .. }) = Some(&selected.shape)
                 else {
                     return Err(invalid);
                 };
-                if root.access != terminal_psi::StructuralAccess::MutableBorrow {
+                if destination.access != terminal_psi::StructuralAccess::MutableBorrow
+                    || !terminal_semantics::descriptor_source_projection_accessible(
+                        types.values().copied(),
+                        root.structural_type,
+                        root.multiplicity,
+                        root.backing_access(&types),
+                        &destination.path,
+                        terminal_psi::StructuralAccess::MutableBorrow,
+                    )
+                {
                     return Err(invalid);
                 }
                 let goal = terminal_semantics::element_view_write_goal(

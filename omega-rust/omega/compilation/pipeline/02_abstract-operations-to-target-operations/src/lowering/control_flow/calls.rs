@@ -367,7 +367,7 @@ fn land_result(
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             if (bounded_owned_byte_result(result.structural_type, types)
-                || terminal_semantics::descriptor_results::is_shared_descriptor(
+                || terminal_semantics::descriptor_results::is_descriptor(
                     types.values().copied(),
                     result.structural_type,
                 ))

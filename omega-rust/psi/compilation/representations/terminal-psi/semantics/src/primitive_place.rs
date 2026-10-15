@@ -701,7 +701,7 @@ fn walk_primitive_projection_with_policy<'a>(
             (
                 StructuralPathSegment::RuntimeIndex { .. },
                 StructuralTypeShape::FixedArray { element, .. }
-                | StructuralTypeShape::ElementView { element },
+                | StructuralTypeShape::ElementView { element, .. },
             ) => {
                 step(None);
                 Position::Declared(*element)

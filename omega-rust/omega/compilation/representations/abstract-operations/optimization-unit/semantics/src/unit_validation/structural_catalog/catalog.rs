@@ -133,7 +133,7 @@ pub(super) fn index_structural_types(
                 })
                 .collect(),
             terminal_psi::StructuralTypeShape::FixedArray { element, .. }
-            | terminal_psi::StructuralTypeShape::ElementView { element } => vec![*element],
+            | terminal_psi::StructuralTypeShape::ElementView { element, .. } => vec![*element],
             terminal_psi::StructuralTypeShape::Sum { cases } => cases
                 .iter()
                 .flat_map(|case| &case.fields)
@@ -199,7 +199,7 @@ pub(super) fn index_structural_types(
     // runtime pointer and extent: its type cannot supply the concrete element
     // permission roster required by the receiving custody contract.
     for declaration in &unit.structural_types {
-        if let terminal_psi::StructuralTypeShape::ElementView { element } = declaration.shape
+        if let terminal_psi::StructuralTypeShape::ElementView { element, .. } = declaration.shape
             && crate::unit_validation::references::contains_reference(&types, element)
         {
             return Err(

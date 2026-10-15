@@ -140,6 +140,7 @@ fn declared_contains_reference(
             }
             | checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
                 element_type_identity,
+                ..
             } => pending.push(*element_type_identity),
             checked_trees::CheckedUnitStructuralTypeShape::Sum { cases } => {
                 for case in cases {
@@ -462,7 +463,14 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         .filter(|result| result.binding_ordinal == binding_ordinal && result.statement_index < ordinal);
                     if let Some(result) = matches.next() {
                         if matches.next().is_some() { return None; }
-                        if result.type_identity != target.type_identity
+                        let presents_target = result.type_identity == target.type_identity
+                            || (target.access != CheckedStructuralAccess::Owned
+                                && program.state_local_declaration(source, symbol).is_some_and(|(_, local)| {
+                                    super::super::types::stored_type_presents_borrowed(
+                                        program, local.type_reference, result.type_identity, target.type_identity,
+                                    )
+                                }));
+                        if !presents_target
                             || (!mutable_view && result.multiplicity != target.multiplicity) { return None; }
                         if mutable_view {
                             // The local's own declaration must hold the

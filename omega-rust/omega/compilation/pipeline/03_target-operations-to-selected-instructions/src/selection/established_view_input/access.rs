@@ -43,11 +43,11 @@ fn view_access_with_budget(
         if let Some((_, result)) = super::descriptor_result(function, place)
             .or_else(|| super::descriptor_home(function, place))
         {
-            let access = match result.multiplicity {
-                M::Unrestricted => A::SharedBorrow,
-                M::Affine => A::MutableBorrow,
-                M::Linear => return None,
-            };
+            let access = terminal_semantics::descriptor_results::descriptor_value_access(
+                signature.structural_types.iter(),
+                result.structural_type,
+                result.multiplicity,
+            )?;
             return (supplies(access, required)
                 && (!copied_whole || access == A::SharedBorrow)
                 && expected_type.is_none_or(|identity| identity == result.structural_type))
@@ -153,11 +153,11 @@ fn view_access_with_budget(
         {
             return None;
         }
-        let access = match result.multiplicity {
-            M::Unrestricted => A::SharedBorrow,
-            M::Affine => A::MutableBorrow,
-            _ => return None,
-        };
+        let access = terminal_semantics::descriptor_results::descriptor_value_access(
+            signature.structural_types.iter(),
+            result.structural_type,
+            result.multiplicity,
+        )?;
         if !supplies(access, required) || (copied_whole && access != A::SharedBorrow) {
             return None;
         }
@@ -207,7 +207,7 @@ fn view_access_with_budget(
                 if *destination != place || source.access != access
                     || source.path.contains(&terminal_psi::StructuralPathSegment::Referent)
                     || !signature.structural_types.iter().any(|row| row.id == structural_type && (
-                        matches!(row.shape, StructuralTypeShape::ElementView { element: declared } if declared == *element)
+                        matches!(row.shape, StructuralTypeShape::ElementView { element: declared, .. } if declared == *element)
                         || row.shape.is_borrowed_byte_carrier() && signature.structural_types.iter().any(|leaf|
                             leaf.id == *element && matches!(leaf.shape,
                                 StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
@@ -302,8 +302,14 @@ fn projected_source_access(
                 // Lending an inline collection uses its storage permission;
                 // selecting an existing descriptor uses its backing permission.
                 // The operation separately checks which carrier it requires.
-                StructuralTypeShape::ElementView { .. }
-                | StructuralTypeShape::FixedArray { .. } => authority,
+                StructuralTypeShape::ElementView { access, .. } => access.unwrap_or_else(|| {
+                    if source.path.len() == prefix_start {
+                        authority
+                    } else {
+                        A::SharedBorrow
+                    }
+                }),
+                StructuralTypeShape::FixedArray { .. } => authority,
                 StructuralTypeShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView { access }
                     | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },

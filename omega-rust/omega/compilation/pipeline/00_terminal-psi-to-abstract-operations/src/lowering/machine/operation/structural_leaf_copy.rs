@@ -83,7 +83,36 @@ pub(super) fn lower(
     // All copies name the selected value's own type, including descriptors.
     // Reference formation is the separate EstablishReference operation.
     let expected_type = result.structural_type;
+    let occurrence_access = match &path {
+        StructuralCopyPath::Ordinary(path) if path.is_empty() => machine
+            .structural_parameters
+            .iter()
+            .chain(block_parameter(machine, source))
+            .find(|parameter| parameter.place == source)
+            .map(|parameter| parameter.access)
+            .or_else(|| {
+                machine.operations().find_map(|producer| {
+                    let result = producer.result.structural()?;
+                    (result.place == source)
+                        .then(|| {
+                            terminal_semantics::descriptor_results::descriptor_value_access(
+                                structural_types.iter(),
+                                result.structural_type,
+                                result.multiplicity,
+                            )
+                        })
+                        .flatten()
+                })
+            }),
+        _ => None,
+    };
     if selected_type != expected_type
+        && !terminal_semantics::shared_descriptor_copy_matches(
+            structural_types.iter(),
+            selected_type,
+            occurrence_access,
+            expected_type,
+        )
         && terminal_semantics::quotients::quotient_copy_adaptation(module, machine, operation)
             .is_none()
         && !byte_carrier_leaf_copy(
@@ -148,7 +177,7 @@ fn resolve_copyable_path(
             ) => *element,
             (
                 StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::ElementView { element },
+                StructuralTypeShape::ElementView { element, .. },
             ) => *element,
             _ => return None,
         };

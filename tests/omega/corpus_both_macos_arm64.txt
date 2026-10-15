@@ -665,6 +665,7 @@ pass/recast/runtime_scalar_parameter_shared_views_exit built 1784ms exit:70 inte
 pass/recast/runtime_shared_domain_weakening_recast_exit built 8105ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/recast/runtime_shared_parameter_view_calls_exit built 793ms exit:0 interpreter-exit:0 interpreter:agrees @cd7399e98041+wt
 pass/relevance/erased_formal_before_borrowed_argument_exit built 4468ms exit:70 interpreter-exit:70 interpreter:agrees @6271f1f6d819
+pass/slices/generic_projected_array_write built 2949ms exit:0 interpreter-exit:0 interpreter:agrees @ef9160ae9c0b+wt
 pass/slices/runtime_boolean_alias_guard_transport_exit built 1747ms exit:0 interpreter-exit:0 interpreter:agrees @0facec44bc8b+wt
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 1625ms exit:3 interpreter-exit:3 interpreter:agrees @f7e9667e2f4a
 pass/slices/runtime_call_endpoint_argument_exit built 2035ms exit:70 interpreter-exit:70 interpreter:agrees @637668355701+wt
@@ -685,6 +686,8 @@ pass/slices/runtime_shared_subslice_return_exit built 1916ms exit:70 interpreter
 pass/slices/runtime_shared_whole_view_return_exit built 6232ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/slices/runtime_subslice_len_exit built 4666ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/slices/runtime_view_index_copied_argument_exit built 3704ms exit:70 interpreter-exit:70 interpreter:agrees @36ad3370c97a
+pass/slices/stored_element_view_branching_value built 2954ms exit:0 interpreter-exit:0 interpreter:agrees @ef9160ae9c0b+wt
+pass/slices/stored_element_view_runtime_destination built 2979ms exit:0 interpreter-exit:0 interpreter:agrees @ef9160ae9c0b+wt
 pass/storage/large_zero_initialized_local_exit built 7250ms exit:70 interpreter-exit:70 interpreter:agrees @7084889a08d8+wt
 pass/storage/runtime_local_slice_forward_exit built 6357ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/storage/runtime_parameter_slice_forward_exit built 6379ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt

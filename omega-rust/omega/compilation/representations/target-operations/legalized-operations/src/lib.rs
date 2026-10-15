@@ -8,7 +8,7 @@
 pub(crate) use optimization_core::codec_bytes;
 
 pub mod legalized_operations;
-pub(crate) use legalized_operations::LegalizedCallSourceError;
+pub use legalized_operations::LegalizedCallSourceError;
 pub use legalized_operations::{
     LegalizedBoundarySettlement, LegalizedCallUnitParameter, LegalizedDescriptorOrigin,
     LegalizedExactIntegerOperator, LegalizedNormalizedForeignCall, LegalizedOperationPlan,

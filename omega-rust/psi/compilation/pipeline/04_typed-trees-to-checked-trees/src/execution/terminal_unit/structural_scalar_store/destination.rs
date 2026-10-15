@@ -93,6 +93,9 @@ pub(super) struct Carrier<'a> {
 
 pub(super) struct StorageProjection<'a> {
     pub(super) path: Vec<CheckedUnitStructuralPathSegment>,
+    /// Position of the selector crossing an element-view descriptor, not an
+    /// earlier index selecting a descriptor from an inline array.
+    pub(super) element_view_index: Option<usize>,
     pub(super) type_reference: typed_trees::types::TypeReferenceHandle,
     /// A declared scalar field keeps its field-store range obligation. An
     /// array element or dereferenced primitive instead names primitive storage.
@@ -504,6 +507,9 @@ impl<'a> Destination<'a> {
             projection
                 .path
                 .insert(0, CheckedUnitStructuralPathSegment::Referent);
+            if let Some(position) = &mut projection.element_view_index {
+                *position += 1;
+            }
         }
         Some(projection)
     }
@@ -521,6 +527,7 @@ impl<'a> Destination<'a> {
             return None;
         }
         let mut path = Vec::with_capacity(segments.len());
+        let mut element_view_index = None;
         let mut carrier_type = self.root_type;
         let mut owner = self.root_owner;
         let mut ends_at_field = false;
@@ -595,20 +602,40 @@ impl<'a> Destination<'a> {
                     let array = validation::unwrapped_type_reference(program, carrier_type)?;
                     // A recipe extent has no literal bound to check here, like
                     // a slice's live extent; its index obligation is recorded.
-                    let (element_type, length) =
-                        match program.type_reference_table.type_reference(array) {
-                            TypeReferenceNode::FixedArray { element_type, .. } => (
-                                *element_type,
-                                program
-                                    .declared_array_extent(array)?
-                                    .literal()
-                                    .map(usize::try_from)
-                                    .transpose()
-                                    .ok()?,
-                            ),
-                            TypeReferenceNode::Slice { element_type } => (*element_type, None),
-                            _ => return None,
-                        };
+                    let (element_type, length) = match program
+                        .type_reference_table
+                        .type_reference(array)
+                    {
+                        TypeReferenceNode::FixedArray { element_type, .. } => (
+                            *element_type,
+                            program
+                                .declared_array_extent(array)?
+                                .literal()
+                                .map(usize::try_from)
+                                .transpose()
+                                .ok()?,
+                        ),
+                        TypeReferenceNode::Slice { element_type } => {
+                            if matches!(program.type_reference_table.type_reference(carrier_type),
+                                    TypeReferenceNode::Reference { access, .. }
+                                        if *access != language_semantics::ReferenceAccess::Mutable)
+                            {
+                                return None;
+                            }
+                            if program.primitive_type_reference(*element_type)
+                                != Some(typed_trees::types::PrimitiveType::U8)
+                            {
+                                // More than one dynamic descriptor crossing
+                                // is not a static leaf inside this element.
+                                if element_view_index.is_some() {
+                                    return None;
+                                }
+                                element_view_index = Some(path.len());
+                            }
+                            (*element_type, None)
+                        }
+                        _ => return None,
+                    };
                     path.push(match segment {
                         facts::PlaceSegment::FixedIndex { index }
                             if length.is_none_or(|length| *index < length) =>
@@ -658,6 +685,7 @@ impl<'a> Destination<'a> {
         }
         Some(StorageProjection {
             path,
+            element_view_index,
             type_reference: carrier_type,
             ends_at_field,
             owner,

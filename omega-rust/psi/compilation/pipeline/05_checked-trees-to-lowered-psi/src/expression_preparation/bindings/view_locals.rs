@@ -34,7 +34,7 @@ impl ViewCarrier {
                 terminal_psi::byte_sequence_view_carrier_pattern!()
                 | ByteSequenceCarrier::BoundedOwned { .. },
             ) => Some(Self::Bytes),
-            StructuralTypeShape::ElementView { element } => Some(Self::Elements {
+            StructuralTypeShape::ElementView { element, .. } => Some(Self::Elements {
                 element: find_structural_type(types, element).and_then(|declaration| {
                     match declaration.shape {
                         StructuralTypeShape::PrimitiveScalar(scalar_type) => Some(scalar_type),

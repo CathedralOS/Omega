@@ -135,7 +135,36 @@ pub(super) fn copy_extent(
             result,
             function.operations.iter(),
         );
-    if endpoint != result.structural_type && !byte_carrier && !quotient {
+    let occurrence_access = match path {
+        abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty() => function
+            .arrival_parameter(source)
+            .map(|parameter| parameter.access)
+            .or_else(|| {
+                function.operations.iter().find_map(|operation| {
+                    let (_, result) = operation.structural_result()?;
+                    (result.place == source)
+                        .then(|| {
+                            terminal_semantics::descriptor_results::descriptor_value_access(
+                                types.catalog().iter(),
+                                result.structural_type,
+                                result.multiplicity,
+                            )
+                        })
+                        .flatten()
+                })
+            }),
+        _ => None,
+    };
+    if endpoint != result.structural_type
+        && !byte_carrier
+        && !quotient
+        && !terminal_semantics::shared_descriptor_copy_matches(
+            types.catalog().iter(),
+            endpoint,
+            occurrence_access,
+            result.structural_type,
+        )
+    {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     // A selector resolves to its exact dominating scalar source — an

@@ -286,7 +286,7 @@ pub fn referent_type<'a>(
             // element's address.
             (
                 StructuralPathSegment::FixedIndex(_),
-                StructuralTypeShape::ElementView { element },
+                StructuralTypeShape::ElementView { element, .. },
             ) => unique(
                 &mut declarations
                     .clone()

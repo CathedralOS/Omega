@@ -53,7 +53,7 @@ impl RangeFacts<'_> {
             )
         })
         .flatten();
-        self.retire_captured_lengths(program, writes.as_deref());
+        self.retire_captured_observations(program, writes.as_deref());
         let preserved =
             self.preserved_expression_labels(program, machine, state, writes.as_deref());
         let affected = self.affected_expression_labels(machine, state, &preserved);
@@ -167,7 +167,7 @@ impl RangeFacts<'_> {
         // Reference reads and collection descriptors still require complete
         // alias closure; the raw ceiling never becomes their write frame.
         let call_writes = call_writes.and_then(|writes| writes.aliases);
-        self.retire_captured_lengths(program, call_writes.as_deref());
+        self.retire_captured_observations(program, call_writes.as_deref());
         let mut owned_frames = None;
         let shared_frames = crate::flow::shared_call_frames_or(
             self.checked_calls.and_then(|context| context.call_frames()),

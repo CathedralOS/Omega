@@ -1,0 +1,16 @@
+// A callee write through an alias retires the selector's captured equality.
+data Output<'storage> { values: &'storage mut [i32]; }
+
+machine replace(selector: &mut u64[0..2]) {
+    selector = 1;
+}
+
+machine overwrite<'storage>(outputs: &mut [Output<'storage>; 2], mut selected: u64[0..2])
+requires selected < 2 && 0 < outputs[selected].values.len {
+    let captured: u64 = selected;
+    let forwarded: u64 = captured;
+    let selector: &mut u64[0..2] = &mut selected;
+    replace(selector);
+    let output: &mut Output<'storage> = &mut outputs[selected];
+    output.values[0] = 9;
+}

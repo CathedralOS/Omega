@@ -1101,7 +1101,9 @@ fn value_leaf_type_identities(
             {
                 identities.push(source.type_identity);
             }
-            checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
+            checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. }
+            | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. }
+            | checked_trees::CheckedStructuralValueKind::MutableSliceView { source, .. } => {
                 identities.push(source.type_identity);
             }
             checked_trees::CheckedStructuralValueKind::Reference {

@@ -359,6 +359,38 @@ fn borrow_source_access_refusal(
     .then_some(ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { root, access })
 }
 
+/// Assignment permission follows the access route independently of the
+/// binding's mutability. A range writes backing; an ordinary selection writes
+/// its slot. The existing root check owns whether that slot may be rebound.
+pub(crate) fn assignment_place_permits_write(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    prior_statements: &[typed_trees::statement::StatementNode],
+    target: ExpressionHandle,
+) -> bool {
+    let Some((root, root_type, writable)) =
+        source_place_root(program, machine, state, prior_statements, target)
+    else {
+        return false;
+    };
+    if let Some(indexed) = program.expression_table.indexed_node(target)
+        && program.expression_table.indexed_on_range(indexed)
+    {
+        return crate::value_custody::expression_types::place_permits_reference_borrow(
+            program,
+            target,
+            root,
+            root_type,
+            writable,
+            language_semantics::ReferenceAccess::WriteOnly,
+        );
+    }
+    crate::value_custody::expression_types::place_permits_storage_write(
+        program, target, root, root_type,
+    )
+}
+
 fn source_place_root(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,

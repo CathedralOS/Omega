@@ -354,8 +354,8 @@ pub enum TargetUnitOperation {
     ElementViewWrite {
         path: Vec<terminal_psi::StructuralPathSegment>,
         psi_operation: OperationId,
-        destination: PlaceId,
-        view: crate::TargetElementView,
+        destination: terminal_psi::StructuralArgument,
+        indices: Vec<crate::TargetStructuralRuntimeIndex>,
         index: TargetUnitScalarArgumentSource,
         value: TargetUnitScalarArgumentSource,
         length: ValueId,

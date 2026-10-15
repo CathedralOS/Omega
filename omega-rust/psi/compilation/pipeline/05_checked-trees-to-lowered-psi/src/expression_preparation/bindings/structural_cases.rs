@@ -177,7 +177,7 @@ pub(crate) fn resolve_runtime_element(
     .shape
     {
         StructuralTypeShape::FixedArray { element, .. } => (*element, false),
-        StructuralTypeShape::ElementView { element } if prefix.is_empty() => (*element, true),
+        StructuralTypeShape::ElementView { element, .. } if prefix.is_empty() => (*element, true),
         _ => {
             return unsupported("runtime case observation requires an array or whole element view");
         }

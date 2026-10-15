@@ -1,0 +1,16 @@
+// Expected exit: 0.
+// Reference permissions apply after the containing data's type substitution.
+data Buffer<T> { values: [T; 2]; }
+
+machine set(buffer: &mut Buffer<i32>) { buffer.values[0] = 7; }
+
+machine main() crashes Trap {
+    let mut buffer: Buffer<i32> = Buffer { values: [3, 4] };
+    set(&mut buffer);
+    transition buffer.values[0] == 7 && buffer.values[1] == 4 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

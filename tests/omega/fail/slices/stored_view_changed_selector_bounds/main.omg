@@ -1,0 +1,10 @@
+// A selector snapshot cannot keep equating a variable after replacement.
+data Output<'storage> { values: &'storage mut [i32]; }
+
+machine overwrite<'storage>(outputs: &mut [Output<'storage>; 2], mut selected: u64)
+requires selected < 2 && 0 < outputs[selected].values.len {
+    let captured: u64 = selected;
+    selected = 1;
+    let output: &mut Output<'storage> = &mut outputs[selected];
+    output.values[0] = 9;
+}

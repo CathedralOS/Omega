@@ -99,6 +99,28 @@ pub(super) fn validate(
                 .zip(&destination.structural_parameters)
             {
                 let source = source_contract(function, binding.argument.place, types);
+                // Borrowing a descriptor's backing does not borrow its slot.
+                // State edges retain the same stored access ceiling as calls,
+                // independently of the destination's carrier presentation.
+                if parameter.access != StructuralAccess::Owned
+                    && types
+                        .get(&parameter.structural_type)
+                        .is_some_and(|declaration| {
+                            matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+                        })
+                    && !source.is_some_and(|(root, access, multiplicity)| {
+                        terminal_semantics::descriptor_source_projection_accessible(
+                            types.values().copied(),
+                            root,
+                            multiplicity,
+                            access,
+                            &binding.argument.path,
+                            parameter.access,
+                        )
+                    })
+                {
+                    return Err(invalid());
+                }
                 let exact_source = if qualified_owned_arrival(parameter, types, domains) {
                     // An owned arrival delivers the exact whole value or
                     // selected subtree, including its source-carried domain

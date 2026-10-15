@@ -1,18 +1,17 @@
 //! Scalar stores below mutable element-view descriptors.
 //!
 //! The resolved storage walk owns field identity, reference crossings and
-//! selector occurrences. Its first index selects the live descriptor element;
+//! selector occurrences. Its typed descriptor crossing selects the view element;
 //! the rest selects a scalar leaf within that element. Separating these two
 //! coordinates keeps a nested fixed array from treating descriptor storage as
 //! inline primitive backing. Whole elements and record fields use this same
 //! operation, with no dependency on the right-hand side's source arrangement.
 //! Byte views retain their independent predicate-preservation contract.
 
-use super::destination::{Destination, Root};
+use super::destination::Destination;
 use super::value::{self, AssignmentSource};
 use super::{
-    CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralPathSegment, ExpressionNode, Multiplicity, TypeReferenceNode,
+    CheckFacts, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, ExpressionNode,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 
@@ -43,7 +42,8 @@ pub(super) fn store(
             return None;
         }
     }
-    let (selector, path) = projection.path.split_first()?;
+    let (descriptor_path, element_path) = projection.path.split_at(projection.element_view_index?);
+    let (selector, path) = element_path.split_first()?;
     let element_selector = match selector {
         CheckedUnitStructuralPathSegment::FixedIndex(element_index) => {
             checked_trees::CheckedScalarExpression::IntegerLiteral {
@@ -76,7 +76,7 @@ pub(super) fn store(
     Some(CheckedUnitEffectOperationPlan::new_store(
         statement_index,
         destination.root.destination(),
-        Vec::new(),
+        descriptor_path.to_vec(),
         checked_trees::CheckedStoreLeaf::ViewElement {
             index: element_selector,
             element_path: path.to_vec(),
@@ -132,43 +132,4 @@ fn element_selector_target(
         return Some(borrow.target);
     }
     Some(target)
-}
-
-/// Exact mutable view root, independent of the selected leaf. A parameter
-/// retains its admitted borrow; a local retains its resolved declaration.
-pub(super) fn element_reference(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    destination: &Destination<'_>,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let type_reference = match &destination.root {
-        Root::Parameter { plan, parameter } => {
-            if plan.access != CheckedStructuralAccess::MutableBorrow
-                || plan.multiplicity != Multiplicity::Unrestricted
-                || !plan.qualifications.is_empty()
-                || plan.binding_carrier.is_some()
-            {
-                return None;
-            }
-            parameter.type_reference
-        }
-        Root::Local { symbol } => {
-            program
-                .state_local_declaration(state, *symbol)?
-                .1
-                .type_reference
-        }
-    };
-    let (referee, access) =
-        super::super::reference_results::mutable_borrowed_parts(program, type_reference)?;
-    if access != CheckedStructuralAccess::MutableBorrow {
-        return None;
-    }
-    let TypeReferenceNode::Slice { element_type } =
-        program.type_reference_table.type_reference(referee)
-    else {
-        return None;
-    };
-    (program.primitive_type_reference(*element_type) != Some(typed_trees::types::PrimitiveType::U8))
-        .then_some(*element_type)
 }

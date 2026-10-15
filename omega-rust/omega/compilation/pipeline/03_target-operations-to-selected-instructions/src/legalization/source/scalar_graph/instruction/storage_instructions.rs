@@ -580,7 +580,19 @@ pub(super) fn project_element_view_write(
     let kind = {
         LegalizedScalarInstructionKind::ElementViewWrite {
             path: path.clone(),
-            destination: *destination,
+            destination: destination.clone(),
+            indices: crate::legalization::runtime_indices::operands(
+                optimized,
+                unit,
+                *psi_operation,
+                &crate::legalization::scalar_graph_input::element_views::descriptor_geometry(
+                    optimized,
+                    destination,
+                    &unit.structural_types,
+                )
+                .ok_or(LegalizationError::custody())?
+                .elements,
+            )?,
             index: *index,
             value: *value,
             length: *length,

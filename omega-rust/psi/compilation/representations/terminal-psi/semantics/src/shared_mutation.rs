@@ -74,7 +74,7 @@ fn type_mutation<'types>(
                 SharedMutation::None
             }
         }
-        StructuralTypeShape::ElementView { element } => {
+        StructuralTypeShape::ElementView { element, .. } => {
             if type_mutation(declarations.clone(), *element, active) == SharedMutation::None {
                 SharedMutation::None
             } else {

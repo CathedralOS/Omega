@@ -147,7 +147,7 @@ pub(crate) fn emit_carrier<'parameter>(
             if matches!(storage, PublishedReferenceStorage::Declared) =>
         {
             let element = match declaration.shape {
-                terminal_psi::StructuralTypeShape::ElementView { element } => element,
+                terminal_psi::StructuralTypeShape::ElementView { element, .. } => element,
                 _ => {
                     let scalar = crate::emission::scalar_types::terminal_scalar_type(
                         checked_trees::types::PrimitiveType::U8,

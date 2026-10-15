@@ -234,7 +234,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u8(88);
             bytes.slice(path, encode_structural_path_segment);
             bytes.id(*psi_operation);
-            bytes.id(*destination);
+            encode_structural_argument(bytes, destination);
             bytes.id(*index);
             bytes.id(*value);
             bytes.id(*length);

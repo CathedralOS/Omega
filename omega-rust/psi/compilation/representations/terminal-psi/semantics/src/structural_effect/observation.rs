@@ -173,7 +173,7 @@ pub enum StructuralEffectObservation {
     /// Store one scalar element into the exact mutable element view after
     /// discharging index < length counted in elements.
     ElementViewWrite {
-        destination: PlaceId,
+        destination: StructuralArgument,
         path: Vec<terminal_psi::StructuralPathSegment>,
         index: ValueId,
         value: ValueId,
@@ -525,7 +525,7 @@ pub fn structural_effect_leaf_observation_in(
                 obligation,
             },
         ) => StructuralEffectObservation::ElementViewWrite {
-            destination: *destination,
+            destination: destination.clone(),
             path: path.clone(),
             index: *index,
             value: *value,

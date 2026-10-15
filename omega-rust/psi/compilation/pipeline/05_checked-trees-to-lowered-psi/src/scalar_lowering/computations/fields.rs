@@ -559,7 +559,7 @@ fn captured_place_subject(
                         literal_index_tail = true;
                         *element
                     }
-                    StructuralTypeShape::ElementView { element } => {
+                    StructuralTypeShape::ElementView { element, .. } => {
                         literal_index_tail = false;
                         *element
                     }
@@ -587,7 +587,7 @@ fn captured_place_subject(
                         view_container = false;
                         *element
                     }
-                    StructuralTypeShape::ElementView { element } => {
+                    StructuralTypeShape::ElementView { element, .. } => {
                         view_container = true;
                         *element
                     }

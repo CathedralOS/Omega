@@ -329,7 +329,7 @@ fn canonical_projection_type<'a>(
                     }
                     // This query resolves only type identity. A view's live
                     // bound and backing access remain independent obligations.
-                    StructuralTypeShape::ElementView { element } => *element,
+                    StructuralTypeShape::ElementView { element, .. } => *element,
                     _ => return None,
                 };
                 if let Some(storage) = storage.as_mut() {

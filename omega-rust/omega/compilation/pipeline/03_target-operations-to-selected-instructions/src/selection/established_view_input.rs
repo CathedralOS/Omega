@@ -215,6 +215,15 @@ pub(super) fn accepts(
     }
     let signature = source.structural.as_ref()?;
     let producer = producer_strictly_before_use(source, psi_operation, call)?;
+    if let Some(result) = producer.2.kind.get_structural_result()
+        && !terminal_semantics::borrowed_referent_matches(
+            signature.structural_types.iter(),
+            result.structural_type,
+            target.structural_type,
+        )
+    {
+        return None;
+    }
     // Across blocks, the descriptor's actual defining register must dominate its
     // use. The existing full selected def/use validator checks that relation.
     match &producer.2.kind {
@@ -236,7 +245,6 @@ pub(super) fn accepts(
         }
         LegalizedScalarInstructionKind::ByteSequenceSubslice { result, .. } => {
             if result.place != target.place
-                || result.structural_type != target.structural_type
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty()
@@ -259,7 +267,6 @@ pub(super) fn accepts(
         }
         LegalizedScalarInstructionKind::ElementViewSubslice { result, .. } => {
             if result.place != target.place
-                || result.structural_type != target.structural_type
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty()
@@ -287,7 +294,6 @@ pub(super) fn accepts(
             ..
         } => {
             if result.place != target.place
-                || result.structural_type != target.structural_type
                 || *destination != target.place
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
@@ -303,7 +309,7 @@ pub(super) fn accepts(
                 || !signature.structural_types.iter().any(|declaration| {
                     declaration.id == result.structural_type
                         && if element_view_source {
-                            matches!(declaration.shape, StructuralTypeShape::ElementView { element: declared } if declared == *element)
+                            matches!(declaration.shape, StructuralTypeShape::ElementView { element: declared, .. } if declared == *element)
                         } else {
                             declaration.shape.is_borrowed_byte_carrier()
                         }
@@ -403,7 +409,7 @@ pub(super) fn completed_descriptor(
     ) && result.projected_qualifications.is_empty()
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
-        && terminal_semantics::descriptor_results::is_shared_descriptor(
+        && terminal_semantics::descriptor_results::is_descriptor(
             signature.structural_types.iter(),
             result.structural_type,
         ))

@@ -1,0 +1,4 @@
+data Output<'storage> { values: &'storage write [i32]; }
+machine observe(values: &[i32]) -> u64 { values.len }
+machine misuse(output: &mut Output) -> u64 { observe(output.values) }
+machine main() {}

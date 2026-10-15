@@ -44,7 +44,7 @@ impl<'a> Replay<'a> {
         types: &'a [StructuralTypeDeclaration],
         machines: &'a [DescriptorMachine],
     ) -> Self {
-        Self::with_slot_kind(types, machines, DescriptorSlotKind::SharedViews)
+        Self::with_slot_kind(types, machines, DescriptorSlotKind::Views)
     }
     pub(super) fn with_slot_kind(
         types: &'a [StructuralTypeDeclaration],
@@ -269,15 +269,15 @@ impl<'a> Replay<'a> {
             } = row.definition
             {
                 if access == StructuralAccess::WriteOnlyBorrow
-                    && is_shared_descriptor(self.types.iter(), structural_type)
+                    && is_descriptor(self.types.iter(), structural_type)
                 {
                     continue;
                 }
-                let origin = if self.slot_kind != DescriptorSlotKind::SharedViews
+                let origin = if self.slot_kind != DescriptorSlotKind::Views
                     && self.slot_kind.is_slot(self.types, structural_type)
                 {
                     Origin::Incoming(DescriptorLocation::whole(row.place))
-                } else if is_shared_descriptor(self.types.iter(), structural_type) {
+                } else if is_descriptor(self.types.iter(), structural_type) {
                     Origin::Backing(DescriptorCallOrigin::Argument {
                         source: row.place,
                         projection: Projection::new(&[]),
@@ -477,7 +477,7 @@ impl<'a> Replay<'a> {
                         && machine
                             .place_types
                             .get(&location.root)
-                            .is_some_and(|ty| !is_shared_descriptor(self.types.iter(), *ty))
+                            .is_some_and(|ty| !is_descriptor(self.types.iter(), *ty))
                     {
                         Origin::Storage(location.clone())
                     } else {

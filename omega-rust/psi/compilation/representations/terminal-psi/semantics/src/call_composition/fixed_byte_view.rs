@@ -55,6 +55,20 @@ pub fn borrowed_referent_presentation<'types>(
     if actual == expected {
         return Some(BorrowedReferentPresentation::Unchanged);
     }
+    // Stored element descriptors retain a declared access ceiling; borrowed
+    // formals and result continuations can present either stored or canonical
+    // identity for that exact element type.
+    // This is the same physical pointer/count pair, not another reference
+    // indirection. Access admission must still check the selected source.
+    if let StructuralTypeShape::ElementView {
+        element: expected_element,
+        ..
+    } = expected_type.shape
+    {
+        return matches!(types.clone().find(|row| row.id == actual)?.shape,
+            StructuralTypeShape::ElementView { element, .. } if element == expected_element)
+        .then_some(BorrowedReferentPresentation::Unchanged);
+    }
     let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView { capacity, .. }) =
         expected_type.shape
     else {
@@ -227,7 +241,7 @@ pub fn fixed_element_array_extent<'types>(
             declaration.id == expected.structural_type,
             &declaration.shape,
         ) {
-            (true, StructuralTypeShape::ElementView { element }) => Some(*element),
+            (true, StructuralTypeShape::ElementView { element, .. }) => Some(*element),
             _ => None,
         }
     })?;

@@ -156,6 +156,7 @@ impl<'a> IndexedWriteLeaf<'a> {
 /// A leaf's destination after its emission-time check.
 pub(crate) struct Destination {
     place: PlaceId,
+    pub(crate) descriptor_steps: Vec<super::runtime_elements::ProjectionStep>,
     /// The Terminal scalar type the stored value must carry.
     value_type: ScalarType,
     shape: DestinationShape,
@@ -169,6 +170,7 @@ enum DestinationShape {
         field: StructuralFieldId,
     },
     ElementView {
+        descriptor: terminal_psi::StructuralArgument,
         path: Vec<StructuralPathSegment>,
         leaf: terminal_semantics::ElementViewLeaf,
     },
@@ -249,6 +251,7 @@ impl<'a> IndexedWriteTarget<'a> {
                 }
                 Ok(Destination {
                     place,
+                    descriptor_steps: Vec::new(),
                     value_type: terminal_scalar_type(PrimitiveType::U8)?,
                     shape: DestinationShape::ByteView,
                 })
@@ -293,6 +296,7 @@ impl<'a> IndexedWriteTarget<'a> {
                 }
                 Ok(Destination {
                     place: parameter.place,
+                    descriptor_steps: Vec::new(),
                     value_type: terminal_scalar_type(PrimitiveType::U8)?,
                     shape: DestinationShape::ByteField {
                         path,
@@ -309,11 +313,34 @@ impl<'a> IndexedWriteTarget<'a> {
                 else {
                     return unsupported("element-view write names no view element");
                 };
+                let (mut descriptor_steps, endpoint, _) =
+                    super::structural_scalar_store::lower_window_path(
+                        identities,
+                        structural_type,
+                        &store.destination.path,
+                        structural_types,
+                    )?;
+                let selected_type = match endpoint {
+                    super::structural_scalar_store::WindowLeaf::Subtree { structural_type } => {
+                        structural_type
+                    }
+                    super::structural_scalar_store::WindowLeaf::Field(field) => {
+                        descriptor_steps.push(super::runtime_elements::ProjectionStep::Static(
+                            StructuralPathSegment::Field(field.identity),
+                        ));
+                        field
+                            .field_type
+                            .as_structural()
+                            .ok_or(LoweringError::Unsupported(
+                                "element-view destination field has no structural descriptor",
+                            ))?
+                    }
+                };
                 let element = structural_types
                     .iter()
                     .find_map(|declaration| match declaration.shape {
-                        StructuralTypeShape::ElementView { element }
-                            if declaration.id == structural_type =>
+                        StructuralTypeShape::ElementView { element, .. }
+                            if declaration.id == selected_type =>
                         {
                             Some(element)
                         }
@@ -330,8 +357,16 @@ impl<'a> IndexedWriteTarget<'a> {
                     ))?;
                 Ok(Destination {
                     place,
+                    descriptor_steps,
                     value_type: leaf.scalar_type,
-                    shape: DestinationShape::ElementView { path, leaf },
+                    shape: DestinationShape::ElementView {
+                        descriptor: terminal_psi::StructuralArgument::whole(
+                            place,
+                            terminal_psi::StructuralAccess::MutableBorrow,
+                        ),
+                        path,
+                        leaf,
+                    },
                 })
             }
         }
@@ -339,6 +374,12 @@ impl<'a> IndexedWriteTarget<'a> {
 }
 
 impl Destination {
+    pub(crate) fn set_descriptor_path(&mut self, path: Vec<StructuralPathSegment>) {
+        if let DestinationShape::ElementView { descriptor, .. } = &mut self.shape {
+            descriptor.path = path;
+        }
+    }
+
     /// Consume source decisions against the one prepared destination. Refined
     /// elements require both the selected coordinate and the complete receiving
     /// interval; byte predicates retain their independent preservation decision.
@@ -408,11 +449,8 @@ impl Destination {
                     field: *field,
                 }
             }
-            DestinationShape::ElementView { .. } => OperationKind::ElementViewLength {
-                source: terminal_psi::StructuralArgument::whole(
-                    self.place,
-                    terminal_psi::StructuralAccess::SharedBorrow,
-                ),
+            DestinationShape::ElementView { descriptor, .. } => OperationKind::ElementViewLength {
+                source: descriptor.clone(),
             },
         };
         let length = value_id(allocate_dense(next_value)?);
@@ -517,8 +555,10 @@ pub(crate) fn emit(
                 obligation,
             }
         }
-        DestinationShape::ElementView { path, .. } => OperationKind::ElementViewWrite {
-            destination: place,
+        DestinationShape::ElementView {
+            descriptor, path, ..
+        } => OperationKind::ElementViewWrite {
+            destination: descriptor,
             path,
             index,
             value,

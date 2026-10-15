@@ -8,6 +8,7 @@
 use validation::CanonicalPlace;
 
 mod captures;
+mod place_aliases;
 mod reads;
 mod state_transport;
 
@@ -50,6 +51,15 @@ pub(super) struct ScalarBindingDependency {
     state: SymbolHandle,
     place: CanonicalPlace,
     length: Option<CapturedLength>,
+    value: Option<CapturedScalarValue>,
+}
+
+/// Equality with a currently unchanged integer observation, captured when the
+/// binding is evaluated. Any write to its inputs or destination retires it.
+#[derive(Clone)]
+struct CapturedScalarValue {
+    expression: ExpressionHandle,
+    reads: Vec<CanonicalPlace>,
 }
 
 /// A scalar snapshot may still measure a live descriptor. Keep that relation
@@ -411,6 +421,27 @@ impl<'field> RangeFacts<'field> {
             return;
         };
         let length = self.capture_length(program, machine, state, source);
+        let mut reads = Vec::new();
+        let value = (captures::has_scalar_snapshot_meaning(program, machine, state, source, 0)
+            && collect_reads(
+                program,
+                machine,
+                state,
+                self.statement_index,
+                source,
+                self.checked_calls,
+                self.checked_operators,
+                &mut reads,
+                0,
+                self.bound_lookup(),
+            )
+            && !reads
+                .iter()
+                .any(|read| places_overlap(program, read, &place)))
+        .then_some(CapturedScalarValue {
+            expression: source,
+            reads,
+        });
         if let Some(row) = self.scalar_binding_dependencies.iter_mut().find(|row| {
             row.machine == machine.symbol
                 && row.state == state.symbol
@@ -418,6 +449,7 @@ impl<'field> RangeFacts<'field> {
                 && row.place == place
         }) {
             row.length = length;
+            row.value = value;
             return;
         }
         self.scalar_binding_dependencies
@@ -427,6 +459,7 @@ impl<'field> RangeFacts<'field> {
                 state: state.symbol,
                 place,
                 length,
+                value,
             });
     }
 
@@ -548,7 +581,7 @@ impl<'field> RangeFacts<'field> {
         })
     }
 
-    pub(super) fn retire_captured_lengths(
+    pub(super) fn retire_captured_observations(
         &mut self,
         program: &dyn ::validation::CheckingInput,
         writes: Option<&[CanonicalPlace]>,
@@ -565,6 +598,19 @@ impl<'field> RangeFacts<'field> {
             })
         });
         for row in &mut self.scalar_binding_dependencies {
+            if row.value.as_ref().is_some_and(|value| {
+                writes.is_none_or(|writes| {
+                    writes.iter().any(|write| {
+                        places_overlap(program, &row.place, write)
+                            || value
+                                .reads
+                                .iter()
+                                .any(|read| places_overlap(program, read, write))
+                    })
+                })
+            }) {
+                row.value = None;
+            }
             let Some(length) = &row.length else {
                 continue;
             };

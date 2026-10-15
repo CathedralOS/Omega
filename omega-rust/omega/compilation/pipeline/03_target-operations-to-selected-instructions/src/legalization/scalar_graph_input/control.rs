@@ -27,7 +27,7 @@ pub(super) fn validate(
             },
             AbstractFunctionResult::Structural(declared),
         ) => {
-            if terminal_semantics::descriptor_results::is_shared_descriptor(
+            if terminal_semantics::descriptor_results::is_descriptor(
                 structural_types.iter(),
                 declared.structural_type,
             ) {

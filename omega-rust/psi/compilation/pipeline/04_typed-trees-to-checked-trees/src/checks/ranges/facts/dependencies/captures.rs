@@ -326,7 +326,7 @@ pub(super) fn integer_value_identity(
 /// result evidence; matching their operands does not establish the same value.
 /// This does not replay an initializer: the caller captures at this statement
 /// and retains the collected reads for subsequent write invalidation.
-fn has_scalar_snapshot_meaning(
+pub(super) fn has_scalar_snapshot_meaning(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,

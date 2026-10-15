@@ -1,0 +1,1 @@
+write-only authority cannot widen to shared or mutable access
