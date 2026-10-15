@@ -1,7 +1,6 @@
 module left;
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub boundary trait Reader { machine read() -> i32; }
 pub data LeftProvider {}
@@ -14,13 +13,13 @@ machine LeftProvider::read() -> i32 satisfies Reader::read { 11 }
 // unit plan would be omitted. The trait leaf stays shared -- provider
 // dispatch is symbol-keyed -- so the package still carries two `Reader`
 // conformances and the selection must pick `right::Reader`'s provider.
-pub data LeftRunner { reader: Binding<Reader>; console: Binding<Console>; }
+pub data LeftRunner { }
 pub machine LeftRunner::run(left_runner: &mut LeftRunner) reaches Reader, Console
 invokes Reader;
 invokes Console;
 {
-    let value: i32 = left_runner.reader.read();
+    let value: i32 = Reader::read();
     transition value == 11 { true -> deliver(left_runner, value) _ -> wrong(left_runner, value) }
-    state deliver(left_runner: &mut LeftRunner, observed: i32) { left_runner.console.exit_process(observed); }
-    state wrong(left_runner: &mut LeftRunner, observed: i32) { left_runner.console.exit_process(65); }
+    state deliver(left_runner: &mut LeftRunner, observed: i32) { Console::exit_process(observed); }
+    state wrong(left_runner: &mut LeftRunner, observed: i32) { Console::exit_process(65); }
 }

@@ -3,17 +3,16 @@
 use left;
 use right;
 use left::Sink;
-use omega::language::core::binding;
 
-data Main { sink: Binding<Sink>; }
+data Main { }
 machine Main::main(main: &mut Main)
 reaches Sink
 {
-    relay(&mut main.sink);
+    relay();
 }
 
-machine relay(sink: &mut Binding<Sink>)
+machine relay()
 reaches Sink
 {
-    sink.emit("relayed");
+    Sink::emit("relayed");
 }

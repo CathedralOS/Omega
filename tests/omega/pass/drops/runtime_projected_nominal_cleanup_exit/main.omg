@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 // This fixture explicitly assumes finite, normal completion of one byte write
@@ -64,44 +63,44 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
     via exit_process_binding();
 
-data Token<'binding> { console: &'binding Binding<Console>; ready: bool; byte: i32; }
+data Token { ready: bool; byte: i32; }
 data Pair { left: Token; right: Token; }
 
-machine Token::drop(token: &mut Token<'binding>)
+machine Token::drop(token: &mut Token)
 requires token.ready
 reaches Console
 {
-    Console::write_byte(token.console, token.byte);
+    Console::write_byte(token.byte);
     token.ready = false;
 }
 
-machine outgoing(console: &Binding<Console>) -> i32 reaches Console {
-    Console::write_byte(console, 88);
+machine outgoing() -> i32 reaches Console {
+    Console::write_byte(88);
     69
 }
 
 // Capture X first. Dispose local D, parameter C, then residual field B.
 // The successor prints E and only then disposes the transferred child A.
-machine select(console: &Binding<Console>, input: Pair, marker: Token)
+machine select(input: Pair, marker: Token)
 requires input.left.ready, input.right.ready, marker.ready
 reaches Console
 {
-    let local: Token = Token { console: console, ready: true, byte: 68 };
-    transition { _ -> finish(console, input.left, outgoing(console)) }
-    state finish(console: &Binding<Console>, selected: Token, byte: i32)
+    let local: Token = Token { ready: true, byte: 68 };
+    transition { _ -> finish(input.left, outgoing()) }
+    state finish(selected: Token, byte: i32)
     requires selected.ready
     {
-        Console::write_byte(console, byte);
+        Console::write_byte(byte);
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let input: Pair = Pair {
-        left: Token { console: &main.console, ready: true, byte: 65 },
-        right: Token { console: &main.console, ready: true, byte: 66 }
+        left: Token { ready: true, byte: 65 },
+        right: Token { ready: true, byte: 66 }
     };
-    let marker: Token = Token { console: &main.console, ready: true, byte: 67 };
-    select(&main.console, input, marker);
-    main.console.write_byte(10);
+    let marker: Token = Token { ready: true, byte: 67 };
+    select(input, marker);
+    Console::write_byte(10);
 }

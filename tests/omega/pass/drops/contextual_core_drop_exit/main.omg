@@ -1,6 +1,5 @@
 // Contextual cleanup crosses both core drop and an unrelated generic call chain.
 // The exact ready owner supplies each selected hook's prerequisite.
-use omega::language::core::binding;
 use omega::language::core::drop;
 use omega::language::core::external_binding;
 
@@ -70,13 +69,13 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
     via exit_process_binding();
 
-data Token<'binding> { console: &'binding Binding<Console>; ready: bool; byte: i32; }
+data Token { ready: bool; byte: i32; }
 
-machine Token::drop(token: &mut Token<'binding>)
+machine Token::drop(token: &mut Token)
 requires token.ready
 reaches Console
 {
-    Console::write_byte(token.console, token.byte);
+    Console::write_byte(token.byte);
     token.ready = false;
 }
 
@@ -86,11 +85,11 @@ machine retire<T>(value: T) {}
 // Transfer forwards that row; this body must not dispose its moved occurrence.
 machine forward<T>(value: T) { retire(value); }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    let first: Token = Token { console: &main.console, ready: true, byte: 65 };
-    let second: Token = Token { console: &main.console, ready: true, byte: 66 };
+    let first: Token = Token { ready: true, byte: 65 };
+    let second: Token = Token { ready: true, byte: 66 };
     drop(second);
     forward(first);
-    main.console.write_byte(10);
+    Console::write_byte(10);
 }

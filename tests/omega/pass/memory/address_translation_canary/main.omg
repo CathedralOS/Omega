@@ -76,7 +76,6 @@
 // (wiki/spec/resources/placed_access.md), so the hardware crossings remain
 // boundary requirements; demand-grown intermediate tables and multi-page
 // installation are the package's next edges.
-use omega::language::core::binding;
 use omega::language::core::assembly;
 use omega::language::core::extent;
 use translation::BorrowedMapping;
@@ -121,11 +120,8 @@ machine observe_release(obligations: &TranslationReleaseObligations) {
 
 // The Cathedral-shaped driver: install one owned mapping, then tear it down
 // and discharge its TLB debt, recovering both ranges' authority.
-machine install_and_teardown(
-    authority: &Binding<TranslationAuthority>,
-    source: Extent in Granted,
-    destination: Extent in Granted
-) -> Reclaimed
+machine install_and_teardown(source: Extent in Granted,
+    destination: Extent in Granted) -> Reclaimed
 requires
     source.length == destination.length
 reaches TranslationAuthority + MachineControl
@@ -143,11 +139,11 @@ reaches TranslationAuthority + MachineControl
         ],
     };
     let pending: Mapping in Pending =
-        authority.map(source, destination, install, release);
+        TranslationAuthority::map(source, destination, install, release);
     observe_install(&pending.install);
-    let installed: Mapping in Installed = authority.activate(pending);
+    let installed: Mapping in Installed = TranslationAuthority::activate(pending);
     observe_release(&installed.release);
-    let unmapped: Unmapped = authority.unmap(installed);
+    let unmapped: Unmapped = TranslationAuthority::unmap(installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
     Shootdown::discharge(owed);
     let released_destination: Extent in Granted = unmapped.destination;
@@ -159,11 +155,8 @@ reaches TranslationAuthority + MachineControl
 // the mapping while `destination` is consumed as before. Teardown ends the
 // loan rather than returning a source, so the caller's own `source`
 // authority is what resumes after the shootdown is discharged.
-machine borrowed_install_and_teardown(
-    authority: &Binding<TranslationAuthority>,
-    source: Extent in Granted,
-    destination: Extent in Granted
-) -> Reclaimed
+machine borrowed_install_and_teardown(source: Extent in Granted,
+    destination: Extent in Granted) -> Reclaimed
 requires
     source.length == destination.length
 reaches TranslationAuthority + MachineControl
@@ -181,12 +174,12 @@ reaches TranslationAuthority + MachineControl
         ],
     };
     let pending: BorrowedMapping in Pending =
-        authority.map_borrowed(&source, destination, install, release);
+        TranslationAuthority::map_borrowed(&source, destination, install, release);
     observe_install(&pending.install);
     let installed: BorrowedMapping in Installed =
-        authority.activate_borrowed(pending);
+        TranslationAuthority::activate_borrowed(pending);
     observe_release(&installed.release);
-    let unmapped: UnmappedBorrowed = authority.unmap_borrowed(installed);
+    let unmapped: UnmappedBorrowed = TranslationAuthority::unmap_borrowed(installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
     Shootdown::discharge(owed);
     let released_destination: Extent in Granted = unmapped.destination;
@@ -202,13 +195,9 @@ reaches TranslationAuthority + MachineControl
 // local translation on the installed carrier, the release crossing returns
 // both ranges' custody plus the owed shootdown, and `discharge` completes
 // the cross-core debt.
-machine cathedral_install_and_teardown(
-    authority: &Binding<TranslationAuthority>,
-    hardware: &Binding<TranslationHardware>,
-    tables: CathedralPageTables,
+machine cathedral_install_and_teardown(tables: CathedralPageTables,
     source: Extent in Granted,
-    destination: Extent in Granted
-) -> CathedralReclaimed
+    destination: Extent in Granted) -> CathedralReclaimed
 requires
     source.length == destination.length
 reaches TranslationAuthority + TranslationHardware + MachineControl
@@ -226,13 +215,13 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
         ],
     };
     let pending: Mapping in Pending =
-        authority.map(source, destination, install, release);
+        TranslationAuthority::map(source, destination, install, release);
     let walked: WalkedInstall =
-        CathedralPageTables::install(tables, hardware, pending);
-    let installed: Mapping in Installed = authority.activate(walked.pending);
+        CathedralPageTables::install(tables, pending);
+    let installed: Mapping in Installed = TranslationAuthority::activate(walked.pending);
     let cleared: ClearedLeaf =
-        CathedralPageTables::remove(walked.tables, hardware, installed);
-    let unmapped: Unmapped = authority.unmap(cleared.installed);
+        CathedralPageTables::remove(walked.tables, installed);
+    let unmapped: Unmapped = TranslationAuthority::unmap(cleared.installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
     Shootdown::discharge(owed);
     let released_destination: Extent in Granted = unmapped.destination;
@@ -249,13 +238,9 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
 // carrier records only ranges -- so the identical Pending -> Installed ->
 // teardown sequence runs with the package's `install_huge`/`remove_huge`
 // where the four-level driver used `install`/`remove`.
-machine cathedral_huge_install_and_teardown(
-    authority: &Binding<TranslationAuthority>,
-    hardware: &Binding<TranslationHardware>,
-    tables: CathedralPageTables,
+machine cathedral_huge_install_and_teardown(tables: CathedralPageTables,
     source: Extent in Granted,
-    destination: Extent in Granted
-) -> CathedralReclaimed
+    destination: Extent in Granted) -> CathedralReclaimed
 requires
     source.length == destination.length
 reaches TranslationAuthority + TranslationHardware + MachineControl
@@ -273,13 +258,13 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
         ],
     };
     let pending: Mapping in Pending =
-        authority.map(source, destination, install, release);
+        TranslationAuthority::map(source, destination, install, release);
     let walked: WalkedInstall =
-        CathedralPageTables::install_huge(tables, hardware, pending);
-    let installed: Mapping in Installed = authority.activate(walked.pending);
+        CathedralPageTables::install_huge(tables, pending);
+    let installed: Mapping in Installed = TranslationAuthority::activate(walked.pending);
     let cleared: ClearedLeaf =
-        CathedralPageTables::remove_huge(walked.tables, hardware, installed);
-    let unmapped: Unmapped = authority.unmap(cleared.installed);
+        CathedralPageTables::remove_huge(walked.tables, installed);
+    let unmapped: Unmapped = TranslationAuthority::unmap(cleared.installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
     Shootdown::discharge(owed);
     let released_destination: Extent in Granted = unmapped.destination;

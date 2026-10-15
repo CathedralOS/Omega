@@ -389,7 +389,7 @@ helper that passes does not close an item.
     A boundary requirement call spells `Requirement::operation(arguments)` and
     demands one exact static provider slot; checking accepts that form, and a
     leading `Binding<R>` operand is the only remaining receiver-lane entry.
-    Migrate source and fixtures: 111 test and 23 sample files still name
+    Migrate source and fixtures: 99 test and 23 sample files still name
     `Binding<`. The test remainder pins Binding-specific refusals or mixes
     bindings across files; the filesystem and GUI host fixtures then stop at
     terminal-authority review with 0 selected provider rows for their direct

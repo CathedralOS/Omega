@@ -5,15 +5,14 @@
 // pass/build/named_map_target_family_rows_exit, whose map's target-scoped
 // rows make the same local trait a selectable slot.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub boundary trait Gate { machine open() -> i32; }
 pub boundary trait Latch { machine hold() -> i32; }
 LatchProvider satisfies Latch { Latch::hold = hold; }
 machine hold() -> i32 { 1 }
 
-data Main { latch: Binding<Latch>; held: i32; console: Binding<Console>; }
+data Main { held: i32; }
 machine Main::main(main: &mut Main) reaches Latch + Console {
-    main.held = main.latch.hold();
-    Console::exit_process(&main.console, 70);
+    main.held = Latch::hold();
+    Console::exit_process(70);
 }

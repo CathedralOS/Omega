@@ -38,7 +38,6 @@
 // carried-loan machinery that would let `install_borrowed` thread the
 // `BorrowedMapping` carrier is upstream work, so the borrowed route keeps
 // its authority-only drivers for now.
-use omega::language::core::binding;
 use omega::language::core::assembly;
 use cathedral::tables;
 use cathedral::hardware;
@@ -78,13 +77,10 @@ pub data ClearedLeaf {
 // terminal entry for the pending carrier's recorded source frame, and the
 // root activates. The same carrier is returned pending -- the authority's
 // receipt crossing is what requalifies it.
-pub machine CathedralPageTables::install(
-    tables: CathedralPageTables,
-    hardware: &Binding<TranslationHardware>,
-    pending: Mapping in Pending
-) -> WalkedInstall
+pub machine CathedralPageTables::install(tables: CathedralPageTables,
+    pending: Mapping in Pending) -> WalkedInstall
 reaches TranslationHardware + MachineControl
-invokes hardware;
+invokes TranslationHardware;
 {
     let virtual_base: u64 = pending.destination.base as u64;
     let source_frame: u64 = pending.source.base as u64;
@@ -102,11 +98,11 @@ invokes hardware;
     // `store_entry` consumes each table and returns it, so every level's
     // qualified backing crosses the hardware edge explicitly instead of
     // inside a `&mut` borrow the boundary contract could not re-certify.
-    let pml4_table: Table = hardware.store_entry(tables.pml4, pml4_slot, pml4_entry);
-    let pdpt_table: Table = hardware.store_entry(tables.pdpt, pdpt_slot, pdpt_entry);
-    let pd_table: Table = hardware.store_entry(tables.pd, pd_slot, pd_entry);
-    let pt_table: Table = hardware.store_entry(tables.pt, pt_slot, leaf_entry);
-    hardware.activate_root(&pml4_table);
+    let pml4_table: Table = TranslationHardware::store_entry(tables.pml4, pml4_slot, pml4_entry);
+    let pdpt_table: Table = TranslationHardware::store_entry(tables.pdpt, pdpt_slot, pdpt_entry);
+    let pd_table: Table = TranslationHardware::store_entry(tables.pd, pd_slot, pd_entry);
+    let pt_table: Table = TranslationHardware::store_entry(tables.pt, pt_slot, leaf_entry);
+    TranslationHardware::activate_root(&pml4_table);
     WalkedInstall {
         tables: CathedralPageTables { pml4: pml4_table, pdpt: pdpt_table, pd: pd_table, pt: pt_table },
         pending: pending,
@@ -118,18 +114,15 @@ invokes hardware;
 // leaf index is the same `level_index` the install computed for this base,
 // so the cleared slot is the entry the install wrote. The carrier stays
 // installed until the authority's `unmap` receipt releases it.
-pub machine CathedralPageTables::remove(
-    tables: CathedralPageTables,
-    hardware: &Binding<TranslationHardware>,
-    active: Mapping in Installed
-) -> ClearedLeaf
+pub machine CathedralPageTables::remove(tables: CathedralPageTables,
+    active: Mapping in Installed) -> ClearedLeaf
 reaches TranslationHardware + MachineControl
-invokes hardware;
+invokes TranslationHardware;
 {
     let leaf_slot: u64 = level_index(active.destination.base as u64, 3);
     let cleared: TableEntry = TableEntry::EMPTY;
-    let pt_table: Table = hardware.store_entry(tables.pt, leaf_slot, cleared);
-    hardware.invalidate_leaf(active.destination.base);
+    let pt_table: Table = TranslationHardware::store_entry(tables.pt, leaf_slot, cleared);
+    TranslationHardware::invalidate_leaf(active.destination.base);
     ClearedLeaf {
         tables: CathedralPageTables {
             pml4: tables.pml4,
@@ -146,13 +139,10 @@ invokes hardware;
 // earlier and needs no `pt` table at all. The entry encoding is unchanged --
 // granularity is which table slot the terminal lands in, not a different
 // bit pattern -- and the provider still finishes by activating the root.
-pub machine CathedralPageTables::install_huge(
-    tables: CathedralPageTables,
-    hardware: &Binding<TranslationHardware>,
-    pending: Mapping in Pending
-) -> WalkedInstall
+pub machine CathedralPageTables::install_huge(tables: CathedralPageTables,
+    pending: Mapping in Pending) -> WalkedInstall
 reaches TranslationHardware + MachineControl
-invokes hardware;
+invokes TranslationHardware;
 {
     let virtual_base: u64 = pending.destination.base as u64;
     let source_frame: u64 = pending.source.base as u64;
@@ -164,10 +154,10 @@ invokes hardware;
     let pml4_entry: TableEntry = TableEntry::next_level(pdpt_base);
     let pdpt_entry: TableEntry = TableEntry::next_level(pd_base);
     let leaf_entry: TableEntry = TableEntry::terminal(source_frame, true);
-    let pml4_table: Table = hardware.store_entry(tables.pml4, pml4_slot, pml4_entry);
-    let pdpt_table: Table = hardware.store_entry(tables.pdpt, pdpt_slot, pdpt_entry);
-    let pd_table: Table = hardware.store_entry(tables.pd, pd_slot, leaf_entry);
-    hardware.activate_root(&pml4_table);
+    let pml4_table: Table = TranslationHardware::store_entry(tables.pml4, pml4_slot, pml4_entry);
+    let pdpt_table: Table = TranslationHardware::store_entry(tables.pdpt, pdpt_slot, pdpt_entry);
+    let pd_table: Table = TranslationHardware::store_entry(tables.pd, pd_slot, leaf_entry);
+    TranslationHardware::activate_root(&pml4_table);
     WalkedInstall {
         tables: CathedralPageTables { pml4: pml4_table, pdpt: pdpt_table, pd: pd_table, pt: tables.pt },
         pending: pending,
@@ -179,18 +169,15 @@ invokes hardware;
 // `EMPTY` overwrite, and the same local invalidation -- a stale huge
 // translation is still one page-mapping entry to the hardware, only
 // spanning more of the address space.
-pub machine CathedralPageTables::remove_huge(
-    tables: CathedralPageTables,
-    hardware: &Binding<TranslationHardware>,
-    active: Mapping in Installed
-) -> ClearedLeaf
+pub machine CathedralPageTables::remove_huge(tables: CathedralPageTables,
+    active: Mapping in Installed) -> ClearedLeaf
 reaches TranslationHardware + MachineControl
-invokes hardware;
+invokes TranslationHardware;
 {
     let leaf_slot: u64 = level_index(active.destination.base as u64, 2);
     let cleared: TableEntry = TableEntry::EMPTY;
-    let pd_table: Table = hardware.store_entry(tables.pd, leaf_slot, cleared);
-    hardware.invalidate_leaf(active.destination.base);
+    let pd_table: Table = TranslationHardware::store_entry(tables.pd, leaf_slot, cleared);
+    TranslationHardware::invalidate_leaf(active.destination.base);
     ClearedLeaf {
         tables: CathedralPageTables {
             pml4: tables.pml4,

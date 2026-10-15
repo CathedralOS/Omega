@@ -2,15 +2,13 @@
 // entry keeps the requirement's public Trap allowance; the build decides
 // whether the composed product may actually trap.
 use assert_kit::main::Assert;
-use omega::language::core::binding;
 
 data Main {
-    assert: Binding<Assert>;
 }
 
 machine Main::main(main: &mut Main)
 reaches Assert
 crashes Trap
 {
-    main.assert.check(1 == 1);
+    Assert::check(1 == 1);
 }

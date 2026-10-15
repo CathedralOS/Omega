@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 // RUN CANARY (exit 70) -- BUILD-MACHINE IDENTITY IS FILE-BASED
 // (2026-07-11m, owner answer #3: build.omg is the home): a machine
 // literally named `Maker::build(b: &mut Build)` in MAIN source is an
@@ -11,10 +10,10 @@ data Maker { count: i32 in Wrapping; }
 machine build(b: &mut Build) {
     b.flag = 7;
 }
-data Main { console: Binding<Console>; maker: Maker; b: Build; }
+data Main { maker: Maker; b: Build; }
 machine Main::main(main: &mut Main) reaches Console {
     build(&mut main.b);
     transition main.b.flag == 7 { true -> good(main) _ -> bad(main) }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

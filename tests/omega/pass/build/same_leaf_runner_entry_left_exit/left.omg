@@ -1,19 +1,18 @@
 module left;
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub boundary trait Reader { machine read() -> i32; }
 pub data Provider {}
 machine Provider::read() -> i32 satisfies Reader::read { 11 }
 
-pub data Runner { reader: Binding<Reader>; console: Binding<Console>; }
+pub data Runner { }
 pub machine Runner::run(runner: &mut Runner) reaches Reader, Console
 invokes Reader;
 invokes Console;
 {
-    let value: i32 = runner.reader.read();
+    let value: i32 = Reader::read();
     transition value == 11 { true -> deliver(runner, value) _ -> wrong(runner, value) }
-    state deliver(runner: &mut Runner, observed: i32) { runner.console.exit_process(observed); }
-    state wrong(runner: &mut Runner, observed: i32) { runner.console.exit_process(65); }
+    state deliver(runner: &mut Runner, observed: i32) { Console::exit_process(observed); }
+    state wrong(runner: &mut Runner, observed: i32) { Console::exit_process(65); }
 }

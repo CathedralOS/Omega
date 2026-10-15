@@ -6,10 +6,9 @@
 // it the same program checks and native realization refuses with the missing
 // selection named. Exit 72 once the field is written.
 use omega_language_std::console;
-use omega::language::core::binding;
 use token;
 
-data Main { console: Binding<Console>; held: Token; }
+data Main { held: Token; }
 
 machine Main::relay(input: Token) -> Token {
     input
@@ -19,5 +18,5 @@ machine Main::main(main: &mut Main) reaches Console {
     let token_value: Token;
     main.held = Main::relay(token_value);
     transition { _ -> finish(main, 72) }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

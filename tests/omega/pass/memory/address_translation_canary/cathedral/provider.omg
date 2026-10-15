@@ -46,12 +46,10 @@ pub boundary trait CathedralTranslationProvider {
     ensures
         separate(
             Granted::content(&result.source),
-            Granted::content(&result.destination),
-        )
+            Granted::content(&result.destination))
         == separate(
             Granted::content(old(&source)),
-            Granted::content(old(&destination)),
-        );
+            Granted::content(old(&destination)));
 
     // The install-receipt crossing behind `activate`. The provider's checked
     // `CathedralPageTables::install` is the route whose stored entries this
@@ -62,12 +60,10 @@ pub boundary trait CathedralTranslationProvider {
     ensures
         separate(
             Granted::content(&result.source),
-            Granted::content(&result.destination),
-        )
+            Granted::content(&result.destination))
         == separate(
             Granted::content(old(&pending.source)),
-            Granted::content(old(&pending.destination)),
-        );
+            Granted::content(old(&pending.destination)));
 
     // The release-receipt crossing behind `unmap`, standing behind the
     // checked `CathedralPageTables::remove` that clears the leaf and
@@ -77,12 +73,10 @@ pub boundary trait CathedralTranslationProvider {
     ensures
         separate(
             Granted::content(&result.destination),
-            Granted::content(&result.source),
-        )
+            Granted::content(&result.source))
         == separate(
             Granted::content(old(&active.source)),
-            Granted::content(old(&active.destination)),
-        );
+            Granted::content(old(&active.destination)));
 
     machine map_borrowed(
         source: &Extent in Granted,

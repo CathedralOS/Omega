@@ -1,6 +1,5 @@
 // A generic conditional returns one owner and cleans only the other.
 // The returned owner is deliberately unready until its caller repairs it.
-use omega::language::core::binding;
 use omega::language::core::drop;
 use omega::language::core::external_binding;
 
@@ -70,13 +69,13 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
     via exit_process_binding();
 
-data Token<'binding> { console: &'binding Binding<Console>; ready: bool; byte: i32; }
+data Token { ready: bool; byte: i32; }
 
-machine Token::drop(token: &mut Token<'binding>)
+machine Token::drop(token: &mut Token)
 requires token.ready
 reaches Console
 {
-    Console::write_byte(token.console, token.byte);
+    Console::write_byte(token.byte);
     token.ready = false;
 }
 
@@ -88,12 +87,12 @@ machine forward_choice<T>(flag: bool, first: T, second: T) -> T {
     choose(flag, first, second)
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    let first: Token = Token { console: &main.console, ready: false, byte: 65 };
-    let second: Token = Token { console: &main.console, ready: true, byte: 66 };
+    let first: Token = Token { ready: false, byte: 65 };
+    let second: Token = Token { ready: true, byte: 66 };
     let mut selected: Token = forward_choice(true, first, second);
     selected.ready = true;
     drop(selected);
-    main.console.write_byte(10);
+    Console::write_byte(10);
 }

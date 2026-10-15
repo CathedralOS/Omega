@@ -178,12 +178,10 @@ pub boundary trait TranslationAuthority {
         result in Mapping::Pending,
         separate(
             Granted::content(&result.source),
-            Granted::content(&result.destination),
-        )
+            Granted::content(&result.destination))
         == separate(
             Granted::content(old(&source)),
-            Granted::content(old(&destination)),
-        );
+            Granted::content(old(&destination)));
 
     // The provider receipt crossing: installed translations exist for the
     // exact pending mapping, and the carrier's authored install set is
@@ -193,12 +191,10 @@ pub boundary trait TranslationAuthority {
         result in Mapping::Installed,
         separate(
             Granted::content(&result.source),
-            Granted::content(&result.destination),
-        )
+            Granted::content(&result.destination))
         == separate(
             Granted::content(old(&pending.source)),
-            Granted::content(old(&pending.destination)),
-        );
+            Granted::content(old(&pending.destination)));
 
     // Stale translations are released by the provider before this returns;
     // the carrier's authored release set is what that receipt must
@@ -208,12 +204,10 @@ pub boundary trait TranslationAuthority {
     ensures
         separate(
             Granted::content(&result.destination),
-            Granted::content(&result.source),
-        )
+            Granted::content(&result.source))
         == separate(
             Granted::content(old(&active.source)),
-            Granted::content(old(&active.destination)),
-        );
+            Granted::content(old(&active.destination)));
 
     // Structural validation over a shared source loan: the pending carrier
     // holds the loan, the destination's custody, and the caller-authored

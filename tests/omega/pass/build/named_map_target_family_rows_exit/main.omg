@@ -5,7 +5,6 @@
 // authored for the realized target. The selection is spelled after the entry
 // bindings; the sibling fixture spells it before them.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub boundary trait Gate {
     machine open() -> i32;
@@ -36,11 +35,11 @@ windows_x86_64 machine close_gate(ticket: i32) -> i32 {
     state refused() -> i32 { 71 }
 }
 
-data Main { gate: Binding<Gate>; ticket: i32; code: i32; console: Binding<Console>; }
+data Main { ticket: i32; code: i32; }
 machine Main::main(main: &mut Main) reaches Gate + Console {
-    main.ticket = main.gate.open();
-    main.code = main.gate.close(main.ticket);
-    transition main.code == 70 { true -> good(&main.console) _ -> bad(&main.console) }
-    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state bad(console: &Binding<Console>) { Console::exit_process(console, 72); }
+    main.ticket = Gate::open();
+    main.code = Gate::close(main.ticket);
+    transition main.code == 70 { true -> good() _ -> bad() }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(72); }
 }
