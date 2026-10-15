@@ -176,6 +176,12 @@ pub enum LoweringError {
     UnsupportedStructuralByteSequence(StructuralTypeId),
     UnsupportedStructuralSum(StructuralTypeId),
     UnsupportedStructuralArray(StructuralTypeId),
+    InvalidOwnedStructuralArgument {
+        source: PlaceId,
+        parameter: PlaceId,
+        structural_type: StructuralTypeId,
+        reason: &'static str,
+    },
     UnsupportedStructuralReference(StructuralTypeId),
     UnclosedTargetLayout(StructuralTypeId),
     StructuralTypeTooLarge(StructuralTypeId),

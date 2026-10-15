@@ -44,19 +44,12 @@ pub(crate) fn validate_machine_trait_conformances(
                 machine,
                 requirement,
                 conformance,
-                symbols,
                 diagnostics,
             );
             continue;
         }
         let Some(trait_definition) = trait_definition_by_symbol(program, conformance.symbol) else {
-            if validate_machine_operator_conformance(
-                program,
-                machine,
-                conformance,
-                symbols,
-                diagnostics,
-            ) {
+            if validate_machine_operator_conformance(program, machine, conformance, diagnostics) {
                 continue;
             }
             diagnostics.push(Diagnostic::error(format!(
@@ -159,7 +152,6 @@ fn validate_machine_top_level_requirement_conformance(
     machine: &Machine,
     requirement: &Machine,
     conformance: &typed_trees::machine::TraitConformance,
-    symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let requirement_identity = requirement.name.as_str();
@@ -192,7 +184,7 @@ fn validate_machine_top_level_requirement_conformance(
     // The authored edge above still names the generic template. A checked
     // provider instance must refine the corresponding closed requirement,
     // including its substituted contracts and effects, not the open telescope.
-    let requirement = match closed_requirement::resolve(program, machine, requirement, symbols) {
+    let requirement = match closed_requirement::resolve(program, machine, requirement) {
         Ok(requirement) => requirement,
         Err(diagnostic) => {
             diagnostics.push(diagnostic);
@@ -448,28 +440,12 @@ pub fn revalidate_top_level_requirement_realization(
             machine.name
         )));
     } else {
-        // Frozen queries already share these program-fixed declaration tables
-        // with call-frame resolution. Reuse their successful construction,
-        // not a prior conformance verdict: each supplied realization below is
-        // still checked against its exact requirement and current effects.
-        // Bare or invalid inputs retain ordinary construction and diagnostics.
-        let retained_tables = program.call_frame_tables();
-        let local_symbols;
-        let symbols = match retained_tables.as_ref() {
-            Some(tables) => &tables.symbols,
-            None => {
-                local_symbols =
-                    crate::declarations::symbols::TopLevelSymbols::build(program, &mut diagnostics);
-                &local_symbols
-            }
-        };
         validate_machine_top_level_requirement_conformance(
             program,
             &service_reaches,
             machine,
             requirement,
             conformance,
-            symbols,
             &mut diagnostics,
         );
     }
@@ -563,7 +539,6 @@ fn validate_machine_operator_conformance(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     conformance: &typed_trees::machine::TraitConformance,
-    symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
     let Some(requirement) = conformance.requirement.as_ref() else {
@@ -648,7 +623,6 @@ fn validate_machine_operator_conformance(
         if let Err(diagnostic) =
             crate::declarations::operators::validate_closed_operator_application(
                 program,
-                symbols,
                 operator,
                 &retained.arguments,
             )

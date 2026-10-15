@@ -638,7 +638,6 @@ fn validate_routed_service_carrier_placement(
 pub(crate) fn validate_generic_instance_argument_bounds(
     program: &dyn crate::CheckingInput,
     instance: &typed_trees::data::DataDefinition,
-    symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(origin) = instance.generic_instance else {
@@ -659,7 +658,6 @@ pub(crate) fn validate_generic_instance_argument_bounds(
     };
     validate_generic_argument_bounds(
         program,
-        symbols,
         *base_symbol,
         base_name.as_str(),
         *arguments,
@@ -852,7 +850,6 @@ fn validate_type_reference_node(
             if let Some(definition) = definition {
                 validate_generic_argument_bounds(
                     program,
-                    symbols,
                     *base_symbol,
                     base_name.as_str(),
                     *arguments,

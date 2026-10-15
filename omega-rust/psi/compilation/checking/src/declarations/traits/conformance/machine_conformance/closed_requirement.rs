@@ -24,7 +24,6 @@ pub fn resolve<'program>(
     program: &'program dyn crate::CheckingInput,
     provider: &Machine,
     requirement: &'program Machine,
-    symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
 ) -> Result<&'program Machine, Diagnostic> {
     if program.machine_type_parameters(requirement).is_empty()
         || !program.machine_type_parameters(provider).is_empty()
@@ -64,7 +63,6 @@ pub fn resolve<'program>(
     }
     crate::declarations::operators::validate_closed_operator_application(
         program,
-        symbols,
         operator,
         &application.arguments,
     )?;

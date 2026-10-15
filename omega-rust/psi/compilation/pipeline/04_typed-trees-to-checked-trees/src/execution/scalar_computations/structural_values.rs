@@ -545,25 +545,12 @@ impl Builder<'_, '_> {
                 backing_type,
                 source_value,
             }
-        } else if matches!(
-            self.program.expression_table.expression(expression),
-            ExpressionNode::Name(_)
-        ) && validation::scalar_case_constructor(self.program, expression).is_none()
-            && let Some(argument) = self.owned_structural_place(expression, expected)
-            && matches!(
-                argument.source,
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-            )
-        {
-            // A whole owned parameter has no producer in this body: reading it
-            // transfers the caller's value, which an unrestricted carrier
-            // copies. Only a local's later read takes the copy route below,
-            // because the local's initializer need not be its current value.
-            CheckedStructuralValueKind::Place(argument)
         } else if let Some(copied) = self.copied_place(expression, expected) {
             // Reading an already stored carrier copies that value, including
             // a shared view's captured extent. Its backing loan cannot replace
             // the descriptor with a newly formed whole-collection view.
+            // Locals and owned parameters share this decision: affine
+            // descriptor retirement does not forbid shared-carrier copying.
             copied
         } else if let Some(view) = self
             .subslice_view_place(expression, expected)

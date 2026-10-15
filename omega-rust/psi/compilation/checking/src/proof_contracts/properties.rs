@@ -20,7 +20,6 @@
 //! domain, fields, and zero-case payload in `data`; semantic emptiness is not
 //! a type property.
 
-use crate::declarations::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
 use typed_trees::data::{DataDefinition, TypeParameter};
 use typed_trees::types::TypeReferenceNode;
@@ -79,7 +78,6 @@ impl std::fmt::Display for DeclaredPropertyRequirement {
 
 pub(crate) fn validate_data_properties(
     program: &dyn crate::CheckingInput,
-    symbols: &TopLevelSymbols<'_>,
     opaque_property_receipts: &[OpaqueDataPropertyReceipt],
     allow_pending_opaque_copy: bool,
     diagnostics: &mut Vec<Diagnostic>,
@@ -99,7 +97,7 @@ pub(crate) fn validate_data_properties(
         }
 
         if properties.multiplicity == language_semantics::Multiplicity::Unrestricted {
-            validate_structural_property(program, symbols, data_definition, "copy", diagnostics);
+            validate_structural_property(program, data_definition, "copy", diagnostics);
         }
         if let Some(carry) = properties.carry {
             validate_carry_policy(program, data_definition, carry, diagnostics);
@@ -115,7 +113,6 @@ pub(crate) fn validate_data_properties(
 /// apply to every copy. Exclusive references and bare slices do not qualify.
 fn validate_structural_property(
     program: &dyn crate::CheckingInput,
-    symbols: &TopLevelSymbols<'_>,
     data_definition: &DataDefinition,
     property: &str,
     diagnostics: &mut Vec<Diagnostic>,
@@ -127,7 +124,6 @@ fn validate_structural_property(
         &mut |field, case: Option<&str>| {
             if type_satisfies_structural_property(
                 program,
-                symbols,
                 type_parameters,
                 field.type_reference,
                 property,
@@ -327,11 +323,13 @@ pub fn effective_type_carry_requirements(
 }
 
 /// One entry point for "does this type carry the declared property?", shared
-/// with the instantiation-time bound check. Carry requirements use the
-/// normalized four-axis comparison.
+/// by instantiation-time bound checks and stored-value copy planning. Source
+/// reference reuse is not permission to duplicate an exclusive carrier; shared
+/// carriers can copy even when each copy has affine retirement custody.
+/// Resolved declaration identities need no rebuilt top-level symbol index.
+/// Carry requirements use the normalized four-axis comparison.
 pub fn type_satisfies_declared_property(
     program: &dyn crate::CheckingInput,
-    symbols: &TopLevelSymbols<'_>,
     type_parameters: &[TypeParameter],
     type_reference: typed_trees::types::TypeReferenceHandle,
     property: DeclaredPropertyRequirement,
@@ -342,26 +340,17 @@ pub fn type_satisfies_declared_property(
                 .derive(type_reference)
                 .permits(required)
         }
-        DeclaredPropertyRequirement::Copy => type_satisfies_structural_property(
-            program,
-            symbols,
-            type_parameters,
-            type_reference,
-            "copy",
-        ),
-        DeclaredPropertyRequirement::Linear => type_satisfies_structural_property(
-            program,
-            symbols,
-            type_parameters,
-            type_reference,
-            "linear",
-        ),
+        DeclaredPropertyRequirement::Copy => {
+            type_satisfies_structural_property(program, type_parameters, type_reference, "copy")
+        }
+        DeclaredPropertyRequirement::Linear => {
+            type_satisfies_structural_property(program, type_parameters, type_reference, "linear")
+        }
     }
 }
 
 fn type_satisfies_structural_property(
     program: &dyn crate::CheckingInput,
-    symbols: &TopLevelSymbols<'_>,
     type_parameters: &[TypeParameter],
     type_reference: typed_trees::types::TypeReferenceHandle,
     property: &str,
@@ -381,25 +370,17 @@ fn type_satisfies_structural_property(
             {
                 return type_parameter_declares_property(parameter, property);
             }
-            named_type_declares_property(program, symbols, *symbol, name.as_str(), property)
+            named_type_declares_property(program, *symbol, name.as_str(), property)
         }
         TypeReferenceNode::Reference { access, .. } => {
             property == "copy" && *access == language_core::ReferenceAccess::Shared
         }
-        TypeReferenceNode::Constrained { base_type, .. } => type_satisfies_structural_property(
-            program,
-            symbols,
-            type_parameters,
-            *base_type,
-            property,
-        ),
-        TypeReferenceNode::FixedArray { element_type, .. } => type_satisfies_structural_property(
-            program,
-            symbols,
-            type_parameters,
-            *element_type,
-            property,
-        ),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_satisfies_structural_property(program, type_parameters, *base_type, property)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            type_satisfies_structural_property(program, type_parameters, *element_type, property)
+        }
         // An instantiated generic carries the property when its base data
         // declares it; the instantiation-time bound check separately verifies
         // the arguments uphold the base's parameter bounds.
@@ -407,13 +388,7 @@ fn type_satisfies_structural_property(
             base_symbol,
             base_name,
             ..
-        } => named_type_declares_property(
-            program,
-            symbols,
-            *base_symbol,
-            base_name.as_str(),
-            property,
-        ),
+        } => named_type_declares_property(program, *base_symbol, base_name.as_str(), property),
         // Bare slices, dyn traits and unit do not declare these properties.
         _ => false,
     }
@@ -491,14 +466,12 @@ pub(crate) fn referenced_type_parameter<'program>(
 
 fn named_type_declares_property(
     program: &dyn crate::CheckingInput,
-    symbols: &TopLevelSymbols<'_>,
     symbol: symbols::SymbolHandle,
     name: &str,
     property: &str,
 ) -> bool {
     // Builtin scalar spellings resolve as primitives above; a remaining named
     // type only qualifies when it is a data definition declaring the property.
-    let _ = symbols;
     program
         .data_definitions()
         .iter()

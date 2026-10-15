@@ -18,10 +18,8 @@ use typed_trees::trait_definition::AppliedTraitScope;
 pub(crate) fn record_provider_closed_requirements(
     program: &dyn validation::CheckingInput,
 ) -> CheckedProviderClosedRequirements {
-    // Built on the first generic template: most programs name none. An
-    // invalid declaration identity was reported when checking resolved the
-    // same symbols; the rows below only join what checking admitted.
-    let mut symbols = None;
+    // Declaration identity was checked during resolution. These rows join
+    // retained applications without rebuilding a second symbol index.
     let mut rows = Vec::new();
     for provider in program.machines().iter().filter(|machine| {
         machine.supply_mode == MachineSupplyMode::CheckedBody
@@ -74,12 +72,9 @@ pub(crate) fn record_provider_closed_requirements(
             }) else {
                 continue;
             };
-            let symbols = symbols.get_or_insert_with(|| {
-                validation::TopLevelSymbols::build(program, &mut Vec::new())
-            });
-            if let Ok(closed) = validation::resolve_closed_requirement_application(
-                program, provider, template, symbols,
-            ) {
+            if let Ok(closed) =
+                validation::resolve_closed_requirement_application(program, provider, template)
+            {
                 rows.push((
                     CheckedProviderClosedRequirement {
                         provider: provider.symbol,

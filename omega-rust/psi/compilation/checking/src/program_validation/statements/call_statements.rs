@@ -32,7 +32,6 @@ pub(super) fn validate(
     if let Some(state) = current_state {
         crate::declarations::operators::validate_named_statement_operator_application(
             program,
-            symbols,
             machine,
             state,
             statement_handle,

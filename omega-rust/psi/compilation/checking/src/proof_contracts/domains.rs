@@ -41,7 +41,7 @@ pub(crate) fn validate_domain_definitions(
     fact_plan: &FactPlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_domain_aliases(program, symbols, diagnostics);
+    validate_domain_aliases(program, diagnostics);
     validate_progress_profile_domains(program, diagnostics);
     validate_repeated_normalized_domain_identities(program, fact_plan, diagnostics);
     validate_capacity_normalized_domain_agreement(program, fact_plan, diagnostics);
@@ -120,11 +120,7 @@ fn validate_progress_profile_domains(
     }
 }
 
-fn validate_domain_aliases(
-    program: &dyn crate::CheckingInput,
-    symbols: &TopLevelSymbols<'_>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
+fn validate_domain_aliases(program: &dyn crate::CheckingInput, diagnostics: &mut Vec<Diagnostic>) {
     for domain in program.domain_definitions() {
         let Some(alias) = domain.alias.as_ref() else {
             continue;
@@ -197,7 +193,6 @@ fn validate_domain_aliases(
                 for requirement in declared_property_requirements(&parameter.bounds) {
                     if !type_satisfies_declared_property(
                         program,
-                        symbols,
                         program.domain_type_parameters(domain),
                         domain.target_type,
                         requirement,

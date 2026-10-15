@@ -7,8 +7,6 @@ use typed_trees::operator::{ClosedOperatorApplicationArgument, OperatorDefinitio
 use typed_trees::statement::{StatementHandle, TableCall};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-use crate::declarations::symbols::TopLevelSymbols;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValidatedBoundaryOperatorApplicationUseSite {
     Expression(ExpressionHandle),
@@ -81,7 +79,6 @@ pub enum ValidatedBoundaryOperatorApplicationArgument {
 /// The returned bindings are ordered by the operator's declaration telescope.
 pub fn validate_named_operator_application(
     program: &dyn crate::CheckingInput,
-    symbols: &TopLevelSymbols<'_>,
     operator: &OperatorDefinition,
     static_arguments: &[StaticMachineArgument],
     operand_types: &[Option<TypeReferenceHandle>],
@@ -128,7 +125,7 @@ pub fn validate_named_operator_application(
         )));
     };
 
-    validate_closed_operator_application(program, symbols, operator, &inferred)?;
+    validate_closed_operator_application(program, operator, &inferred)?;
 
     if static_arguments.is_empty() {
         return Ok(Some(inferred));
@@ -286,7 +283,6 @@ pub(crate) fn retain_validated_boundary_operator_application(
 
 pub(crate) fn validate_named_statement_operator_application(
     program: &dyn crate::CheckingInput,
-    symbols: &TopLevelSymbols<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement: StatementHandle,
@@ -320,7 +316,6 @@ pub(crate) fn validate_named_statement_operator_application(
     );
     match validate_named_operator_application(
         program,
-        symbols,
         operator,
         &call.machine_arguments,
         &operand_types,
@@ -368,7 +363,6 @@ fn statement_value_receiver_type(
 
 pub fn validate_closed_operator_application(
     program: &dyn crate::CheckingInput,
-    symbols: &TopLevelSymbols<'_>,
     operator: &OperatorDefinition,
     application: &[ClosedOperatorApplicationArgument],
 ) -> Result<(), Diagnostic> {
@@ -395,7 +389,6 @@ pub fn validate_closed_operator_application(
                 for property in bounds {
                     if crate::proof_contracts::properties::type_satisfies_declared_property(
                         program,
-                        symbols,
                         &[],
                         *type_reference,
                         property,

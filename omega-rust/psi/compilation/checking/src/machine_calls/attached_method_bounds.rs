@@ -112,7 +112,6 @@ pub fn validate_selected_attached_method_bounds(
         }
     }
     let mut diagnostics = Vec::new();
-    let symbols = crate::TopLevelSymbols::build(program, &mut diagnostics);
     for machine in program.machines().iter().filter(|machine| {
         machine.generic_data_template.is_valid() && method_is_selected(program, machine, &selected)
     }) {
@@ -177,13 +176,7 @@ pub fn validate_selected_attached_method_bounds(
                 });
             if !argument.is_some_and(|argument| {
                 requirements.iter().all(|requirement| {
-                    crate::type_satisfies_declared_property(
-                        program,
-                        &symbols,
-                        &[],
-                        argument,
-                        *requirement,
-                    )
+                    crate::type_satisfies_declared_property(program, &[], argument, *requirement)
                 })
             }) {
                 diagnostics.push(Diagnostic::error(format!(

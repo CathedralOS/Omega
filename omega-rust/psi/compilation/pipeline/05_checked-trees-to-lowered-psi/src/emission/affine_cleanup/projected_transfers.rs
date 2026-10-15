@@ -1,7 +1,7 @@
 //! Complete scheduled disposal from the exact transferred paths on each edge.
 //!
 //! This pass never chooses a root's lifetime. It changes an already scheduled
-//! whole discard into the maximal complement of its earlier owned transfers
+//! whole or regional discard into the complement of its earlier owned transfers
 //! and ended reference leaves. Storage remains available to scalar siblings.
 //! Joins require identical transfer frontiers; a result birth starts a fresh
 //! occurrence. Selected nominal subjects remain intact boundaries within the
@@ -491,7 +491,7 @@ fn restore_path(frontier: &mut Frontier, place: PlaceId, path: &[StructuralPathS
 
 fn residuals(
     root: &MovedRoot,
-    roots: &[(PlaceId, StructuralTypeId)],
+    selected: &StructuralAffineDiscard,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<StructuralAffineDiscard>, LoweringError> {
     // A whole extraction vacates all cells but retains their allocation. No
@@ -499,23 +499,28 @@ fn residuals(
     if root.paths.contains(&Vec::new()) {
         return Ok(Vec::new());
     }
-    let mut matching = roots.iter().filter(|(place, _)| *place == root.place);
-    let (_, root_type) = matching.next().ok_or(LoweringError::Unsupported(
-        "projected cleanup root has no exact declaration",
+    let removed = root
+        .paths
+        .iter()
+        .filter_map(|path| {
+            path.strip_prefix(selected.path.as_slice())
+                .map(<[_]>::to_vec)
+        })
+        .collect();
+    let paths = terminal_semantics::partial_affine_residuals(
+        types,
+        selected.structural_type,
+        &removed,
+        usize::MAX,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "projected cleanup has no bounded residual complement",
     ))?;
-    if matching.any(|(_, other)| other != root_type) {
-        return unsupported("projected cleanup root has inconsistent declarations");
-    }
-    let paths =
-        terminal_semantics::partial_affine_residuals(types, *root_type, &root.paths, usize::MAX)
-            .ok_or(LoweringError::Unsupported(
-                "projected cleanup has no bounded residual complement",
-            ))?;
     Ok(paths
         .into_iter()
         .map(|(path, structural_type)| StructuralAffineDiscard {
             place: root.place,
-            path,
+            path: selected.path.iter().cloned().chain(path).collect(),
             structural_type,
         })
         .collect())
@@ -543,8 +548,20 @@ fn complete_actions(
                 let root = frontier.iter().find(|root| root.place == *place).ok_or(
                     LoweringError::Unsupported("scheduled partial cleanup root is absent"),
                 )?;
+                let mut matching = roots.iter().filter(|(root, _)| root == place);
+                let (_, structural_type) = matching.next().ok_or(LoweringError::Unsupported(
+                    "projected cleanup root has no exact declaration",
+                ))?;
+                if matching.any(|(_, other)| other != structural_type) {
+                    return unsupported("projected cleanup root has inconsistent declarations");
+                }
+                let selected = StructuralAffineDiscard {
+                    place: *place,
+                    path: Vec::new(),
+                    structural_type: *structural_type,
+                };
                 actions.extend(
-                    residuals(root, roots, types)?
+                    residuals(root, &selected, types)?
                         .into_iter()
                         .map(TerminalAffineCleanupAction::DiscardResidual),
                 );
@@ -552,6 +569,31 @@ fn complete_actions(
                 // must preserve its home retirement, including an empty
                 // complement. Region actions alone do not carry that lifetime.
                 actions.push(TerminalAffineCleanupAction::RetireHome(*place));
+            }
+            TerminalAffineCleanupAction::DiscardResidual(selected)
+                if frontier.iter().any(|root| {
+                    root.place == selected.place
+                        && root.paths.iter().any(|path| {
+                            path.len() > selected.path.len() && path.starts_with(&selected.path)
+                        })
+                }) =>
+            {
+                // A selected region can have expired children just like a
+                // whole home. Complete that region's remaining contents only;
+                // its siblings and the home's retirement keep their own rows.
+                // Exact or ancestor vacancies do not enter this case, so a
+                // repeated disposal still reaches the overlap rejection below.
+                let root = frontier
+                    .iter()
+                    .find(|root| root.place == selected.place)
+                    .ok_or(LoweringError::Unsupported(
+                        "scheduled partial cleanup root is absent",
+                    ))?;
+                actions.extend(
+                    residuals(root, selected, types)?
+                        .into_iter()
+                        .map(TerminalAffineCleanupAction::DiscardResidual),
+                );
             }
             _ => actions.push(action.clone()),
         }
@@ -579,6 +621,17 @@ fn complete_actions(
                 }
                 TerminalAffineCleanupAction::InvokeNominal(_) => {}
             }
+        }
+        if let TerminalAffineCleanupAction::DiscardResidual(selected) = action
+            && let Some(root) = frontier
+                .iter_mut()
+                .find(|root| root.place == selected.place)
+        {
+            // The entire selected region is now vacant, even when its
+            // complement was empty. Coalesce those descendant holes so a
+            // later request cannot dispose this same region a second time.
+            root.paths.retain(|path| !path.starts_with(&selected.path));
+            root.paths.insert(selected.path.clone());
         }
     }
     *cleanup_actions = actions;

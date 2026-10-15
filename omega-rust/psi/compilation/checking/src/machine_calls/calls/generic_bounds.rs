@@ -1,4 +1,3 @@
-use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::properties::{
     declared_property_requirements, referenced_type_parameter, type_satisfies_declared_property,
 };
@@ -31,7 +30,6 @@ use typed_trees::state::State;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_machine_call_type_parameter_bounds(
     program: &dyn crate::CheckingInput,
-    symbols: &TopLevelSymbols<'_>,
     callee_machine: &Machine,
     callee_state: &State,
     target_name: &str,
@@ -54,7 +52,6 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
     );
     validate_type_parameter_instantiation_bounds(
         program,
-        symbols,
         callee_machine,
         callee_state,
         target_name,
@@ -124,7 +121,6 @@ fn report_bodyless_boundary_symbol_call(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_resolved_target_type_parameter_bounds(
     program: &dyn crate::CheckingInput,
-    symbols: &TopLevelSymbols<'_>,
     callee_machine: &Machine,
     callee_state: &State,
     target_name: &str,
@@ -135,7 +131,6 @@ pub(super) fn validate_resolved_target_type_parameter_bounds(
 ) {
     validate_type_parameter_instantiation_bounds(
         program,
-        symbols,
         callee_machine,
         callee_state,
         target_name,
@@ -149,7 +144,6 @@ pub(super) fn validate_resolved_target_type_parameter_bounds(
 #[allow(clippy::too_many_arguments)]
 fn validate_type_parameter_instantiation_bounds(
     program: &dyn crate::CheckingInput,
-    symbols: &TopLevelSymbols<'_>,
     callee_machine: &Machine,
     callee_state: &State,
     target_name: &str,
@@ -187,7 +181,6 @@ fn validate_type_parameter_instantiation_bounds(
         for property in bounds {
             if type_satisfies_declared_property(
                 program,
-                symbols,
                 caller_type_parameters,
                 argument_type,
                 property,

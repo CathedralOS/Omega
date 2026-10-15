@@ -93,6 +93,7 @@ pub(crate) fn emit(
                 source,
                 place,
                 structural_type,
+                multiplicity,
             } => {
                 use crate::expression_preparation::bindings::PreparedCopyPathSegment;
                 let mut path = Vec::with_capacity(source.path.len());
@@ -139,7 +140,7 @@ pub(crate) fn emit(
                         qualification_establishments: Vec::new(),
                         place: *place,
                         structural_type: *structural_type,
-                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                        multiplicity: *multiplicity,
                         qualifications,
                         projected_qualifications,
                         claims: Vec::new(),

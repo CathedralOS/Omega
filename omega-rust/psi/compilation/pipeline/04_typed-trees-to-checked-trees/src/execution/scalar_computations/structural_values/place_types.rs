@@ -3,7 +3,8 @@
 //! projected path selects are decided here, ahead of value production.
 //! Source use multiplicity is not stored-carrier custody: a reference array
 //! can be reusable source syntax while its descriptors must transfer or retire.
-//! Copy selection uses the same custody query as result publication.
+//! Copy selection uses the declared Copy property; result publication and
+//! retirement separately retain each stored carrier's custody.
 
 use super::super::{ExpressionHandle, ExpressionNode, SymbolHandle, TypeReferenceNode};
 use typed_trees::types::TypeReferenceHandle;
@@ -131,62 +132,21 @@ pub(super) fn symbol_declared_type(
     None
 }
 
-/// A copyable `Unrestricted` leaf of any structural shape, payload-free case
-/// sums included: a named `data` under `Unrestricted` multiplicity. Copying
-/// its contents into a fresh owned place reproduces the read a
-/// `self.scan_compare_type`-shape member access needs without moving borrowed
-/// storage; anything affine still needs move semantics.
+/// Copy permission describes the stored carrier, not source-use multiplicity.
+/// An exclusive reference may be used repeatedly under loan checking, but it
+/// cannot be duplicated, including inside an array. Use the property owner's
+/// compositional judgment so projections of non-copy aggregates keep the
+/// ordinary owned-place route and its unselected siblings.
 pub(super) fn copied_place_type(
     program: &dyn ::validation::CheckingInput,
     expected: TypeReferenceHandle,
 ) -> bool {
-    // Copy the stored value, not its referent. A shared descriptor has its own
-    // disposal occurrence but preserves the captured backing and immediate
-    // parents; consuming the source would contradict shared multiplicity.
-    // Exclusive descriptors still require an owned transfer.
-    if let Some((_, access)) =
-        validation::reference_result_custody::stored_loan_parts(program, expected)
-    {
-        return access == checked_trees::CheckedStructuralAccess::SharedBorrow;
-    }
-    // A stored `&'a [T]` view leaf copies the view value out of the carrier
-    // the same way an `Unrestricted` named leaf does — the referent's loan
-    // stays exactly where the field's `&` put it. Its bare `Slice` rung
-    // unwraps to `Affine`, so the shared-borrow view's own multiplicity is
-    // what decides admission.
-    if crate::execution::terminal_unit::types::borrowed_slice_view(program, expected)
-        && program.type_multiplicity(expected) == language_semantics::Multiplicity::Unrestricted
-    {
-        return true;
-    }
-    let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
-        return false;
-    };
-    // Source reference uses are unrestricted, but stored descriptors own a
-    // loan lifetime. Arrays inherit that custody recursively. Copy selection
-    // must use the same carrier multiplicity as result publication, otherwise
-    // projecting an exclusive descriptor from an array copies its permission.
-    // The shared-descriptor observation above is the explicit exception.
-    if validation::reference_result_custody::result_multiplicity(program, reference)
-        != language_semantics::Multiplicity::Unrestricted
-    {
-        return false;
-    }
-    // Copying established array storage preserves its element qualifications;
-    // unlike literal construction, it does not need an unqualified scalar
-    // initializer route. Multiplicity above decides whether contents copy.
-    if matches!(
-        program.type_reference_table.type_reference(reference),
-        TypeReferenceNode::FixedArray { .. }
-    ) {
-        return true;
-    }
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(reference)
-    else {
-        return false;
-    };
-    program.data_definition_by_symbol(*symbol).is_some()
+    validation::type_satisfies_declared_property(
+        program,
+        &[],
+        expected,
+        validation::DeclaredPropertyRequirement::Copy,
+    )
 }
 
 /// The value presented by an authored place. A borrowed formal presents its

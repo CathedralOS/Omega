@@ -27,7 +27,12 @@ pub(super) fn argument(
     live: &LiveDefinitions,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
-    let invalid = || LoweringError::UnsupportedStructuralArray(declaration.structural_type);
+    let invalid = |reason| LoweringError::InvalidOwnedStructuralArgument {
+        source: argument.place,
+        parameter: declaration.place,
+        structural_type: declaration.structural_type,
+        reason,
+    };
     let expected_layout =
         super::aggregate_results::value_home_layout(declaration.structural_type, types)?;
     let expected_shape = expected_layout.shape();
@@ -35,7 +40,9 @@ pub(super) fn argument(
         || argument.access != StructuralAccess::Owned
         || destination.shape != expected_shape
     {
-        return Err(invalid());
+        return Err(invalid(
+            "argument access or destination layout differs from its owned formal",
+        ));
     }
     let (source, root_structural_type, source_byte_offset) =
         if let Some(home) = live.structural_homes.get(&argument.place) {
@@ -45,7 +52,7 @@ pub(super) fn argument(
             // predicate weakening into native qualification equality. Direct uses
             // of the unvalidated core remain responsible for supplying that proof.
             if home.access() != StructuralAccess::Owned {
-                return Err(invalid());
+                return Err(invalid("source home is not owned"));
             }
             // Partial owned transfer selects bytes from the completed root home;
             // the verified call and residual cleanup retain the root's custody.
@@ -53,9 +60,13 @@ pub(super) fn argument(
             let offset = if argument.path.is_empty() {
                 if home.structural_type() != declaration.structural_type
                     || home.layout != expected_layout
-                    || home.multiplicity() != declaration.multiplicity
                 {
-                    return Err(invalid());
+                    return Err(invalid(
+                        "source home type or layout differs from its formal",
+                    ));
+                }
+                if home.multiplicity() != declaration.multiplicity {
+                    return Err(invalid("source home multiplicity differs from its formal"));
                 }
                 0
             } else {
@@ -68,7 +79,9 @@ pub(super) fn argument(
                         &mut BTreeSet::new(),
                     )?;
                 if selected != declaration.structural_type || shape != expected_shape {
-                    return Err(invalid());
+                    return Err(invalid(
+                        "source home projection type or layout differs from its formal",
+                    ));
                 }
                 offset
             };
@@ -89,7 +102,7 @@ pub(super) fn argument(
                 || declaration.multiplicity != StructuralMultiplicity::Affine
                 || expected_shape.byte_size != 0
             {
-                return Err(invalid());
+                return Err(invalid("empty affine local does not match its formal"));
             }
             (
                 target_operations::TargetStructuralArgumentSource::StructuralHome {
@@ -99,16 +112,20 @@ pub(super) fn argument(
                 0,
             )
         } else {
-            let parameter = prepared.parameter(argument.place).ok_or_else(invalid)?;
+            let parameter = prepared
+                .parameter(argument.place)
+                .ok_or_else(|| invalid("source has no home or ingress parameter"))?;
             if parameter.access != StructuralAccess::Owned {
-                return Err(invalid());
+                return Err(invalid("source parameter is not owned"));
             }
             let offset = if argument.path.is_empty() {
                 if parameter.multiplicity != declaration.multiplicity
                     || parameter.structural_type != declaration.structural_type
                     || parameter.shape != expected_shape
                 {
-                    return Err(invalid());
+                    return Err(invalid(
+                        "source parameter custody, type or layout differs from its formal",
+                    ));
                 }
                 0
             } else {
@@ -121,7 +138,9 @@ pub(super) fn argument(
                         &mut BTreeSet::new(),
                     )?;
                 if selected != declaration.structural_type || shape != expected_shape {
-                    return Err(invalid());
+                    return Err(invalid(
+                        "source parameter projection type or layout differs from its formal",
+                    ));
                 }
                 offset
             };

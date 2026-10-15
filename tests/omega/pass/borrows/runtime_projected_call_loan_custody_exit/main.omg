@@ -43,9 +43,65 @@ machine exercise_pair() -> bool {
     pair.first.value == 11 && pair.second.value == 70
 }
 
+// A nested aggregate selects the same stored carrier through two projections.
+machine exercise_nested() -> bool {
+    let mut pair: Pair;
+    let messages: [[&mut Cell; 2]; 1] = [[&mut pair.first, &mut pair.second]];
+    let second: &mut Cell = messages[0][1];
+    let first: &mut Cell = messages[0][0];
+    first.value = 13;
+    second.value = 71;
+    pair.first.value == 13 && pair.second.value == 71
+}
+
+machine assign_parameters(messages: [&mut Cell; 2]) {
+    let second: &mut Cell = messages[1];
+    let first: &mut Cell = messages[0];
+    first.value = 17;
+    second.value = 73;
+}
+
+machine assign_last(messages: [&mut Cell; 2]) {
+    let second: &mut Cell = messages[1];
+    second.value = 79;
+}
+
+machine exercise_parameters() -> bool {
+    let mut pair: Pair;
+    assign_parameters([&mut pair.first, &mut pair.second]);
+    let both: bool = pair.first.value == 17 && pair.second.value == 73;
+    assign_last([&mut pair.first, &mut pair.second]);
+    both && pair.first.value == 17 && pair.second.value == 79
+}
+
+// Shared carriers have affine retirement custody but still permit copies.
+machine repeated_shared(messages: [&Cell; 1]) -> bool {
+    let first: [&Cell; 1] = messages;
+    let second: [&Cell; 1] = messages;
+    first[0].value == 19 && second[0].value == 19
+}
+
+data Marker { value: i32; }
+data HeldCell { cell: &mut Cell; marker: Marker; }
+machine exercise_nested_region() -> bool {
+    let mut pair: Pair;
+    let grid: [[HeldCell; 1]; 2] = [
+        [HeldCell { cell: &mut pair.first, marker: Marker { value: 31i32 } }],
+        [HeldCell { cell: &mut pair.second, marker: Marker { value: 37i32 } }]
+    ];
+    let row: [HeldCell; 1] = grid[0];
+    let selected: &mut Cell = row[0].cell;
+    selected.value = 83;
+    let marker: i32 = row[0].marker.value;
+    let other: i32 = grid[1][0].marker.value;
+    pair.first.value == 83 && marker == 31 && other == 37
+}
+
 machine main() crashes Trap {
     let mut envelope: Envelope;
-    transition exercise(&mut envelope) && exercise_composed(&mut envelope) && exercise_pair() {
+    let shared: Cell = Cell { value: 19i32, spare: 0i32 };
+    let shared_messages: [&Cell; 1] = [&shared];
+    transition exercise(&mut envelope) && exercise_composed(&mut envelope) && exercise_pair() && exercise_nested() && exercise_parameters() && repeated_shared(shared_messages) && repeated_shared(shared_messages) && exercise_nested_region() {
         true -> done()
         false -> bad()
     }

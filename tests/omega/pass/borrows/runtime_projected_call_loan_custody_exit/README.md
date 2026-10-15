@@ -1,1 +1,5 @@
 A projected, dynamically selected operand passes through a local reference and two helpers. Changing sibling fields does not retarget its returned reference or widen the retained loan to the enclosing object. `omega run --both main.omg` returns 0 in both engines. Two disjoint reference-array elements remain independently writable after transfer to local references. The composed-state variant nests three helper calls and retires their two anonymous descriptors separately.
+
+Nested arrays and by-value array parameters retain each exclusive element's custody when extracted in reverse order. A partially extracted parameter retires its remaining sibling on return. Shared-reference arrays remain copyable across repeated calls and repeated local copies; every copy observes the original backing, and both the incoming carrier and its copies retire on return. These cases distinguish copy permission from the affine retirement of each stored descriptor.
+
+A detached row containing references and owned marker records keeps its remaining contents and untouched outer sibling. Regional cleanup subtracts expired children without disposing either sibling or the home twice.

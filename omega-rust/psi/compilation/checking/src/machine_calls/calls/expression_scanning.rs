@@ -148,12 +148,7 @@ impl ValueCallSite<'_> {
     /// Every resolved callee owes the same checks, whichever route found it:
     /// a value-producing result, a concrete specialization, its type-parameter
     /// bounds, and argument arity and classes.
-    fn validate_callee(
-        &self,
-        symbols: &TopLevelSymbols<'_>,
-        callee: ValueCallee<'_>,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
+    fn validate_callee(&self, callee: ValueCallee<'_>, diagnostics: &mut Vec<Diagnostic>) {
         report_void_value_callee(
             self.program,
             callee.machine,
@@ -172,7 +167,6 @@ impl ValueCallSite<'_> {
         );
         validate_machine_call_type_parameter_bounds(
             self.program,
-            symbols,
             callee.machine,
             callee.state,
             callee.spelling,
@@ -416,7 +410,6 @@ fn validate_expression_call_bounds(
             .collect::<Vec<_>>();
         match crate::declarations::operators::validate_named_operator_application(
             program,
-            symbols,
             operator,
             &call.machine_arguments,
             &operand_types,
@@ -534,11 +527,7 @@ fn validate_expression_call_bounds(
     {
         match machine_state_by_symbol(program, call.target_symbol) {
             Some((machine, state)) => {
-                site.validate_callee(
-                    symbols,
-                    ValueCallee::named(machine, state, call),
-                    diagnostics,
-                );
+                site.validate_callee(ValueCallee::named(machine, state, call), diagnostics);
             }
             None => diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` state `{}`: {}",
@@ -633,7 +622,7 @@ fn validate_expression_call_bounds(
                     .map(|(machine, state)| ValueCallee::named(machine, state, call))
             });
         if let Some(callee) = callee {
-            site.validate_callee(symbols, callee, diagnostics);
+            site.validate_callee(callee, diagnostics);
             return;
         }
         report_unresolved_value_call(
@@ -716,7 +705,6 @@ fn validate_expression_call_bounds(
             return;
         }
         site.validate_callee(
-            symbols,
             ValueCallee::declared(callee_machine, callee_state),
             diagnostics,
         );

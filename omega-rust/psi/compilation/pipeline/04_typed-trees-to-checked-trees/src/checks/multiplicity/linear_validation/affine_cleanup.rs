@@ -1,7 +1,6 @@
 //! Scope-exit permission events for eligible owned cleanup.
 
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
-use crate::checks::multiplicity::type_multiplicity::type_multiplicity;
 use arena::Arena;
 use checked_trees::{
     FlowClaimJoinExit, FlowClaimJoinExitKind, FlowPermissionEvaluation, FlowPermissionEventFact,
@@ -65,7 +64,14 @@ fn visit_owned_cleanup_events(
             if !place.live && !remaining.is_reserved(root) {
                 return;
             }
-        } else if type_multiplicity(program, type_reference) == Multiplicity::Unrestricted {
+        } else if validation::reference_shell(program, type_reference).is_some()
+            || validation::reference_result_custody::result_multiplicity(program, type_reference)
+                == Multiplicity::Unrestricted
+        {
+            // Loan-release scheduling owns direct reference roots, including
+            // local descriptors and borrowed formals. An owned aggregate
+            // instead retires its stored carriers, even when shared access
+            // permits repeated source-level copies.
             return;
         }
         // A transparent owner has contained claims rather than a fabricated
@@ -215,7 +221,7 @@ fn visit_owned_region_cleanup_events(
         .iter()
         .find(|place| place.root == root && place.path == path && place.live);
     let multiplicity = region_claim.map_or_else(
-        || match type_multiplicity(program, reference) {
+        || match validation::reference_result_custody::result_multiplicity(program, reference) {
             Multiplicity::Unrestricted => Multiplicity::Unrestricted,
             // Transparent arrays inherit element multiplicity, but
             // only an exact region claim can authorize Consume.

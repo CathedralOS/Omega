@@ -44,14 +44,6 @@ pub(crate) fn bind_boundary_operator_application_demands(
     validated: &[validation::ValidatedBoundaryOperatorApplication],
     operators: &mut CheckedOperatorFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let mut symbol_diagnostics = Vec::new();
-    let symbols = validation::TopLevelSymbols::build(program, &mut symbol_diagnostics);
-    if symbol_diagnostics
-        .iter()
-        .any(diagnostics::Diagnostic::is_error)
-    {
-        return Err(symbol_diagnostics);
-    }
     let mut diagnostics = Vec::new();
     let mut applications = Vec::new();
     let mut symbolic_applications = Vec::new();
@@ -67,13 +59,8 @@ pub(crate) fn bind_boundary_operator_application_demands(
             continue;
         };
         let operand_types = spelled_operand_types(program, operator_use);
-        match checked_spelled_boundary_application(
-            program,
-            &symbols,
-            operator,
-            operator_use,
-            &operand_types,
-        ) {
+        match checked_spelled_boundary_application(program, operator, operator_use, &operand_types)
+        {
             Ok(Some(application)) => applications.push(application),
             Ok(None) => {
                 if let Some(application) = spelled_symbolic_boundary_application(
@@ -170,7 +157,6 @@ pub(crate) fn bind_boundary_operator_application_demands(
                     }
                     if let Some(arguments) = rejoin_validated_arguments(
                         program,
-                        &symbols,
                         operator,
                         &application.arguments,
                         Some(&operand_types),
@@ -217,7 +203,6 @@ pub(crate) fn bind_boundary_operator_application_demands(
                 }
                 if let Some(arguments) = rejoin_validated_arguments(
                     program,
-                    &symbols,
                     operator,
                     &application.arguments,
                     None,
@@ -291,7 +276,6 @@ pub(crate) fn bind_boundary_operator_application_demands(
 
 fn checked_spelled_boundary_application(
     program: &dyn ::validation::CheckingInput,
-    symbols: &validation::TopLevelSymbols<'_>,
     operator: &typed_trees::operator::OperatorDefinition,
     operator_use: &CheckedOperatorUseFact,
     operand_types: &[Option<TypeReferenceHandle>],
@@ -315,7 +299,7 @@ fn checked_spelled_boundary_application(
     let Some(bindings) = bindings else {
         return Ok(None);
     };
-    validation::validate_closed_operator_application(program, symbols, operator, &bindings)?;
+    validation::validate_closed_operator_application(program, operator, &bindings)?;
     Ok(Some(checked_boundary_application_from_bindings(
         program,
         operator,
@@ -420,7 +404,6 @@ fn checked_boundary_application_from_bindings(
 
 fn rejoin_validated_arguments(
     program: &dyn ::validation::CheckingInput,
-    symbols: &validation::TopLevelSymbols<'_>,
     operator: &typed_trees::operator::OperatorDefinition,
     validated: &[validation::ValidatedBoundaryOperatorApplicationArgument],
     operand_types: Option<&[Option<TypeReferenceHandle>]>,
@@ -510,7 +493,7 @@ fn rejoin_validated_arguments(
         checked.push(checked_argument);
     }
     if let Err(diagnostic) =
-        validation::validate_closed_operator_application(program, symbols, operator, &closed)
+        validation::validate_closed_operator_application(program, operator, &closed)
     {
         diagnostics.push(diagnostic);
         return None;

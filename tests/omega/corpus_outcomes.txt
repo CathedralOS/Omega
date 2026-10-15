@@ -2376,7 +2376,8 @@ fail/drops/parent_cleanup_requires_before_guarantees rejected 1528ms expected @a
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Owner does not establish Owner::drop clause `owner.first.value == 9 && owner.second.value == 13`
 fail/drops/parent_cleanup_wrong_child_guarantee rejected 1559ms expected @a9ae30e1c334+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Owner.first does not establish Receipt::drop clause `receipt.value == 9`
-fail/drops/partial_move_inside_nominal_child rejected 1231ms expected @a9ae30e1c334+wt
+fail/drops/partial_move_inside_nominal_child rejected 336ms expected @b5b743bb02aa+wt
+	cannot partially move a value of `Token` because `Token::drop` requires the whole value
 	cannot partially move a value of `Token` because `Token::drop` requires the whole value
 fail/drops/partial_store_preserves_moved_ancestor rejected 368ms expected @a87ecf7b03bf
 	cannot store into `pair.first.value` in machine `main` state `entry` (statement 2) after `pair.first` was transferred or consumed at statement 1: assign a whole value to `pair.first` to re-establish it
@@ -3430,6 +3431,8 @@ fail/ownership/assign_immutable_parameter rejected 889ms expected @a9ae30e1c334+
 	machine `Main::main` state `overwrite` assignment cannot write `input_value` because it is not mutable in this state (if `input_value` is undeclared -- a typo -- no such field or local exists)
 fail/ownership/borrowed_carrier_transform_keeps_backing_loan rejected 1648ms expected @a9ae30e1c334+wt
 	statement 3 mutates `backing` while local borrow `holder` is still active (borrowed at statement 1; its last use is at statement 5)
+fail/ownership/borrowed_detached_aggregate_missing_repair rejected 338ms expected @b5b743bb02aa+wt
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `take`, state `entry` (statement 0): `frames[0]` must hold a value again before this state's exits consume the borrow
 fail/ownership/borrowed_operand_later_read rejected 1239ms expected @a9ae30e1c334+wt
 	cannot use `holder.token.value` while `holder.token` is absent from borrowed storage: the value moved out at statement 0 must be restored first
 fail/ownership/borrowed_storage_boundary_call rejected 1714ms expected @a9ae30e1c334+wt
@@ -5262,8 +5265,10 @@ pass/borrows/runtime_nested_array_range_record_domains_exit checked 10497ms chec
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 11146ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_nested_carrier_reference_read_exit checked 11084ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 10949ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_nested_reference_partition_exit checked 2973ms check-target:macos_arm64 @b5b743bb02aa+wt
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_owned_reference_carrier_scalar_operand_exit checked 4208ms check-target:macos_arm64 @dd6871ed0476
+pass/borrows/runtime_projected_call_loan_custody_exit checked 2981ms check-target:macos_arm64 @b5b743bb02aa+wt
 pass/borrows/runtime_projected_fixed_byte_array_local_exit checked 4988ms check-target:macos_arm64 @77acc22653d9
 pass/borrows/runtime_projected_reference_call_return_exit checked 10339ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_projected_view_observations_exit checked 3460ms check-target:macos_arm64 @54d47902d575+wt

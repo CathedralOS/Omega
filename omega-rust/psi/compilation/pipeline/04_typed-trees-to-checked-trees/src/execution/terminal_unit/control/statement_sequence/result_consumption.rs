@@ -1030,14 +1030,14 @@ pub(in crate::execution::terminal_unit) fn consume_result(
         return None;
     }
     // A detached field owns its moved custody, not a newly minted automatic
-    // return discard. The ordinary call/store may consume that whole value;
-    // source ownership and independent replay still account for every use.
+    // return discard. Whole and projected uses keep the same owned-value
+    // rules; source ownership and residual cleanup account for every child.
     // Its original place's restoration debt remains in OpenWindows.
     if matches!(
         producer,
         CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
     ) {
-        return (access != CheckedStructuralAccess::Owned || !projected).then_some(());
+        return Some(());
     }
     // Copying a whole value or a selected subtree leaves the producer's
     // storage and disposal schedule intact. That follows its checked result

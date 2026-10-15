@@ -1,0 +1,12 @@
+data Leaf { value: i32; }
+data Frame { first: Leaf; second: Leaf; }
+
+machine consume(leaf: Leaf) {}
+machine take(frames: &mut [Frame])
+requires frames.len >= 1
+{
+    let frame: Frame = frames[0];
+    consume(frame.first);
+    // Consuming a child of the detached value does not restore its old slot.
+}
+machine main() {}

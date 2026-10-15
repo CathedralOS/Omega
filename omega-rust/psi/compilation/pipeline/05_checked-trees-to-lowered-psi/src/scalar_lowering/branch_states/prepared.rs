@@ -294,11 +294,12 @@ pub(crate) enum LoweredScalarEffect {
         structural_type: StructuralTypeId,
         source: terminal_psi::StructuralArgument,
     },
-    /// Snapshot one unrestricted whole operand at its authored evaluation point.
+    /// Snapshot a copyable value while retaining its checked carrier custody.
     CopyStructuralValue {
         source: crate::expression_preparation::bindings::PreparedStructuralCopy,
         place: PlaceId,
         structural_type: StructuralTypeId,
+        multiplicity: StructuralMultiplicity,
     },
     EstablishAggregate(branch_states::structural_values::Construction),
     /// A declared-only local's zeroed whole-shape establishment: a fresh home

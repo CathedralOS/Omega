@@ -50,7 +50,7 @@ pub(crate) fn validate_data_field_types(
             },
             diagnostics,
         );
-        validate_generic_instance_argument_bounds(program, data_definition, symbols, diagnostics);
+        validate_generic_instance_argument_bounds(program, data_definition, diagnostics);
         validate_data_member_names(data_definition, data_members, diagnostics);
         validate_data_default_domain(program, data_definition, data_members, diagnostics);
 

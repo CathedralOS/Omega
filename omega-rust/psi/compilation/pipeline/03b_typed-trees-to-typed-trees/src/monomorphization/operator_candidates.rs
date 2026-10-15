@@ -432,11 +432,6 @@ fn selected_operator_applications(
     program: &dyn ::validation::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> Result<Vec<Vec<typed_trees::operator::ClosedOperatorApplicationArgument>>, Vec<Diagnostic>> {
-    let mut symbol_diagnostics = Vec::new();
-    let symbols = validation::TopLevelSymbols::build(program, &mut symbol_diagnostics);
-    if symbol_diagnostics.iter().any(Diagnostic::is_error) {
-        return Err(symbol_diagnostics);
-    }
     let mut applications = Vec::new();
     let mut diagnostics = Vec::new();
     if program.machine_by_symbol(operator.symbol).is_some() {
@@ -475,12 +470,8 @@ fn selected_operator_applications(
                 ));
                 continue;
             };
-            match validation::validate_closed_operator_application(
-                program,
-                &symbols,
-                operator,
-                &application,
-            ) {
+            match validation::validate_closed_operator_application(program, operator, &application)
+            {
                 Ok(()) => {
                     if !applications.contains(&application) {
                         applications.push(application);
@@ -507,7 +498,6 @@ fn selected_operator_applications(
                     for expression in expressions {
                         match selected_operator_application_at_expression(
                             program,
-                            &symbols,
                             operator,
                             machine,
                             state,
@@ -551,7 +541,6 @@ pub(super) fn executable_statement_expression_roots(
 
 fn selected_operator_application_at_expression(
     program: &dyn ::validation::CheckingInput,
-    symbols: &validation::TopLevelSymbols<'_>,
     operator: &typed_trees::operator::OperatorDefinition,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -617,7 +606,6 @@ fn selected_operator_application_at_expression(
     if let Some(explicit_static_arguments) = explicit_static_arguments {
         return match validation::validate_named_operator_application(
             program,
-            symbols,
             operator,
             explicit_static_arguments,
             &operand_types,
@@ -654,6 +642,6 @@ fn selected_operator_application_at_expression(
         // demand, not a concrete specialization request.
         return Ok(None);
     };
-    validation::validate_closed_operator_application(program, symbols, operator, &application)?;
+    validation::validate_closed_operator_application(program, operator, &application)?;
     Ok(Some(application))
 }

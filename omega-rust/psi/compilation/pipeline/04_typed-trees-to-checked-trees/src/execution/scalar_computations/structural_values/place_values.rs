@@ -116,8 +116,9 @@ impl Builder<'_, '_> {
         })
     }
 
-    /// Copy one `Unrestricted` leaf from readable storage into a fresh owned
-    /// place. The source root and its ownership or loan remain unchanged.
+    /// Copy one copyable stored value into a fresh owned place. Shared loan
+    /// carriers retain affine retirement custody on each independent copy;
+    /// the source root and its ownership or loan remain unchanged.
     pub(super) fn copied_place(
         &mut self,
         expression: ExpressionHandle,

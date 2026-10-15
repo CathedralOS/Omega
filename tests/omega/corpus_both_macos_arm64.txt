@@ -15,10 +15,10 @@ pass/borrows/fixed_array_reference_results_exit built 5592ms exit:0 interpreter-
 pass/borrows/runtime_assignment_rhs_carrier_replacement_exit built 4237ms exit:0 interpreter-exit:0 interpreter:agrees @1d894d08858b+wt
 pass/borrows/runtime_indexed_carrier_conditional_exit built 5551ms exit:0 interpreter-exit:0 interpreter:agrees @e02a3fd5278f+wt
 pass/borrows/runtime_indexed_carrier_repeated_exit built 5551ms exit:0 interpreter-exit:0 interpreter:agrees @e02a3fd5278f+wt
-pass/borrows/runtime_nested_reference_partition_exit built 5656ms exit:0 interpreter-exit:0 interpreter:agrees @c1d3bd9711c2+wt
+pass/borrows/runtime_nested_reference_partition_exit built 2667ms exit:0 interpreter-exit:0 interpreter:agrees @b5b743bb02aa+wt
 pass/borrows/runtime_owned_reference_carrier_scalar_operand_exit built 4328ms exit:0 interpreter-exit:0 interpreter:agrees @dd6871ed0476
 pass/borrows/runtime_partial_reference_partition_exit built 5676ms exit:0 interpreter-exit:0 interpreter:agrees @c1d3bd9711c2+wt
-pass/borrows/runtime_projected_call_loan_custody_exit built 5558ms exit:0 interpreter-exit:0 interpreter:agrees @c1d3bd9711c2+wt
+pass/borrows/runtime_projected_call_loan_custody_exit built 2710ms exit:0 interpreter-exit:0 interpreter:agrees @b5b743bb02aa+wt
 pass/borrows/runtime_projected_reference_partition_exit built 5742ms exit:0 interpreter-exit:0 interpreter:agrees @c1d3bd9711c2+wt
 pass/borrows/runtime_scalar_call_stored_carrier_exit built 4326ms exit:0 interpreter-exit:0 interpreter:agrees @dd6871ed0476
 pass/borrows/runtime_selected_stored_carrier_child_exit built 4210ms exit:0 interpreter-exit:0 interpreter:agrees @dd6871ed0476

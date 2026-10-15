@@ -1187,7 +1187,6 @@ pub(crate) fn const_integer_value_fits_primitive(primitive: PrimitiveType, value
 /// `Box<U>`.
 pub(super) fn validate_generic_argument_bounds(
     program: &dyn crate::CheckingInput,
-    symbols: &TopLevelSymbols<'_>,
     base_symbol: SymbolHandle,
     base_name: &str,
     arguments: arena::HandleSpan<TypeReferenceHandle>,
@@ -1207,7 +1206,6 @@ pub(super) fn validate_generic_argument_bounds(
         .type_reference_handles(arguments);
     validate_parameter_bounds(
         program,
-        symbols,
         base_name,
         parameters,
         argument_handles,
@@ -1220,7 +1218,6 @@ pub(super) fn validate_generic_argument_bounds(
 /// data or a trait. Unused/phantom parameters still carry every declared bound.
 pub(crate) fn validate_parameter_bounds(
     program: &dyn crate::CheckingInput,
-    symbols: &TopLevelSymbols<'_>,
     base_name: &str,
     parameters: &[TypeParameter],
     arguments: &[TypeReferenceHandle],
@@ -1234,7 +1231,6 @@ pub(crate) fn validate_parameter_bounds(
         for property in bounds {
             if crate::proof_contracts::properties::type_satisfies_declared_property(
                 program,
-                symbols,
                 type_parameter_scope.type_parameters,
                 *argument,
                 property,

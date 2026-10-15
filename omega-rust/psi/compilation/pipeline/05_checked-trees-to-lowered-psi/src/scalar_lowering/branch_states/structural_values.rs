@@ -262,7 +262,8 @@ pub(crate) fn prepare_value(
         return unsupported("structural value contains unconsumed call producers");
     }
     if !argument.path.is_empty()
-        || (checked.type_multiplicity(reference) == Multiplicity::Affine
+        || (crate::reference_custody::result_multiplicity(checked, reference)
+            == Multiplicity::Affine
             && matches!(
                 checked.facts.values.structural_values.nodes.get(value).kind,
                 CheckedStructuralValueKind::Place(_)
@@ -272,7 +273,9 @@ pub(crate) fn prepare_value(
             value,
             argument,
             structural_type,
-            terminal_multiplicity(checked.type_multiplicity(reference)),
+            terminal_multiplicity(crate::reference_custody::result_multiplicity(
+                checked, reference,
+            )),
         )?;
     }
     preparation.storage.push(
@@ -362,7 +365,9 @@ impl Preparation<'_> {
             node.kind,
             CheckedStructuralValueKind::Place(_) | CheckedStructuralValueKind::Projection { .. }
         ) {
-            if self.checked.type_multiplicity(reference) == Multiplicity::Unrestricted {
+            if crate::reference_custody::result_multiplicity(self.checked, reference)
+                == Multiplicity::Unrestricted
+            {
                 let structural_type =
                     carrier_declaration(identities, self.checked, self.types, reference)?.id;
                 if source.place == self.reserved.place(value)? && source.path.is_empty() {
@@ -699,6 +704,9 @@ impl Preparation<'_> {
                     source,
                     place: completed,
                     structural_type: declaration.id,
+                    multiplicity: terminal_multiplicity(
+                        crate::reference_custody::result_multiplicity(self.checked, reference),
+                    ),
                 },
                 prefix: self.prefix.clone(),
             });
@@ -770,6 +778,9 @@ impl Preparation<'_> {
                     source,
                     place,
                     structural_type: declaration.id,
+                    multiplicity: terminal_multiplicity(
+                        crate::reference_custody::result_multiplicity(self.checked, reference),
+                    ),
                 },
                 prefix: self.prefix.clone(),
             });
@@ -970,7 +981,9 @@ impl Preparation<'_> {
                 completed.push(self.operand(identities, *child, element_reference, &child_path)?);
             }
             let place = self.reserved.place(value)?;
-            let multiplicity = terminal_multiplicity(self.checked.type_multiplicity(reference));
+            let multiplicity = terminal_multiplicity(
+                crate::reference_custody::result_multiplicity(self.checked, reference),
+            );
             self.steps.push(Step::Aggregate {
                 construction: Construction {
                     place,
@@ -1209,7 +1222,10 @@ impl Preparation<'_> {
         {
             return unsupported("aggregate did not initialize its exact field roster");
         }
-        let multiplicity = terminal_multiplicity(self.checked.type_multiplicity(reference));
+        let multiplicity = terminal_multiplicity(crate::reference_custody::result_multiplicity(
+            self.checked,
+            reference,
+        ));
         let place = self.reserved.place(value)?;
         self.steps.push(Step::Aggregate {
             construction: Construction {
@@ -1324,6 +1340,7 @@ impl Preparation<'_> {
                     },
                     place,
                     structural_type,
+                    multiplicity,
                 },
                 prefix: self.prefix.clone(),
             });

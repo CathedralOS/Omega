@@ -150,8 +150,17 @@ fn structural_signature_for_partial_affine(
             };
         let qualifications =
             parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
-        let multiplicity = crate::checks::type_multiplicity(program, parameter.type_reference);
         let access = structural_access_for_type_reference(program, parameter.type_reference)?;
+        // Owned formals transfer stored carriers, including each descriptor
+        // inside an aggregate. Borrowed formals expose referent access instead.
+        let multiplicity = if access == CheckedStructuralAccess::Owned {
+            validation::reference_result_custody::result_multiplicity(
+                program,
+                parameter.type_reference,
+            )
+        } else {
+            crate::checks::type_multiplicity(program, parameter.type_reference)
+        };
         if binding_carrier.is_some()
             && (!service_parameter_access_matches(multiplicity, access)
                 || parameter.is_mutable != (access == CheckedStructuralAccess::MutableBorrow)
@@ -459,9 +468,13 @@ pub(crate) fn parameter_signatures(
             };
         trace.phase("state graph: state signature: parameter signature: parameter qualifications");
         let qualifications = parameter_qualifications(program, shapes, parameter_type, binders)?;
-        let multiplicity = crate::checks::type_multiplicity(program, parameter_type);
         trace.phase("state graph: state signature: parameter signature: parameter access");
         let access = structural_access_for_type_reference(program, parameter_type)?;
+        let multiplicity = if access == CheckedStructuralAccess::Owned {
+            validation::reference_result_custody::result_multiplicity(program, parameter_type)
+        } else {
+            crate::checks::type_multiplicity(program, parameter_type)
+        };
         if binding_carrier.is_some()
             && (!service_parameter_access_matches(multiplicity, access)
                 || parameter.is_mutable != (access == CheckedStructuralAccess::MutableBorrow)

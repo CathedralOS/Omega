@@ -24,7 +24,6 @@ pub fn validate_static_machine_bindings(
     program: &dyn crate::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let symbols = crate::TopLevelSymbols::build(program, &mut diagnostics);
     let mut judged: Vec<(SymbolHandle, SymbolHandle, StaticMachineApplicationHandle)> = Vec::new();
     // A private execution graph shares arenas with excluded declarations.
     // Only live roots own judgments; arena capacity is not an obligation roster.
@@ -174,7 +173,6 @@ pub fn validate_static_machine_bindings(
                                 .all(|property| {
                                     crate::type_satisfies_declared_property(
                                         program,
-                                        &symbols,
                                         scope_parameters,
                                         actual,
                                         *property,

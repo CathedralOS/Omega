@@ -424,6 +424,9 @@ impl Expansion<'_> {
                             source,
                             place: slot.place,
                             structural_type: slot.structural_type,
+                            multiplicity: crate::emission::borrowed_window::terminal_multiplicity(
+                                parameter.multiplicity,
+                            ),
                         },
                         value,
                     });

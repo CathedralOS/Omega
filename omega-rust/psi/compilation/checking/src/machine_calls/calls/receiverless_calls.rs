@@ -61,7 +61,6 @@ pub(super) fn validate_receiverless_call(
         validate_resolved_receiverless_call(
             program,
             call,
-            symbols,
             callee_machine,
             state,
             current_machine,
@@ -85,7 +84,6 @@ pub(super) fn validate_receiverless_call(
         validate_resolved_receiverless_call(
             program,
             call,
-            symbols,
             current_machine,
             state,
             current_machine,
@@ -143,7 +141,6 @@ pub(super) fn validate_receiverless_call(
     validate_resolved_receiverless_call(
         program,
         call,
-        symbols,
         callee_machine,
         state,
         current_machine,
@@ -162,7 +159,6 @@ pub(super) fn validate_receiverless_call(
 fn validate_resolved_receiverless_call(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::statement::TableCall,
-    symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     callee_machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     current_machine: &typed_trees::machine::Machine,
@@ -192,7 +188,6 @@ fn validate_resolved_receiverless_call(
     );
     validate_machine_call_type_parameter_bounds(
         program,
-        symbols,
         callee_machine,
         state,
         target_name,

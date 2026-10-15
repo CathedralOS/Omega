@@ -4,6 +4,13 @@ data Container { token: Token; }
 
 machine Token::drop(token: &mut Token) {}
 
+machine detached(container: Container) {
+    let token: Token = container.token;
+    // Detaching the nominal owner does not permit splitting its receiver.
+    transition { _ -> done(token.child) }
+    state done(selected: Leaf) {}
+}
+
 machine main() {
     let container: Container = Container {
         token: Token { child: Leaf { value: 7 } }

@@ -273,7 +273,6 @@ fn validate(
     };
     properties::validate_data_properties(
         program,
-        &symbols,
         opaque_property_receipts,
         allow_pending_opaque_copy,
         &mut diagnostics,

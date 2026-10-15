@@ -142,7 +142,6 @@ fn validate_resolved_receiver_call(
         call,
         current_machine,
         current_state,
-        symbols,
         writable_roots,
         value_environment,
         ..
@@ -204,7 +203,6 @@ fn validate_resolved_receiver_call(
         );
         validate_resolved_target_type_parameter_bounds(
             program,
-            symbols,
             callee_machine,
             state,
             state.name.as_str(),

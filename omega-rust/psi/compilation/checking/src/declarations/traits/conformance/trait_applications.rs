@@ -44,7 +44,6 @@ pub(crate) fn validate_trait_application_obligations(
     };
     validate_parameter_bounds(
         program,
-        symbols,
         applied_trait.name.as_str(),
         parameters,
         applied_arguments,
