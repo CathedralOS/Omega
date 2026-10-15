@@ -2,18 +2,14 @@
 // caller's sized storage: `count <= buffer.len` on
 // `ByteHost::read` proves at `&mut main.control` — the
 // `[u8; 64]` extent resolves through the caller's attached
-// data, and `pump(host: &mut Binding<ByteHost>, buffer:
-// &mut [u8])` re-proves the same length across the second
-// boundary.
+// data, and `pump(buffer: &mut [u8])` re-proves the same length
+// across the second boundary.
 //
 //   * `pub boundary trait ByteHost` with `reaches ByteHost`
 //     + `requires count <= buffer.len` roster.
-//   * `&mut Binding<ByteHost>` param spelling.
 //
-// Compile-checked only: `use omega::language::core::binding`
-// is depend-free; no provider selection at --check.
+// Compile-checked only: no provider selection at --check.
 
-use omega::language::core::binding;
 
 pub boundary trait ByteHost {
     machine read(fd: i32, buffer: &mut [u8], count: u64) -> i64 reaches ByteHost
@@ -25,11 +21,11 @@ data Main {
     control: [u8; 64];
 }
 
-machine pump(host: &mut Binding<ByteHost>, buffer: &mut [u8])
+machine pump(buffer: &mut [u8])
     requires 64 <= buffer.len
     reaches ByteHost
 {
-    let count: i64 = host.read(0, buffer, 64);
+    let count: i64 = ByteHost::read(0, buffer, 64);
 }
 
 machine main() {}

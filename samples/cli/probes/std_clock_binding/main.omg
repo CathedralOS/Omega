@@ -1,14 +1,11 @@
-// The canonical std `Clock` provider binds through a `Binding<Clock>`
-// field: `reaches Console + Clock` multi-service ceiling and
-// `clock.sleep(200)` blocks through the selected provider.
+// The canonical std `Clock` provider: a `reaches Console + Clock`
+// multi-service ceiling, and `Clock::sleep(200)` blocks through the
+// selected provider.
 use omega_language_std::console;
 use omega_language_std::clock;
-use omega::language::core::binding;
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
 }
 machine Main::main(context: &mut Main) reaches Console + Clock {
-    context.clock.sleep(200);
-    context.console.exit_process(70);
+    Clock::sleep(200);
+    Console::exit_process(70);
 }

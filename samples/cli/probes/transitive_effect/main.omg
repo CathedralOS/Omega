@@ -4,15 +4,9 @@
 // caller-inferred, callee-declared.
 //
 //   * `pub boundary trait Console` + `pub domain [u8]::Utf8`.
-//   * GAP (already filed): a `Binding<Console>` FIELD requires a
-//     selected Fused provider even at --check, so the boundary
-//     call is dropped here — reach still propagates through
-//     ordinary calls.
 //
 // Compile-checked only: declaration surface, no standard-library
 // dependency.
-
-use omega::language::core::binding;
 
 pub domain [u8]::Utf8(bytes)
 requires

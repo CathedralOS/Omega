@@ -6,12 +6,6 @@
 //   * `boundary trait Net { machine write_line(...) reaches Net
 //     Allocator; }` — requirement with a multi-service reach set.
 //   * `hits` records the reached arm.
-//
-// GAP filed: a `Binding<Net>` field needs a Fused provider even for
-// `--check` — `client.net.write_line` is provider-gated, so only the
-// declaration surface is exercised here.
-
-use omega::language::core::binding;
 
 pub domain [u8]::Utf8(bytes)
 requires

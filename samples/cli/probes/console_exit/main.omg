@@ -1,14 +1,12 @@
-// std console exit: `Binding<Console>` field + `use
+// std console exit: a direct `Console::exit_process` call + `use
 // omega_language_std::console` path dependency — the first
 // probe family that RUNS, not just compiles. `exit_process(70)`
 // is the corpus's universal canary.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }
