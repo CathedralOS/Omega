@@ -1,5 +1,5 @@
-use omega::language::core::binding;
+// A requirement call's non-unit result cannot be discarded implicitly.
 pub boundary trait Service { machine read() -> i32; }
-machine invalid(binding: &Binding<Service>) {
-    Service::read(binding);
+machine invalid() {
+    Service::read();
 }

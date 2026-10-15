@@ -1404,7 +1404,7 @@ fail/calls/static_binding_dangling_return rejected 995ms expected @3ac38090e82f
 	machine `invalid` returns a view borrowing the owned input `binding`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/calls/static_binding_field_wrong_authority rejected 210ms expected @8df1d091a810
 	projected binding call target belongs to a different requirement
-fail/calls/static_binding_implicit_discard rejected 272ms expected @3ac38090e82f
+fail/calls/static_requirement_call_implicit_discard rejected 272ms expected @3ac38090e82f
 	call to `read` discards its non-unit `i32` result; consume the value or discard it explicitly with `_ = read(...);`
 fail/calls/static_binding_mutable_authority rejected 52ms expected @3ac38090e82f
 	a boundary call requires a shared `&Binding<R>` authority argument
@@ -3498,7 +3498,7 @@ fail/ownership/linear_call_result_field_scope_loss rejected 1608ms expected @a9a
 	linear value `pair.left` reaches scope exit without being consumed or transferred
 fail/ownership/linear_case_result_second_transfer rejected 1179ms expected @a9ae30e1c334+wt
 	cannot use `returned` in machine `main` state `entry` (statement 4) after `returned` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `returned` first
-fail/ownership/linear_computed_binding_receiver_second_use rejected 1173ms expected @a9ae30e1c334+wt
+fail/ownership/linear_computed_requirement_argument_second_use rejected 1173ms expected @a9ae30e1c334+wt
 	cannot use `original` in machine `main` state `entry` (statement 2) after `original` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `original` first
 fail/ownership/linear_computed_boundary_second_use rejected 1147ms expected @a9ae30e1c334+wt
 	cannot use `original` in machine `main` state `entry` (statement 2) after `original` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `original` first
@@ -3959,7 +3959,7 @@ fail/providers/applied_binding_field_wrong_receiver rejected 5567ms expected @a8
 	selected ProgramEntry Binding field `Main<u64>::boolean::reading` requires a selected Fused provider for boundary `Reading`
 fail/providers/applied_binding_mutable_result_live_source_write rejected 1577ms expected @a9ae30e1c334+wt
 	statement 1 mutates `value` while local borrow `borrowed` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
-fail/providers/applied_binding_mutable_result_shared_source rejected 919ms expected @a9ae30e1c334+wt
+fail/providers/applied_requirement_mutable_result_shared_source rejected 919ms expected @a9ae30e1c334+wt
 	argument `value` for state `borrow_mut` is declared `&mut` (`&mut i32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/providers/applied_binding_unused_const_carrier rejected 868ms expected @a9ae30e1c334+wt
 	const parameter `Count` of `Parent` requires an integer literal argument or an in-scope const parameter, got `bool`
@@ -4007,7 +4007,7 @@ fail/providers/foreign_address_fixed_carrier_mismatch rejected 1324ms expected @
 	provider machine `Imports::release` for top-level boundary requirement `AddressProbe::release` parameter 0 expects `pointer: addr`, got `pointer: u64`
 fail/providers/inherited_applied_binding_ambiguous_ancestors rejected 55ms expected @a9ae30e1c334+wt
 	dynamic call `Child::read` is ambiguous across inherited requirements: First::read, Second::read
-fail/providers/inherited_applied_binding_wrong_receiver rejected 22809ms expected @a9ae30e1c334+wt
+fail/providers/applied_requirement_unselected_ancestor_application rejected 22809ms expected @a9ae30e1c334+wt
 	selected ProgramEntry Binding field `Main::parent` requires a selected Fused provider for boundary `Parent`
 fail/providers/inherited_boundary_private_field_postcondition rejected 1027ms expected @2430f497a77c+wt
 	cannot prove index `main.counter.count` is within length 4 in Main::main::main
@@ -7141,7 +7141,7 @@ pass/ownership/linear_call_result_claims_exit checked 11009ms check-target:macos
 pass/ownership/linear_call_result_members_fused_owner_exit checked 11544ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/linear_call_result_place_assignment_exit checked 10965ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/linear_call_return_compile checked 1685ms @a9ae30e1c334+wt
-pass/ownership/linear_computed_binding_receiver_exit checked 11090ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/ownership/linear_computed_requirement_argument_exit checked 11090ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/linear_computed_call_claim_transfers_exit checked 13028ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/linear_domain_forward checked 9416ms @5041ef1af684+wt
 pass/ownership/linear_entry_handoff checked 9222ms @5041ef1af684+wt

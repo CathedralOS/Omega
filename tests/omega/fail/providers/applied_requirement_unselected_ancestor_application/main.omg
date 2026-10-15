@@ -1,4 +1,5 @@
-use omega::language::core::binding;
+// The selected `Child` provider satisfies `Parent<u64>`; it supplies no
+// provider for the different ancestor application `Parent<bool>`.
 pub boundary trait Parent<Value> { machine read() -> i32; }
 pub boundary trait Child: Parent<u64> { machine choose() -> i32; }
 ChildMap satisfies Child { Parent::read = read; Child::choose = choose; }
@@ -8,7 +9,7 @@ data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Child, ChildMap>(defaults);
 }
-data Main { parent: Binding<Parent<bool>>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Child + Parent {
-    let observed: i32 = main.parent.read();
+    let observed: i32 = Parent<bool>::read();
 }

@@ -1,4 +1,4 @@
-// Invalid control: the Windows family binding on a linux_x86_64 entry must be
+// Invalid control: a Windows family call from a linux_x86_64 entry must be
 // refused by provider admission rather than silently selecting nothing.
 
 machine build(builder: &mut Build) {

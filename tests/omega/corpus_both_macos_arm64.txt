@@ -559,7 +559,7 @@ pass/operators/runtime_constructed_operand_result_exit built 12708ms exit:0 inte
 pass/ownership/linear_call_result_claims_exit built 2591ms exit:0 interpreter-exit:0 interpreter:agrees @d2a4bcea8c9a+wt
 pass/ownership/linear_call_result_members_fused_owner_exit built 3570ms exit:0 interpreter-exit:0 interpreter:agrees @4f5eb9941fad
 pass/ownership/linear_call_result_place_assignment_exit built 2376ms exit:0 interpreter-exit:0 interpreter:agrees @81c6f9927396+wt
-pass/ownership/linear_computed_binding_receiver_exit built 2474ms exit:0 interpreter-exit:0 interpreter:agrees @ec4721ab353c+wt
+pass/ownership/linear_computed_requirement_argument_exit built 2474ms exit:0 interpreter-exit:0 interpreter:agrees @ec4721ab353c+wt
 pass/ownership/linear_computed_call_claim_transfers_exit built 2392ms exit:0 interpreter-exit:0 interpreter:agrees @7a112c8923bd+wt
 pass/ownership/linear_inline_constructed_argument_claims_exit built 2757ms exit:0 interpreter-exit:0 interpreter:agrees @7a112c8923bd+wt
 pass/ownership/linear_qualified_call_result_claims built 2522ms exit:0 interpreter-exit:0 interpreter:agrees @34440012a21b

@@ -2209,7 +2209,7 @@ pass/ownership/linear_call_result_claims_exit built 17770ms exit:0 @6c49683ce714
 pass/ownership/linear_call_result_members_fused_owner_exit built 17945ms exit:0 @6c49683ce714
 pass/ownership/linear_call_result_place_assignment_exit built 18086ms exit:0 @6c49683ce714
 pass/ownership/linear_call_return_compile checked 3576ms @6c49683ce714
-pass/ownership/linear_computed_binding_receiver_exit built 18092ms exit:0 @6c49683ce714
+pass/ownership/linear_computed_requirement_argument_exit built 18092ms exit:0 @6c49683ce714
 pass/ownership/linear_computed_call_claim_transfers_exit built 21495ms exit:0 @6c49683ce714
 pass/ownership/linear_domain_forward checked 17980ms @6c49683ce714
 pass/ownership/linear_entry_handoff checked 17889ms @6c49683ce714

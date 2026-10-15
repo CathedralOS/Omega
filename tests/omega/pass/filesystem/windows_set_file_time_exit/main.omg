@@ -17,11 +17,8 @@ use omega_language_std::filesystem_host;
 
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
-    fs: Binding<FilesystemHost>;
     fd: i32;
     n: i64;
     rc64: i32;
@@ -34,13 +31,13 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
     // Seed and CLOSE first: a pending write flushed by a later close would
     // update mtime past the stamp (both engines model this). The stamp
     // rides a clean read-write reopen.
-    main.fd = main.fs.create("omega_wsft_probe.txt", 438);
-    main.n = main.fs.write(main.fd, "stamp");
-    let closed_create: i32 = main.fs.close(main.fd);
-    main.fd = main.fs.open("omega_wsft_probe.txt", 2);
+    main.fd = FilesystemHost::create("omega_wsft_probe.txt", 438);
+    main.n = FilesystemHost::write(main.fd, "stamp");
+    let closed_create: i32 = FilesystemHost::close(main.fd);
+    main.fd = FilesystemHost::open("omega_wsft_probe.txt", 2);
     transition main.fd >= 0 { true -> bridge(main) _ -> bad(main, 71) }
     state bridge(main: &mut Main) {
-        let handle: i64 = main.fs.get_osfhandle(main.fd);
+        let handle: i64 = FilesystemHost::get_osfhandle(main.fd);
         transition handle > 0 { true -> stamp(main, handle) _ -> bad(main, 72) }
     }
     state stamp(main: &mut Main, handle: i64) {
@@ -54,13 +51,13 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
         main.ft[5] = 252;
         main.ft[6] = 210;
         main.ft[7] = 1;
-        let rc: i32 = main.fs.set_file_time(handle, 0, &main.ft, &main.ft);
-        let closed_probe: i32 = main.fs.close(main.fd);
+        let rc: i32 = FilesystemHost::set_file_time(handle, 0, &main.ft, &main.ft);
+        let closed_probe: i32 = FilesystemHost::close(main.fd);
         transition rc != 0 { true -> restat(main) _ -> bad(main, 73) }
     }
     state restat(main: &mut Main) {
-        main.rc64 = main.fs.read_metadata("omega_wsft_probe.txt", &mut main.stat_buf);
-        let removed: i32 = main.fs.remove("omega_wsft_probe.txt");
+        main.rc64 = FilesystemHost::read_metadata("omega_wsft_probe.txt", &mut main.stat_buf);
+        let removed: i32 = FilesystemHost::remove("omega_wsft_probe.txt");
         transition main.rc64 == 0 { true -> decode(main) _ -> bad(main, 74) }
     }
     state decode(main: &mut Main) {
@@ -82,6 +79,6 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
                 | (widen_u8_to_u64(main.stat_buf[47]) << 56));
         transition main.mtime == 1500000000 { true -> good(main) _ -> bad(main, 75) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

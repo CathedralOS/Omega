@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    Build::application(builder, "linear_computed_binding_receiver_exit");
+    Build::application(builder, "linear_computed_requirement_argument_exit");
     Build::select_provider<Settlement, Settler>(builder);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

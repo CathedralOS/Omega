@@ -8,7 +8,6 @@
 // standalone-app gap. The interpreter's virtual window system mints live handle tokens and
 // mirrors the same liveness answers. Exit 70. Differential.
 use omega_language_std::console;
-use omega::language::core::binding;
 pub boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 6], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
     machine msg_peek(message: [u64; 6]) -> u32;
@@ -16,8 +15,6 @@ pub boundary trait Gui {
     machine window_destroy(window: u64) -> u32;
 }
 data Main {
-    console: Binding<Console>;
-    gui: Binding<Gui>;
     cls: [u8; 7];
     title: [u8; 6];
     message: [u64; 6];
@@ -44,29 +41,29 @@ reaches Console, Gui
     main.title[3] = 103;
     main.title[4] = 97;
     main.title[5] = 0;
-    main.hwnd = main.gui.window_create(main.cls, main.title, 0, 10, 10, 64, 64);
+    main.hwnd = Gui::window_create(main.cls, main.title, 0, 10, 10, 64, 64);
     main.drains = 0;
     transition main.hwnd > 0 { true -> drain_loop(main) _ -> bad(main) }
     state drain_loop(main: &mut Main) {
         transition main.drains < 8 { true -> drain_peek(main) _ -> liveness(main) }
     }
     state drain_peek(main: &mut Main) {
-        main.have = main.gui.msg_peek(main.message);
+        main.have = Gui::msg_peek(main.message);
         main.drains = main.drains + 1;
         transition main.have > 0 { true -> drain_loop(main) _ -> liveness(main) }
     }
     state liveness(main: &mut Main) {
-        main.alive_before = main.gui.is_window(main.hwnd);
+        main.alive_before = Gui::is_window(main.hwnd);
         transition main.alive_before > 0 { true -> destroy(main) _ -> bad(main) }
     }
     state destroy(main: &mut Main) {
-        main.killed = main.gui.window_destroy(main.hwnd);
+        main.killed = Gui::window_destroy(main.hwnd);
         transition main.killed > 0 { true -> recheck(main) _ -> bad(main) }
     }
     state recheck(main: &mut Main) {
-        main.alive_after = main.gui.is_window(main.hwnd);
+        main.alive_after = Gui::is_window(main.hwnd);
         transition main.alive_after == 0 { true -> ok(main) _ -> bad(main) }
     }
-    state ok(main: &mut Main)  { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state ok(main: &mut Main)  { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

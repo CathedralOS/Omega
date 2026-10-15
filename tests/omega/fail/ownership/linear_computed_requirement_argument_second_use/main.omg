@@ -1,14 +1,15 @@
-use omega::language::core::binding;
+// A linear argument consumed by a requirement call inside a computed
+// expression cannot be used again afterward.
 use omega::language::core::drop;
 
 pub data Receipt [linear] { code: i32; }
 machine Receipt::drop(receipt: &mut Receipt) {}
 pub boundary trait Settlement { machine settle(value: Receipt) -> i32; }
-data Context { settlement: Binding<Settlement>; }
+data Context { }
 machine consume(value: Receipt) { drop(value); }
 
 machine main(context: &mut Context) reaches Settlement {
     let original: Receipt = Receipt { code: 7 };
-    let total: i32 = ((context.settlement.settle(original) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
+    let total: i32 = ((Settlement::settle(original) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
     consume(original);
 }

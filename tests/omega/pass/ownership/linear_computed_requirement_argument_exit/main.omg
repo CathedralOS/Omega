@@ -1,6 +1,6 @@
-// Entry establishment supplies the context occurrence, not a machine namespace.
-// Projected and directly borrowed bindings share the same receiver admission.
-use omega::language::core::binding;
+// A linear argument moves into a direct requirement call nested inside a
+// computed expression; the call consumes it whether it sits in a helper, a
+// statement or a local initializer.
 use omega::language::core::drop;
 
 pub data Receipt [linear] { code: i32; }
@@ -18,15 +18,15 @@ Settler satisfies Settlement {
     }
 }
 
-data Services { settlement: Binding<Settlement>; }
+data Services { }
 data Context { services: Services; }
 
 machine forward(prefix: i32, receipt: Receipt, context: &mut Context, suffix: i32) -> i32 reaches Settlement {
-    ((context.services.settlement.settle(prefix, receipt, suffix) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32
+    ((Settlement::settle(prefix, receipt, suffix) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32
 }
 
-machine direct(binding: &mut Binding<Settlement>, receipt: Receipt) -> i32 reaches Settlement {
-    ((binding.settle(2, receipt, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32
+machine direct(receipt: Receipt) -> i32 reaches Settlement {
+    ((Settlement::settle(2, receipt, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32
 }
 
 machine verify(correct: bool) crashes Trap {
@@ -40,10 +40,10 @@ machine verify(correct: bool) crashes Trap {
 
 machine main(context: &mut Context) reaches Settlement crashes Trap {
     let receipt: Receipt = Receipt { code: 7 };
-    let result: i32 = ((context.services.settlement.settle(2, receipt, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
+    let result: i32 = ((Settlement::settle(2, receipt, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
     let forwarded: i32 = forward(2, Receipt { code: 8 }, context, 3);
-    let borrowed: i32 = direct(&mut context.services.settlement, Receipt { code: 9 });
+    let borrowed: i32 = direct(Receipt { code: 9 });
     // Statement and computed applications transfer each caller receipt once.
-    let statement: i32 = context.services.settlement.settle(2, Receipt { code: 10 }, 3);
+    let statement: i32 = Settlement::settle(2, Receipt { code: 10 }, 3);
     verify(result == 13 && forwarded == 14 && borrowed == 15 && statement == 15);
 }

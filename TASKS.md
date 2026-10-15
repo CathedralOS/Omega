@@ -389,17 +389,16 @@ helper that passes does not close an item.
     A boundary requirement call spells `Requirement::operation(arguments)` and
     demands one exact static provider slot; checking accepts that form, and a
     leading `Binding<R>` operand is the only remaining receiver-lane entry.
-    Migrate source and fixtures: 80 test and 23 sample files still name
+    Migrate source and fixtures: 67 test and 23 sample files still name
     `Binding<`. The test remainder pins Binding-specific refusals or mixes
-    bindings across files; the filesystem and GUI host fixtures then stop at
-    terminal-authority review with 0 selected provider rows for their direct
-    calls. An inherited requirement is called through its declaring trait
+    bindings across files. An inherited requirement is called through its declaring trait
     (`Parent::reset`), not the refining child's name, and an applied one
     as `Parent<u64>::read()`. Then delete
     `source/library/core/binding.omg`, Binding type recognition, entry-field
     establishment, receiver/leading-argument paths and source-visible routing
     custody. Add fail controls for `Binding<R>` in fields, locals and parameters
-    and for missing/ambiguous provider supply. Multiple static roles use exact
+    and for ambiguous provider supply; provider admission already rejects a
+    requirement the entry reaches with no selected provider. Multiple static roles use exact
     generic applications or wrapper traits; runtime multiplicity uses protocol
     handles/descriptors/`dyn`, never a generic routing carrier.
   - Compiler remainder: typed parameters now have only explicit subject
@@ -608,10 +607,11 @@ defines the complete product bar.
     pins nested claims, multiple claims per element and authored effect order;
     `linear_computed_call_claim_transfers_exit` pins computed operands.
     Reject second use, missing child consumption and wrong array type/extent
-    in `fail/ownership/linear_{constructor_call_member_second_use,array_constructor_duplicate_operand,array_member_scope_loss,array_call_argument_wrong_element,array_call_argument_wrong_extent,computed_boundary_second_use,computed_binding_receiver_second_use}`.
-    Keep `pass/ownership/linear_computed_binding_receiver_exit` at 0 in both
-    engines: ordinary direct/projected Binding parameters, nested context
-    establishment and mixed borrowed/owned helper arguments retain custody.
+    in `fail/ownership/linear_{constructor_call_member_second_use,array_constructor_duplicate_operand,array_member_scope_loss,array_call_argument_wrong_element,array_call_argument_wrong_extent,computed_boundary_second_use,computed_requirement_argument_second_use}`.
+    Keep `pass/ownership/linear_computed_requirement_argument_exit` at 0 in
+    both engines: linear arguments to direct requirement calls in helpers,
+    statements and local initializers, and mixed borrowed/owned helper
+    arguments, retain custody.
     Preserve projected replacement and sibling custody in
     `pass/ownership/linear_call_result_place_assignment_exit` and reject
     `fail/ownership/linear_replaced_field_second_use`. Preserve ordinary
@@ -3191,8 +3191,9 @@ crash and native exit behavior.
   Supply providers for `pass/host/runtime_gui_window_lifecycle_exit` and
   `pass/host/runtime_gui_foreground_window_exit`. Their local `Gui`
   traits declare `window_create`, `msg_peek`, `is_window` and
-  `window_destroy` without satisfiers; ProgramEntry establishment rejects
-  the missing selected provider.
+  `window_destroy` without satisfiers; provider admission rejects their
+  direct calls ("no provider is selected for boundary requirement
+  `Gui::window_create`").
 
   The old checked interpreter's bare-name virtual-window dispatch hid this
   omission. It is not a provider and must not be reproduced in the Terminal

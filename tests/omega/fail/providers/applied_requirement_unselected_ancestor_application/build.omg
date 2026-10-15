@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::application(builder, "inherited_applied_binding_wrong_receiver");
+    Build::application(builder, "applied_requirement_unselected_ancestor_application");
     Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
 }

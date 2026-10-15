@@ -9,15 +9,12 @@
 // focuses). The canary pins the call path (operand arm + general import call
 // + result store) in both worlds: a drop/crash/hang fails, exit 70 passes.
 use omega_language_std::console;
-use omega::language::core::binding;
 pub boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 10], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
     machine foreground_window() -> u64;
     machine window_destroy(window: u64) -> u32;
 }
 data Main {
-    console: Binding<Console>;
-    gui: Binding<Gui>;
     cls: [u8; 7];
     title: [u8; 10];
     hwnd: u64;
@@ -33,13 +30,13 @@ reaches Console, Gui
     // "fgwin\0"
     main.title[0] = 102; main.title[1] = 103; main.title[2] = 119; main.title[3] = 105;
     main.title[4] = 110; main.title[5] = 0;
-    main.hwnd = main.gui.window_create(main.cls, main.title, 0, 10, 10, 50, 50);
+    main.hwnd = Gui::window_create(main.cls, main.title, 0, 10, 10, 50, 50);
     transition main.hwnd > 0 { true -> probe(main) _ -> bad(main, 71) }
     state probe(main: &mut Main) {
-        main.fw = main.gui.foreground_window();
-        main.killed = main.gui.window_destroy(main.hwnd);
+        main.fw = Gui::foreground_window();
+        main.killed = Gui::window_destroy(main.hwnd);
         transition main.killed > 0 { true -> good(main) _ -> bad(main, 72) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
