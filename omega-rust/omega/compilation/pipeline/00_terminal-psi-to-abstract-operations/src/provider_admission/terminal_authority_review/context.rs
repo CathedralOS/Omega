@@ -2,28 +2,20 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::AbstractFunction;
 use effects::{
-    CheckedPhysicalTerminalMechanismIdentity, SelectedProviderPlanFacts, TerminalMechanismIdentity,
+    SelectedProviderPlanFacts, TerminalMechanismIdentity,
     provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow},
-    terminal_mechanism_identity_bytes,
 };
-use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use semantic_vocabulary::BoundaryMachineId;
 
-use super::operations::{AuthorityEdge, authority_edge};
+use super::reachability::AuthorityGraph;
 use crate::provider_admission::{
     AdmittedTerminalMechanism, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
 
-pub(super) struct ReachableAuthorityEdges {
-    pub(super) boundaries: BTreeSet<BoundaryMachineId>,
-    pub(super) checked_physical: Vec<TerminalMechanismIdentity>,
-}
-
 pub(super) struct ReviewContext<'a> {
     pub(super) input: &'a crate::VerifiedPsiOptimizationInput,
-    functions: BTreeMap<MachineId, &'a AbstractFunction>,
-    dynamic_dispatch: &'a terminal_psi::TerminalDynamicDispatchCatalog,
+    pub(super) graph: AuthorityGraph<'a>,
     pub(super) boundaries:
         BTreeMap<BoundaryMachineId, &'a terminal_psi::BoundaryMachineDeclaration>,
     pub(super) selected: &'a SelectedProviderPlanFacts,
@@ -49,21 +41,7 @@ impl<'a> ReviewContext<'a> {
         installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
     ) -> Result<Self, String> {
         let plan = input.plan();
-        let mut functions = BTreeMap::new();
-        for function in &plan.functions {
-            if functions.insert(function.machine, function).is_some() {
-                return Err(format!(
-                    "abstract operation plan repeats machine {:?}",
-                    function.machine
-                ));
-            }
-        }
-        if !functions.contains_key(&plan.entry) {
-            return Err(format!(
-                "abstract operation plan entry {:?} has no function",
-                plan.entry
-            ));
-        }
+        let graph = AuthorityGraph::new(input, target_profile)?;
         let mut boundaries = BTreeMap::new();
         let mut boundary_identities = BTreeSet::new();
         for boundary in &plan.boundary_machines {
@@ -90,8 +68,7 @@ impl<'a> ReviewContext<'a> {
         }
         Ok(Self {
             input,
-            functions,
-            dynamic_dispatch: &plan.dynamic_dispatch,
+            graph,
             boundaries,
             selected,
             physical_policy,
@@ -119,28 +96,13 @@ impl<'a> ReviewContext<'a> {
         String,
     > {
         let specialization = self.selected.specialized_requirement_row(requirement);
-        // Provider selection resolves each requirement to at most one plan
-        // row and each schema's method roster carries the requirement once,
-        // so the join takes the identifying row instead of re-counting the
-        // matches; the absent case stays a real refusal — a boundary can be
-        // declared and reached without a selected provider.
+        // The absent case stays a real refusal here: provider supply rejects
+        // an unselected requirement the entry reaches before settlement, but a
+        // selected provider's own nested boundary calls first meet selection
+        // in this closure expansion.
         let (plan, row) = self
             .selected
-            .plans()
-            .iter()
-            .flat_map(|plan| {
-                plan.rows
-                    .iter()
-                    .filter(move |row| {
-                        self.selected.selected_row_matches_requirement(
-                            requirement,
-                            plan.identities.text(row.requirement_identity),
-                            plan.report_fingerprint(),
-                        )
-                    })
-                    .map(move |row| (plan, row))
-            })
-            .next()
+            .selected_requirement_row(requirement)
             .ok_or_else(|| {
                 format!(
                     "reachable requirement `{requirement}` resolves to 0 selected provider rows"
@@ -184,94 +146,5 @@ impl<'a> ReviewContext<'a> {
             ));
         }
         Ok(mechanism)
-    }
-
-    pub(super) fn reachable_authority_edges(
-        &self,
-        entry: MachineId,
-    ) -> Result<ReachableAuthorityEdges, String> {
-        let mut pending = vec![entry];
-        let mut visited = BTreeSet::new();
-        let mut boundaries = BTreeSet::new();
-        let mut checked_physical = BTreeMap::new();
-        while let Some(machine) = pending.pop() {
-            if !visited.insert(machine) {
-                continue;
-            }
-            let function = self.functions.get(&machine).ok_or_else(|| {
-                format!("reachable internal call names absent machine {machine:?}")
-            })?;
-            for operation in &function.operations {
-                // Cleanup is executable work on this edge, not a declaration
-                // marker. Its hook's mechanisms belong to the same authority
-                // closure as ordinary calls from the entry.
-                for (_, actions) in operation.cleanup_rosters() {
-                    for action in actions {
-                        if let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) =
-                            action
-                        {
-                            pending.push(cleanup.cleanup_machine);
-                        }
-                    }
-                }
-                match authority_edge(operation) {
-                    AuthorityEdge::None => {}
-                    AuthorityEdge::Internal(callee) => pending.push(callee),
-                    AuthorityEdge::Dynamic { interface, slot } => {
-                        // Formation captures no authority. Invocation may reach
-                        // any implementation's exact slot, never unrelated rows
-                        // or a representative provider's narrower authority.
-                        self.dynamic_dispatch.interface(interface)
-                            .and_then(|interface| interface.slots.get(slot as usize))
-                            .filter(|requirement| requirement.slot == slot)
-                            .ok_or_else(|| format!("dynamic authority edge names absent interface {interface} slot {slot}"))?;
-                        for table in &self.dynamic_dispatch.tables {
-                            if table.interface != interface {
-                                continue;
-                            }
-                            if let Some(machine) = table.rows.get(slot as usize).copied().flatten()
-                            {
-                                pending.push(machine);
-                            }
-                        }
-                    }
-                    AuthorityEdge::Boundary(boundary) => {
-                        if let Some(terminal_psi::TargetMachineCallable::Machine(member)) =
-                            self.input.target_family_member(boundary)?
-                        {
-                            pending.push(member);
-                        } else {
-                            boundaries.insert(boundary);
-                        }
-                    }
-                    AuthorityEdge::CheckedPortWrite { port } => {
-                        // Psi's `validate_port_write` already proved the write's
-                        // service sits inside the machine's published ceiling;
-                        // re-asking it here would replay the same fact.
-                        if self.target_profile.native_target().architecture
-                            != target::Architecture::X86_64
-                        {
-                            return Err(format!(
-                                "reachable machine {machine:?} uses x86 PortWrite on non-x86 target profile `{}`",
-                                self.target_profile.target_name(),
-                            ));
-                        }
-                        let mechanism: TerminalMechanismIdentity =
-                            CheckedPhysicalTerminalMechanismIdentity::port_write(
-                                self.target_profile,
-                                port,
-                            )
-                            .into();
-                        checked_physical
-                            .entry(terminal_mechanism_identity_bytes(mechanism))
-                            .or_insert(mechanism);
-                    }
-                }
-            }
-        }
-        Ok(ReachableAuthorityEdges {
-            boundaries,
-            checked_physical: checked_physical.into_values().collect(),
-        })
     }
 }

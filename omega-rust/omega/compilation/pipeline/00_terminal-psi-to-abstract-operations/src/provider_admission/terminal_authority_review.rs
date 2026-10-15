@@ -4,6 +4,7 @@
 
 mod context;
 mod operations;
+pub(crate) mod reachability;
 mod reviewer;
 
 use effects::{SelectedProviderPlanFacts, TerminalAuthorityClosureReviewReceipt};
@@ -37,7 +38,9 @@ pub(crate) fn review_terminal_authority_closure(
         mechanisms,
         installed_candidates,
     )?;
-    let root_edges = context.reachable_authority_edges(input.plan().entry)?;
+    let root_edges = context
+        .graph
+        .reachable_authority_edges(input.plan().entry)?;
     if !root_edges.checked_physical.is_empty() {
         return Err(
             "root-reachable checked physical operation has no selected provider requirement custody"

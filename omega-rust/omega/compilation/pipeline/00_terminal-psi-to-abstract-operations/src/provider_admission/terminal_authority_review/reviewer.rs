@@ -114,6 +114,7 @@ impl<'a> Reviewer<'a> {
                 let provider_plan = selected_plan.identity_digest();
                 let nested = self
                     .context
+                    .graph
                     .reachable_authority_edges(candidate.candidate)?;
                 for mechanism in nested.checked_physical {
                     self.admit_leaf(schema, requirement, provider_plan, mechanism)?;

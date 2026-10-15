@@ -1,1 +1,1 @@
-reachable requirement `emit` resolves to 0 selected provider rows
+no provider is selected for boundary requirement `emit`

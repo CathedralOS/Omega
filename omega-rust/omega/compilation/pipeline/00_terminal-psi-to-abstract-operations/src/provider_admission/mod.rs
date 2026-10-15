@@ -3,7 +3,9 @@
 //! `source_evaluated_bindings` prepares selected import and syscall executions
 //! for direct compilation and retained Terminal re-entry. Only imported
 //! user-space callees carry a foreign same-stack reserve.
-//! `admit_native_providers` independently checks those inputs, settles external
+//! `admit_native_providers` first requires a selected provider for every
+//! boundary requirement the entry reaches (`provider_supply`), then
+//! independently checks those inputs, settles external
 //! executions, and admits the exact checked-provider installation and authority
 //! closure retained by the plan.
 //! `project_native_callback_arguments` projects exact retained callback
@@ -18,6 +20,7 @@ mod callback_arguments;
 mod compiler_builtins;
 mod diagnostics;
 mod installation;
+mod provider_supply;
 mod request;
 mod settlements;
 mod source_evaluated_bindings;
@@ -91,6 +94,11 @@ pub(crate) fn admit_native_providers<'request>(
     request: &ProviderAdmissionRequest<'_, 'request>,
 ) -> Result<AdmittedNativeProviders<'request>, Vec<Diagnostic>> {
     let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
+    provider_supply::require_reached_providers(
+        input.optimization_input(),
+        request.profile,
+        request.selected_provider_plans,
+    )?;
     let (settlements, executions, mut mechanisms, cohort_rows) =
         settlements::settle_provider_executions(input, request)?;
     let mut settlements = settlements;

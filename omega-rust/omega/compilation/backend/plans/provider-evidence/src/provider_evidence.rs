@@ -741,6 +741,30 @@ impl SelectedProviderPlanFacts {
         requirement == selected_requirement
     }
 
+    /// The selected plan row serving one Terminal requirement identity, joined
+    /// through the same family and closed-requirement coordinates as
+    /// `selected_row_matches_requirement`. Selection resolves each requirement
+    /// to at most one row and each schema roster names a requirement once, so
+    /// the first match is the row; `None` means no provider was selected for
+    /// the requirement at all.
+    pub fn selected_requirement_row(
+        &self,
+        requirement: &str,
+    ) -> Option<(&ProviderPlan, &crate::provider_plan::ProviderPlanRow)> {
+        self.plans.iter().find_map(|plan| {
+            plan.rows
+                .iter()
+                .find(|row| {
+                    self.selected_row_matches_requirement(
+                        requirement,
+                        plan.identities.text(row.requirement_identity),
+                        plan.report_fingerprint(),
+                    )
+                })
+                .map(|row| (plan, row))
+        })
+    }
+
     /// Attach the source producer's exact realization-to-row relation. This
     /// checks closure consistency, not family membership or provider permission:
     /// the proposal producer must close IDs and identities against its artifact

@@ -1,5 +1,5 @@
 // A reachable consuming boundary requirement with no provider: `Receipt::ack`
-// is declared and called, but nothing satisfies it, so native closure review
+// is declared and called, but nothing satisfies it, so provider admission
 // refuses the program instead of inventing a disposition for the receipt.
 // `pass/ownership/linear_transfer_and_consume` is the same program with an
 // external sink satisfying the requirement.

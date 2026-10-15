@@ -1,6 +1,6 @@
 // A reachable fixed-token boundary operator with no satisfier: `==` on these
 // operands resolves to `Integer::equal`, a bodyless boundary declaration, and
-// nothing satisfies it. Native closure review refuses the program rather than
+// nothing satisfies it. Provider admission refuses the program rather than
 // substituting builtin equality. The same program with a selected checked
 // satisfier is `pass/operators/runtime_selected_operator_requires_after_effects_exit`.
 boundary machine == Integer::equal(left: i32, right: i32) -> bool
