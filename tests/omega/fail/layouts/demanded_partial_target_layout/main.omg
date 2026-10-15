@@ -1,0 +1,18 @@
+// Windows cannot materialize a record with only a macOS layout alternative.
+use omega::language::core::layout;
+use omega_language_std::console;
+
+data Policy {}
+data Payload [copy] { value: u32; }
+data View { payload: Policy<Payload>; }
+data Main { view: View; }
+
+macos_arm64 machine Policy::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 4 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 4 }
+}
+machine Main::main(main: &mut Main) reaches Console {
+    main.view.payload.value = 31;
+    Console::exit_process(70);
+}

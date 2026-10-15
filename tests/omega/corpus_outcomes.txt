@@ -3200,6 +3200,8 @@ fail/layouts/data_layout_query_machine_operand rejected 69ms expected @a9ae30e1c
 	`size_of` takes a data type; a machine declaration is not a data carrier
 fail/layouts/data_layout_query_value_argument rejected 37ms expected @a9ae30e1c334+wt
 	`align_of` takes no value arguments; the queried type is its single `<T>` operand
+fail/layouts/demanded_partial_target_layout rejected 5231ms expected @85e359099dcc+wt
+	native artifact target lowering failed: UnclosedTargetLayout(StructuralTypeId(25))
 fail/layouts/encoded_foreign_view_preserves_value_facts rejected 925ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `ForeignByte` are not representation-compatible
 fail/layouts/encoded_foreign_view_requires_same_geometry rejected 906ms expected @a9ae30e1c334+wt
@@ -6916,6 +6918,7 @@ pass/layouts/two_i32_member_layout_compile checked 1667ms @a9ae30e1c334+wt
 pass/layouts/two_i8_member_layout_compile checked 1638ms @a9ae30e1c334+wt
 pass/layouts/u16_array_member_layout_compile checked 1741ms @a9ae30e1c334+wt
 pass/layouts/u64_array_member_layout_compile checked 1647ms @a9ae30e1c334+wt
+pass/layouts/unused_partial_target_layout_exit checked 4812ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @85e359099dcc+wt
 pass/layouts/whered_record_in_sum_layout_compile checked 1608ms @a9ae30e1c334+wt
 pass/layouts/wide_narrow_alignment_layout_compile checked 1779ms @a9ae30e1c334+wt
 pass/layouts/wide_then_byte_layout_compile checked 1646ms @a9ae30e1c334+wt

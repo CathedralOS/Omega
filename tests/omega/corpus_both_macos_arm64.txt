@@ -543,6 +543,7 @@ pass/layouts/runtime_returned_encoded_reference_exit built 1690ms exit:0 interpr
 pass/layouts/runtime_selected_reference_parent_restoration_exit built 1897ms exit:0 interpreter-exit:0 interpreter:agrees @c910d797b35a
 pass/layouts/runtime_sparse_fragmented_bits_exit built 1272ms exit:70 interpreter-exit:70 interpreter:agrees @acdf102c21ea+wt
 pass/layouts/runtime_stored_returned_encoded_reference_exit built 1697ms exit:0 interpreter-exit:0 interpreter:agrees @4cbb568dee2d+wt
+pass/layouts/unused_partial_target_layout_exit built 4746ms exit:0 interpreter-exit:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @85e359099dcc+wt
 pass/locals/mutable_local_call_reassignment_exit built 8872ms exit:70 interpreter-exit:70 interpreter:agrees @8073da6ab7ac
 pass/locals/runtime_deferred_scalar_initialization_exit built 1212ms exit:1 interpreter-exit:1 interpreter:agrees @25d3c2dff582+wt
 pass/locals/runtime_local_record_array_element_field_reads_exit built 1979ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9

@@ -5,7 +5,13 @@
 //! the original artifact identity as the conservative complete dependency key;
 //! no changed module receives that identity. Only selected record declarations
 //! are copied into the overlay, and semantic access/custody still needs proof.
-use crate::AdmittedTargetMachineSelections;
+//! A retained policy can describe another target's private records. Catalog
+//! retention does not demand that geometry here: absent members leave their
+//! pending record markers intact. Physical storage, byte projection and ABI
+//! consumers must resolve those markers before using geometry; ordinary packing
+//! is never a replacement for an unavailable member. Pure logical field values
+//! need no physical geometry, so this is not a blanket interpreter type gate.
+use crate::{AdmittedTargetMachineSelections, TargetMachineSelectionError};
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_codec::TerminalArtifactView;
 use terminal_psi::{
@@ -146,9 +152,13 @@ pub fn admit_target_layouts(
             target: selections.target().to_owned(),
         };
         let stale = || TargetLayoutSelectionError::StaleApplication(application.id);
-        let selected = selections
-            .member(application.family)
-            .map_err(|_| missing())?;
+        let selected = match selections.member(application.family) {
+            Ok(selected) => selected,
+            // Like callable-family selection, retain unrelated alternatives
+            // without turning every catalog row into an execution demand.
+            Err(TargetMachineSelectionError::MissingMember { .. }) => continue,
+            Err(_) => return Err(missing()),
+        };
         let realization = application
             .realizations
             .binary_search_by(|row| row.target.as_str().cmp(selections.target()))
