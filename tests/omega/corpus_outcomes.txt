@@ -8148,6 +8148,7 @@ run/dyn_finite_family_runtime_dispatch checked 12276ms check-target:macos_arm64 
 run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:macos_arm64 @9c4d1c444502
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/ownership/declared_record_selected_exit_disposal checked 11660ms check-target:macos_arm64 @93ba1f664f65+wt
+run/ownership/owned_parameter_member_moves_exit checked 9269ms check-target:macos_arm64 @4a0ccff8236e+wt
 run/ownership/temporary_case_observation checked 5301ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/ownership/temporary_projected_copy_argument checked 5449ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/ownership/temporary_projected_value_residual checked 11846ms check-target:macos_arm64 @93ba1f664f65+wt

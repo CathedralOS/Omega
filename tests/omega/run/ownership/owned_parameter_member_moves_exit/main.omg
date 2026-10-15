@@ -1,0 +1,52 @@
+// A machine may move members out of an owned affine parameter into callees
+// and complete normally: the untouched members stay owned by the parameter
+// and are discarded on the normal exit, after which the parameter's home is
+// retired. One member, the other member, every member, and every element
+// of an owned array are moved here, from the entry machine and from a
+// helper that returns a value. Exit 0 means every path completed.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Token { raw: u64; }
+data Pair { left: Token; right: Token; }
+
+data Main { console: Binding<Console>; }
+
+machine take(token: Token) { }
+
+machine spend_left(pair: Pair) {
+    take(pair.left);
+}
+
+machine spend_right(pair: Pair) {
+    take(pair.right);
+}
+
+machine spend_both(pair: Pair) {
+    take(pair.left);
+    take(pair.right);
+}
+
+machine spend_all(tokens: [Token; 2]) {
+    take(tokens[0]);
+    take(tokens[1]);
+}
+
+machine count_right(pair: Pair) -> u8 {
+    take(pair.right);
+    1
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    spend_left(Pair { left: Token { raw: 1 }, right: Token { raw: 2 } });
+    spend_right(Pair { left: Token { raw: 3 }, right: Token { raw: 4 } });
+    spend_both(Pair { left: Token { raw: 5 }, right: Token { raw: 6 } });
+    spend_all([Token { raw: 7 }, Token { raw: 8 }]);
+    let counted: u8 = count_right(Pair { left: Token { raw: 9 }, right: Token { raw: 10 } });
+    transition counted == 1 {
+        true -> ok(main)
+        _ -> bad(main)
+    }
+    state ok(main: &mut Main) { main.console.exit_process(0); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
+}

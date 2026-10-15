@@ -3,9 +3,9 @@
 //! Nominal cleanup contracts are prepared with ordinary callable signatures
 //! (`contexts`); the shared completion owner lowers their source-owned actions
 //! for entries and called members alike. `ordered` only roots a selected nominal
-//! entry. Partial-affine cleanup is a return-edge property of an ordinary
-//! body: `finalize_partial_affine_residuals` installs the residual complement
-//! on every emitted machine the partial roster publishes.
+//! entry. A partial-affine body is an ordinary body: its residual complement
+//! and home retirement are actions of its checked normal exit, lowered with
+//! every other completion action, never appended to return edges afterwards.
 //! Build cleanup requirements and their obligation identities here, but leave
 //! certificates to final operation proof emission. Owned-field requirements are
 //! validity-scoped observations, not permanent assumption slots; their available
@@ -14,11 +14,10 @@
 use super::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
     LoweringError, MachineId, NominalAffineCleanup, PlaceId, Proposition, ScalarTerm,
-    StructuralAffineDiscard, StructuralTypeId, StructuralTypeShape, TerminalMachine, Terminator,
-    lookup_machine_id, lookup_type_id, lower_structural_path, lower_unit_closure, obligation_id,
-    unsupported,
+    StructuralTypeId, StructuralTypeShape, TerminalMachine, lookup_machine_id, lookup_type_id,
+    lower_unit_closure, obligation_id, unsupported,
 };
-use checked_trees::{CheckedUnitNominalAffineCleanupPlan, CheckedUnitStructuralArgumentSourcePlan};
+use checked_trees::CheckedUnitNominalAffineCleanupPlan;
 use symbols::SymbolHandle;
 pub(crate) mod contexts;
 mod dispositions;
@@ -541,79 +540,6 @@ pub(super) fn bind_nominal_cleanup_subjects(
             cleanup.cleanup_machine,
             type_ids,
         )?;
-    }
-    Ok(())
-}
-
-/// Install the residual complement a partial-affine return edge owes on every
-/// emitted machine the partial roster publishes, entry or callee alike. An
-/// ordinary body is one operation sequence, so every Unit return follows all
-/// of its projected moves and owes the same complement; the residual tail
-/// follows the whole-root schedule the return edge already carries. A root
-/// fully consumed by its projections publishes no residual row and keeps the
-/// ordinary return edge.
-pub(super) fn finalize_partial_affine_residuals(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
-    machines: &mut [TerminalMachine],
-    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
-    machine_ids: &[(SymbolHandle, MachineId)],
-) -> Result<(), LoweringError> {
-    for partial in &checked
-        .facts
-        .flow
-        .terminal_partial_affine_unit_cleanups
-        .machines
-    {
-        if partial.residual_affine_discards.is_empty() {
-            continue;
-        }
-        let Ok(terminal_member) = lookup_machine_id(machine_ids, partial.machine.machine) else {
-            continue;
-        };
-        let emitted = machines
-            .iter_mut()
-            .find(|member| member.id == terminal_member)
-            .ok_or(LoweringError::Unsupported(
-                "partial affine member was not emitted in the terminal closure",
-            ))?;
-        // Stage 04 publishes the complement of one partially moved owned
-        // parameter; its structural parameters lower in plan order, so the
-        // row's dense index names the emitted machine's place.
-        let residual_affine_discards = partial
-            .residual_affine_discards
-            .iter()
-            .map(|residual| {
-                let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-                    residual.source
-                else {
-                    return unsupported(
-                        "partial affine residual rooted outside a structural parameter has no return-edge route",
-                    );
-                };
-                let parameter = emitted
-                    .structural_parameters
-                    .get(parameter_index as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "partial affine residual names a parameter the machine does not declare",
-                    ))?;
-                Ok(terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
-                    StructuralAffineDiscard {
-                        place: parameter.place,
-                        path: lower_structural_path(identities, &residual.path)?,
-                        structural_type: lookup_type_id(type_ids, &residual.type_identity)?,
-                    },
-                ))
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
-        for block in &mut emitted.blocks {
-            if let Terminator::ReturnUnit {
-                cleanup_actions, ..
-            } = &mut block.terminator
-            {
-                cleanup_actions.extend(residual_affine_discards.iter().cloned());
-            }
-        }
     }
     Ok(())
 }

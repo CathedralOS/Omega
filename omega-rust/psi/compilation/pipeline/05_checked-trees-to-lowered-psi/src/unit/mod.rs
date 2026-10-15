@@ -34,14 +34,13 @@ use terminal_psi::{
     NominalAffineCleanup, Operation, OperationKind, OperationResult,
     ProgramLocalRootIntroductionSchema, ProviderCandidateConformance, ProviderParameterRefinement,
     ProviderRefinement, ProviderSignature, ProviderSignatureParameter, ServiceDeclaration,
-    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
-    StructuralCaseSuccessorEdge, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralOperationResult, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalRankedScc, Terminator,
-    ValueDeclaration, VocabularyMarker,
-    program_local_root_introduction_compatibility_report_identity,
+    StructuralAccess, StructuralArgument, StructuralCaseDeclaration, StructuralCaseSuccessorEdge,
+    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, TerminalRankedScc, Terminator, ValueDeclaration,
+    VocabularyMarker, program_local_root_introduction_compatibility_report_identity,
 };
 
 use crate::emission::boolean_control::{
@@ -58,7 +57,6 @@ use crate::emission::operation_emission::{
 use crate::emission::scalar_types::{
     integer_landing_scalar_type, integer_scalar_type, integer_value, terminal_scalar_type,
 };
-use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
 use crate::proofs::content_conservation;

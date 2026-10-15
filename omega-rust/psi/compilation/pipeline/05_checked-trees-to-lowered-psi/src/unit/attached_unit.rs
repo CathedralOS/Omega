@@ -523,13 +523,6 @@ pub(crate) fn lower_unit_closure(
         &type_ids,
         &machine_ids,
     )?;
-    super::unit_cleanup::finalize_partial_affine_residuals(
-        identities,
-        checked,
-        &mut machines,
-        &type_ids,
-        &machine_ids,
-    )?;
     let provider_candidates = providers::conformances(
         identities,
         checked,

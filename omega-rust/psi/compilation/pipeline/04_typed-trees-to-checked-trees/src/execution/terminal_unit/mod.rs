@@ -293,36 +293,41 @@ pub(crate) fn build_checked_unit_effect_plans(
                 .filter_map(CheckedComposedUnitControlMachinePlan::callable_entry),
         )
         .collect::<Vec<_>>();
+    // Ordinary and partial-affine sequence bodies share one completion
+    // contract: a partial-affine body is an ordinary body whose owned
+    // parameter some call projected, so it receives the same checked
+    // normal-exit rows.
+    let mut select_sequence_cleanup = |plan: &CheckedUnitEffectMachinePlan| {
+        let temporary = cleanup::temporary_actions::operations(
+            program,
+            facts,
+            &targets,
+            &mut shapes,
+            plan.machine,
+            plan.state,
+            &plan.structural_parameters,
+            &plan.operations,
+        )?;
+        let normal =
+            cleanup::normal_edges::sequence_cleanups(program, facts, &targets, &mut shapes, plan)?;
+        if plan.scalar_control.is_none() {
+            let [row] = shapes.cleanup_control.normal_exits(normal) else {
+                return None;
+            };
+            if row.exit.kind != checked_trees::FlowClaimJoinExitKind::FinalExpression {
+                return None;
+            }
+        }
+        Some((temporary, normal))
+    };
     let mut temporary_selections = candidates
         .iter()
-        .map(|plan| {
-            let temporary = cleanup::temporary_actions::operations(
-                program,
-                facts,
-                &targets,
-                &mut shapes,
-                plan.machine,
-                plan.state,
-                &plan.structural_parameters,
-                &plan.operations,
-            )?;
-            let normal = cleanup::normal_edges::sequence_cleanups(
-                program,
-                facts,
-                &targets,
-                &mut shapes,
-                plan,
-            )?;
-            if plan.scalar_control.is_none() {
-                let [row] = shapes.cleanup_control.normal_exits(normal) else {
-                    return None;
-                };
-                if row.exit.kind != checked_trees::FlowClaimJoinExitKind::FinalExpression {
-                    return None;
-                }
-            }
-            Some((temporary, normal))
-        })
+        .map(&mut select_sequence_cleanup)
+        .collect::<Vec<_>>()
+        .into_iter();
+    let mut partial_affine_selections = partial_affine_machines
+        .iter()
+        .map(|plan| select_sequence_cleanup(&plan.machine))
         .collect::<Vec<_>>()
         .into_iter();
     let mut composed_selections = composed_machines
@@ -383,23 +388,39 @@ pub(crate) fn build_checked_unit_effect_plans(
         }
         None => false,
     });
-    candidates.retain_mut(|plan| match temporary_selections.next() {
-        Some(Some((selected, normal))) => {
-            cleanup::temporary_actions::install(&mut plan.operations, selected);
-            let Some(CheckedUnitEffectOperationPlan::Complete {
-                trivial_affine_discards,
-                ..
-            }) = plan.operations.last_mut()
-            else {
-                return false;
-            };
-
-            plan.normal_exit_cleanups = normal;
-            // Parameter dispositions now have one authority and one schedule.
-            // The former affine-only reconstruction must not dispose them again.
-            trivial_affine_discards.clear();
-            true
+    let install_sequence_cleanup = |plan: &mut CheckedUnitEffectMachinePlan, (selected, normal)| {
+        cleanup::temporary_actions::install(&mut plan.operations, selected);
+        let Some(CheckedUnitEffectOperationPlan::Complete {
+            trivial_affine_discards,
+            ..
+        }) = plan.operations.last_mut()
+        else {
+            return false;
+        };
+        plan.normal_exit_cleanups = normal;
+        // Parameter dispositions now have one authority and one schedule.
+        // The former affine-only reconstruction must not dispose them again.
+        trivial_affine_discards.clear();
+        true
+    };
+    partial_affine_machines.retain_mut(|plan| match partial_affine_selections.next() {
+        Some(Some(selection)) => install_sequence_cleanup(&mut plan.machine, selection),
+        _ => {
+            cleanup_gaps
+                .entry(symbol_key(plan.machine.machine))
+                .or_insert_with(|| {
+                    plan_gap(
+                        program,
+                        plan.machine.machine,
+                        GapSite::State(plan.machine.state),
+                        CheckedUnitPlanGapReason::Unsupported("sequence cleanup actions"),
+                    )
+                });
+            false
         }
+    });
+    candidates.retain_mut(|plan| match temporary_selections.next() {
+        Some(Some(selection)) => install_sequence_cleanup(plan, selection),
         _ => {
             cleanup_gaps
                 .entry(symbol_key(plan.machine))
