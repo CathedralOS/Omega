@@ -591,8 +591,9 @@ authority and independently validates package-defined artifacts before activatio
 
 ## Target inspection and reflection
 
-Build execution may inspect explicitly supplied, independently verified component
-descriptions without executing those components. Use the existing component and
+Build execution may inspect explicitly supplied
+[verified component descriptions](component_publication.md#verified-component-descriptions)
+without executing those components. Use the existing component and
 Terminal evidence owners to expose closed imports/exports, authority completeness,
 and exact semantic identity as owned descriptions. Reading raw artifact metadata
 does not make it verified. Missing completeness or unaccepted assumptions remain

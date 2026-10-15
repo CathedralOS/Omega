@@ -1,6 +1,6 @@
 # Proof admission
 
-Contracts: [verification](../../../../../wiki/spec/terminal-psi/verification.md),
+Contracts: [fact validity](../../../../../wiki/spec/terminal-psi/fact_validity.md),
 [integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md),
 and [mathematical proof values](../../../../../wiki/spec/terminal-psi/mathematical_values.md).
 

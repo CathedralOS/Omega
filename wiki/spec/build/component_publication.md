@@ -95,12 +95,6 @@ describe API roles, not shipped signatures. The expected subject and profile
 come from independent caller policy; deserialization yields only a candidate.
 A producer-written completeness flag cannot establish the qualification.
 
-[PCC admission](../proofs/publication.md) takes the corresponding sidecar and
-the receiver's independently selected policy package/configuration. These are
-explicit verification inputs even when an API groups them into `profile`.
-Native verification does not require a separate Psi artifact. An ordinary
-uncertified executable cannot acquire independent completeness by deserialization.
-
 The description exposes exact public slots and directions, complete closed
 requirement/calling contracts, all possible entries, outgoing authority demands,
 and checked custody/lifetime constraints. It retains verification-schema and
@@ -387,8 +381,8 @@ implemented.
 
 | Product | Contains | Does not establish |
 | --- | --- | --- |
-| Canonical Terminal artifact | Exact semantics, optional debug and required product metadata; a separate `.proof` companion when requested. | Native target, installed provider, or publication authority. |
-| Native artifact | Final object/image with its required realization metadata; a standalone `.proof` companion when requested. Internal production retains the checked Terminal/provider/realization relationships. | A requirement to ship Terminal, output path, installed occurrence, progress receipt, or `InstalledCode` custody. |
+| Canonical Terminal artifact | Exact semantics, optional debug and required product metadata. | Native target, installed provider, or publication authority. |
+| Native artifact | Final object/image with its required realization metadata. Internal production retains the checked Terminal/provider/realization relationships. | A requirement to ship Terminal, output path, installed occurrence, progress receipt, or `InstalledCode` custody. |
 | Native component candidate | The same native artifact plus exact source-selected provider facts and pending component-progress manifest. | A second lowering route or runnable installation. |
 | Installed runnable | Replayed installation and the real installed-code/provider/progress custody for a live component era. | A new installation merely by recompilation. |
 | Publication receipt | Exact installation/image/path relationship and required file-mode validation. | Authority inferred from a filename or compact report identifier. |

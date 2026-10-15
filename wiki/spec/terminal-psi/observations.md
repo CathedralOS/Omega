@@ -97,7 +97,7 @@ and interpreter support for a tagged boundary crash site does not establish
 them.
 
 The consumer selects the typed schema and may retain an authenticated expected
-commitment. The verifier independently derives the instance from the validated
+commitment. Checking derives the instance from the validated
 module and compares the complete decoded profile. The proof producer supplies
 neither site rows nor weakening flags. Cross-profile reuse requires a checked
 canonical forgetting projection; profile equality is not such a projection.

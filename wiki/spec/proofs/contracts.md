@@ -398,11 +398,11 @@ introduced. A checking/no-op requirement cannot promise that normal return prove
 the condition. Exclusion evidence neither validates admitted assumptions nor
 introduces mandatory runtime checks, and does not narrow ordinary API contracts.
 
-Published proof evidence retains theorem identity, cited lemmas and premises,
+Checked proof evidence retains theorem identity, cited lemmas and premises,
 normalization licenses, derivation/checker version, and trust/deferral closure.
 Deterministic normalization owns identity; stronger proof search may establish
-more claims but cannot rename them. Terminal obligations and certificate checks
-follow the [verification contract](../terminal-psi/verification.md).
+more claims but cannot rename them. Terminal obligations follow the
+[fact-validity rules](../terminal-psi/fact_validity.md).
 
 ## Certified elaboration and review
 
@@ -449,13 +449,6 @@ The [W-based inductive profile](inductive_profile.md) and
 [set-quotient interface](quotients.md#set-quotient-foundation) are selected.
 Combined metatheory, encoding correctness, kernel checking and library proofs
 remain execution obligations, not completed results or pending architecture votes.
-
-[Application PCC](publication.md) uses the common mathematical checking
-foundation, independently reconstructed requirements and exact receiver policy.
-Psi and native evidence are optional, separate `.proof` products; ordinary
-proof-obligation checking remains mandatory. General certificate production and
-operational soundness proofs are implementation obligations, not an unresolved
-choice of acceptance authority.
 
 `PROOF-CONTRACT-MIGRATION` on the [execution board](../../../TASKS.md) owns worked
 proofs and migration through source, serialization, and replay. Neither a

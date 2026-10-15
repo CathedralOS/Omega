@@ -190,7 +190,7 @@ library APIs; they do not introduce another compiler driver.
 | --- | --- |
 | Current program forms and their attached records/codecs | Each half's `compilation/representations/`, grouped by program family |
 | Source-program judgments | Psi `compilation/checking/`; source proof planning/search in `compilation/proof/`, independent mathematical checking in `compilation/proof/admission/` |
-| Terminal encoding, semantic reconstruction, verification and fuel | Independent packages beneath Psi `compilation/representations/terminal-psi/` |
+| Terminal encoding, semantic reconstruction and fuel | Independent packages beneath Psi `compilation/representations/terminal-psi/` |
 | Transformation, rewrite, private scratch and analyses | Each half's `compilation/pipeline/`, in the owning `X-to-Y` or `X-to-X` package |
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `compilation/backend/` |
 | Shared target-neutral source/arena/numeric primitives and optimization selections | Psi `foundation/` |
@@ -242,7 +242,7 @@ an independent package beside their Psi admission owner at
 
 [`omega/compilation/products/`](omega/compilation/products/README.md)
 owns invocation configuration and product eligibility, finished report payloads,
-and publication of exact artifact/proof pairs.
+and artifact publication.
 It also owns the retained evaluated-Build records and checked compilation product:
 source-custody sealing, immutable stage results and their metadata/subject
 projections. The Build evaluator produces this shared data contract; product
@@ -391,14 +391,14 @@ package admits source-level opaque representation relationships and checks their
 transitive cleanup and copy properties. The caller supplies build authority;
 backend layout derives target shape from the admitted carrier. Its independent
 `selections/` package keeps consumers free of a dependency on admission.
-`psi/compilation/proof/` constructs
-and solves source proof obligations; its independent `admission/` package owns
-the mathematical kernel and supplied-certificate checking shared with Terminal
-verification. Terminal-specific codec, semantic reconstruction, verification,
-fuel schedule and fuel certification packages live beside Terminal Psi under
-`psi/compilation/representations/terminal-psi/`. Each keeps its own manifest and dependency
-direction. Nesting gives these companions a subject; it adds no program stage.
-A general `psi/semantics/` bucket obscures these distinct responsibilities.
+`psi/compilation/proof/` constructs and solves source proof obligations; its
+independent `admission/` package owns the mathematical kernel and
+supplied-certificate checking. Terminal-specific codec, semantic reconstruction
+and fuel schedule packages live beside Terminal Psi under
+`psi/compilation/representations/terminal-psi/`. Each keeps its own manifest and
+dependency direction. Nesting gives these companions a subject; it adds no
+program stage. A general `psi/semantics/` bucket obscures these distinct
+responsibilities.
 
 The independent `optimization-unit-semantics` checker lives at
 `omega/compilation/representations/abstract-operations/optimization-unit/semantics/`, beside the representation
@@ -615,7 +615,7 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
 - Psi `compilation/proof/` — source obligation construction and proof search; independent
   `compilation/proof/admission/` owns the shared mathematical checker.
 - Terminal companion packages live beneath `compilation/representations/terminal-psi/`:
-  `codec/`, `semantics/`, `verification/`, `fuel/` and `fuel/certification/`.
+  `codec/`, `semantics/` and `fuel/`.
   Representation data and candidate production remain independent of checking.
 - Psi `compilation/terminal-production/` — sequences stages 05–07 through
   publication. Omega `compilation/driver/terminal-production/` supplies product
@@ -715,10 +715,7 @@ Semantic distinctions, ABI constraints, missing proof obligations, and explicit
 implementation limits remain real. Never remove their rejection checks merely
 to admit more shapes. Specialized pattern matching is appropriate for optional
 optimizations with a correct general path, not as the only way to compile an
-ordinary combination. Where verification runs (see
-[verification placement](#verification-placement)), it reconstructs and checks
-the operation/evidence relationships; it does not trust a producer assertion or
-rediscover the original source idiom.
+ordinary combination.
 
 When a customer exposes this pattern, identify the general operation or join that
 is missing and remove the superseded special path as that repair lands. Before

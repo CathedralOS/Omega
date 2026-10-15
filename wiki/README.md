@@ -44,7 +44,6 @@ beside code; completed work belongs in Git, not current reference material.
   [W-based induction and indexed encoding](spec/proofs/inductive_profile.md),
   [contracts, bundles, normalization, and trust](spec/proofs/contracts.md)
   and [relations and quotients](spec/proofs/quotients.md).
-- Proof-carrying products: [optional Psi/native sidecars and receiver policy](spec/proofs/publication.md).
 - Terminal Psi: [product](spec/terminal-psi/product.md),
   [calls and outcomes](spec/terminal-psi/calls_and_outcomes.md),
   [control flow and ranking](spec/terminal-psi/control_flow.md),
@@ -57,7 +56,7 @@ beside code; completed work belongs in Git, not current reference material.
   [dynamic dispatch](spec/terminal-psi/dynamic_dispatch.md),
   [observations](spec/terminal-psi/observations.md), and
   [encoding](spec/terminal-psi/encoding.md),
-  [verification](spec/terminal-psi/verification.md),
+  [fact validity](spec/terminal-psi/fact_validity.md),
   [mathematical proof values](spec/terminal-psi/mathematical_values.md), and
   [integer certificates](spec/terminal-psi/integer_certificates.md).
 - Resources: [logical work](spec/resources/logical_work.md) and

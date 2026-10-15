@@ -2,8 +2,8 @@
 
 These are source-language obligations, not a list of patterns recognized by the
 Rust compiler. [Mathematical proof contracts](../proofs/contracts.md) owns theorem
-meaning, assumptions, bundles, and evidence; [Terminal verification](../terminal-psi/verification.md)
-independently checks the emitted product.
+meaning, assumptions, bundles, and evidence; [Terminal fact validity](../terminal-psi/fact_validity.md)
+governs which premises the emitted product's obligations may use.
 
 ## Bindings and arrivals
 
@@ -124,7 +124,6 @@ targets and inputs; an empty write summary alone does not prove repeatability.
 
 Source proof search may be incomplete. Failure to infer an invariant, normalize
 a term, or prove a supported implication grants no fact and is not a refutation.
-The checked program is not a substitute for an independently verified Terminal
-certificate. Current algorithms and support limits belong beside
+Current algorithms and support limits belong beside
 [checking](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md)
 and [validation](../../../omega-rust/psi/compilation/checking/README.md).

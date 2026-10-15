@@ -3,13 +3,13 @@
 Structural predicates retain exact parameter roots, typed paths, and operation
 meaning. They are not opaque aggregate hashes or permission to inspect arbitrary
 storage. [Structural access](structural_access.md) governs observation;
-[verification](verification.md) governs premise availability and substitution.
+[fact validity](fact_validity.md) governs premise availability and substitution.
 
 ## Paths and call substitution
 
 Path segments distinguish field identities, exact fixed-array indices, and case
 identities followed by payload-field identities. Each nested selection retains
-the complete ordered path. The verifier traverses declared types independently,
+the complete ordered path. Checking traverses declared types independently,
 checking relevance, intermediate types, bounds, case/payload ownership, and leaf
 type. Missing, erased, truncated, mistyped, out-of-bounds, or redirected paths
 reject even if a replacement happens to reach another same-typed leaf.

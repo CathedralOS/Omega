@@ -140,7 +140,7 @@ REMOVE-BRACKETED-RANGE-ANNOTATIONS 3.
 
 The recorded owner-blocker classification has since been corrected:
 C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT and NATIVE-WRAPPER-ENCODING-AARCH64 are
-implementation work under the [proof outcomes](../../spec/proofs/publication.md#outcomes)
+implementation work under the [proof outcomes](../../spec/build/compiler_request.md#outcomes)
 and [target-authored entry contracts](../../spec/build/entry_roots.md).
 Interpreted assembly is now settled as
 [instruction semantics over supplied environments](../../spec/language/assembly.md#interpreted-execution);

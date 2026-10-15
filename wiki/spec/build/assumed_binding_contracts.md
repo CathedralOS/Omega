@@ -167,8 +167,8 @@ Psi retains the abstract requirement, contract evidence and runtime demands.
 Omega's existing provider planning/installation validates and applies the
 root-selected relationship. Reuse ordinary call and result custody; do not add a
 parallel compiler pipeline, opaque instruction path, or package-owned verifier.
-Independent verification checks the assumption and structural obligations under
-the receiving policy; it does not certify the assumption's truth.
+Checking establishes the structural obligations and records the assumption under
+the root selection; it does not certify the assumption's truth.
 
 ## Runtime only
 

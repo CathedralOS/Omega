@@ -114,7 +114,7 @@ unbounded scan. No-code disposal emits no target instruction or runtime bitmap.
 
 The [source ownership window](../language/ownership.md#borrowed-storage-invariant-windows)
 requires an exact relationship between an exclusive loan, its captured place,
-the projected move, and the later establishing store. Independent verification
+the projected move, and the later establishing store. Checking
 reconstructs that relationship from operations, loan authority, and control flow.
 A producer assertion that the owner is restored is not evidence.
 

@@ -5,7 +5,7 @@ logic. This is not a concrete integration proposal or authorization for a new
 calculus, kernel replacement, or implementation experiment. Delete these notes
 when superseded by a concrete design or no longer useful. Related subjects:
 [proof contracts](../../spec/proofs/contracts.md) and
-[artifact verification](../../spec/terminal-psi/verification.md).
+[fact validity](../../spec/terminal-psi/fact_validity.md).
 
 ## Motivation
 

@@ -18,8 +18,7 @@ filesystem or hardware authority; classification and admitted trust remain
 independently visible.
 
 The receiver selects the policy's versioned package, exact dependency closure
-and concrete configuration independently of the offered program, as specified
-for [PCC admission](../proofs/publication.md#receiver-owned-requirements).
+and concrete configuration independently of the offered program.
 Its accepted commitments enter receiver-admission evidence. This authority-class policy
 does not replace memory-safety guarantees or confine which objects may be touched.
 
@@ -38,10 +37,8 @@ compatibility check applies the supplied policy and rejects incompatibility;
 ordinary production must not silently invent such a request.
 
 An OS, loader, registry, or deployment system selects and enforces its own
-admission policy. Optional [PCC](../proofs/publication.md) lets that receiver check
-claims without trusting their producer. Neither a binary nor its build script
-can authorize itself, select the receiver's policy, or enforce rules on its host.
-Shared policy/checking infrastructure does not make PCC mandatory for compilation.
+admission policy. Neither a binary nor its build script can authorize itself,
+select the receiver's policy, or enforce rules on its host.
 `omega run` combines production with a host execution request; production grants
 no host permission. [Build-time authority](execution.md#restricted-build-requests)
 is a separate concern because the build actually executes on the build host.
@@ -252,11 +249,10 @@ retain the same recursive reach rules. See
 [device access](../resources/device_access.md).
 
 An untrusted binary's manifest is only a claim: permitted CPU instructions can
-bypass it. Source-derived contracts rely on the trusted compiler or independently
-checked evidence; verified portable IR removes trust in its producer only for
-the checked IR claims. Locally interpreting/lowering it does not admit supplied
-native bytes. [Executable installation](executable_installation.md) requires
-exact admitted artifact and placed-byte provenance. Native refinement PCC,
-lower-rooted bootstrap assurance, and hardware control-flow hardening are
-separate assurance layers. Admitted call/state exits do not make opaque
-in-process code memory-safe or its executable inventory complete.
+bypass it. Source-derived contracts rely on the trusted compiler. Locally
+interpreting or lowering portable Terminal Psi does not admit supplied native
+bytes. [Executable installation](executable_installation.md) requires exact
+admitted artifact and placed-byte provenance. Lower-rooted bootstrap assurance
+and hardware control-flow hardening are separate assurance layers. Admitted
+call/state exits do not make opaque in-process code memory-safe or its
+executable inventory complete.

@@ -9,7 +9,7 @@ and placement plan. Packages cannot self-establish it; mutation destroys it.
 This is the receiving environment's installation boundary, not a prerequisite
 for emitting an executable file. Ordinary compilation grants no installation or
 execution authority and requires no receiving policy. An ecosystem may demand
-PCC or other admitted evidence here under its independently selected
+admitted evidence here under its independently selected
 [policy](permissions.md#artifact-production-versus-receiver-admission).
 
 ## Placement lifecycle
@@ -95,19 +95,16 @@ ambient imports, recursive metadata, or permissive semantic extensions.
 Informational sections grant no authority; meaning/trust-bearing sections are
 required. A UEFI PE/COFF envelope is not the component format.
 
-[Portable PCC](../proofs/publication.md) is requested independently and initially
-published in an adjacent `.proof` file, not a required embedded section. A
-receiver requiring PCC must check that companion before admission. A receiver
-may instead explicitly trust an accepted producer for checks it does not replay;
-that route is not independent PCC verification. Neither choice bypasses sealed
-admission, final-byte/placement validation, footprint checks or the W^X lifecycle.
+A receiver may explicitly trust an accepted producer for checks it does not
+repeat. That trust does not bypass sealed admission, final-byte/placement
+validation, footprint checks or the W^X lifecycle.
 
 Decode/structural validation yields only an immutable candidate. Admission is
 separate. Exact content and normalized semantic promises define identity;
 presentation order and informational sections do not. Backend translation takes
 the validated carrier and rejects target or relocation mismatch atomically.
 This does not imply a completed byte-format specification; the owning artifact
-and PCC work remains on [TASKS.md](../../../TASKS.md).
+work remains on [TASKS.md](../../../TASKS.md).
 
 The boot base case keeps the same boundary: trusted build validates and signs an
 admitted identity; secure boot authenticates and gates entry; measured boot

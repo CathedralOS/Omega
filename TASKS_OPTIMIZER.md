@@ -18,10 +18,10 @@ its first line: `(new-scope)` or `(split-of:<parent-item>)`.
 
 Selections are exact names. Do not add `O1`/`O2`/`O3`, `debug`/`release`, or
 another broad alias. Every rule names the exact semantic, proof, ownership,
-effect and target facts it consumes. Proof-carried facts may be consumed
-in-process; no item here requires proof bundles, independent replay of the
-compiler's own rewrites, or custody-mutation matrices (see
-[PCC removal](TASKS.md#pcc-removal)). Optimizer crates have no
+effect and target facts it consumes. Checked facts may be consumed
+in-process; no item here requires shipped proofs, independent replay of the
+compiler's own rewrites, or custody-mutation matrices (proof-carrying code was
+removed; see [PCC removal](TASKS.md#pcc-removal)). Optimizer crates have no
 Rust tests; acceptance names corpus fixtures under `tests/omega/` run through
 `tools/corpus_gate.py`.
 

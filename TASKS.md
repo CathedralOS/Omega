@@ -59,8 +59,9 @@ Language behavior is tested by corpus fixtures under
 builds and executes eligible fixtures); `tools/sample_native_gate.py` checks
 documented sample exit/output on the host. Most compiler crates have no Rust
 tests: an acceptance names a corpus fixture, or asks for a new one. Proof-carrying
-code is being removed; no item here requires proof bundles, receiver
-re-verification or independent replay of the compiler's own output. Run
+code was removed ([PCC removal](#pcc-removal)); no item here requires shipped
+proofs, receiver re-verification or independent replay of the compiler's own
+output. Run
 `python tools/board_paths.py --board TASKS.md` after moving cited paths.
 Workflow is in [AGENTS.md](AGENTS.md), live assignments in the
 [claims registry](tools/claims.md), semantic decisions in
@@ -250,9 +251,8 @@ helper that passes does not close an item.
     `omega-rust/psi/compilation/checking`; apply the same source contract to
     the product producer in `source/psi/`. Carry implementation identity,
     complete ordinary trait arguments, rows and laws through Terminal codecs,
-    interpretation, package review metadata and independent verification.
-    Consumers already scheduled for PCC deletion are deleted, not migrated
-    or restored; retain source checking and authored mathematics proof checking.
+    interpretation and package review metadata. Retain source checking and
+    authored mathematics proof checking.
     Remove subject/carrier fields and receiver correspondence used solely for
     trait satisfaction; do not rename them into a hidden distinguished binder.
   - Generic implementation binders and exact `satisfies Trait<...>::member`
@@ -286,7 +286,7 @@ helper that passes does not close an item.
   - Own the affected declarations in `source/library/`, `samples/`, and
     `tests/omega/`, with item/path claims for independent batches. Update exact
     satisfaction edges, generic bounds, inherited trait arguments, defaults,
-    operator wrappers, placed-access families, proof bundles and test-group
+    operator wrappers, placed-access families and test-group
     registrations together with their callers. No blanket `Self` replacement:
     declare each actual data type parameter where the signature needs it.
   - Customers include `source/library/core/layout.omg`,
@@ -1960,8 +1960,7 @@ introduce a third IR, a third engine, a tree-input execution mode or a shared
 wrapper around both old engines. Governing contracts are the
 [pipeline](omega-rust/pipeline.md),
 [semantic evaluation](wiki/spec/language/evaluation.md) and
-[embedding](wiki/spec/build/embedding.md); current PCC-removal instructions take
-precedence over older references to mandatory proof bytes or Terminal replay.
+[embedding](wiki/spec/build/embedding.md).
 
 This is an owner-authorized breaking migration. Establish the small build,
 check and run path needed to develop the compiler, then delete tree execution
@@ -1985,9 +1984,11 @@ development comparison, with the comparison reported as unavailable. A
 requested execution still reports unimplemented; an actual wrong result is a
 failure. Type, arithmetic definedness, ownership, termination, effect/grant and
 foreign-package admission failures remain errors. Remove redundant production
-replay under the existing PCC tasks rather than downgrading it into a new
-warning pass. Do not turn arbitrary errors into unimplemented or warn and run
-code whose required semantic checks failed.
+replay under
+[verification placement](omega-rust/pipeline.md#verification-placement)
+rather than downgrading it into a new warning pass. Do not turn arbitrary
+errors into unimplemented or warn and run code whose required semantic checks
+failed.
 
 Claim individual assignments and paths. Each restoration lands one operation
 or caller family, removes its superseded mechanism, and names an unchanged
@@ -3665,41 +3666,6 @@ deletions, which the commit lists.
   exact checking-time decision carried through `SourceChecked`; corpus failures
   rejected for a missing source decision reject from `omega --check` with
   checking diagnostics instead, without weakening other check outcomes.
-
-- **PCC-DOCS-RETIRED.** (new-scope) Remove PCC from the instructions,
-  specification and board text in one commit:
-  - AGENTS.md: reword the opening "proof-carrying systems language", and the
-    hard rule's "and independent verification" link.
-  - `omega-rust/pipeline.md`: delete compositional lowering's "Independent
-    verification must reconstruct..." rule and the Terminal verification
-    package and admission rows.
-  - Delete `wiki/spec/proofs/publication.md` after moving "## Outcomes" to
-    `wiki/spec/build/compiler_request.md` and the bootstrap/foreign-producer
-    paragraphs to `wiki/spec/proofs/foundation.md`.
-  - Reduce `wiki/spec/terminal-psi/verification.md` to the fact-validity
-    rules the checker and optimizer use ("Premise availability", "Entry facts
-    and crash coverage") under a new name, and delete the rest.
-  - Delete `wiki/spec/terminal-psi/encoding.md` "Proof bundle", "Obligation
-    ledger" and "PCC proof sidecar", and the canonical artifact proof section.
-  - Delete "Shipping independently checkable proofs" in
-    `wiki/language_guide/chapter_10_compile_time_proofs.md`,
-    "Proof-carrying output" in `wiki/spec/build/configuration.md`, and the
-    `builder.pcc.*` lines in
-    `wiki/language_guide/chapter_15_modules_imports_visibility.md`.
-  - Trim the PCC sentences in `wiki/spec/terminal-psi/product.md`,
-    `wiki/spec/proofs/contracts.md`, `wiki/spec/proofs/foundation.md`
-    (migration bullets), `wiki/spec/proofs/quotients.md` ("Published quotient
-    correspondence"), `wiki/spec/build/permissions.md`,
-    `wiki/spec/build/executable_installation.md`,
-    `wiki/spec/build/macos_application.md`,
-    `wiki/spec/build/component_publication.md`,
-    `wiki/spec/build/compiler_request.md`, `wiki/spec/build/optimizations.md`,
-    `wiki/language_guide/chapter_19_capabilities_effects_boundaries.md` and
-    `wiki/language_guide/packages.md`. Reframe "independent verification"
-    wording in the other `wiki/spec/terminal-psi/` docs.
-  Acceptance: `rg -i "pcc|proof-carrying|proof bundle|independent(ly)?
-  verif"` over `AGENTS.md`, `wiki/`, `omega-rust/pipeline.md` and the boards
-  returns only history notes.
 
 ## Automatic service reach
 
@@ -5675,7 +5641,8 @@ wait for Cathedral's instruction coverage. The interpreter is
     has no Linux system call, so it belongs to the target implementations of
     the portable service, not the raw POSIX trait.
   - `native_metadata_ino` stops at the proof-search budget
-    (`proof_search_result_guarantee_work`); PCC removal owns it.
+    (`proof_search_result_guarantee_work`);
+    **CHECKER-CARRIES-OPERATION-DECISIONS** owns it.
   - `read_link`, `read_dir`, metadata and timestamp adapters still stage
     through 4096-byte buffers. Remove unnecessary byte copying; preserve
     the native layout, alignment and minimum-storage requirements of

@@ -299,11 +299,6 @@ type does not constrain malicious native code by itself; containment and provide
 trust remain explicit. Separate instances are not automatically OS sandboxes.
 
 Ordinary structure, schema, input, authority, and execution checks always apply.
-[PCC](../proofs/publication.md) is separately requested/required by policy; its
-companion is an adjacent `.proof` file. A receiver requiring it independently
-checks the exact artifact, contracts, dependencies, and assumptions. An accepted
-producer-trust route without that evidence must not be reported as independent
-verification.
 
 Psi owns source meaning, descriptions, and portable obligations. Interpreter
 semantics owns execution against those obligations and installation of supplied

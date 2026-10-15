@@ -230,6 +230,28 @@ Validate outer framing and subject canonicality before checking this binding.
 It remains mandatory when the two sections share a frame, and does not replace
 local package-key checks. Hashing a reconstructed object is not equivalent.
 
+## Outcomes
+
+Compilation preserves four outcome distinctions:
+
+| Outcome | Meaning for the requested product |
+| --- | --- |
+| `Complete` | Every requested artifact is produced and validated. |
+| `Reject` | Invalid request/evidence, violated checking/admission rules, or an established violation of a required guarantee. Name which subject failed. |
+| `Incomplete` | A named resource/search limit or unsupported valid case prevents completion; no claim that the unproved conclusion is false. |
+| `InternalFailure` | A compiler/checker malfunction or violated implementation invariant; no artifact authority. |
+
+Failure to find a proof is not proof of falsehood. Rejecting a submitted proof
+does not refute its conclusion. Failure to admit assumptions does not refute
+the theorem either. Contradictory branch premises may legitimately discharge an
+unreachable path; inconsistent admitted axioms may derive falsehood. Neither is
+automatically an implementation failure. Diagnostics distinguish failed source
+checking, invalid proof, unavailable evidence and receiving-policy refusal.
+
+These semantic outcomes do not invent new wire tags or host exit codes. The
+halt tags and failure frames below represent them for this request; another
+consumer follows its owning interface.
+
 ## Validation and failures
 
 Validate identity/reserved bytes, encoded high bits, and exact end before any
@@ -248,14 +270,9 @@ snapshots, admissions, and commitment before source tokenization and build work.
 
 Every failure publishes only its closed OCOUT frame, never an artifact prefix.
 
-The requested product includes normalized Build's independent
-[Psi/native PCC selections](../proofs/publication.md). `Complete` must deliver
-every requested artifact/sidecar pair; an uncertified artifact is not a fallback.
-The existing single-artifact payload does not define multi-file framing: extend
-the owning product schema explicitly, without concatenating unframed files or
-inventing halt tags. Search exhaustion is `Incomplete`, an invalid certificate
-is `Reject`, and deriving a contradiction from admitted logical premises is not
-by itself `InternalFailure`.
+Search exhaustion is `Incomplete`, an invalid certificate is `Reject`, and
+deriving a contradiction from admitted logical premises is not by itself
+`InternalFailure`.
 
 The failure frame's eight-byte identity is `FF 4F 43 4F 55 54 01 00`; its common header is 40
 bytes. Its outcome must match the halt tag. The assigned common-header layout is:

@@ -228,16 +228,17 @@ or admissions may qualify the row, but symbolic coverage proves only routing
 and dispatch, not calling policy, byte layout, register classes, or stack
 placement. Bodyless, external, opaque, intrinsic, and separately supplied
 realizations remain exact-only; any future foreign universal contract needs its
-own independent verifier, not a checked-body label or a successful concrete case.
+own check at the foreign-package trust boundary, not a checked-body label or a
+successful concrete case.
 
 An indexed requirement such as `ResidentContentTransfer<P,T>` is one schema
 selected through one binding, not an ambient slot per monomorph. A provider may
 offer a generic implementation or exact supported family, but final composition
-must reconstruct every reachable closed demand and independently verify its
-realization. Installation retains the admitted applications and issuance events.
-Separate indexed slots are justified only by genuinely independent selection;
-otherwise indices refine one provider's obligations. No ambient conformance
-search or producer-authored total establishes the complete set.
+must reconstruct every reachable closed demand and check its realization.
+Installation retains the admitted applications and issuance events. Separate
+indexed slots are justified only by genuinely independent selection; otherwise
+indices refine one provider's obligations. No ambient conformance search or
+producer-authored total establishes the complete set.
 
 [Opaque representations](opaque_representations.md) use a separate typed selection.
 [Independent components](component_publication.md#selection-and-component-closure)

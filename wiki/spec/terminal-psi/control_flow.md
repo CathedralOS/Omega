@@ -81,8 +81,7 @@ roster, not a separate induction mechanism.
 
 The complete group and all operation obligations must check before the module
 grants authority. Missing or duplicate arrivals, wrong scope or carriers, and
-stale edge coordinates reject. Certificates use the existing flat proof bundle;
-their presence cannot select the roster. Structural-case arrival substitution
+stale edge coordinates reject. Structural-case arrival substitution
 is not implemented by this scalar roster and rejects explicitly.
 
 Invariant induction is distinct from ranking. A decreasing rank does not grant
@@ -138,9 +137,8 @@ rules belong to [mathematical proof contracts](../proofs/contracts.md#citation-a
 
 ## Correspondence
 
-Verification establishes the stated Terminal semantics, not that a producer
+Terminal obligations establish the stated Terminal semantics, not that a producer
 compiled the intended source. Source-to-Psi correspondence and Psi-to-target
 refinement are separate obligations. Producer identity substitutes for neither.
 Consumer-specific implementation limits are documented beside the
-[verifier](../../../omega-rust/psi/compilation/representations/terminal-psi/verification/README.md#cyclic-control)
-and [native entrance](../../../omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md#ranked-native-admission).
+[native entrance](../../../omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md#ranked-native-admission).

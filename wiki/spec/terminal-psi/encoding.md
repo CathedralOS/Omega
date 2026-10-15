@@ -6,9 +6,8 @@ This is the canonical encoding contract, not yet a complete byte-level decoder
 specification. The [documentation index](../../README.md) lists operation subjects.
 [Proof values](mathematical_values.md) and [certificate rules](integer_certificates.md)
 define semantics; the tables below give the physical layout of every operation,
-terminator, scalar-term, proposition, and proof-node form the codec accepts,
-plus the catalog, scalar-block-invariant, machine, and ledger rows a receiver
-rederives on decode.
+terminator, scalar-term, and proposition form the codec accepts, plus the
+catalog, scalar-block-invariant, and machine rows.
 
 ## Canonical form
 
@@ -20,10 +19,10 @@ operations, jump arguments, and other execution-significant sequences retain
 their declared order. Recursive terms have a fixed supported depth bound.
 
 Decode rejects stale markers, unknown tags, invalid identities/values,
-noncanonical order/forms, verifier-invalid modules, truncation, and trailing
+noncanonical order/forms, structurally invalid modules, truncation, and trailing
 bytes. Successful decoding re-encodes byte-for-byte; it never normalizes an
 alternative spelling. The pre-release contract has no implicit migration:
-semantic changes move producer, codec, verifier, interpreter, and lowerers
+semantic changes move producer, codec, interpreter, and lowerers
 together. Current golden bytes establish the current format, not historical
 acceptance.
 
@@ -36,7 +35,7 @@ as a compatibility dialect. Access, multiplicity, qualifications and custody
 remain independently checked for every ordinary parameter.
 
 `STATIC-MACHINE-MIGRATION` tracks completion of the coordinated producer,
-codec, verifier and consumer migration. These byte layouts do not claim that
+codec and consumer migration. These byte layouts do not claim that
 the remaining consumer migration or end-to-end validation is complete.
 
 The same distinction applies to the legacy conformance subject field. The
@@ -120,9 +119,7 @@ The semantic scalar-block-invariant roster precedes the machine table.
 
 Rows are strictly ordered by `(machine, header)` and arrivals strictly by edge
 identity. Every actual header arrival must occur exactly once. Predicate and
-roster participate in semantic identity; their certificates remain replaceable
-flat proof evidence. The reconstructed ledger owner retains machine, header,
-and edge independently of evidence. The block-predicate representation
+roster participate in semantic identity. The block-predicate representation
 replaces the former dedicated range row; old bytes are rejected rather than
 reinterpreted.
 
@@ -265,8 +262,7 @@ classes:
 
 ## Scalar terms
 
-A scalar term is a `u8` form tag followed by its fields. The semantic module
-and the proof bundle share this grammar byte for byte.
+A scalar term is a `u8` form tag followed by its fields.
 
 <!-- scalar-term-tags -->
 | Tag | Scalar term | Fields after the tag |
@@ -330,8 +326,7 @@ structural-root substitution. A term supplies no bounds, access or truth evidenc
 
 ## Integer math terms
 
-The proof-only unbounded integer syntax, shared byte for byte between the
-semantic module and the proof bundle.
+The proof-only unbounded integer syntax.
 
 <!-- integer-math-term-tags -->
 | Tag | Integer math term | Fields after the tag |
@@ -361,8 +356,7 @@ record/enum carrier construction and never stands in for a runtime operand.
 
 ## Content terms and places
 
-The conservation algebra and content-place grammar used by proposition 9,
-shared byte for byte between the semantic module and the proof bundle.
+The conservation algebra and content-place grammar used by proposition 9.
 
 | Field form | Encoding |
 | --- | --- |
@@ -377,8 +371,7 @@ shared byte for byte between the semantic module and the proof bundle.
 
 ## Propositions
 
-A proposition is a `u8` form tag followed by its fields. The semantic module
-and the proof bundle share this grammar byte for byte.
+A proposition is a `u8` form tag followed by its fields.
 
 <!-- proposition-tags -->
 | Tag | Proposition | Fields after the tag |
@@ -1534,116 +1527,9 @@ propositions. An operation's published crash routes must be nonempty.
 Operation crash contracts are strictly ordered by machine id and operation
 id.
 
-## Proof bundle
-
-A proof bundle is `PSIPRF\0\0` + `u16` format marker 33 + counted obligation
-evidence rows + counted recursive component certificates + counted control
-cycle certificates + counted evidence producers. Sealed for transport it is
-`PSIPSC\0\0` + `u16` section marker 1 + `u16` vocabulary marker + a 32-byte
-program fingerprint + the bundle bytes.
-
-An obligation evidence row is an obligation id + an evidence route tag. A
-component certificate is a certificate identity + ranking relation id +
-well-foundedness evidence route + counted edges (obligation id + evidence
-route). An evidence producer is a producer id + term id + conformance string
-+ trait string + counted rows (declaring-trait string + counted argument
-strings + requirement string + machine string + state string + row source).
-
-<!-- evidence-route-tags -->
-| Tag | Evidence route | Fields after the tag |
-| --- | --- | --- |
-| 1 | KernelDerived | primitive judgment |
-| 2 | CertificateDerived | evidence identity + `u16` proof-system marker + proof node |
-| 3 | Admitted | admission site id + admission kind + authority identity + evidence identity + profile decision id |
-
-<!-- primitive-judgment-tags -->
-| Tag | Primitive judgment |
-| --- | --- |
-| 1 | Truth |
-| 2 | ReflexiveEquality |
-| 3 | ClosedIntegerRelation |
-| 4 | IntegerCarrierBound |
-
-<!-- evidence-producer-row-source-tags -->
-| Tag | Evidence producer row source |
-| --- | --- |
-| 1 | Inline |
-| 2 | Reference |
-| 3 | TraitDefault |
-
-A proof node is its conclusion proposition, a `u8` rule tag, the node's
-children — each recursively a proof node, written before the parent suffix —
-then the rule suffix fields. Rule 4 writes a counted child list; rules 16 and
-23 write one child (the disjunction or premise) then a counted continuation
-list; all other rules carry a fixed child count given below. The proof tree
-rejects nesting deeper than 256.
-
-<!-- proof-rule-tags -->
-| Tag | Proof rule | Children | Suffix fields |
-| --- | --- | --- | --- |
-| 1 | Primitive | 0 | primitive judgment |
-| 2 | SemanticAxiom | 0 | `u32` axiom index |
-| 3 | Assumption | 0 | `u32` assumption index |
-| 4 | ConjunctionIntroduction | counted | — |
-| 5 | ConjunctionElimination | 1 | `u32` conjunct index |
-| 6 | ImplicationIntroduction | 1 | — |
-| 7 | ImplicationElimination | 2 (implication, premise) | — |
-| 8 | EqualityTransitivity | 2 (left-middle, middle-right) | — |
-| 9 | DisjunctionIntroduction | 1 | `u32` disjunct index |
-| 10 | IntegerLessOrEqualTransitivity | 2 | — |
-| 11 | IntegerOrderSubstitution | 2 | `u32` substituted endpoint index |
-| 12 | IntegerAffineBound | 1 | root scalar term + target scalar term + counted definition axiom indices + counted optional literal axioms (`u8`: 0 absent; 1 + `u32` index) |
-| 13 | IntegerCastBound | 1 | root scalar term + target scalar term + counted definition axiom indices |
-| 14 | IntegerCorrelatedForbiddenRoots | 0 | dividend branch + divisor branch + `u32` definition axiom count + `u32` lower-bound axiom index + `u32` upper-bound axiom index + conclusion proposition; each branch is a root scalar term + target scalar term + counted steps (`u32` definition axiom index + optional literal axiom) |
-| 15 | IntegerExactAddDefinitionBound | 2 (left bound, right bound) | `u32` definition axiom index |
-| 16 | DisjunctionElimination | 1 + counted | — |
-| 17 | EqualitySymmetry | 1 | — |
-| 18 | IntegerOrderWeakening | 1 | — |
-| 19 | IntegerOrderDiscreteness | 1 | — |
-| 20 | IntegerSubtractOrder | 2 (difference, positive) | — |
-| 21 | IntegerStrictOrderTransitivity | 2 | — |
-| 22 | PredicateDenotation | 1 | — |
-| 23 | ValueEqualityTransport | 1 + counted | — |
-| 24 | IntegerAddOrder | 2 (sum, positive) | — |
-| 25 | IntegerSubtractAntitone | 3 (smaller, larger, order) | — |
-| 26 | IntegerExactSubtractDefinitionBound | 2 (left bound, right bound) | `u32` definition axiom index |
-| 27 | IntegerMathOrderTranslation | 1 (nonstrict mathematical order) | mathematical integer addend term |
-| 28 | IntegerOrderAntisymmetry | 2 (forward nonstrict order, backward nonstrict order) | none |
-
-## Obligation ledger
-
-The replay ledger binds the exact semantic subject and reconstruction trust
-graph and deliberately excludes proof routes: different valid certificates may
-discharge the same reconstructed question. Its bytes are `PSIOBLG\0` + `u16`
-format marker 3 + `u16` vocabulary marker + the 32-byte semantic-module
-fingerprint + the 32-byte trust graph identity + counted obligation rows.
-Decoding rejects trailing bytes, duplicate obligation identities, and
-duplicate owners, and the rows must re-encode byte-for-byte; a decoded ledger
-is then compared against local obligation reconstruction rather than trusted
-on arrival.
-
-An obligation row is its owner, obligation id, class, conclusion proposition,
-counted requirement propositions, counted semantic-axiom propositions, and a
-`bool` canonical-certificate flag.
-
-<!-- ledger-owner-tags -->
-| Tag | Obligation owner | Fields after the tag |
-| --- | --- | --- |
-| 1 | Operation | machine id + operation id |
-| 2 | CallRequires | machine id + operation id + `u32` requirement position |
-| 3 | NominalCleanupRequires | machine id + edge id + `u32` cleanup position + `u32` requirement position |
-| 4 | ContractEnsures | machine id + contract id + `u32` clause position |
-| 5 | ScalarBlockInvariant | machine id + header block id + edge id |
-
-<!-- obligation-class-tags -->
-| Tag | Obligation class | Fields after the tag |
-| --- | --- | --- |
-| 1 | Derivable | — |
-| 2 | AdmissionAuthorized | admission site id + admission kind + authority evidence identity |
-
 ## Canonical artifact
 
-The transport envelope is `PSIART\0\0` + `u16` format marker 2 + the counted
+The transport envelope is `PSIART\0\0` + `u16` format marker 3 + the counted
 section framing below; a receiver rejects an unknown magic, a stale marker,
 an unknown debug-presence tag, and trailing bytes.
 
@@ -1651,17 +1537,15 @@ an unknown debug-presence tag, and trailing bytes.
 | # | Framing field | Bytes |
 | --- | --- | --- |
 | 1 | semantic section length | `u64` byte length of the semantic module section |
-| 2 | proof section length | `u64` byte length of the sealed proof section |
-| 3 | optimization section length | `u64` byte length of the optimization execution section |
-| 4 | debug presence | `u8`: 0 absent; 1 + `u64` debug section byte length |
-| 5 | section bytes | semantic, sealed proof, optimization, then debug bytes when present, in that order |
+| 2 | optimization section length | `u64` byte length of the optimization execution section |
+| 3 | debug presence | `u8`: 0 absent; 1 + `u64` debug section byte length |
+| 4 | section bytes | semantic, optimization, then debug bytes when present, in that order |
 
 Decoding is reconstruction: the semantic module validates on its own; the
-sealed proof section decodes only against that decoded module's identity, so
-the producer cannot choose the verifier's subject; the optimization and debug
-sections rebind to it. The artifact manifest is rebuilt from the section
-bytes, never transported. Every decoded section must re-encode to the exact
-transported bytes — a producer's non-canonical serialization rejects.
+optimization and debug sections rebind to it. The artifact manifest is rebuilt
+from the section bytes, never transported. Every decoded section must re-encode
+to the exact transported bytes — a producer's non-canonical serialization
+rejects.
 
 ## Debug map
 
@@ -1699,39 +1583,19 @@ re-encoding.
 
 ## Optimization execution
 
-The record is `PSIOEXE\0` + `u16` format marker 1 + `u64` selection byte
-length + the selection bytes + input terminal identity + 32-byte input proof
-fingerprint + output terminal identity + 32-byte output proof fingerprint. A
-terminal identity is `u16` vocabulary marker + 32-byte program fingerprint.
+The record is `PSIOEXE\0` + `u16` format marker 2 + `u64` selection byte
+length + the selection bytes + input terminal identity + output terminal
+identity. A terminal identity is `u16` vocabulary marker + 32-byte program fingerprint.
 Decoding rejects trailing bytes, requires the empty selection set to leave
 both input/output identities unchanged, and requires byte-for-byte
 re-encoding.
-
-## PCC proof sidecar
-
-A proof-carrying-code sidecar is `PCCPROOF` + `u16` format marker 1 + `u8`
-product kind + the 32-byte artifact commitment + string semantic profile +
-string checker profile + counted guarantees + `u64` evidence length +
-evidence bytes + counted assumption strings + counted dependencies + no
-trailing bytes. A guarantee is a string identity + counted premise strings; a
-dependency is a string identity + a 32-byte content commitment. The guarantee
-set is nonempty; guarantees, assumptions, and dependencies are canonically
-ordered, and the decoded value re-encodes byte-for-byte. [PCC
-publication](../proofs/publication.md) owns the semantic contract these
-identities certify.
-
-<!-- pcc-product-kind-tags -->
-| Tag | Product |
-| --- | --- |
-| 1 | Psi |
-| 2 | Native |
 
 ## Mathematical certificate
 
 A mathematical certificate is `PSICORE\0` + `u16` format marker 3 + `u32`
 level arity + the counted node table + the counted declaration signature +
 the counted context + two `u32` root handles. It is the self-contained
-judgment a receiver replays in the kernel: declaration statements and bodies,
+judgment the kernel re-decides: declaration statements and bodies,
 context bindings, and the claimed `term : expected` pair all name rows in one
 shared term table.
 
@@ -1809,47 +1673,29 @@ written inline with no sharing table.
 
 | Section | Identity and role |
 | --- | --- |
-| Semantic module | Domain-separated commitment to exact canonical bytes; excludes replaceable proof, installation, and debug evidence. |
-| Proof bundle | Independently identified evidence, published only when requested in `<artifact>.proof`, binding the semantic artifact and exact proof profile/dependencies. The current bounded `PSIPRF\0\0` encoding is not the complete general sidecar schema. |
-| Obligation ledger | Independently identified reconstructed-obligation binding to the semantic subject and trust graph; proof routes stay replaceable evidence. |
-| Optimization execution | Selection/output semantic provenance is rejoined at decoding. Internal proof identities and portable preservation evidence remain distinct; absent PCC does not waive transformation checking. |
+| Semantic module | Domain-separated commitment to exact canonical bytes; excludes installation and debug evidence. |
+| Optimization execution | Selection/output semantic provenance is rejoined at decoding. |
 | Installation | Separate `PSIINST\0` bytes and identity, retaining realization evidence without granting admission. |
 | Debug map | Replaceable presentation metadata bound to the exact semantic subject, never program meaning. |
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
-marker; the semantic module, sealed proof section, obligation ledger, and
-debug map envelopes then carry the shared `u16` vocabulary marker (122). A
-receiver rejects an unknown magic or stale marker before reading any counted
-table. The installation record `PSIINST\0` is emitted outside this codec.
+marker; the semantic module and debug map envelopes then carry the shared `u16`
+vocabulary marker (122). A receiver rejects an unknown magic or stale marker
+before reading any counted table. The installation record `PSIINST\0` is emitted
+outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
 | semantic module | `PSITERM\0` | 151 | yes |
-| proof bundle | `PSIPRF\0\0` | 34 | no |
-| sealed proof section | `PSIPSC\0\0` | 1 | yes |
-| obligation ledger | `PSIOBLG\0` | 3 | yes |
-| canonical artifact | `PSIART\0\0` | 2 | no |
-| PCC proof sidecar | `PCCPROOF` | 1 | no |
+| canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
-| optimization execution | `PSIOEXE\0` | 1 | no |
+| optimization execution | `PSIOEXE\0` | 2 | no |
 | mathematical certificate | `PSICORE\0` | 3 | no |
 
 The reconstructed manifest binds each present component under its own hash domain.
 Absent differs from present-but-empty. Replacing valid nonsemantic evidence
-preserves semantic identity while changing its own identity. Proof sidecars do
-not create an embedded proof-section requirement or alter unchanged artifact
-bytes. [PCC publication](../proofs/publication.md) owns opt-in and exact companion
-binding. Migrate the current embedded proof-envelope route; it is not a second
-permanent distribution format. Physical sidecar tables remain execution work,
-not permission to reinterpret existing bytes under an old format marker.
-
-Proof evidence is strictly ordered by obligation identity and retains exact
-rules, proof trees, and admissions. Preserve cited rule direction even though
-proof bytes are replaceable. Disjunction introduction retains one checked child
-and its selected canonical arm; absent/out-of-range arms and a child concluding
-another arm reject. A proof-calculus constructor does not itself authorize a
-semantic-ledger rule or an unproved reduction procedure.
+preserves semantic identity while changing its own identity.
 
 ## Retained placement custody
 

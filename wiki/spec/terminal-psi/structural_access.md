@@ -57,7 +57,7 @@ transfer, claims, and referent cleanup cannot cross that segment. Exclusive
 carriers have affine custody even when their referent is unrestricted.
 
 A shared primitive reference may expose a different primitive carrier when
-independent verification establishes a total representation view: every bit
+checking establishes a total representation view: every bit
 pattern admitted by the source carrier is valid under the viewed carrier.
 The source place retains its original type and storage; the reference declares
 the observation type. Width equality alone grants no authority. Address
@@ -83,7 +83,7 @@ native execution nor interpretation stages a copy of the viewed bits. The
 ordinary live-loan, access, release and local-escape checks still apply.
 
 Structural result signatures bind each returned reference leaf to a nonempty,
-ordered set of possible formal ingress sources. Independent verification
+ordered set of possible formal ingress sources. Checking
 reconstructs actual origins from establishments and call substitution, rejects
 local escapes, and checks the result mapping against the returned carrier.
 Returning or moving a carrier does not end its loan. `ReleaseReference` names
@@ -220,7 +220,7 @@ reference.
 An unrestricted structural leaf copied from an element view retains the view's
 live extent, not an invented fixed-array length. Even a literal source selector
 lowers to a `RuntimeIndex` with an obligation against the same view's dominating
-`ElementViewLength` observation. Independent verification rejects replacing that
+`ElementViewLength` observation. Checking rejects replacing that
 segment with an obligation-free `FixedIndex`. Copying preserves the readable
 source and its loan; it creates only the unrestricted result. Fixed-array
 selectors remain statically bounded by their declarations. The current producer

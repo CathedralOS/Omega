@@ -1,7 +1,7 @@
 # Mathematical proof values
 
 These are proof-only denotations, not runtime values or source declaration
-syntax. They support the [verification contract](verification.md).
+syntax. They support the [fact-validity rules](fact_validity.md).
 
 The bounded vocabularies below are interpreted into the common
 [foundation](../proofs/foundation.md) and [W-based profile](../proofs/inductive_profile.md)

@@ -28,7 +28,7 @@ their combined metatheory, checked encodings and implementation remain required
 before claiming a complete verified profile. The reference paper does not supply
 those results automatically. [Typed function eta](inductive_profile.md#typed-function-eta)
 is an explicit conversion extension, not function extensionality. Source
-elaboration and PCC integration have separately named owners. The existing Rust
+elaboration has a separately named owner. The existing Rust
 and bootstrap checkers do not implement this general core yet.
 
 ## Separate judgments
@@ -196,7 +196,8 @@ Keep specialized arithmetic and contract automation as useful producers or
 explicitly justified checked rules. They must not grow a parallel general
 notion of truth. Preserve their numeric and operational meanings when mapping
 them into the common core. Terminal obligations and native refinement retain
-their distinct subjects and the [verification ownership](../terminal-psi/verification.md).
+their distinct subjects; [fact validity](../terminal-psi/fact_validity.md)
+governs which premises a Terminal obligation may use.
 Selecting a mathematical core does not prove an operational interpretation or
 turn the current Gamma checker into a general proof kernel.
 
@@ -205,6 +206,28 @@ still review whether the statement is the intended one and whether its
 assumptions are acceptable. Neither LLM confidence nor kernel acceptance proves
 those two things. Kernel size, conversion cost and bootstrap feasibility require
 measurement; no performance guarantee follows from the sort choice.
+
+## Bootstrap and foreign proof producers
+
+Bootstrap construction evidence and application proof checking have distinct
+subjects. The bootstrap
+[encoding acceptance contract](../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
+fixes a concrete source-to-tape equation, not universal compiler correctness or
+application safety. Application proof checking neither enables nor waives
+required bootstrap evidence.
+
+Sharing a checker, format or isolated kernel subset is justified only when it
+reduces whole-chain audit and implementation burden while covering the required
+claims. Isolation and dependencies must themselves be justified. Do not expand
+the bootstrap checker into general mathematics merely for uniformity; do not
+preserve separate machinery merely because it exists. Construction correctness
+and the general kernel's logical soundness remain distinct obligations.
+
+Foreign tools may translate proofs into the common calculus without becoming
+trusted checkers. A compatible statement is not sufficient: definitions, rules,
+conversion and assumptions need a checked interpretation. Demonstrate one
+concrete import before claiming interoperability. No full-corpus import or new
+foundational axiom is implied by this contract.
 
 ## Migration acceptance
 
@@ -219,20 +242,15 @@ ledger. Each example needs a valid derivation and an invalid control:
   unjustified executable extraction and choice-dependent control reject.
 - A theorem whose statement references an axiom-dependent definition retains
   that assumption even when its final proof does not unfold the definition.
-  Two receiving policies distinguish that same published theorem.
 - A terminating machine with a well-founded denotation lowers to a loop with
   checked correspondence. A wrong accumulator update that still decreases the
   measure fails correctness, rather than inheriting success from termination.
-- A source-free consumer checks a theorem-dependent program obligation under
-  the exact profile and assumptions. Goal substitution and missing dependencies
-  reject. Quotient-based analysis additionally exercises the selected quotient
-  interface and its exact admitted or proved laws.
+- A theorem-dependent program obligation checks under the exact profile and
+  assumptions. Goal substitution and missing dependencies reject. Quotient-based
+  analysis additionally exercises the selected quotient interface and its exact
+  admitted or proved laws.
 
 These are discriminating controls, not a proof of consistency or mathematical
 completeness. [Mathematical source forms](mathematical_bindings.md) are selected;
-their checked elaboration remains required. The
-[application PCC contract](publication.md) fixes the common
-checking authority and separate receiver-owned obligation interpretation;
-implementation must supply their exact rules and soundness evidence.
-No anonymous machine or optional
+their checked elaboration remains required. No anonymous machine or optional
 formula-naming proposal is a prerequisite.

@@ -168,15 +168,15 @@ For dynamic or installation-bound calls, cover every admitted target or retain
 the fixed contract conservatively. A provider currently selected behind a mutable
 slot is insufficient unless replacement is constrained to preserve the exclusion.
 An opaque or precompiled dependency with only a broad may-Trap or may-Console
-contract cannot establish absence of that behavior. Obtain stronger independently
-verifiable evidence, choose another artifact, or reject. No private source need
+contract cannot establish absence of that behavior. Obtain stronger checked
+evidence, choose another artifact, or reject. No private source need
 be exposed to author lookup, and no consumer may merely strip a dependency's
 declared allowance.
 
 Retained evidence binds the exclusion sets, execution scope and entry roster,
 source/generated and semantic subjects, selected applications/providers,
 target/realization identities, checker schema, and checked or explicitly accepted
-assumptions. Consumers independently verify those relationships. Changed inputs
+assumptions. Checking establishes those relationships. Changed inputs
 require rechecking; cached success and equal native bytes alone are insufficient.
 Assumptions remain visible and governed by ordinary admission rules; a build ban
 is not evidence that an unverified host contract is true.

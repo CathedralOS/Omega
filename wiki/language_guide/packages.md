@@ -138,7 +138,7 @@ changed source stays visible for audit even when its permissions are unchanged.
 See [restricted-build acceptance](../spec/packages/acceptance.md#restricted-build-acceptance).
 
 Ordinary compilation needs no policy from the OS that may eventually run the
-binary. That ecosystem decides admission itself, optionally checking PCC evidence.
+binary. That ecosystem decides admission itself.
 Project package acceptance and build-host grants do not authorize execution there.
 
 ## Inspect without accepting

@@ -75,7 +75,7 @@ subslicing. `valid_utf8` and `non_empty` do not survive arbitrary subslicing.
 An ordinary or boundary shared-byte argument may satisfy its formal's primitive
 byte domains from these reconstructed predicates; unrelated, routed, projected,
 and non-primitive domains still require their own qualification evidence.
-The receiving verifier independently rejoins the source's declared predicates
+Checking rejoins the source's declared predicates
 or literal contents and every exact subslice producer. Cycles, substituted
 sources, invented result qualifications, and missing establishment grant no
 membership. Omega repeats this derivation over the current graph after lowering

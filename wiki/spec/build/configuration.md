@@ -88,16 +88,6 @@ It does not authenticate the file installed at that path or grant installation
 or execution authority. Those remain subject to
 [receiver admission](permissions.md#artifact-production-versus-receiver-admission).
 
-## Proof-carrying output
-
-Normalized Build retains two independent, false-by-default PCC requests: Psi
-and native. The intended fields are `builder.pcc.psi` and `builder.pcc.native`.
-[Proof publication](../proofs/publication.md) owns product compatibility,
-`<artifact>.proof` sidecars, complete-pair publication and outcome classification.
-These selections affect portable evidence production, not ordinary language
-checking, optimizer correctness or receiving authority. A receiver independently
-selects its versioned policy package and concrete configuration.
-
 ## Test groups
 
 [Requirement-based tests](testing.md) register exact product machine requirements

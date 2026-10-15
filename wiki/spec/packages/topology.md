@@ -621,7 +621,7 @@ Required acceptance cases:
 | Broad transport hidden behind an ordinary wrapper | Reject without exact mediation/confinement evidence. |
 | Raw endpoint fabrication, serialized endpoint, unlisted callback | Reject; no implied delegation or reverse connection. |
 | Modified component, policy, binding, codec, or transport after check | Reject stale evidence; reconstruct against the new subject. |
-| Early product schema or producer-written complete flag supplied as a verified component | Reject; only completed independently verified closure facts satisfy this role. |
+| Early product schema or producer-written complete flag supplied as a verified component | Reject; only completed, verified closure facts satisfy this role. |
 | Writer omits an owner-required policy or supplies a trivial substitute | Installer rejects the mismatch with independently accepted owner intent. |
 | Old request is correctly signed but differs from current installation authorization | Reject; authenticated history is not current permission. |
 | Plan names an unselected policy executable | Reject without executing it. |

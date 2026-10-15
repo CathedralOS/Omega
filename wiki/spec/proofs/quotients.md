@@ -120,8 +120,8 @@ The `executable-quotient-correspondence` decision uses ordinary checked bodies
 and calls, not a quotient execution engine. Preserve the named public
 operation, its contract and mathematical identity. Elaborate its selected
 representative implementation and licensed argument/result adaptations into
-the existing executable representations, retaining the checked correspondence
-through Terminal publication and subsequent realization.
+the existing executable representations. The correspondence is
+[checked, not retained](#quotient-correspondence-judgment).
 
 If elaboration needs a generated wrapper, it has a stable derived identity and
 passes through the normal machine-body checking and lowering pipeline. Direct

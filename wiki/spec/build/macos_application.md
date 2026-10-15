@@ -74,11 +74,6 @@ application name as `CFBundleName`, and retained realization identity as
 `CFBundleIdentifier`. Encoding, key order, and escaping are fixed, without
 timestamps or ambient facts. Publication cannot replace the signed identifier.
 
-When [native PCC](../proofs/publication.md) is requested, also publish
-`Contents/MacOS/window-app.proof`, bound to the finalized executable bytes.
-Otherwise that file is absent. This is a proof about the executable under its
-declared environment, not a signature or proof of the entire bundle.
-
 Realization and publication may run in separate invocations/machines. Carry
 artifact-bound realization inputs and publication metadata in the envelope or
 a strongly bound companion. Bind the request to that artifact and metadata;
@@ -91,8 +86,7 @@ implementation must define failure cleanup and replacement behavior.
 
 ## Validation and reports
 
-A package record covers exact executable/plist bytes, the proof sidecar when
-requested, and directory shape.
+A package record covers exact executable/plist bytes and directory shape.
 Missing, extra, substituted, or partial contents reject. Independently compare
 the plist identifier, retained realization identity, and identifier in the
 actual published executable signature. Matching producer assertions is insufficient.
@@ -107,18 +101,18 @@ Executable ad-hoc signing does not sign the external plist. Package consistency
 is not a distribution signature or authenticity claim. Preserve execution-required
 ad-hoc signing; credential-backed signing, notarization, and installation remain
 separate operations with separate authority. A future external assembler may
-supply contents for independent verification; the first publisher is internal
-and requires no general extension mechanism.
+supply contents, which the publisher checks as untrusted input; the first
+publisher is internal and requires no general extension mechanism.
 
 ## Bounded acceptance
 
-V1 includes executable, plist, and the independently requested native proof
-sidecar; no application resources. Validate procedural `window_app`,
-`window_demo`, and `windowed_calculator` on macOS after adding identifiers and
-reported-path consumers. Source inspection is not a runtime pass. `image_viewer`
-is deferred: working-directory-relative BMP access needs inclusion and explicit
-bundle-relative lookup. Copying resources alone does not repair it. Do not
-silently change process directory or claim Finder coverage for that sample.
+V1 includes executable and plist; no application resources. Validate procedural
+`window_app`, `window_demo`, and `windowed_calculator` on macOS after adding
+identifiers and reported-path consumers. Source inspection is not a runtime
+pass. `image_viewer` is deferred: working-directory-relative BMP access needs
+inclusion and explicit bundle-relative lookup. Copying resources alone does not
+repair it. Do not silently change process directory or claim Finder coverage for
+that sample.
 
 Controls cover deterministic assembly; identifier requiredness; Windows, console,
 Terminal and retained-native stops; cross-invocation publication without frontend

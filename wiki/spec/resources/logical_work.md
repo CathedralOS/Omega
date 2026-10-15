@@ -93,7 +93,7 @@ schedule. Compact fingerprints are report/cache coordinates; replay compares
 the retained demand and evidence. A recomputable Psi theorem fabricates no
 provider receipt.
 
-A bound attached to installed code is PCC/report evidence only: no execution,
+A bound attached to installed code is report evidence only: no execution,
 root, publication, bulk-charge, or runtime-meter authority follows. A proof that
 arbitrary native bytes refine Terminal is a separate subject and trust closure.
 

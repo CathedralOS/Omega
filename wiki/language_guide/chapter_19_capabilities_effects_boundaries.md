@@ -407,11 +407,11 @@ requirement.
 
 The receiver is the OS, loader, registry, or deployment system accepting the
 artifact. Ordinary compilation does not need its policy or grant execution
-permission. Optional PCC supplies independently checkable evidence for that
-ecosystem's rules; an explicit deployment-compatibility check may use them before
-shipping. No supplied receiving policy means no admission claim, not refusal to
-emit the binary. Build code is different because it runs during compilation:
-its benign default and explicit restricted-action acceptance are covered by the
+permission. An explicit deployment-compatibility check may apply that
+ecosystem's rules before shipping. No supplied receiving policy means no
+admission claim, not refusal to emit the binary. Build code is different because
+it runs during compilation: its benign default and explicit restricted-action
+acceptance are covered by the
 [package workflow](packages.md#build-time-requests-are-part-of-the-audit).
 
 The receiver compares the service/schema's permitted authority with the selected
@@ -607,7 +607,7 @@ particular charge was approved. Approval still needs qualified evidence for the
 exact operation. Replies over a permitted connection can disclose secrets;
 topology does not prove confidentiality or information-flow security.
 
-The package consumes complete independently verified component descriptions,
+The package consumes complete verified component descriptions,
 not reflected field names or a writer's inventory. Its installer receives current
 owner intent separately from the plan, rechecks policies, and establishes every
 actual binding before activation. Published plan bytes grant no execution or

@@ -21,7 +21,7 @@ Tracing producer calls over 200ms at the cliff: 192 calls, 99.6s total, all
 `StepCeiling` was never hit. These measurements identify aggregate work, not a
 non-converging individual obligation. Repair the redundant work; an aggregate
 resource limit may report `Incomplete` under the
-[proof outcome contract](../../spec/proofs/publication.md#outcomes), never falsehood
+[proof outcome contract](../../spec/build/compiler_request.md#outcomes), never falsehood
 or successful completion without the required evidence. Aggregate accounting is
 implementation work under C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT in
 [TASKS.md](../../../TASKS.md), not an open owner decision.

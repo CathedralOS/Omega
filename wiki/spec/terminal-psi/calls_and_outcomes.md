@@ -1,6 +1,7 @@
 # Calls and outcomes
 
-[Verification](verification.md) reconstructs call obligations and outcome guards.
+Checking reconstructs call obligations and outcome guards under the
+[fact-validity rules](fact_validity.md).
 [Observations](observations.md) defines which outcomes an execution exposes.
 [Boundary realization](boundary_calls.md) owns provider selection and settlement.
 
@@ -241,7 +242,7 @@ The canonical [process-exit requirement](../language/process_exit.md) carries
 an explicit closed external completion kind and no normal result. Its invocation
 is a terminal transfer retaining the exact requirement and ordered arguments,
 with no normal successor, return postconditions, or implicit cleanup.
-The verifier reconstructs its terminal-external observation independently.
+Checking reconstructs its terminal-external observation.
 
 An ordinary helper that conditionally exits still has a normal continuation
 when it returns. The verifier checks the returning branch's result and cleanup

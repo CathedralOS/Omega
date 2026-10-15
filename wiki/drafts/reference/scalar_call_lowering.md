@@ -8,7 +8,7 @@ current owners before use. Delete after that migration retires the bounded route
 keep lasting invariants beside the corresponding source implementation.
 
 Public contracts: [calls and outcomes](../../spec/terminal-psi/calls_and_outcomes.md)
-and [verification](../../spec/terminal-psi/verification.md).
+and [fact validity](../../spec/terminal-psi/fact_validity.md).
 This is the implementation map, not another call representation.
 
 ## Authored occurrence to computation

@@ -5,7 +5,7 @@ language. The [documentation index](../../README.md) lists its vocabulary subjec
 [Boundary calls](boundary_calls.md), [byte views](byte_views.md),
 [structural access and owned byte values](structural_access.md), and
 [observations](observations.md), [calls and outcomes](calls_and_outcomes.md), and
-[verification](verification.md) have their
+[fact validity](fact_validity.md) have their
 own references. [Mathematical proof values](mathematical_values.md) and
 [integer certificates](integer_certificates.md) define their proof vocabulary.
 [Structural predicates](structural_predicates.md) defines path and aggregate terms.
@@ -120,13 +120,13 @@ coverage; a native encoder alone does not establish interpreted support.
 
 Concrete service closure retains fixed declaration contributions, including
 services contributed by declared synchronous invocations, separately from
-installation-selected requirement bounds. The verifier unions those contributions
+installation-selected requirement bounds. Checking unions those contributions
 and retained calls from the selected entry. An inert checked callback does not
 erase its declared Console promise. A Console declaration remains concrete even
 when an installation requirement also has Console in its upper bound; subtracting
 the bound from a flattened published ceiling cannot recover that distinction.
-These declarations are semantic contract inputs, not proof certificates or an
-independently verified generic-substitution receipt.
+These declarations are semantic contract inputs, not proof certificates or a
+generic-substitution receipt.
 
 ## Publication and separate consumption
 
@@ -136,13 +136,10 @@ supplied authority. The first-party source-to-native path crosses this same
 boundary; checked frontend state is not a privileged alternative input.
 
 The portable envelope contains canonical semantics and pre-Terminal selection
-provenance, plus optional canonical debug information. Portable proof evidence
-is a separately requested `<artifact>.proof` sidecar under
-[PCC publication](../proofs/publication.md), not a mandatory embedded section.
-Program meaning, replaceable proof evidence, installation decisions, and debug
-information have distinct identities. The manifest is reconstructed from the
-sections, not accepted as redundant authoritative input. Proof improvement
-does not change program identity.
+provenance, plus optional canonical debug information. It carries no proof
+evidence. Program meaning, installation decisions, and debug information have
+distinct identities. The manifest is reconstructed from the sections, not
+accepted as redundant authoritative input.
 
 Nominal declarations retain their original owner and owner-local identity,
 including [content-identified anonymous roots](../build/declarations.md#default-builds-and-anonymous-owner-identity).
@@ -155,25 +152,16 @@ or acceptance. Products missing required provenance must reject the affected
 nominal import rather than guess it from a path or same-spelled declaration.
 
 Optimization validation retains the exact Psi-local selection and input/output
-semantic identities. Internal proof identities remain validation provenance;
-when portable evidence is requested, its sidecar binds the relevant proof and
-preservation dependencies. Decoding rejoins retained output identity to the
-semantic module without requiring an absent proof product. Producers and
+semantic identities. Decoding rejoins retained output identity to the
+semantic module. Producers and
 consumers use the current pre-release vocabulary;
 stale encodings reject rather than being guessed compatible.
 
 A consumer decodes and performs ordinary structural, contract and authority
 validation before creating execution state or native realization requirements.
-A public in-memory module cannot bypass those checks. Ordinary consumption
-without PCC relies on the stated producer trust for logical checks it cannot
-independently repeat; it must not be reported as independent proof verification.
-If the receiver requires PCC, the verifier reconstructs the full required
-obligation set from semantics, fingerprinted contracts and independent policy;
-the proof bundle cannot select a smaller set. The kernel checks that evidence.
-An independently accepted fact is decided by a justified kernel judgment,
-proved by checked evidence, or explicitly admitted at a sealed site allowed by
-the active profile. Missing required evidence prevents PCC acceptance, never
-silent fallback. Failure to find a proof does not refute its conclusion.
+A public in-memory module cannot bypass those checks. Consumption relies on
+Psi checking for the logical obligations the producer discharged; it does not
+repeat them. Failure to find a proof does not refute its conclusion.
 
 An authoritative vocabulary extension must define encoding, execution,
 reconstructed obligations and authorized admissions, proof rules and their
@@ -191,9 +179,8 @@ family path with its target tag; selecting a body is a realization fact, not a
 Terminal branch. The realization target set travels beside the module in an
 exact owned build companion, and per target: profile, ProgramEntry,
 target-constrained provider plans, external-binding requirements,
-compiler-builtin proposals, pending Omega optimization selections, and the
-pending native PCC request, as rows keyed by target. The companion is distinct
-from a `.proof` file. Rows are not executable semantics inserted into Terminal,
+compiler-builtin proposals and pending Omega optimization selections, as rows
+keyed by target. Rows are not executable semantics inserted into Terminal,
 and possession does not grant realization authority.
 
 The companion binds each target's pending selection to the complete
@@ -243,7 +230,3 @@ for installed provider/progress closure, runtime custody, and transactional
 publication. [Content custody](../resources/content_custody.md) defines installed
 root accounting and conservation; [placed access](../resources/placed_access.md)
 defines resident occurrences.
-
-Standalone native PCC consumption is not this Terminal-to-native production
-interface. Native evidence must check against the binary and accepted receiver
-dependencies without a separately distributed Terminal module or Psi proof.

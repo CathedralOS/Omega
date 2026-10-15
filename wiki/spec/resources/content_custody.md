@@ -2,7 +2,8 @@
 
 [Storage](storage.md) defines capacity and installed root introduction.
 [Placed access](placed_access.md) defines resident views.
-[Verification](../terminal-psi/verification.md) checks the corresponding evidence.
+Checking establishes the corresponding evidence under the
+[fact-validity rules](../terminal-psi/fact_validity.md).
 [Authority establishment](authority.md) defines qualified claim origins.
 These contracts are not a claim of complete source/native integration;
 [production limits](../../../omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs)

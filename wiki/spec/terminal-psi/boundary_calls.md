@@ -357,8 +357,8 @@ occurrences and their children remain distinct. The child binds the parent,
 surviving operation, target, selection, assignment, relocation, and emitted-span
 identities. Replay derives the surviving occurrence set from the validated
 published projection. Missing, duplicate, stale, substituted, padded, or
-role-swapped children reject. An independently verified eliminated occurrence
-needs no child. A byte digest, plan fingerprint, application string, or dispatch
+role-swapped children reject. An eliminated occurrence whose elimination is
+checked needs no child. A byte digest, plan fingerprint, application string, or dispatch
 rewrite alone establishes no semantic-to-physical correspondence.
 
 For foreign calls, replay additionally joins the exact Terminal scalar values

@@ -1,6 +1,7 @@
 # Integer goals and certificates
 
-The [verifier](verification.md) reconstructs a fixed question from each operation.
+Checking reconstructs a fixed question from each operation under the
+[fact-validity rules](fact_validity.md).
 A producer proves it using available premises; it cannot substitute a sufficient
 but different question. Representability uses
 [mathematical terms](mathematical_values.md#integer-terms).

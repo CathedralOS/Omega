@@ -25,11 +25,6 @@ pub struct EvaluatedBuildSettings {
     /// every target; each realized x86 profile admits it separately
     /// (`X86DeploymentClaim::admit_for`).
     pub x86_deployment_claim: X86DeploymentClaim,
-    /// Optional proof-carrying product requests
-    /// (wiki/spec/proofs/publication.md). Both flags are independent and
-    /// default to false; they request adjacent `.proof` sidecars beside the
-    /// ordinary artifacts and never weaken ordinary checking or select a
-    /// different pipeline.
     /// Authored granular privileged-service grants
     /// (wiki/spec/build/permissions.md#privileged-services): each flag admits
     /// exactly one mediated privileged class in the produced image's

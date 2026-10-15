@@ -52,7 +52,7 @@ This is local analysis reuse, not portable verification authority.
 
 Source automation must preserve the
 [mathematical proof contract](../../../../wiki/spec/proofs/contracts.md) and
-feed the separately reconstructed [Terminal questions](../../../../wiki/spec/terminal-psi/verification.md).
+respect the [Terminal fact-validity rules](../../../../wiki/spec/terminal-psi/fact_validity.md).
 
 ## Domain issuer migration
 
