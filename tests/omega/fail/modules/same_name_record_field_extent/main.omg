@@ -1,0 +1,12 @@
+// Two modules declare a record `Holder`; only `left::Holder` has four
+// elements. Index 3 of `right::Holder`'s two-element field is out of range
+// even though a same-named record elsewhere would admit it.
+use left;
+use right;
+
+machine main() -> u8 {
+    let wide: left::Holder = left::Holder { items: [1, 2, 3, 4] };
+    let narrow: right::Holder = right::Holder { items: [5, 6] };
+    let last: u8 = wide.items[3];
+    narrow.items[3]
+}

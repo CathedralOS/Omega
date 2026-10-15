@@ -335,13 +335,12 @@ fn field_type_reference(
         TypeReferenceNode::Named {
             symbol: base_symbol,
             name: base_name,
-        } => program
-            .data_definitions()
-            .iter()
-            .find(|data| {
-                (base_symbol.is_valid() && data.symbol == *base_symbol) || data.name == *base_name
-            })
-            .and_then(|data| data_field_type_reference(program, data, member)),
+        } => crate::field_domains::data_definition_by_symbol_or_name(
+            program,
+            *base_symbol,
+            base_name,
+        )
+        .and_then(|data| data_field_type_reference(program, data, member)),
         TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::DynamicTrait { .. }

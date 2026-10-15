@@ -1,0 +1,3 @@
+module left;
+
+pub data Pair<T> { first: T; second: u64; }

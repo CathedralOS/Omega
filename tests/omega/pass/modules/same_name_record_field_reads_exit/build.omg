@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "same_name_record_field_reads_exit");
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

@@ -1,0 +1,3 @@
+module right;
+
+pub data Holder { items: [u8; 2]; }

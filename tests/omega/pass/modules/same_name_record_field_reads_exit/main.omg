@@ -1,0 +1,21 @@
+// Two modules declare a record `Holder` with different field widths. Each
+// read names its own module's record: `narrow.value` is `right::Holder`'s
+// `u8` field and `wide.value` is `left::Holder`'s `u64` field, directly and
+// through each module's attached reader. A lookup that took the first
+// same-named record would read the wrong field. Exit 0.
+use left;
+use right;
+
+machine main() crashes Trap {
+    let wide: left::Holder = left::Holder { value: 300 };
+    let narrow: right::Holder = right::Holder { value: 200 };
+    let byte: u8 = narrow.value;
+    let word: u64 = wide.value;
+    transition byte == 200 && word == 300
+        && right::Holder::read(&narrow) == 200 && left::Holder::read(&wide) == 300 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -1,0 +1,7 @@
+module right;
+
+pub data Pair<T> { first: T; second: u8; }
+
+pub machine second_sum<T>(pair: &Pair<T>) -> u8 requires pair.second <= 100 {
+    pair.second + pair.second
+}

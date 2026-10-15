@@ -350,7 +350,11 @@ fn field_type_reference(
                 // retain caller binders just as closed views retain literals.
                 return data_field_type_reference(program, instance, field_symbol);
             }
-            let data = data_definition_by_symbol_or_name(program, *base_symbol, base_name)?;
+            let data = crate::field_domains::data_definition_by_symbol_or_name(
+                program,
+                *base_symbol,
+                base_name,
+            )?;
             let bindings: Vec<_> = program
                 .data_type_parameters(data)
                 .iter()
@@ -375,8 +379,12 @@ fn field_type_reference(
         typed_trees::types::TypeReferenceNode::Named {
             symbol: base_symbol,
             name: base_name,
-        } => data_definition_by_symbol_or_name(program, *base_symbol, base_name)
-            .and_then(|data| data_field_type_reference(program, data, field_symbol)),
+        } => crate::field_domains::data_definition_by_symbol_or_name(
+            program,
+            *base_symbol,
+            base_name,
+        )
+        .and_then(|data| data_field_type_reference(program, data, field_symbol)),
         typed_trees::types::TypeReferenceNode::ConstExpression(_)
         | typed_trees::types::TypeReferenceNode::FixedArray { .. }
         | typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
@@ -464,25 +472,6 @@ pub fn unique_data_definition_by_symbol(
         .data_definitions()
         .iter()
         .filter(|definition| symbol.is_valid() && definition.symbol == symbol);
-    let definition = definitions.next()?;
-    definitions.next().is_none().then_some(definition)
-}
-
-fn data_definition_by_symbol_or_name<'program>(
-    program: &'program dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-    name: &typed_trees::name::Identifier,
-) -> Option<&'program typed_trees::data::DataDefinition> {
-    // A field projection commits to exactly one data declaration. Resolve the
-    // retained symbol when it is live; otherwise the retained name may stand
-    // in only when it names one definition outright.
-    if symbol.is_valid() {
-        return unique_data_definition_by_symbol(program, symbol);
-    }
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.name == *name);
     let definition = definitions.next()?;
     definitions.next().is_none().then_some(definition)
 }

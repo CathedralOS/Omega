@@ -250,18 +250,25 @@ pub fn data_field_type_by_symbol_or_name(
         })
 }
 
-/// The data definition whose retained `symbol` matches when live, else whose
-/// `name` matches — the definition spelling retained references carry. Same
-/// symbol-preferred, name-fallback contract as
-/// [`data_field_type_by_symbol_or_name`].
+/// The one data definition a retained type reference names. A live `symbol`
+/// is exact identity: a same-named record declared in another module never
+/// answers for it, however the definitions are ordered. Only a reference that
+/// retained no symbol may stand in by `name`, and only when that name names
+/// one definition outright.
 pub fn data_definition_by_symbol_or_name<'program>(
     program: &'program dyn crate::CheckingInput,
     symbol: SymbolHandle,
     name: &typed_trees::name::Identifier,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
-    program.data_definitions().iter().find(|data_definition| {
-        (symbol.is_valid() && data_definition.symbol == symbol) || data_definition.name == *name
-    })
+    if symbol.is_valid() {
+        return crate::value_custody::places::unique_data_definition_by_symbol(program, symbol);
+    }
+    let mut definitions = program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.name == *name);
+    let definition = definitions.next()?;
+    definitions.next().is_none().then_some(definition)
 }
 
 /// The declared type of `member_symbol`/`member_name` reached through

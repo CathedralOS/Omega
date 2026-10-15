@@ -1,0 +1,5 @@
+module right;
+
+pub data Holder { value: u8; }
+
+pub machine Holder::read(holder: &Holder) -> u8 { holder.value }

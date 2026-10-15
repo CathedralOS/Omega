@@ -3813,23 +3813,6 @@ execution and retained outputs.
   explicitly delegated private entry description stays usable without
   enumeration authority.
 
-- **SAME-NAME-REQUIREMENT-CALL-TARGETS.** (new-scope) Remove name fallback from
-  retained type identity in stage 04
-  (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`):
-  - `operators/receiver.rs::field_type_reference` selects a data definition
-    when its symbol **or** name matches, even when a valid symbol names a
-    different definition. Use exact identity, preserving closed applications.
-
-  The former signature, carry-fact, body-cloning and boundary-return site list
-  no longer describes this defect. Do not recreate those removed lookups.
-  Extend a same-name-module runtime customer through field-type lookup before
-  changing it; the existing `pass/providers/same_name_requirement{,_right}_dispatch_exit`
-  and `pass/modules/same_name_requirement_calls_exit` (exit 70) are
-  regression controls, not evidence that the remaining branch is exercised.
-  Acceptance: the new customer reaches the repaired lookup and executes its
-  authored result, closed applications retain their exact fields, and a target
-  from a different requirement rejects. No implicit receiver is restored.
-
 - **BUILD-SNAPSHOT-OUTPUTS.** Finish coherent capture and host acceptance under
   the [captured-input and committed-output contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem).
   `require_stable_recapture` in

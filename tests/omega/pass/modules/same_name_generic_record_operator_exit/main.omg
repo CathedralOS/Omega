@@ -1,0 +1,18 @@
+// Two modules declare a generic record `Pair<T>` whose `second` field
+// differs in width. `right::second_sum` adds `pair.second` to itself; the
+// operator's receiver field type comes from `right::Pair`, never from the
+// same-named `left::Pair` that a name match would find first. Exit 0.
+use left;
+use right;
+
+machine main() crashes Trap {
+    let wide: left::Pair<u8> = left::Pair { first: 1, second: 300 };
+    let narrow: right::Pair<u8> = right::Pair { first: 2, second: 50 };
+    let doubled: u8 = right::second_sum<u8>(&narrow);
+    transition doubled == 100 && wide.second == 300 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
