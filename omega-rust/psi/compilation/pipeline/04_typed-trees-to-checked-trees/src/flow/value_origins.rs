@@ -18,6 +18,38 @@ use typed_trees::{
 /// unbounded walk.
 const CAPTURED_SOURCE_LITERAL_HOPS: usize = 16;
 
+/// A descriptor's stored identity is independent of writes through it. Only
+/// typed descriptor observations may use Binding; ordinary reads owe content
+/// preservation, including writes to descendants.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ValueObservation {
+    Contents,
+    Binding,
+}
+
+#[derive(Clone, Copy)]
+enum OriginFrontier {
+    CompletedStatement,
+    CapturedValue,
+}
+
+impl ValueObservation {
+    pub(crate) fn changed_by(
+        self,
+        program: &dyn ::validation::CheckingInput,
+        place: &CanonicalPlace,
+        write: &CanonicalPlace,
+    ) -> bool {
+        place.root == write.root
+            && match self {
+                Self::Contents => overlaps(program, place, write),
+                Self::Binding => {
+                    super::operand_contexts::binding_overwrite(program, place, &write.segments)
+                }
+            }
+    }
+}
+
 pub(crate) fn value_origin_at_call(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
@@ -26,6 +58,7 @@ pub(crate) fn value_origin_at_call(
     call: &FlowCallFact,
     place: CanonicalPlace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    observation: ValueObservation,
 ) -> Option<CanonicalPlace> {
     value_origin_at_call_resolving(
         program,
@@ -35,6 +68,7 @@ pub(crate) fn value_origin_at_call(
         call,
         place,
         call_frames,
+        observation,
         |_, _, _, _| None,
         |_, _, _| None,
     )
@@ -47,11 +81,13 @@ pub(crate) fn value_origin_at_call(
 /// evaluation. Call consumers must retain the call-prefix preservation check.
 pub(crate) fn value_origin_before_statement(
     program: &dyn ::validation::CheckingInput,
+    flow: &FlowFacts,
     machine: &Machine,
     state: &FlowStateFact,
     statement_index: usize,
     place: CanonicalPlace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    observation: ValueObservation,
 ) -> Option<CanonicalPlace> {
     let mut owned_frames = None;
     let frames = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
@@ -70,6 +106,8 @@ pub(crate) fn value_origin_before_statement(
         statement_index,
         place,
         frames,
+        observation,
+        Some(flow),
         |_, _, _, _| None,
         |_, _, _| None,
     )
@@ -94,6 +132,7 @@ pub(crate) fn value_origin_at_call_resolving<Resolve, Rebase>(
     call: &FlowCallFact,
     mut place: CanonicalPlace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    observation: ValueObservation,
     resolve: Resolve,
     rebase: Rebase,
 ) -> Option<CanonicalPlace>
@@ -104,8 +143,16 @@ where
 {
     let mut owned_frames = None;
     let frames = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
-    place =
-        flow::local_reference_storage_at_call(program, frames, machine, flow, state, call, place)?;
+    place = flow::local_reference_storage_at_call(
+        program,
+        frames,
+        machine,
+        flow,
+        state,
+        call,
+        place,
+        observation,
+    )?;
     trace_value_origin_before_statement(
         program,
         machine,
@@ -113,6 +160,8 @@ where
         call.statement_index,
         place,
         frames,
+        observation,
+        Some(flow),
         resolve,
         rebase,
     )
@@ -125,6 +174,8 @@ pub(crate) fn trace_value_origin_before_statement<Resolve, Rebase>(
     statement_index: usize,
     mut place: CanonicalPlace,
     frames: &validation::CallFrameResolver<'_>,
+    observation: ValueObservation,
+    flow: Option<&FlowFacts>,
     resolve: Resolve,
     rebase: Rebase,
 ) -> Option<CanonicalPlace>
@@ -138,6 +189,7 @@ where
         .statement_table
         .statements(typed_state.statement_nodes);
     for (index, statement) in statements.get(..statement_index)?.iter().enumerate().rev() {
+        let mut frontier = OriginFrontier::CompletedStatement;
         // The demanded place may still name storage through a reference leaf
         // an ordinary arm cannot resolve — `boxed.view.scheduler` where `view`
         // is a `&` slot inside an owned local. Rebase it to the referent the
@@ -151,14 +203,17 @@ where
         match statement {
             StatementNode::Assignment(assignment) => {
                 if frames.assignment_replaces_local_reference_binding(machine, statement)? {
-                    preserve_frame(
+                    preserve_statement_effects(
                         program,
                         machine,
                         state,
                         index,
                         &place,
-                        &frames.statement_value_write_frame(machine, statement),
+                        statement,
                         frames,
+                        observation,
+                        flow,
+                        frontier,
                     )?;
                     continue;
                 }
@@ -214,6 +269,7 @@ where
                     place = reference_storage_or_literal(
                         program, frames, machine, state, index, source,
                     );
+                    frontier = OriginFrontier::CapturedValue;
                 } else {
                     let writes = flow::statement_storage_writes(
                         program,
@@ -223,7 +279,10 @@ where
                         statement,
                         Some(frames),
                     )?;
-                    if writes.iter().any(|write| overlaps(program, &place, write)) {
+                    if writes
+                        .iter()
+                        .any(|write| observation.changed_by(program, &place, write))
+                    {
                         return None;
                     }
                 }
@@ -245,28 +304,21 @@ where
                 )?;
                 place =
                     reference_storage_or_literal(program, frames, machine, state, index, source);
-            }
-            StatementNode::Call(call) => {
-                preserve_frame(
-                    program,
-                    machine,
-                    state,
-                    index,
-                    &place,
-                    &frames.may_write_frame(machine, call),
-                    frames,
-                )?;
+                frontier = OriginFrontier::CapturedValue;
             }
             _ => {}
         }
-        preserve_frame(
+        preserve_statement_effects(
             program,
             machine,
             state,
             index,
             &place,
-            &frames.statement_value_write_frame(machine, statement),
+            statement,
             frames,
+            observation,
+            flow,
+            frontier,
         )?;
     }
     Some(place)
@@ -448,6 +500,88 @@ fn overlaps(
         && flow::canonical_place_segments_may_overlap(program, &left.segments, &right.segments)
 }
 
+/// Published flow already retained structural effects in evaluation order.
+/// Reconstructing its calls from rendered frames loses element selectors and
+/// mistakes referent writes for descriptor replacement. Early termination
+/// analysis has no published flow yet and still owes the resolver's complete
+/// (possibly coarser) frames; missing published rows never fall back to them.
+fn preserve_statement_effects(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &FlowStateFact,
+    statement_index: usize,
+    place: &CanonicalPlace,
+    statement: &StatementNode,
+    frames: &validation::CallFrameResolver<'_>,
+    observation: ValueObservation,
+    flow: Option<&FlowFacts>,
+    frontier: OriginFrontier,
+) -> Option<()> {
+    if let Some(flow) = flow {
+        let stored = flow
+            .control
+            .statements
+            .span(state.statements)?
+            .iter()
+            .find(|stored| stored.statement_index == statement_index)?;
+        let (writes, unknown) = match frontier {
+            OriginFrontier::CapturedValue => {
+                flow.control
+                    .operands
+                    .is_valid(stored.stored_value)
+                    .then_some(())?;
+                let operand = flow.control.operands.get(stored.stored_value);
+                (
+                    operand.entry_origin_writes,
+                    operand.entry_origin_unknown_write,
+                )
+            }
+            OriginFrontier::CompletedStatement => {
+                (stored.completed_writes, stored.completed_unknown_write)
+            }
+        };
+        let stable = match observation {
+            ValueObservation::Contents => super::operand_contexts::entry_origin_is_stable(
+                program,
+                &flow.control,
+                writes,
+                unknown,
+                place,
+            ),
+            ValueObservation::Binding => super::operand_contexts::binding_origin_is_stable(
+                program,
+                &flow.control,
+                writes,
+                unknown,
+                place,
+            ),
+        };
+        return stable.then_some(());
+    }
+    if let StatementNode::Call(call) = statement {
+        preserve_frame(
+            program,
+            machine,
+            state,
+            statement_index,
+            place,
+            &frames.may_write_frame(machine, call),
+            frames,
+            observation,
+        )?;
+    }
+    preserve_frame(
+        program,
+        machine,
+        state,
+        statement_index,
+        place,
+        &frames.statement_value_write_frame(machine, statement),
+        frames,
+        observation,
+    )
+}
+
 fn preserve_frame(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
@@ -456,6 +590,7 @@ fn preserve_frame(
     place: &CanonicalPlace,
     frame: &facts::NormalizedWriteFrame,
     call_frames: &validation::CallFrameResolver<'_>,
+    observation: ValueObservation,
 ) -> Option<()> {
     let writes = flow::frame_storage_writes(
         program,
@@ -465,5 +600,8 @@ fn preserve_frame(
         frame,
         Some(call_frames),
     )?;
-    (!writes.iter().any(|write| overlaps(program, place, write))).then_some(())
+    (!writes
+        .iter()
+        .any(|write| observation.changed_by(program, place, write)))
+    .then_some(())
 }

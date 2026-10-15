@@ -1,0 +1,14 @@
+data View<'data> [copy] { samples: &'data [u64]; }
+machine replace<'data>(view: &mut View<'data>, replacement: &'data [u64]) -> u64 {
+    view.samples = replacement;
+    transition { _ -> 0 }
+}
+machine demand<'data>(view: View<'data>, ignored: u64)
+requires view.samples.len >= 2 {}
+machine test() {
+    let small: [u64; 1] = [1];
+    let large: [u64; 3] = [1, 2, 3];
+    let mut view: View = View { samples: &small[..] };
+    let snapshot: View = view;
+    demand(snapshot, replace(&mut view, &large[..]));
+}

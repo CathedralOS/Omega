@@ -74,6 +74,7 @@ pub(super) fn at_call(
         call,
         place,
         Some(frames),
+        flow::ValueObservation::Contents,
         resolve,
         |state, bound, place| {
             reference_boundary_before_statement(

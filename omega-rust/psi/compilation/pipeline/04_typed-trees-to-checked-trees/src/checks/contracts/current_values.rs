@@ -10,11 +10,17 @@ use typed_trees::statement::{StatementNode, TransitionTargetHandle};
 /// origins for every immutable invocation formal named by the guarantee.
 pub(crate) fn proves_exit(
     program: &dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
     exit: &checked_trees::FlowExitFact,
     fact: &facts::Fact,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
+    let facts::FactPayload::ContractBooleanExpression {
+        expression,
+        fact: contract,
+        ..
+    } = fact.payload
+    else {
         return false;
     };
     let Some((machine, state)) = program.state_flow_site(exit.machine_symbol, exit.state_symbol)
@@ -49,7 +55,15 @@ pub(crate) fn proves_exit(
         }
         _ => return false,
     };
-    let Some(goal) = values.postcondition(expression, returned) else {
+    let origins = facts
+        .flow
+        .control
+        .exit_parameter_origins
+        .span_or_empty(exit.parameter_origins)
+        .iter()
+        .filter(|origin| origin.contract == contract)
+        .map(|origin| (origin.entry_parameter, origin.state_parameter));
+    let Some(goal) = values.postcondition(expression, returned, origins) else {
         return false;
     };
     values.proves(program, machine, &goal)

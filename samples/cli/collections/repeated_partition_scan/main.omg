@@ -1,0 +1,66 @@
+// Expected exit: 0.
+// Repeat filtering compacts complete records in caller-owned output partitions.
+data Match [copy] { position: u64; value: i32; }
+data Partition<'storage> { records: &'storage mut [Match]; count: u64; }
+
+machine retain(records: &mut [Match], count: u64, minimum: i32) -> u64
+requires count <= records.len
+ensures result <= count {
+    transition { _ -> next(records, count, minimum, 0, 0) }
+    state next(records: &mut [Match], count: u64, minimum: i32, read: u64, written: u64) -> u64
+    requires written <= read && read <= count && count <= records.len {
+        transition read < count {
+            true -> inspect(records, count, minimum, read, written)
+            false -> written
+        }
+    }
+    state inspect(records: &mut [Match], count: u64, minimum: i32, read: u64, written: u64) -> u64
+    requires written <= read && read < count && count <= records.len {
+        let record: Match = records[read];
+        transition record.value >= minimum {
+            true -> keep(records, count, minimum, read, written, record)
+            false -> next(records, count, minimum, read + 1, written)
+        }
+    }
+    state keep(records: &mut [Match], count: u64, minimum: i32, read: u64, written: u64, record: Match) -> u64
+    requires written <= read && read < count && count <= records.len {
+        records[written] = record;
+        transition { _ -> next(records, count, minimum, read + 1, written + 1) }
+    }
+}
+
+machine filter_partition<'storage>(partition: &mut Partition<'storage>, minimum: i32)
+requires partition.count <= partition.records.len
+ensures partition.count <= partition.records.len {
+    partition.count = retain(&mut partition.records[..], partition.count, minimum);
+}
+
+machine main() crashes Trap {
+    let mut backing: [Match; 6] = [
+        Match { position: 99, value: -99 },
+        Match { position: 11, value: 2 },
+        Match { position: 22, value: 9 },
+        Match { position: 33, value: 4 },
+        Match { position: 44, value: 12 },
+        Match { position: 88, value: -88 }
+    ];
+    let mut partition: Partition = Partition { records: &mut backing[1..5], count: 4 };
+    filter_partition(&mut partition, 5);
+    let first: bool = partition.count == 2
+        && partition.records[0].position == 22 && partition.records[0].value == 9
+        && partition.records[1].position == 44 && partition.records[1].value == 12;
+    filter_partition(&mut partition, 10);
+    let second: bool = partition.count == 1
+        && partition.records[0].position == 44 && partition.records[0].value == 12;
+    filter_partition(&mut partition, 13);
+    let empty: bool = partition.count == 0;
+    filter_partition(&mut partition, -100);
+    transition first && second && empty && partition.count == 0
+        && backing[0].position == 99 && backing[0].value == -99
+        && backing[5].position == 88 && backing[5].value == -88 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -105,8 +105,8 @@ pub(crate) use reference_places::{
     reference_result_candidates_before_statement, reference_route_source,
 };
 pub(crate) use value_origins::{
-    trace_value_origin_before_statement, value_origin_at_call, value_origin_at_call_resolving,
-    value_origin_before_statement,
+    ValueObservation, trace_value_origin_before_statement, value_origin_at_call,
+    value_origin_at_call_resolving, value_origin_before_statement,
 };
 
 pub(crate) use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};

@@ -3672,6 +3672,8 @@ fail/proofs/bounded_assignment_operand_skips_later_same_named_local rejected 994
 fail/proofs/case_call_wrong_subject rejected 897ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for specification call `empty_only` in machine `wrong_subject` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `empty_only` in machine `wrong_subject` ensures contract: establish its selected precondition in an independently formed prior requires fact
+fail/proofs/changed_arrival_cannot_rebind_original_bound rejected 588ms expected @b3d0b7396229+wt
+	cannot prove ensures contract for exit from wrong at statement 0: result <= count; no exact incoming reference origin for count
 fail/proofs/citation_requires_bearing_rejected rejected 2680ms expected @a9ae30e1c334+wt
 	machine `conditional_cite` cites `sym`, but the callee's requires fact `a == b` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 	machine `conditional_cite` ensures contract proof fact `y == x` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
@@ -3686,6 +3688,8 @@ fail/proofs/congruence_false_twin rejected 846ms expected @a9ae30e1c334+wt
 	machine `false_add_congruence` ensures contract proof fact `embed(a) + 1 == embed(b) + 2` is disproved by constant arithmetic
 fail/proofs/constant_equation_refuted rejected 888ms expected @a9ae30e1c334+wt
 	machine `false_constant_equation` ensures contract proof fact `false` is disproved by constant arithmetic
+fail/proofs/copied_descriptor_cannot_take_later_extent rejected 610ms expected @b3d0b7396229+wt
+	cannot prove requires contract for call demand from test: snapshot.samples.len >= 2 (needs fact `view.samples.len >= 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/core_nat_runtime_consumption_rejected rejected 2761ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` parameter `main` mentions proof-only `Main`, which has no runtime layout
 fail/proofs/defined_proposition_premise_not_symmetric rejected 168ms expected @77ecdbf5e7c6
@@ -3932,6 +3936,12 @@ fail/proofs/recursive_terminal_missing_erased_evidence rejected 1037ms expected 
 	call `scan` supplies 0 erased evidence arguments but its named requires lane has 1
 fail/proofs/remainder_range_false_twin rejected 809ms expected @a9ae30e1c334+wt
 	machine `false_remainder_bounded` cannot prove ensures contract proof fact `a % 2 >= 0 && a % 2 <= 0` from the requires contract
+fail/proofs/replaced_descriptor_retires_bound rejected 585ms expected @b3d0b7396229+wt
+	cannot prove ensures contract for exit from replace at statement 1: partition.count <= partition.records.len
+fail/proofs/replaced_scalar_cannot_reuse_prior_bound rejected 586ms expected @b3d0b7396229+wt
+	cannot prove ensures contract for exit from wrong at statement 2: bounds.count <= bounds.limit
+fail/proofs/rhs_mutation_retires_bound_dependency rejected 586ms expected @b3d0b7396229+wt
+	cannot prove ensures contract for exit from wrong at statement 1: bounds.count <= bounds.limit; no exact incoming reference origin for bounds
 fail/proofs/ring_law_unproven_rejected rejected 4397ms expected @a9ae30e1c334+wt
 	machine `lawless` satisfies `RingOps2::add_assoc` but proves no ensures matching the declared law `plus(plus(a, b), c) == plus(a, plus(b, c))` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
 	specification call `add` is not denotational: the selected machine is not unconditionally terminating
@@ -3965,6 +3975,8 @@ fail/proofs/self_call_without_witness_not_denotational rejected 686ms expected @
 	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
 fail/proofs/short_circuit_skipped_rhs_bound rejected 10615ms expected @5b35eda9b8d6
 	cannot prove requires contract for call bounded from main: context.count < 6 (needs fact `context.count < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/proofs/store_selector_mutation_retires_bound rejected 579ms expected @b3d0b7396229+wt
+	cannot prove ensures contract for exit from wrong at statement 2: bounds.count <= bounds.limit; no exact incoming reference origin for bounds
 fail/proofs/strict_comparison_mutation_snapshot rejected 8810ms expected @5b35eda9b8d6
 	cannot prove requires contract for call bounded from main: context.count < 6 (needs fact `context.count < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/structural_ensures_unjudged_rejected rejected 2841ms expected @a9ae30e1c334+wt
@@ -7336,6 +7348,7 @@ pass/progress/provider_receiver_progress_installation checked 11034ms check-targ
 pass/proofs/accepted_axiom_cited_exit checked 11306ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/accumulator_guarantee_exit checked 11353ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/axiom_citation checked 9748ms @5041ef1af684+wt
+pass/proofs/borrowed_descriptor_bound_local_result_exit checked 3519ms check-target:macos_arm64 @b3d0b7396229+wt
 pass/proofs/case_call_premises checked 1644ms @a9ae30e1c334+wt
 pass/proofs/cauchy_predicates_compile rejected 919ms @4ce1ff349782+wt
 	machine `cauchy_at_reflexive` ensures contract proof fact `cauchy_at<Sequence, Modulus>(precision, index, index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
@@ -7346,7 +7359,10 @@ pass/proofs/cauchy_predicates_compile rejected 919ms @4ce1ff349782+wt
 	machine `doubled_nat_max_threshold` ensures contract proof fact `saturating_sub(doubled_nat_max_modulus<FirstModulus, SecondModulus>(precision), index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 pass/proofs/citation_requires_discharged checked 10576ms @b7aaf37278ea+wt
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 1240ms @1cb01af2f0bb
+pass/proofs/copied_descriptor_keeps_capture_extent checked 678ms @b3d0b7396229+wt
 pass/proofs/defined_proposition_premises checked 1193ms @77ecdbf5e7c6
+pass/proofs/descriptor_bound_after_element_call checked 678ms @b3d0b7396229+wt
+pass/proofs/descriptor_bound_call_after_element_call checked 679ms @b3d0b7396229+wt
 pass/proofs/fact_only_proof_value_citation_exit checked 14367ms check-target:linux_x86_64 @4ce1ff349782+wt
 pass/proofs/family_carrier_relation_laws checked 1811ms @47fae30824a7+wt
 pass/proofs/field_view_index_contract checked 5381ms @d3431e5a76cb+wt
@@ -7360,6 +7376,7 @@ pass/proofs/kernel_integer_subtract_order checked 3381ms check-target:macos_arm6
 pass/proofs/kernel_theorem_certs checked 9566ms @5041ef1af684+wt
 pass/proofs/kernel_theorem_equality_certificates checked 11389ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/lemma_requires_citation checked 9734ms @5041ef1af684+wt
+pass/proofs/loop_postcondition_after_element_store checked 739ms @b3d0b7396229+wt
 pass/proofs/machine_parameterized_data_compile checked 1671ms @a9ae30e1c334+wt
 pass/proofs/mathematical_machine_result_carrier checked 4228ms check-target:macos_arm64 @3b72a3521c0e+wt
 pass/proofs/mathematical_predicate_contract_import_exit checked 10907ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -1,0 +1,6 @@
+data Partition<'storage> { records: &'storage [u64]; count: u64; }
+machine replace<'storage>(partition: &mut Partition<'storage>, replacement: &'storage [u64])
+requires partition.count <= partition.records.len
+ensures partition.count <= partition.records.len {
+    partition.records = replacement;
+}

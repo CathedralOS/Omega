@@ -5,7 +5,9 @@
 //! independently establish the range. Returning a descriptor binds its actual
 //! observation to the exact contract owner, never to the backing capacity.
 
-use super::{CurrentScalarValues, Length, LengthSubject, fixed_length, integer_carrier};
+use super::{
+    CurrentScalarValues, Length, LengthSubject, admitted, fixed_length, integer_carrier, scoped,
+};
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -19,6 +21,7 @@ impl CurrentScalarValues<'_> {
         &mut self,
         expression: ExpressionHandle,
         returned: ExpressionHandle,
+        origins: impl Iterator<Item = (SymbolHandle, SymbolHandle)>,
     ) -> Option<ScopedArithmeticExpression> {
         if let Some(value) = self.collection_length(returned, 0) {
             let entry = self.program.machine_states(self.machine).first()?;
@@ -30,7 +33,58 @@ impl CurrentScalarValues<'_> {
                 value: Some(value),
             });
         }
-        let mut goal = self.current(expression)?;
+        // The declaration's postcondition names invocation parameters, while
+        // the live hypotheses name the exit state's parameters. Bind those
+        // namespaces through the independently established incoming origins;
+        // spelling, slot order and a write-free body are not identity evidence.
+        let entry = self.program.machine_states(self.machine).first()?;
+        let mut bindings = self.current.clone();
+        let mut lengths = self.lengths.clone();
+        if entry.symbol != self.state.symbol {
+            bindings.clear();
+            lengths.retain(|length| matches!(length.subject, LengthSubject::Result(_)));
+            for (entry_parameter, state_parameter) in origins {
+                if let Some(current) = self
+                    .current
+                    .iter()
+                    .find(|binding| binding.symbol == state_parameter)
+                {
+                    let mut binding = current.clone();
+                    binding.symbol = entry_parameter;
+                    binding.name = self.program.symbols.name(entry_parameter).to_owned();
+                    bindings.push(binding);
+                }
+                if let Some(current) = self
+                    .lengths
+                    .iter()
+                    .find(|length| length.subject == LengthSubject::Storage(state_parameter))
+                {
+                    let mut length = current.clone();
+                    length.subject = LengthSubject::Storage(entry_parameter);
+                    length.name = self.program.symbols.name(entry_parameter).to_owned();
+                    lengths.push(length);
+                }
+            }
+        }
+        if !admitted(
+            self.program,
+            self.machine,
+            entry,
+            expression,
+            &bindings,
+            &lengths,
+            0,
+        ) {
+            return None;
+        }
+        let mut goal = scoped(
+            self.machine,
+            entry,
+            expression,
+            &bindings,
+            &lengths,
+            self.program,
+        )?;
         if let Some(returned) = self.current(returned) {
             goal.bindings.push(ScopedArithmeticBinding {
                 binder: ScopedArithmeticBinder::Result,

@@ -1,0 +1,17 @@
+machine retain(records: &mut [u64], count: u64) -> u64
+requires count <= records.len
+ensures result <= count {
+    transition { _ -> next(records, count, 0, 0) }
+    state next(records: &mut [u64], count: u64, read: u64, written: u64) -> u64
+    requires written <= read && read <= count && count <= records.len {
+        transition read < count {
+            true -> advance(records, count, read, written)
+            false -> written
+        }
+    }
+    state advance(records: &mut [u64], count: u64, read: u64, written: u64) -> u64
+    requires written <= read && read < count && count <= records.len {
+        records[written] = records[read];
+        transition { _ -> next(records, count, read + 1, written + 1) }
+    }
+}

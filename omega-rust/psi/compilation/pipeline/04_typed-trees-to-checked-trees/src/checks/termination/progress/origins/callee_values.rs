@@ -238,6 +238,8 @@ pub(super) fn callee_demanded_origin(
         body.prefix.len(),
         place,
         frames,
+        flow::ValueObservation::Contents,
+        None,
         resolve,
         |state: &FlowStateFact, bound: usize, place: &CanonicalPlace| {
             reference_boundary_before_statement(

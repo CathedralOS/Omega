@@ -178,7 +178,7 @@ fn contents_overlap(
     crate::flow::canonical_place_segments_may_overlap(program, &place.segments, segments)
 }
 
-fn binding_overwrite(
+pub(super) fn binding_overwrite(
     program: &dyn ::validation::CheckingInput,
     place: &validation::CanonicalPlace,
     segments: &[facts::PlaceSegment],

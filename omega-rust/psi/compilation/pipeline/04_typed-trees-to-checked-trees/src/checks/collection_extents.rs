@@ -12,17 +12,30 @@ use validation::CanonicalPlace;
 /// loan and bounds checks still own access. Every possible referent must agree.
 pub(crate) fn from_captured_value(
     program: &dyn ::validation::CheckingInput,
+    borrow: &BorrowFacts,
     flow: &checked_trees::FlowFacts,
     value: &crate::flow::CapturedValue<'_>,
+    invocation: &[FlowConstraintRef],
 ) -> Option<usize> {
     let mut extent = None;
     for captured in crate::flow::captured_value_places(program, flow, value)? {
-        let current = at_formed_place(
+        let current = from_live_loans(
             program,
             value.operand.state_symbol,
             value.operand.statement_index,
+            borrow,
+            flow,
             &captured.projected,
-        )?;
+            invocation,
+        )
+        .or_else(|| {
+            at_formed_place(
+                program,
+                value.operand.state_symbol,
+                value.operand.statement_index,
+                &captured.projected,
+            )
+        })?;
         if extent.is_some_and(|prior| prior != current) {
             return None;
         }

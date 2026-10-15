@@ -2,7 +2,7 @@
 
 use validation::CanonicalPlace;
 
-use super::{canonical_place_segments_may_overlap, frame_storage_writes};
+use super::canonical_place_segments_may_overlap;
 use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
 use facts::PlaceRoot;
 use typed_trees::types::TypeReferenceNode;
@@ -104,6 +104,7 @@ pub(crate) fn local_reference_storage_at_call(
     state: &FlowStateFact,
     call: &FlowCallFact,
     place: CanonicalPlace,
+    observation: super::ValueObservation,
 ) -> Option<CanonicalPlace> {
     let resolved = local_reference_storage_before_statement(
         program,
@@ -121,6 +122,7 @@ pub(crate) fn local_reference_storage_at_call(
         state,
         call,
         &[place, resolved.clone()],
+        observation,
     )?;
     Some(resolved)
 }
@@ -207,6 +209,7 @@ fn preserve_call_prefix_storage(
     state: &FlowStateFact,
     call: &FlowCallFact,
     places: &[CanonicalPlace],
+    observation: super::ValueObservation,
 ) -> Option<()> {
     let position = call_position_in_state(flow, state, call)?;
     let calls = flow.control.calls.span_or_empty(state.calls);
@@ -221,30 +224,37 @@ fn preserve_call_prefix_storage(
             prior.statement_index,
             prior.call_ordinal,
         )?;
-        let frame = match site {
+        match site {
             validation::CallSite::Statement(call) => {
                 if !frames.call_reference_bindings_are_stable(machine, call) {
                     return None;
                 }
-                frames.may_write_frame(machine, call)
             }
             validation::CallSite::Expression { expression, .. } => {
                 if !frames.expression_reference_bindings_are_stable(machine, expression) {
                     return None;
                 }
-                frames.expression_write_frame(machine, expression)
             }
             validation::CallSite::TransitionNamed { .. } => return None,
         };
-        preserve_frame(
-            program,
-            machine,
-            state,
-            call.statement_index,
-            places,
-            &frame,
-            frames,
-        )?;
+        for place in places {
+            let preserved = match observation {
+                super::ValueObservation::Contents => {
+                    super::operand_contexts::entry_origin_is_stable
+                }
+                super::ValueObservation::Binding => {
+                    super::operand_contexts::binding_origin_is_stable
+                }
+            };
+            preserved(
+                program,
+                &flow.control,
+                prior.normal_return_writes,
+                !prior.normal_return_writes_complete,
+                place,
+            )
+            .then_some(())?;
+        }
     }
     Some(())
 }
@@ -308,34 +318,6 @@ fn preserve_candidate_call_prefix_storage(
         }) {
             return None;
         }
-    }
-    Some(())
-}
-
-fn preserve_frame(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    state: &FlowStateFact,
-    statement_index: usize,
-    places: &[CanonicalPlace],
-    frame: &facts::NormalizedWriteFrame,
-    call_frames: &validation::CallFrameResolver<'_>,
-) -> Option<()> {
-    let writes = frame_storage_writes(
-        program,
-        machine.symbol,
-        state.state_symbol,
-        statement_index,
-        frame,
-        Some(call_frames),
-    )?;
-    if places.iter().any(|place| {
-        writes.iter().any(|write| {
-            place.root == write.root
-                && canonical_place_segments_may_overlap(program, &place.segments, &write.segments)
-        })
-    }) {
-        return None;
     }
     Some(())
 }

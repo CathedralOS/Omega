@@ -322,7 +322,23 @@ pub(in crate::lowering) fn lower_structural_argument(
         callee_parameter.access,
         structural_types,
     );
-    if projected_type != callee_parameter.structural_type
+    // A stored descriptor and a borrowed formal may retain different access
+    // identities for the same element declaration. Transport the existing
+    // carrier only when the shared presentation relation proves it unchanged;
+    // equal sizes cannot identify nominal referents or create backing storage.
+    let unchanged_presentation = if argument.access == StructuralAccess::Owned {
+        projected_type == callee_parameter.structural_type
+    } else {
+        matches!(
+            terminal_semantics::borrowed_referent_presentation(
+                structural_types.values().copied(),
+                projected_type,
+                callee_parameter.structural_type
+            ),
+            Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+        )
+    };
+    if !unchanged_presentation
         || argument.access != callee_parameter.access
         || projected_parameter_shape != shape
         || projected_shape
@@ -337,7 +353,7 @@ pub(in crate::lowering) fn lower_structural_argument(
         access: argument.access,
         path: argument.path.clone(),
         root_structural_type: source_structural_type,
-        structural_type: projected_type,
+        structural_type: callee_parameter.structural_type,
         shape,
         source_byte_offset,
         fixed_array_length: None,

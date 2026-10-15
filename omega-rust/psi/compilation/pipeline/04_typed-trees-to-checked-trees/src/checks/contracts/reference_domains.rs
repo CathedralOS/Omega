@@ -53,6 +53,7 @@ pub(super) fn proves(
             state,
             call,
             place.clone(),
+            crate::flow::ValueObservation::Contents,
         ) {
             Some(source) => vec![source],
             None => crate::flow::local_reference_candidate_storages_at_call(
@@ -98,6 +99,7 @@ pub(super) fn proves(
                         state,
                         call,
                         candidate,
+                        crate::flow::ValueObservation::Contents,
                     )?;
                     // A frozen unresolved selector is not its expression's
                     // current value. Only whole-extent evidence covers it;
@@ -139,6 +141,7 @@ pub(super) fn proves(
         call,
         place,
         Some(frames),
+        crate::flow::ValueObservation::Contents,
     ) else {
         return false;
     };

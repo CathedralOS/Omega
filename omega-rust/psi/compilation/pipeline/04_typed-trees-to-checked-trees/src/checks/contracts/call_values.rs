@@ -292,8 +292,14 @@ pub(crate) fn captured_arithmetic_observation(
             // again at invocation. Borrow admission remains independent.
             if let Some(length) = crate::checks::collection_extents::from_captured_value(
                 program,
+                &facts.borrow,
                 &facts.flow,
                 &captured,
+                facts
+                    .flow
+                    .contexts
+                    .constraint_refs
+                    .span_or_empty(call.entry_constraints),
             ) {
                 return Some(numerics::bignum::BigInt::from_u64(
                     u64::try_from(length).ok()?,

@@ -1,0 +1,6 @@
+machine wrong(count: u64) -> u64
+requires count < 100
+ensures result <= count {
+    transition { _ -> next(count + 1) }
+    state next(count: u64) -> u64 { transition { _ -> count } }
+}

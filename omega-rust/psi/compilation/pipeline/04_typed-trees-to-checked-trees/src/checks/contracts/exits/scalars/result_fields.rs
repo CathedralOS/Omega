@@ -48,13 +48,15 @@ impl ExitScalars<'_, '_> {
                         state: entry,
                     },
                     occurrence,
-                    |place| {
-                        arithmetic::value_origin(
+                    |place, observation| {
+                        arithmetic::observation_origin(
                             self.program,
+                            self.facts,
                             caller,
                             self.exit.statement_index,
                             self.call_frames?,
                             self.contract_place_at_exit(place)?,
+                            observation,
                         )
                     },
                 ) {
@@ -74,6 +76,7 @@ impl ExitScalars<'_, '_> {
                                 let place = call_guarantees::direct_place(self.program, value)?;
                                 let place = arithmetic::value_origin(
                                     self.program,
+                                    self.facts,
                                     caller,
                                     self.exit.statement_index,
                                     self.call_frames?,
@@ -88,6 +91,7 @@ impl ExitScalars<'_, '_> {
                     place.extend_segments(&remaining);
                     let place = arithmetic::value_origin(
                         self.program,
+                        self.facts,
                         caller,
                         self.exit.statement_index,
                         self.call_frames?,
@@ -114,6 +118,7 @@ impl ExitScalars<'_, '_> {
                 // otherwise have the same place spelling as new contents.
                 let place = arithmetic::value_origin(
                     self.program,
+                    self.facts,
                     caller,
                     self.exit.statement_index,
                     self.call_frames?,

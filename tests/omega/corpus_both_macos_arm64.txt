@@ -622,6 +622,7 @@ pass/ownership/runtime_unknown_affine_case_discard_exit built 5579ms exit:0 inte
 pass/ownership/runtime_view_parameter_element_window_exit built 2025ms exit:0 interpreter-exit:0 interpreter:agrees @37c6aa84a411+wt
 pass/ownership/runtime_whole_borrowed_transform_exit built 1665ms exit:42 interpreter-exit:42 interpreter:agrees @50701b2d3809+wt
 pass/ownership/runtime_whole_borrowed_window_crash_exit built 1874ms exit:signal signal:5 interpreter:trapped @7d761e0fef5f
+pass/proofs/borrowed_descriptor_bound_local_result_exit built 3521ms exit:0 interpreter-exit:0 interpreter:agrees @b3d0b7396229+wt
 pass/proofs/kernel_integer_subtract_order built 3453ms exit:0 interpreter-exit:0 interpreter:agrees @1a353f2e117b+wt
 pass/proofs/mathematical_predicate_contract_import_exit built 3407ms exit:0 interpreter-exit:0 interpreter:agrees @4a6e7ac34b03
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit built 2843ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1

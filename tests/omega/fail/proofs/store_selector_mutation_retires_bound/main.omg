@@ -1,0 +1,10 @@
+data Bounds { count: u64; limit: u64; }
+machine clear_limit(bounds: &mut Bounds) -> u64 ensures result == 0 {
+    bounds.limit = 0;
+    transition { _ -> 0 }
+}
+machine wrong(bounds: &mut Bounds, items: &mut [u64; 1])
+requires bounds.count <= bounds.limit && bounds.count > 0
+ensures bounds.count <= bounds.limit {
+    items[clear_limit(&mut bounds)] = 0;
+}

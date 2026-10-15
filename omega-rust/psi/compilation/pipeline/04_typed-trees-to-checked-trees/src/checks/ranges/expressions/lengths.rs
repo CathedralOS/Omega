@@ -19,6 +19,15 @@ pub(in crate::checks::ranges) fn expression_indexable_length(
     if let Some(length) = facts.expression_exact_length(program, machine, state, expression) {
         return usize::try_from(length).ok();
     }
+    // Live descriptor geometry belongs to its canonical storage place, not
+    // the spelling of a local name. The same loan evidence covers stored
+    // fields and selected elements; it does not infer an extent from a type.
+    if let Some(length) = facts
+        .checked_calls
+        .and_then(|calls| calls.collection_extent(program, facts.statement_index, expression))
+    {
+        return Some(length);
+    }
 
     match program.expression_table.expression(expression) {
         ExpressionNode::String(bytes) => Some(bytes.len()),
@@ -38,20 +47,14 @@ pub(in crate::checks::ranges) fn expression_indexable_length(
                     super::super::arrays::fixed_array_type_length(program, type_reference)
                 })
         }),
-        ExpressionNode::Name(path) => facts
-            .local_length(
-                path.symbol,
-                program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .last()
-                    .map(|name| name.as_str()),
-            )
-            .or_else(|| {
-                facts
-                    .checked_calls?
-                    .collection_extent(program, facts.statement_index, expression)
-            }),
+        ExpressionNode::Name(path) => facts.local_length(
+            path.symbol,
+            program
+                .expression_table
+                .name_path_members(path.members)
+                .last()
+                .map(|name| name.as_str()),
+        ),
         ExpressionNode::Borrow(inner) => {
             expression_indexable_length(program, machine, state, facts, inner.target)
         }

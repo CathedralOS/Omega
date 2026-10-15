@@ -17,10 +17,16 @@
 //! initializers. Calls use the exact operand-evaluation frontier, whereas a
 //! stable return uses the exit statement boundary. Those frontiers cannot be
 //! interchanged when an earlier sibling operand mutates storage.
+//! A captured store also retains the predicates proved about its operand at
+//! evaluation. Those predicates bind historical value atoms, not the current
+//! contents of the operand's former storage. Following the same atoms through
+//! copies lets both later calls and returns use their bounds without reviving
+//! invalidated live facts or assuming that a callee's precondition held.
 
 use super::callable::Callable;
 use super::{Invocation, actual_projection, bound_place, direct_place, invocation_fact};
 use crate::checks::unsigned;
+use crate::flow::ValueObservation;
 use checked_trees::{CheckFacts, FlowStateFact};
 use facts::{ContractFactKind, FactContextHandle, FactOrigin, FactPayload};
 use numerics::arithmetic::ArithmeticDomain;
@@ -93,10 +99,108 @@ pub(in crate::checks) fn proves_at_exit(
             holds: true,
         })
     })
-    .collect();
+    .collect::<Vec<_>>();
     proves_bound(
         program, facts, caller, statement, contexts, goal, hypotheses, frames, None,
     )
+}
+
+fn append_store_hypotheses(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    caller: &FlowStateFact,
+    statement: usize,
+    hypotheses: &mut Vec<ScopedArithmeticHypothesis>,
+    frames: &validation::CallFrameResolver<'_>,
+) {
+    // A store retires facts about the old slot, not truths about values
+    // already captured from it. Reconstruct each completed store's premises
+    // at that exact pre-store frontier. Origin tracing versions every leaf;
+    // nothing here republishes an earlier predicate as current storage truth.
+    for stored in facts
+        .flow
+        .control
+        .statements
+        .span_or_empty(caller.statements)
+        .iter()
+        .filter(|stored| stored.statement_index < statement)
+    {
+        if !facts.flow.control.operands.is_valid(stored.stored_value) {
+            continue;
+        }
+        let operand = facts.flow.control.operands.get(stored.stored_value);
+        let entry_contexts = facts
+            .flow
+            .semantic_constraint_contexts(stored.entry_constraints)
+            .collect::<Vec<_>>();
+        append_context_hypotheses(
+            program,
+            facts,
+            caller,
+            &entry_contexts,
+            hypotheses,
+            |place, observation| {
+                observation_origin(
+                    program,
+                    facts,
+                    caller,
+                    stored.statement_index,
+                    frames,
+                    place,
+                    observation,
+                )
+            },
+        );
+        let captured_contexts = facts
+            .flow
+            .semantic_constraint_contexts(stored.pre_store_constraints)
+            .collect::<Vec<_>>();
+        for guarantee in super::available(
+            program,
+            facts,
+            caller,
+            super::GuaranteeUse::EvaluatedContext(stored.statement_index),
+            &captured_contexts,
+            frames,
+        ) {
+            if let Some(writes) = guarantee.post_return_writes.as_deref()
+                && let Some(proposition) = at_invocation(
+                    program,
+                    facts,
+                    caller,
+                    &guarantee.invocation,
+                    guarantee.expression,
+                    writes,
+                    frames,
+                )
+            {
+                hypotheses.push(ScopedArithmeticHypothesis {
+                    proposition,
+                    holds: true,
+                });
+            }
+        }
+        append_context_hypotheses(
+            program,
+            facts,
+            caller,
+            &captured_contexts,
+            hypotheses,
+            |place, observation| {
+                crate::flow::operand_entry_origin_is_stable(program, &facts.flow, operand, &place)
+                    .then_some(())?;
+                observation_origin(
+                    program,
+                    facts,
+                    caller,
+                    stored.statement_index,
+                    frames,
+                    place,
+                    observation,
+                )
+            },
+        );
+    }
 }
 
 fn proves_bound(
@@ -113,10 +217,57 @@ fn proves_bound(
     let Some(machine) = program.machine_by_symbol(caller.machine_symbol) else {
         return false;
     };
+    append_store_hypotheses(program, facts, caller, statement, &mut hypotheses, frames);
+    append_context_hypotheses(
+        program,
+        facts,
+        caller,
+        contexts,
+        &mut hypotheses,
+        |place, observation| {
+            if let Some(call) = call {
+                crate::flow::value_origin_at_call(
+                    program,
+                    &facts.flow,
+                    machine,
+                    caller,
+                    call,
+                    place,
+                    Some(frames),
+                    observation,
+                )
+            } else {
+                observation_origin(
+                    program,
+                    facts,
+                    caller,
+                    statement,
+                    frames,
+                    place,
+                    observation,
+                )
+            }
+        },
+    );
+    validation::scoped_arithmetic_implication(program, machine, &hypotheses, goal)
+        == StrictArithmeticImplicationJudgment::Proven
+}
+
+fn append_context_hypotheses(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    caller: &FlowStateFact,
+    contexts: &[FactContextHandle],
+    hypotheses: &mut Vec<ScopedArithmeticHypothesis>,
+    origin: impl Fn(validation::CanonicalPlace, ValueObservation) -> Option<validation::CanonicalPlace>,
+) {
+    let Some(machine) = program.machine_by_symbol(caller.machine_symbol) else {
+        return;
+    };
     let Some(state) =
         validation::find_state_in_machine(program, caller.machine_symbol, caller.state_symbol)
     else {
-        return false;
+        return;
     };
     for fact in contexts.iter().flat_map(|context| {
         facts
@@ -150,34 +301,18 @@ fn proves_bound(
                     program,
                     &Callable::Machine { machine, state },
                     occurrence,
-                    |place| value_origin(program, caller, statement, frames, place),
+                    &origin,
                 ) {
-                    // Call operands have their own evaluation frontier. Do not
-                    // import a statement-end descriptor into that earlier epoch.
-                    return call.is_none().then_some(length);
+                    return Some(length);
                 }
                 let place = direct_place(program, occurrence)?;
-                let place = if let Some(call) = call {
-                    crate::flow::value_origin_at_call(
-                        program,
-                        &facts.flow,
-                        machine,
-                        caller,
-                        call,
-                        place,
-                        Some(frames),
-                    )?
-                } else {
-                    value_origin(program, caller, statement, frames, place)?
-                };
+                let place = origin(place, ValueObservation::Contents)?;
                 Some(atom(place, primitive))
             },
         ) {
             hypotheses.push(ScopedArithmeticHypothesis { proposition, holds });
         }
     }
-    validation::scoped_arithmetic_implication(program, machine, &hypotheses, goal)
-        == StrictArithmeticImplicationJudgment::Proven
 }
 
 /// Inputs use their operand frontier; a normal guarantee additionally carries
@@ -211,7 +346,17 @@ pub(super) fn at_invocation(
                     bindings: Vec::new(),
                 }));
             }
-            let place = bound_place(program, invocation, occurrence)?;
+            let length =
+                collection_length_subject(program, &invocation.callable, occurrence).is_some();
+            let (observed, observation) = if length {
+                (
+                    program.expression_table.member_node(occurrence)?.receiver,
+                    collection_length_observation(program, &invocation.callable, occurrence)?,
+                )
+            } else {
+                (occurrence, ValueObservation::Contents)
+            };
+            let place = bound_place(program, invocation, observed)?;
             if !post_return_writes.is_empty() && matches!(place.root, facts::PlaceRoot::Symbol(_)) {
                 let storage = crate::flow::rebase_exact_local_place(
                     program,
@@ -220,20 +365,16 @@ pub(super) fn at_invocation(
                     place.clone(),
                     Some(frames),
                 )?;
-                if post_return_writes.iter().any(|write| {
-                    write.root == storage.root
-                        && crate::flow::canonical_place_segments_may_overlap(
-                            program,
-                            &write.segments,
-                            &storage.segments,
-                        )
-                }) {
+                if post_return_writes
+                    .iter()
+                    .any(|write| observation.changed_by(program, &storage, write))
+                {
                     // Availability established this post-call proposition, not
                     // equality to the entry value of the same storage. Keep an
                     // opaque version until a consumer has exact return custody.
                     return Some(ScopedArithmeticValue::Atom {
                         identity: format!(
-                            "\0call-guarantee:return:{:?}:{}:{}:{primitive:?}:{storage:?}",
+                            "\0call-guarantee:return:{:?}:{}:{}:{primitive:?}:{length}:{storage:?}",
                             invocation.caller_state, invocation.statement, invocation.ordinal,
                         ),
                         unsigned: matches!(
@@ -259,19 +400,45 @@ pub(super) fn at_invocation(
                     call,
                     place,
                     Some(frames),
+                    observation,
                 )?
             };
-            Some(atom(place, primitive))
+            Some(if length {
+                length_atom(place)
+            } else {
+                atom(place, primitive)
+            })
         },
     )
 }
 
 pub(in crate::checks) fn value_origin(
     program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
     caller: &FlowStateFact,
     statement: usize,
     frames: &validation::CallFrameResolver<'_>,
     place: validation::CanonicalPlace,
+) -> Option<validation::CanonicalPlace> {
+    observation_origin(
+        program,
+        facts,
+        caller,
+        statement,
+        frames,
+        place,
+        ValueObservation::Contents,
+    )
+}
+
+pub(in crate::checks) fn observation_origin(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    caller: &FlowStateFact,
+    statement: usize,
+    frames: &validation::CallFrameResolver<'_>,
+    place: validation::CanonicalPlace,
+    observation: ValueObservation,
 ) -> Option<validation::CanonicalPlace> {
     let machine = program.machine_by_symbol(caller.machine_symbol)?;
     if matches!(place.root, facts::PlaceRoot::Expression(expression)
@@ -281,11 +448,13 @@ pub(in crate::checks) fn value_origin(
     }
     crate::flow::value_origin_before_statement(
         program,
+        &facts.flow,
         machine,
         caller,
         statement,
         place,
         Some(frames),
+        observation,
     )
 }
 
@@ -311,13 +480,59 @@ pub(in crate::checks) fn collection_length_value(
     program: &dyn ::validation::CheckingInput,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
-    origin: impl FnOnce(validation::CanonicalPlace) -> Option<validation::CanonicalPlace>,
+    origin: impl FnOnce(
+        validation::CanonicalPlace,
+        ValueObservation,
+    ) -> Option<validation::CanonicalPlace>,
 ) -> Option<ScopedArithmeticValue> {
-    let place = origin(collection_length_subject(program, callable, expression)?)?;
-    Some(ScopedArithmeticValue::Atom {
+    let place = collection_length_subject(program, callable, expression)?;
+    let place = origin(
+        place,
+        collection_length_observation(program, callable, expression)?,
+    )?;
+    Some(length_atom(place))
+}
+
+fn length_atom(place: validation::CanonicalPlace) -> ScopedArithmeticValue {
+    ScopedArithmeticValue::Atom {
         identity: format!("\0call-guarantee:length:{place:?}"),
         unsigned: true,
-    })
+    }
+}
+
+fn collection_length_observation(
+    program: &dyn ::validation::CheckingInput,
+    callable: &Callable<'_>,
+    expression: ExpressionHandle,
+) -> Option<ValueObservation> {
+    let member = program.expression_table.member_node(expression)?;
+    let mut reference = callable.scalar_reference(program, member.receiver)?;
+    let mut borrowed = false;
+    loop {
+        use typed_trees::types::TypeReferenceNode;
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => {
+                borrowed = true;
+                reference = *referee;
+            }
+            _ => break,
+        }
+    }
+    // Slice length belongs to its descriptor. In particular, this does not
+    // classify a qualified fixed byte owner's mutable live count as a binding.
+    Some(
+        if borrowed
+            && matches!(
+                program.type_reference_table.type_reference(reference),
+                typed_trees::types::TypeReferenceNode::Slice { .. }
+            )
+        {
+            ValueObservation::Binding
+        } else {
+            ValueObservation::Contents
+        },
+    )
 }
 
 fn collection_length_subject(

@@ -100,7 +100,7 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
         fact.payload,
         facts::FactPayload::ContractBooleanExpression { .. }
     ) && (semantic_contexts_prove_contract_fact(program, &facts.semantic, entry_contexts, fact)
-        || super::current_values::proves_exit(program, exit_flow, fact, call_frames)
+        || super::current_values::proves_exit(program, facts, exit_flow, fact, call_frames)
         || scalars::proves(program, facts, exit_flow, entry_contexts, fact, call_frames))
 }
 

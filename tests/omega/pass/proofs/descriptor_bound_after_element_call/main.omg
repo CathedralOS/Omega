@@ -1,0 +1,12 @@
+data Partition<'storage> { records: &'storage mut [u64]; count: u64; }
+machine keep(records: &mut [u64], count: u64) -> u64
+requires records.len > 0
+ensures result <= count {
+    records[0] = 7;
+    transition { _ -> count }
+}
+machine filter<'storage>(partition: &mut Partition<'storage>)
+requires partition.count <= partition.records.len && partition.records.len > 0
+ensures partition.count <= partition.records.len {
+    partition.count = keep(&mut partition.records[..], partition.count);
+}
