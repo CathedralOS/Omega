@@ -136,7 +136,7 @@ pass/atomics/runtime_nested_case_payload_atomic_event_exit built 18436ms exit:0 
 pass/atomics/runtime_shared_case_waived_atomic_exit built 15263ms exit:70 @6c49683ce714
 pass/atomics/runtime_stored_reference_atomic_events_exit built 17795ms exit:0 @6c49683ce714
 pass/atomics/shared_receiver_atomic_store built 14881ms exit:70 @6c49683ce714
-pass/blockexec/blocking_executor_custody_claims_compile rejected 18042ms regressed-from:built @6c49683ce714
+pass/blockexec/blocking_executor_custody_claims_compile rejected 5166ms regressed-from:built @8665e38f912c
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "execute", reason: "attached Unit closure is missing a checked boundary machine plan", gap: None })
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 3402ms @6c49683ce714
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 3489ms @6c49683ce714
@@ -268,7 +268,7 @@ pass/borrows/runtime_carrier_reference_reselection_exit built 15003ms exit:70 @6
 pass/borrows/runtime_carrier_reference_store_exit built 14733ms exit:70 @6c49683ce714
 pass/borrows/runtime_case_payload_partial_transfer_exit built 17727ms exit:0 @6c49683ce714
 pass/borrows/runtime_case_return_parameter_order_exit built 17699ms exit:0 @6c49683ce714
-pass/borrows/runtime_computed_backing_reference_copy_exit incomplete 18084ms @6c49683ce714
+pass/borrows/runtime_computed_backing_reference_copy_exit incomplete 5122ms @8665e38f912c
 	`main` has no executable body: this compiler does not lower a state of it yet (outer calls: statement window); in state `main::entry`
 pass/borrows/runtime_computed_case_copy_order_exit built 17840ms exit:0 @6c49683ce714
 pass/borrows/runtime_computed_shared_view_reborrow_exit built 17572ms exit:0 @6c49683ce714
@@ -463,9 +463,9 @@ pass/build/selected_const_array_length_exit built 34117ms exit:0 @5171c625dc6a+w
 pass/build/sibling_module_service_exclusion_exit built 17506ms exit:0 @6c49683ce714
 pass/build/sibling_module_slot_family_rows_exit built 10897ms exit:70 @b1d84da832b5+wt
 pass/build/static_assumed_binding_spelling_exit built 17619ms exit:0 @6c49683ce714
-pass/build/uefi_entry_schema_same_leaf incomplete 15515ms @6c49683ce714
+pass/build/uefi_entry_schema_same_leaf incomplete 7950ms @8665e38f912c
 	`launch` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: jump successor: loan transfer); in state `launch::entry`, statement 0
-pass/build/uefi_os_handoff_invocation incomplete 7567ms @6c49683ce714
+pass/build/uefi_os_handoff_invocation incomplete 6537ms @8665e38f912c
 	`Loader::run` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: jump successor: loan transfer); in state `Loader::run::run`, statement 0
 pass/calling/calling_count_boundaries_exit built 18565ms exit:70 @6c49683ce714
 pass/calls/ambient_receiver_scalar_return_exit built 14802ms exit:70 @6c49683ce714
@@ -497,8 +497,7 @@ pass/calls/callback_owned_indirect_record rejected 2416ms @6c49683ce714
 	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/callback_owned_overaligned_record rejected 2713ms @6c49683ce714
 	a boundary call requires an explicit shared `&Binding<R>` authority argument
-pass/calls/callback_private_materialization rejected 6058ms regressed-from:built @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
+pass/calls/callback_private_materialization built 9098ms @8665e38f912c
 pass/calls/callback_scalar_loan_permutation rejected 2519ms @6c49683ce714
 	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/caller_result_binding_mutable_loan_exit built 14883ms exit:70 @6c49683ce714
@@ -755,8 +754,7 @@ pass/calls/whole_byte_array_view_loans_exit built 14663ms exit:70 @6c49683ce714
 pass/capabilities/aarch64_hfa_import_compile checked 7905ms @6c49683ce714
 pass/capabilities/acquires_through_helper_return built 18106ms exit:0 @6c49683ce714
 pass/capabilities/boundary_trait_multiple_effects checked 3526ms @6c49683ce714
-pass/capabilities/callback_direct_install_compile rejected 2008ms regressed-from:built @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
+pass/capabilities/callback_direct_install_compile built 8555ms @8665e38f912c
 pass/capabilities/derives_through_helper built 18086ms @6c49683ce714
 pass/capabilities/external_leaf_binding_forms built 17692ms @6c49683ce714
 pass/capabilities/runtime_qualified_record_return_exit built 17638ms exit:0 @6c49683ce714
@@ -934,16 +932,16 @@ pass/comptime/runtime_const_array_wrapping_result_exit built 17985ms exit:0 @6c4
 pass/comptime/runtime_const_measured_recursion_exit built 15915ms exit:70 @6c49683ce714
 pass/comptime/selected_float_array_length_exit built 36327ms exit:70 @6c49683ce714
 pass/comptime/selected_float_array_length_layout_query_exit built 35450ms exit:70 @6c49683ce714
-pass/concurrency/boundary_suspension_inline_completion_exit rejected 18033ms @6c49683ce714
+pass/concurrency/boundary_suspension_inline_completion_exit rejected 5301ms @8665e38f912c
 	terminal-artifact production failed: Lowering(Unsupported("Unit claim transfer references a non-entry caller claim"))
 pass/concurrency/ref_array_suspend checked 17604ms @6c49683ce714
-pass/concurrency/runtime_array_loan_suspension_exit rejected 17984ms @6c49683ce714
+pass/concurrency/runtime_array_loan_suspension_exit rejected 5269ms @8665e38f912c
 	terminal-artifact production failed: Lowering(Unsupported("suspension frontier source position has no storage binding"))
-pass/concurrency/runtime_retained_reference_boundary_exit rejected 17475ms @6c49683ce714
+pass/concurrency/runtime_retained_reference_boundary_exit rejected 5258ms @8665e38f912c
 	terminal-artifact production failed: Lowering(Unsupported("suspension frontier source position has no storage binding"))
-pass/concurrency/runtime_returned_carrier_suspension_exit rejected 17626ms @6c49683ce714
+pass/concurrency/runtime_returned_carrier_suspension_exit rejected 5240ms @8665e38f912c
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "cleanup local is not established", gap: None })
-pass/concurrency/runtime_suspension_repeated_actual_exit rejected 17991ms @6c49683ce714
+pass/concurrency/runtime_suspension_repeated_actual_exit rejected 5270ms @8665e38f912c
 	terminal-artifact production failed: Lowering(Unsupported("suspension frontier source position has no storage binding"))
 pass/concurrency/runtime_zero_extent_carry_exit built 17835ms exit:0 @6c49683ce714
 pass/concurrency/suspend_after_last_use_compile checked 3594ms @6c49683ce714
@@ -1209,7 +1207,7 @@ pass/core/scoped_integer_call_exact_actual_requires_formation built 12344ms exit
 pass/core/scoped_integer_call_guarantees_composed_exit built 12906ms exit:0 @6c49683ce714
 pass/core/scoped_integer_call_unrelated_trait_operator_requires_formation built 12236ms exit:0 @6c49683ce714
 pass/core/self_read_only_receiver_compile checked 3484ms @6c49683ce714
-pass/core/task_lifecycle_operations rejected 18333ms @6c49683ce714
+pass/core/task_lifecycle_operations rejected 5384ms @8665e38f912c
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Task::finish$specialized$f1a34b3b312b5f65$0),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,generic\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(Task\\\\\\)\\\\\\)\\)\\,named\\(name\\(i32\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/core/zii_default_composite_exit built 15227ms exit:70 @6c49683ce714
 pass/data/case_first_payload_zero_established checked 3421ms @6c49683ce714
@@ -1481,7 +1479,7 @@ pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit built 14954ms exit:70 
 pass/effects/boundary_explicit_capability_rows checked 1634ms @7c1edd43e7e4+wt
 pass/effects/checked_boundary_unused_callback checked 3445ms @6c49683ce714
 pass/effects/checked_callback_provider_ceiling checked 3334ms @6c49683ce714
-pass/effects/exact_synchronous_callback_rows rejected 1671ms @6c49683ce714
+pass/effects/exact_synchronous_callback_rows rejected 477ms @8665e38f912c
 	call to `execute` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
 pass/effects/finite_requirement_block_acknowledged_exit built 9220ms exit:0 @326ed531359e+wt
 pass/effects/generic_callback_schema_reach checked 3436ms @6c49683ce714
@@ -1581,9 +1579,9 @@ pass/expressions/scalar_match_boundary_composition_exit built 32828ms exit:70 @6
 pass/expressions/seq_consuming_combinators checked 17840ms @6c49683ce714
 pass/expressions/unit_case_return_call_product built 14789ms exit:70 @6c49683ce714
 pass/filesystem/cross_linux_value_syscalls checked 64649ms @6c49683ce714
-pass/filesystem/dir_walk_wrappers_exit rejected 57226ms @6c49683ce714
+pass/filesystem/dir_walk_wrappers_exit rejected 19198ms @8665e38f912c
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_canonicalize rejected 12588ms @6c49683ce714
+pass/filesystem/native_canonicalize rejected 4847ms @8665e38f912c
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/native_close built 17196ms @6c49683ce714
 pass/filesystem/native_crud built 18928ms exit:0 stdout:match @6c49683ce714
@@ -1595,23 +1593,23 @@ pass/filesystem/native_metadata_ctime_dev built 22419ms exit:0 stdout:match @6c4
 pass/filesystem/native_metadata_ino built 25016ms @6c49683ce714
 pass/filesystem/native_metadata_nlink built 23262ms exit:0 stdout:match @6c49683ce714
 pass/filesystem/native_read_dir_iter built 22913ms exit:0 stdout:match @6c49683ce714
-pass/filesystem/native_wrapper_write_all_result rejected 56449ms @6c49683ce714
+pass/filesystem/native_wrapper_write_all_result rejected 18216ms @8665e38f912c
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/runtime_local_host_result_dispatch_exit built 20480ms exit:70 @6c49683ce714
 pass/filesystem/runtime_posix_borrowed_view_io_exit built 19997ms exit:0 stdout:match @6c49683ce714
 pass/filesystem/runtime_posix_read_runtime_range_view_exit built 20286ms exit:0 stdout:match @6c49683ce714
-pass/filesystem/windows_canonicalize_exit rejected 710ms @6c49683ce714
+pass/filesystem/windows_canonicalize_exit rejected 1202ms @8665e38f912c
 	machine `FailedOpen::main` declares unknown boundary service `FilesystemHost`
 pass/filesystem/windows_native_create_write_close_exit built 23061ms @6c49683ce714
-pass/filesystem/windows_raw_breadth_exit rejected 15099ms @6c49683ce714
+pass/filesystem/windows_raw_breadth_exit rejected 5065ms @8665e38f912c
 	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/windows_set_file_time_exit rejected 18812ms @6c49683ce714
+pass/filesystem/windows_set_file_time_exit rejected 5088ms @8665e38f912c
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/windows_wrapper_results_exit rejected 58276ms @6c49683ce714
+pass/filesystem/windows_wrapper_results_exit rejected 18942ms @8665e38f912c
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/wrapper_lock_metadata_exit rejected 57184ms @6c49683ce714
+pass/filesystem/wrapper_lock_metadata_exit rejected 18721ms @8665e38f912c
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/wrapper_open_with_exit rejected 58920ms @6c49683ce714
+pass/filesystem/wrapper_open_with_exit rejected 20111ms @8665e38f912c
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/float/admitted_float_conversion_crash built 22290ms exit:signal signal:4 stdout:match @326ed531359e+wt
 pass/float/admitted_float_lower_boundary_crash built 23141ms exit:signal signal:4 stdout:match @326ed531359e+wt
@@ -1767,7 +1765,7 @@ pass/generics/omitted_data_binder_range_equation built 5713ms exit:92 @4c4c95594
 pass/generics/omitted_fixed_domain_array_equation checked 3513ms @6c49683ce714
 pass/generics/open_computed_quantity_result built 15352ms exit:70 @6c49683ce714
 pass/generics/ranged_const_parameter_attached_shape built 14807ms exit:70 @6c49683ce714
-pass/generics/runtime_borrowed_value_inference_exit incomplete 17827ms @6c49683ce714
+pass/generics/runtime_borrowed_value_inference_exit incomplete 5656ms @8665e38f912c
 	`main` has no executable body: this compiler does not lower a state of it yet (outer calls: statement window); in state `main::entry`
 pass/generics/runtime_captured_map_borrowed_type built 18058ms exit:0 @6c49683ce714
 pass/generics/runtime_captured_map_const_body built 17654ms exit:0 @6c49683ce714
@@ -1831,7 +1829,7 @@ pass/generics/runtime_index_carrier_parameter checked 3637ms @6c49683ce714
 pass/generics/runtime_index_carrier_runtime checked 3362ms @6c49683ce714
 pass/generics/runtime_index_carrier_static checked 3280ms @6c49683ce714
 pass/generics/runtime_index_carrier_static_bool checked 3764ms @6c49683ce714
-pass/generics/runtime_inherited_composite_requirement_exit rejected 5213ms @6c49683ce714
+pass/generics/runtime_inherited_composite_requirement_exit rejected 1701ms @8665e38f912c
 	machine `ForwardEnvelope::forward$specialized$8fefdbccbf9c9b16$1` state `forward` parameter `value` generic argument generic argument uses undeclared lifetime argument `'first' in `Selected`; declare it in the owner's generic parameter list
 	machine `ForwardEnvelope::forward$specialized$8fefdbccbf9c9b16$1` state `forward` parameter `value` generic argument generic argument uses undeclared lifetime argument `'second' in `Selected`; declare it in the owner's generic parameter list
 	machine `ForwardEnvelope::forward$specialized$8fefdbccbf9c9b16$1` state `forward` return type generic argument generic argument uses undeclared lifetime argument `'first' in `Selected`; declare it in the owner's generic parameter list
@@ -1900,13 +1898,13 @@ pass/host/runtime_descriptor_scalar_input_exit built 18054ms exit:0 stdout:match
 pass/host/runtime_encoded_record_view_observation_exit built 17614ms exit:0 stdout:match @6c49683ce714
 pass/host/runtime_fixed_arithmetic_across_console_exit built 14938ms exit:0 stdout:match stderr:match @6c49683ce714
 pass/host/runtime_foreign_scalar_loan_writeback_exit built 15249ms @6c49683ce714
-pass/host/runtime_gui_foreground_window_exit rejected 14692ms @6c49683ce714
+pass/host/runtime_gui_foreground_window_exit rejected 4878ms @8665e38f912c
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
-pass/host/runtime_gui_window_lifecycle_exit rejected 15105ms @6c49683ce714
+pass/host/runtime_gui_window_lifecycle_exit rejected 4992ms @8665e38f912c
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
 pass/host/runtime_stored_scalar_reference_foreign_export_exit built 17682ms exit:0 stdout:match @6c49683ce714
 pass/host/std_clock_sleep_exit built 15533ms exit:70 @6c49683ce714
-pass/inline_asm/asm_aarch64_system_registers_compile incomplete 17589ms @6c49683ce714
+pass/inline_asm/asm_aarch64_system_registers_compile incomplete 5496ms @8665e38f912c
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state); in state `Main::main::main`, statement 0
 pass/inline_asm/asm_block_jmp_state built 17862ms @6c49683ce714
 pass/inline_asm/asm_exact_clobbers checked 18045ms @6c49683ce714
@@ -1916,11 +1914,11 @@ pass/inline_asm/asm_memory_transfer_compile built 17385ms @6c49683ce714
 pass/inline_asm/asm_msr_multi checked 17724ms @6c49683ce714
 pass/inline_asm/asm_port_contract checked 17763ms @6c49683ce714
 pass/inline_asm/asm_port_immediate checked 17458ms @6c49683ce714
-pass/inline_asm/asm_port_out_final_validation rejected 17700ms @6c49683ce714
+pass/inline_asm/asm_port_out_final_validation rejected 5483ms @8665e38f912c
 	native artifact terminal-authority closure review failed: root-reachable checked physical operation has no selected provider requirement custody
 pass/inline_asm/asm_reach_inherit checked 17500ms @6c49683ce714
 pass/inline_asm/asm_reach_wrapper checked 17632ms @6c49683ce714
-pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 17901ms @6c49683ce714
+pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 5516ms @8665e38f912c
 	`Main::main` has no executable body: this compiler does not lower a call of it yet (call operation: call site); in state `Main::main::main`, statement 0
 pass/inline_asm/asm_state_jmp checked 17631ms @6c49683ce714
 pass/inline_asm/asm_sysreg_rw checked 17523ms @6c49683ce714
@@ -2041,12 +2039,12 @@ pass/machines/write_state_forward checked 17226ms @6c49683ce714
 pass/math/extent_no_wrap_requires_denotation checked 3476ms @6c49683ce714
 pass/memory/address_translation_canary checked 3725ms @6c49683ce714
 pass/memory/bump_allocator_canary built 23893ms @6c49683ce714
-pass/memory/interrupt_table_canary rejected 8179ms regressed-from:checked @6c49683ce714
+pass/memory/interrupt_table_canary rejected 2725ms regressed-from:checked @8665e38f912c
 	selected whole provider maps `<selected target>::TimerProviderRoot::satisfies::TimerRoot` and `<selected target>::FatalExceptionProviderRoot::satisfies::FatalExceptionRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
 pass/memory/runtime_large_entry_record_field_exit built 14674ms exit:70 @6c49683ce714
 pass/memory/runtime_large_frame_console_byte_homes_exit built 15568ms exit:70 stdout:match @6c49683ce714
 pass/memory/runtime_large_local_record_exit built 15341ms exit:70 @6c49683ce714
-pass/memory/secondary_processor_canary rejected 6700ms regressed-from:built @6c49683ce714
+pass/memory/secondary_processor_canary rejected 2193ms regressed-from:built @8665e38f912c
 	selected whole provider maps `<selected target>::SecondSecondaryProcessorConformance::satisfies::SecondSecondaryProcessorRoot` and `<selected target>::FirstSecondaryProcessorConformance::satisfies::FirstSecondaryProcessorRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
 pass/memory/weak_vacant_qualifier_satisfied checked 3425ms @6c49683ce714
 pass/modules/aggregate_machine_indices checked 3462ms @6c49683ce714
@@ -2193,7 +2191,7 @@ pass/ownership/double_loan_chain_compile checked 3496ms @6c49683ce714
 pass/ownership/element_view_forward_compile checked 3430ms @6c49683ce714
 pass/ownership/free_machine_record_result_claims_exit built 17834ms exit:0 @6c49683ce714
 pass/ownership/indexed_element_loan_compile checked 3535ms @6c49683ce714
-pass/ownership/invariant_member_loan_compile rejected 810ms @6c49683ce714
+pass/ownership/invariant_member_loan_compile rejected 231ms @8665e38f912c
 	machine `Main::main` cannot lend restricted field `left` to `fill`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 pass/ownership/invariant_record_move_compile checked 3362ms @6c49683ce714
 pass/ownership/invariant_record_view_compile checked 3237ms @6c49683ce714
@@ -2315,7 +2313,7 @@ pass/proofs/accepted_axiom_cited_exit built 14833ms exit:70 @6c49683ce714
 pass/proofs/accumulator_guarantee_exit built 14858ms exit:70 @6c49683ce714
 pass/proofs/axiom_citation checked 17567ms @6c49683ce714
 pass/proofs/case_call_premises checked 3412ms @6c49683ce714
-pass/proofs/cauchy_predicates_compile rejected 1408ms @6c49683ce714
+pass/proofs/cauchy_predicates_compile rejected 487ms @8665e38f912c
 	machine `cauchy_at_reflexive` ensures contract proof fact `cauchy_at<Sequence, Modulus>(precision, index, index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 	machine `converges_together_at_symmetric` cites `rat_close_symmetric`, but the callee's requires fact `rat_close(p, q, precision) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 	machine `converges_together_at_symmetric` ensures contract proof fact `converges_together_at<Right, Left, Modulus>(precision, right_index, left_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
@@ -2353,7 +2351,7 @@ pass/proofs/numeric_state_contract_exit built 18726ms exit:0 @6c49683ce714
 pass/proofs/ordinary_denotational_requirement_published_termination_exit built 17646ms exit:0 @6c49683ce714
 pass/proofs/piecewise_call_result_arithmetic checked 3464ms @6c49683ce714
 pass/proofs/polynomial_expand_core_nat built 15338ms exit:70 @6c49683ce714
-pass/proofs/post_mutation_guard_alias rejected 17515ms @6c49683ce714
+pass/proofs/post_mutation_guard_alias rejected 5588ms @8665e38f912c
 	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/proofs/post_mutation_guard_bound built 17853ms @6c49683ce714
 pass/proofs/post_mutation_guard_nested_field built 17504ms @6c49683ce714
@@ -2412,8 +2410,13 @@ pass/proofs/selected_specification_requires_renamed checked 3587ms @6c49683ce714
 pass/proofs/selected_specification_requires_state checked 3400ms @6c49683ce714
 pass/proofs/short_circuit_rhs_entry_bound built 17915ms @6c49683ce714
 pass/proofs/stride_pair_telescope checked 18313ms @6c49683ce714
-pass/providers/applied_binding_field_telescopes_exit rejected 4463ms @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
+pass/providers/applied_binding_field_telescopes_exit rejected 1651ms @8665e38f912c
+	argument `reading` for state `entry` expects `&Binding<Reading<u64>>`, got `member access`
+	argument `reading` for state `entry` expects `&Binding<Reading<bool>>`, got `member access`
+	argument `reading` for state `entry` expects `&Binding<Reading<u64>>`, got `member access`
+	argument `reading` for state `entry` expects `&Binding<Reading<u64>>`, got `member access`
+	argument `reading` for state `entry` expects `&Binding<Reading<bool>>`, got `member access`
+	argument `reading` for state `entry` expects `&Binding<Reading<u64>>`, got `member access`
 pass/providers/applied_entry_nested_binding_context_exit built 11734ms exit:0 @326ed531359e+wt
 pass/providers/bare_byte_array_boundary_argument built 10563ms exit:0 @326ed531359e+wt
 pass/providers/binding_formal_type_const_operands checked 3384ms @6c49683ce714
@@ -2432,7 +2435,7 @@ pass/providers/boundary_primitive_array_argument_exit built 15196ms exit:70 @6c4
 pass/providers/boundary_req_inherit checked 17377ms @6c49683ce714
 pass/providers/boundary_scalar_field_store built 15004ms exit:70 @6c49683ce714
 pass/providers/build_product_adapter_frontiers_exit built 22337ms exit:0 @6c49683ce714
-pass/providers/calling_application_region_scopes_exit rejected 5215ms @6c49683ce714
+pass/providers/calling_application_region_scopes_exit rejected 1608ms @8665e38f912c
 	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `member access`
 pass/providers/checked_boundary_operator_const_application_alternate_exit built 14225ms exit:70 @6c49683ce714
 pass/providers/checked_boundary_operator_physical_custody built 14817ms exit:70 @6c49683ce714
@@ -2473,13 +2476,13 @@ pass/providers/linear_structural_provider_return_exit built 8953ms exit:0 stdout
 pass/providers/local_record_foreign_borrow_exit built 7940ms exit:70 @326ed531359e+wt
 pass/providers/module_named_operator_result_domain_satisfaction built 15378ms exit:70 @6c49683ce714
 pass/providers/nested_binding_borrowed_call_exit built 17737ms exit:0 @6c49683ce714
-pass/providers/occurrence_region_binding_exit rejected 5180ms @6c49683ce714
+pass/providers/occurrence_region_binding_exit rejected 1770ms @8665e38f912c
 	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `member access`
-pass/providers/occurrence_region_binding_forwarding_exit rejected 5350ms @6c49683ce714
+pass/providers/occurrence_region_binding_forwarding_exit rejected 1583ms @8665e38f912c
 	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `named value`
 	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `member access`
 	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `named value`
-pass/providers/occurrence_region_binding_projected_type_exit rejected 5124ms @6c49683ce714
+pass/providers/occurrence_region_binding_projected_type_exit rejected 1595ms @8665e38f912c
 	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `named value`
 	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `member access`
 	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `named value`
@@ -2890,7 +2893,7 @@ pass/targets/target_machine_gating_exit built 15208ms exit:70 @6c49683ce714
 pass/targets/target_member_ranked_self_transition_exit built 7515ms exit:70 @6c49683ce714
 pass/targets/unreached_family_missing_member_exit built 17886ms exit:0 @6c49683ce714
 pass/targets/unreached_foreign_body_caller_exit built 7645ms exit:70 @6c49683ce714
-pass/tasks/task_runtime_machine_selection_compile rejected 423ms regressed-from:checked @6c49683ce714
+pass/tasks/task_runtime_machine_selection_compile rejected 161ms regressed-from:checked @8665e38f912c
 	static method application requires its complete explicit invocation telescope
 pass/terminal_psi/content_custody_exit checked 3387ms @6c49683ce714
 pass/terminal_psi/debug_identity_complete_module built 70765ms exit:0 terminal-inspections:match @6c49683ce714
@@ -3059,9 +3062,9 @@ pass/text/plain_and_qualified_byte_arrays_exit built 15087ms exit:70 @6c49683ce7
 pass/text/plain_byte_field_and_qualified_state_loan_exit built 15225ms exit:70 @6c49683ce714
 pass/text/qualified_byte_owner_state_loan_cycle_exit built 7891ms exit:70 stdout:match @326ed531359e+wt
 pass/text/qualified_byte_state_snapshot_exit built 14851ms exit:70 @6c49683ce714
-pass/text/qualified_byte_value_forwarding_exit rejected 15043ms @6c49683ce714
+pass/text/qualified_byte_value_forwarding_exit rejected 4940ms @8665e38f912c
 	machine `Main::main` state `main` statement 2 cannot lower structural value: computed owned operand requires an existing parameter
-pass/text/runtime_alias_string_write incomplete 17577ms regressed-from:built @6c49683ce714
+pass/text/runtime_alias_string_write incomplete 5369ms regressed-from:built @8665e38f912c
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (structural field store: carrier path); in state `Main::main::main`, statement 1
 pass/text/runtime_bounded_carrier_alias_concat_exit built 14904ms exit:70 @6c49683ce714
 pass/text/runtime_bounded_carrier_concat_exit built 15366ms exit:70 @6c49683ce714
@@ -3085,7 +3088,7 @@ pass/text/runtime_owned_string_byte_view_exit built 14849ms exit:70 @6c49683ce71
 pass/text/runtime_param_domain_forward_exit built 14895ms exit:70 @6c49683ce714
 pass/text/runtime_param_domain_literal_read_exit built 14847ms exit:70 @6c49683ce714
 pass/text/runtime_qualified_byte_array_storage_exit built 9374ms exit:0 @6c49683ce714
-pass/text/runtime_qualified_owner_view_open_exit rejected 17749ms @6c49683ce714
+pass/text/runtime_qualified_owner_view_open_exit rejected 5356ms @8665e38f912c
 	machine `Main::main` state `main` statement 3 cannot lower structural value: computed owned operand requires an existing parameter
 pass/text/runtime_slice_indexed_string_guard_exit built 14929ms exit:70 @6c49683ce714
 pass/text/runtime_stdin_command_branch_exit built 7367ms exit:0 stdout:match @326ed531359e+wt
@@ -3107,7 +3110,7 @@ pass/text/runtime_view_local_state_transfer_exit built 6585ms exit:70 @d9f4c9302
 pass/text/state_parameter_byte_replacement_exit built 15107ms exit:70 @6c49683ce714
 pass/text/text_concat_assign checked 18236ms @6c49683ce714
 pass/text/utf8_boundary_established checked 1037ms @4c4c955947d3
-pass/text/utf8_member_verdict rejected 15013ms @6c49683ce714
+pass/text/utf8_member_verdict rejected 5133ms @8665e38f912c
 	machine `LabelMessage::decode` state `field_1_view_validate` statement 0: call stores a borrowed value without a complete destination/backing relation
 pass/text/view_field_literal_store_outlives_helper_exit built 15276ms exit:70 @6c49683ce714
 pass/text/zii_default_string_equality_exit built 14843ms exit:70 @6c49683ce714
@@ -3127,12 +3130,12 @@ pass/time/static_duration_accessors built 38266ms exit:70 @6c49683ce714
 pass/traits/applied_callable_law_equality_exit built 34207ms exit:0 @6c49683ce714
 pass/traits/applied_conformance_captured_fresh_regions_exit built 17924ms exit:0 @6c49683ce714
 pass/traits/applied_contract_arithmetic_refinement built 17730ms exit:0 @6c49683ce714
-pass/traits/applied_nominal_callback_closed_local_types_exit rejected 5230ms @6c49683ce714
+pass/traits/applied_nominal_callback_closed_local_types_exit rejected 1585ms @8665e38f912c
 	static tuple for `Routine` lost its original binding declaration
 	static tuple for `Routine` lost its original binding declaration
 	static type tuple lost its declared binder
 	static type tuple lost its declared binder
-pass/traits/applied_nominal_callback_local_types_exit rejected 2793ms @6c49683ce714
+pass/traits/applied_nominal_callback_local_types_exit rejected 1596ms @8665e38f912c
 	static tuple for `Routine` lost its original binding declaration
 	static tuple for `Routine` lost its original binding declaration
 	static type tuple lost its declared binder
@@ -3158,7 +3161,7 @@ pass/traits/equatable_record_equality_exit built 15111ms exit:70 @6c49683ce714
 pass/traits/equatable_string_field_equality_exit built 7794ms exit:70 @6c49683ce714
 pass/traits/equatable_synthesis checked 17778ms @6c49683ce714
 pass/traits/exact_edge_application_and_invocation_parameters built 15267ms exit:70 @6c49683ce714
-pass/traits/generic_map_applied_contract_exit rejected 8362ms @6c49683ce714
+pass/traits/generic_map_applied_contract_exit rejected 2549ms @8665e38f912c
 	cannot prove ensures contract for exit from Identity::identity at statement 0: result <= Maximum
 	cannot prove ensures contract for exit from Identity::identity$specialized$424e8d1988a1e7b7$0 at statement 0: result <= Maximum
 	cannot prove ensures contract for exit from Identity::identity$specialized$424e8d1988a1e7b7$1 at statement 0: result <= Maximum
@@ -3233,7 +3236,7 @@ pass/wire/runtime_wire_exact_array_without_count_exit built 15793ms exit:70 @6c4
 pass/wire/runtime_wire_policy_authored_plan_exit built 12667ms exit:70 @b1d84da832b5+wt
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit built 20731ms exit:70 @6c49683ce714
 pass/wire/runtime_wire_signed_extremes_roundtrip_exit built 27920ms exit:0 @6c49683ce714
-pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 23317ms regressed-from:built+exit:70 @6c49683ce714
+pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 8512ms regressed-from:built+exit:70 @8665e38f912c
 	machine `LabelMessage::decode` state `field_1_view_validate` statement 0: call stores a borrowed value without a complete destination/backing relation
 pass/wire/wire_compatibility_migration_across_shapes built 12597ms exit:0 @6c49683ce714
 pass/wire/wire_data_reserved_field built 17612ms @6c49683ce714
