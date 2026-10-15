@@ -105,8 +105,9 @@ pub fn fixed_array_place_shape<'a>(
 
 /// Resolve a primitive leaf projection that may select elements at run time.
 /// Fields step into structural children or end at a plain IEEE scalar. A literal
-/// index stays inside its extent; a runtime index selects an array element: its
-/// bound is the obligation of the operation carrying the path. `Referent`
+/// index stays inside a declared extent. A borrowed descriptor's live extent
+/// is an operation obligation even for literal indices, just as for runtime
+/// indices. Such selections never mint a canonical owned path. `Referent`
 /// steps through a declared reference; a byte carrier's element is the u8 scalar.
 /// `Case` names no direct primitive leaf; borrowed payload projection geometry
 /// has a separate contract.
@@ -715,15 +716,16 @@ fn walk_primitive_projection_with_policy<'a>(
             ) => {
                 let capacity = match carrier {
                     ByteSequenceCarrier::BoundedOwned { capacity }
-                    | ByteSequenceCarrier::BoundedView { capacity, .. } => capacity,
+                    | ByteSequenceCarrier::BoundedView { capacity, .. } => Some(capacity),
                     // A literal coordinate on a dynamic view still needs the
-                    // operation's runtime bound; its type proves no element exists.
-                    ByteSequenceCarrier::BorrowedView { .. } => return None,
+                    // operation's runtime bound. This query identifies its
+                    // carrier, not existence or owned canonical storage.
+                    ByteSequenceCarrier::BorrowedView { .. } => None,
                 };
-                if index >= capacity {
+                if capacity.is_some_and(|capacity| index >= capacity) {
                     return None;
                 }
-                step(Some(CanonicalStructuralPathSegment::FixedIndex(*index)));
+                step(capacity.map(|_| CanonicalStructuralPathSegment::FixedIndex(*index)));
                 Position::ByteElement
             }
             (StructuralPathSegment::RuntimeIndex { .. }, StructuralTypeShape::ByteSequence(_)) => {

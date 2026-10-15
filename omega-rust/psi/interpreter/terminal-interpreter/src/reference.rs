@@ -269,34 +269,6 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    /// A byte selected inside a byte view or bounded owner has no catalog
-    /// child of its own; it names the unique declared `u8` carrier, the same
-    /// endpoint judgment primitive loans of inline bytes use.
-    fn inline_byte_source_type(
-        &self,
-        root: StructuralTypeId,
-        path: &[StructuralPathSegment],
-    ) -> Option<StructuralTypeId> {
-        let byte = StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
-                .ok()?,
-        ));
-        let types = self.program.structural_types();
-        if !matches!(
-            types.get(&root)?.shape,
-            StructuralTypeShape::ByteSequence(_)
-        ) || !matches!(path, [StructuralPathSegment::FixedIndex(_)])
-        {
-            return None;
-        }
-        let mut matching = types
-            .values()
-            .filter(|declaration| declaration.shape == byte)
-            .map(|declaration| declaration.id);
-        let declaration = matching.next()?;
-        matching.next().is_none().then_some(declaration)
-    }
-
     fn reference_contract(
         &self,
         reference_type: StructuralTypeId,
@@ -442,7 +414,11 @@ impl TerminalExecution<'_> {
                 &source.path,
             ) {
                 tip.id
-            } else if let Some(byte) = self.inline_byte_source_type(root_type, &source.path) {
+            } else if let Some(byte) = terminal_semantics::primitive_projection_declaration(
+                self.program.structural_types().values(),
+                root_type,
+                &source.path,
+            ) {
                 byte
             } else {
                 self.resolve_live_projection(source.place, &source.path, source.access)?
@@ -537,7 +513,11 @@ impl TerminalExecution<'_> {
                 // loan below names the view's own backing byte.
                 let inline_byte = match tip {
                     Some(_) => None,
-                    None => self.inline_byte_source_type(root_type, &source.path),
+                    None => terminal_semantics::primitive_projection_declaration(
+                        self.program.structural_types().values(),
+                        root_type,
+                        &source.path,
+                    ),
                 };
                 let original_type = tip.or(inline_byte).ok_or_else(malformed)?;
                 if offset_type.is_address()

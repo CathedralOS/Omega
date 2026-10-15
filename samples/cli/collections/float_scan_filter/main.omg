@@ -1,0 +1,103 @@
+// Expected exit: 0.
+// Repeat a floating scan without treating unordered comparisons as integer order.
+use omega::language::core::float_operations;
+
+data Reading [copy] { address: u64; previous: [u8; 8]; current: [u8; 8]; }
+trait Retain<T> { machine test(value: &T) -> bool; }
+
+machine decode(bytes: &[u8]) -> f64
+requires bytes.len >= 8 {
+    let value: &f64 = &bytes[0] as &f64;
+    value
+}
+
+Changed satisfies Retain<Reading> {
+    machine test(value: &Reading) -> bool { decode(&value.current[..]) != decode(&value.previous[..]) }
+}
+Increased satisfies Retain<Reading> {
+    machine test(value: &Reading) -> bool { decode(&value.current[..]) > decode(&value.previous[..]) }
+}
+Unchanged satisfies Retain<Reading> {
+    machine test(value: &Reading) -> bool { decode(&value.current[..]) == decode(&value.previous[..]) }
+}
+Decreased satisfies Retain<Reading> {
+    machine test(value: &Reading) -> bool { decode(&value.current[..]) < decode(&value.previous[..]) }
+}
+
+machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: &'input mut [T])
+    -> &'input mut [T]
+{
+    transition { _ -> scan(selected, values, 0, 0) }
+    state scan(selected: dyn Retain<T>, values: &'input mut [T], cursor: u64, retained: u64)
+        -> &'input mut [T]
+    requires retained <= cursor && cursor <= values.len {
+        transition cursor < values.len {
+            true -> visit(selected, values, cursor, retained)
+            false -> (&mut values[..retained])
+        }
+    }
+    state visit(selected: dyn Retain<T>, values: &'input mut [T], cursor: u64, retained: u64)
+        -> &'input mut [T]
+    requires retained <= cursor && cursor < values.len {
+        transition Retain::test(selected, &values[cursor]) {
+            true -> keep(selected, values, cursor, retained)
+            false -> scan(selected, values, cursor + 1, retained)
+        }
+    }
+    state keep(selected: dyn Retain<T>, values: &'input mut [T], cursor: u64, retained: u64)
+        -> &'input mut [T]
+    requires retained <= cursor && cursor < values.len {
+        values[retained] = values[cursor];
+        transition { _ -> scan(selected, values, cursor + 1, retained + 1) }
+    }
+}
+
+machine signature(values: &[Reading]) -> u64 {
+    transition { _ -> next(values, 0, 0) }
+    state next(values: &[Reading], cursor: u64, result: u64) -> u64
+    requires cursor <= values.len {
+        transition cursor < values.len {
+            true -> read(values, cursor, result)
+            false -> result
+        }
+    }
+    state read(values: &[Reading], cursor: u64, result: u64) -> u64
+    requires cursor < values.len {
+        let accumulated: u64 in Wrapping = (result as u64 in Wrapping) * 100
+            + (values[cursor].address as u64 in Wrapping);
+        transition { _ -> next(values, cursor + 1, accumulated as u64) }
+    }
+}
+
+machine exercise(selected: dyn Retain<Reading>, expected: u64, repeated: u64) -> bool {
+    let mut readings: [Reading; 7] = [
+        Reading { address: 91, previous: [0, 0, 0, 0, 0, 0, 34, 64], current: [0, 0, 0, 0, 0, 0, 36, 64] },
+        Reading { address: 10, previous: [0, 0, 0, 0, 0, 0, 0, 128], current: [0, 0, 0, 0, 0, 0, 0, 0] },
+        Reading { address: 20, previous: [0, 0, 0, 0, 0, 0, 240, 63], current: [0, 0, 0, 0, 0, 0, 0, 64] },
+        Reading { address: 30, previous: [0, 0, 0, 0, 0, 0, 8, 64], current: [0, 0, 0, 0, 0, 0, 0, 64] },
+        Reading { address: 40, previous: [1, 0, 0, 0, 0, 0, 248, 127], current: [2, 0, 0, 0, 0, 0, 248, 127] },
+        Reading { address: 50, previous: [0, 0, 0, 0, 0, 0, 20, 64], current: [0, 0, 0, 0, 0, 0, 20, 64] },
+        Reading { address: 92, previous: [0, 0, 0, 0, 0, 0, 36, 64], current: [0, 0, 0, 0, 0, 0, 34, 64] }
+    ];
+    let first: &mut [Reading] = compact(selected, &mut readings[1..6]);
+    let first_signature: u64 = signature(first);
+    let second: &mut [Reading] = compact(Increased as dyn Retain<Reading>, first);
+    let second_signature: u64 = signature(second);
+    let empty: &mut [Reading] = compact(Decreased as dyn Retain<Reading>, second);
+    let empty_count: u64 = empty.len;
+    first_signature == expected && second_signature == repeated && empty_count == 0
+        && readings[0].address == 91 && readings[6].address == 92
+}
+
+machine main() crashes Trap {
+    let changed: bool = exercise(Changed as dyn Retain<Reading>, 203040, 20);
+    let increased: bool = exercise(Increased as dyn Retain<Reading>, 20, 20);
+    let decreased: bool = exercise(Decreased as dyn Retain<Reading>, 30, 0);
+    let unchanged: bool = exercise(Unchanged as dyn Retain<Reading>, 1050, 0);
+    transition changed && increased && decreased && unchanged {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

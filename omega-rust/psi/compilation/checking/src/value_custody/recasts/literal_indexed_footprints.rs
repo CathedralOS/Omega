@@ -1,8 +1,6 @@
 //! Literal-indexed recast footprints and fixed-array terminals.
 
-use crate::value_custody::recasts::raw_byte_region::{
-    InteriorByteRegion, interior_byte_region_source,
-};
+use crate::value_custody::recasts::raw_byte_region::{ByteRegionFootprint, byte_region_footprint};
 use crate::value_custody::recasts::recast_judgments::{judge_scalar_recast, strip_mutable};
 use crate::value_custody::recasts::record_eligibility::{
     closed_fact_free_record_symbol_is_eligible, direct_phantom_lifetime_record_symbol,
@@ -172,17 +170,11 @@ pub fn validate_literal_indexed_recast_footprint(
     };
 
     let footprint = i64::try_from(end.checked_sub(start)?).ok()?;
-    let InteriorByteRegion::Bounded {
-        offset,
-        region_length,
-    } = interior_byte_region_source(program, machine, state, statement_index, source, footprint)
+    let ByteRegionFootprint::Contained =
+        byte_region_footprint(program, machine, state, statement_index, source, footprint)
     else {
         return None;
     };
-    if usize::try_from(offset).ok()? != start || end > usize::try_from(region_length).ok()? {
-        return None;
-    }
-
     Some(ValidatedLiteralIndexedRecastFootprint {
         collection: indexed.collection,
         start,
@@ -244,24 +236,16 @@ pub fn validate_runtime_indexed_recast_source(
         cast.target_type,
     )?)
     .ok()?;
-    let InteriorByteRegion::Bounded {
-        offset,
-        region_length,
-    } = interior_byte_region_source(
+    let ByteRegionFootprint::Contained = byte_region_footprint(
         program,
         machine,
         state,
         statement_index,
         source,
         target_size,
-    )
-    else {
+    ) else {
         return None;
     };
-    if offset.checked_add(target_size)? > region_length {
-        return None;
-    }
-
     Some(source)
 }
 

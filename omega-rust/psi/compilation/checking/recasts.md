@@ -12,6 +12,15 @@ for shared views and equality for mutable views. Float interval endpoints are
 exact IEEE values at the leaf's carrier, never a rounded integer. Equal-looking
 cross-carrier predicates do not establish equivalence.
 
+Fixed-size scalar and aggregate views may start inside a borrowed byte slice.
+The occurrence-level integer judgment proves `0 <= offset` and
+`offset + footprint <= bytes.len` against the actual descriptor after selector
+effects. This proves containment, not an exact descriptor length: unsized
+target views still require their independent exact-suffix tiling judgment.
+Mutable raw views also preserve any source byte-element predicates. Integer
+and IEEE scalar reads share byte assembly, followed by bit interpretation;
+no numeric integer-to-float conversion occurs.
+
 An `IntegerAt` leaf compares its valid encoded bit patterns, not the width of
 its semantic integer. Geometry comes from the selected layout; authored field
 facts come from the retained schema even when that layout synthesized a new

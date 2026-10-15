@@ -6,7 +6,7 @@
 //!
 //! - **Served:** a recast between fixed-width scalar primitives of EQUAL byte
 //!   size (`&i32 as &f32`, `&mut u32 as &mut i32`), or a scalar view into a
-//!   proven in-bounds `[u8; N]` region, bound as the direct
+//!   proven in-bounds fixed array or borrowed byte-slice region, bound as the direct
 //!   initializer of a reference-typed let whose stated type restates the
 //!   target. Shared views may weaken source facts. Mutable scalar views admit
 //!   fact-free types, normalized domain conjunctions that imply one another

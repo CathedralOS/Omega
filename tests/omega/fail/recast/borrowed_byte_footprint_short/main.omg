@@ -1,0 +1,5 @@
+machine main(bytes: &[u8]) -> u64
+requires bytes.len >= 7 {
+    let value: &u64 = &bytes[0] as &u64;
+    value
+}

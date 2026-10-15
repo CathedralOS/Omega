@@ -254,6 +254,61 @@ pub(super) fn proves_collection_bounds(
     })
 }
 
+/// A fixed-width observation consumes collection elements, not a guessed
+/// descriptor capacity. Form the endpoint in mathematical integers so this
+/// proof does not introduce a runtime addition or assume its lack of overflow.
+pub(super) fn proves_collection_footprint(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    environment: &ValueEnvironment,
+    collection: ExpressionHandle,
+    start: ExpressionHandle,
+    width: i64,
+) -> bool {
+    if width < 0 {
+        return false;
+    }
+    let Some(collection) =
+        super::ordered_values::operand(program, machine, state, collection, None)
+    else {
+        return false;
+    };
+    let Some(start) = super::ordered_values::operand(program, machine, state, start, None) else {
+        return false;
+    };
+    let mut observations = Observations::default();
+    let (Some(length), Some(start)) = (
+        observations.value(&Operand::CollectionLength(Box::new(collection))),
+        observations.value(&start),
+    ) else {
+        return false;
+    };
+    let end = ScopedArithmeticValue::IntegerOperation {
+        operator: BinaryOperator::Add,
+        left: Box::new(start.clone()),
+        right: Box::new(integer(width)),
+    };
+    [
+        (BinaryOperator::Less, start, integer(0)),
+        (BinaryOperator::Greater, end, length),
+    ]
+    .into_iter()
+    .all(|(operator, left, right)| {
+        contradicts(
+            program,
+            machine,
+            environment,
+            observations.clone(),
+            vec![ScopedArithmeticComparison {
+                operator,
+                left,
+                right,
+            }],
+        )
+    })
+}
+
 fn contradicts(
     program: &dyn crate::CheckingInput,
     machine: &Machine,

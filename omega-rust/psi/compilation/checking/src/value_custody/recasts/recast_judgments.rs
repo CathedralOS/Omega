@@ -1,7 +1,8 @@
 //! Scalar and slice recast judgments and reference pun reports.
 
 use crate::value_custody::recasts::raw_byte_region::{
-    InteriorByteRegion, exact_interior_byte_region_offset, interior_byte_region_source,
+    ByteRegionFootprint, InteriorByteRegion, byte_region_allows_arbitrary_writes,
+    byte_region_footprint, exact_interior_byte_region_offset, interior_byte_region_source,
     push_offset_unproven, record_view_type_is_fact_free,
 };
 use crate::value_custody::recasts::record_eligibility::direct_record_view_type_is_fact_free;
@@ -200,7 +201,7 @@ fn judge_scalar_recast_alternative(
                 );
                 return;
             }
-            let interior = interior_byte_region_source(
+            let interior = byte_region_footprint(
                 program,
                 machine,
                 state,
@@ -208,14 +209,18 @@ fn judge_scalar_recast_alternative(
                 source,
                 target_representation.size as i64,
             );
-            if interior_offset_unproven_rejected(&interior, diagnostics, &context, source_span) {
+            if footprint_rejected(&interior, diagnostics, &context, source_span) {
                 return;
             }
-            if let InteriorByteRegion::Bounded {
-                offset,
-                region_length,
-            } = interior
-            {
+            if let ByteRegionFootprint::Contained = interior {
+                if mutable_recast
+                    && !byte_region_allows_arbitrary_writes(program, machine, state, source)
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{context}: a mutable byte-region recast must preserve the source element's representation facts in BOTH directions"
+                    )).with_source_span(source_span));
+                    return;
+                }
                 if !direct_record_view_type_is_fact_free(program, cast.target_type) {
                     diagnostics.push(
                         Diagnostic::error(format!(
@@ -232,15 +237,6 @@ fn judge_scalar_recast_alternative(
                     );
                     return;
                 }
-                reject_when_target_overruns_region(
-                    diagnostics,
-                    &context,
-                    &target_name,
-                    target_representation.size,
-                    offset,
-                    region_length,
-                    source_span,
-                );
                 return;
             }
             if let Some(source_type) = source_type
@@ -317,15 +313,17 @@ fn judge_scalar_recast_alternative(
     // region is byte-granular).
     let footprint = target.scalar_byte_size().map_or(0, |size| size as i64);
     let interior =
-        interior_byte_region_source(program, machine, state, statement_index, source, footprint);
-    if interior_offset_unproven_rejected(&interior, diagnostics, &context, source_span) {
+        byte_region_footprint(program, machine, state, statement_index, source, footprint);
+    if footprint_rejected(&interior, diagnostics, &context, source_span) {
         return;
     }
-    if let InteriorByteRegion::Bounded {
-        offset,
-        region_length,
-    } = interior
-    {
+    if let ByteRegionFootprint::Contained = interior {
+        if mutable_recast && !byte_region_allows_arbitrary_writes(program, machine, state, source) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{context}: a mutable byte-region recast must preserve the source element's representation facts in BOTH directions"
+            )).with_source_span(source_span));
+            return;
+        }
         let target_facts = mutable_scalar_representation_facts(program, let_referee);
         let raw_facts = MutableScalarRepresentationFacts {
             domains: Vec::new(),
@@ -354,18 +352,6 @@ fn judge_scalar_recast_alternative(
             );
             return;
         }
-        let Some(target_size) = target.scalar_byte_size() else {
-            return;
-        };
-        reject_when_target_overruns_region(
-            diagnostics,
-            &context,
-            &target_name,
-            target_size,
-            offset,
-            region_length,
-            source_span,
-        );
         return;
     }
     let source_primitive = source_type
@@ -492,28 +478,18 @@ fn interior_offset_unproven_rejected(
     false
 }
 
-/// A bounded interior region must leave room for `size` target bytes inside
-/// `offset..region_length` — the byte-granular view may not read past it.
-fn reject_when_target_overruns_region(
+fn footprint_rejected(
+    footprint: &ByteRegionFootprint,
     diagnostics: &mut Vec<Diagnostic>,
     context: &str,
-    target_name: &str,
-    size: usize,
-    offset: i64,
-    region_length: i64,
     source_span: source::SourceSpan,
-) {
-    let Some(end) = offset.checked_add(size as i64) else {
-        return;
-    };
-    if end > region_length {
-        diagnostics.push(
-            Diagnostic::error(format!(
-                "{context}: the recast target `{target_name}` needs {size} bytes at offset {offset}, but the region holds {region_length} -- the view would read past the buffer (§5b rule 1 is byte-granular)",
-            ))
-            .with_source_span(source_span),
-        );
+) -> bool {
+    if let ByteRegionFootprint::Rejected(reason) = footprint {
+        diagnostics
+            .push(Diagnostic::error(format!("{context}: {reason}")).with_source_span(source_span));
+        return true;
     }
+    false
 }
 
 fn judge_slice_recast(

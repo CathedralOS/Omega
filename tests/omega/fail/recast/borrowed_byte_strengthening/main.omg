@@ -1,0 +1,5 @@
+machine main(bytes: &[u8]) -> bool
+requires bytes.len >= 8 {
+    let value: &bool = &bytes[0] as &bool;
+    value
+}

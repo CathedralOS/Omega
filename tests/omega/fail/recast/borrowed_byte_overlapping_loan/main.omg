@@ -1,0 +1,6 @@
+machine main(bytes: &mut [u8]) -> u64
+requires bytes.len >= 8 {
+    let value: &mut u64 = &mut bytes[0] as &mut u64;
+    bytes[7] = 4;
+    value
+}

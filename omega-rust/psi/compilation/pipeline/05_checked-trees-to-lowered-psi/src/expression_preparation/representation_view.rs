@@ -14,7 +14,7 @@
 //!   bits, so the view reads the source value's modular image at the view
 //!   width. `integer_bit_image` composes that image from admitted Terminal
 //!   operations; at equal width it never drops a bit.
-//! - A wider integer view whose operand is one runtime-selected `u8` element
+//! - A wider integer or IEEE view whose operand is one selected `u8` element
 //!   is a byte-region view (`&self.buf[offset] as &u32`): the region's bytes
 //!   are that element and its successors, read one by one and assembled
 //!   little-endian (`byte_region`). The recast judgment proved the whole
@@ -23,7 +23,8 @@
 //!   source-checked rather than re-proving `offset + j < N` per byte. The
 //!   generated `offset + j` arithmetic keeps its own formation obligation:
 //!   the proven bound limits the sum's value, not its representability in a
-//!   narrow index carrier.
+//!   narrow index carrier. IEEE views reinterpret the assembled unsigned bits
+//!   at the matching width; numerical conversion would corrupt stored payloads.
 //! - An IEEE float and an integer of its width, and a Boolean and a byte, are
 //!   one Terminal `ScalarRepresentationView` over the source read: the result
 //!   is the same stored bits at the view carrier, NaN payloads and signed
@@ -64,14 +65,18 @@ pub(crate) fn replay(
     if source == view {
         return unsupported("a retained representation re-view must change its carrier");
     }
+    if source
+        .as_integer()
+        .is_some_and(|integer| integer.bits() == 8 && integer.sign() == IntegerSign::Unsigned)
+        && matches!(
+            operand,
+            LoweredDirectExpression::IndexedPrimitiveRead { .. }
+        )
+        && scalar_storage_bits(view).is_some_and(|bits| bits > 8)
+    {
+        return byte_region(operand, view);
+    }
     match (source, view) {
-        (ScalarType::Integer(source_type), ScalarType::Integer(view_type))
-            if source_type.bits() == 8
-                && source_type.sign() == IntegerSign::Unsigned
-                && view_type.bits() > 8 =>
-        {
-            byte_region(operand, view_type)
-        }
         (ScalarType::Integer(source_type), ScalarType::Integer(view_type)) => {
             if source_type.bits() != view_type.bits() {
                 return unsupported("a representation re-view cannot change its carrier width");
@@ -113,7 +118,7 @@ pub(crate) fn replay(
 /// view then reads that carrier's modular image.
 fn byte_region(
     operand: LoweredDirectExpression,
-    view_type: IntegerType,
+    view: ScalarType,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     let LoweredDirectExpression::IndexedPrimitiveRead {
         source,
@@ -130,7 +135,9 @@ fn byte_region(
     if !element_path.is_empty() {
         return unsupported("a byte-region re-view must select a byte of one flat array");
     }
-    let bits = view_type.bits();
+    let bits = scalar_storage_bits(view).ok_or(LoweringError::Unsupported(
+        "a byte-region re-view needs an integer or IEEE carrier",
+    ))?;
     if bits % 8 != 0 {
         return unsupported("a byte-region re-view needs a whole-byte carrier");
     }
@@ -197,14 +204,30 @@ fn byte_region(
     let assembled = assembled.ok_or(LoweringError::Unsupported(
         "a byte-region re-view spans no bytes",
     ))?;
-    if region_type == view_type {
+    if region == view {
         return Ok(assembled);
+    }
+    if matches!(view, ScalarType::IeeeFloat(_)) {
+        // The assembled unsigned value is the storage image, not a number to
+        // convert. Re-view its bits to preserve NaN payloads and signed zero.
+        return Ok(LoweredDirectExpression::RepresentationView {
+            scalar_type: view,
+            operand: Box::new(assembled),
+        });
     }
     crate::expression_preparation::integer_bit_image::integer_bit_image(
         assembled,
         region_type,
-        ScalarType::Integer(view_type),
+        view,
     )
+}
+
+fn scalar_storage_bits(scalar_type: ScalarType) -> Option<u16> {
+    match scalar_type {
+        ScalarType::Integer(integer) => Some(integer.bits()),
+        ScalarType::IeeeFloat(format) => Some(format.byte_size() * 8),
+        ScalarType::Boolean => None,
+    }
 }
 
 fn observes_one_place(operand: &LoweredDirectExpression) -> bool {

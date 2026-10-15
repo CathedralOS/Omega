@@ -98,7 +98,8 @@ pub(crate) use float_arithmetic::float_source_proves_integer_conversion;
 pub(crate) use float_arithmetic::{FloatSourceBounds, float_source_bounds};
 pub use guard_narrowing::{
     CollectionBoundsObservations, arrival_integer_expression_bounds,
-    occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
+    occurrence_collection_footprint_fits, occurrence_integer_expression_bounds,
+    occurrence_integer_expression_fits_range,
 };
 pub(crate) use guard_narrowing::{
     fall_through_narrowed_environment, guard_narrowed_environment, incoming_guard_environments,

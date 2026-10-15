@@ -1,0 +1,6 @@
+machine main(bytes: &[u8]) -> u64
+requires bytes.len >= 8 {
+    let selected: &[u8] = &bytes[..7];
+    let value: &u64 = &selected[0] as &u64;
+    value
+}

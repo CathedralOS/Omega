@@ -5,6 +5,74 @@ use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, T
 
 type SymbolIdentity = (u32, u32);
 
+enum ByteRegionExtent {
+    Fixed(i64),
+    Descriptor,
+}
+
+struct IndexedByteRegion {
+    start: ExpressionHandle,
+    element: TypeReferenceHandle,
+    extent: ByteRegionExtent,
+}
+
+/// Shape supplies geometry only. Admission separately proves the footprint
+/// at this occurrence and checks representation facts in the access direction.
+fn indexed_byte_region(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    source: ExpressionHandle,
+) -> Option<IndexedByteRegion> {
+    let indexed = program.expression_table.indexed_node(source)?;
+    let collection_type = crate::value_custody::places::declared_place_type(
+        program,
+        machine,
+        Some(state),
+        indexed.collection,
+    )?;
+    let (element, extent) = match program.type_reference_table.type_reference(collection_type) {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } => (
+            *element_type,
+            ByteRegionExtent::Fixed(i64::try_from(*length).ok()?),
+        ),
+        TypeReferenceNode::Slice { element_type } => (*element_type, ByteRegionExtent::Descriptor),
+        _ => return None,
+    };
+    (super::exact_scalar_representation_type(program, element) == Some(PrimitiveType::U8))
+        .then_some(IndexedByteRegion {
+            start: indexed.index,
+            element,
+            extent,
+        })
+}
+
+/// An arbitrary write through a raw view must leave every original byte valid.
+/// Source domains are not erased merely because the element carrier is u8.
+pub(super) fn byte_region_allows_arbitrary_writes(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    source: ExpressionHandle,
+) -> bool {
+    let Some(region) = indexed_byte_region(program, machine, state, source) else {
+        return false;
+    };
+    let raw = super::scalar_representation::MutableScalarRepresentationFacts {
+        domains: Vec::new(),
+        values: super::scalar_representation::ScalarRepresentationSet::ExactBitPatterns(
+            super::scalar_representation::full_scalar_bit_patterns(PrimitiveType::U8),
+        ),
+    };
+    super::scalar_representation::mutable_scalar_representation_facts(program, region.element)
+        .is_some_and(|facts| {
+            super::scalar_representation::scalar_representation_facts_imply(program, &raw, &facts)
+        })
+}
+
 /// Authored coordinates of a slice representation view. This identifies the
 /// source occurrence; it grants no bounds, representation or borrow authority.
 /// The ordinary recast judgment and the emitted region obligation own those.
@@ -103,6 +171,72 @@ pub(super) enum InteriorByteRegion {
     Bounded { offset: i64, region_length: i64 },
 }
 
+/// Fixed-footprint admission is deliberately separate from an exact suffix
+/// extent. A descriptor's lower length bound can authorize a scalar or record
+/// read, but must never become the length of a newly formed unsized view.
+pub(super) enum ByteRegionFootprint {
+    NotByteRegion,
+    Contained,
+    Rejected(String),
+}
+
+pub(super) fn byte_region_footprint(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    source: ExpressionHandle,
+    footprint: i64,
+) -> ByteRegionFootprint {
+    let fixed =
+        interior_byte_region_source(program, machine, state, statement_index, source, footprint);
+    match fixed {
+        InteriorByteRegion::Bounded {
+            offset,
+            region_length,
+        } => {
+            return if offset
+                .checked_add(footprint)
+                .is_some_and(|end| end <= region_length)
+            {
+                ByteRegionFootprint::Contained
+            } else {
+                ByteRegionFootprint::Rejected(format!(
+                    "the recast target needs {footprint} bytes at offset {offset}, but the region holds {region_length} -- the view would read past the buffer"
+                ))
+            };
+        }
+        InteriorByteRegion::OffsetUnproven {
+            offset_display,
+            region_length,
+        } => {
+            return ByteRegionFootprint::Rejected(format!(
+                "cannot bound the recast offset `{offset_display}` -- the region holds {region_length} bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint"
+            ));
+        }
+        InteriorByteRegion::NotInteriorShape => {}
+    }
+    if !indexed_byte_region(program, machine, state, source)
+        .is_some_and(|region| matches!(region.extent, ByteRegionExtent::Descriptor))
+    {
+        return ByteRegionFootprint::NotByteRegion;
+    }
+    if crate::proof_contracts::arithmetic_domains::occurrence_collection_footprint_fits(
+        program,
+        machine.symbol,
+        state.symbol,
+        statement_index,
+        source,
+        footprint,
+    ) {
+        ByteRegionFootprint::Contained
+    } else {
+        ByteRegionFootprint::Rejected(format!(
+            "cannot prove the recast's {footprint}-byte footprint fits the live byte slice: the offset must be nonnegative and offset + {footprint} must not exceed its length"
+        ))
+    }
+}
+
 /// Rungs B/C1's interior source: `<[u8; N] place>[k]`. Shape is recognized
 /// FIRST (byte-element fixed array, literal length); the offset bound then
 /// comes from a literal, the declared range, the dominating incoming
@@ -116,49 +250,27 @@ pub(super) fn interior_byte_region_source(
     source: ExpressionHandle,
     footprint: i64,
 ) -> InteriorByteRegion {
-    let Some(indexed) = program.expression_table.indexed_node(source) else {
-        return InteriorByteRegion::NotInteriorShape;
-    };
-    let Some(collection_type) = crate::value_custody::places::declared_place_type(
-        program,
-        machine,
-        Some(state),
-        indexed.collection,
-    ) else {
-        return InteriorByteRegion::NotInteriorShape;
-    };
-    let TypeReferenceNode::FixedArray {
-        element_type,
-        length,
+    let Some(IndexedByteRegion {
+        start,
+        extent: ByteRegionExtent::Fixed(region_length),
         ..
-    } = program.type_reference_table.type_reference(collection_type)
+    }) = indexed_byte_region(program, machine, state, source)
     else {
         return InteriorByteRegion::NotInteriorShape;
     };
-    let element_is_byte =
-        crate::value_custody::places::unwrapped_type_reference(program, *element_type)
-            .and_then(|unwrapped| super::exact_scalar_representation_type(program, unwrapped))
-            == Some(PrimitiveType::U8);
-    if !element_is_byte {
-        return InteriorByteRegion::NotInteriorShape;
-    }
-    let typed_trees::types::FixedArrayLength::Literal(length) = length else {
-        return InteriorByteRegion::NotInteriorShape;
-    };
-    let region_length = *length as i64;
 
     // Standing declaration bounds hold at every read. Arrival requirements,
     // predecessor guards and call postconditions instead pass through the
     // shared effect walk up to this exact selector occurrence, so a write
     // before formation retires them while a later write cannot retarget it.
-    let offset = match program.expression_table.expression(indexed.index) {
+    let offset = match program.expression_table.expression(start) {
         ExpressionNode::Integer(literal) => literal.value_i64().filter(|offset| *offset >= 0),
         _ => proved_offset_upper_bound(
             program,
             machine,
             state,
             statement_index,
-            indexed.index,
+            start,
             region_length - footprint,
         ),
     };
@@ -168,7 +280,7 @@ pub(super) fn interior_byte_region_source(
             region_length,
         },
         None => InteriorByteRegion::OffsetUnproven {
-            offset_display: program.expression_table.display_name(indexed.index),
+            offset_display: program.expression_table.display_name(start),
             region_length,
         },
     }

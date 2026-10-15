@@ -138,6 +138,44 @@ pub fn occurrence_integer_expression_fits_range(
     )
 }
 
+/// Prove an indexed observation's entire fixed footprint against the same
+/// live collection length as ordinary indexing. Observe after selector effects;
+/// statement-entry facts cannot authorize a descriptor changed by the selector.
+pub fn occurrence_collection_footprint_fits(
+    program: &dyn crate::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    width: i64,
+) -> bool {
+    let Some(indexed) = program.expression_table.indexed_node(expression) else {
+        return false;
+    };
+    let Some(environment) = expression_observation(
+        program,
+        machine_symbol,
+        state_symbol,
+        Some(statement_index),
+        expression,
+    )
+    .and_then(|observation| observation.environment) else {
+        return false;
+    };
+    let Some((machine, state)) = program.machine_state(machine_symbol, state_symbol) else {
+        return false;
+    };
+    super::super::live_integer_constraints::proves_collection_footprint(
+        program,
+        machine,
+        state,
+        &environment,
+        indexed.collection,
+        indexed.index,
+        width,
+    )
+}
+
 /// Facts at an exact source observation, including non-interval premises such
 /// as a nonzero divisor. An unbounded result is not failed arithmetic: callers
 /// validate under this environment rather than requiring finite endpoints.

@@ -1,7 +1,6 @@
 //! recast reads slice of scalar_lowering.
 
 use super::entry_lowering::*;
-use crate::values::scalar::expression_facts::is_integer;
 use crate::values::scalar::expression_plans::ScalarLocal;
 use checked_trees::{
     CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression,
@@ -146,7 +145,9 @@ pub(crate) fn view_place_read(
     if source == primitive_type {
         return Some(read);
     }
-    let region = byte_region && is_integer(primitive_type);
+    let region = byte_region
+        && primitive_type != PrimitiveType::Bool
+        && scalar_byte_width(primitive_type).is_some();
     if !region && scalar_byte_width(source)? != scalar_byte_width(primitive_type)? {
         return None;
     }

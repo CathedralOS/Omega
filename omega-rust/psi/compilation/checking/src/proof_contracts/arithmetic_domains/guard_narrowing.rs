@@ -24,7 +24,8 @@ mod parameter_bounds;
 pub(super) mod projected_facts;
 pub use arrivals::{
     CollectionBoundsObservations, arrival_integer_expression_bounds,
-    occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
+    occurrence_collection_footprint_fits, occurrence_integer_expression_bounds,
+    occurrence_integer_expression_fits_range,
 };
 pub(crate) use arrivals::{
     OccurrenceValueEnvironments, inferred_normal_return_interval, occurrence_value_environment,

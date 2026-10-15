@@ -1,0 +1,7 @@
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data Packet { bytes: [u8; 8] in Ascii; }
+machine Packet::main(packet: &mut Packet)
+requires packet.bytes.len >= 8 {
+    let value: &mut u64 = &mut packet.bytes[0] as &mut u64;
+    value = 18446744073709551615;
+}

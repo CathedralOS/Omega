@@ -1,0 +1,54 @@
+use omega::language::core::float_operations;
+data Bytes<'data> { bytes: &'data [u8]; }
+data Pair { first: u32; second: u32; }
+machine record(bytes: &[u8]) -> u32
+requires bytes.len >= 8 {
+    let value: &Pair = &bytes[0] as &Pair;
+    value.second
+}
+machine read(bytes: &[u8], offset: u64) -> f64
+requires offset <= bytes.len && bytes.len - offset >= 8 {
+    let value: &f64 = &bytes[offset] as &f64;
+    value
+}
+machine field(value: &Bytes) -> f64
+requires value.bytes.len >= 8 {
+    let decoded: &f64 = &value.bytes[0] as &f64;
+    decoded
+}
+machine bits(bytes: &[u8]) -> u64
+requires bytes.len >= 8 {
+    let decoded: &u64 = &bytes[0] as &u64;
+    decoded
+}
+machine single(bytes: &[u8]) -> f32
+requires bytes.len >= 4 {
+    let decoded: &f32 = &bytes[0] as &f32;
+    decoded
+}
+machine write(bytes: &mut [u8])
+requires bytes.len >= 8 {
+    let decoded: &mut u64 = &mut bytes[0] as &mut u64;
+    decoded = 4607182418800017408;
+}
+machine main() crashes Trap {
+    let bytes: [u8; 10] = [91, 0, 0, 0, 0, 0, 0, 240, 63, 92];
+    let descriptor: Bytes = Bytes { bytes: &bytes[1..9] };
+    let selected: f64 = read(&bytes[..], 1);
+    let projected: f64 = field(&descriptor);
+    let integer: u64 = bits(&bytes[1..9]);
+    let aggregate: u32 = record(&bytes[1..9]);
+    let narrow: [u8; 4] = [0, 0, 128, 63];
+    let single_value: f32 = single(&narrow[..]);
+    let mut destination: [u8; 10] = [91, 0, 0, 0, 0, 0, 0, 0, 0, 92];
+    write(&mut destination[1..9]);
+    let written: f64 = read(&destination[..], 1);
+    transition selected == 1.0 && projected == 1.0 && integer == 4607182418800017408
+        && aggregate == 1072693248 && single_value == 1.0f32 && written == 1.0
+        && destination[0] == 91 && destination[9] == 92 {
+        true -> good()
+        false -> bad()
+    }
+    state good() {}
+    state bad() { crash Trap; }
+}
