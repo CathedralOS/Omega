@@ -1,5 +1,4 @@
 // Expected exit: 0. Local and helper reborrows mutate the original backing field.
-use omega::language::core::binding;
 pub data Counter { count: u64; pad: u64; }
 pub data Source { first: u64; count: u64; }
 pub boundary trait Parent {
@@ -25,11 +24,11 @@ machine relay(counter: &mut Counter) {
     set(borrowed);
 }
 
-data Main { source: Source; slot: Binding<Child>; values: [i32; 8]; }
+data Main { source: Source; values: [i32; 8]; }
 machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
     main.source.first = 12u64;
     main.source.count = 8u64;
-    main.slot.reset(&mut main.source as &mut Counter);
+    Parent::reset(&mut main.source as &mut Counter);
     let observed: i32 = main.values[main.source.first];
     let view: &mut Counter = &mut main.source as &mut Counter;
     relay(view);

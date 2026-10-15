@@ -1,5 +1,4 @@
 // A signed view's upper bound does not bound the source's unsigned decoding.
-use omega::language::core::binding;
 pub data Counter { count: i16; pad: u16; }
 pub data Source { first: u16; count: u16; }
 pub boundary trait Parent {
@@ -15,11 +14,11 @@ data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Child, Good>(defaults);
 }
-data Main { source: Source; slot: Binding<Child>; values: [i32; 8]; }
+data Main { source: Source; values: [i32; 8]; }
 machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
     main.source.first = 12u16;
     main.source.count = 8u16;
-    main.slot.reset(&mut main.source as &mut Counter);
+    Parent::reset(&mut main.source as &mut Counter);
     let observed: i32 = main.values[main.source.first];
     transition observed == 0 { true -> done() _ -> bad() }
     state done() {}

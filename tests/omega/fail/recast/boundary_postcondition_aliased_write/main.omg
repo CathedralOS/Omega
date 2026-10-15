@@ -1,5 +1,4 @@
 // Invalid control: an aliased write replaces the boundary postcondition's backing.
-use omega::language::core::binding;
 pub data Counter { count: u64; pad: u64; }
 pub data Source { first: u64; count: u64; }
 pub boundary trait Parent {
@@ -15,11 +14,11 @@ data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Child, Good>(defaults);
 }
-data Main { source: Source; slot: Binding<Child>; values: [i32; 8]; }
+data Main { source: Source; values: [i32; 8]; }
 machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
     main.source.first = 12u64;
     main.source.count = 8u64;
-    main.slot.reset(&mut main.source as &mut Counter);
+    Parent::reset(&mut main.source as &mut Counter);
     let view: &mut Counter = &mut main.source as &mut Counter;
     view.count = 9u64;
     let observed: i32 = main.values[main.source.first];
