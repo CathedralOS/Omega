@@ -5,7 +5,6 @@
 // (`tests/omega/pass/memory/bump_allocator_canary`, `exercise_release`) only
 // releases a still-vacant region; a resident must be retired to `Vacant`
 // before its extent can return tail-ward.
-use omega::language::core::binding;
 use omega::language::core::extent;
 use omega::language::core::content;
 
@@ -59,13 +58,13 @@ pub boundary trait ResidentStorage {
         Granted::content(old(&storage)) == Granted::content(&result.storage);
 }
 
-machine allocate(partition: &Binding<ExtentPartition>, strategy: Bump, length: u64) -> Issued
+machine allocate(strategy: Bump, length: u64) -> Issued
 requires
     length <= strategy.remaining
 reaches ExtentPartition
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
-    let parts: Split = partition.split(tail, length);
+    let parts: Split = ExtentPartition::split(tail, length);
     let taken: Extent in Granted & Vacant = parts.taken;
     let rest: Extent in Granted & Vacant = parts.rest;
     Issued {
@@ -80,15 +79,11 @@ reaches ExtentPartition
 // Return the newest tail-adjacent allocation while older allocations stay
 // live. `returned` must still be `Vacant` — the same demand `merge` makes on
 // every folded part.
-machine release(
-    partition: &Binding<ExtentPartition>,
-    strategy: Bump,
-    returned: Extent in Granted & Vacant
-) -> Bump
+machine release(strategy: Bump, returned: Extent in Granted & Vacant) -> Bump
 reaches ExtentPartition
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
-    let grown: Extent in Granted & Vacant = partition.merge(Split {
+    let grown: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: returned,
         rest: tail,
     });
@@ -98,30 +93,17 @@ reaches ExtentPartition
 
 // Allocate twice, establish a resident in the newest region, then attempt its
 // tail-ward release without retiring it first.
-machine exercise(
-    partition: &Binding<ExtentPartition>,
-    storage: &Binding<ResidentStorage>,
-    whole: Extent in Granted & Vacant,
-    capacity: u64
-) -> Extent
+machine exercise(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
     48 <= capacity;
     capacity == whole.length
 reaches ExtentPartition, ResidentStorage
 {
-    let issued_first: Issued = allocate(
-        partition,
-        Bump { tail: whole, remaining: capacity },
-        16,
-    );
-    let issued_second: Issued = allocate(
-        partition,
-        issued_first.strategy,
-        32,
-    );
-    let placed: Occupied = storage.place(issued_second.allocation, Slot { value: 7 });
-    let grown: Bump = release(partition, issued_second.strategy, placed.storage);
-    let recomposed: Extent in Granted & Vacant = partition.merge(Split {
+    let issued_first: Issued = allocate(Bump { tail: whole, remaining: capacity }, 16);
+    let issued_second: Issued = allocate(issued_first.strategy, 32);
+    let placed: Occupied = ResidentStorage::place(issued_second.allocation, Slot { value: 7 });
+    let grown: Bump = release(issued_second.strategy, placed.storage);
+    let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: issued_first.allocation,
         rest: grown.tail,
     });

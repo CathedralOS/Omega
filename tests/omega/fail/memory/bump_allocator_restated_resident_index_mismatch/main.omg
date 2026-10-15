@@ -6,7 +6,6 @@
 // established, never one the restatement chose. The pass-side sibling
 // (`tests/omega/pass/memory/bump_allocator_canary`,
 // `exercise_resident_restated`) restates under the same instance.
-use omega::language::core::binding;
 use omega::language::core::extent;
 use omega::language::core::content;
 
@@ -69,22 +68,18 @@ pub boundary trait ResidentStorage {
         Granted::content(old(&storage)) == Granted::content(&result.storage);
 }
 
-machine exercise(
-    partition: &Binding<ExtentPartition>,
-    storage: &Binding<ResidentStorage>,
-    whole: Extent in Granted & Vacant
-) -> Extent
+machine exercise(whole: Extent in Granted & Vacant) -> Extent
 reaches ExtentPartition, ResidentStorage
 {
-    let parts: Split = partition.split(whole, 16);
+    let parts: Split = ExtentPartition::split(whole, 16);
     let vacant: Extent in Granted & Vacant = parts.taken;
     let tail: Extent in Granted & Vacant = parts.rest;
-    let placed: Occupied = storage.place(vacant, Slot { value: 7 });
+    let placed: Occupied = ResidentStorage::place(vacant, Slot { value: 7 });
     let resident: Extent in Granted & Resident<OtherPlacement, Slot> = placed.storage;
-    let observed: Slot = storage.view(&resident);
-    let retired: Retired = storage.retire_view(resident);
+    let observed: Slot = ResidentStorage::view(&resident);
+    let retired: Retired = ResidentStorage::retire_view(resident);
     let released: Extent in Granted & Vacant = retired.storage;
-    let recomposed: Extent in Granted & Vacant = partition.merge(Split {
+    let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: released,
         rest: tail,
     });

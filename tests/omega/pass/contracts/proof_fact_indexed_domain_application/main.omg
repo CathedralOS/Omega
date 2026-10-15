@@ -17,7 +17,6 @@
 // typed-stage interning is witnessed by
 // `03_symbol-resolved-trees-to-typed-trees/src/lowerer/tests/machine_contracts.rs`
 // and the argument count by `fail/contracts/proof_fact_indexed_domain_application_arity`.
-use omega::language::core::binding;
 use omega::language::core::extent;
 use omega::language::core::content;
 
@@ -45,16 +44,13 @@ pub boundary trait ResidentStorage {
         Granted::content(old(&storage)) == Granted::content(&result.storage);
 }
 
-machine exercise_placed(
-    storage: &Binding<ResidentStorage>,
-    vacant: Extent in Granted & Vacant
-) -> Extent
+machine exercise_placed(vacant: Extent in Granted & Vacant) -> Extent
 reaches ResidentStorage
 {
     let placed: Extent in Granted & Resident<SlotPlacement, Slot> =
-        storage.place(vacant, Slot { value: 7 });
-    let observed: Slot = storage.view(&placed);
-    let retired: Retired = storage.retire_view(placed);
+        ResidentStorage::place(vacant, Slot { value: 7 });
+    let observed: Slot = ResidentStorage::view(&placed);
+    let retired: Retired = ResidentStorage::retire_view(placed);
     let released: Extent in Granted & Vacant = retired.storage;
     released as Extent
 }
