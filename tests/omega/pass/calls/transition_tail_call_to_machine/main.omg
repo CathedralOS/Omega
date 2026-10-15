@@ -20,10 +20,8 @@
 // A tail call that fell through, ran an arm twice or lost its argument would
 // exit with a failure code instead.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     stored: i32;
     marks: u32 in Wrapping;
 }
@@ -44,7 +42,7 @@ requires 0 <= value && value <= 100
     state accepted(main: &mut Main) {
         transition { _ -> Main::without_arguments(main) }
     }
-    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::mark(main: &mut Main) {
@@ -63,9 +61,9 @@ machine Main::without_arguments(main: &mut Main) reaches Console {
     state finishing(main: &mut Main) {
         transition { _ -> Main::finish(main) }
     }
-    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::finish(main: &mut Main) reaches Console {
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

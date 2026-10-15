@@ -1,12 +1,10 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Entry {
     value: i32;
 }
 
 data Main {
-    console: Binding<Console>;
     entries: [Entry; 4];
 }
 
@@ -28,10 +26,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &Main) {
-        main.console.exit_process(207);
+        Console::exit_process(207);
     }
 
     state bad(main: &Main) {
-        main.console.exit_process(208);
+        Console::exit_process(208);
     }
 }

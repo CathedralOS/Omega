@@ -1,12 +1,10 @@
 // A record literal cannot hold an exclusive loan of a cell together with a
 // shared loan of one of that cell's fields.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell { stamp: i32; value: i32 [0..=100]; }
 data View<'a> { writer: &'a mut Cell; reader: &'a i32 [0..=100]; }
 data Main {
-    console: Binding<Console>;
     first: Cell;
     second: Cell;
 }
@@ -23,6 +21,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

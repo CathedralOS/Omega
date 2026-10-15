@@ -2,7 +2,6 @@
 // but the argument is a call whose result constant-folds, so the
 // instantiated premise `4 <= 5` is decided-true and the call discharges.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine echo(scale: u64) -> u64
 requires scale <= 5
@@ -11,13 +10,12 @@ requires scale <= 5
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     let s: u64 = opaque();
     let r: u64 = echo(s);
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }
 
 machine opaque() -> u64 {

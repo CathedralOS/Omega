@@ -9,10 +9,8 @@
 // All four correct -> exit 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     i32sat: i32 in Saturating;
     i32wrap: i32 in Wrapping;
     u8sat: u8 in Saturating;
@@ -59,10 +57,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

@@ -4,10 +4,8 @@
 // `[i64; loud_size()]` must reject naming the machine and service -- never
 // silently evaluate or fall back.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     slots: [i64; loud_size()];
 }
 
@@ -21,5 +19,5 @@ reaches
 }
 
 machine Main::main(main: &mut Main) {
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

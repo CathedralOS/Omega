@@ -1,7 +1,6 @@
 // Common record results retain the selected implementation across runtime
 // family dispatch, local binding, forwarding, field storage and call operands.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Packet { value: u32; stamp: u32; }
 
@@ -48,7 +47,6 @@ requires
 }
 
 data Main {
-    console: Binding<Console>;
     item: Item;
     packet: Packet;
 }
@@ -67,11 +65,11 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }
 

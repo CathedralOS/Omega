@@ -11,7 +11,6 @@
 // where the arg place is the block parameter of the machine's `&mut` input.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Sink {
     value: u64 in Wrapping;
@@ -50,10 +49,9 @@ machine Driver::drive(driver: &mut Driver, sink: &mut Sink, more: bool) {
 data Main {
     driver: Driver;
     sink: Sink;
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     Driver::drive(&mut main.driver, &mut main.sink, true);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

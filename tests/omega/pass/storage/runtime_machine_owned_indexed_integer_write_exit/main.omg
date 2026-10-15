@@ -1,12 +1,10 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Room {
     exit_count: i32;
 }
 
 data Main {
-    console: Binding<Console>;
     rooms: [Room; 2];
 }
 
@@ -21,10 +19,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &Main) {
-        main.console.exit_process(79);
+        Console::exit_process(79);
     }
 
     state bad(main: &Main) {
-        main.console.exit_process(80);
+        Console::exit_process(80);
     }
 }

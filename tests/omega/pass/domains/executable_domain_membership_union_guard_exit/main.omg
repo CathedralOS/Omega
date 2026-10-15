@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Password {
     length: i32;
@@ -15,7 +14,6 @@ requires
     password.score >= 8;
 
 data Main {
-    console: Binding<Console>;
     password: Password;
 }
 
@@ -29,10 +27,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(241);
+        Console::exit_process(241);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(242);
+        Console::exit_process(242);
     }
 }

@@ -9,15 +9,13 @@ domain [u8; 16]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     line: [u8; 16] in Utf8;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.line = "1234567890123";
     main.line = main.line + "omega";
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

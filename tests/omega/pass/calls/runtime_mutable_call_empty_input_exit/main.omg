@@ -2,10 +2,8 @@
 // authored failure path: empty input is EndOfInput(0), so both engines take
 // the failure exit 72. EOF is distinct from a failed host read, which traps.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Loader where cursor <= 16383 {
-    console: Binding<Console>;
     line: [u8; 8];
     tags: [u8; 16384] in Trapping;
     firsts: [u8; 16384] in Trapping;
@@ -47,7 +45,7 @@ machine Loader::fill(loader: &mut Loader) {
 }
 
 machine Loader::run(loader: &mut Loader) reaches Console {
-    let observed: LineReadResult = block loader.console.read_line(&mut loader.line);
+    let observed: LineReadResult = block Console::read_line(&mut loader.line);
     transition observed {
         LineReadResult::LineComplete { count } -> bounded_input(loader, count)
         LineReadResult::EndOfInput { count } -> bounded_input(loader, count)
@@ -90,8 +88,8 @@ machine Loader::run(loader: &mut Loader) reaches Console {
         }
     }
 
-    state good(loader: &mut Loader) { loader.console.exit_process(70); }
-    state bad(loader: &mut Loader) { loader.console.exit_process(72); }
+    state good(loader: &mut Loader) { Console::exit_process(70); }
+    state bad(loader: &mut Loader) { Console::exit_process(72); }
 }
 
 data Main {

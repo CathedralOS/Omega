@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // A `where` type equation recovers an omitted trailing data binder from the
 // supplied argument's canonical range: `TinyBytes<u64[0..=256]>` binds
@@ -79,7 +78,6 @@ where
 }
 
 data Main {
-    console: Binding<Console>;
     bytes: DomainBytes<u64::AtMost<256> >;
 }
 
@@ -87,5 +85,5 @@ machine Main::main(main: &mut Main) reaches Console {
     main.bytes.length = 1 as u64 in AtMost<256>;
     main.bytes.storage[255] = 91;
     let result: i32 = (main.bytes.storage[255] as i32) + (main.bytes.length as i32);
-    main.console.exit_process(result);
+    Console::exit_process(result);
 }

@@ -10,7 +10,6 @@
 // every value written through the plan placement survives the copy and reads
 // back intact.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField where size <= 4096, 1 <= align, align <= 16 {
@@ -113,7 +112,6 @@ data Gdtish [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     gdt: Spread16<Gdtish>;
     twin: Spread16<Gdtish>;
     v: i32;
@@ -153,10 +151,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

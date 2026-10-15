@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 // The builder pattern over NESTED-field owned `[u8; N] in Utf8` carriers (#66):
 // `main.line.text = "Room " + main.room.label` materializes the concat into the
 // nested target carrier's inline `{len, bytes}` storage, then a later state
@@ -26,7 +25,6 @@ data Line {
 }
 
 data Main {
-    console: Binding<Console>;
     room: Room;
     line: Line;
 }
@@ -41,7 +39,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
 
     state shutdown(main: &mut Main) {
-        main.console.write_line(main.line.text);
-        main.console.exit_process(0);
+        Console::write_line(main.line.text);
+        Console::exit_process(0);
     }
 }

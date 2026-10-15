@@ -2,10 +2,8 @@
 // Reduced from samples/cli/systems/descriptor_walk. Other reference producers
 // use the same local-binding semantics rather than receiver-specific routes.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     size: u32;
 }
 
@@ -14,6 +12,6 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> done(main) }
 
     state done(main: &mut Main) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 }

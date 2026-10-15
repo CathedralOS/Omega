@@ -12,10 +12,8 @@
 // visits (4, 0, 0), (4, 1, 1), (4, 2, 2), (4, 3, 3), (4, 4, 4) and returns
 // 4; the program exits 70 on that value and 71 otherwise.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     limit: u64;
 }
 
@@ -30,11 +28,11 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }
 

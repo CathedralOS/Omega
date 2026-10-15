@@ -3,7 +3,6 @@
 // the arm forwards and the loan stays the caller's. Exits 70 when 30 + 40
 // arrive.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Pair {
     case Both(a: u64 in Wrapping, b: u64 in Wrapping);
@@ -20,7 +19,6 @@ machine Pair::code(pair: &Pair) -> u64 in Wrapping {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -31,5 +29,5 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> done(main, 71)
     }
 
-    state done(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

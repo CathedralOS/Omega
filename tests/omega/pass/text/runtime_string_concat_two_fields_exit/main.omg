@@ -19,10 +19,8 @@ requires
     valid_utf8(bytes);
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     prefix: [u8; 8] in Utf8;
     line: [u8; 16] in Utf8;
     suffix: [u8; 8] in Utf8;
@@ -32,7 +30,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.suffix = "omega";
     main.prefix = "prefix ";
     main.line = main.prefix + main.suffix;
-    main.console.write_line(main.line);
+    Console::write_line(main.line);
 
     transition main.line == "prefix omega" {
         true -> good(main)
@@ -40,10 +38,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

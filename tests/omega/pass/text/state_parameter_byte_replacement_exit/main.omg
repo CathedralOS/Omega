@@ -1,14 +1,12 @@
 // State parameters retain the same byte-field write authority as entry
 // parameters. Concatenation snapshots the source before replacement.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
 data Source { text: [u8; 8] in Utf8; }
 data Destination { text: [u8; 16] in Utf8; sibling: u64; }
 data Main {
-    console: Binding<Console>;
     source: Source;
     direct: Destination;
     forwarded: Destination;
@@ -51,5 +49,5 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

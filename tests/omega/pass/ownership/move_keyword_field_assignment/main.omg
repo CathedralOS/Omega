@@ -2,14 +2,12 @@
 // location via `move` (`main.inventory = move replacement;`). The ownership
 // lane still infers the actual move from value flow.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Inventory {
     slots: i32;
 }
 
 data Main {
-    console: Binding<Console>;
     inventory: Inventory;
 }
 
@@ -17,5 +15,5 @@ machine Main::main(main: &mut Main) reaches Console {
     main.inventory.slots = 41;
     let replacement: Inventory = main.inventory;
     main.inventory = move replacement;
-    main.console.exit_process(main.inventory.slots);
+    Console::exit_process(main.inventory.slots);
 }

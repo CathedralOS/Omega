@@ -2,9 +2,7 @@
 // parallel-assignment cycle (`-> rot(k-1, b, c, a)`). rot(3, 1,2,3):
 // (1,2,3)->(2,3,1)->(3,1,2)->(1,2,3) -> a==1 -> exit 1.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main {
-    console: Binding<Console>;
 }
 machine rot(k: u64, a: u64, b: u64, c: u64)
 terminates by k;
@@ -21,6 +19,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> yes(main)
         false -> no(main)
     }
-    state yes(main: &mut Main) { main.console.exit_process(1); }
-    state no(main: &mut Main) { main.console.exit_process(2); }
+    state yes(main: &mut Main) { Console::exit_process(1); }
+    state no(main: &mut Main) { Console::exit_process(2); }
 }

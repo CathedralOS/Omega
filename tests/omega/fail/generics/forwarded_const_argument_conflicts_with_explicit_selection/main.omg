@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega_language_std::console;
 
 data Pair { case Both(a: u64 in Wrapping, b: u64 in Wrapping); }
@@ -27,7 +26,6 @@ requires N >= 2;
 }
 
 data Main {
-    console: Binding<Console>;
     small: FixedBuffer<2>;
     large: FixedBuffer<3>;
 }
@@ -50,6 +48,6 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> finish(main, 1)
     }
     state finish(main: &mut Main, value: u64 in Wrapping) {
-        main.console.exit_process(value as i32);
+        Console::exit_process(value as i32);
     }
 }

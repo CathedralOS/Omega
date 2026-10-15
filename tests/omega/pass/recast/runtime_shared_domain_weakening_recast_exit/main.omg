@@ -2,7 +2,6 @@
 // fewer facts: Narrow explicitly implies Wide, so the target view cannot admit
 // any representation that the established source value did not already admit.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain u32::Wide(value)
 requires
@@ -14,7 +13,6 @@ requires
     value <= 10;
 
 data Main {
-    console: Binding<Console>;
     value: u32 in Narrow;
 }
 
@@ -25,6 +23,6 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

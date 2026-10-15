@@ -7,10 +7,8 @@
 use omega_language_std::time;
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(context: &mut Main) reaches Console {
@@ -91,12 +89,12 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
 
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state fail_add(context: &mut Main) { context.console.exit_process(1); }
-    state fail_sum_value(context: &mut Main) { context.console.exit_process(2); }
-    state fail_subtract(context: &mut Main) { context.console.exit_process(3); }
-    state fail_difference_value(context: &mut Main) { context.console.exit_process(4); }
-    state fail_difference_seconds(context: &mut Main) { context.console.exit_process(8); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state fail_add(context: &mut Main) { Console::exit_process(1); }
+    state fail_sum_value(context: &mut Main) { Console::exit_process(2); }
+    state fail_subtract(context: &mut Main) { Console::exit_process(3); }
+    state fail_difference_value(context: &mut Main) { Console::exit_process(4); }
+    state fail_difference_seconds(context: &mut Main) { Console::exit_process(8); }
     state probe_difference_seconds(context: &mut Main, difference: Duration) {
         // PROBE: which wrong value arrived? 6 => direct-emit ran with
         // other-fields-as-zero; 5 => borrow-emit ran with other.seconds 0.
@@ -105,17 +103,17 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> probe_not_six(context, difference)
         }
     }
-    state probe_six(context: &mut Main) { context.console.exit_process(20); }
+    state probe_six(context: &mut Main) { Console::exit_process(20); }
     state probe_not_six(context: &mut Main, difference: Duration) {
         transition difference.seconds == 5 {
             true -> probe_five(context)
             false -> fail_difference_seconds(context)
         }
     }
-    state probe_five(context: &mut Main) { context.console.exit_process(21); }
-    state fail_saturate(context: &mut Main) { context.console.exit_process(5); }
-    state fail_compare(context: &mut Main) { context.console.exit_process(6); }
-    state fail_underflow(context: &mut Main, duration: Duration) { context.console.exit_process(7); }
-    state fail_max(context: &mut Main) { context.console.exit_process(9); }
-    state fail_saturating_add(context: &mut Main) { context.console.exit_process(10); }
+    state probe_five(context: &mut Main) { Console::exit_process(21); }
+    state fail_saturate(context: &mut Main) { Console::exit_process(5); }
+    state fail_compare(context: &mut Main) { Console::exit_process(6); }
+    state fail_underflow(context: &mut Main, duration: Duration) { Console::exit_process(7); }
+    state fail_max(context: &mut Main) { Console::exit_process(9); }
+    state fail_saturating_add(context: &mut Main) { Console::exit_process(10); }
 }

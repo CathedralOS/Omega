@@ -1,7 +1,6 @@
 // RANGE ESTABLISHMENT AT THE WIRE BOUNDARY: hostile 200 must not enter the
 // declared `u32 in WireValue` field; a later in-range 50 must establish it.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Msg {
     #0 v: u32;
     #1 delta: i32;
@@ -18,7 +17,6 @@ data WireVerdict {
 }
 
 data Main {
-    console: Binding<Console>;
     buffer: [u8; 32];
     bad_read: u64;
     bad_verdict: WireVerdict;
@@ -60,8 +58,8 @@ machine Main::main(main: &mut Main) reaches Console {
         main.good_verdict == WireVerdict::Sound && good.v == 50 && good.delta == 0 - 5 -> proven(main)
         _ -> broken(main)
     }
-    state accepted_hostile(main: &mut Main)    { main.console.exit_process(66); }
-    state corrupted_on_reject(main: &mut Main) { main.console.exit_process(67); }
-    state proven(main: &mut Main)              { main.console.exit_process(70); }
-    state broken(main: &mut Main)              { main.console.exit_process(71); }
+    state accepted_hostile(main: &mut Main)    { Console::exit_process(66); }
+    state corrupted_on_reject(main: &mut Main) { Console::exit_process(67); }
+    state proven(main: &mut Main)              { Console::exit_process(70); }
+    state broken(main: &mut Main)              { Console::exit_process(71); }
 }

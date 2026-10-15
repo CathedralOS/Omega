@@ -6,7 +6,6 @@
 // argument copy. The case edge still loads every payload it binds.
 // Exits 70 when 30 + 30 + 10 arrive.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Only [copy] {
     case Sole;
@@ -21,7 +20,6 @@ data Wide {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Only::code(only: Only) -> u64 in Wrapping {
@@ -65,5 +63,5 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> done(main, 71)
     }
 
-    state done(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

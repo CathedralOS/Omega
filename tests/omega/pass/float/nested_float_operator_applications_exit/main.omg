@@ -22,10 +22,8 @@ use omega_language_std::math;
 // next two are guard operands, then local initializers and a field store.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     a: f64;
     b: f64;
     c: f64;
@@ -102,6 +100,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state pass(main: &mut Main) { main.console.exit_process(70); }
-    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state pass(main: &mut Main) { Console::exit_process(70); }
+    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

@@ -4,7 +4,6 @@ use omega::language::core::float_operations;
 // closed proof-static indices without changing either carrier's layout.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Unit [copy] {
     scale: i32;
@@ -101,11 +100,10 @@ machine retag_i64<const To: Unit>(
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     let meters: i64 [0..=100] in Quantity<Units::METER> = retag_i64(70);
     let seconds: i64 in Quantity<Units::SECOND> = retag_i64(0);
-    main.console.exit_process(meters as i32);
+    Console::exit_process(meters as i32);
 }

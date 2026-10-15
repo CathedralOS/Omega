@@ -2,10 +2,8 @@
 // edge. The scalar result completes the invocation and returns to the caller.
 // Expected exit: 22.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::run(context: &mut Main) -> i32 {
@@ -39,5 +37,5 @@ machine Main::run(context: &mut Main) -> i32 {
 
 machine Main::main(context: &mut Main) reaches Console {
     let result: i32 = Main::run(context);
-    context.console.exit_process(result);
+    Console::exit_process(result);
 }

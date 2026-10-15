@@ -4,7 +4,6 @@
 // `left | right` = 7 where builtin `%` would fold 1, so passing 7 to
 // `take_bounded` only type-checks when the provider body actually ran.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 
 data Math {}
@@ -34,7 +33,6 @@ machine limit() -> u64 {
 machine take_bounded(value: u64[0..=limit()]) -> u64 { value }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -45,10 +43,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

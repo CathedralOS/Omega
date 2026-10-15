@@ -9,10 +9,8 @@
 // element or a lost store exits 71.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     readings: [f64; 3];
     low: f64;
 }
@@ -28,10 +26,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

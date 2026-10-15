@@ -2,7 +2,6 @@
 // cannot appear in type position -- values need offsets, bytes need mints
 // (wiki/spec/layouts/plans.md). The rejection must name the policy.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
@@ -57,10 +56,9 @@ data Pairish {
 }
 
 data Main {
-    console: Binding<Console>;
     payload: Streamy<Pairish>;
 }
 
 machine Main::main(main: &mut Main) {
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

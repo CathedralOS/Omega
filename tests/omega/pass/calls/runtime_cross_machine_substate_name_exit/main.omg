@@ -7,12 +7,10 @@
 // pick(2) = 4 (key 2 != 0,1 -> pick's try1 `_` arm yields 4); read_at(4) = table[4] = 60. The
 // check discriminates: the bug returned 4 (pick's literal) for read_at, so v != 60. Exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Picker {}
 
 data Main {
-    console: Binding<Console>;
     table: [i32; 5];
     picker: Picker;
 }
@@ -70,9 +68,9 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main, v)
     }
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     state bad(main: &mut Main, v: i32) {
-        main.console.exit_process(v); // surface read_at's wrong value (the bug returned 4)
+        Console::exit_process(v); // surface read_at's wrong value (the bug returned 4)
     }
 }

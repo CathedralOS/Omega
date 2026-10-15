@@ -4,7 +4,6 @@
 // element's own index, and the runtime row re-proves its bound from `i <= 1`.
 // Both rows stay distinct: exit 3.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Cell {
     case Wall;
     case Floor;
@@ -14,7 +13,6 @@ data Main
 where
     i <= 1,
 {
-    console: Binding<Console>;
     rows: [[Cell; 2]; 2];
     i: u64;
 }
@@ -33,6 +31,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state finish(main: &mut Main, code: i32) {
-        main.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

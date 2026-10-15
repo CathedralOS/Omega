@@ -2,14 +2,12 @@
 // the ordinary machine body plans the same element establishments and window
 // pairs a state graph does, and the caller reads the stored element: exit 7.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Cell {
     case Wall;
     case Floor;
     case Door;
 }
 data Main {
-    console: Binding<Console>;
     grid: [Cell; 3];
 }
 machine Main::main(main: &mut Main) reaches Console {
@@ -19,7 +17,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> finish(main, 1)
     }
     state finish(main: &mut Main, code: i32) {
-        main.console.exit_process(code);
+        Console::exit_process(code);
     }
 }
 machine Main::fill(main: &mut Main) {

@@ -6,7 +6,6 @@
 // window. The second literal overwrites occupied elements, so every element's
 // displacement runs too; the arms read three elements back: exit 42.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Cell {
     case Wall;
     case Floor;
@@ -14,7 +13,6 @@ data Cell {
     case Water;
 }
 data Main {
-    console: Binding<Console>;
     grid: [Cell; 4];
 }
 machine Main::main(context: &mut Main) reaches Console {
@@ -37,6 +35,6 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state finish(context: &mut Main, code: i32) {
-        context.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

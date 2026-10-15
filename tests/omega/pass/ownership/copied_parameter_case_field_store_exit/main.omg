@@ -4,7 +4,6 @@
 // copy each report Second (2 + 2), the original stays First (1) and the
 // copies' counts read back 7 and 9 (2 + 2 + 1 + 7 + 9 = 21).
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Kind [copy] {
     case First;
@@ -52,7 +51,6 @@ machine Item::promoted_when(item: Item, promote: bool) -> Item {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console crashes Trap {
@@ -68,5 +66,5 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         _ -> done(main, 71)
     }
 
-    state done(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

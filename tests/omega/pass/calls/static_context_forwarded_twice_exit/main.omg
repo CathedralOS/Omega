@@ -16,10 +16,8 @@
 // misses 70. Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     count: i32 in Wrapping;
 }
 
@@ -43,6 +41,6 @@ machine Main::main(context: &mut Main) reaches Console {
         let second: i32 in Wrapping = Main::add(context, 5);
         Main::bump(context);
         let code: i32 in Wrapping = context.count - second + first + 15;
-        context.console.exit_process(code as i32);
+        Console::exit_process(code as i32);
     }
 }

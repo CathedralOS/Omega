@@ -5,7 +5,6 @@ use omega::language::core::float_operations;
 // `0 <= value <= 1` data `where` fact establishes the wider `0 <= value <= 2`
 // target fact without changing bytes.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data NarrowReading
 where
@@ -22,7 +21,6 @@ where
 }
 
 data Main {
-    console: Binding<Console>;
     reading: NarrowReading;
 }
 
@@ -33,6 +31,6 @@ machine Main::main(context: &mut Main) reaches Console {
         _ -> bad(context)
     }
 
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state bad(context: &mut Main) { Console::exit_process(71); }
 }

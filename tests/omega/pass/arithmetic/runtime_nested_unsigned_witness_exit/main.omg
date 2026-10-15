@@ -10,9 +10,7 @@
 // only). Fifth direction: the WRITE-side fused-operand builder shares the
 // witness funnel. Exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main {
-    console: Binding<Console>;
     a: u32;
     b: u32;
     // Wrapping landing + S2-retagged ADD below: the Exact prover does not
@@ -64,11 +62,11 @@ machine Main::main(main: &mut Main) reaches Console {
             + (zz as u32 in Wrapping);
         transition main.r == 5 { true -> good(main) _ -> bad6(main) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad1(main: &mut Main) { main.console.exit_process(71); }
-    state bad2(main: &mut Main) { main.console.exit_process(72); }
-    state bad3(main: &mut Main) { main.console.exit_process(73); }
-    state bad4(main: &mut Main) { main.console.exit_process(74); }
-    state bad5(main: &mut Main) { main.console.exit_process(75); }
-    state bad6(main: &mut Main) { main.console.exit_process(76); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad1(main: &mut Main) { Console::exit_process(71); }
+    state bad2(main: &mut Main) { Console::exit_process(72); }
+    state bad3(main: &mut Main) { Console::exit_process(73); }
+    state bad4(main: &mut Main) { Console::exit_process(74); }
+    state bad5(main: &mut Main) { Console::exit_process(75); }
+    state bad6(main: &mut Main) { Console::exit_process(76); }
 }

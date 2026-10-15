@@ -5,13 +5,11 @@
 // Expected output contains: 16
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 domain [u8; 16]::Ascii(bytes)
 requires ascii_only(bytes);
 
 data Main {
-    console: Binding<Console>;
 }
 
 data MazeSearch {
@@ -26,7 +24,7 @@ data MazeSearch {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("maze_flood: BFS shortest distances flooding a 5x5 maze (## = wall)");
+    Console::write_line("maze_flood: BFS shortest distances flooding a 5x5 maze (## = wall)");
     let mut search: MazeSearch;
     let distance: i32 = MazeSearch::distance(&mut search);
     transition distance == 16 {
@@ -50,22 +48,22 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state emit_line(main: &mut Main, search: &MazeSearch, row: i32 in Wrapping,
                     line: &[u8; 16] in Ascii) {
-        main.console.write_line(line);
+        Console::write_line(line);
         transition { _ -> render(main, search, row + 1) }
     }
     state finish(main: &mut Main) {
-        main.console.write_line("PASS: distance map rendered, far corner is 16 away (exit 0)");
-        main.console.write_line("[press Enter to close]");
+        Console::write_line("PASS: distance map rendered, far corner is 16 away (exit 0)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block main.console.read_line(&mut pause);
-        main.console.exit_process(0);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(0);
     }
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: internal bounds check failed (exit 1)");
-        main.console.write_line("[press Enter to close]");
+        Console::write_line("FAIL: internal bounds check failed (exit 1)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block main.console.read_line(&mut pause);
-        main.console.exit_process(1);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(1);
     }
 }
 

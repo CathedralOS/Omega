@@ -11,7 +11,6 @@
 // Main::main. Expected outcome: rejected at the composed-route stage; every
 // admission upstream moves it deeper without changing this family split.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data ScanResultBase {
     address: u64;
@@ -65,7 +64,6 @@ machine ScanResult::clone(source: &ScanResult) -> ScanResult {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -80,6 +78,6 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 }

@@ -1,7 +1,6 @@
 // `s <= u64::MAX` holds of every u64 by carrier extent and discharges
 // without evidence -- the literal exceeds the i64 operand read.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine echo(scale: u64) -> u64
 requires scale <= 18446744073709551615
@@ -10,13 +9,12 @@ requires scale <= 18446744073709551615
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     let s: u64 = opaque();
     let r: u64 = echo(s);
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }
 
 machine opaque() -> u64 {

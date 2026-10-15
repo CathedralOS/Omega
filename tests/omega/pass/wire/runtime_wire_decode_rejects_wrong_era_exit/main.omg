@@ -16,7 +16,6 @@
 // read = 7, ok = false -- the canary takes the failure path and exits 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data CounterMessage {
     #0 counter: u32;
@@ -38,7 +37,6 @@ data WireVerdict {
 }
 
 data Main {
-    console: Binding<Console>;
     read: u64;
     verdict: WireVerdict;
 }
@@ -60,10 +58,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

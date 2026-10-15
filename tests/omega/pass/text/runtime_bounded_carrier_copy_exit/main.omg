@@ -3,7 +3,6 @@
 // the source and unrelated sibling storage; successful execution prints the
 // actual concatenated field rather than an unrelated constant.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 32]::Utf8(bytes)
 requires
@@ -15,7 +14,6 @@ data Bucket {
 }
 
 data Main {
-    console: Binding<Console>;
     greeting: [u8; 32] in Utf8;
     source: [u8; 32] in Utf8;
     bucket: Bucket;
@@ -78,11 +76,11 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line(main.greeting);
-        main.console.exit_process(70);
+        Console::write_line(main.greeting);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

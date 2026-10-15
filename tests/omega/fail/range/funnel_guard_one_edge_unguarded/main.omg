@@ -3,10 +3,8 @@
 // requires -- the bound holds on only one incoming edge. `sp` is a runtime
 // parameter so both edges are live. (Was: `y: i32 [0..=15]` field suffix.)
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     sp: i32;
 }
 
@@ -25,5 +23,5 @@ machine Main::main(main: &mut Main, sp_in: i32) reaches Console {
         let mut y: i32 = main.sp;
         transition y == 7 { true -> m(main) false -> m(main) }
     }
-    state m(main: &mut Main) { main.console.exit_process(1); }
+    state m(main: &mut Main) { Console::exit_process(1); }
 }

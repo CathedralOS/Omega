@@ -9,7 +9,6 @@
 // beside the `Always -> (expr)` fallback on one transition.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Msg {
     case Ping(x: i32);
@@ -41,7 +40,6 @@ machine Counter::pick(counter: &mut Counter) -> Msg {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -53,10 +51,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state pinged(main: &mut Main, x: i32) {
-        main.console.exit_process(x);
+        Console::exit_process(x);
     }
 
     state ponged(main: &mut Main, y: i32) {
-        main.console.exit_process(y);
+        Console::exit_process(y);
     }
 }

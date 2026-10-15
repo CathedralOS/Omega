@@ -6,7 +6,6 @@
 // arm binds the guaranteed term and the next state consumes nothing but the
 // outcome. Exit 0 when every arm selects its evidence.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Outcome [copy] {
     case Success;
@@ -23,7 +22,6 @@ Fresh satisfies Evidence {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine pick() -> Outcome
@@ -63,6 +61,6 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state finish(main: &mut Main, code: i32) {
-        main.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

@@ -8,10 +8,8 @@
 // Supply the data reference last so nested effects finish before the outer
 // call or successor acquires its mutable argument. Effects stay in their arm.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     hits: u64 in Wrapping;
 }
 
@@ -119,6 +117,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

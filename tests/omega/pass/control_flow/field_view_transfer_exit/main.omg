@@ -13,7 +13,6 @@
 // same view.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Store<'ext> {
     names: &'ext [u8];
@@ -57,9 +56,8 @@ machine Store::probe<'ext>(store: &mut Store) -> u64 {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

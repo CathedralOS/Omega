@@ -1,9 +1,7 @@
-use omega::language::core::binding;
 use omega_language_std::console;
 
 data Pair { case Both(a: u64 in Wrapping, b: u64 in Wrapping); }
 data Main {
-    console: Binding<Console>;
     items: [Pair; 2];
     selected: u64 [0..=1];
 }
@@ -21,6 +19,6 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }

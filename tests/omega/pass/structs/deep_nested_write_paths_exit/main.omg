@@ -11,13 +11,11 @@
 // exits: 71 = nested write wrong/bled; 72 = sum-in-struct dispatch wrong;
 // 73 = nested sum payload wrong; 74 = element field write wrong/bled.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
 data Inner { a: u32; b: u32; }
 data Outer { first: Inner; second: Inner; }
 data Holder { tag: u32; msg: Msg; }
 data Main {
-    console: Binding<Console>;
     nested: Outer;
     holder: Holder;
     pair: [Inner; 2];
@@ -51,9 +49,9 @@ machine Main::build(main: &mut Main) reaches Console {
             _ -> wrong_elem_field(main)
         }
     }
-    state good(main: &mut Main)               { main.console.exit_process(70); }
-    state wrong_nested_write(main: &mut Main) { main.console.exit_process(71); }
-    state wrong_sum_in_struct(main: &mut Main){ main.console.exit_process(72); }
-    state wrong_sum_payload(main: &mut Main)  { main.console.exit_process(73); }
-    state wrong_elem_field(main: &mut Main)   { main.console.exit_process(74); }
+    state good(main: &mut Main)               { Console::exit_process(70); }
+    state wrong_nested_write(main: &mut Main) { Console::exit_process(71); }
+    state wrong_sum_in_struct(main: &mut Main){ Console::exit_process(72); }
+    state wrong_sum_payload(main: &mut Main)  { Console::exit_process(73); }
+    state wrong_elem_field(main: &mut Main)   { Console::exit_process(74); }
 }

@@ -7,10 +7,8 @@
 // (An unsigned index would be non-negative by type; a signed one must prove it.)
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     nums: [i32; 4];
     j: i32 in Trapping;
     sum: i32 in Trapping;
@@ -44,6 +42,6 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 }

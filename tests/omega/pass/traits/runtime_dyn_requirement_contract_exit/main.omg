@@ -6,7 +6,6 @@
 // TrimOne::shrink(9) == 8 and TrimThree::shrink(9) == 6:
 // (9 - 8) + (9 - 6) == 4 -> exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 trait Shrink<T> {
     machine shrink(scale: &T, value: u64) -> u64
@@ -41,7 +40,6 @@ TrimThree satisfies Shrink<Scale> {
 }
 
 data Main {
-    console: Binding<Console>;
     scale: Scale;
 }
 
@@ -57,10 +55,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

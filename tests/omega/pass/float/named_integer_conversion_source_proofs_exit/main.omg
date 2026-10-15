@@ -5,9 +5,7 @@ use omega::language::core::float_operations;
 // The data clause preserves
 // the former field suffix's [0.0..=100.0] contract without a range type.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main where bounded >= 0.0 && bounded <= 100.0 {
-    console: Binding<Console>;
     bounded: f64;
     unbounded: f64;
     a: i32;
@@ -26,7 +24,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.b = I32::from_f64(main.unbounded);
         transition main.a == 77 && main.b == 42 { true -> good(main) _ -> bad(main) }
     }
-    state good(main: &mut Main) { main.console.exit_process(78); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(78); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }
 machine Main::run(main: &mut Main) { Main::main(main); }

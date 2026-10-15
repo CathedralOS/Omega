@@ -9,7 +9,6 @@
 // payload scalars arrive at their named states.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data NextToken {
     case Token(start: u64, end: u64);
@@ -38,7 +37,6 @@ data LineRead {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine next_token() -> NextToken {
@@ -90,9 +88,9 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state done(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     state refused(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

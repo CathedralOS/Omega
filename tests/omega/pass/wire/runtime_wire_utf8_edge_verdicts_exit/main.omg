@@ -11,7 +11,6 @@ domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 data LabelMessage {
     #0 count: u32;
     #1 label: &[u8] in Utf8;
@@ -25,7 +24,6 @@ data WireVerdict {
     case Sound;
 }
 data Main {
-    console: Binding<Console>;
     buffer: [u8; 16];
     read: u64;
     verdict: WireVerdict;
@@ -99,10 +97,10 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad_truncated(main)
         }
     }
-    state good(main: &mut Main)          { main.console.exit_process(70); }
-    state bad_euro(main: &mut Main)      { main.console.exit_process(71); }
-    state bad_overlong(main: &mut Main)  { main.console.exit_process(72); }
-    state bad_surrogate(main: &mut Main) { main.console.exit_process(73); }
-    state bad_beyond(main: &mut Main)    { main.console.exit_process(74); }
-    state bad_truncated(main: &mut Main) { main.console.exit_process(75); }
+    state good(main: &mut Main)          { Console::exit_process(70); }
+    state bad_euro(main: &mut Main)      { Console::exit_process(71); }
+    state bad_overlong(main: &mut Main)  { Console::exit_process(72); }
+    state bad_surrogate(main: &mut Main) { Console::exit_process(73); }
+    state bad_beyond(main: &mut Main)    { Console::exit_process(74); }
+    state bad_truncated(main: &mut Main) { Console::exit_process(75); }
 }

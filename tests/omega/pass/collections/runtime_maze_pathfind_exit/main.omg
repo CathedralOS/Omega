@@ -3,10 +3,8 @@
 // one local workspace owns the arrays and queue, while states pass iteration
 // values explicitly. Neighbour coordinates and indexed reads are locals.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 data MazeSearch {
@@ -30,10 +28,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     state wrong(main: &mut Main, distance: i32) {
-        main.console.exit_process(distance);
+        Console::exit_process(distance);
     }
 }
 

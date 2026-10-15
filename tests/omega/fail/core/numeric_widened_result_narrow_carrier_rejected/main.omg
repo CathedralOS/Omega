@@ -3,10 +3,8 @@
 // implicit u16 -> u8 conversion and rejects even though every value fits.
 use omega::language::core::numeric_conversion;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     source: u8;
 }
 
@@ -14,5 +12,5 @@ machine Main::main(main: &mut Main) reaches Console {
     main.source = 70;
     let widened: u8 = widen_u8_to_u16(main.source);
     let code: i32 = widened as i32;
-    main.console.exit_process(code);
+    Console::exit_process(code);
 }

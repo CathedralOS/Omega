@@ -7,7 +7,6 @@
 // place map ("all-Field path"), so the machine was omitted outright.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Fmt [copy] {
     case Decimal;
@@ -21,7 +20,6 @@ data Node {
 }
 
 data Main {
-    console: Binding<Console>;
     nodes: [Node; 4];
     fmts: [Fmt; 4];
     cursor: u64;
@@ -42,5 +40,5 @@ machine Main::fill_local(main: &mut Main) {
 machine Main::main(main: &mut Main) reaches Console {
     Main::fill(main, 2, Node { tag: 4, fmt: Fmt::Decimal });
     Main::fill_local(main);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

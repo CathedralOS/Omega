@@ -4,7 +4,6 @@
 // selected provider body to 7, refuses the call instead of admitting an
 // unbounded parameter.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Math {}
 
@@ -27,10 +26,9 @@ machine limit() -> u64 {
 machine take_bounded(value: u64[0..=limit()]) -> u64 { value }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     let bounded: u64 = take_bounded(9);
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

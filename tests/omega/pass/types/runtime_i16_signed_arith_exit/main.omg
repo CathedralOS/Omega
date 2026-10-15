@@ -4,10 +4,8 @@
 // a signed ordered guard (`< 0`) at 2-byte width: a wrong unsigned treatment
 // would see 64936 > 0 and take the bad arm. Exit 70 on success.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     v: i16;
 }
 
@@ -27,10 +25,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

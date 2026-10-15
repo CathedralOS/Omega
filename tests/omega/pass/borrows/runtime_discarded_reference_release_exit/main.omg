@@ -1,9 +1,7 @@
 // Discarding a returned shared reference restores mutation before the next statement.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     value: u8;
     neighbor: u8;
 }
@@ -22,6 +20,6 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

@@ -6,7 +6,6 @@
 // CircleShape reports 9 and SquareShape reads the item's 4 sides:
 // 9 * 10 + 4 == 94 -> exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 trait Shape<T> {
     machine code(subject: &mut T) -> i32;
@@ -33,7 +32,6 @@ SquareShape satisfies Shape<Item> {
 }
 
 data Main {
-    console: Binding<Console>;
     item: Item;
 }
 
@@ -48,11 +46,11 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }
 

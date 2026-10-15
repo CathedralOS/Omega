@@ -3,10 +3,8 @@
 // Variant of runtime_console_bounded_line_exit with an ASCII `#` (35)
 // sentinel so expected_stdout.txt can compare the exact bytes.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     line: [u8; 4];
 }
 
@@ -17,7 +15,7 @@ reaches Console
     main.line[1] = 35;
     main.line[2] = 35;
     main.line[3] = 35;
-    let empty: LineReadResult = block main.console.read_line(&mut main.line[0..0]);
+    let empty: LineReadResult = block Console::read_line(&mut main.line[0..0]);
     transition empty {
         LineReadResult::Full { count } -> empty_result(main, count)
         _ -> invalid(main)
@@ -26,7 +24,7 @@ reaches Console
         transition count == 0 { true -> read(main) false -> invalid(main) }
     }
     state read(main: &mut Main) {
-        let result: LineReadResult = block main.console.read_line(&mut main.line);
+        let result: LineReadResult = block Console::read_line(&mut main.line);
         transition result {
             LineReadResult::LineComplete { count } -> report(main, 10, count)
             LineReadResult::EndOfInput { count } -> report(main, 20, count)
@@ -37,8 +35,8 @@ reaches Console
     state report(main: &mut Main, reason: i32, count: u64)
     requires 0 <= reason && reason <= 100
     {
-        main.console.write(&main.line);
-        let next: ByteRead = block main.console.read_byte();
+        Console::write(&main.line);
+        let next: ByteRead = block Console::read_byte();
         transition next {
             ByteRead::Byte { value } -> suffix(main, reason, count, value)
             ByteRead::Eof -> done(main, reason, count)
@@ -47,7 +45,7 @@ reaches Console
     state suffix(main: &mut Main, reason: i32, count: u64, value: i32)
     requires 0 <= reason && reason <= 100 && 0 <= value && value <= 255
     {
-        main.console.write_byte(value);
+        Console::write_byte(value);
         transition { _ -> done(main, reason, count) }
     }
     state done(main: &mut Main, reason: i32, count: u64)
@@ -64,7 +62,7 @@ reaches Console
     state finish(main: &mut Main, reason: i32, count: u64)
     requires 0 <= reason && reason <= 100 && count <= 4
     {
-        main.console.exit_process(reason + count as i32);
+        Console::exit_process(reason + count as i32);
     }
-    state invalid(main: &mut Main) { main.console.exit_process(99); }
+    state invalid(main: &mut Main) { Console::exit_process(99); }
 }

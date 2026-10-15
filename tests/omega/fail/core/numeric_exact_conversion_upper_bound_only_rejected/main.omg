@@ -4,7 +4,6 @@
 // an unsigned carrier.
 use omega::language::core::numeric_conversion;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine narrow(value: i32) -> u8
 requires
@@ -14,7 +13,6 @@ requires
 }
 
 data Main {
-    console: Binding<Console>;
     source: i32;
 }
 
@@ -22,5 +20,5 @@ machine Main::main(main: &mut Main) reaches Console {
     main.source = 70;
     let converted: u8 = narrow(main.source);
     let code: i32 = converted as i32;
-    main.console.exit_process(code);
+    Console::exit_process(code);
 }

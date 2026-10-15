@@ -5,7 +5,6 @@
 // steps. `Big::fill` writes the record's last byte through the loaned
 // pointer; exits 70 when that byte reads back.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Big {
     bytes: [u8; 33554432] in Trapping;
@@ -13,7 +12,6 @@ data Big {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Big::fill(big: &mut Big, value: u8 in Trapping) {
@@ -29,6 +27,6 @@ crashes Trap
     transition { _ -> finish(main, &big) }
 
     state finish(main: &mut Main, big: &Big) {
-        main.console.exit_process(big.bytes[33554431] as i32);
+        Console::exit_process(big.bytes[33554431] as i32);
     }
 }

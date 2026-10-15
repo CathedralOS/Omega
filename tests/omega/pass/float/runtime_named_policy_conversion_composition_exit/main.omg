@@ -11,10 +11,8 @@
 // Each wrong value exits with its own code between 71 and 78.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     negative_huge: f64;
     zero: f64;
     fraction: f64;
@@ -103,6 +101,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

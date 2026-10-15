@@ -2,7 +2,6 @@
 // with an evaluable domain body fact, discharge once for the concrete generic
 // instance. They are not runtime invariants on the synthesized record.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain u64::Positive(value)
 requires
@@ -23,12 +22,11 @@ where
 }
 
 data Main {
-    console: Binding<Console>;
     buffer: FixedBuffer<4>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.buffer.used = 4;
     main.buffer.values[0] = 66;
-    main.console.exit_process(main.buffer.values[0] as i32 + main.buffer.used as i32);
+    Console::exit_process(main.buffer.values[0] as i32 + main.buffer.used as i32);
 }

@@ -9,12 +9,10 @@
 // parameter); `view: &mut Pair` receives `&mut m` (mutable local).
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Pair [copy] { a: i32; }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -32,7 +30,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state mutate(main: &mut Main, view: &mut Pair) {
         view.a = 9;
-        main.console.exit_process(view.a);
+        Console::exit_process(view.a);
     }
 
     state hold(main: &mut Main, p: Pair) {
@@ -40,6 +38,6 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state inspect_param(main: &mut Main, view: &Pair) {
-        main.console.exit_process(view.a);
+        Console::exit_process(view.a);
     }
 }

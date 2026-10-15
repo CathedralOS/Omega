@@ -6,7 +6,6 @@
 // only when the second construction fully replaces the first.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Mode {
     case Stand;
@@ -15,7 +14,6 @@ data Mode {
 }
 
 data Main {
-    console: Binding<Console>;
     mode: Mode;
 }
 
@@ -30,10 +28,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main, speed: i32) {
-        main.console.exit_process(speed);
+        Console::exit_process(speed);
     }
 
     state bad(main: &mut Main, code: i32) {
-        main.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

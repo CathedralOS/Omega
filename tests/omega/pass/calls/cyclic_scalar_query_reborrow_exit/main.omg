@@ -6,7 +6,6 @@
 // structural parameter borrowed shared moves no loop-carried custody.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Tally {
     target: u64;
@@ -32,7 +31,6 @@ machine Tally::first_reaching(tally: &Tally, start: u64 in Saturating) -> u64 in
 }
 
 data Main {
-    console: Binding<Console>;
     tally: Tally;
 }
 
@@ -46,10 +44,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state missed(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

@@ -5,7 +5,6 @@ domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data CellId {
     case Empty;
@@ -26,7 +25,6 @@ data Room {
 }
 
 data Main {
-    console: Binding<Console>;
     room: Room;
 }
 
@@ -37,13 +35,13 @@ machine result_code(context: &mut Main) -> i32 reaches Console {
     context.room.exits[0] = Exit { command: "north", destination: CellId::A2 };
     context.room.exits[1] = Exit { command: "wait", destination: CellId::Empty };
 
-    context.console.write_line(context.room.label);
-    context.console.write_line(context.room.description);
-    context.console.write_line(context.room.exits[0].command);
+    Console::write_line(context.room.label);
+    Console::write_line(context.room.description);
+    Console::write_line(context.room.exits[0].command);
     0
 }
 
 machine Main::main(context: &mut Main) reaches Console {
     let result: i32 = result_code(context);
-    context.console.exit_process(result);
+    Console::exit_process(result);
 }

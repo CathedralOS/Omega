@@ -10,10 +10,8 @@
 // widen still matches a genuinely equal value (44 == 44). Both correct -> exit 70.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     small: i8;
     big: i32;
     same: i32;
@@ -32,9 +30,9 @@ machine Main::main(main: &mut Main) reaches Console {
         transition widen_i8_to_i32(main.small) == main.same { true -> correct(main) _ -> missed(main) }
     }
 
-    state correct(main: &mut Main) { main.console.exit_process(70); }
+    state correct(main: &mut Main) { Console::exit_process(70); }
     // The wider operand was truncated to the narrower width -- the rejected bug.
-    state truncated(main: &mut Main) { main.console.exit_process(71); }
+    state truncated(main: &mut Main) { Console::exit_process(71); }
     // The widen broke a genuine equality.
-    state missed(main: &mut Main) { main.console.exit_process(72); }
+    state missed(main: &mut Main) { Console::exit_process(72); }
 }

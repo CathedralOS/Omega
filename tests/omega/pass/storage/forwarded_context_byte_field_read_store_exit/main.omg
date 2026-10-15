@@ -16,13 +16,11 @@
 //
 // "HELLO" shifted by 3 is "KHOOR"; the exit code is `out[0]`, 'K' = 75.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 5]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Main {
-    console: Binding<Console>;
     text: [u8; 5] in Utf8;
     out: [u8; 5] in Utf8;
     i: i32;
@@ -55,6 +53,6 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(main.out[0] as i32);
+        Console::exit_process(main.out[0] as i32);
     }
 }

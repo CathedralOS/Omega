@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Window {}
 machine Window::endpoint<const N: u64>(witness: &[u8; N]) -> u64
@@ -8,7 +7,6 @@ ensures result <= 3
 { N }
 
 data Main {
-    console: Binding<Console>;
     values: [u8; 4];
 }
 
@@ -21,6 +19,6 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> good(context)
         false -> bad(context)
     }
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state bad(context: &mut Main) { Console::exit_process(71); }
 }

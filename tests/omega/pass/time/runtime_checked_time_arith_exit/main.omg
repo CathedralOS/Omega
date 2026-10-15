@@ -18,10 +18,8 @@
 // Expected exit: 70.
 use omega_language_std::time;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(context: &mut Main) reaches Console {
@@ -115,6 +113,6 @@ machine Main::main(context: &mut Main) reaches Console {
             SystemTimeResult::Ok { time } -> fail_leg(context, 8)
         }
     }
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state fail_leg(context: &mut Main, leg: i32) { context.console.exit_process(leg); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state fail_leg(context: &mut Main, leg: i32) { Console::exit_process(leg); }
 }

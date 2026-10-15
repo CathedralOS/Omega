@@ -1,17 +1,15 @@
 // RUN CANARY (exit 70). The first write transiently violates start <= end;
 // the second restores it, and the next call closes the derived window.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main
 where
     start <= end,
 {
-    console: Binding<Console>;
     start: i32;
     end: i32;
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.start = 10;
     main.end = 20;
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

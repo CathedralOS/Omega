@@ -16,10 +16,8 @@ domain [u8]::Path(bytes)
 requires
     no_nul(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     k: u64;
     seen: u64;
     entries: [i32; 5];
@@ -83,6 +81,6 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> fail(main, 73)
         }
     }
-    state done(main: &mut Main) { main.console.exit_process(70); }
-    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state done(main: &mut Main) { Console::exit_process(70); }
+    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

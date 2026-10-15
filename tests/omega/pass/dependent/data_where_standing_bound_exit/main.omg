@@ -1,15 +1,13 @@
 // RUN CANARY (exit 70). A zero-valid default-domain bound is standing in every
 // state of the attached machine and discharges exact arithmetic on its field.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main
 where
     value <= 60,
 {
-    console: Binding<Console>;
     value: i32;
 }
 machine Main::main(main: &mut Main) reaches Console {
     let return_code: i32 = 70 + main.value;
-    main.console.exit_process(return_code);
+    Console::exit_process(return_code);
 }

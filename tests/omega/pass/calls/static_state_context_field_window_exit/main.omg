@@ -17,10 +17,8 @@ use omega_language_std::math;
 // Exits 70 only when every loan observed and updated the context's storage.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     pause: [u8; 4];
     values: [i32; 3];
 }
@@ -64,7 +62,7 @@ machine Main::main(context: &mut Main) reaches Console {
     state lend(context: &mut Main) {
         stamp(&mut context.pause);
         let seen: u64 = peek(&context.pause, 1);
-        let line: LineReadResult = block context.console.read_line(&mut context.pause);
+        let line: LineReadResult = block Console::read_line(&mut context.pause);
         let first: u64 = peek(&context.pause, 0);
         let second: u64 = peek(&context.pause, 1);
         let high: i32 = largest(&context.values, 0);
@@ -82,10 +80,10 @@ machine Main::main(context: &mut Main) reaches Console {
     }
 
     state done(context: &mut Main) {
-        context.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state refused(context: &mut Main, code: i32) {
-        context.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

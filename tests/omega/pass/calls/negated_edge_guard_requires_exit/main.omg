@@ -4,14 +4,12 @@
 // restated premise. The argument is a call result, not a literal, so no
 // constant folding can stand in for the entailment.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine check(v: u64)
 requires v < 100u64
 {}
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine opaque() -> u64 {
@@ -26,7 +24,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state then(main: &mut Main, v: u64) {
         check(v);
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }

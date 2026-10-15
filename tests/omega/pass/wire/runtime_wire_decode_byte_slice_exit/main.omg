@@ -11,7 +11,6 @@
 // matches.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Blob {
     #0 bytes: &[u8];
@@ -29,7 +28,6 @@ data WireVerdict {
 }
 
 data Main {
-    console: Binding<Console>;
     source: [u8; 4];
     buffer: [u8; 64];
     buffer2: [u8; 64];
@@ -64,10 +62,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

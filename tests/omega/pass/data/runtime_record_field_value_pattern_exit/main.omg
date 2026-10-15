@@ -3,7 +3,6 @@
 // machinery knows `main.header.ok == 0` inside the first arm.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Header [copy] {
     ok: i32;
@@ -11,7 +10,6 @@ data Header [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     header: Header;
 }
 
@@ -32,10 +30,10 @@ machine Main::main(main: &mut Main) reaches Console {
         // The pattern's equality guard follows the transition argument into
         // this state and discharges the callee's ordinary precondition.
         require_ok(main.header);
-        main.console.exit_process(code);
+        Console::exit_process(code);
     }
 
     state finish(main: &mut Main, code: i32) {
-        main.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

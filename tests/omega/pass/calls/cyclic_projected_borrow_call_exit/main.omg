@@ -10,7 +10,6 @@
 // per-traversal loan it is.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell {
     value: u64;
@@ -43,7 +42,6 @@ machine Holder::copy_all(holder: &mut Holder, source: &Holder) {
 }
 
 data Main {
-    console: Binding<Console>;
     source: Holder;
     target: Holder;
 }
@@ -62,10 +60,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state missed(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

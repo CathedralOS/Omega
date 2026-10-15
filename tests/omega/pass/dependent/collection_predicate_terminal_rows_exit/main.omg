@@ -9,7 +9,6 @@
 // `cell_is_bit` citations emit no call. Two live board cells make cell 0
 // live, so the count is 1 and the code is 1 + 69.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine cells_valid(cells: &[i32; 4]) -> bool {
     transition cells[0] == 0 || cells[0] == 1 {
@@ -54,7 +53,6 @@ data Grid [copy] where cells_valid(&board) == true, cells_valid(&next) == true {
 }
 
 data Main {
-    console: Binding<Console>;
     g: Grid;
 }
 
@@ -99,7 +97,7 @@ machine Main::main(context: &mut Main) reaches Console {
         _ -> bad(context)
     }
 
-    state good(context: &mut Main) { context.console.exit_process(70); }
+    state good(context: &mut Main) { Console::exit_process(70); }
 
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state bad(context: &mut Main) { Console::exit_process(71); }
 }

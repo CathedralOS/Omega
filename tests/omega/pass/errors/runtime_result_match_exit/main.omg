@@ -8,7 +8,6 @@
 // the error is data, not a trap), and the matched payload flows to the handler state.
 // Exits 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data DivResult {
     case Ok(value: i32 in Wrapping);
@@ -16,7 +15,6 @@ data DivResult {
 }
 
 data Main {
-    console: Binding<Console>;
     aa: [i32; 3];
     bb: [i32; 3];
     result: DivResult;
@@ -76,9 +74,9 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.acc == 10 && main.errs == 1 { true -> good(main) _ -> wrong(main) }
     }
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     state wrong(main: &mut Main) {
-        main.console.exit_process(main.acc as i32); // surface the sum on regression
+        Console::exit_process(main.acc as i32); // surface the sum on regression
     }
 }

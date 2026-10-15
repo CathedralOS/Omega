@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Entry {
     prefix: u64;
@@ -8,7 +7,6 @@ data Entry {
 }
 
 data Main {
-    console: Binding<Console>;
     entries: [Entry; 2];
 }
 
@@ -24,9 +22,9 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
     state good(main: &Main) {
-        main.console.exit_process(61);
+        Console::exit_process(61);
     }
     state bad(main: &Main) {
-        main.console.exit_process(62);
+        Console::exit_process(62);
     }
 }

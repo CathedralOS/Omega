@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Node {
     value: i32;
@@ -15,7 +14,6 @@ data Probe {
 }
 
 data Main {
-    console: Binding<Console>;
     probe: Probe;
 }
 
@@ -29,7 +27,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(181);
+        Console::exit_process(181);
     }
 }
 

@@ -6,14 +6,12 @@
 // region with a literal of its own before the entry reads both fields'
 // lengths and bytes. 71 = a wrong extent, 72 = wrong bytes.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Room {
     label: &[u8];
 }
 
 data Main {
-    console: Binding<Console>;
     name: &[u8];
     room: Room;
 }
@@ -49,14 +47,14 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state wrong_extent(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 
     state wrong_bytes(main: &mut Main) {
-        main.console.exit_process(72);
+        Console::exit_process(72);
     }
 }

@@ -20,10 +20,8 @@
 //   a NaN stays NaN in both directions.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     exact_i32: i32;
     tie_i32: i32;
     tie_i64: i64;
@@ -205,6 +203,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state pass(main: &mut Main) { main.console.exit_process(70); }
-    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state pass(main: &mut Main) { Console::exit_process(70); }
+    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

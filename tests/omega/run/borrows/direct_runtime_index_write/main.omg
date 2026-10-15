@@ -2,10 +2,8 @@
 // field admitted at all? `[i32;4]` writes plan WriteOnlyPrimitiveStore;
 // if `[u8;N]` writes omit, the indexed-write wall predates loan aliases.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     buf: [u8; 48];
     off: u64;
 }
@@ -16,10 +14,10 @@ machine Main::main(main: &mut Main) reaches Console {
     transition main.buf[main.off] == 9 { true -> done(main) _ -> bad(main) }
 
     state done(main: &mut Main) {
-        main.console.exit_process(9);
+        Console::exit_process(9);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(1);
+        Console::exit_process(1);
     }
 }

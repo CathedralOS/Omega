@@ -22,13 +22,11 @@
 //
 // Expected exit: 66.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Main {
-    console: Binding<Console>;
     label: [u8; 8] in Utf8;
 }
 
@@ -52,6 +50,6 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(main.label[0] as i32);
+        Console::exit_process(main.label[0] as i32);
     }
 }

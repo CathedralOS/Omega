@@ -5,7 +5,6 @@
 // 71 = the caller still saw Invalid.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Verdict {
     case Invalid;
@@ -13,7 +12,6 @@ data Verdict {
 }
 
 data Main {
-    console: Binding<Console>;
     verdict: Verdict;
 }
 
@@ -40,10 +38,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

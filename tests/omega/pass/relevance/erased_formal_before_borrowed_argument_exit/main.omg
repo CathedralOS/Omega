@@ -4,7 +4,6 @@
 // erased `witness`. The trailing erased formal must not disturb it either.
 // Native run: exit 70 = the callee read the forwarded record; 71 = it did not.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Proof {
     tag: i32;
@@ -16,7 +15,6 @@ data Inner {
 }
 
 data Main {
-    console: Binding<Console>;
     inner: Inner;
     result: u8;
 }
@@ -33,8 +31,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 machine Main::relay(witness [erased]: Proof, values: &Inner, trailing [erased]: Proof) -> u8 {

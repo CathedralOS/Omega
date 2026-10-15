@@ -18,10 +18,8 @@
 // guarded `remaining - 1`, which the guard proves.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     slots: [i64; table_size()];
 }
 
@@ -42,5 +40,5 @@ machine table_size() -> u64 {
 }
 
 machine Main::main(main: &mut Main) {
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

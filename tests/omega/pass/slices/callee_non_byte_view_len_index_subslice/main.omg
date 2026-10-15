@@ -7,14 +7,12 @@
 // beside a live shared loan of `main.entries` would alias that loan.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Entry {
     value: i32;
 }
 
 data Main {
-    console: Binding<Console>;
     entries: [Entry; 4];
 }
 
@@ -22,7 +20,7 @@ data Main {
 // entries[1].value through `sub[index]` and the tail's first element, 9.
 machine Main::run(context: &mut Main) reaches Console {
     let result: i32 = Main::main(context);
-    context.console.exit_process(result);
+    Console::exit_process(result);
 }
 
 machine Main::main(main: &mut Main) -> i32 {

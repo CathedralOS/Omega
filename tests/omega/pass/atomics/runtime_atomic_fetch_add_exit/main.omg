@@ -12,10 +12,8 @@
 //   - exit 70 = all four assertions pass
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     counter: AtomicU32;
 }
 
@@ -48,18 +46,18 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     state bad_old1(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
     state bad_after_first(main: &mut Main) {
-        main.console.exit_process(72);
+        Console::exit_process(72);
     }
     state bad_old2(main: &mut Main) {
-        main.console.exit_process(73);
+        Console::exit_process(73);
     }
     state bad_after_second(main: &mut Main) {
-        main.console.exit_process(74);
+        Console::exit_process(74);
     }
 }

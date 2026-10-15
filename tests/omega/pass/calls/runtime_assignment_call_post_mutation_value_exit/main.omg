@@ -7,7 +7,6 @@
 // LocalStorage operation, after the callee's effects.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Tally {
     calls: u64;
@@ -15,7 +14,6 @@ data Tally {
 }
 
 data Main {
-    console: Binding<Console>;
     tally: Tally;
 }
 
@@ -41,7 +39,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
 
-    state exit_post(main: &mut Main) { main.console.exit_process(70); }
-    state exit_stale(main: &mut Main) { main.console.exit_process(2); }
-    state exit_other(main: &mut Main) { main.console.exit_process(77); }
+    state exit_post(main: &mut Main) { Console::exit_process(70); }
+    state exit_stale(main: &mut Main) { Console::exit_process(2); }
+    state exit_other(main: &mut Main) { Console::exit_process(77); }
 }

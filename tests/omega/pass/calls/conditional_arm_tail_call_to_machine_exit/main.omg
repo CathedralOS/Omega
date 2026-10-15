@@ -6,10 +6,8 @@
 // `calls/transition_tail_call_to_machine` covers tail calls in unconditional
 // arms.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     stored: i32;
 }
 
@@ -22,9 +20,9 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 machine Main::finish(main: &mut Main) reaches Console {
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }
 
 machine Main::wrong(main: &mut Main) reaches Console {
-    main.console.exit_process(71);
+    Console::exit_process(71);
 }

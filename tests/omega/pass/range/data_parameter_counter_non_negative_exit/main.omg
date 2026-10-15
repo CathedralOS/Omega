@@ -3,9 +3,7 @@
 // nonnegative guard. Index proofs must follow each block's parameter identity.
 // The final observed element is 11, which is also the expected exit code.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main {
-    console: Binding<Console>;
     nums: [i32; 2];
     i: i32;
     last: i32;
@@ -32,6 +30,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state done(main: &mut Main) {
-        main.console.exit_process(main.last);
+        Console::exit_process(main.last);
     }
 }

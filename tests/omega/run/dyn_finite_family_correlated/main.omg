@@ -5,7 +5,6 @@
 //   scan(Primary, 16,4) = 20 + 16 + 4     == 40
 //   scan(Bumped,  32,8) = 20 + 32 + 8 + 1 == 61
 use omega_language_std::console;
-use omega::language::core::binding;
 
 trait Shape<T> {
     machine code<Width: u32, Depth: u32>(subject: &T) -> u32 where (Width == 16 && Depth == 4) || (Width == 32 && Depth == 8);
@@ -52,7 +51,6 @@ requires
 }
 
 data Main {
-    console: Binding<Console>;
     item: Item;
 }
 
@@ -68,10 +66,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

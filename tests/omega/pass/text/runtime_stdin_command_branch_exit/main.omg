@@ -1,6 +1,5 @@
 // Raw bounded line input is normalized by this ASCII command protocol.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Command {
     case Look;
@@ -20,14 +19,13 @@ machine Parser::resolve(line: &[u8], count: u64) -> Command {
 }
 
 data Main {
-    console: Binding<Console>;
     line: [u8; 32];
     parser: Parser;
     command: Command;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let observed: LineReadResult = block main.console.read_line(&mut main.line);
+    let observed: LineReadResult = block Console::read_line(&mut main.line);
     transition observed {
         LineReadResult::LineComplete { count } -> bounded_input(main, count, true)
         LineReadResult::EndOfInput { count } -> bounded_input(main, count, false)
@@ -79,17 +77,17 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state look(main: &mut Main) {
-        main.console.write_line("look");
-        main.console.exit_process(0);
+        Console::write_line("look");
+        Console::exit_process(0);
     }
 
     state quit(main: &mut Main) {
-        main.console.write_line("quit");
-        main.console.exit_process(0);
+        Console::write_line("quit");
+        Console::exit_process(0);
     }
 
     state invalid(main: &mut Main) {
-        main.console.write_line("invalid");
-        main.console.exit_process(1);
+        Console::write_line("invalid");
+        Console::exit_process(1);
     }
 }

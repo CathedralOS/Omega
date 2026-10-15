@@ -12,9 +12,7 @@
 // a6: write arr[wh + wn] over `u64 in Wrapping` operands: the temp keeps the
 //     operands' arithmetic policy, so its store is not a policy conversion
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main where 0 <= k, k <= 3 {
-    console: Binding<Console>;
     arr: [i32 in Wrapping; 5];
     k: u64;
     acc: i32 in Wrapping;
@@ -93,7 +91,7 @@ machine Main::main(main: &mut Main) reaches Console
         }
     }
     state yes(main: &mut Main)
-    { main.console.exit_process(1); }
+    { Console::exit_process(1); }
     state no(main: &mut Main)
-    { main.console.exit_process(2); }
+    { Console::exit_process(2); }
 }

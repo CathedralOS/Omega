@@ -14,7 +14,6 @@
 // exit 0 = the countdown reached `n == 0` and returned it;
 // exit 1 = any other outcome.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Wrap where remaining >= 4, remaining <= 500 { remaining: u64; }
 data Indirect { target: &mut Wrap; }
@@ -30,7 +29,6 @@ terminates by n -> Nat::Descending in 0..=indirect.target.remaining;
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -43,6 +41,6 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state good(main: &mut Main) { main.console.exit_process(0); }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state good(main: &mut Main) { Console::exit_process(0); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }

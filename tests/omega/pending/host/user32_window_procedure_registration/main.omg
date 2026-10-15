@@ -22,7 +22,6 @@
 // in the common instruction pipeline) and the Windows host leg itself,
 // which other hosts report unavailable.
 use omega::language::core::layout;
-use omega::language::core::binding;
 use omega_language_std::calling;
 use omega_language_std::console;
 
@@ -358,7 +357,6 @@ satisfies WindowProcedure::window_procedure
 }
 
 data Main {
-    console: Binding<Console>;
     capacity: Registration;
     class: WindowClass;
     message: [u64; 6];
@@ -427,7 +425,7 @@ invokes Console;
     }
     state release(main: &mut Main, registration: Registration in Registration::Live) {
         main.capacity = User32::unregister_class(registration);
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     // The rejected leg keeps the capacity and retries once on a renamed
     // class before conceding — the observed-rejection path the acceptance
@@ -447,10 +445,10 @@ invokes Console;
     }
     state concede(main: &mut Main, capacity: Registration) {
         main.capacity = capacity;
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
     state bad(main: &mut Main, registration: Registration in Registration::Live) {
         main.capacity = User32::unregister_class(registration);
-        main.console.exit_process(72);
+        Console::exit_process(72);
     }
 }

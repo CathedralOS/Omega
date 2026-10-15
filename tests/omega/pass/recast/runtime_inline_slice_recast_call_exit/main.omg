@@ -1,10 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main
 where offset <= 2,
 {
-    console: Binding<Console>;
     bytes: [u8; 6];
     offset: u32;
 }
@@ -41,5 +39,5 @@ machine Main::main(main: &mut Main) reaches Console {
     let written: i32 = write(&mut main.bytes[main.offset * 2] as &mut [u16]);
     // A nested call receives the formed suffix descriptor, not a loan of
     // the single byte that names its start or a view of the whole array.
-    main.console.exit_process(inspect(&main.bytes[2] as &[u16]) + written - 70);
+    Console::exit_process(inspect(&main.bytes[2] as &[u16]) + written - 70);
 }

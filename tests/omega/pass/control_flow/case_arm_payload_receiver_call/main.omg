@@ -6,7 +6,6 @@
 // Exits 70 only when the payload receiver call lowers and dispatches.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Payload {
     case Leaf(value: u64);
@@ -33,7 +32,6 @@ machine Sum::probe(sum: &Sum) -> u64 {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -45,10 +43,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state missed(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

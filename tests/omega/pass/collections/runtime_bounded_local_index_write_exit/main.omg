@@ -3,7 +3,6 @@
 // bounds `depth` by 4, so `items[top]` is in range for both the store and the
 // load. Exits 70 when the written top is read back as the last pushed value.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Stack
 where
@@ -14,7 +13,6 @@ where
 }
 
 data Main {
-    console: Binding<Console>;
     stack: Stack;
 }
 
@@ -84,6 +82,6 @@ crashes Trap
         _ -> bad(main)
     }
 
-    state ok(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state ok(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

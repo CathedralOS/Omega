@@ -10,14 +10,12 @@ requires
 // selected NO compare at all and the first transition arm was taken
 // unconditionally -- an empty field "equalled" any literal.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Room {
     name: &[u8] in Utf8;
 }
 
 data Main {
-    console: Binding<Console>;
     rooms: [Room; 3];
 }
 
@@ -55,10 +53,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state pass(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state fail(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

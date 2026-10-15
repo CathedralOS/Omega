@@ -4,10 +4,8 @@ use omega::language::core::float_operations;
 // carrier domain. The data's ordinary where clause retains the ranged field's
 // finite interval while its value flows to a Finite transition parameter.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main where ranged >= 0.0 && ranged <= 1.0 {
-    console: Binding<Console>;
     direct: f64 in Finite;
     ranged: f32;
 }
@@ -26,6 +24,6 @@ machine Main::main(main: &mut Main) reaches Console {
         transition value == 0.5 { true -> good(main) _ -> bad(main) }
     }
 
-    state good(main: &Main) { main.console.exit_process(77); }
-    state bad(main: &Main) { main.console.exit_process(78); }
+    state good(main: &Main) { Console::exit_process(77); }
+    state bad(main: &Main) { Console::exit_process(78); }
 }

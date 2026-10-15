@@ -1,7 +1,6 @@
 // A boundary receives an owned primitive array between scalar arguments.
 // The later scalar operand mutates the source; the provider must observe the
 // array snapshot captured earlier, while the caller observes the later write.
-use omega::language::core::binding;
 use omega_language_std::console;
 
 pub data Thing {}
@@ -23,7 +22,6 @@ machine forward(values: [u8; 4]) -> i32 {
 }
 
 data Main {
-    console: Binding<Console>;
     buffer: [u8; 4];
 }
 
@@ -43,6 +41,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(74); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(74); }
 }

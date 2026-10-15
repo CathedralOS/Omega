@@ -6,10 +6,8 @@
 // targets are left to the writable-roots and version-access diagnostics.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     count: i32 in Wrapping;
 }
 
@@ -17,6 +15,6 @@ machine Main::main(main: &mut Main) {
     main.cont = 5; // typo -- the field is `count`
     transition { _ -> done(main) }
     state done(main: &mut Main) {
-        main.console.exit_process(main.count);
+        Console::exit_process(main.count);
     }
 }

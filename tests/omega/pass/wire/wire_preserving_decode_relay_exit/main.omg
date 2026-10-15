@@ -4,7 +4,6 @@
 // codec identity failure is checked before the first output write.
 use omega_language_std::console;
 use omega_language_std::wire;
-use omega::language::core::binding;
 
 data PreservePolicy {
 }
@@ -74,7 +73,6 @@ machine preserving_encode(
 }
 
 data Main {
-    console: Binding<Console>;
     buffer: [u8; 3];
     output: [u8; 3];
     written: u64;
@@ -170,11 +168,11 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> foreign_accepted(main)
         }
     }
-    state good(main: &mut Main)               { main.console.exit_process(70); }
-    state refused(main: &mut Main)            { main.console.exit_process(71); }
-    state disagreement(main: &mut Main)       { main.console.exit_process(72); }
-    state relay_disagreement(main: &mut Main) { main.console.exit_process(73); }
-    state known_disagreement(main: &mut Main) { main.console.exit_process(74); }
-    state invalid_accepted(main: &mut Main)    { main.console.exit_process(75); }
-    state foreign_accepted(main: &mut Main)    { main.console.exit_process(76); }
+    state good(main: &mut Main)               { Console::exit_process(70); }
+    state refused(main: &mut Main)            { Console::exit_process(71); }
+    state disagreement(main: &mut Main)       { Console::exit_process(72); }
+    state relay_disagreement(main: &mut Main) { Console::exit_process(73); }
+    state known_disagreement(main: &mut Main) { Console::exit_process(74); }
+    state invalid_accepted(main: &mut Main)    { Console::exit_process(75); }
+    state foreign_accepted(main: &mut Main)    { Console::exit_process(76); }
 }

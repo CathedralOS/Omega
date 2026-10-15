@@ -24,7 +24,6 @@
 // Landed as evidence for the census family; revisit as each wall opens.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Item {
     x: i32;
@@ -109,7 +108,6 @@ machine Wrap::get_count(wrap: &Wrap) -> u64 {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -125,6 +123,6 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 }

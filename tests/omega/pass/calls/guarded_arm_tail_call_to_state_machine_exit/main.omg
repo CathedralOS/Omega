@@ -9,10 +9,8 @@
 // which `calls/conditional_arm_tail_call_to_machine_exit` (single-state
 // callees) never needs.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     k: u64;
 }
 
@@ -30,7 +28,7 @@ machine Main::check(main: &mut Main, limit: u64) reaches Console {
         false -> bad(main)
     }
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }
 
@@ -40,9 +38,9 @@ machine Main::verify(main: &mut Main, length: u64) reaches Console {
         false -> wrong(main)
     }
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     state wrong(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Mutable element-view establishment: `let cells: &mut [i32] =
 // &mut bag.cells[..]` lends the array's contiguous storage under an
@@ -12,7 +11,6 @@ data Bag {
 }
 
 data Main {
-    console: Binding<Console>;
     bag: Bag;
 }
 
@@ -26,11 +24,11 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(181);
+        Console::exit_process(181);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(182);
+        Console::exit_process(182);
     }
 }
 

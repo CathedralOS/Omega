@@ -4,7 +4,6 @@
 // publish(10), then mark(5), must observe prior 10 and leave 15: exit 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell {
     value: AtomicU32;
@@ -20,7 +19,6 @@ machine Cell::mark(cell: &Cell, bits: u32) -> u32 {
 }
 
 data Main {
-    console: Binding<Console>;
     cell: Cell;
 }
 
@@ -40,14 +38,14 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad_prior(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 
     state bad_value(main: &mut Main) {
-        main.console.exit_process(72);
+        Console::exit_process(72);
     }
 }

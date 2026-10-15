@@ -2,10 +2,8 @@
 // forwarding that scalar retains the proposition while the count is unchanged;
 // the final indexed read must consume it through ordinary operand normalization.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main where count <= 11 {
-    console: Binding<Console>;
     items: [u8; 12];
     count: u32;
     cursor: u32;
@@ -33,6 +31,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state done(main: &mut Main) { main.console.exit_process(0); }
-    state bad(main: &mut Main) { main.console.exit_process(86); }
+    state done(main: &mut Main) { Console::exit_process(0); }
+    state bad(main: &mut Main) { Console::exit_process(86); }
 }

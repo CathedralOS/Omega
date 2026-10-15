@@ -13,22 +13,20 @@
 // Expected exit: 32.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("dot_product: [1,2,3] . [4,5,6] via inline indexed multiply-accumulate");
+    Console::write_line("dot_product: [1,2,3] . [4,5,6] via inline indexed multiply-accumulate");
     let a: [i32 in Wrapping; 3] = [1, 2, 3];
     let b: [i32 in Wrapping; 3] = [4, 5, 6];
     let sum: i32 in Wrapping = compute_dot_product(&a, &b);
-    context.console.write_line("result: the dot product, 32 for these vectors (the exit code)");
-    context.console.write_line("[press Enter to close]");
+    Console::write_line("result: the dot product, 32 for these vectors (the exit code)");
+    Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
-    _ = block context.console.read_line(&mut pause);
-    context.console.exit_process(sum as i32);
+    _ = block Console::read_line(&mut pause);
+    Console::exit_process(sum as i32);
 }
 
 machine compute_dot_product(a: &[i32 in Wrapping; 3], b: &[i32 in Wrapping; 3]) -> i32 in Wrapping {

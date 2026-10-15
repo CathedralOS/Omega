@@ -6,10 +6,8 @@
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     quiet: f64;
     trapped: f64 in Trapping;
 }
@@ -18,5 +16,5 @@ machine Main::main(main: &mut Main) reaches Console {
     main.quiet = 0.0f64 / 0.0;
     main.trapped = main.quiet as f64 in Trapping;
     main.trapped = (main.trapped + 1.0) as f64 in Trapping;
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

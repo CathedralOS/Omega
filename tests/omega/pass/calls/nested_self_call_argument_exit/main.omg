@@ -9,7 +9,6 @@
 // receiver calls carrying byte-view arguments.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Sink {
     filled: u64;
@@ -25,7 +24,6 @@ machine Sink::probe(sink: &Sink, bytes: &[u8]) {
 }
 
 data Main {
-    console: Binding<Console>;
     sink: Sink;
     buf: [u8; 8];
 }
@@ -45,10 +43,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state missed(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

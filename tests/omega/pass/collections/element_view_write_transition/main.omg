@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Element view write across a named edge: `release` establishes an
 // exclusive `&mut [i32]` view of the bag's cells and stores through it,
@@ -12,7 +11,6 @@ data Bag {
 }
 
 data Main {
-    console: Binding<Console>;
     bag: Bag;
 }
 
@@ -24,7 +22,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(181);
+        Console::exit_process(181);
     }
 }
 

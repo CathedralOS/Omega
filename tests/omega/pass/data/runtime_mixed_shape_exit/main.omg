@@ -12,7 +12,6 @@
 // Exits 70 only when every step observes the right value.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data RoomEvent {
     consumed: bool;
@@ -23,7 +22,6 @@ data RoomEvent {
 }
 
 data Main {
-    console: Binding<Console>;
     event: RoomEvent;
 }
 
@@ -64,10 +62,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state read_back(main: &mut Main) {
-        main.console.exit_process(main.event.bonus);
+        Console::exit_process(main.event.bonus);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

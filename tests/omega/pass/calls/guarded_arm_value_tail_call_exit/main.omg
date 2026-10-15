@@ -18,14 +18,12 @@
 // Each wrong leg exits with its own code (71-74); every leg agreeing
 // exits 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Entry {
     value: i32;
 }
 
 data Main {
-    console: Binding<Console>;
     last: i32;
     entries: [Entry; 4];
 }
@@ -112,6 +110,6 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> fail(main, 74)
         }
     }
-    state done(main: &mut Main) { main.console.exit_process(70); }
-    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state done(main: &mut Main) { Console::exit_process(70); }
+    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

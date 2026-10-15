@@ -2,10 +2,8 @@
 // `&main.buf[0]` through its transition's exit arm, and `main` reads the
 // referent back after the call.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     buf: [u8; 48];
 }
 
@@ -21,10 +19,10 @@ machine Main::main(main: &mut Main) reaches Console {
     transition main.buf[0] == 7 { true -> done(main) _ -> bad(main) }
 
     state done(main: &mut Main) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(1);
+        Console::exit_process(1);
     }
 }

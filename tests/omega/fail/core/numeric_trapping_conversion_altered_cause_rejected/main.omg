@@ -3,7 +3,6 @@
 // cause is not a substitute for the one the operation commits.
 use omega::language::core::numeric_conversion;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine narrow(value: u16) -> u8
 crashes Abort
@@ -12,7 +11,6 @@ crashes Abort
 }
 
 data Main {
-    console: Binding<Console>;
     source: u16;
 }
 
@@ -20,5 +18,5 @@ machine Main::main(main: &mut Main) reaches Console {
     main.source = 70;
     let converted: u8 = narrow(main.source);
     let code: i32 = converted as i32;
-    main.console.exit_process(code);
+    Console::exit_process(code);
 }

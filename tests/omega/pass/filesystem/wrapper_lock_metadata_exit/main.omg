@@ -12,9 +12,7 @@
 use omega_language_std::filesystem;
 use omega_language_std::filesystem_host;
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main {
-    console: Binding<Console>;
     fs: Filesystem;
     open_result: OpenResult;
     io_result: IoResult;
@@ -76,6 +74,6 @@ machine Main::main(main: &mut Main) reaches Console {
         main.unit_result = Filesystem::remove(&mut main.fs, "omega_lock_probe.txt");
         transition main.unit_result { UnitResult::Ok -> good(main) _ -> bad(main, 81) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

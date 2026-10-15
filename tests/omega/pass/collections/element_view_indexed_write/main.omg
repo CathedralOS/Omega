@@ -5,7 +5,6 @@
 // element leaf. `&mut collection[..]` establishment of locals is pinned separately
 // (pending/collections/view_write_probe).
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine FixedVec::store(slots: &mut [i32], index: u64 in Wrapping, value: i32 in Wrapping)
 requires
@@ -15,7 +14,6 @@ requires
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine main() reaches Console {

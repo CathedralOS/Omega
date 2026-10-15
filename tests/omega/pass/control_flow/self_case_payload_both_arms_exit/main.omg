@@ -5,7 +5,6 @@
 // both arms observe their own payload.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Sum {
     case Left(v: u64);
@@ -20,7 +19,6 @@ machine Sum::pick(sum: &Sum) -> u64 {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -40,10 +38,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state matched(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state missed(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

@@ -8,11 +8,9 @@
 // The program echoes stdin while summing byte values, then exits 70 + sum:
 //   empty stdin -> 70 (the Eof-first path; what the suite + differential run)
 //   "AB"        -> 70 + 65 + 66 = 201, stdout "AB" (the suite pipes this)
-use omega::language::core::binding;
 use omega_language_std::console;
 
 data Main {
-    console: Binding<Console>;
     sum: i32 in Wrapping;
 }
 
@@ -23,7 +21,7 @@ reaches Console
     transition { _ -> rd(main) }
 
     state rd(main: &mut Main) {
-        let r: ByteRead = block main.console.read_byte();
+        let r: ByteRead = block Console::read_byte();
         transition r {
             ByteRead::Byte { value } -> acc(main, value)
             _ -> fin(main)
@@ -33,11 +31,11 @@ reaches Console
     state acc(main: &mut Main, value: i32) {
         let b: i32 in Wrapping = value as i32 in Wrapping;
         main.sum = main.sum + b;
-        main.console.write_byte(value);
+        Console::write_byte(value);
         transition { _ -> rd(main) }
     }
 
     state fin(main: &mut Main) {
-        main.console.exit_process(main.sum as i32);
+        Console::exit_process(main.sum as i32);
     }
 }

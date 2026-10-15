@@ -1,7 +1,6 @@
 // A guard observes a caller-supplied view, then forwards that exact view to
 // a state whose authored precondition names its own descriptor extent.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine contains_marker(bytes: &[u8], position: u64) -> bool {
     transition { _ -> check(bytes, position) }
@@ -21,7 +20,6 @@ machine contains_marker(bytes: &[u8], position: u64) -> bool {
 }
 
 data Main {
-    console: Binding<Console>;
     bytes: [u8; 3];
 }
 
@@ -34,6 +32,6 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

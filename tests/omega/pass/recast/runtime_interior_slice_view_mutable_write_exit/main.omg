@@ -5,7 +5,6 @@
 // Both descriptors retain the backing address through state forwarding and
 // mutable projected writes.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Pair {
     low: u16;
@@ -15,7 +14,6 @@ data Pair {
 data Main
 where k <= 4,
 {
-    console: Binding<Console>;
     tail_bytes: [u8; 8];
     pair_bytes: [u8; 12];
     k: u32;
@@ -74,9 +72,9 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad_tail_length(main: &mut Main) { main.console.exit_process(71); }
-    state bad_tail_write(main: &mut Main) { main.console.exit_process(72); }
-    state bad_pair_length(main: &mut Main) { main.console.exit_process(73); }
-    state bad_pair_write(main: &mut Main) { main.console.exit_process(74); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad_tail_length(main: &mut Main) { Console::exit_process(71); }
+    state bad_tail_write(main: &mut Main) { Console::exit_process(72); }
+    state bad_pair_length(main: &mut Main) { Console::exit_process(73); }
+    state bad_pair_write(main: &mut Main) { Console::exit_process(74); }
 }

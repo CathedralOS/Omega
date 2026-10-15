@@ -9,10 +9,8 @@
 // hoist-temp typing walks interleaved Indexed/Member chains (rows[i].data[j]
 // minted an untypeable Unit temp before).
 use omega_language_std::console;
-use omega::language::core::binding;
 data Row { tag: i32 in Wrapping; data: [i32 in Wrapping; 2]; }
 data Main {
-    console: Binding<Console>;
 }
 machine Main::main(context: &mut Main) reaches Console {
     let mut grid: [[i32 in Wrapping; 4]; 3];
@@ -44,6 +42,6 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> no(context)
         }
     }
-    state yes(context: &mut Main) { context.console.exit_process(1); }
-    state no(context: &mut Main) { context.console.exit_process(2); }
+    state yes(context: &mut Main) { Console::exit_process(1); }
+    state no(context: &mut Main) { Console::exit_process(2); }
 }

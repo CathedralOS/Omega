@@ -6,7 +6,6 @@
 // element exits 71.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Item {
     value: u64;
@@ -29,7 +28,6 @@ machine List::probe(list: &List, i: u64) -> Item requires i <= 3 {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -45,10 +43,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state missed(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

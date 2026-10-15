@@ -13,10 +13,8 @@ domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     label: &[u8] in Utf8;
     total: u64 in Wrapping;
 }
@@ -47,6 +45,6 @@ machine Main::main(context: &mut Main) reaches Console {
     }
 
     state refused(main: &mut Main, code: i32) {
-        main.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

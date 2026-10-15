@@ -3,10 +3,8 @@
 // stored-field runtime index, and the store's primitive projection must
 // evaluate the field selector and bound it against the array's extent.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     buf: [u8; 48];
     off: u32 [0..=47];
 }
@@ -18,10 +16,10 @@ machine Main::main(main: &mut Main) reaches Console {
     transition main.buf[3] == 9 { true -> done(main) _ -> bad(main) }
 
     state done(main: &mut Main) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(1);
+        Console::exit_process(1);
     }
 }

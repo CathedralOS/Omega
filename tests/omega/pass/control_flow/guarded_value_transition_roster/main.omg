@@ -13,7 +13,6 @@
 // pattern-grammar spelling distinction, not a state-graph admission wall.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Msg {
     case Small(v: i32);
@@ -41,7 +40,6 @@ machine Counter::pick(counter: &mut Counter) -> Msg {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -54,14 +52,14 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state small(main: &mut Main, v: i32) {
-        main.console.exit_process(v);
+        Console::exit_process(v);
     }
 
     state mid(main: &mut Main, v: i32) {
-        main.console.exit_process(v);
+        Console::exit_process(v);
     }
 
     state big(main: &mut Main, v: i32) {
-        main.console.exit_process(v);
+        Console::exit_process(v);
     }
 }

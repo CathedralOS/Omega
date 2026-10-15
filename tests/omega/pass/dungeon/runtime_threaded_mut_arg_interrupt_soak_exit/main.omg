@@ -11,7 +11,6 @@
 // parks data in an interrupt-clobbered register, the pointer (or the count)
 // corrupts and the run crashes or exits 71 instead of 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Tally {
     // Defined-overflow domain: the threaded `&mut` sink keeps unconditional
@@ -27,7 +26,6 @@ machine Stepper::bump(tally: &mut Tally) {
 }
 
 data Main {
-    console: Binding<Console>;
     stepper: Stepper;
     tally: Tally;
 }
@@ -66,10 +64,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state full_count(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state dropped_count(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

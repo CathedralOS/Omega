@@ -1,7 +1,6 @@
 // The selector stays separate from a scalar and a borrowed record. Forwarding
 // preserves that mixed ABI, and the selected requirement returns a Boolean.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 trait Matching<T> {
     machine matches(expected: i32, actual: &T) -> bool;
@@ -18,7 +17,6 @@ Exact satisfies Matching<Amount> {
 }
 
 data Main {
-    console: Binding<Console>;
     amount: Amount;
 }
 
@@ -33,11 +31,11 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }
 

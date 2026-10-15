@@ -1,10 +1,8 @@
 // The raw destination stays fixed. Emit all storage (including the untouched
 // tail), the next unread byte, then expose the stop reason/count in the exit.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     line: [u8; 4];
 }
 
@@ -15,7 +13,7 @@ reaches Console
     main.line[1] = 165;
     main.line[2] = 165;
     main.line[3] = 165;
-    let empty: LineReadResult = block main.console.read_line(&mut main.line[0..0]);
+    let empty: LineReadResult = block Console::read_line(&mut main.line[0..0]);
     transition empty {
         LineReadResult::Full { count } -> empty_result(main, count)
         _ -> invalid(main)
@@ -24,7 +22,7 @@ reaches Console
         transition count == 0 { true -> read(main) false -> invalid(main) }
     }
     state read(main: &mut Main) {
-        let result: LineReadResult = block main.console.read_line(&mut main.line);
+        let result: LineReadResult = block Console::read_line(&mut main.line);
         transition result {
             LineReadResult::LineComplete { count } -> report(main, 10, count)
             LineReadResult::EndOfInput { count } -> report(main, 20, count)
@@ -35,8 +33,8 @@ reaches Console
     state report(main: &mut Main, reason: i32, count: u64)
     requires 0 <= reason && reason <= 100
     {
-        main.console.write(&main.line);
-        let next: ByteRead = block main.console.read_byte();
+        Console::write(&main.line);
+        let next: ByteRead = block Console::read_byte();
         transition next {
             ByteRead::Byte { value } -> suffix(main, reason, count, value)
             ByteRead::Eof -> done(main, reason, count)
@@ -45,7 +43,7 @@ reaches Console
     state suffix(main: &mut Main, reason: i32, count: u64, value: i32)
     requires 0 <= reason && reason <= 100 && 0 <= value && value <= 255
     {
-        main.console.write_byte(value);
+        Console::write_byte(value);
         transition { _ -> done(main, reason, count) }
     }
     state done(main: &mut Main, reason: i32, count: u64)
@@ -62,9 +60,9 @@ reaches Console
     state finish(main: &mut Main, reason: i32, count: u64)
     requires 0 <= reason && reason <= 100 && count <= 4
     {
-        main.console.exit_process(reason + count as i32);
+        Console::exit_process(reason + count as i32);
     }
-    state invalid(main: &mut Main) { main.console.exit_process(99); }
+    state invalid(main: &mut Main) { Console::exit_process(99); }
 }
 
 // Reuse a middle window: the second read resumes after Full and leaves the
@@ -76,7 +74,7 @@ reaches Console
     main.line[1] = 165;
     main.line[2] = 165;
     main.line[3] = 165;
-    let first: LineReadResult = block main.console.read_line(&mut main.line[1..3]);
+    let first: LineReadResult = block Console::read_line(&mut main.line[1..3]);
     transition first {
         LineReadResult::Full { count } -> first_count(main, count)
         _ -> invalid(main)
@@ -85,17 +83,17 @@ reaches Console
         transition count == 2 { true -> again(main) false -> invalid(main) }
     }
     state again(main: &mut Main) {
-        main.console.write(&main.line);
-        let second: LineReadResult = block main.console.read_line(&mut main.line[1..3]);
+        Console::write(&main.line);
+        let second: LineReadResult = block Console::read_line(&mut main.line[1..3]);
         transition second {
             LineReadResult::LineComplete { count } -> completed(main, count)
             _ -> invalid(main)
         }
     }
     state completed(main: &mut Main, count: u64) {
-        main.console.write(&main.line);
+        Console::write(&main.line);
         transition count == 1 { true -> done(main) false -> invalid(main) }
     }
-    state done(main: &mut Main) { main.console.exit_process(70); }
-    state invalid(main: &mut Main) { main.console.exit_process(99); }
+    state done(main: &mut Main) { Console::exit_process(70); }
+    state invalid(main: &mut Main) { Console::exit_process(99); }
 }

@@ -2,7 +2,6 @@
 // total. This concrete write is nevertheless safe because the source carries
 // a checked declaration range wholly contained by signed 8-bit storage.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField
@@ -61,7 +60,6 @@ where
     -128 <= source,
     source <= 127,
 {
-    console: Binding<Console>;
     packed: SignedByte<PortableByte>;
     source: i64;
     flow_source: i64;
@@ -97,6 +95,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(72); }
-    state bad(main: &mut Main) { main.console.exit_process(73); }
+    state good(main: &mut Main) { Console::exit_process(72); }
+    state bad(main: &mut Main) { Console::exit_process(73); }
 }

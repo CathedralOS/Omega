@@ -3,7 +3,6 @@
 // generic instantiation nor a layout-policy application. The diagnostic must
 // say both halves so the fix is obvious either way.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data NotAPolicy {
     value: i32;
@@ -15,10 +14,9 @@ data Pairish {
 }
 
 data Main {
-    console: Binding<Console>;
     payload: NotAPolicy<Pairish>;
 }
 
 machine Main::main(main: &mut Main) {
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

@@ -2,10 +2,8 @@
 // with `i: u64 [0..=4]` and no dominating guard. The ZII i=0 writes arr[0];
 // the read-back confirms -> exit 30.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main where 0 <= i, i <= 4 {
-    console: Binding<Console>;
     arr: [i32; 5];
     i: u64;
 }
@@ -23,7 +21,7 @@ machine Main::main(main: &mut Main) reaches Console
         }
     }
     state matched(main: &mut Main)
-    { main.console.exit_process(30); }
+    { Console::exit_process(30); }
     state unmatched(main: &mut Main)
-    { main.console.exit_process(0); }
+    { Console::exit_process(0); }
 }

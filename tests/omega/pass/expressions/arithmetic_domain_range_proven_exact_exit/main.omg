@@ -10,10 +10,8 @@
 // 40 + 30 = 70, exit 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main where 0 <= x, x <= 100, 0 <= y, y <= 100 {
-    console: Binding<Console>;
     x: i32;
     y: i32;
 }
@@ -26,6 +24,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

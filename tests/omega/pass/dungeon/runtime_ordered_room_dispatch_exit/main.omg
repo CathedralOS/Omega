@@ -1,8 +1,6 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -27,30 +25,30 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state gate(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state spent(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 
     state fountain(main: &mut Main) {
-        main.console.exit_process(72);
+        Console::exit_process(72);
     }
 
     state ambush_clear(main: &mut Main) {
-        main.console.exit_process(73);
+        Console::exit_process(73);
     }
 
     state ambush(main: &mut Main) {
-        main.console.exit_process(74);
+        Console::exit_process(74);
     }
 
     state looted(main: &mut Main) {
-        main.console.exit_process(75);
+        Console::exit_process(75);
     }
 
     state vault(main: &mut Main) {
-        main.console.exit_process(76);
+        Console::exit_process(76);
     }
 }

@@ -4,10 +4,8 @@
 // parameter or at an earlier local of this state. Reading `borrowed`
 // in the transition guard reads through the admitted loan.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     size: u32;
 }
 
@@ -17,10 +15,10 @@ machine Main::main(main: &mut Main) reaches Console {
     transition borrowed == 7 { true -> done(main) _ -> bad(main) }
 
     state done(main: &mut Main) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(1);
+        Console::exit_process(1);
     }
 }

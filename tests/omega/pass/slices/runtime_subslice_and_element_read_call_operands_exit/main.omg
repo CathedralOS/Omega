@@ -8,14 +8,12 @@
 // only when the read delivered element 1. Any other path exits 1, 2 or 3.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Entry {
     value: i32;
 }
 
 data Main {
-    console: Binding<Console>;
     entries: [Entry; 4];
 }
 
@@ -24,7 +22,7 @@ machine Main::run(context: &mut Main) reaches Console {
     context.entries[2].value = 42;
     let view: &[Entry] = &context.entries[..];
     let result: i32 = Main::probe(view);
-    context.console.exit_process(result);
+    Console::exit_process(result);
 }
 
 // The subslice operand precedes the read operand.

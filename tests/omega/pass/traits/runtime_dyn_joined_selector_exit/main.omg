@@ -3,7 +3,6 @@
 // The counter starts at 5. `Increment` adds 1 and `Double` doubles it; the
 // branch below takes `Double`, so the counter ends at 10 -> exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 trait Step<T> {
     machine apply(counter: &mut T);
@@ -26,7 +25,6 @@ Double satisfies Step<Counter> {
 }
 
 data Main {
-    console: Binding<Console>;
     counter: Counter;
     double: bool;
 }
@@ -48,10 +46,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

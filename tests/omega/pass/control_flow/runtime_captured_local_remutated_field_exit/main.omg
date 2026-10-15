@@ -15,7 +15,6 @@
 // Pushes 3 then 4; if both land (stack[0]=3, stack[1]=4) exits 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Vm [copy] {
     stack: [i32 in Wrapping; 8];
@@ -23,7 +22,6 @@ data Vm [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     vm: Vm;
 }
 
@@ -64,7 +62,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bad0(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
-    state bad0(main: &mut Main) { main.console.exit_process(72); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
+    state bad0(main: &mut Main) { Console::exit_process(72); }
 }

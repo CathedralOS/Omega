@@ -3,7 +3,6 @@
 // zeroed root, so `made.x` returns 0 and the exit code observes it. Exits 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Point {
     x: i32 in Trapping;
@@ -11,7 +10,6 @@ data Point {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine read_x() -> i32 in Trapping {
@@ -29,9 +27,9 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
     state zero(main: &mut Main, value: i32 [0..=0]) {
-        main.console.exit_process(70 + value);
+        Console::exit_process(70 + value);
     }
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

@@ -12,7 +12,6 @@
 // argument through the fixed-range byte-view lane when its place roots at a
 // caller parameter (here `main: &mut Main`).
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::numeric_conversion;
 
 pub data CellSource {}
@@ -31,7 +30,6 @@ satisfies CellSource::read
 }
 
 data Main {
-    console: Binding<Console>;
     bytes: [u8; 41];
 }
 
@@ -40,5 +38,5 @@ reaches Console
 {
     let picked: i32 = CellSource::read(&main.bytes[0..41]);
     _ = CellSource::read(&main.bytes[1..41]);
-    main.console.exit_process(picked);
+    Console::exit_process(picked);
 }

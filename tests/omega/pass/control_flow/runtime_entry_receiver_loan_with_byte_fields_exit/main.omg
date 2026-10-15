@@ -9,14 +9,12 @@
 // only when the entry's storage holds both writes.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 4]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 
 data Main {
-    console: Binding<Console>;
     count: u64 in Wrapping;
     pause: [u8; 8];
     out: [u8; 4] in Utf8;
@@ -42,6 +40,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

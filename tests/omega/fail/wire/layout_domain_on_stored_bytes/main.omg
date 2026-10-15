@@ -3,17 +3,15 @@
 // is a trivially-claimed membership -- at ZII the buffer is zeroes and holds
 // no valid encoding. Hold the value instead; encode at the edge.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data CounterMessage {
     #0 counter: u32;
 }
 
 data Main {
-    console: Binding<Console>;
     buffer: [u8; 64] in OmegaLayout<CounterMessage>;
 }
 
 machine Main::main(main: &mut Main) {
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

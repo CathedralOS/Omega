@@ -5,11 +5,9 @@
 // array field and restores the sign compares equal. The declared domain
 // `i: u64 in U640To3` proves the element obligation. -> exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain u64::U640To3(value) requires value <= 3;
 data Main {
-    console: Binding<Console>;
     tag: u64;
     values: [i32; 4];
     i: u64 in U640To3;
@@ -31,6 +29,6 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

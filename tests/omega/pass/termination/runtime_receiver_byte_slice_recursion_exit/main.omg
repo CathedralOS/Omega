@@ -3,10 +3,8 @@
 // Seven bytes plus the empty window add 80 to count and produce exit 70.
 // Control: termination/runtime_shrinking_slice_recursion_exit uses element views.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     count: u32 in Wrapping;
 }
 
@@ -35,10 +33,10 @@ reaches Console {
     }
 
     state matched(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state missed(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

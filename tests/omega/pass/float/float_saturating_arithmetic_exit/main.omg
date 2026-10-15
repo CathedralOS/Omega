@@ -3,10 +3,8 @@
 // division by zero and 0/0 retain their IEEE infinity/NaN results.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     maximum: f32 in Finite & Saturating;
     negative_maximum: f32 in Finite & Saturating;
     two: f32 in Finite & Saturating;
@@ -61,6 +59,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(77); }
-    state bad(main: &mut Main, code2: i32) { main.console.exit_process(code2); }
+    state good(main: &mut Main) { Console::exit_process(77); }
+    state bad(main: &mut Main, code2: i32) { Console::exit_process(code2); }
 }

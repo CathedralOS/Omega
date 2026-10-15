@@ -10,7 +10,6 @@
 // caller.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Event {
     case Idle;
@@ -22,7 +21,6 @@ data Register [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     register: Register;
 }
 
@@ -39,7 +37,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state report(main: &mut Main, code: i32 in Wrapping) {
-        main.console.exit_process(code as i32);
+        Console::exit_process(code as i32);
     }
 }
 

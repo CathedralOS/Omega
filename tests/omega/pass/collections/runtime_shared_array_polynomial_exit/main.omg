@@ -13,14 +13,12 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("horner_eval: evaluating x^4+2x^3+3x^2+4x+5 at x=2 by Horner's method");
+    Console::write_line("horner_eval: evaluating x^4+2x^3+3x^2+4x+5 at x=2 by Horner's method");
     let coefficients: [i32 in Wrapping; 5] = [1, 2, 3, 4, 5];
     let result: i32 in Wrapping = evaluate_polynomial(&coefficients, 2);
     transition result == 57 {
@@ -28,18 +26,18 @@ machine Main::main(context: &mut Main) reaches Console {
         _ -> bad(context, result)
     }
     state good(context: &mut Main) {
-        context.console.write_line("PASS: p(2) == 57 (exit 70)");
-        context.console.write_line("[press Enter to close]");
+        Console::write_line("PASS: p(2) == 57 (exit 70)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(70);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(70);
     }
     state bad(context: &mut Main, result: i32 in Wrapping) {
-        context.console.write_line("FAIL: p(2) != 57 (exits the wrong value it computed)");
-        context.console.write_line("[press Enter to close]");
+        Console::write_line("FAIL: p(2) != 57 (exits the wrong value it computed)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(result as i32);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(result as i32);
     }
 }
 

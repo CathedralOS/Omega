@@ -6,7 +6,6 @@
 // drops or reorders union arms exits 71.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Command {
     case None;
@@ -15,7 +14,6 @@ data Command {
 }
 
 data Main {
-    console: Binding<Console>;
     cmd: Command;
 }
 
@@ -28,10 +26,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state matched(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state missed(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

@@ -6,21 +6,19 @@
 // Expected exit: 42.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("array_max: scan [4, 15, 8, 42, 16, 23] with a runtime-indexed bounded loop to find the maximum");
+    Console::write_line("array_max: scan [4, 15, 8, 42, 16, 23] with a runtime-indexed bounded loop to find the maximum");
     let numbers: [i32; 6] = [4, 15, 8, 42, 16, 23];
     let maximum: i32 = array_maximum(&numbers);
-    context.console.write_line("result: the maximum, 42 for this dataset (the exit code)");
-    context.console.write_line("[press Enter to close]");
+    Console::write_line("result: the maximum, 42 for this dataset (the exit code)");
+    Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
-    _ = block context.console.read_line(&mut pause);
-    context.console.exit_process(maximum);
+    _ = block Console::read_line(&mut pause);
+    Console::exit_process(maximum);
 }
 
 machine array_maximum(numbers: &[i32; 6]) -> i32 {

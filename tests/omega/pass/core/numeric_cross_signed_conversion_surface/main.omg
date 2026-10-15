@@ -1,9 +1,7 @@
 use omega::language::core::numeric_conversion;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     unsigned_exact: i8;
     unsigned_exact_wide: i64;
     unsigned_wrapping: i8;
@@ -143,21 +141,21 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
-    state bad1(main: &mut Main) { main.console.exit_process(81); }
-    state bad2(main: &mut Main) { main.console.exit_process(82); }
-    state bad3(main: &mut Main) { main.console.exit_process(83); }
-    state bad4(main: &mut Main) { main.console.exit_process(84); }
-    state bad5(main: &mut Main) { main.console.exit_process(85); }
-    state bad6(main: &mut Main) { main.console.exit_process(86); }
-    state bad7(main: &mut Main) { main.console.exit_process(87); }
-    state bad8(main: &mut Main) { main.console.exit_process(88); }
-    state bad9(main: &mut Main) { main.console.exit_process(89); }
-    state bad10(main: &mut Main) { main.console.exit_process(90); }
-    state bad11(main: &mut Main) { main.console.exit_process(91); }
-    state bad12(main: &mut Main) { main.console.exit_process(92); }
-    state bad13(main: &mut Main) { main.console.exit_process(93); }
-    state bad14(main: &mut Main) { main.console.exit_process(94); }
+    state bad1(main: &mut Main) { Console::exit_process(81); }
+    state bad2(main: &mut Main) { Console::exit_process(82); }
+    state bad3(main: &mut Main) { Console::exit_process(83); }
+    state bad4(main: &mut Main) { Console::exit_process(84); }
+    state bad5(main: &mut Main) { Console::exit_process(85); }
+    state bad6(main: &mut Main) { Console::exit_process(86); }
+    state bad7(main: &mut Main) { Console::exit_process(87); }
+    state bad8(main: &mut Main) { Console::exit_process(88); }
+    state bad9(main: &mut Main) { Console::exit_process(89); }
+    state bad10(main: &mut Main) { Console::exit_process(90); }
+    state bad11(main: &mut Main) { Console::exit_process(91); }
+    state bad12(main: &mut Main) { Console::exit_process(92); }
+    state bad13(main: &mut Main) { Console::exit_process(93); }
+    state bad14(main: &mut Main) { Console::exit_process(94); }
 }

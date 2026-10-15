@@ -6,9 +6,7 @@
 // `[i32 [0..=16]; 4]` element suffix; the bound now lives on the admission
 // contract.)
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main {
-    console: Binding<Console>;
     tallies: [i32; 4];
     k: u64;
 }
@@ -31,7 +29,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> unmatched(main)
         }
     }
-    state matched(main: &mut Main) { main.console.exit_process(1); }
-    state unmatched(main: &mut Main) { main.console.exit_process(9); }
-    state full(main: &mut Main) { main.console.exit_process(8); }
+    state matched(main: &mut Main) { Console::exit_process(1); }
+    state unmatched(main: &mut Main) { Console::exit_process(9); }
+    state full(main: &mut Main) { Console::exit_process(8); }
 }

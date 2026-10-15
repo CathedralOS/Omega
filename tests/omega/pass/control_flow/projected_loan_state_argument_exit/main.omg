@@ -4,13 +4,11 @@
 // exits: view.a, which the entry stores as 11.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Pair [copy] { a: i32; }
 
 data Main {
     pair: Pair;
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -18,6 +16,6 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> inspect(main, &main.pair) }
 
     state inspect(main: &mut Main, view: &Pair) {
-        main.console.exit_process(view.a);
+        Console::exit_process(view.a);
     }
 }

@@ -16,7 +16,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Reading {
     value: i32;
@@ -24,7 +23,6 @@ data Reading {
 }
 
 data Main {
-    console: Binding<Console>;
     table: [i32; 4];
 }
 
@@ -96,6 +94,6 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state finish(main: &mut Main, code: i32) {
-        main.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

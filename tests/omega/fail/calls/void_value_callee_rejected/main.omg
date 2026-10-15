@@ -1,8 +1,6 @@
 // V1: VOID callee in VALUE position -- `let r: i32 = main.act()`.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main {
-    console: Binding<Console>;
     n: i32;
 }
 machine Main::act(main: &mut Main) {
@@ -14,6 +12,6 @@ machine Main::main(main: &mut Main) {
         true -> yes(main)
         false -> no(main)
     }
-    state yes(main: &mut Main) { main.console.exit_process(1); }
-    state no(main: &mut Main) { main.console.exit_process(2); }
+    state yes(main: &mut Main) { Console::exit_process(1); }
+    state no(main: &mut Main) { Console::exit_process(2); }
 }

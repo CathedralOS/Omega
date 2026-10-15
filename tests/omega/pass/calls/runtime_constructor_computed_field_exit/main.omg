@@ -5,13 +5,11 @@
 // whole struct at root size (silent for <=8-byte structs, the loud 16-byte
 // fence otherwise). make(3500) -> {35, 7} -> exit 1.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Pair8 {
     a: u32;
     b: u32;
 }
 data Main {
-    console: Binding<Console>;
     p: Pair8;
 }
 machine Pair8::make(n: u32) -> Pair8
@@ -25,6 +23,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> yes(main)
         false -> no(main)
     }
-    state yes(main: &mut Main) { main.console.exit_process(1); }
-    state no(main: &mut Main) { main.console.exit_process(2); }
+    state yes(main: &mut Main) { Console::exit_process(1); }
+    state no(main: &mut Main) { Console::exit_process(2); }
 }

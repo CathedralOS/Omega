@@ -17,7 +17,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Pair {
     low: i32 in Wrapping;
@@ -25,7 +24,6 @@ data Pair {
 }
 
 data Main {
-    console: Binding<Console>;
     values: [i32 in Wrapping; 4];
     taken: i32 in Wrapping;
 }
@@ -101,5 +99,5 @@ machine Main::main(context: &mut Main) reaches Console {
     let first: i32 in Wrapping = Main::read(context, 0);
     let pair: Pair = Main::pair(context, 1);
     let code: i32 in Wrapping = third + first + pair.low + pair.high - 7 - context.taken;
-    context.console.exit_process(code as i32);
+    Console::exit_process(code as i32);
 }

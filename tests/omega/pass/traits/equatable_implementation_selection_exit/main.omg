@@ -12,7 +12,6 @@
 // runtime receiver. Exits 70 only when every face agrees.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 trait Equatable<T> {
     machine equals(left: &T, right: &T) -> bool;
@@ -74,7 +73,6 @@ MarkByX satisfies Equatable<Mark> {
 }
 
 data Main {
-    console: Binding<Console>;
     old_coin: Coin;
     new_coin: Coin;
     player: Player;
@@ -164,10 +162,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state matched(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state missed(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

@@ -9,7 +9,6 @@
 // at checked-trees ("data `Inner` has no field `y`").
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Inner {
     x: i32 in Wrapping;
@@ -21,7 +20,6 @@ data Shape {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::run(main: &mut Main, s: Shape) reaches Console {
@@ -30,7 +28,7 @@ machine Main::run(main: &mut Main, s: Shape) reaches Console {
         Shape::Boxed { inner } -> emit(main, inner.x)
     }
     state emit(main: &mut Main, v: i32 in Wrapping) {
-        main.console.exit_process(v as i32);
+        Console::exit_process(v as i32);
     }
 }
 

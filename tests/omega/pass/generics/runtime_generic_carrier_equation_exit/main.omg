@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain<Carrier, const Index: u64> Carrier::Tagged<Index>;
 
@@ -11,11 +10,10 @@ where
 }
 
 data Main {
-    console: Binding<Console>;
     box: Box<u64 in Tagged<8> >;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.box.value = 7 as u64 in Tagged<8>;
-    main.console.exit_process(main.box.value as i32);
+    Console::exit_process(main.box.value as i32);
 }

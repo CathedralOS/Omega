@@ -5,14 +5,12 @@
 // escape.
 use omega::language::core::numeric_conversion;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine narrow(value: u32) -> u16 {
     narrow_u32_to_u16_exact(value)
 }
 
 data Main {
-    console: Binding<Console>;
     source: u32;
 }
 
@@ -20,5 +18,5 @@ machine Main::main(main: &mut Main) reaches Console {
     main.source = 70;
     let converted: u16 = narrow(main.source);
     let code: i32 = converted as i32;
-    main.console.exit_process(code);
+    Console::exit_process(code);
 }

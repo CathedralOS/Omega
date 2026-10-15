@@ -9,7 +9,6 @@
 // The two-case dispatch takes the guarded-pair route, the three-case one the
 // ordered roster; element 2 holds `Data`/`Plane` -> exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Kind [copy] { case Use; case Data; }
 data Shape [copy] { case Point; case Line; case Plane; }
@@ -17,7 +16,6 @@ data Item [copy] { kind: Kind; shape: Shape; }
 data Output { items: [Item; 4]; }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -41,6 +39,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state wrong(main: &mut Main) { main.console.exit_process(1); }
-    state found(main: &mut Main) { main.console.exit_process(70); }
+    state wrong(main: &mut Main) { Console::exit_process(1); }
+    state found(main: &mut Main) { Console::exit_process(70); }
 }

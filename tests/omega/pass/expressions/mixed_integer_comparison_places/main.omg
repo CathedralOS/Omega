@@ -1,8 +1,6 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     signed: i32;
     unsigned: u64;
     signed_maximum: i64;
@@ -39,6 +37,6 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // 70 when the compiler keeps `-1` negative, 71 when it promotes the
     // signed value into the unsigned carrier instead.
-    state correct(main: &mut Main) { main.console.exit_process(70); }
-    state promoted(main: &mut Main) { main.console.exit_process(71); }
+    state correct(main: &mut Main) { Console::exit_process(70); }
+    state promoted(main: &mut Main) { Console::exit_process(71); }
 }

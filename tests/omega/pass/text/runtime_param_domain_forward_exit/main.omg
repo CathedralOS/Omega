@@ -10,10 +10,8 @@ requires
 // dispatch is on `go` (a plain bool), so `text` is never value-narrowed.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -30,6 +28,6 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state consume(main: &mut Main, text: &[u8] in Utf8) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 }

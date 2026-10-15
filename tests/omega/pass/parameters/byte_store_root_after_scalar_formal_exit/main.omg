@@ -10,7 +10,6 @@
 // write resolves its root through the state's own parameters. Any other
 // outcome exits 72.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 3]::Utf8(bytes)
 requires
@@ -21,7 +20,6 @@ data Cell {
 }
 
 data Main {
-    console: Binding<Console>;
     before: Cell;
     target: Cell;
     after: Cell;
@@ -70,7 +68,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state wrote_after(main: &mut Main) { main.console.exit_process(71); }
-    state other(main: &mut Main) { main.console.exit_process(72); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state wrote_after(main: &mut Main) { Console::exit_process(71); }
+    state other(main: &mut Main) { Console::exit_process(72); }
 }

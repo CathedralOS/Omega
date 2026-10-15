@@ -6,7 +6,6 @@
 // array element, the struct-array element's field, and a scalar field. Exits 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Point {
     x: i32 in Trapping;
@@ -20,7 +19,6 @@ data Bag {
 }
 
 data Main {
-    console: Binding<Console>;
     bag: Bag;
 }
 
@@ -39,9 +37,9 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.bag.count == 2 { true -> good(main) _ -> bad(main) }
     }
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

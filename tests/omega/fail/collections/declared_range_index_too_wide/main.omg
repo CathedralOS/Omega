@@ -2,10 +2,8 @@
 // `[i32; 5]` (high == length) must still reject -- the range only discharges
 // the upper bound when high < length.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     arr: [i32; 5];
     i: u64 [0..=5];
 }
@@ -16,5 +14,5 @@ machine Main::main(main: &mut Main) reaches Console {
         let v: i32 = main.arr[main.i];
         transition v == 0 { true -> m(main) false -> m(main) }
     }
-    state m(main: &mut Main) { main.console.exit_process(1); }
+    state m(main: &mut Main) { Console::exit_process(1); }
 }

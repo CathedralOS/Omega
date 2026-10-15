@@ -6,10 +6,8 @@
 // of 64 land inside, so the estimate 400*inside/64 = 331 (i.e. pi ~= 3.31). Both the count
 // and the scaled estimate are checked -> exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(context: &mut Main) reaches Console {
@@ -57,9 +55,9 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state good(context: &mut Main) {
-        context.console.exit_process(70);
+        Console::exit_process(70);
     }
     state wrong(context: &mut Main, inside: i32 in Wrapping) {
-        context.console.exit_process(inside as i32); // surface the count on regression
+        Console::exit_process(inside as i32); // surface the count on regression
     }
 }

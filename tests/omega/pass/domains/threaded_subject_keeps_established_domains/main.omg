@@ -7,7 +7,6 @@
 // Expected exit: 0.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8; 8]::Utf8(bytes)
 requires
@@ -15,14 +14,13 @@ requires
 
 data Room { label: [u8; 8] in Utf8; }
 data Game {
-    console: Binding<Console>;
     room: Room;
     input: [u8; 32];
     count: u64;
 }
 
 machine Game::main(game: &mut Game) reaches Console {
-    transition block game.console.read_line(&mut game.input) {
+    transition block Console::read_line(&mut game.input) {
         LineReadResult::LineComplete { count } -> received(game, count)
         LineReadResult::EndOfInput { count } -> received(game, count)
         _ -> done(game)
@@ -32,5 +30,5 @@ machine Game::main(game: &mut Game) reaches Console {
         game.count = count;
         transition { _ -> done(game) }
     }
-    state done(game: &mut Game) { game.console.exit_process(0); }
+    state done(game: &mut Game) { Console::exit_process(0); }
 }

@@ -41,15 +41,13 @@
 //     cli/text/{parse_int,roman_numeral,string_hash}   -> already pinned at
 //     tests/omega/pending/expressions/mixed_integer_guard_comparison
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     let mut left: f64 = 212.0;
     let mut right: f64 = 2.0;
     let mut equal: bool = left == right;
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

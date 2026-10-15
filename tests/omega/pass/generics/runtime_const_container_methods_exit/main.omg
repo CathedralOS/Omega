@@ -1,7 +1,6 @@
 // Explicit record parameters preserve each const application's identity and
 // concrete fixed-array layout across mutation, calls and state transitions.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // `items[0]` reads discharge against the symbolic extent: the template must
 // declare N >= 1 so index 0 is provably inside every admissible specialization.
@@ -30,7 +29,6 @@ machine FixedBuffer::capacity<const N: u64>(buffer: &FixedBuffer<N>, witness: &[
 machine preserve<const N: u64>(items: [u8; N]) -> [u8; N] { items }
 
 data Main {
-    console: Binding<Console>;
     small: FixedBuffer<2>;
     large: FixedBuffer<4>;
 }
@@ -56,10 +54,10 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state finish(main: &mut Main) {
         let result: i32 in Wrapping = FixedBuffer::first(&main.small) + FixedBuffer::first(&main.large);
-        main.console.exit_process(result as i32);
+        Console::exit_process(result as i32);
     }
 
     state fail(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

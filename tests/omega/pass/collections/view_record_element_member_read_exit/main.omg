@@ -9,14 +9,12 @@
 // carries, and native production refused the program. The sum over
 // [8, 12, 10, 5, 15, 10, 10] is 70; a wrong element read exits 71.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Entry {
     value: i32 in Wrapping;
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine sum_entries(s: &[Entry], acc: i32 in Wrapping) -> i32
@@ -45,10 +43,10 @@ machine Main::main(context: &mut Main) reaches Console {
     }
 
     state good(context: &mut Main) {
-        context.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(context: &mut Main) {
-        context.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

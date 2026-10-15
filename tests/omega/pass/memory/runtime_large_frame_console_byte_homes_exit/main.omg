@@ -6,7 +6,6 @@
 // "F" (70); the program echoes the record's last byte, also 70, and exits
 // with the byte it read.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Big {
     bytes: [u8; 33554432] in Trapping;
@@ -14,7 +13,6 @@ data Big {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Big::fill(big: &mut Big, value: u8 in Trapping) {
@@ -27,18 +25,18 @@ crashes Trap
 {
     let mut big: Big;
     Big::fill(&mut big, 70);
-    let read: ByteRead = block main.console.read_byte();
-    main.console.write_byte(big.bytes[33554431] as i32);
+    let read: ByteRead = block Console::read_byte();
+    Console::write_byte(big.bytes[33554431] as i32);
     transition read {
         ByteRead::Byte { value } -> echoed(main, value)
         _ -> missing(main)
     }
 
     state echoed(main: &mut Main, value: i32) {
-        main.console.exit_process(value);
+        Console::exit_process(value);
     }
 
     state missing(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

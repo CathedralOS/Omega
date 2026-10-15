@@ -1,14 +1,12 @@
 // Ordinary const requirements admit exactly capacities 1 through 64.
 // Two applications retain their separate layouts and writable array storage.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Buffer<const Capacity: u64> where Capacity >= 1 && Capacity <= 64 {
     items: [i32; Capacity];
 }
 
 data Main {
-    console: Binding<Console>;
     small: Buffer<2>;
     large: Buffer<64>;
 }
@@ -25,6 +23,6 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bad(main)
         }
     }
-    state good(main: &Main) { main.console.exit_process(70); }
-    state bad(main: &Main) { main.console.exit_process(71); }
+    state good(main: &Main) { Console::exit_process(70); }
+    state bad(main: &Main) { Console::exit_process(71); }
 }

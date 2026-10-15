@@ -23,7 +23,6 @@
 // array source (`Packet { samples: bare }`) and array payloads of a case
 // literal.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Packet {
     samples: [i32; 4];
@@ -54,7 +53,6 @@ data Outer {
 }
 
 data Main {
-    console: Binding<Console>;
     filled: Packet;
     pair: Pair;
     grid: Grid;
@@ -105,10 +103,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(1);
+        Console::exit_process(1);
     }
 }

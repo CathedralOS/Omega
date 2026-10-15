@@ -16,7 +16,6 @@ use omega_language_std::math;
 // is what makes `index + 1` exact, so no re-guard states are needed. Over
 // [4, 42, 23] the maximum is 42, the exit code, and it is not the last element.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine scan(numbers: &[i32; 3]) -> i32 {
     transition {
@@ -45,11 +44,10 @@ machine scan(numbers: &[i32; 3]) -> i32 {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(context: &mut Main) reaches Console {
     let numbers: [i32; 3] = [4, 42, 23];
     let best: i32 = scan(&numbers);
-    context.console.exit_process(best);
+    Console::exit_process(best);
 }

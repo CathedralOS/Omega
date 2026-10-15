@@ -10,7 +10,6 @@
 // through `engine.cursor`, and `main` exits 70 only when that composed
 // write is observed (an unwritten cursor still reads 5 and exits 71).
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cursor where remaining <= 8 { remaining: u64; }
 
@@ -41,7 +40,6 @@ ensures result <= 8
 }
 
 data Main {
-    console: Binding<Console>;
     engine: Engine;
 }
 
@@ -53,10 +51,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

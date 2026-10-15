@@ -5,14 +5,12 @@
 // helper builds the sum on two runtime paths, so no dispatch folds away.
 // Exits 70 when left = 9 + 1 + 101 = 111 and right = 1 + 2 = 3 arrive.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Pair {
     case Both(left: u64 in Wrapping, right: i32 in Wrapping);
 }
 
 data Main {
-    console: Binding<Console>;
     seed: u64 in Wrapping;
 }
 
@@ -62,5 +60,5 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state done(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

@@ -4,9 +4,7 @@
 // CopyRuntimeFrameBaseIndexedToRuntimeFrame -- the LOAD counterpart of the
 // frame-base-indexed address computation. arr=[10,20,30], k=1 -> 20 -> exit 1.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main {
-    console: Binding<Console>;
     arr: [i32; 3];
 }
 machine Main::main(main: &mut Main) {
@@ -23,6 +21,6 @@ requires k <= 2
         true -> yes(main)
         false -> no(main)
     }
-    state yes(main: &mut Main) { main.console.exit_process(1); }
-    state no(main: &mut Main) { main.console.exit_process(2); }
+    state yes(main: &mut Main) { Console::exit_process(1); }
+    state no(main: &mut Main) { Console::exit_process(2); }
 }

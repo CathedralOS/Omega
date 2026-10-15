@@ -2,23 +2,20 @@ domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Banner {
-    console: Binding<Console>;
 }
 
 machine Banner::entry(banner: &mut Banner) reaches Console {
-    banner.console.write_line("nested");
+    Console::write_line("nested");
 }
 
 data Main {
     banner: Banner;
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     Banner::entry(&mut main.banner);
-    main.console.write_line("continued");
-    main.console.exit_process(0);
+    Console::write_line("continued");
+    Console::exit_process(0);
 }

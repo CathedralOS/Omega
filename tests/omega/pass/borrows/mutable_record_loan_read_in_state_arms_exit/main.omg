@@ -12,7 +12,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Store {
     values: [i32 in Wrapping; 4];
@@ -20,7 +19,6 @@ data Store {
 }
 
 data Main {
-    console: Binding<Console>;
     store: Store;
 }
 
@@ -50,5 +48,5 @@ machine Main::main(main: &mut Main) reaches Console {
     let first: i32 in Wrapping = Store::pick(&mut main.store, 1);
     let second: i32 in Wrapping = Store::pick(&mut main.store, 2);
     let code: i32 in Wrapping = first + second + main.store.reads - 1;
-    main.console.exit_process(code as i32);
+    Console::exit_process(code as i32);
 }

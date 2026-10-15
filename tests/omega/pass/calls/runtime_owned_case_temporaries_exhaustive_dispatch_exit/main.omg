@@ -6,7 +6,6 @@
 // the owned subject. Exits 70 only when both dispatches reached their arms.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Event {
     case Add(amount: i32 in Wrapping);
@@ -18,7 +17,6 @@ data Tally [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     tally: Tally;
 }
 
@@ -30,7 +28,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> report(main, 71)
     }
     state report(main: &mut Main, code: i32 in Wrapping) {
-        main.console.exit_process(code as i32);
+        Console::exit_process(code as i32);
     }
 }
 

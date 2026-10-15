@@ -8,18 +8,16 @@ domain [u8]::Ascii(bytes)
 requires
     ascii_only(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Inner {
     tag: &[u8] in Ascii;
 }
 
 data Main {
-    console: Binding<Console>;
     inner: Inner;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.inner.tag = "café";
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

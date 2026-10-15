@@ -9,7 +9,6 @@
 // when operator and callable faces all agree.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 trait Equatable<T> {
     machine equals(left: &T, right: &T) -> bool;
@@ -34,7 +33,6 @@ OverrideEquality satisfies Equatable<OverridePoint> {
 }
 
 data Main {
-    console: Binding<Console>;
     a: Point;
     b: Point;
     c: Point;
@@ -93,10 +91,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state matched(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state missed(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

@@ -3,10 +3,8 @@
 // evaluates to -5 (at its declared i32 width); the const site must reject
 // naming the machine and the offending value.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     slots: [i64; shrunk_size()];
 }
 
@@ -17,5 +15,5 @@ machine shrunk_size() -> i32 {
 }
 
 machine Main::main(main: &mut Main) {
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

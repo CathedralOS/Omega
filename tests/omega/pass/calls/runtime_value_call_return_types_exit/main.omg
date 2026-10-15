@@ -14,7 +14,6 @@
 // The sound pattern is to bind the inner call to a local first. Exits 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Point {
     x: i32 in Trapping;
@@ -27,7 +26,6 @@ data Tag {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine add(a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping {
@@ -70,9 +68,9 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     state bad(main: &mut Main, code: i32 in Trapping) {
-        main.console.exit_process(code as i32);
+        Console::exit_process(code as i32);
     }
 }

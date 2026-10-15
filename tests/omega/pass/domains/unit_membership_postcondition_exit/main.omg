@@ -14,10 +14,8 @@ domain [u8; 16]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     name: [u8; 5] in Utf8;
     label: [u8; 16] in Utf8;
     count: i32;
@@ -58,7 +56,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_name(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 
     state check_label(main: &mut Main) {
@@ -69,7 +67,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_label(main: &mut Main) {
-        main.console.exit_process(72);
+        Console::exit_process(72);
     }
 
     state check_count(main: &mut Main) {
@@ -80,10 +78,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_count(main: &mut Main) {
-        main.console.exit_process(73);
+        Console::exit_process(73);
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 }

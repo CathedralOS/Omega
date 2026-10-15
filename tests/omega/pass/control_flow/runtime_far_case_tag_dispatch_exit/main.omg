@@ -5,12 +5,10 @@
 // exactly as other far accesses do, and the load reads the selected element.
 // `items[2]` is `White` -> exit 2.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Color { case Red; case White; case Blue; }
 
 data Main {
-    console: Binding<Console>;
     padding: [u8; 20000];
     items: [Color; 3];
     w: u64 [0..=2];
@@ -25,7 +23,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Color::White -> white(main)
         _ -> other(main)
     }
-    state red(main: &mut Main) { main.console.exit_process(1); }
-    state white(main: &mut Main) { main.console.exit_process(2); }
-    state other(main: &mut Main) { main.console.exit_process(3); }
+    state red(main: &mut Main) { Console::exit_process(1); }
+    state white(main: &mut Main) { Console::exit_process(2); }
+    state other(main: &mut Main) { Console::exit_process(3); }
 }

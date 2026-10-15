@@ -2,7 +2,6 @@
 // borrows nothing, and dispatch through the field reads the stored selection.
 // The stored `Triple` triples 7 -> 21 -> exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 trait Scale<T> {
     machine scale(value: &T) -> i32;
@@ -25,7 +24,6 @@ data Scaler {
 }
 
 data Main {
-    console: Binding<Console>;
     amount: Amount;
 }
 
@@ -39,10 +37,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

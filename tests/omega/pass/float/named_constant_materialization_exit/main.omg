@@ -2,7 +2,6 @@
 // evaluate through the ordinary checked route, and materialize the result.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub const ROOT: f32 = F32::square_root(4.0f32);
 pub const ROOT64: f64 = F64::square_root(9.0f64);
@@ -11,7 +10,6 @@ machine classify(value: f32) -> bool { F32::is_nan(value) }
 pub const THROUGH_CALL: bool = classify(F32::square_root(-1.0f32));
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -21,6 +19,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

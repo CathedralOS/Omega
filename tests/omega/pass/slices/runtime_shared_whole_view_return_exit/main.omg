@@ -1,8 +1,6 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     bytes: [u8; 4];
 }
 
@@ -25,5 +23,5 @@ machine Main::main(main: &mut Main) reaches Console {
     main.bytes[0] = 70;
     let view: &[u8] = whole(&main.bytes);
     let value: u8 = first(view);
-    main.console.exit_process(value as i32);
+    Console::exit_process(value as i32);
 }

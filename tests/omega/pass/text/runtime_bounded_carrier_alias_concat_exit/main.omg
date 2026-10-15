@@ -16,7 +16,6 @@ domain [u8; 16]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Formatter {
     label: [u8; 8] in Utf8;
@@ -27,7 +26,6 @@ machine Formatter::render(formatter: &mut Formatter, out_line: &mut [u8; 16] in 
 }
 
 data Main {
-    console: Binding<Console>;
     formatter: Formatter;
     line: [u8; 16] in Utf8;
 }
@@ -43,10 +41,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

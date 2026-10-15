@@ -1,6 +1,5 @@
 // Each domain subject shadows the module constant of the same name.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 const value: u64 = 99;
 const bytes: u64 = 99;
@@ -29,9 +28,8 @@ const ARRAY: [u64; 2] in SmallAt<1> = [99, 3];
 const RECORD: Packet in SmallCount = Packet { count: 3 };
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.exit_process(INHERITED as i32);
+    Console::exit_process(INHERITED as i32);
 }

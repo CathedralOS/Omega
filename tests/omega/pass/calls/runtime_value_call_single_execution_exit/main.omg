@@ -9,7 +9,6 @@
 // call (43/44 below). The splice is the executor for non-guard roles; non-guard
 // preludes carry no callee operations.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Tally {
     calls: u64;
@@ -17,7 +16,6 @@ data Tally {
 }
 
 data Main {
-    console: Binding<Console>;
     tally: Tally;
 }
 
@@ -66,9 +64,9 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state exit_correct(main: &mut Main) { main.console.exit_process(70); }
-    state exit_one_doubled(main: &mut Main) { main.console.exit_process(2); }
-    state exit_both_doubled(main: &mut Main) { main.console.exit_process(3); }
-    state exit_lost(main: &mut Main) { main.console.exit_process(10); }
-    state exit_other(main: &mut Main) { main.console.exit_process(77); }
+    state exit_correct(main: &mut Main) { Console::exit_process(70); }
+    state exit_one_doubled(main: &mut Main) { Console::exit_process(2); }
+    state exit_both_doubled(main: &mut Main) { Console::exit_process(3); }
+    state exit_lost(main: &mut Main) { Console::exit_process(10); }
+    state exit_other(main: &mut Main) { Console::exit_process(77); }
 }

@@ -1,9 +1,7 @@
 // Expected exit: 0; stdout: independently frozen selected and copied rows.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     rows: [[i32; 2]; 2];
     planes: [[[i32; 2]; 2]; 2];
     empty: [[i32; 0]; 2];
@@ -43,9 +41,9 @@ requires index < 2;
     }
 }
 machine emit(main: &mut Main, values: [i32; 2]) reaches Console {
-    main.console.write_byte(((values[0] as i32 in Wrapping) + 48) as i32);
-    main.console.write_byte(((values[1] as i32 in Wrapping) + 48) as i32);
-    main.console.write_byte(10);
+    Console::write_byte(((values[0] as i32 in Wrapping) + 48) as i32);
+    Console::write_byte(((values[1] as i32 in Wrapping) + 48) as i32);
+    Console::write_byte(10);
 }
 machine Main::main(main: &mut Main) reaches Console crashes Trap {
     main.rows[0][0] = 1; main.rows[0][1] = 2;
@@ -72,6 +70,6 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         && main.rows[1][1] == 4 && empty.len == 0 {
         true -> good(main) _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(0); }
-    state bad(main: &mut Main) { main.console.exit_process(9); }
+    state good(main: &mut Main) { Console::exit_process(0); }
+    state bad(main: &mut Main) { Console::exit_process(9); }
 }

@@ -5,7 +5,6 @@
 // result built from policy parameters nests both in a `let` initializer and
 // in a transition guard. Exits 70 when both nested calls observe 30 + 40.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Duo {
     case Left(a: u64 in Wrapping);
@@ -28,7 +27,6 @@ machine Duo::code(duo: Duo) -> u64 in Wrapping {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -45,5 +43,5 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state done(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

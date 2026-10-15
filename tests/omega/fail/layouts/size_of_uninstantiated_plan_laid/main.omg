@@ -3,7 +3,6 @@
 // measure. The query must reject rather than answer the policy data's own
 // (empty) record layout.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
@@ -46,11 +45,10 @@ machine CompactBits::plan(compact_bits: &mut CompactBits, schema: Schema) -> Pla
 data Flags { present: bool; }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }
 
 const NEVER_INSTANTIATED: u64 = size_of<CompactBits<Flags>>();

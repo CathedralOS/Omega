@@ -6,7 +6,6 @@
 // of native padding per element, so success also proves element stride rather
 // than densely repacking scalar leaves.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Narrow
 where signed_value >= 0 && signed_value <= 100,
@@ -30,7 +29,6 @@ where unsigned_value <= 100,
 }
 
 data Main {
-    console: Binding<Console>;
     source: [Narrow; 2];
 }
 
@@ -88,6 +86,6 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

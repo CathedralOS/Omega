@@ -4,7 +4,6 @@
 // through the second, and 10 from the authored override that settles the two
 // conflicting defaults.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 trait Resettable<T> {
     machine set(subject: &mut T, value: i32);
@@ -83,7 +82,6 @@ machine ResolvedValue::reset(resolved_value: &mut ResolvedValue) {
 }
 
 data Main {
-    console: Binding<Console>;
     required_value: RequiredValue;
     parent_value: ParentValue;
     resolved_value: ResolvedValue;
@@ -101,10 +99,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state refused(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

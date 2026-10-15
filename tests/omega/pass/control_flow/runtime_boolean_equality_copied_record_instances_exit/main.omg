@@ -3,11 +3,9 @@
 // producer instance, while exactly one RHS executes for each source equality.
 // [copy] preserves the source packet (language/ownership.md: Multiplicity).
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Packet [copy] { value: bool; stamp: u64; }
 data Main {
-    console: Binding<Console>;
     calls: u64 in Wrapping;
     flag: bool;
     packet: Packet;
@@ -58,6 +56,6 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

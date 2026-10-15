@@ -12,7 +12,6 @@ domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Name {
     command: &[u8] in Utf8;
@@ -20,7 +19,6 @@ data Name {
 }
 
 data Main {
-    console: Binding<Console>;
     names: [Name; 2];
 }
 
@@ -29,14 +27,14 @@ machine Main::main(main: &mut Main) reaches Console {
     main.names[0].count = 3;
     main.names[1].command = "wait";
     main.names[1].count = 9;
-    main.console.write_line(main.names[1].command);
-    main.console.write_line(main.names[0].command);
+    Console::write_line(main.names[1].command);
+    Console::write_line(main.names[0].command);
     transition main.names[0].count == 3 && main.names[1].count == 9 {
         true -> finish(main, 70)
         _ -> finish(main, 71)
     }
 
     state finish(main: &mut Main, code: i32) {
-        main.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

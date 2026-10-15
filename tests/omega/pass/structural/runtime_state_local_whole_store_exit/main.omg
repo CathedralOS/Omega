@@ -1,7 +1,6 @@
 // A bound local remains the same owned value when stored inside a state graph.
 // Read the common member and selected payload after the store and state jump.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Event {
     consumed: bool;
@@ -13,7 +12,6 @@ data Command { case Off; case Set(value: u64); }
 data Cell [copy] { value: u64; }
 
 data Main {
-    console: Binding<Console>;
     event: Event;
     command: Command;
     cell: Cell;
@@ -58,8 +56,8 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
 
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state bad(context: &mut Main) { Console::exit_process(71); }
 }
 
 machine Main::store_copy(context: &mut Main) {

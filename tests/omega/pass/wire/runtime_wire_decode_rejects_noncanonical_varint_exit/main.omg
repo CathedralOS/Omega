@@ -3,7 +3,6 @@
 // remains valid.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Scalar {
     #0 value: u64;
@@ -19,7 +18,6 @@ data WireVerdict {
 }
 
 data Main {
-    console: Binding<Console>;
     overlong_read: u64;
     overlong_verdict: WireVerdict;
     overflow_read: u64;
@@ -74,8 +72,8 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> broken(main)
     }
 
-    state accepted_overlong(main: &mut Main)  { main.console.exit_process(66); }
-    state accepted_overflow(main: &mut Main)  { main.console.exit_process(68); }
-    state proven(main: &mut Main)             { main.console.exit_process(70); }
-    state broken(main: &mut Main)             { main.console.exit_process(71); }
+    state accepted_overlong(main: &mut Main)  { Console::exit_process(66); }
+    state accepted_overflow(main: &mut Main)  { Console::exit_process(68); }
+    state proven(main: &mut Main)             { Console::exit_process(70); }
+    state broken(main: &mut Main)             { Console::exit_process(71); }
 }

@@ -20,7 +20,6 @@
 use omega_language_std::filesystem;
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Separate entry for the host-call-count regression: failed acquisition must
 // observe its error without querying or closing the invalid handle.
@@ -44,7 +43,6 @@ machine FailedOpen::main(failed_open: &mut FailedOpen) -> i32 reaches Filesystem
 }
 
 data Main {
-    console: Binding<Console>;
     fs: Filesystem;
     unit_result: UnitResult;
     canon: [u8; 1024];
@@ -95,6 +93,6 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
         main.unit_result = Filesystem::remove_dir(&mut main.fs, "omega_wcanon_dir");
         transition { _ -> good(main) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

@@ -14,7 +14,6 @@
 //                 fields in one byte, so the custom layout answers 1/1 where
 //                 the native rule would give 3/1
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Row { a: u64; b: u32; }
 data Pair { a: u8; b: u8; }
@@ -117,7 +116,6 @@ const EMPTY_BYTES: u64 = size_of<Empty>();
 const REF_BYTES: u64 = size_of<&Row>();
 
 data Main {
-    console: Binding<Console>;
     row: Row;
     packed: CompactBits<PackedFlags>;
 }
@@ -158,22 +156,22 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad_padding(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 
     state bad_zero(main: &mut Main) {
-        main.console.exit_process(72);
+        Console::exit_process(72);
     }
 
     state bad_reference(main: &mut Main) {
-        main.console.exit_process(73);
+        Console::exit_process(73);
     }
 
     state bad_plan(main: &mut Main) {
-        main.console.exit_process(74);
+        Console::exit_process(74);
     }
 }

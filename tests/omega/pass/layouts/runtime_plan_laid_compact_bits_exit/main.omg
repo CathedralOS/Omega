@@ -3,7 +3,6 @@
 // must use masked RMW so later writes preserve siblings; reads must reconstruct
 // the logical scalar from every fragment. Exit 70 pins both behaviors.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
@@ -97,7 +96,6 @@ data PackedFlags {
 }
 
 data Main {
-    console: Binding<Console>;
     packed: CompactBits<PackedFlags>;
 }
 
@@ -126,10 +124,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

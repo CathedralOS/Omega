@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // #66: a contained command-loop with a health gate, over an owned
 // `[u8; N] in LineUtf8` carrier (no `String`). Each iteration checks health, then
 // reads a line into the carrier, borrows it as a `&[u8] in LineUtf8` view, resolves a
@@ -33,7 +32,6 @@ machine resolve(line: &[u8] in LineUtf8) -> Command {
 }
 
 data Game {
-    console: Binding<Console>;
     line: [u8; 16] in LineUtf8;
     parser: Parser;
     command: Command;
@@ -53,7 +51,7 @@ machine Game::run(game: &mut Game) reaches Console {
     }
 
     state read_command(game: &mut Game) {
-        game.console.read_line(&mut game.line);
+        Console::read_line(&mut game.line);
         game.command = resolve(&game.line);
 
         transition game.command {
@@ -64,17 +62,17 @@ machine Game::run(game: &mut Game) reaches Console {
     }
 
     state dead(game: &mut Game) {
-        game.console.write_line("dead");
-        game.console.exit_process(2);
+        Console::write_line("dead");
+        Console::exit_process(2);
     }
 
     state look(game: &mut Game) {
-        game.console.write_line("look");
+        Console::write_line("look");
         transition { _ -> prompt(game) }
     }
 
     state invalid(game: &mut Game) {
-        game.console.write_line("invalid");
+        Console::write_line("invalid");
         transition { _ -> prompt(game) }
     }
 

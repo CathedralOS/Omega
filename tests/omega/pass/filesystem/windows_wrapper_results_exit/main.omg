@@ -20,10 +20,8 @@ use omega_language_std::filesystem;
 use omega_language_std::filesystem_host;
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     fs: Filesystem;
     buffer: [u8; 32];
     unit_result: UnitResult;
@@ -96,6 +94,6 @@ machine Main::main(main: &mut Main) reaches Console {
         transition kind { ErrorKind::NotFound -> good(main) _ -> bad(main, 80) }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

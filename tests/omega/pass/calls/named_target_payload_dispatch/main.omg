@@ -5,7 +5,6 @@
 // shape is dead). Companion wall pin: nested_call_tail_roots_exit.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data ItemList {
     items: [u64; 4];
@@ -32,7 +31,6 @@ machine Wrap::get_count(wrap: &Wrap) -> u64 {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -40,6 +38,6 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> done(main)
     }
     state done(main: &mut Main) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 }

@@ -7,14 +7,12 @@
 // Records and cases share the construction contents rule, including the
 // bounded carrier and its independently checked member range obligation.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain i32::Ten(value) requires 0 <= value && value <= 10;
 
 data Gauge { level: i32 in Ten; }
 
 data Main {
-    console: Binding<Console>;
     gauge: Gauge;
     spare: Gauge;
 }
@@ -31,6 +29,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> passed(main)
         false -> failed(main)
     }
-    state passed(main: &mut Main) { main.console.exit_process(70); }
-    state failed(main: &mut Main) { main.console.exit_process(71); }
+    state passed(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }

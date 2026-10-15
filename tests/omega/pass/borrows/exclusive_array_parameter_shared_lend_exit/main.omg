@@ -8,10 +8,8 @@
 // (samples/cli/simulation/game_of_life_glider's `live_neighbors(grid, ..)`).
 // Cells 3 and 5 hold 30 and 40, both read back -> exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     grid: [i32; 8];
 }
 
@@ -23,8 +21,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }
 
 machine sum_cells(grid: &mut [i32; 8]) -> i32 {

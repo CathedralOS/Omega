@@ -16,7 +16,6 @@
 // Expected exit: 0.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Event { tag: i32; }
 data Room { event: Event; }
@@ -39,12 +38,11 @@ machine Builder::carve(builder: &mut Builder, level: &mut Level) {
 }
 
 data Main {
-    console: Binding<Console>;
     builder: Builder;
     level: Level;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     Builder::carve(&mut main.builder, &mut main.level);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

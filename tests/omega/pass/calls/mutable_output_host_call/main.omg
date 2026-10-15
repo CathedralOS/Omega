@@ -1,14 +1,12 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     line: [u8; 64];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write("> ");
-    _ = block main.console.read_line(&mut main.line);
-    main.console.write_line("read");
-    main.console.exit_process(0);
+    Console::write("> ");
+    _ = block Console::read_line(&mut main.line);
+    Console::write_line("read");
+    Console::exit_process(0);
 }

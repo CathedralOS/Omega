@@ -1,8 +1,6 @@
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main {
-    console: Binding<Console>;
     maximum: f32 in Trapping;
     two: f32 in Trapping;
     result: f32 in Trapping;
@@ -11,5 +9,5 @@ machine Main::main(main: &mut Main) reaches Console {
     main.maximum = 340282346638528859811704183484516925440.0;
     main.two = 2.0;
     main.result = (main.maximum * main.two) as f32 in Trapping;
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

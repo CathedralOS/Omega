@@ -4,10 +4,8 @@
 // and is always even, so the remaining `8 - k * 2` bytes exactly tile
 // `u16` elements. Mutable projected writes must reach the backing bytes.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main where k <= 3 {
-    console: Binding<Console>;
     bytes: [u8; 8];
     k: u32;
 }
@@ -38,7 +36,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad_length(main: &mut Main) { main.console.exit_process(71); }
-    state bad_write(main: &mut Main) { main.console.exit_process(72); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad_length(main: &mut Main) { Console::exit_process(71); }
+    state bad_write(main: &mut Main) { Console::exit_process(72); }
 }

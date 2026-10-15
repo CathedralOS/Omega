@@ -2,7 +2,6 @@
 // every leaf is established in row-major order, then replaces the element at
 // both of its literal indices. Two leaves in different rows read back: exit 9.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Cell {
     case Wall;
     case Floor;
@@ -10,7 +9,6 @@ data Cell {
     case Water;
 }
 data Main {
-    console: Binding<Console>;
     rows: [[Cell; 2]; 2];
 }
 machine Main::main(main: &mut Main) reaches Console {
@@ -26,6 +24,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state finish(main: &mut Main, code: i32) {
-        main.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

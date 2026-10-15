@@ -5,15 +5,13 @@
 // 71 and 72 name which one did not.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     counter: AtomicU32;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("atomic store after a quoted write");
+    Console::write_line("atomic store after a quoted write");
     main.counter.store(10, NoOrdering);
     let old: u32 in Wrapping = main.counter.fetch_add(5, NoOrdering);
     transition old == 10 {
@@ -27,12 +25,12 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     state bad_prior(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
     state bad_sum(main: &mut Main) {
-        main.console.exit_process(72);
+        Console::exit_process(72);
     }
 }

@@ -2,7 +2,6 @@
 // Its capacity is 32, but only the seven live bytes of "ok temp" may be printed.
 // Exact equality also observes the resulting length before accepting exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -15,7 +14,6 @@ requires
     valid_utf8(bytes);
 
 data Main {
-    console: Binding<Console>;
     label: [u8; 8] in Utf8;
     message: [u8; 32] in Utf8;
     reading: i32;
@@ -32,13 +30,13 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state high(main: &mut Main) {
         main.message = "ALERT " + main.label;
-        main.console.write_line(main.message);
-        main.console.exit_process(71);
+        Console::write_line(main.message);
+        Console::exit_process(71);
     }
 
     state normal(main: &mut Main) {
         main.message = "ok " + main.label;
-        main.console.write_line(main.message);
+        Console::write_line(main.message);
         transition main.message == "ok temp" {
             true -> good(main)
             _ -> bad(main)
@@ -46,10 +44,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

@@ -12,7 +12,6 @@
 //
 // Expected: build runs hall_two, room_count == 8 -> exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data RandomState {
     seed: u64;
@@ -129,7 +128,6 @@ machine Dungeon::initialize(
 }
 
 data Main {
-    console: Binding<Console>;
     dungeon: Dungeon;
 }
 
@@ -149,5 +147,5 @@ machine Main::run(main: &mut Main) -> i32 {
 
 machine Main::main(main: &mut Main) reaches Console {
     let result: i32 = Main::run(main);
-    main.console.exit_process(result);
+    Console::exit_process(result);
 }

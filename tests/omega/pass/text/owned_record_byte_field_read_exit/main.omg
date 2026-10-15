@@ -2,7 +2,6 @@
 // ordinary owned call. Reading the field constructs independent output bytes;
 // it neither consumes the copyable record nor changes its neighboring field.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
@@ -10,7 +9,6 @@ domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
 
 data Label [copy] { text: [u8; 8] in Utf8; sibling: u64; }
 data Main {
-    console: Binding<Console>;
     source: Label;
     owned_line: [u8; 16] in Utf8;
     shared_line: [u8; 16] in Utf8;
@@ -47,5 +45,5 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

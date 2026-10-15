@@ -3,10 +3,8 @@
 // must dispatch as None.
 use omega::language::core::option;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     a: Optional<i32>;
     b: Optional<i32>;
 }
@@ -23,6 +21,6 @@ machine Main::main(main: &mut Main) reaches Console {
             Optional::None -> ok(main, value)
         }
     }
-    state ok(main: &mut Main, value: i32) { main.console.exit_process(value); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state ok(main: &mut Main, value: i32) { Console::exit_process(value); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

@@ -5,7 +5,6 @@
 // the division, whose divisor obligation it discharges. Exit 70 = the payload
 // read back 7 and divided 490; 71 = wrong case.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain i32::NonZero(value) requires value != 0;
 
@@ -15,7 +14,6 @@ data Divisor {
 }
 
 data Main {
-    console: Binding<Console>;
     divisor: Divisor;
 }
 
@@ -25,6 +23,6 @@ machine Main::main(main: &mut Main) reaches Console {
         Divisor::By { amount } -> quotient(main, 490 / amount)
         Divisor::Unset -> wrong_case(main)
     }
-    state quotient(main: &mut Main, value: i32) { main.console.exit_process(value); }
-    state wrong_case(main: &mut Main) { main.console.exit_process(71); }
+    state quotient(main: &mut Main, value: i32) { Console::exit_process(value); }
+    state wrong_case(main: &mut Main) { Console::exit_process(71); }
 }

@@ -4,7 +4,6 @@
 // evaluates the recipe to 8 under the selected Float meaning, refuses the
 // store instead of trusting a guessed extent.
 use omega::language::core::float_operations;
-use omega::language::core::binding;
 use omega_language_std::console;
 
 machine slot_count() -> u64 {
@@ -14,11 +13,10 @@ machine slot_count() -> u64 {
 }
 
 data Main {
-    console: Binding<Console>;
     slots: [u8; slot_count()];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.slots[8] = 63;
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

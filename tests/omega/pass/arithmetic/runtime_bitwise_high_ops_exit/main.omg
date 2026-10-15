@@ -8,10 +8,8 @@
 // This canary deliberately keeps the all-ones XOR spelling so it independently
 // exercises binary XOR; unary `~` is ordinary supported Omega syntax.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(context: &mut Main) reaches Console {
@@ -41,6 +39,6 @@ machine Main::main(context: &mut Main) reaches Console {
         let result: u32 in Wrapping = a ^ 4294967295;
         transition result == 252645135 { true -> ok(context) _ -> bad(context) }
     }
-    state ok(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state ok(context: &mut Main) { Console::exit_process(70); }
+    state bad(context: &mut Main) { Console::exit_process(71); }
 }

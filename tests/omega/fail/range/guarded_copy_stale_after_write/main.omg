@@ -5,10 +5,8 @@
 // `yv = 100; store(yv)` would "prove" through the stale guard). `yv` is a
 // runtime parameter so the guard's interval is what the guard edge sees.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     yv: i32;
 }
 
@@ -28,6 +26,6 @@ machine Main::main(main: &mut Main, yv_in: i32) reaches Console {
         let mut y: i32 = v;
         transition y == 7 { true -> m(main) false -> m(main) }
     }
-    state m(main: &mut Main) { main.console.exit_process(1); }
-    state bad(main: &mut Main) { main.console.exit_process(8); }
+    state m(main: &mut Main) { Console::exit_process(1); }
+    state bad(main: &mut Main) { Console::exit_process(8); }
 }

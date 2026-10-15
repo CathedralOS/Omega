@@ -5,10 +5,8 @@
 // formal precedes the borrowed one. Exits 70 only when every read observed
 // the current storage; 71..74 name the read that did not.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     buf: [u8; 4];
 }
 
@@ -55,10 +53,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state failed(main: &mut Main, code: i32) {
-        main.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

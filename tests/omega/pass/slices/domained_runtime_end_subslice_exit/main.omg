@@ -11,10 +11,8 @@ domain [u8]::Path(bytes)
 requires
     no_nul(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     k: u64;
 }
 
@@ -32,7 +30,7 @@ machine Main::check(main: &Main, path: &[u8] in Path) reaches Console {
         false -> bad(main)
     }
     state bad(main: &Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }
 
@@ -42,9 +40,9 @@ machine Main::verify(main: &Main, prefix: &[u8] in Path) reaches Console {
         false -> wrong(main)
     }
     state good(main: &Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     state wrong(main: &Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

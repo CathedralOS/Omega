@@ -2,7 +2,6 @@
 // Clause presence is not a refusal, and another case is not a zero witness.
 // Case selection publishes bounds to every apply arm without range suffixes.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 const level: i32 = 999;
 data Command<const Maximum: i32> {
@@ -11,7 +10,6 @@ data Command<const Maximum: i32> {
     case Off;
 }
 data Main where brightness >= 0 && brightness <= 100 {
-    console: Binding<Console>;
     brightness: i32;
     command: Command<100>;
 }
@@ -34,6 +32,6 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> done(main) }
     }
     state done(main: &mut Main) {
-        main.console.exit_process(main.brightness);
+        Console::exit_process(main.brightness);
     }
 }

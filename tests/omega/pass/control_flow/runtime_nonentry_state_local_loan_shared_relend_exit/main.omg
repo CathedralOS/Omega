@@ -11,13 +11,11 @@
 // exits: 70 = both chains read their writes back; 71 = the edge-ending
 // chain read the wrong count; 72 = the returning chain did.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Output { count: u64; accepted: bool; }
 data Parser { output: Output; cursor: u64; }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -52,8 +50,8 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> wrong(main, 72)
         }
     }
-    state done(main: &mut Main) { main.console.exit_process(70); }
-    state wrong(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state done(main: &mut Main) { Console::exit_process(70); }
+    state wrong(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine measure(seed: u64) -> u64 {

@@ -18,7 +18,6 @@
 // wrong element, the wrong field or the wrong stride stops elsewhere (exit
 // 71) or nowhere (exit 72). Stopping at element 2 -> exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell {
     hp: i32;
@@ -27,7 +26,6 @@ data Cell {
 }
 
 data Main {
-    console: Binding<Console>;
     cells: [Cell; 4];
 }
 
@@ -69,5 +67,5 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Record-element field stores through an exclusive element view: `fill`
 // establishes `cells: &mut [Cell]` over the bag's array and stores scalar
@@ -16,7 +15,6 @@ data Bag {
 }
 
 data Main {
-    console: Binding<Console>;
     bag: Bag;
 }
 
@@ -36,11 +34,11 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state finish(main: &mut Main) {
-        main.console.exit_process(181);
+        Console::exit_process(181);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(90);
+        Console::exit_process(90);
     }
 }
 

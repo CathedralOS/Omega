@@ -9,7 +9,6 @@
 //          the original keeps 3 because only the copy changed
 //   active false -> true through the loan, read back as a bool
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Record {
     value: u16;
@@ -18,7 +17,6 @@ data Record {
 }
 
 data Main {
-    console: Binding<Console>;
     source: Record;
 }
 
@@ -45,6 +43,6 @@ machine Main::main(context: &mut Main) reaches Console {
         _ -> bad(context)
     }
 
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state bad(context: &mut Main) { Console::exit_process(71); }
 }

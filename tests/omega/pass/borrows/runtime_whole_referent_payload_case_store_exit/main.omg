@@ -4,7 +4,6 @@
 // literal did not; 72 = the copy did not.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Reading {
     case Missing;
@@ -12,7 +11,6 @@ data Reading {
 }
 
 data Main {
-    console: Binding<Console>;
     reading: Reading;
 }
 
@@ -47,14 +45,14 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad_literal(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 
     state bad_copy(main: &mut Main) {
-        main.console.exit_process(72);
+        Console::exit_process(72);
     }
 }

@@ -2,10 +2,8 @@
 // a local. Its referent must survive the call and retain its source identity;
 // copying a scalar result is not a substitute for this behavior.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     count: u32;
 }
 
@@ -17,5 +15,5 @@ machine Main::borrow_count(main: &Main) -> &u32 {
 machine Main::main(main: &mut Main) reaches Console {
     main.count = 3;
     let borrowed: &u32 = Main::borrow_count(main);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

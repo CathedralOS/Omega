@@ -10,7 +10,6 @@
 // Exits 70 only when `tick` returns 4.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Countdown {
     remaining: u32 in Wrapping;
@@ -36,7 +35,6 @@ requires
 }
 
 data Main {
-    console: Binding<Console>;
     timer: Countdown;
 }
 
@@ -47,6 +45,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> done(main)
         _ -> failed(main)
     }
-    state done(main: &mut Main) { main.console.exit_process(70); }
-    state failed(main: &mut Main) { main.console.exit_process(71); }
+    state done(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }

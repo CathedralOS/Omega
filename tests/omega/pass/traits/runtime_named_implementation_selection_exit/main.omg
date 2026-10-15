@@ -6,7 +6,6 @@
 // Counter ends at 1 + 3 = 4, the conversion stores 40, and the bundle adds 30:
 // exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 trait Incrementable<T> {
     machine increment(counter: &mut T);
@@ -64,7 +63,6 @@ machine transfer<Source, Target, Conversion satisfies Convert<Source, Target>>(
 }
 
 data Main {
-    console: Binding<Console>;
     counter: Counter;
     gauge: Gauge;
 }
@@ -76,5 +74,5 @@ machine Main::main(main: &mut Main) reaches Console {
     transfer<Counter, Gauge, CounterReading>(&main.counter, &mut main.gauge);
     let seed: i32 = Thirty::seed();
     let total: i32 in Wrapping = main.gauge.reading + (seed as i32 in Wrapping);
-    main.console.exit_process(total as i32);
+    Console::exit_process(total as i32);
 }

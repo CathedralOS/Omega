@@ -2,10 +2,8 @@
 // `&main.buf[0]` literal index. Reading each referent in the
 // transition guard reads through the admitted loans.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     size: u32;
     buf: [u8; 48];
 }
@@ -17,10 +15,10 @@ machine Main::main(main: &mut Main) reaches Console {
     transition len == main.size { true -> done(main) _ -> bad(main) }
 
     state done(main: &mut Main) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(1);
+        Console::exit_process(1);
     }
 }

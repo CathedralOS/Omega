@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use alloc::vec;
 
 // Growth fixture: `Vec` is a linear handle over caller-minted `Backing*`
@@ -27,7 +26,6 @@ machine Checker::pick(a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping
 }
 
 data Main {
-    console: Binding<Console>;
     check: Checker;
 
     // The allocation strategy's ledger over caller-declared supply.
@@ -177,5 +175,5 @@ machine Main::main(main: &mut Main) reaches Console {
     let p26: i32 in Wrapping = Checker::pick(p25, f37);
 
     let code: i32 in Wrapping = 70 + p26;
-    main.console.exit_process(code as i32);
+    Console::exit_process(code as i32);
 }

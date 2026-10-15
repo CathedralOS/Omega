@@ -23,7 +23,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Pair [copy] {
     a: i32 in Wrapping;
@@ -39,7 +38,6 @@ data Counter {
 }
 
 data Main {
-    console: Binding<Console>;
     counter: Counter;
     total: i32 in Wrapping;
 }
@@ -104,6 +102,6 @@ machine Main::main(context: &mut Main) reaches Console {
     }
 
     state finish(code: i32, context: &mut Main) {
-        context.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

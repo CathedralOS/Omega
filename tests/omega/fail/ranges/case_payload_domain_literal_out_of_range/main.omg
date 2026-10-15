@@ -4,7 +4,6 @@
 // hold it. The in-range twin is `pass/structs/case_field_type_store_shapes`.
 // MUST reject with the expected fragment.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain i32::Ten(value) requires 0 <= value && value <= 10;
 
@@ -14,11 +13,10 @@ data Level {
 }
 
 data Main {
-    console: Binding<Console>;
     level: Level;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.level = Level::Lit { amount: 11 };
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

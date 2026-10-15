@@ -6,10 +6,8 @@
 // An empty window reaches the consumer; reversed and out-of-range bounds
 // return the refusal code without evaluating a slice. Success exits 3.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     arr: [i32; 5];
 }
 
@@ -22,7 +20,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, result)
         false -> finish(main, 9)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::view(main: &Main, lo: u64, hi: u64) -> i32 {

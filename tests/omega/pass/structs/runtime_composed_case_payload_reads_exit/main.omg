@@ -1,7 +1,6 @@
 // The existing case-field observations compose in one graph. Keep every
 // failure code and payload check; splitting the graph must not change validity.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain i32::Ten(value) requires 0 <= value && value <= 10;
 
@@ -34,7 +33,6 @@ data Level {
 }
 
 data Main {
-    console: Binding<Console>;
     event: Event;
     command: Command;
     certified: Certified;
@@ -133,7 +131,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state check_common_fields_done(main: &mut Main) { transition { _ -> check_closed_payloads_entry(main) } }
-    state check_common_fields_fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state check_common_fields_fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 
 
     state check_closed_payloads_entry(main: &mut Main) {
@@ -191,7 +189,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state check_closed_payloads_done(main: &mut Main) { transition { _ -> check_local_stores_entry(main) } }
-    state check_closed_payloads_fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state check_closed_payloads_fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 
 
     state check_local_stores_entry(main: &mut Main) {
@@ -241,7 +239,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state check_local_stores_done(main: &mut Main) { transition { _ -> check_erased_member_entry(main) } }
-    state check_local_stores_fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state check_local_stores_fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 
 
     state check_erased_member_entry(main: &mut Main) {
@@ -261,7 +259,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state check_erased_member_done(main: &mut Main) { transition { _ -> check_interval_member_entry(main) } }
-    state check_erased_member_fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state check_erased_member_fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 
 
     state check_interval_member_entry(main: &mut Main) {
@@ -298,8 +296,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_interval_member_done(main: &mut Main) { main.console.exit_process(70); }
-    state check_interval_member_fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state check_interval_member_done(main: &mut Main) { Console::exit_process(70); }
+    state check_interval_member_fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 
 }
 

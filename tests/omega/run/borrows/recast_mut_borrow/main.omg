@@ -2,14 +2,12 @@
 // omits at 'statement sequence: local data: structural call binding'.
 // Recast `as &mut T` of an element — same wall.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Desc {
     tag: u32;
 }
 
 data Main {
-    console: Binding<Console>;
     buf: [u8; 48];
 }
 
@@ -18,6 +16,6 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> done(main) }
 
     state done(main: &mut Main) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 }

@@ -14,10 +14,8 @@
 use omega_language_std::console;
 use omega_language_std::filesystem;
 use omega_language_std::filesystem_host;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     fs: Filesystem;
     res: UnitResult;
 }
@@ -32,7 +30,7 @@ machine Main::main(main: &mut Main) reaches FilesystemHost + Console {
         main.res = Filesystem::write_all(&mut main.fs, "/tmp/omega_wa_result.txt", "hello");
         transition main.res { UnitResult::Ok -> good(main) _ -> bad_ok(main) }
     }
-    state good(main: &mut Main)    { main.console.write_line("PASS: write_all result Error-then-Ok correct"); }
-    state bad_err(main: &mut Main) { main.console.write_line("FAIL: write_all to a bad path was not Error"); }
-    state bad_ok(main: &mut Main)  { main.console.write_line("FAIL: write_all to a good path was not Ok"); }
+    state good(main: &mut Main)    { Console::write_line("PASS: write_all result Error-then-Ok correct"); }
+    state bad_err(main: &mut Main) { Console::write_line("FAIL: write_all to a bad path was not Error"); }
+    state bad_ok(main: &mut Main)  { Console::write_line("FAIL: write_all to a good path was not Ok"); }
 }

@@ -4,7 +4,6 @@
 // the caller's structural call and is erased before native code: exit 0 means
 // both selected arms ran.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Outcome [copy] {
     case Success;
@@ -20,7 +19,6 @@ Fresh satisfies Evidence {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine pick() -> Outcome
@@ -55,10 +53,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state ok(main: &mut Main) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(1);
+        Console::exit_process(1);
     }
 }

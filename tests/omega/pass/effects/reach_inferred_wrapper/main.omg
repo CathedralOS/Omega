@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // Transitive effect inference: the direct boundary caller declares
 // `reaches Console`; the wrapper `greet` propagates that reach without
 // repeating the declaration.
@@ -11,13 +10,12 @@ pub boundary trait Console {
         Console;
 }
 data App {
-    console: Binding<Console>;
 }
 machine App::greet(app: &mut App) {
     App::helper(app);
 }
 machine App::helper(app: &mut App) reaches Console {
-    app.console.write_line("hi");
+    Console::write_line("hi");
 }
 data Main {
     app: App;

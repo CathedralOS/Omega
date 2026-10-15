@@ -10,10 +10,8 @@ domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     out: &[u8] in Utf8;
 }
 
@@ -24,11 +22,11 @@ machine Main::check(main: &Main, text: &[u8] in Utf8) reaches Console {
     }
 
     state good(main: &Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }
 

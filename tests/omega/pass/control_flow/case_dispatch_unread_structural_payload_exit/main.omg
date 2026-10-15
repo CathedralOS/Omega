@@ -11,7 +11,6 @@
 // when the forwarded count, the passed tally and the filled byte all arrive.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data FillError {
     case Other;
@@ -24,7 +23,6 @@ data FillResult {
 }
 
 data Main {
-    console: Binding<Console>;
     head: u8;
 }
 
@@ -74,5 +72,5 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
 
-    state done(context: &mut Main, code: i32) { context.console.exit_process(code); }
+    state done(context: &mut Main, code: i32) { Console::exit_process(code); }
 }

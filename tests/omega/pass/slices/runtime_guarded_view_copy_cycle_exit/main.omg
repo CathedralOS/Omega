@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data NameBuffer {
     bytes: [u8; 256];
@@ -29,7 +28,6 @@ machine NameBuffer::copy_name(buffer: &mut NameBuffer, name: &[u8], limit: u64) 
 }
 
 data Main {
-    console: Binding<Console>;
     destination: NameBuffer;
     source: [u8; 4];
 }
@@ -64,6 +62,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

@@ -2,14 +2,12 @@
 // element call runs once, in increasing index order, and lands in its own
 // slot: the program exits 70 only when the three slots hold 2, 4 and 6.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine twice(value: i32 in Wrapping) -> i32 in Wrapping {
     value + value
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -19,6 +17,6 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

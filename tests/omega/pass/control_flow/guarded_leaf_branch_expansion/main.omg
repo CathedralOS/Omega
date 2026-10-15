@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // COMPILE CANARY: a nested OWNED field's declared ZII-admitting domain remains
 // a valid write source after the enclosing record crosses a mutable
 // out-parameter call. Alias invalidation may discard transient facts, but it
@@ -29,7 +28,6 @@ pub boundary trait Console {
 }
 
 data Main {
-    console: Binding<Console>;
     selected: Cell;
     line: CellLine;
     first: Cell;
@@ -53,7 +51,7 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> scan(first_cell, CellId::A2, &mut main.selected) }
     transition { _ -> scan(second_cell, CellId::A2, &mut main.selected) }
     main.line.text = main.selected.label;
-    main.console.write_line(main.line.text);
+    Console::write_line(main.line.text);
 
     transition {
         _ -> main

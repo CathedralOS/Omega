@@ -12,7 +12,6 @@
 // Exits 70 only when BOTH writes reach the caller's `found`.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Item {
     key: i32;
@@ -34,7 +33,6 @@ machine Store::find(store: &mut Store, key: i32, out: &mut Item) {
 }
 
 data Main {
-    console: Binding<Console>;
     store: Store;
 }
 
@@ -52,6 +50,6 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

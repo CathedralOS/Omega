@@ -2,7 +2,6 @@
 // selects the case from the tag and binds the payload from its overlay after
 // the common fields: `gold` must read back 50, not a common-field byte.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Event {
     consumed: bool;
@@ -12,7 +11,6 @@ data Event {
 }
 
 data Main {
-    console: Binding<Console>;
     event: Event;
 }
 
@@ -30,6 +28,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

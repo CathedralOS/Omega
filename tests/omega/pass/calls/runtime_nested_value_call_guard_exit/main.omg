@@ -19,10 +19,8 @@
 use omega_language_std::time;
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(context: &mut Main) reaches Console {
@@ -66,11 +64,11 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> fail_add_nanos(context)
         }
     }
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state fail_sub_seconds(context: &mut Main) { context.console.exit_process(1); }
-    state fail_sub_nanos(context: &mut Main) { context.console.exit_process(2); }
-    state fail_greater(context: &mut Main) { context.console.exit_process(3); }
-    state fail_less(context: &mut Main) { context.console.exit_process(4); }
-    state fail_add_seconds(context: &mut Main) { context.console.exit_process(5); }
-    state fail_add_nanos(context: &mut Main) { context.console.exit_process(6); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state fail_sub_seconds(context: &mut Main) { Console::exit_process(1); }
+    state fail_sub_nanos(context: &mut Main) { Console::exit_process(2); }
+    state fail_greater(context: &mut Main) { Console::exit_process(3); }
+    state fail_less(context: &mut Main) { Console::exit_process(4); }
+    state fail_add_seconds(context: &mut Main) { Console::exit_process(5); }
+    state fail_add_nanos(context: &mut Main) { Console::exit_process(6); }
 }

@@ -7,7 +7,6 @@
 // rejects exactly like Rust would.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell {
     value: i32;
@@ -26,7 +25,6 @@ machine Bag::pick(bag: &mut Bag) -> &mut Cell {
 }
 
 data Main {
-    console: Binding<Console>;
     bag: Bag;
 }
 
@@ -36,5 +34,5 @@ machine Main::main(main: &mut Main) reaches Console {
     // the disjoint `other` field is off limits while it lives.
     main.bag.other = 5;
     cell.value = 7;
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

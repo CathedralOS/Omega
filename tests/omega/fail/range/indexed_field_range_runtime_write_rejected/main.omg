@@ -4,7 +4,6 @@
 // write. (Was: `value: i32 [0..=7]` field suffix inside `Cell`; the bound now
 // lives on `Cell`'s where-facts.)
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell
 where
@@ -14,12 +13,11 @@ where
 }
 
 data Main {
-    console: Binding<Console>;
     cells: [Cell; 4];
     i: u64;
 }
 
 machine Main::main(main: &mut Main) {
     main.cells[main.i].value = 100;
-    main.console.exit_process(1);
+    Console::exit_process(1);
 }

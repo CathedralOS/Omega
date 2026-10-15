@@ -5,7 +5,6 @@
 // binds that term as `proof` so lowering can retain the evidence on the
 // call's `CallStructural` operation.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Outcome [copy] {
     case Success;
@@ -21,7 +20,6 @@ Fresh satisfies Evidence {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine pick() -> Outcome
@@ -38,10 +36,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state ok(main: &mut Main) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(1);
+        Console::exit_process(1);
     }
 }

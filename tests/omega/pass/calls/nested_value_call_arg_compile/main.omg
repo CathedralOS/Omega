@@ -2,9 +2,7 @@
 // nested initializer calls): a machine call nested as a bound value-call's
 // argument (`let out = double(inc(3))`) checks cleanly.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main {
-    console: Binding<Console>;
 }
 machine inc(x: i32) -> i32
     requires 0 <= x && x <= 10
@@ -25,7 +23,7 @@ machine Main::main(main: &mut Main) reaches Console
         false -> no(main)
     }
     state yes(main: &mut Main)
-    { main.console.exit_process(1); }
+    { Console::exit_process(1); }
     state no(main: &mut Main)
-    { main.console.exit_process(2); }
+    { Console::exit_process(2); }
 }

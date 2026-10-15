@@ -1,7 +1,6 @@
 // Case dispatch on a borrowed sum-typed block parameter: the arm reads its
 // payload members and a nested leaf through the edge-carried referent.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Leaf [copy] {
     v: i32 in Wrapping;
@@ -18,7 +17,6 @@ data Shape {
 }
 
 data Main {
-    console: Binding<Console>;
     shape: Shape;
 }
 
@@ -61,7 +59,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bad(main, 76)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 

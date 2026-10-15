@@ -2,14 +2,12 @@
 // body per tuple. Both interpreter and native execution must route each call
 // to its concrete clone and materialize the combined result (exit 14).
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Light [copy] {
     weight: i32 in Wrapping;
 }
 
 data Main {
-    console: Binding<Console>;
     light: Light;
     number: i32 in Wrapping;
 }
@@ -22,5 +20,5 @@ machine Main::main(main: &mut Main) reaches Console {
     let from_light: i32 in Wrapping = Main::pick(main, &main.light);
     let from_number: i32 in Wrapping = Main::pick(main, &main.number);
     let result: i32 in Wrapping = from_light + from_number;
-    main.console.exit_process(result as i32);
+    Console::exit_process(result as i32);
 }

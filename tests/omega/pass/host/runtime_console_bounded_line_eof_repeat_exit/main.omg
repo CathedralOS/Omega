@@ -2,10 +2,8 @@
 // EndOfInput(0) again rather than Invalid or a failure. Exit 21 = two clean
 // empty reads; 99 = any other stop reason or count.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     line: [u8; 4];
 }
 
@@ -16,7 +14,7 @@ reaches Console
     main.line[1] = 35;
     main.line[2] = 35;
     main.line[3] = 35;
-    let first: LineReadResult = block main.console.read_line(&mut main.line);
+    let first: LineReadResult = block Console::read_line(&mut main.line);
     transition first {
         LineReadResult::EndOfInput { count } -> first_count(main, count)
         _ -> invalid(main)
@@ -25,7 +23,7 @@ reaches Console
         transition count == 0 { true -> second(main) false -> invalid(main) }
     }
     state second(main: &mut Main) {
-        let result: LineReadResult = block main.console.read_line(&mut main.line);
+        let result: LineReadResult = block Console::read_line(&mut main.line);
         transition result {
             LineReadResult::EndOfInput { count } -> second_count(main, count)
             _ -> invalid(main)
@@ -34,6 +32,6 @@ reaches Console
     state second_count(main: &mut Main, count: u64) {
         transition count == 0 { true -> done(main) false -> invalid(main) }
     }
-    state done(main: &mut Main) { main.console.exit_process(21); }
-    state invalid(main: &mut Main) { main.console.exit_process(99); }
+    state done(main: &mut Main) { Console::exit_process(21); }
+    state invalid(main: &mut Main) { Console::exit_process(99); }
 }

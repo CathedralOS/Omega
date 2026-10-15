@@ -14,10 +14,8 @@
 // Reduced from `samples/cli/collections/matrix_multiply`, whose `dot` state
 // reads `main.a[i][k]` in the same successor-argument position.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     flat: [i32 in Wrapping; 3];
     rows: [[i32 in Wrapping; 3]; 2];
 }
@@ -34,6 +32,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state done(main: &mut Main, acc: i32 in Wrapping) {
-        main.console.exit_process(acc as i32);
+        Console::exit_process(acc as i32);
     }
 }

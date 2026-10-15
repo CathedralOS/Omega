@@ -8,7 +8,6 @@
 // rejects any traversal that fails to dispose it.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell {
     value: u64;
@@ -47,7 +46,6 @@ machine Holder::refresh(holder: &mut Holder) {
 }
 
 data Main {
-    console: Binding<Console>;
     holder: Holder;
 }
 
@@ -65,10 +63,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state missed(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

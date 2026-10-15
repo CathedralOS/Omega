@@ -7,7 +7,6 @@
 // only when the counter ends at 30 after `prepare` and the slot was written
 // twice.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 trait Settable<T> {
     machine set(subject: &mut T, value: i32);
@@ -77,7 +76,6 @@ machine Slot::put(slot: &mut Slot, item: i32) {
 }
 
 data Main {
-    console: Binding<Console>;
     counter: Counter;
     slot: Slot;
 }
@@ -94,10 +92,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state refused(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

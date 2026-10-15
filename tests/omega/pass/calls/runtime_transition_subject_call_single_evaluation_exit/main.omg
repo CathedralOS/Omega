@@ -12,7 +12,6 @@
 //   (double execution per evaluation),
 // - one eager evaluation PER ARM (double execution for a two-arm subject).
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Tally {
     calls: u64;
@@ -20,7 +19,6 @@ data Tally {
 }
 
 data Main {
-    console: Binding<Console>;
     tally: Tally;
 }
 
@@ -59,8 +57,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state exit_never_ran(main: &mut Main) { main.console.exit_process(10); }
-    state exit_once(main: &mut Main) { main.console.exit_process(70); }
-    state exit_twice(main: &mut Main) { main.console.exit_process(2); }
-    state exit_other(main: &mut Main) { main.console.exit_process(77); }
+    state exit_never_ran(main: &mut Main) { Console::exit_process(10); }
+    state exit_once(main: &mut Main) { Console::exit_process(70); }
+    state exit_twice(main: &mut Main) { Console::exit_process(2); }
+    state exit_other(main: &mut Main) { Console::exit_process(77); }
 }

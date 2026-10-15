@@ -11,7 +11,6 @@
 
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -20,7 +19,6 @@ domain [u8; 5]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Main {
-    console: Binding<Console>;
     out: [u8; 5] in Utf8;
     n: u32 in Wrapping;
     place: u32 in Wrapping;
@@ -78,9 +76,9 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.out == "12345" { true -> ok(main) _ -> bad(main) }
     }
     state ok(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

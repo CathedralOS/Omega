@@ -33,7 +33,6 @@
 // interval-domained plain record member
 // (`pass/domains/record_interval_domain_member_exit`).
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain i32::Ten(value) requires 0 <= value && value <= 10;
 
@@ -66,7 +65,6 @@ data Level {
 }
 
 data Main {
-    console: Binding<Console>;
     event: Event;
     command: Command;
     certified: Certified;
@@ -79,7 +77,7 @@ machine Main::main(main: &mut Main) reaches Console {
     Main::check_local_stores(main);
     Main::check_erased_member(main);
     Main::check_interval_member(main);
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }
 
 machine Main::check_common_fields(main: &mut Main) reaches Console {
@@ -172,7 +170,7 @@ machine Main::check_common_fields(main: &mut Main) reaches Console {
     }
 
     state done() {}
-    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::check_closed_payloads(main: &mut Main) reaches Console {
@@ -228,7 +226,7 @@ machine Main::check_closed_payloads(main: &mut Main) reaches Console {
     }
 
     state done() {}
-    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::store_local_event(main: &mut Main) {
@@ -296,7 +294,7 @@ machine Main::check_local_stores(main: &mut Main) reaches Console {
     }
 
     state done() {}
-    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::check_erased_member(main: &mut Main) reaches Console {
@@ -314,7 +312,7 @@ machine Main::check_erased_member(main: &mut Main) reaches Console {
     }
 
     state done() {}
-    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::check_interval_member(main: &mut Main) reaches Console {
@@ -350,5 +348,5 @@ machine Main::check_interval_member(main: &mut Main) reaches Console {
     }
 
     state done() {}
-    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

@@ -1,8 +1,6 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     text: [u8; 8];
     i: i32;
 }
@@ -39,6 +37,6 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> incorrect(main)
         }
     }
-    state correct(main: &mut Main) { main.console.exit_process(70); }
-    state incorrect(main: &mut Main) { main.console.exit_process(71); }
+    state correct(main: &mut Main) { Console::exit_process(70); }
+    state incorrect(main: &mut Main) { Console::exit_process(71); }
 }

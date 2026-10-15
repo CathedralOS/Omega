@@ -5,12 +5,10 @@
 // one primitive store per element; the policy qualifies arithmetic on the
 // stored values, never their storage. One element of each reads back: exit 52.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main
 where
     i <= 1,
 {
-    console: Binding<Console>;
     bare: [u8; 3];
     wrapped: [i32 in Wrapping; 3];
     saturated: [i32 in Saturating; 3];
@@ -37,6 +35,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state finish(main: &mut Main, code: i32) {
-        main.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

@@ -3,7 +3,6 @@
 // one line. Only the selected arm writes; the result reaches the entry, which
 // exits with it.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data CommandKind {
     case Quit;
@@ -16,7 +15,6 @@ data Command {
 }
 
 data Main {
-    console: Binding<Console>;
     command: Command;
 }
 
@@ -29,22 +27,22 @@ machine result_code(context: &mut Main) -> i32 reaches Console {
     }
 
     state look(context: &mut Main) -> i32 {
-        context.console.write_line("look");
+        Console::write_line("look");
         0
     }
 
     state quit(context: &mut Main) -> i32 {
-        context.console.write_line("quit");
+        Console::write_line("quit");
         0
     }
 
     state invalid(context: &mut Main) -> i32 {
-        context.console.write_line("invalid");
+        Console::write_line("invalid");
         1
     }
 }
 
 machine Main::main(context: &mut Main) reaches Console {
     let result: i32 = result_code(context);
-    context.console.exit_process(result);
+    Console::exit_process(result);
 }

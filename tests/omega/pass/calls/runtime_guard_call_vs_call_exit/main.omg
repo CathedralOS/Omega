@@ -7,10 +7,8 @@
 //
 // Expected: 10 != 12 falls through, 6 == 6 holds -> exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine dbl(x: i32 in Wrapping) -> i32 in Wrapping {
@@ -25,6 +23,6 @@ machine Main::main(main: &mut Main) reaches Console {
         transition dbl(3) == dbl(3) { true -> good(main) _ -> bad(main, 72) }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

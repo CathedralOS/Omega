@@ -6,10 +6,8 @@
 // value-call-aware overflow hint.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     s: i32 in Wrapping;
 }
 
@@ -25,6 +23,6 @@ machine Main::main(main: &mut Main, input: i32 in Wrapping) reaches Console {
     main.s = triple(input) + 100;
     transition { _ -> done(main) }
     state done(main: &mut Main) {
-        main.console.exit_process(main.s as i32);
+        Console::exit_process(main.s as i32);
     }
 }

@@ -4,7 +4,6 @@
 // calls == 41 -> exit 70 (executed once); 40 -> exit 10 (discard dropped the
 // call entirely); 42 -> exit 3 (executed twice).
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Tally {
     calls: u64;
@@ -12,7 +11,6 @@ data Tally {
 }
 
 data Main {
-    console: Binding<Console>;
     tally: Tally;
 }
 
@@ -51,8 +49,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state exit_correct(main: &mut Main) { main.console.exit_process(70); }
-    state exit_lost(main: &mut Main) { main.console.exit_process(10); }
-    state exit_doubled(main: &mut Main) { main.console.exit_process(3); }
-    state exit_other(main: &mut Main) { main.console.exit_process(77); }
+    state exit_correct(main: &mut Main) { Console::exit_process(70); }
+    state exit_lost(main: &mut Main) { Console::exit_process(10); }
+    state exit_doubled(main: &mut Main) { Console::exit_process(3); }
+    state exit_other(main: &mut Main) { Console::exit_process(77); }
 }

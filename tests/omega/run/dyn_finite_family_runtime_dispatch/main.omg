@@ -7,7 +7,6 @@
 //   scan(Primary, 16) = 99 + 16     == 115
 //   scan(Bumped,  32) = 99 + 32 + 1 == 132
 use omega_language_std::console;
-use omega::language::core::binding;
 
 trait Shape<T> {
     machine code<Width: u32>(subject: &T) -> u32 where Width == 64 || Width == 16 || Width == 16 || Width == 32;
@@ -52,7 +51,6 @@ requires
 }
 
 data Main {
-    console: Binding<Console>;
     item: Item;
 }
 
@@ -68,10 +66,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

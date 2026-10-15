@@ -7,10 +7,8 @@
 // their own. Encoding 300 writes [0xAC, 0x02] and counts 2 bytes; exits 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     buffer: [u8; 8];
     written: u64;
 }
@@ -61,9 +59,9 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
     state bad(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 }

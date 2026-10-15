@@ -7,7 +7,6 @@
 // re-proves the element bound from. Every cell of a 2x3 grid is classified
 // and weighted: 1 + 2 + 4 + 8 + 4 + 1, exit 20.
 use omega_language_std::console;
-use omega::language::core::binding;
 data Cell {
     case Wall;
     case Floor;
@@ -15,7 +14,6 @@ data Cell {
     case Water;
 }
 data Main {
-    console: Binding<Console>;
     grid: [Cell; 6];
     r: u32 in Wrapping;
     c: u32 in Wrapping;
@@ -57,6 +55,6 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> row_loop(main) }
     }
     state done(main: &mut Main) {
-        main.console.exit_process(main.total as i32);
+        Console::exit_process(main.total as i32);
     }
 }

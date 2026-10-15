@@ -5,10 +5,8 @@
 // which do not yet have AtomicU8/AtomicU16 source types. Exit 70 proves all
 // six priors and both final residents, including bits above the 32-bit lane.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     cell32: AtomicU32;
     cell64: AtomicU64;
 }
@@ -68,6 +66,6 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

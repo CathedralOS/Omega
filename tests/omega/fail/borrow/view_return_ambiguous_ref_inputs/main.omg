@@ -6,7 +6,6 @@
 // declaration.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell {
     value: i32;
@@ -17,7 +16,6 @@ data Bag {
 }
 
 data Main {
-    console: Binding<Console>;
     first: Bag;
     second: Bag;
 }
@@ -32,5 +30,5 @@ machine pick_either(a: &mut Bag, b: &mut Bag) -> &mut Cell {
 machine Main::main(main: &mut Main) reaches Console {
     let cell: &mut Cell = pick_either(&mut main.first, &mut main.second);
     cell.value = 7;
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

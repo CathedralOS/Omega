@@ -9,7 +9,6 @@
 // affine, so the member read would be a move leaving a husk, not a copy.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Fmt [copy] {
     case Decimal;
@@ -23,7 +22,6 @@ data Box {
 }
 
 data Main {
-    console: Binding<Console>;
     boxed: Box;
 }
 
@@ -34,5 +32,5 @@ machine Main::copy_fmt<'a>(main: &mut Main, source: &'a Box) {
 machine Main::main(main: &mut Main) reaches Console {
     let source: Box = Box { fmt: Fmt::Hex, tag: 7 };
     Main::copy_fmt(main, &source);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

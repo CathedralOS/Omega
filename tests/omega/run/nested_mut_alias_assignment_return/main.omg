@@ -1,7 +1,6 @@
 // Run: omega run --both tests/omega/run/nested_mut_alias_assignment_return/main.omg
 // Nested mutable calls preserve the seeded generator state and print "yes".
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data RandomState {
     seed: u64 in Wrapping;
@@ -53,7 +52,6 @@ requires denominator > 0
 }
 
 data Generator {
-    console: Binding<Console>;
     rng: Random;
 }
 
@@ -68,11 +66,11 @@ machine Generator::run(generator: &mut Generator) reaches Console {
         false -> no(generator)
     }
     state yes(generator: &mut Generator) {
-        generator.console.write_line("yes");
+        Console::write_line("yes");
     }
 
     state no(generator: &mut Generator) {
-        generator.console.write_line("no");
+        Console::write_line("no");
     }
 }
 

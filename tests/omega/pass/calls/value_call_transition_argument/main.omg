@@ -18,10 +18,8 @@
 // (fail/borrows/state_argument_borrows_forwarded_reference). Exit 70 means
 // every value arrived in order.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     trace: u32 in Wrapping;
 }
 
@@ -99,6 +97,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

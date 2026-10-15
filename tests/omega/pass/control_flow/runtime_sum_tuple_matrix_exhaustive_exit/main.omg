@@ -4,7 +4,6 @@
 // domain is a finite subset on one axis; the held triple selects its SECOND
 // member, pinning mixed-domain lowering as well as the proof.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Direction {
     case Left;
@@ -21,7 +20,6 @@ data Outcome {
 }
 
 data Main {
-    console: Binding<Console>;
     direction: Direction;
     result: Outcome;
 }
@@ -38,6 +36,6 @@ machine Main::main(main: &mut Main) reaches Console {
         (Direction::Up, Outcome::Miss, false) -> wrong(main)
     }
 
-    state right(main: &mut Main) { main.console.exit_process(70); }
-    state wrong(main: &mut Main) { main.console.exit_process(71); }
+    state right(main: &mut Main) { Console::exit_process(70); }
+    state wrong(main: &mut Main) { Console::exit_process(71); }
 }

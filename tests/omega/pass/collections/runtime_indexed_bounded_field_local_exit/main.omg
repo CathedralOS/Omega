@@ -17,7 +17,6 @@
 // so reading the wrong field, element or stride cannot produce 70; an
 // exhausted scan exits 1. Element 2's level -> exit 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell {
     hp: i32;
@@ -25,7 +24,6 @@ data Cell {
 }
 
 data Main {
-    console: Binding<Console>;
     cells: [Cell; 4];
 }
 
@@ -53,5 +51,5 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

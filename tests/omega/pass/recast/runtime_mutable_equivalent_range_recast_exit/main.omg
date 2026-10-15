@@ -4,10 +4,8 @@
 // its complete carrier is one contiguous bit set even though crossing signed
 // zero initially describes it as two adjacent intervals.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     value: i32 [0..=100];
     whole: i8 [-128..=127];
 }
@@ -26,6 +24,6 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

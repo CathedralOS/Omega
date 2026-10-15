@@ -3,7 +3,6 @@
 // synthesis. Its result must determine both layout and indexed runtime storage
 // in the native and interpreter engines.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine table_size() -> u64 {
     transition { _ -> (2 + 2) }
@@ -14,11 +13,10 @@ data FixedBuffer<const N: u64> {
 }
 
 data Main {
-    console: Binding<Console>;
     buffer: FixedBuffer<table_size() * 2 - 4>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.buffer.items[3] = 70;
-    main.console.exit_process(main.buffer.items[3] as i32);
+    Console::exit_process(main.buffer.items[3] as i32);
 }

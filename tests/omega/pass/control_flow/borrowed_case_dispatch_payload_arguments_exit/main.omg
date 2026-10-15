@@ -5,7 +5,6 @@
 // its value. Shared and mutable loans take the same route. Exits 70 when
 // 30 + (20 + 20) arrive.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Duo {
     case Left(a: u64 in Wrapping);
@@ -35,7 +34,6 @@ machine Duo::code_mutable(duo: &mut Duo) -> u64 in Wrapping {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -49,5 +47,5 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> done(main, 71)
     }
 
-    state done(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }

@@ -4,7 +4,6 @@
 // target's argument — every nested call must be consumed into the outer
 // call roster for the body to admit a unit plan.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub data Sum [copy] {
     case First;
@@ -23,7 +22,6 @@ pub data Cell {
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Cell::fresh(sum: Sum, len: u64) -> Cell {
@@ -124,5 +122,5 @@ machine scrutinee_call(x: u64) -> u64 {
 machine Main::main(main: &mut Main) reaches Console {
     let cell: Cell = Cell { sum: Sum::Second { payload: 5 }, len: 2 };
     let parsed: Parse = Parse::Parsed { value: cell };
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

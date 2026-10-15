@@ -1,12 +1,10 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Inner {
     tag: u32;
 }
 
 data Main {
-    console: Binding<Console>;
     inner: Inner;
 }
 
@@ -19,10 +17,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(1);
+        Console::exit_process(1);
     }
 }

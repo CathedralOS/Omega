@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // ALLOCATOR STORY STAGE 1 — fixed-capacity vec, proof-discharged round trip.
 //
@@ -87,7 +86,6 @@ requires
 }
 
 data Main {
-    console: Binding<Console>;
     vec: FixedVecI32x4;
 }
 
@@ -127,22 +125,22 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state bad_first(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 
     state bad_popped(main: &mut Main) {
-        main.console.exit_process(72);
+        Console::exit_process(72);
     }
 
     state bad_second(main: &mut Main) {
-        main.console.exit_process(73);
+        Console::exit_process(73);
     }
 
     state bad_length(main: &mut Main) {
-        main.console.exit_process(74);
+        Console::exit_process(74);
     }
 }

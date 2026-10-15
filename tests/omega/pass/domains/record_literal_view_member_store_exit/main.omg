@@ -9,7 +9,6 @@ domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Tag {
     label: &[u8] in Utf8;
@@ -17,7 +16,6 @@ data Tag {
 }
 
 data Main {
-    console: Binding<Console>;
     left: Tag;
     right: Tag;
 }
@@ -25,8 +23,8 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     main.left = Tag { label: "amulet", weight: 3 };
     main.right = Tag { weight: 4, label: "ring" };
-    main.console.write_line(main.left.label);
-    main.console.write_line(main.right.label);
+    Console::write_line(main.left.label);
+    Console::write_line(main.right.label);
     transition main.left.label == "amulet" && main.left.weight == 3 {
         true -> right_record(main)
         _ -> wrong_left(main)
@@ -40,14 +38,14 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(70);
+        Console::exit_process(70);
     }
 
     state wrong_left(main: &mut Main) {
-        main.console.exit_process(71);
+        Console::exit_process(71);
     }
 
     state wrong_right(main: &mut Main) {
-        main.console.exit_process(72);
+        Console::exit_process(72);
     }
 }

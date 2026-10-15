@@ -11,7 +11,6 @@
 // Exits 70 only when the final count is exactly 1.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Counter {
     slots: [i32; 4];
@@ -44,7 +43,6 @@ requires
 }
 
 data Main {
-    console: Binding<Console>;
     counter: Counter;
 }
 
@@ -58,6 +56,6 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> done(main)
         _ -> failed(main)
     }
-    state done(main: &mut Main) { main.console.exit_process(70); }
-    state failed(main: &mut Main) { main.console.exit_process(71); }
+    state done(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
 }

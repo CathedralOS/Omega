@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine read(values: &[u32], position: u64) -> u32
 requires position < values.len;
@@ -8,7 +7,6 @@ requires position < values.len;
 }
 
 data Main {
-    console: Binding<Console>;
     values: [u32; 4];
 }
 
@@ -22,5 +20,5 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> 70,
         false -> 71
     };
-    context.console.exit_process(code);
+    Console::exit_process(code);
 }

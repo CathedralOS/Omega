@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Player {
     health: i32;
@@ -10,7 +9,6 @@ requires
     player.health > 0;
 
 data Main {
-    console: Binding<Console>;
     alive: Player;
     fallen: Player;
 }
@@ -25,10 +23,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.exit_process(81);
+        Console::exit_process(81);
     }
 
     state bad(main: &mut Main) {
-        main.console.exit_process(82);
+        Console::exit_process(82);
     }
 }

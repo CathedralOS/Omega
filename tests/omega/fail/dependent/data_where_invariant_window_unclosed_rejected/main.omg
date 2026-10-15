@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // FAIL CANARY. A call is a consumption point, and start=10/end=0 cannot
 // re-establish the attached data's standing start <= end fact there.
 pub boundary trait Console { machine exit_process(return_code: i32); }
@@ -6,11 +5,10 @@ data Main
 where
     start <= end,
 {
-    console: Binding<Console>;
     start: i32;
     end: i32;
 }
 machine Main::main(main: &mut Main) {
     main.start = 10;
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }
