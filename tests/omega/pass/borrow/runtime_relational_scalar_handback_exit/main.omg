@@ -1,0 +1,23 @@
+// Expected exit: 0.
+data Margin where left - right >= 2 { left: u64; right: u64; }
+data Outer { margin: Margin; }
+data ReturnedMargin where left - right >= 2 { left: u64; right: u64 [3..=3]; }
+machine make() -> ReturnedMargin { ReturnedMargin { left: 7, right: 3 } }
+machine fill(cell: &mut u64) ensures cell == 8 { cell = 8; }
+machine main() crashes Trap {
+    let mut local: Margin = Margin { left: 7, right: 3 };
+    let mut returned: ReturnedMargin = make();
+    fill(&mut returned.left);
+    let alias: &mut u64 = &mut local.left;
+    fill(&mut alias);
+    let mut outer: Outer = Outer { margin: Margin { left: 7, right: 3 } };
+    fill(&mut outer.margin.left);
+    transition local.left == 8 && local.right == 3
+        && outer.margin.left == 8 && outer.margin.right == 3
+        && returned.left == 8 && returned.right == 3 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

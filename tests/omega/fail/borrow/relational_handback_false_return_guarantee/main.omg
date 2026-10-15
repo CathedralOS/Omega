@@ -1,0 +1,6 @@
+data Margin where left - right >= 2 { left: u64; right: u64; }
+machine fill(cell: &mut u64) ensures cell == 8 { cell = 9; }
+machine main() {
+    let mut margin: Margin = Margin { left: 7, right: 3 };
+    fill(&mut margin.left);
+}

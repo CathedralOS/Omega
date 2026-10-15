@@ -11,7 +11,7 @@ where
 
 data Main { margin: Margin; }
 
-machine Main::fill(cell: &mut u64) {
+machine Main::fill(cell: &mut u64) ensures cell == 8 {
     cell = 8;
 }
 

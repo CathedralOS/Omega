@@ -145,6 +145,7 @@ pass/borrow/runtime_dispatch_call_payload_snapshot_exit built 15917ms exit:70 @6
 pass/borrow/runtime_exclusive_loan_local_write_exit built 15548ms exit:70 @6c49683ce714
 pass/borrow/runtime_indexed_write_only_local_receiver_exit built 17469ms exit:0 @6c49683ce714
 pass/borrow/runtime_method_view_write_after_last_use_exit built 15002ms exit:70 @6c49683ce714
+pass/borrow/runtime_relational_scalar_handback_exit built 6561ms exit:0 @08e282377686+wt
 pass/borrow/runtime_signed_element_call_exit built 35837ms exit:0 @6c49683ce714
 pass/borrow/runtime_signed_element_empty_exit built 35689ms exit:0 @6c49683ce714
 pass/borrow/runtime_signed_element_inclusive_exit built 35594ms exit:0 @6c49683ce714
@@ -1393,6 +1394,7 @@ pass/drops/erased_record_initializer_exit built 15111ms exit:70 @6c49683ce714
 pass/drops/lifetime_owner_drop_hook checked 3479ms @6c49683ce714
 pass/drops/ordered_teardown_body checked 3446ms @6c49683ce714
 pass/drops/projected_case_subject_root_cleanup_exit built 18232ms exit:0 stdout:match @6c49683ce714
+pass/drops/reference_rebinding_preserves_pointee_exit built 6551ms exit:0 @08e282377686+wt
 pass/drops/runtime_abandoned_record_construction_prefix_exit built 17886ms exit:0 @6c49683ce714
 pass/drops/runtime_borrowed_nominal_replacement_exit built 17848ms exit:0 @6c49683ce714
 pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit built 17751ms exit:0 @6c49683ce714
@@ -2170,8 +2172,7 @@ pass/ownership/double_loan_chain_compile checked 3496ms @6c49683ce714
 pass/ownership/element_view_forward_compile checked 3430ms @6c49683ce714
 pass/ownership/free_machine_record_result_claims_exit built 17834ms exit:0 @6c49683ce714
 pass/ownership/indexed_element_loan_compile checked 3535ms @6c49683ce714
-pass/ownership/invariant_member_loan_compile rejected 231ms @8665e38f912c
-	machine `Main::main` cannot lend restricted field `left` to `fill`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+pass/ownership/invariant_member_loan_compile checked 1100ms @08e282377686+wt
 pass/ownership/invariant_record_move_compile checked 3362ms @6c49683ce714
 pass/ownership/invariant_record_view_compile checked 3237ms @6c49683ce714
 pass/ownership/linear_ambiguous_state_result_mapping built 17813ms exit:0 @6c49683ce714

@@ -1,6 +1,9 @@
-machine replace(mut position: &mut u64, other: &mut u64)
+// Replacing a local descriptor changes that binding's pointee, while the
+// incoming scalar loan retains its original storage and handback obligation.
+machine replace(position: &mut u64, other: &mut u64)
 ensures position <= 1
 {
-    position = &mut other;
-    position = 0;
+    let mut selected: &mut u64 = position;
+    selected = &mut other;
+    selected = 0;
 }

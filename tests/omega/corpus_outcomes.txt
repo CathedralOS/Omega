@@ -381,6 +381,15 @@ fail/borrow/persistent_borrow_storage_requires_outlives rejected 1580ms expected
 	assignment stores a borrow-carrying value in persistent field `stored` of machine `Cell::set$specialized$dcbb8209abdb6016$0`; persistent loans must be propagated through graph-state transitions before this write can be admitted
 fail/borrow/recursive_terminal_exclusive_alias rejected 937ms expected @5acf32321f42+wt
 	state `scan` receives `first` as mutable more than once
+fail/borrow/relational_handback_false_return_guarantee rejected 1103ms expected @08e282377686+wt
+	cannot prove ensures contract for exit from fill at statement 1: cell == 8
+fail/borrow/relational_handback_keeps_declared_range rejected 302ms expected @08e282377686+wt
+	machine `main` cannot lend restricted field `left` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/borrow/relational_handback_replaces_sibling_snapshot rejected 295ms expected @08e282377686+wt
+	machine `main` cannot lend restricted field `left` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+	machine `main` cannot lend restricted field `right` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/borrow/relational_handback_requires_return_guarantee rejected 293ms expected @08e282377686+wt
+	machine `main` cannot lend restricted field `left` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/borrow/returned_write_destination_argument_read rejected 488ms expected @c5d73037f08c+wt
 	machine `hidden` state `entry` reads write-only parameter `value`; `&write` permits replacement or exact `&write` forwarding, never observation
 	argument `stamp` for state `entry` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access
@@ -399,8 +408,8 @@ fail/borrow/scalar_field_local_loan_requires_handback rejected 162ms expected @5
 	machine `test` cannot lend restricted field `position` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/borrow/scalar_reborrow_does_not_preserve_arrival_bound rejected 550ms expected @5b32c4eb36ff+wt
 	cannot prove ensures contract for exit from replace at statement 1: position <= 1
-fail/borrow/scalar_reference_rebinding_does_not_prove_original_handback rejected 539ms expected @5b32c4eb36ff+wt
-	cannot prove ensures contract for exit from replace at statement 2: position <= 1; no exact incoming reference origin for position
+fail/borrow/scalar_reference_rebinding_does_not_prove_original_handback rejected 1112ms expected @08e282377686+wt
+	cannot prove ensures contract for exit from replace at statement 3: position <= 1
 fail/borrow/scalar_reference_result_does_not_preserve_mutated_bound rejected 566ms expected @1f63ee648905+wt
 	cannot prove index `change(&mut position)` is within length 2 in test::entry
 fail/borrow/scalar_reference_result_uses_returned_argument rejected 535ms expected @5b32c4eb36ff+wt
@@ -5139,6 +5148,7 @@ pass/borrow/runtime_dispatch_call_payload_snapshot_exit checked 11203ms check-ta
 pass/borrow/runtime_exclusive_loan_local_write_exit checked 11011ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrow/runtime_indexed_write_only_local_receiver_exit checked 10278ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrow/runtime_method_view_write_after_last_use_exit checked 11063ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrow/runtime_relational_scalar_handback_exit checked 6548ms check-target:macos_arm64 @08e282377686+wt
 pass/borrow/runtime_signed_element_call_exit checked 19301ms check-target:linux_x86_64 @5acf32321f42+wt
 pass/borrow/runtime_signed_element_empty_exit checked 19250ms check-target:linux_x86_64 @5acf32321f42+wt
 pass/borrow/runtime_signed_element_inclusive_exit checked 18287ms check-target:linux_x86_64 @5acf32321f42+wt
@@ -7177,7 +7187,7 @@ pass/ownership/double_loan_chain_compile checked 1693ms @a9ae30e1c334+wt
 pass/ownership/element_view_forward_compile checked 1658ms @a9ae30e1c334+wt
 pass/ownership/free_machine_record_result_claims_exit checked 12083ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/indexed_element_loan_compile checked 1635ms @a9ae30e1c334+wt
-pass/ownership/invariant_member_loan_compile checked 1646ms @a9ae30e1c334+wt
+pass/ownership/invariant_member_loan_compile checked 1312ms @08e282377686+wt
 pass/ownership/invariant_record_move_compile checked 1591ms @a9ae30e1c334+wt
 pass/ownership/invariant_record_view_compile checked 1656ms @a9ae30e1c334+wt
 pass/ownership/linear_ambiguous_state_result_mapping checked 11714ms check-target:macos_arm64 @a9ae30e1c334+wt

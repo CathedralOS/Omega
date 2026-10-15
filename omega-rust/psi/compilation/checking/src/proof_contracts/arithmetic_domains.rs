@@ -28,6 +28,8 @@ mod abstract_shift_count;
 mod assignments;
 mod bigint_interval;
 mod bitwise;
+mod referent_predicates;
+pub(crate) use referent_predicates::referent_predicates_preserved;
 mod call_result_bounds;
 pub(crate) use call_result_bounds::normal_return_referent_interval;
 mod call_result_measures;

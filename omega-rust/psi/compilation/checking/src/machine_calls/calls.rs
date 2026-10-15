@@ -475,6 +475,18 @@ pub(crate) fn validate_call_arguments(
         return;
     }
 
+    argument_bounds::report_referent_handbacks(
+        program,
+        current_machine,
+        current_state,
+        prior_statements,
+        arguments,
+        parameters,
+        target_name,
+        value_environment,
+        diagnostics,
+    );
+
     for (argument_index, (argument, parameter)) in
         arguments.iter().zip(parameters.iter()).enumerate()
     {
@@ -558,7 +570,6 @@ pub(crate) fn validate_call_arguments(
                 current_machine,
                 current_state,
                 value_environment,
-                prior_statements,
                 *argument,
                 parameter,
                 target_name,

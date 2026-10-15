@@ -16,7 +16,6 @@ pub(super) fn report_argument_bounds(
     current_machine: &Machine,
     current_state: Option<&State>,
     value_environment: &ValueEnvironment,
-    prior_statements: &[typed_trees::statement::StatementNode],
     argument: ExpressionHandle,
     parameter: &StateParameter,
     target_name: &str,
@@ -30,16 +29,6 @@ pub(super) fn report_argument_bounds(
         value_environment,
         argument,
         parameter,
-        diagnostics,
-    );
-    report_referent_handback(
-        program,
-        current_machine,
-        current_state,
-        prior_statements,
-        argument,
-        parameter,
-        target_name,
         diagnostics,
     );
     let Some(parameter_primitive) = program.primitive_type_reference(parameter.type_reference)
@@ -132,6 +121,114 @@ pub(super) fn report_argument_bounds(
     }
 }
 
+/// Judge all delivered scalar loans against one normal-return valuation.
+/// A sibling loan's guarantee replaces its old snapshot; the complete write
+/// frame fences every other possibly changed field before the predicate query.
+pub(super) fn report_referent_handbacks(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    prior_statements: &[typed_trees::statement::StatementNode],
+    arguments: &[ExpressionHandle],
+    parameters: &[StateParameter],
+    target_name: &str,
+    environment: &ValueEnvironment,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(state) = state else {
+        return;
+    };
+    if !parameters.iter().any(|parameter| {
+        crate::reference_shell(program, parameter.type_reference).is_some_and(|shell| {
+            shell.access.is_exclusive() && program.primitive_type_reference(shell.referee).is_some()
+        })
+    }) {
+        return;
+    }
+    let frames = crate::CallFrameResolver::new(program);
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(prior_statements.len());
+    let delivered = arguments
+        .iter()
+        .zip(parameters)
+        .filter_map(|(argument, parameter)| {
+            let shell = crate::reference_shell(program, parameter.type_reference)?;
+            if !shell.access.is_exclusive()
+                || program.primitive_type_reference(shell.referee).is_none()
+            {
+                return None;
+            }
+            let returned = arithmetic_domains::normal_return_referent_interval(program, parameter);
+            let target = program
+                .expression_table
+                .borrow_expression(*argument)
+                .map_or(*argument, |borrow| borrow.target);
+            let mut place = crate::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                prior_statements.len(),
+                target,
+            )?;
+            if place.segments.is_empty()
+                && let Some(root) = place.root.as_symbol()
+                && let Some((frames, statement)) = frames.as_ref().zip(statement)
+                && let Some((root, segments)) =
+                    frames.local_reference_origin_before_statement(machine, statement, root)
+            {
+                place.root = facts::PlaceRoot::Symbol(root);
+                place.segments = segments;
+            }
+            Some((place, returned))
+        })
+        .collect::<Vec<_>>();
+    if delivered.is_empty() {
+        return;
+    }
+    let needs_relational_frame = delivered.iter().any(|(place, _)| {
+        let Some(facts::PlaceSegment::Field { symbol }) = place.segments.last() else {
+            return false;
+        };
+        program
+            .any_field_owner(*symbol)
+            .is_some_and(|(definition, field)| {
+                !crate::declarations::data_queries::data_field_is_where_independent(
+                    program, definition, field,
+                )
+            })
+    });
+    let written = needs_relational_frame
+        .then_some(())
+        .and(frames.as_ref())
+        .zip(statement)
+        .and_then(|(frames, statement)| match statement {
+            typed_trees::statement::StatementNode::Call(call) => {
+                frames.may_write_paths(machine, call)
+            }
+            _ => frames
+                .statement_value_write_frame(machine, statement)
+                .into_complete_paths(),
+        });
+    let guarantees = delivered
+        .iter()
+        .filter_map(|(place, returned)| returned.map(|returned| (place.clone(), returned)))
+        .collect::<Vec<_>>();
+    for (place, returned) in delivered {
+        report_referent_handback(
+            program,
+            machine,
+            &place,
+            returned,
+            target_name,
+            environment,
+            &guarantees,
+            written.as_deref(),
+            diagnostics,
+        );
+    }
+}
+
 /// Lending a restricted scalar field keeps the parent's invariant at handback.
 /// Its ordinary carrier is not a new unrestricted owner. Use declaration-owned
 /// bounds and the selected callee's checked normal-return guarantees; neither
@@ -139,47 +236,17 @@ pub(super) fn report_argument_bounds(
 fn report_referent_handback(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    state: Option<&State>,
-    prior_statements: &[typed_trees::statement::StatementNode],
-    argument: ExpressionHandle,
-    parameter: &StateParameter,
+    place: &crate::value_custody::places::CanonicalPlace,
+    returned: Option<arithmetic_domains::Interval>,
     target_name: &str,
+    environment: &ValueEnvironment,
+    guarantees: &[(
+        crate::value_custody::places::CanonicalPlace,
+        arithmetic_domains::Interval,
+    )],
+    written: Option<&[String]>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(shell) = crate::reference_shell(program, parameter.type_reference) else {
-        return;
-    };
-    if !shell.access.is_exclusive() || program.primitive_type_reference(shell.referee).is_none() {
-        return;
-    }
-    let Some(state) = state else {
-        return;
-    };
-    let target = program
-        .expression_table
-        .borrow_expression(argument)
-        .map_or(argument, |borrow| borrow.target);
-    let Some(mut place) = crate::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        prior_statements.len(),
-        target,
-    ) else {
-        return;
-    };
-    if place.segments.is_empty()
-        && let Some(root) = place.root.as_symbol()
-        && let Some(statement) = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(prior_statements.len())
-        && let Some(frames) = crate::CallFrameResolver::new(program)
-        && let Some((root, segments)) =
-            frames.local_reference_origin_before_statement(machine, statement, root)
-    {
-        place.root = facts::PlaceRoot::Symbol(root);
-        place.segments = segments;
-    }
     let Some(facts::PlaceSegment::Field {
         symbol: field_symbol,
     }) = place.segments.last()
@@ -233,8 +300,7 @@ fn report_referent_handback(
         where_interval
             .map(|interval| declared.map_or(interval, |declared| interval.intersect(declared)))
     };
-    let returned = arithmetic_domains::normal_return_referent_interval(program, parameter);
-    let preserved = required.zip(returned).is_some_and(|(required, returned)| {
+    let independent_preserved = required.zip(returned).is_some_and(|(required, returned)| {
         required
             .low
             .is_none_or(|minimum| returned.low.is_some_and(|value| value >= minimum))
@@ -242,6 +308,31 @@ fn report_referent_handback(
                 .high
                 .is_none_or(|maximum| returned.high.is_some_and(|value| value <= maximum))
     });
+    let preserved = independent_preserved
+        || (!independent
+            && (!has_declared_range
+                || declared.zip(returned).is_some_and(|(required, returned)| {
+                    required
+                        .low
+                        .is_none_or(|minimum| returned.low.is_some_and(|value| value >= minimum))
+                        && required.high.is_none_or(|maximum| {
+                            returned.high.is_some_and(|value| value <= maximum)
+                        })
+                }))
+            && written.is_some_and(|written| {
+                let mut parent = place.clone();
+                parent.segments.pop();
+                arithmetic_domains::referent_predicates_preserved(
+                    program,
+                    machine,
+                    definition,
+                    &parent,
+                    field_symbol,
+                    guarantees,
+                    environment,
+                    written,
+                )
+            }));
     if !preserved {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` cannot lend restricted field `{}` to `{target_name}`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",
