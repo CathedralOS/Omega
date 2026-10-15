@@ -1224,6 +1224,27 @@ impl Emission<'_, '_, '_> {
         let completed = completed.ok_or(LoweringError::Unsupported(
             "structural operand call did not publish its result",
         ))?;
+        // A nested call's result has its own source occurrence even when a
+        // projection becomes the authored local. Cleanup must retain the
+        // producing home, not reconstruct it from that projected value.
+        let node = structural_values(self.checked).nodes.get(call.value);
+        let StructuralPlaceKind::OperationResult {
+            structural_type, ..
+        } = completed.kind
+        else {
+            return unsupported("structural operand call has no produced storage");
+        };
+        crate::expression_preparation::bindings::retain_completed_structural_homes(
+            &mut self.evaluation.structural_locals,
+            &[
+                crate::expression_preparation::bindings::StructuralLocalBinding {
+                    result_binding_ordinal: None,
+                    root: facts::PlaceRoot::Expression(node.expression),
+                    argument: StructuralArgument::whole(completed.id, StructuralAccess::Owned),
+                    structural_type,
+                },
+            ],
+        )?;
         self.published_places.push(completed);
         Ok(completed)
     }

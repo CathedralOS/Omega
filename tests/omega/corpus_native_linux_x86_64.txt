@@ -926,8 +926,7 @@ pass/concurrency/boundary_suspension_inline_completion_exit built 5904ms exit:0 
 pass/concurrency/ref_array_suspend checked 17604ms @6c49683ce714
 pass/concurrency/runtime_array_loan_suspension_exit built 5660ms exit:0 @f523463c7783+wt
 pass/concurrency/runtime_retained_reference_boundary_exit built 5605ms exit:0 @f523463c7783+wt
-pass/concurrency/runtime_returned_carrier_suspension_exit rejected 5240ms @8665e38f912c
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "cleanup local is not established", gap: None })
+pass/concurrency/runtime_returned_carrier_suspension_exit built 5973ms exit:0 @a02b9c3bdf85+wt
 pass/concurrency/runtime_suspension_repeated_actual_exit built 5396ms exit:0 @f523463c7783+wt
 pass/concurrency/runtime_zero_extent_carry_exit built 17835ms exit:0 @6c49683ce714
 pass/concurrency/suspend_after_last_use_compile checked 3594ms @6c49683ce714

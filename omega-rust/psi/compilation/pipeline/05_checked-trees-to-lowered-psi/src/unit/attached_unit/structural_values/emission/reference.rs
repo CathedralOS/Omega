@@ -76,14 +76,17 @@ impl Emission<'_, '_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "computed reference backing has no storage identity",
                 ))?;
-            self.evaluation.structural_locals.push(
-                crate::expression_preparation::bindings::StructuralLocalBinding {
-                    result_binding_ordinal: None,
-                    root,
-                    argument: completed.argument.clone(),
-                    structural_type: root_type,
-                },
-            );
+            crate::expression_preparation::bindings::retain_completed_structural_homes(
+                &mut self.evaluation.structural_locals,
+                &[
+                    crate::expression_preparation::bindings::StructuralLocalBinding {
+                        result_binding_ordinal: None,
+                        root,
+                        argument: completed.argument.clone(),
+                        structural_type: root_type,
+                    },
+                ],
+            )?;
         }
         let bindings = self
             .evaluation
