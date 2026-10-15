@@ -1,19 +1,17 @@
 // Expected exit: 64
 // Empty stdin is the frozen invalid case; valid histories exit 0.
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::input;
 use domain::cycles;
 use domain::report;
 
 data Main {
-    console: Binding<Console>;
     input: Input;
     audit: Audit;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    block Input::read(&mut main.input, &mut main.console);
+    block Input::read(&mut main.input);
     Input::validate(&mut main.input);
     transition main.input.valid {
         true -> calculate(main)
@@ -22,11 +20,11 @@ machine Main::main(main: &mut Main) reaches Console {
     state calculate(main: &mut Main) {
         Audit::prepare(&mut main.audit, &main.input);
         Audit::count(&mut main.audit);
-        Report::write(&mut main.console, &mut main.audit);
-        main.console.exit_process(0);
+        Report::write(&mut main.audit);
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("ERROR: expected exponent(1|2) C(1..1000) count(2..16) and count loads(0..9), at most 256 bytes");
-        main.console.exit_process(64);
+        Console::write_line("ERROR: expected exponent(1|2) C(1..1000) count(2..16) and count loads(0..9), at most 256 bytes");
+        Console::exit_process(64);
     }
 }

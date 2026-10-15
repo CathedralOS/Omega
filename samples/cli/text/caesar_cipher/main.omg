@@ -15,7 +15,6 @@
 // Expected output contains: KHOOR
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -23,56 +22,56 @@ requires
 domain [u8; 5]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    Console::write_line(&main.console, "caesar_cipher: shift each byte of HELLO by 3 -- expecting KHOOR");
+    Console::write_line("caesar_cipher: shift each byte of HELLO by 3 -- expecting KHOOR");
     let text: [u8; 5] in Utf8 = "HELLO";
     let mut output: [u8; 5] in Utf8 = ".....";
 
     transition {
-        _ -> step(&main.console, &text, &mut output, 0)
+        _ -> step(&text, &mut output, 0)
     }
 
-    state step(console: &Binding<Console>, text: &[u8; 5] in Utf8, output: &mut [u8; 5] in Utf8, position: i32)
+    state step(text: &[u8; 5] in Utf8, output: &mut [u8; 5] in Utf8, position: i32)
         requires 0 <= position && position <= 5
     {
         transition position < 5 {
-            true -> shift(console, text, output, position)
-            _ -> show(console, output)
+            true -> shift(text, output, position)
+            _ -> show(output)
         }
     }
 
-    state shift(console: &Binding<Console>, text: &[u8; 5] in Utf8, output: &mut [u8; 5] in Utf8, position: i32)
+    state shift(text: &[u8; 5] in Utf8, output: &mut [u8; 5] in Utf8, position: i32)
         requires 0 <= position && position < 5
     {
         let shifted: u8 in Wrapping = text[position] as u8 in Wrapping + 3;
         output[position] = shifted as u8;
         transition {
-            _ -> step(console, text, output, position + 1)
+            _ -> step(text, output, position + 1)
         }
     }
 
-    state show(console: &Binding<Console>, output: &mut [u8; 5] in Utf8) {
-        Console::write_line(console, output);
+    state show(output: &mut [u8; 5] in Utf8) {
+        Console::write_line(output);
         transition output[0] == 75 {
-            true -> ok(console)
-            _ -> wrong(console)
+            true -> ok()
+            _ -> wrong()
         }
     }
 
-    state ok(console: &Binding<Console>) {
-        Console::write_line(console, "PASS: ciphertext starts with 'K' -- shift applied correctly (exit 0)");
-        Console::write_line(console, "[press Enter to close]");
+    state ok() {
+        Console::write_line("PASS: ciphertext starts with 'K' -- shift applied correctly (exit 0)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(console, &mut pause);
-        Console::exit_process(console, 0);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(0);
     }
 
-    state wrong(console: &Binding<Console>) {
-        Console::write_line(console, "FAIL: out[0] != 'K' -- byte shift wrong (exit 1)");
-        Console::write_line(console, "[press Enter to close]");
+    state wrong() {
+        Console::write_line("FAIL: out[0] != 'K' -- byte shift wrong (exit 1)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(console, &mut pause);
-        Console::exit_process(console, 1);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(1);
     }
 }

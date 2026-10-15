@@ -3,15 +3,14 @@
 // Expected exit: 2.
 // Expected output contains: invalid input
 use omega_language_std::console;
-use omega::language::core::binding;
 use input;
 use geometry;
 use output;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut bytes: [u8; 256];
-    _ = block main.console.read_line(&mut bytes);
+    _ = block Console::read_line(&mut bytes);
     let mut packet: input::Packet;
     input::parse(&mut packet, &bytes);
     let mut envelope: geometry::Envelope;
@@ -28,15 +27,15 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state emit(main: &mut Main, envelope: &geometry::Envelope) {
-        output::report(&main.console, envelope);
-        main.console.exit_process(0);
+        output::report(envelope);
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("invalid input");
-        main.console.exit_process(2);
+        Console::write_line("invalid input");
+        Console::exit_process(2);
     }
     state failure(main: &mut Main) {
-        main.console.write_line("internal capacity failure");
-        main.console.exit_process(3);
+        Console::write_line("internal capacity failure");
+        Console::exit_process(3);
     }
 }

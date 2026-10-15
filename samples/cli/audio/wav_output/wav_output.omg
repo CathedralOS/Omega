@@ -1,5 +1,5 @@
 // WavOutput: the portable byte-file sink the audio samples write through.
-// An application holds only `Binding<WavOutput>`; each target's named
+// An application calls only `WavOutput` directly; each target's named
 // implementation satisfies the trait and reaches its own raw filesystem
 // family — PosixFilesystemHost on linux/macos, WindowsFilesystemHost on
 // windows_x86_64 — so provider selection sees exactly one realizable raw

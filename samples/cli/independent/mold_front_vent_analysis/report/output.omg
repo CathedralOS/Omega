@@ -1,142 +1,133 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use model::fill;
 
-machine decimal(console: &mut Binding<Console>, value: i32 in Wrapping,
-                 divisor: i32 in Wrapping) reaches Console {
+machine decimal(value: i32 in Wrapping, divisor: i32 in Wrapping) reaches Console {
     transition divisor > 0 {
-        true -> digit(console, value, divisor, 0)
+        true -> digit(value, divisor, 0)
         _ -> done()
     }
-    state digit(console: &mut Binding<Console>, value: i32 in Wrapping,
-                 divisor: i32 in Wrapping, count: i32 in Wrapping) {
+    state digit(value: i32 in Wrapping, divisor: i32 in Wrapping, count: i32 in Wrapping) {
         transition value >= divisor {
-            true -> digit(console, value - divisor, divisor, count + 1)
-            _ -> emit(console, value, divisor, count)
+            true -> digit(value - divisor, divisor, count + 1)
+            _ -> emit(value, divisor, count)
         }
     }
-    state emit(console: &mut Binding<Console>, remainder: i32 in Wrapping,
-                divisor: i32 in Wrapping, count: i32 in Wrapping) {
-        console.write_byte((count + 48) as i32);
+    state emit(remainder: i32 in Wrapping, divisor: i32 in Wrapping, count: i32 in Wrapping) {
+        Console::write_byte((count + 48) as i32);
         transition divisor {
-            10000 -> decimal(console, remainder, 1000)
-            1000 -> decimal(console, remainder, 100)
-            100 -> decimal(console, remainder, 10)
-            10 -> decimal(console, remainder, 1)
+            10000 -> decimal(remainder, 1000)
+            1000 -> decimal(remainder, 100)
+            100 -> decimal(remainder, 10)
+            10 -> decimal(remainder, 1)
             _ -> done()
         }
     }
     state done() { }
 }
 
-machine map(console: &mut Binding<Console>, cavity: &Cavity, phase: bool) reaches Console {
-    transition { _ -> cell(console, cavity, phase, 0, 1) }
-    state cell(console: &mut Binding<Console>, cavity: &Cavity, phase: bool,
-                index: i32 in Wrapping, bit: i32 in Wrapping) {
+machine map(cavity: &Cavity, phase: bool) reaches Console {
+    transition { _ -> cell(cavity, phase, 0, 1) }
+    state cell(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition index >= 0 && index < 16 {
-            true -> symbol(console, cavity, phase, index, bit)
+            true -> symbol(cavity, phase, index, bit)
             _ -> done()
         }
     }
-    state symbol(console: &mut Binding<Console>, cavity: &Cavity, phase: bool,
-                  index: i32 in Wrapping, bit: i32 in Wrapping) {
+    state symbol(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition {
-            ((cavity.walls & bit) != 0) -> character(console, cavity, phase, index, bit, 35)
-            phase -> phase_cell(console, cavity, phase, index, bit)
-            ((cavity.filled & bit) != 0) -> arrival(console, cavity, phase, index, bit)
-            _ -> character(console, cavity, phase, index, bit, 46)
+            ((cavity.walls & bit) != 0) -> character(cavity, phase, index, bit, 35)
+            phase -> phase_cell(cavity, phase, index, bit)
+            ((cavity.filled & bit) != 0) -> arrival(cavity, phase, index, bit)
+            _ -> character(cavity, phase, index, bit, 46)
         }
     }
-    state phase_cell(console: &mut Binding<Console>, cavity: &Cavity, phase: bool,
-                      index: i32 in Wrapping, bit: i32 in Wrapping) {
+    state phase_cell(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition {
-            ((cavity.filled & bit) != 0) -> character(console, cavity, phase, index, bit, 82)
-            ((cavity.trapped & bit) != 0) -> character(console, cavity, phase, index, bit, 84)
-            _ -> character(console, cavity, phase, index, bit, 65)
+            ((cavity.filled & bit) != 0) -> character(cavity, phase, index, bit, 82)
+            ((cavity.trapped & bit) != 0) -> character(cavity, phase, index, bit, 84)
+            _ -> character(cavity, phase, index, bit, 65)
         }
     }
-    state character(console: &mut Binding<Console>, cavity: &Cavity, phase: bool,
-                     index: i32 in Wrapping, bit: i32 in Wrapping, value: i32) {
-        console.write_byte(value);
-        transition { _ -> separator(console, cavity, phase, index, bit) }
+    state character(
+        cavity: &Cavity,
+        phase: bool,
+        index: i32 in Wrapping,
+        bit: i32 in Wrapping,
+        value: i32
+    ) {
+        Console::write_byte(value);
+        transition { _ -> separator(cavity, phase, index, bit) }
     }
-    state arrival(console: &mut Binding<Console>, cavity: &Cavity, phase: bool,
-                   index: i32 in Wrapping, bit: i32 in Wrapping) {
-        decimal(console, cavity.arrival[index], 10);
-        transition { _ -> separator(console, cavity, phase, index, bit) }
+    state arrival(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+        decimal(cavity.arrival[index], 10);
+        transition { _ -> separator(cavity, phase, index, bit) }
     }
-    state separator(console: &mut Binding<Console>, cavity: &Cavity, phase: bool,
-                     index: i32 in Wrapping, bit: i32 in Wrapping) {
+    state separator(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition (index & 3) == 3 {
-            true -> newline(console, cavity, phase, index, bit)
-            _ -> space(console, cavity, phase, index, bit)
+            true -> newline(cavity, phase, index, bit)
+            _ -> space(cavity, phase, index, bit)
         }
     }
-    state newline(console: &mut Binding<Console>, cavity: &Cavity, phase: bool,
-                   index: i32 in Wrapping, bit: i32 in Wrapping) {
-        console.write_byte(10);
-        transition { _ -> cell(console, cavity, phase, index + 1, bit << 1) }
+    state newline(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+        Console::write_byte(10);
+        transition { _ -> cell(cavity, phase, index + 1, bit << 1) }
     }
-    state space(console: &mut Binding<Console>, cavity: &Cavity, phase: bool,
-                 index: i32 in Wrapping, bit: i32 in Wrapping) {
-        console.write_byte(32);
-        transition { _ -> cell(console, cavity, phase, index + 1, bit << 1) }
+    state space(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+        Console::write_byte(32);
+        transition { _ -> cell(cavity, phase, index + 1, bit << 1) }
     }
     state done() { }
 }
 
-machine regions(console: &mut Binding<Console>, trapped: i32 in Wrapping) reaches Console {
-    transition { _ -> scan(console, trapped, 0, 1) }
-    state scan(console: &mut Binding<Console>, rest: i32 in Wrapping,
-                index: i32 in Wrapping, bit: i32 in Wrapping) {
+machine regions(trapped: i32 in Wrapping) reaches Console {
+    transition { _ -> scan(trapped, 0, 1) }
+    state scan(rest: i32 in Wrapping, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition index < 16 && rest != 0 {
-            true -> test(console, rest, index, bit)
+            true -> test(rest, index, bit)
             _ -> done()
         }
     }
-    state test(console: &mut Binding<Console>, rest: i32 in Wrapping,
-                index: i32 in Wrapping, bit: i32 in Wrapping) {
+    state test(rest: i32 in Wrapping, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition (rest & bit) != 0 {
-            true -> region(console, rest, index, bit)
-            _ -> scan(console, rest, index + 1, bit << 1)
+            true -> region(rest, index, bit)
+            _ -> scan(rest, index + 1, bit << 1)
         }
     }
-    state region(console: &mut Binding<Console>, rest: i32 in Wrapping,
-                  index: i32 in Wrapping, bit: i32 in Wrapping) {
+    state region(rest: i32 in Wrapping, index: i32 in Wrapping, bit: i32 in Wrapping) {
         let component: i32 in Wrapping = air_closure(rest, bit);
-        decimal(console, component, 10000);
-        console.write_byte(32);
-        decimal(console, cell_count(component), 10);
-        console.write_byte(10);
-        transition { _ -> scan(console, rest & ~component, index + 1, bit << 1) }
+        decimal(component, 10000);
+        Console::write_byte(32);
+        decimal(cell_count(component), 10);
+        Console::write_byte(10);
+        transition { _ -> scan(rest & ~component, index + 1, bit << 1) }
     }
     state done() { }
 }
 
-pub machine report(console: &mut Binding<Console>, cavity: &Cavity) reaches Console
-invokes console;
+pub machine report(cavity: &Cavity) reaches Console
+invokes Console;
 {
-    console.write_line("MOLD_FRONT_VENT_V1");
-    console.write_line("arrival ticks (# wall, . unfilled):");
-    map(console, cavity, false);
-    console.write_line("phase (# wall, R resin, T trapped, A vented air):");
-    map(console, cavity, true);
-    console.write_line("trapped regions (mask, cells):");
-    regions(console, cavity.trapped);
-    console.write_line("balance wall resin trapped vented budget unused rounds:");
-    decimal(console, cell_count(cavity.walls), 10);
-    console.write_byte(32);
-    decimal(console, cavity.used, 10);
-    console.write_byte(32);
-    decimal(console, cell_count(cavity.trapped), 10);
-    console.write_byte(32);
-    decimal(console, cell_count(cavity.vented), 10);
-    console.write_byte(32);
-    decimal(console, cavity.budget, 10);
-    console.write_byte(32);
-    decimal(console, cavity.budget - cavity.used, 10);
-    console.write_byte(32);
-    decimal(console, cavity.tick, 10);
-    console.write_byte(10);
-    console.write_line("OK");
+    Console::write_line("MOLD_FRONT_VENT_V1");
+    Console::write_line("arrival ticks (# wall, . unfilled):");
+    map(cavity, false);
+    Console::write_line("phase (# wall, R resin, T trapped, A vented air):");
+    map(cavity, true);
+    Console::write_line("trapped regions (mask, cells):");
+    regions(cavity.trapped);
+    Console::write_line("balance wall resin trapped vented budget unused rounds:");
+    decimal(cell_count(cavity.walls), 10);
+    Console::write_byte(32);
+    decimal(cavity.used, 10);
+    Console::write_byte(32);
+    decimal(cell_count(cavity.trapped), 10);
+    Console::write_byte(32);
+    decimal(cell_count(cavity.vented), 10);
+    Console::write_byte(32);
+    decimal(cavity.budget, 10);
+    Console::write_byte(32);
+    decimal(cavity.budget - cavity.used, 10);
+    Console::write_byte(32);
+    decimal(cavity.tick, 10);
+    Console::write_byte(10);
+    Console::write_line("OK");
 }

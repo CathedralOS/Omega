@@ -1,5 +1,5 @@
 // AudioPlayback: the portable speaker the audio samples play through.
-// An application holds only `Binding<AudioPlayback>`; each target's named
+// An application calls only `AudioPlayback` directly; each target's named
 // implementation satisfies the trait and reaches its own platform audio
 // mechanism — winmm `PlaySoundW` on windows_x86_64, ALSA
 // (`snd_pcm_*`, libasound.so.2) on linux_x86_64 and linux_arm64, and
