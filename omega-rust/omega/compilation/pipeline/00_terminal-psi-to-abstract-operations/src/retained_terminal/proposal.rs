@@ -37,7 +37,8 @@ pub struct TerminalNativeProposalRequest<'input> {
 /// Source custody for one already selected provider row. Its physical member
 /// identity is deliberately absent: only the emitted artifact owns that identity.
 pub struct SelectedFamilyRealizationSource {
-    pub head_identity: String,
+    pub head_declaration_identity: String,
+    pub head_callable_identity: String,
     pub target: String,
     pub selected_requirement_identity: String,
     pub provider_plan_report_identity: u64,
@@ -62,12 +63,25 @@ fn close_family_realizations(
     // so the rows mint into a proposal-local table rather than `index_of`.
     let mut row_identities = terminal_psi::TerminalIdentityTableBuilder::default();
     for source in sources {
-        let Some(head) = module.boundary_machines.iter().find(|boundary| {
-            module.identities.text(boundary.identity) == Some(source.head_identity.as_str())
-        }) else {
+        let mut heads = module.boundary_machines.iter().filter(|boundary| {
+            boundary.declaration.as_ref().is_some_and(|declaration| {
+                module
+                    .identities
+                    .text(declaration.source.semantic_declaration)
+                    == Some(source.head_declaration_identity.as_str())
+                    && module.identities.text(declaration.source.callable)
+                        == Some(source.head_callable_identity.as_str())
+            })
+        });
+        let Some(head) = heads.next() else {
             // An unretained source family creates no execution demand.
             continue;
         };
+        if heads.next().is_some() {
+            return Err(error(
+                "selected provider family has multiple retained heads".to_owned(),
+            ));
+        }
         if source.target != selections.target() {
             return Err(error(
                 "selected provider family has a different target".to_owned(),
