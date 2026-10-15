@@ -731,12 +731,19 @@ pub(super) fn account(
                         && argument.type_identity == result.type_identity
                         && argument.path.is_empty()
                 });
+        // A whole local rebind retires the previous unrestricted occurrence
+        // at the store, before any exit observes the replacement. Such a
+        // carrier has no affine cleanup receipt; demanding exit disposal
+        // would instead ask the new occupant to retire the old producer.
+        let replaced_unrestricted =
+            result.multiplicity == Multiplicity::Unrestricted && occurrence_end.is_some();
         let total = usize::from(
             consumed
                 || stored
                 || copied_into_construction
                 || copied_into_byte_store
-                || observed_by_call,
+                || observed_by_call
+                || replaced_unrestricted,
         ) + call_transfers
             + cleanup_discards
             + construction_transfers

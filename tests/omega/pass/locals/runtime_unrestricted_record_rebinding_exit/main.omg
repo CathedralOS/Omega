@@ -1,0 +1,19 @@
+// Expected exit: 0. Whole replacement retires each previous unrestricted
+// result, whether a call or a construction produced its stored value.
+data Reading [copy] { value: i32; }
+
+machine make(value: i32) -> Reading { Reading { value: value } }
+machine observe(reading: Reading) -> i32 { reading.value }
+
+machine main() crashes Trap {
+    let mut reading: Reading = make(1);
+    reading = make(2);
+    reading = Reading { value: 3 };
+    let observed: i32 = observe(reading);
+    transition observed == 3 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

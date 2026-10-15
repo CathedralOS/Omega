@@ -1375,7 +1375,7 @@ pass/calls/borrowed_scalar_result_with_binding_exit built 15026ms exit:70 @6c496
 pass/calls/boundary_call_nested_call_argument_exit built 18166ms @6c49683ce714
 pass/calls/builtin_named_machine_call_exit built 15438ms exit:7 @6c49683ce714
 pass/calls/by_value_case_param_self_write_exit built 14708ms exit:70 @6c49683ce714
-pass/calls/call_local_reassign checked 17180ms @6c49683ce714
+pass/calls/call_local_reassign checked 7089ms @d9f4c930251e+wt
 pass/calls/callback_borrowed_record_entry rejected 6139ms @6c49683ce714
 	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/callback_borrowed_scalar_entry rejected 5872ms @6c49683ce714
@@ -2966,15 +2966,16 @@ pass/layouts/wide_narrow_alignment_layout_compile checked 3339ms @6c49683ce714
 pass/layouts/wide_then_byte_layout_compile checked 3468ms @6c49683ce714
 pass/layouts/zero_array_layout_queries_compile checked 3474ms @6c49683ce714
 pass/layouts/zero_array_then_byte_layout_compile checked 3519ms @6c49683ce714
-pass/locals/mutable_local_call_initializer_exit built 15126ms exit:70 @6c49683ce714
-pass/locals/mutable_local_call_multistate_reassignment_exit built 14606ms exit:70 @6c49683ce714
-pass/locals/mutable_local_call_reassignment_exit built 15157ms exit:70 @6c49683ce714
+pass/locals/mutable_local_call_initializer_exit built 11948ms exit:70 @d9f4c930251e+wt
+pass/locals/mutable_local_call_multistate_reassignment_exit built 11802ms exit:70 @d9f4c930251e+wt
+pass/locals/mutable_local_call_reassignment_exit built 6253ms exit:70 @d9f4c930251e+wt
 pass/locals/runtime_deferred_scalar_initialization_exit built 14771ms exit:1 @6c49683ce714
 pass/locals/runtime_erased_parameter_mutable_local_exit built 17774ms exit:0 @6c49683ce714
 pass/locals/runtime_local_array_member_stores_without_mut_exit built 15115ms exit:70 @6c49683ce714
 pass/locals/runtime_local_qualified_view_member_read_exit built 15440ms exit:71 @6c49683ce714
 pass/locals/runtime_local_record_array_element_field_reads_exit built 14647ms exit:70 @6c49683ce714
 pass/locals/runtime_local_view_member_element_read_exit built 15258ms exit:70 @6c49683ce714
+pass/locals/runtime_unrestricted_record_rebinding_exit built 7441ms exit:0 @d9f4c930251e+wt
 pass/locals/static_local_field_names_exit built 17421ms exit:0 @6c49683ce714
 pass/machines/composite_state_args checked 17435ms @6c49683ce714
 pass/machines/computed_arrival_state checked 18066ms @6c49683ce714
@@ -4047,26 +4048,16 @@ pass/text/runtime_string_concat_two_fields_exit built 6847ms exit:70 @326ed53135
 pass/text/runtime_text_builder built 6715ms exit:0 @326ed531359e+wt
 pass/text/runtime_text_not_equals_exit built 14953ms exit:70 @6c49683ce714
 pass/text/runtime_utf16_literal_exit built 15105ms exit:70 @6c49683ce714
-pass/text/runtime_view_local_boundary_write_exit incomplete 7867ms @6c49683ce714
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 1
-pass/text/runtime_view_local_call_argument_exit incomplete 7955ms @6c49683ce714
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
-pass/text/runtime_view_local_call_initialized_exit incomplete 7614ms @6c49683ce714
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
-pass/text/runtime_view_local_call_result_store_exit incomplete 7567ms @6c49683ce714
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
-pass/text/runtime_view_local_field_store_exit incomplete 7712ms @6c49683ce714
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::observe`, statement 0
-pass/text/runtime_view_local_first_store_exit incomplete 7554ms @6c49683ce714
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
-pass/text/runtime_view_local_qualified_argument_exit incomplete 7736ms @6c49683ce714
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 1
-pass/text/runtime_view_local_reassign_exit incomplete 7551ms @6c49683ce714
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
-pass/text/runtime_view_local_record_local_field_store_exit incomplete 7497ms @6c49683ce714
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::observe`, statement 1
-pass/text/runtime_view_local_state_transfer_exit incomplete 7740ms @6c49683ce714
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
+pass/text/runtime_view_local_boundary_write_exit built 6428ms exit:70 stdout:match @d9f4c930251e+wt
+pass/text/runtime_view_local_call_argument_exit built 6393ms exit:70 @d9f4c930251e+wt
+pass/text/runtime_view_local_call_initialized_exit built 6425ms exit:70 @d9f4c930251e+wt
+pass/text/runtime_view_local_call_result_store_exit built 6427ms exit:70 @d9f4c930251e+wt
+pass/text/runtime_view_local_field_store_exit built 6454ms exit:70 @d9f4c930251e+wt
+pass/text/runtime_view_local_first_store_exit built 6624ms exit:70 @d9f4c930251e+wt
+pass/text/runtime_view_local_qualified_argument_exit built 6554ms exit:70 @d9f4c930251e+wt
+pass/text/runtime_view_local_reassign_exit built 6572ms exit:70 @d9f4c930251e+wt
+pass/text/runtime_view_local_record_local_field_store_exit built 6575ms exit:70 @d9f4c930251e+wt
+pass/text/runtime_view_local_state_transfer_exit built 6585ms exit:70 @d9f4c930251e+wt
 pass/text/state_parameter_byte_replacement_exit built 15107ms exit:70 @6c49683ce714
 pass/text/text_concat_assign checked 18236ms @6c49683ce714
 pass/text/utf8_boundary_established rejected 784ms regressed-from:checked @6c49683ce714

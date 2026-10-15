@@ -6919,6 +6919,7 @@ pass/locals/runtime_local_array_member_stores_without_mut_exit checked 11857ms c
 pass/locals/runtime_local_qualified_view_member_read_exit checked 12024ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/locals/runtime_local_record_array_element_field_reads_exit checked 11686ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/locals/runtime_local_view_member_element_read_exit checked 12344ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/locals/runtime_unrestricted_record_rebinding_exit checked 6399ms check-target:macos_arm64 @d9f4c930251e+wt
 pass/locals/static_local_field_names_exit checked 11008ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/machines/composite_state_args checked 8818ms @00748f0a5289+wt
 pass/machines/computed_arrival_state checked 9535ms @5041ef1af684+wt
