@@ -394,13 +394,24 @@ crashes Trap
         Checker::open_entry(checker, syntax, resolution, typing, item);
         Checker::require_rank_range_entry(checker, syntax, resolution, typing, item);
         Checker::walk_body(checker, syntax, resolution, typing, item.first_statement, item.statement_count, true);
+        Checker::own_body(
+            checker,
+            syntax,
+            resolution,
+            typing,
+            item.first_parameter,
+            item.parameter_count,
+            item.first_statement,
+            item.statement_count,
+            item.source_span
+        );
         transition { _ -> check_state(checker, syntax, resolution, typing, index, item, 0) }
     }
 
     state check_state(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.state_count && checker.output.machine_accepted {
             true -> reached(checker, syntax, resolution, typing, index, item, offset)
-            _ -> owned(checker, syntax, resolution, typing, index, item)
+            _ -> publish(checker, index, item)
         }
     }
 
@@ -410,20 +421,6 @@ crashes Trap
         let arrived: bool = Checker::was_reached(checker, offset);
         Checker::walk_state(checker, syntax, resolution, typing, offset, arrived, true);
         transition { _ -> check_state(checker, syntax, resolution, typing, index, item, offset + 1) }
-    }
-
-    // Ownership walks every body once more, apart from the facts
-    // (ownership.omg).
-    state owned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
-        transition checker.output.machine_accepted {
-            true -> ownership(checker, syntax, resolution, typing, index, item)
-            _ -> publish(checker, index, item)
-        }
-    }
-
-    state ownership(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
-        Checker::check_ownership(checker, syntax, resolution, typing, item);
-        transition { _ -> publish(checker, index, item) }
     }
 
     state publish(checker: &mut Checker, index: u64 in Trapping, item: MachineItem) {
@@ -504,7 +501,30 @@ crashes Trap
         Checker::assume_requirements(checker, syntax, resolution, typing, state.first_clause, state.clause_count);
         Checker::install_domains(checker, syntax, resolution, typing);
         Checker::walk_body(checker, syntax, resolution, typing, state.first_statement, state.statement_count, checking);
+        transition checking {
+            true -> owned(checker, syntax, resolution, typing, state)
+            _ -> done()
+        }
     }
+
+    // The checking walk owns the body while its places are open: the
+    // ownership walk (ownership.omg) reads the storage origins its
+    // reference locals captured.
+    state owned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, state: StateItem) {
+        Checker::own_body(
+            checker,
+            syntax,
+            resolution,
+            typing,
+            state.first_parameter,
+            state.parameter_count,
+            state.first_statement,
+            state.statement_count,
+            state.source_span
+        );
+    }
+
+    state done() {}
 }
 
 machine Checker::enter_parameters(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, first: u64 in Trapping, count: u64 in Trapping)

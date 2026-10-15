@@ -109,53 +109,11 @@ pub data Ownership {
     statement: u64 in Trapping;
 }
 
-// The ownership walk of a machine's bodies: its entry and every state, each
-// from its own parameters.
-pub machine Checker::check_ownership(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem)
-crashes Trap
-{
-    Checker::own_body(
-        checker,
-        syntax,
-        resolution,
-        typing,
-        item.first_parameter,
-        item.parameter_count,
-        item.first_statement,
-        item.statement_count,
-        item.source_span
-    );
-    transition { _ -> next_state(checker, syntax, resolution, typing, item, 0) }
-
-    state next_state(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping) {
-        transition offset < item.state_count && checker.output.machine_accepted {
-            true -> state_body(checker, syntax, resolution, typing, item, offset)
-            _ -> done()
-        }
-    }
-
-    state state_body(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping) {
-        let state: StateItem = SyntaxTrees::state_item(syntax, item.first_state + offset);
-        Checker::own_body(
-            checker,
-            syntax,
-            resolution,
-            typing,
-            state.first_parameter,
-            state.parameter_count,
-            state.first_statement,
-            state.statement_count,
-            state.source_span
-        );
-        transition { _ -> next_state(checker, syntax, resolution, typing, item, offset + 1) }
-    }
-
-    state done() {}
-}
-
 // One body's paths, its by-value linear parameters owed from its start. A
-// body that runs off its end exits there.
-machine Checker::own_body(
+// body that runs off its end exits there. Entered from the body's checking
+// walk (checker.omg) while its places are open, so a loan held through an
+// exclusive reference local finds the referent that local captured.
+pub machine Checker::own_body(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,

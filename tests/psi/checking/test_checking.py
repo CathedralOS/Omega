@@ -1528,6 +1528,17 @@ def main() -> None:
     )
     accepted(program, "a-holder-replaced-through-a-reference-retires-its-loans", holders.replace(b"REPLACE", b"let slot: &mut Held = &mut held;\n    slot = incoming;"))
     accepted(program, "a-write-only-call-replaces-a-holder's-loans", holders.replace(b"REPLACE", b"replace(&write held, incoming);"))
+    # The ownership walk reads the body's own places: a body followed by a
+    # transition into states keeps the origins its reference locals captured.
+    staged = holders.replace(b"    let observed: i64 = held.target.value;\n}", b"    let observed: i64 = held.target.value;\n    transition { _ -> done() }\n    state done() {}\n}")
+    accepted(program, "a-holder-replaced-through-a-reference-retires-its-loans-before-a-transition", staged.replace(b"REPLACE", b"let slot: &mut Held = &mut held;\n    slot = incoming;"))
+    rejected(
+        program,
+        "an-exclusive-call-keeps-a-holder's-loans-before-a-transition",
+        staged.replace(b"REPLACE", b"touch(&mut held);"),
+        "LoanConflict",
+        b"main.left.value",
+    )
     rejected(
         program,
         "an-exclusive-call-keeps-a-holder's-loans",
