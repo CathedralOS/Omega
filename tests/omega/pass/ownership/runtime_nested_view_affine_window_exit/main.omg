@@ -1,0 +1,38 @@
+// Expected exit: 0. Moving a nested view element and restoring it keep exact storage.
+data Token { value: i32; }
+data Window<'storage> { tokens: &'storage mut [Token]; marker: u64; }
+machine Token::drop(token: &mut Token) { token.value = 0; }
+machine mint(value: i32) -> Token { Token { value: value } }
+
+machine replace<'storage>(windows: &mut [Window<'storage>], selected: u64, position: u64) -> i32 {
+    transition selected < windows.len {
+        true -> inspect(windows, selected, position)
+        false -> -1
+    }
+    state inspect(windows: &mut [Window<'storage>], selected: u64, position: u64) -> i32
+    requires selected < windows.len {
+        transition position < windows[selected].tokens.len {
+            true -> restore(windows, selected, position)
+            false -> -1
+        }
+    }
+    state restore(windows: &mut [Window<'storage>], selected: u64, position: u64) -> i32
+    requires selected < windows.len && position < windows[selected].tokens.len {
+        let displaced: Token = windows[selected].tokens[position];
+        windows[selected].tokens[position] = mint(73);
+        displaced.value
+    }
+}
+
+machine main() crashes Trap {
+    let mut tokens: [Token; 4] = [mint(11), mint(23), mint(37), mint(41)];
+    let mut windows: [Window; 1] = [Window { tokens: &mut tokens[1..3], marker: 83 }];
+    let previous: i32 = replace(&mut windows[..], 0, 1);
+    transition previous == 37 && tokens[0].value == 11 && tokens[1].value == 23
+        && tokens[2].value == 73 && tokens[3].value == 41 && windows[0].marker == 83 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

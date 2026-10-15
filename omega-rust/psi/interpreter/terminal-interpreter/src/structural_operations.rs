@@ -1,6 +1,13 @@
 //! Structural operations of the interpreter loop: descriptor stores,
 //! scalar cases, byte-sequence literals and reads, trivial affine
 //! locals, records, field stores and field reads.
+//!
+//! Structural windows use live projection to cross stored reference and view
+//! descriptors before applying the final inline field geometry. A binding's
+//! view first translates its own index or complete fixed-array companion;
+//! interpreting the remaining descriptor path as inline storage loses the
+//! original backing. Whole-referent authority and restoration custody remain
+//! separate obligations, not consequences of resolving that storage.
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
@@ -1125,31 +1132,6 @@ impl TerminalExecution<'_> {
         field: Option<semantic_vocabulary::StructuralFieldId>,
         required_access: StructuralAccess,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-        // A view never owns its elements. Its selected element (already
-        // bounded by the view's live length) is a hole in the original
-        // collection, reached through the view's own mutable loan.
-        if let Some(view) = self.element_view_values.get(&root) {
-            if !view.matches_descriptor_home(storage)
-                || !required_access.admits_referent(view.access())
-            {
-                return Err(malformed());
-            }
-            let (collection, selected) =
-                view.structural_projection(&self.program.structural_types(), path, true)?;
-            let projection = terminal_semantics::structural_window_projection(
-                self.program.structural_types().values(),
-                collection.structural_type,
-                &selected,
-                field,
-            )
-            .ok_or_else(malformed)?;
-            let hole = crate::custody::project_structural_value(
-                &self.program.structural_types(),
-                &collection,
-                &projection.path,
-            )?;
-            return Ok(hole);
-        }
         // Resolve a reference crossing against its live runtime referent first;
         // the shared window geometry receives storage, never carrier ownership.
         let prefix_length = path
@@ -1218,20 +1200,37 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
         }
-        // The ordinary live projection owner crosses every reference and
-        // element-view descriptor, including fields and nested views. Window
-        // extraction must reach that same original backing, not interpret a
-        // descriptor's carrier bytes as inline elements. Whole-referent origin
-        // authentication above and restoration custody below remain separate.
-        let selected = self
-            .resolve_storage_projection_with_leaf_type(
+        let selected = if let Some(view) = self.element_view_values.get(&root) {
+            if !view.matches_descriptor_home(storage)
+                || !required_access.admits_referent(view.access())
+            {
+                return Err(malformed());
+            }
+            // Normalize only this binding's view or fixed-array companion.
+            // Its suffix can cross further descriptors; the shared live
+            // projector follows those to their own backing and checks access.
+            // Static window geometry cannot interpret that suffix as inline
+            // collection storage, even after the outer index is concrete.
+            let (collection, selected) =
+                view.structural_projection(&self.program.structural_types(), path, true)?;
+            self.resolve_reference_storage_projection(&collection, &selected, required_access)?
+                .ok_or_else(malformed)?
+                .value
+        } else {
+            // The ordinary live projection owner crosses every reference and
+            // element-view descriptor, including fields and nested views. Window
+            // extraction must reach that same original backing, not interpret a
+            // descriptor's carrier bytes as inline elements. Whole-referent origin
+            // authentication above and restoration custody below remain separate.
+            self.resolve_storage_projection_with_leaf_type(
                 root,
                 storage,
                 path,
                 required_access,
                 terminal_psi::StructuralFieldType::canonical_leaf_type,
             )?
-            .value;
+            .value
+        };
         let projection = terminal_semantics::structural_window_projection(
             self.program.structural_types().values(),
             selected.structural_type,

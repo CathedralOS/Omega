@@ -1,0 +1,18 @@
+// Expected exit: 0. A fixed-array parameter lends its complete backing, including empty arrays.
+data Cell [copy] { value: u64; }
+machine fill(cells: &mut [Cell; 2]) {
+    cells = [Cell { value: 23 }, Cell { value: 37 }];
+}
+machine empty(cells: &mut [Cell; 0]) { cells = []; }
+machine main() crashes Trap {
+    let mut cells: [Cell; 2] = [Cell { value: 11 }, Cell { value: 17 }];
+    let mut none: [Cell; 0] = [];
+    fill(&mut cells);
+    empty(&mut none);
+    transition cells[0].value == 23 && cells[1].value == 37 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

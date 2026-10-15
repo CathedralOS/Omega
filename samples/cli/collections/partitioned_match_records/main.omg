@@ -1,0 +1,57 @@
+// Expected exit: 0.
+// Publish whole match records through borrowed partitions without flattening them.
+data Match [copy] { position: u64; value: i32; }
+data Partition<'storage> { records: &'storage mut [Match]; count: u64; }
+
+machine capture(position: u64, value: i32) -> Match { Match { position: position, value: value } }
+
+machine emit<'storage>(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool {
+    transition selected < partitions.len {
+        true -> capacity(partitions, selected, record)
+        false -> false
+    }
+    state capacity(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool
+    requires selected < partitions.len {
+        transition partitions[selected].count < partitions[selected].records.len {
+            true -> store(partitions, selected, record)
+            false -> false
+        }
+    }
+    state store(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool
+    requires selected < partitions.len
+        && partitions[selected].count < partitions[selected].records.len {
+        let position: u64 = partitions[selected].count;
+        partitions[selected].records[position] = record;
+        partitions[selected].count = partitions[selected].count + 1;
+        true
+    }
+}
+
+machine main() crashes Trap {
+    let mut first: [Match; 3] = [
+        Match { position: 91, value: -1 }, Match { position: 92, value: -2 },
+        Match { position: 93, value: -3 }
+    ];
+    let mut second: [Match; 2] = [Match { position: 81, value: -4 }, Match { position: 82, value: -5 }];
+    let mut partitions: [Partition; 2] = [
+        Partition { records: &mut first[1..2], count: 0 },
+        Partition { records: &mut second[1..2], count: 0 }
+    ];
+    let record: Match = capture(9223372036854775808, 17);
+    let appended: bool = emit(&mut partitions[..], 1, record);
+    let other: bool = emit(&mut partitions[..], 0, capture(23, 31));
+    let full: bool = emit(&mut partitions[..], 1, capture(47, 53));
+    let missing: bool = emit(&mut partitions[..0], 0, capture(59, 61));
+    transition appended && other && !full && !missing
+        && partitions[0].count == 1 && partitions[1].count == 1
+        && first[0].position == 91 && first[0].value == -1
+        && first[1].position == 23 && first[1].value == 31
+        && first[2].position == 93 && first[2].value == -3
+        && second[0].position == 81 && second[0].value == -4
+        && second[1].position == 9223372036854775808 && second[1].value == 17 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
