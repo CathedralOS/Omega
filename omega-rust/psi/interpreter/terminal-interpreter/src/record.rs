@@ -162,7 +162,7 @@ impl TerminalExecution<'_> {
             })?;
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.structural_scalar_fields.extend(staged);
-        storage.publish(self);
+        storage.publish(self)?;
         self.structural_values.insert(result.place, value);
         Ok(())
     }

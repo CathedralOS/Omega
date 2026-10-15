@@ -171,7 +171,7 @@ pub(super) fn store_at(
             primitive_type,
             trace,
         )?,
-        super::value::AssignmentSource::StructuralCallResult { .. } => return None,
+        super::value::AssignmentSource::StructuralValue { .. } => return None,
     };
     Some(CheckedUnitEffectOperationPlan::new_store(
         statement_index,

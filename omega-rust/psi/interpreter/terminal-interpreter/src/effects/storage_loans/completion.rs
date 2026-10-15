@@ -241,7 +241,7 @@ pub(super) fn commit(
     }
     if let Some(replacement) = binding.replacement {
         execution.prune_subtree(&StructuralRuntimePlace::from(&binding.referent));
-        replacement.publish(execution);
+        replacement.publish(execution)?;
         return Ok(());
     }
     // The case roster is unchanged. Preserve scalar-array homes and narrowed

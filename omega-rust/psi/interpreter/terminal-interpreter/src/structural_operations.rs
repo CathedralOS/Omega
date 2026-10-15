@@ -101,7 +101,7 @@ impl TerminalExecution<'_> {
                 scalar,
             )?;
         }
-        storage.publish(self);
+        storage.publish(self)?;
         self.structural_values.insert(result.place, value);
         self.track_affine_result(result);
         Ok(())
@@ -290,7 +290,7 @@ impl TerminalExecution<'_> {
             })?;
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.structural_scalar_fields.extend(staged_scalars);
-        storage.publish(self);
+        storage.publish(self)?;
         self.structural_values.insert(result.place, value);
         Ok(())
     }
@@ -1020,7 +1020,7 @@ impl TerminalExecution<'_> {
             if !copies_storage && let Some(source) = source {
                 self.prune_subtree(&source);
             }
-            storage.publish(self);
+            storage.publish(self)?;
         }
         self.structural_values.extend(memberships);
         if !copies_storage {
@@ -1188,6 +1188,9 @@ impl TerminalExecution<'_> {
                                     && base.path.starts_with(&storage.path)
                             })
                 });
+            // Storage authority comes from the live owned home. The store's
+            // receiving-membership transaction independently proves every
+            // restored value qualification before committing its bytes.
             let owned_origin = self.structural_values.iter().any(|(place, storage)| {
                 if storage.opaque_identity != base.opaque_identity
                     || !base.path.starts_with(&storage.path)
@@ -1196,18 +1199,13 @@ impl TerminalExecution<'_> {
                 }
                 if let Some(parameter) = machine.structural_parameter(*place) {
                     return parameter.access == StructuralAccess::Owned
-                        && parameter.multiplicity != StructuralMultiplicity::Linear
-                        && parameter.qualifications.is_empty()
-                        && parameter.projected_qualifications.is_empty();
+                        && parameter.multiplicity != StructuralMultiplicity::Linear;
                 }
                 machine.producing_operation(*place).is_some_and(|(operation, _)| {
                     matches!(&operation.result, terminal_psi::OperationResult::Structural(result)
                         if result.place == *place
                             && result.multiplicity != StructuralMultiplicity::Linear
-                            && result.claims.is_empty()
-                            && result.qualifications.is_empty()
-                            && result.projected_qualifications.is_empty()
-                            && result.qualification_establishments.is_empty())
+                            && result.claims.is_empty())
                 })
             });
             let view_origin = self.element_view_values.iter().any(|(place, view)| {
@@ -1490,7 +1488,7 @@ impl TerminalExecution<'_> {
                     &StructuralRuntimePlace::from(&copied),
                     false,
                 )?;
-                storage.publish(self);
+                storage.publish(self)?;
                 self.structural_values.insert(result.place, copied);
                 self.local_structural_identities
                     .commit_cursor(identity_cursor);

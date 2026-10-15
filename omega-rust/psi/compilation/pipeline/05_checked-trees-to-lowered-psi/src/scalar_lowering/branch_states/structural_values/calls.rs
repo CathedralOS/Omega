@@ -20,11 +20,21 @@ impl Storage {
         )?
         .values
         {
-            if !self.places.iter().any(|(candidate, _)| *candidate == value) {
-                self.places
-                    .push((value, place_id(allocate_dense(next_place)?)));
-            }
             let node = checked.facts.values.structural_values.nodes.get(value);
+            if !self.places.iter().any(|(candidate, _)| *candidate == value) {
+                let place = if let CheckedStructuralValueKind::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
+                    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes }, ..
+                }) = &node.kind {
+                    let declaration = carrier_declaration(identities, checked, types, node.type_reference)?;
+                    let literal = crate::emission::structural_byte_sequence_store::ByteLiteral::reserve(identities, bytes, declaration.id, types, next_place)?;
+                    let place = literal.place;
+                    self.literals.push((value, literal));
+                    place
+                } else {
+                    place_id(allocate_dense(next_place)?)
+                };
+                self.places.push((value, place));
+            }
             if matches!(
                 node.kind,
                 checked_trees::CheckedStructuralValueKind::Call { .. }

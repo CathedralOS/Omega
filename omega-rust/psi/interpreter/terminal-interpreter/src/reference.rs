@@ -373,10 +373,16 @@ impl TerminalExecution<'_> {
                 result.structural_type,
                 &result.projected_qualifications,
             );
-        // Inline owners keep the ordinary call binding's parent, case namespace
-        // and field identity. Capturing a reference must not mint an owned copy
-        // or pretend that the field has an independent nominal storage cell.
-        let byte_owner_loan = if field_compatible {
+        // Every bounded owner keeps the ordinary loan's actual home: a field
+        // retains its parent/namespace/identity; a local retains its activation.
+        // Capturing a reference never mints an independent owned byte cell.
+        let byte_owner_loan = if storage.is_none()
+            && self
+                .program
+                .structural_types()
+                .get(&referent_type)
+                .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
+        {
             let (qualifications, projected_qualifications) =
                 terminal_psi::StructuralPathQualification::select(
                     &[],
@@ -780,9 +786,20 @@ impl TerminalExecution<'_> {
         &self,
         selected: &TerminalStructuralValue,
     ) -> Option<&crate::byte_sequences::binding::ByteSequenceBinding> {
+        self.captured_byte_owner_binding_at(
+            &StructuralRuntimePlace::from(selected),
+            selected.structural_type,
+        )
+    }
+
+    pub(crate) fn captured_byte_owner_binding_at(
+        &self,
+        selected: &StructuralRuntimePlace,
+        structural_type: StructuralTypeId,
+    ) -> Option<&crate::byte_sequences::binding::ByteSequenceBinding> {
         self.reference_referents.values().find_map(|capture| {
-            (StructuralRuntimePlace::from(&capture.view) == StructuralRuntimePlace::from(selected)
-                && capture.view.structural_type == selected.structural_type)
+            (StructuralRuntimePlace::from(&capture.view) == *selected
+                && capture.view.structural_type == structural_type)
                 .then_some(capture.byte_owner.as_ref())
                 .flatten()
         })

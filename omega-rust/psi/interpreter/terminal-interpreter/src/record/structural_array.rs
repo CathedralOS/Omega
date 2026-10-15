@@ -76,7 +76,7 @@ impl TerminalExecution<'_> {
             })?;
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.local_structural_identities.commit_cursor(cursor);
-        staged.publish(self);
+        staged.publish(self)?;
         self.structural_values.insert(result.place, value);
         Ok(crate::execution::OperationFlow::Advance)
     }

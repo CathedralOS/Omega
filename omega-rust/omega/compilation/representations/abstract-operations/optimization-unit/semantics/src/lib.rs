@@ -90,8 +90,9 @@ pub fn structural_place_supports_window_restoration(
                 terminal_psi::StructuralAccess::Owned
                     | terminal_psi::StructuralAccess::MutableBorrow
             ) && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-                && source.is_unqualified()
-                && !source.has_result_evidence()
+                // Receiving memberships are checked by the store contract;
+                // they are value facts, not a loss of storage authority.
+                && source.operation_result().is_none_or(|result| result.claims.is_empty())
         },
     )
 }

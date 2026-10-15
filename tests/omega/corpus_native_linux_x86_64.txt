@@ -3028,10 +3028,8 @@ pass/text/plain_and_qualified_byte_arrays_exit built 15087ms exit:70 @6c49683ce7
 pass/text/plain_byte_field_and_qualified_state_loan_exit built 15225ms exit:70 @6c49683ce714
 pass/text/qualified_byte_owner_state_loan_cycle_exit built 7891ms exit:70 stdout:match @326ed531359e+wt
 pass/text/qualified_byte_state_snapshot_exit built 14851ms exit:70 @6c49683ce714
-pass/text/qualified_byte_value_forwarding_exit rejected 4940ms @8665e38f912c
-	machine `Main::main` state `main` statement 2 cannot lower structural value: computed owned operand requires an existing parameter
-pass/text/runtime_alias_string_write incomplete 5369ms regressed-from:built @8665e38f912c
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (structural field store: carrier path); in state `Main::main::main`, statement 1
+pass/text/qualified_byte_value_forwarding_exit built 9717ms exit:70 @4738db50c6db+wt
+pass/text/runtime_alias_string_write built 5470ms exit:0 @4738db50c6db+wt
 pass/text/runtime_bounded_carrier_alias_concat_exit built 14904ms exit:70 @6c49683ce714
 pass/text/runtime_bounded_carrier_concat_exit built 15366ms exit:70 @6c49683ce714
 pass/text/runtime_bounded_carrier_copy_exit built 8207ms exit:70 stdout:match @326ed531359e+wt
@@ -3054,8 +3052,7 @@ pass/text/runtime_owned_string_byte_view_exit built 14849ms exit:70 @6c49683ce71
 pass/text/runtime_param_domain_forward_exit built 14895ms exit:70 @6c49683ce714
 pass/text/runtime_param_domain_literal_read_exit built 14847ms exit:70 @6c49683ce714
 pass/text/runtime_qualified_byte_array_storage_exit built 9374ms exit:0 @6c49683ce714
-pass/text/runtime_qualified_owner_view_open_exit rejected 5356ms @8665e38f912c
-	machine `Main::main` state `main` statement 3 cannot lower structural value: computed owned operand requires an existing parameter
+pass/text/runtime_qualified_owner_view_open_exit built 5347ms exit:0 @4738db50c6db+wt
 pass/text/runtime_slice_indexed_string_guard_exit built 14929ms exit:70 @6c49683ce714
 pass/text/runtime_stdin_command_branch_exit built 7367ms exit:0 stdout:match @326ed531359e+wt
 pass/text/runtime_stdin_line_buffering_exit built 7222ms exit:0 stdout:match @326ed531359e+wt

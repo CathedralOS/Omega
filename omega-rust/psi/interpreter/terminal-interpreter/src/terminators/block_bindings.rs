@@ -101,7 +101,7 @@ impl BlockBindings {
         // remaining old results before publishing any destination: unrelated
         // surviving custody still refuses reentry rather than being erased.
         execution.retire_reentered_results(target)?;
-        self.aggregate_payload.publish(execution);
+        self.aggregate_payload.publish(execution)?;
         for destination in self.structural.keys() {
             execution.aggregate_argument_backings.remove(destination);
             execution.scalar_array_values.remove(destination);

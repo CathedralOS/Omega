@@ -240,22 +240,20 @@ pub(super) fn plan(
         produced.statement_index = statement_index;
         produced.binding_ordinal = u32::try_from(*structural_count).ok()?;
         assignment_phase("statement sequence: assignment: structural destination window");
-        let replacement = windows.replace(
+        let replacement = completed_value_replacement(
             program,
             facts,
             shapes,
             machine,
             state,
             structural_parameters,
-            statement_index,
+            scalar_parameters,
+            parameter_storage,
+            windows,
             assignment,
             &produced,
-            produced.binding_ordinal.checked_add(1)?,
-            CheckedUnitStructuralArgumentPlan::structural_result(
-                produced.binding_ordinal,
-                produced.type_identity.clone(),
-                CheckedStructuralAccess::Owned,
-            ),
+            root.type_reference,
+            trace,
         )?;
         *structural_count = structural_count.checked_add(1 + replacement.displaced_bindings())?;
         let discard_result_on_return = produced.multiplicity == Multiplicity::Affine;
@@ -403,8 +401,49 @@ pub(super) fn call_result_replacement(
 ) -> Option<ValueReplacement> {
     let result_type =
         validation::call_target_return_type(program, statement_call_target(program, assignment)?)?;
-    if super::super::super::types::byte_sequence_carrier(program, result_type, &[]).is_some() {
-        let store = super::super::super::structural_scalar_store::build_byte_call_result_store(
+    completed_value_replacement(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        structural_parameters,
+        scalar_parameters,
+        parameter_storage,
+        windows,
+        assignment,
+        result,
+        result_type,
+        trace,
+    )
+}
+
+/// Inline byte fields and byte owner slots use their byte-storage layout;
+/// a reference-shaped receiving place instead replaces its whole referent.
+/// This choice depends on the destination, independently of whether a call,
+/// literal, or composed expression produced the completed value.
+#[allow(clippy::too_many_arguments)]
+fn completed_value_replacement(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    shapes: &ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    parameter_storage: &[checked_trees::CheckedUnitParameterStoragePlan],
+    windows: &mut OpenWindows,
+    assignment: &typed_trees::statement::TableAssignment,
+    result: &CheckedUnitStructuralResultBindingPlan,
+    result_type: typed_trees::types::TypeReferenceHandle,
+    trace: &LocalConstructionTrace,
+) -> Option<ValueReplacement> {
+    let declared =
+        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?;
+    if super::super::super::types::byte_sequence_carrier(program, result_type, &[]).is_some()
+        && validation::reference_shell(program, declared).is_none()
+    {
+        let store = super::super::super::structural_scalar_store::build_completed_byte_value_store(
             program,
             facts,
             machine,

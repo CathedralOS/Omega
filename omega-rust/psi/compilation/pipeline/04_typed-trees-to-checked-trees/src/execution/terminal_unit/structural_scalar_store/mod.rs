@@ -194,7 +194,7 @@ pub(super) fn build_structural_call_result_field_store(
 /// A completed byte value uses the destination's ordinary replacement:
 /// owned contents copy bytes and length; shared fields copy the descriptor.
 /// Destination selection is independent of how the RHS value was produced.
-pub(super) fn build_byte_call_result_store(
+pub(super) fn build_completed_byte_value_store(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
@@ -218,7 +218,7 @@ pub(super) fn build_byte_call_result_store(
         parameter_storage,
         statement_index,
         assignment,
-        AssignmentSource::StructuralCallResult {
+        AssignmentSource::StructuralValue {
             binding_ordinal,
             result_type,
         },

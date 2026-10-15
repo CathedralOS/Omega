@@ -29,6 +29,8 @@ pub struct StructuralWindowProjection {
 /// established owned or exclusive storage. The caller authenticates storage against
 /// its current custody, never pointer bits or a producer origin assertion.
 /// No candidate may be discarded merely because another one is admissible.
+/// Value qualifications remain the receiving store's restoration obligations;
+/// they do not remove the origin's independent storage permission.
 pub fn structural_window_origins<'parameters>(
     parameters: impl Iterator<Item = &'parameters terminal_psi::StructuralParameterDeclaration> + Clone,
     origins: impl IntoIterator<Item = PlaceId>,
@@ -43,8 +45,6 @@ pub fn structural_window_origins<'parameters>(
                 parameter.place == root
                     && required_access.admits_referent(parameter.access)
                     && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-                    && parameter.qualifications.is_empty()
-                    && parameter.projected_qualifications.is_empty()
             })
         {
             return false;

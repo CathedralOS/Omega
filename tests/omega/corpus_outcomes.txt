@@ -4720,6 +4720,8 @@ fail/text/local_record_byte_field_replacement_breaks_domain rejected 5052ms expe
 	cannot prove the value assigned to `row.text` in main is in domain `[u8; N]::Ascii`; a place declared `in [u8; N]::Ascii` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/text/owned_byte_parameter_write_breaks_domain rejected 1660ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call observe from corrupt: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii)
+fail/text/qualified_byte_alias_replacement_invalid_encoding rejected 869ms expected @4738db50c6db+wt
+	cannot prove the value assigned to `line` in Main::main is in domain `[u8; N]::Utf8`; a place declared `in [u8; N]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/text/qualified_byte_array_element_domain rejected 426ms expected @c0d817d0e753+wt
 	cannot prove default-domain field requirement for return from bad at statement 0: ["a", "\\xc3\\xa9"][1] requires [u8; N]::Ascii
 fail/text/qualified_byte_array_element_replacement rejected 470ms expected @c0d817d0e753+wt
@@ -4731,6 +4733,8 @@ fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 3491ms expected
 	cannot prove requires contract for call step from Main::main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[__hoist_32]; output is part of [u8; N]::Utf8) in state `shift`
 fail/text/qualified_byte_state_domain_widening rejected 4955ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call narrowed from relay: value in [u8; N]::Ascii
+fail/text/qualified_local_byte_alias_replacement_invalid_encoding rejected 898ms expected @4738db50c6db+wt
+	cannot prove the value assigned to `alias` in main is in domain `[u8; N]::Utf8`; a place declared `in [u8; N]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/time/duration_constant_unnormalized rejected 33ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
 	constant `INVALID` is invalid: data constant `Duration` violates its default-domain predicate
 fail/time/instant_constant_unnormalized rejected 33ms expected @2ed2725134e877372235f00d3ce5c1602f59468c
@@ -8013,8 +8017,8 @@ pass/text/plain_and_qualified_byte_arrays_exit checked 4616ms check-target:macos
 pass/text/plain_byte_field_and_qualified_state_loan_exit checked 12041ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/qualified_byte_owner_state_loan_cycle_exit checked 11728ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/qualified_byte_state_snapshot_exit checked 12358ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/text/qualified_byte_value_forwarding_exit checked 12875ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/text/runtime_alias_string_write checked 12144ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/text/qualified_byte_value_forwarding_exit checked 9651ms check-target:macos_arm64 @4738db50c6db+wt
+pass/text/runtime_alias_string_write checked 5540ms check-target:macos_arm64 @4738db50c6db+wt
 pass/text/runtime_bounded_carrier_alias_concat_exit checked 13891ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_bounded_carrier_concat_exit checked 13198ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_bounded_carrier_copy_exit checked 5802ms check-target:macos_arm64 @4ebb8b7f818f+wt
@@ -8037,7 +8041,7 @@ pass/text/runtime_owned_string_byte_view_exit checked 11252ms check-target:macos
 pass/text/runtime_param_domain_forward_exit checked 11252ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_param_domain_literal_read_exit checked 12013ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_qualified_byte_array_storage_exit checked 4037ms check-target:macos_arm64 @c0d817d0e753+wt
-pass/text/runtime_qualified_owner_view_open_exit checked 3079ms check-target:macos_arm64 @b7075f98d14c+wt
+pass/text/runtime_qualified_owner_view_open_exit checked 5206ms check-target:macos_arm64 @4738db50c6db+wt
 pass/text/runtime_slice_indexed_string_guard_exit checked 11632ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_stdin_command_branch_exit checked 4559ms check-target:macos_arm64 @9dd545defbc0
 pass/text/runtime_stdin_line_buffering_exit checked 11781ms check-target:macos_arm64 @a9ae30e1c334+wt

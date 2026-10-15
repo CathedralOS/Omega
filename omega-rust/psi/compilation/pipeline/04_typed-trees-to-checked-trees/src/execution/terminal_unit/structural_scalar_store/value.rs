@@ -17,8 +17,8 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 pub(in crate::execution::terminal_unit) enum AssignmentSource {
     /// An authored expression with its own checked value facts.
     Authored,
-    /// The completed structural byte value of this assignment's call.
-    StructuralCallResult {
+    /// The completed, exactly typed structural value of this assignment.
+    StructuralValue {
         binding_ordinal: u32,
         result_type: typed_trees::types::TypeReferenceHandle,
     },
@@ -44,7 +44,7 @@ pub(super) fn assignment_value(
     trace: &LocalConstructionTrace,
 ) -> Option<checked_trees::CheckedScalarStoreValue> {
     let value = match source {
-        AssignmentSource::StructuralCallResult { .. } => return None,
+        AssignmentSource::StructuralValue { .. } => return None,
         AssignmentSource::CallResult {
             position,
             primitive_type: result_type,

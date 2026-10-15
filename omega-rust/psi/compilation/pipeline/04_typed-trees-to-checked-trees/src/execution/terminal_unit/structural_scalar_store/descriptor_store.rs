@@ -82,7 +82,7 @@ pub(super) fn descriptor_store(
     {
         predicate?;
     }
-    let target = if let AssignmentSource::StructuralCallResult { result_type, .. } = source {
+    let target = if let AssignmentSource::StructuralValue { result_type, .. } = source {
         result_type
     } else if matches!(
         program.expression_table.expression(expression),
@@ -93,7 +93,7 @@ pub(super) fn descriptor_store(
         validation::expression_result_type_reference(program, machine, state, expression)?
     };
     let source = match source {
-        AssignmentSource::StructuralCallResult {
+        AssignmentSource::StructuralValue {
             binding_ordinal,
             result_type,
         } => {
@@ -103,10 +103,6 @@ pub(super) fn descriptor_store(
                 || !matches!(
                     types::byte_sequence_carrier(program, result_type, &[]),
                     Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
-                )
-                || !matches!(
-                    program.expression_table.expression(expression),
-                    typed_trees::expression::ExpressionNode::Call(_)
                 )
             {
                 return None;

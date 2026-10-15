@@ -250,7 +250,7 @@ pub(super) fn field_store(
             )?
             .0
         }
-        AssignmentSource::StructuralCallResult {
+        AssignmentSource::StructuralValue {
             binding_ordinal,
             result_type,
         } => {
@@ -263,10 +263,6 @@ pub(super) fn field_store(
                     result_type,
                     &[],
                     validation::ContentsRequirement::RepresentedOwned,
-                )
-                || !matches!(
-                    program.expression_table.expression(assignment.value),
-                    ExpressionNode::Call(_)
                 )
                 || !domains.iter().all(|domain| {
                     source_domains.iter().any(|source| {

@@ -49,6 +49,10 @@ pub(crate) struct Storage {
     /// A checked snapshot may carry more facts than a call's ABI result.
     /// Keep that raw producer separate from the completed operand's home.
     producers: Vec<(checked_trees::CheckedStructuralValueHandle, PlaceId)>,
+    literals: Vec<(
+        checked_trees::CheckedStructuralValueHandle,
+        crate::emission::structural_byte_sequence_store::ByteLiteral,
+    )>,
     results: Vec<(u32, PlaceId)>,
     ranges: Vec<computations::subslices::Slot>,
 }
@@ -64,6 +68,7 @@ impl Storage {
         let mut storage = Self {
             places: Vec::new(),
             producers: Vec::new(),
+            literals: Vec::new(),
             results: Vec::new(),
             ranges: Vec::new(),
         };
@@ -404,6 +409,17 @@ impl Preparation<'_> {
         let node = self.checked.facts.values.structural_values.nodes.get(value);
         match &node.kind {
             CheckedStructuralValueKind::Place(argument) => {
+                if matches!(
+                    argument.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
+                ) {
+                    // A literal is a producer, even though the checked operand
+                    // uses the common structural argument vocabulary. Complete
+                    // its owned home before any consumer observes its place.
+                    return self
+                        .value(identities, value, reference, claim_path)
+                        .map(whole_argument);
+                }
                 self.bindings.owned_argument(identities, argument)
             }
             CheckedStructuralValueKind::Projection { source, path, .. } => {
@@ -471,6 +487,29 @@ impl Preparation<'_> {
         let plans = &self.checked.facts.values.structural_values;
         let node = plans.nodes.get(value);
         let declaration = carrier_declaration(identities, self.checked, self.types, reference)?;
+        if let Some((_, literal)) = self
+            .reserved
+            .literals
+            .iter()
+            .find(|(candidate, _)| *candidate == value)
+        {
+            let CheckedStructuralValueKind::Place(argument) = &node.kind else {
+                return unsupported("owned byte literal lost its checked operand");
+            };
+            let memberships = crate::expression_preparation::byte_literals::validate(
+                self.checked,
+                reference,
+                argument,
+            )?;
+            self.steps.push(Step::Establish {
+                effect: LoweredScalarEffect::EstablishByteSequenceLiteral {
+                    literal: literal.clone(),
+                    memberships,
+                },
+                prefix: self.prefix.clone(),
+            });
+            return Ok(literal.place);
+        }
         if let CheckedStructuralValueKind::ByteLiteralView { bytes } = &node.kind {
             let place = self.reserved.place(value)?;
             self.steps.push(Step::Establish {

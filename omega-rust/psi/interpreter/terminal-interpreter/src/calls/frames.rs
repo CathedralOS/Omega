@@ -383,7 +383,7 @@ impl TerminalExecution<'_> {
         self.primitive_loan_values = prepared_arguments.primitive_loans;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        aggregate_payload.publish(self);
+        aggregate_payload.publish(self)?;
         self.scalar_array_values = prepared_arguments.scalar_arrays;
         self.element_view_values = prepared_arguments.element_views;
         self.live_affine_frontier = callee_affine_frontier;

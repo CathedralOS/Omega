@@ -375,18 +375,14 @@ fn root_window_loan(
                             result,
                             ..
                         } => {
-                            result.qualifications.is_empty()
-                                && result.projected_qualifications.is_empty()
-                                && result.qualification_establishments.is_empty()
-                                && result.claims.is_empty()
+                            // Value memberships are restored by the admitted
+                            // structural store. They do not remove the live
+                            // owner's storage authority; claims stay separate.
+                            result.claims.is_empty()
                         }
                         target_operations::TargetStructuralHomeOrigin::BlockParameter {
-                            declaration,
                             ..
-                        } => {
-                            declaration.qualifications.is_empty()
-                                && declaration.projected_qualifications.is_empty()
-                        }
+                        } => true,
                     }
             })
         },

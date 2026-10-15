@@ -425,6 +425,11 @@ pub(crate) fn build_checked_value_computation_plans(
                     );
                     if let Some(expected) = written
                         && (replaces_reference
+                            // Bounded bytes are owned structural values too.
+                            // Their complete assignment uses the same captured
+                            // destination and replacement as records and cases,
+                            // including writes through a local reference.
+                            || matches!(validation::byte_sequence_carrier(program, expected, &[]), Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }))
                             || structural_values::is_record_value(
                                 program,
                                 assignment.value,

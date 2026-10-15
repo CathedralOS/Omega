@@ -1,3 +1,4 @@
+// Expected exit: 0. Whole byte replacement follows the mutable loan home.
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
@@ -9,7 +10,30 @@ data Main {
     label: [u8; 8] in Utf8;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: &mut Main) crashes Trap {
     let label_alias: &mut [u8; 8] in Utf8 = &mut main.label;
     label_alias = "hello";
+    let observed: bool = label_alias == "hello" && label_alias.len == 5;
+    let local: bool = local_replacement();
+    transition observed && local { true -> verify(main) false -> bad() }
+    state verify(main: &mut Main) {
+        transition main.label == "hello" && main.label.len == 5 {
+            true -> replace_again(main) false -> bad()
+        }
+    }
+    state replace_again(main: &mut Main) {
+        let another: &mut [u8; 8] in Utf8 = &mut main.label;
+        another = "é";
+        transition another == "é" && another.len == 2 { true -> done() false -> bad() }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+// The same replacement through a reference to a frame-local owner.
+machine local_replacement() -> bool {
+    let mut line: [u8; 8] in Utf8 = "before";
+    let alias: &mut [u8; 8] in Utf8 = &mut line;
+    alias = "é";
+    alias == "é" && alias.len == 2
 }

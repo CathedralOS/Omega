@@ -232,6 +232,10 @@ pub(crate) struct ConstructorStorage {
     references: BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     primitives: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
     byte_arrays: BTreeMap<StructuralRuntimePlace, ByteSequenceView>,
+    owner_writes: Vec<(
+        crate::byte_sequences::binding::ByteOwnerHome,
+        ByteSequenceView,
+    )>,
     cases: BTreeMap<
         StructuralRuntimePlace,
         crate::structural_inputs::case_membership::StructuralCaseContents,
@@ -504,8 +508,31 @@ impl ConstructorStorage {
                 ..argument.clone()
             };
             let (_, bytes) = execution.bounded_owner_snapshot(&source)?;
-            self.byte_arrays
-                .insert(destination.clone(), bytes.detached_descriptor());
+            // Replacement reaches the captured owner's actual storage, just
+            // as byte reads and writes do. A field is not a standalone opaque
+            // cell, and a suspended caller's local stays in its pinned frame.
+            match execution.captured_byte_owner_binding_at(destination, child.structural_type) {
+                Some(crate::byte_sequences::binding::ByteSequenceBinding::MutableField {
+                    field,
+                    ..
+                }) => {
+                    self.bytes
+                        .insert(field.clone(), bytes.detached_descriptor());
+                }
+                Some(crate::byte_sequences::binding::ByteSequenceBinding::MutableOwner {
+                    home,
+                    ..
+                }) => {
+                    execution.byte_owner_bytes(home)?;
+                    self.owner_writes
+                        .push((home.clone(), bytes.detached_descriptor()));
+                }
+                Some(_) => return Err(malformed()),
+                None => {
+                    self.byte_arrays
+                        .insert(destination.clone(), bytes.detached_descriptor());
+                }
+            }
         }
         self.stage_subtree(
             execution,
@@ -608,7 +635,18 @@ impl ConstructorStorage {
         Ok(())
     }
 
-    pub(crate) fn publish(self, execution: &mut TerminalExecution) {
+    pub(crate) fn publish(
+        self,
+        execution: &mut TerminalExecution,
+    ) -> Result<(), TerminalInterpretError> {
+        // Validate every pinned home before publishing any part of the
+        // transaction. None of these writes retires another owner's frame.
+        for (home, _) in &self.owner_writes {
+            execution.byte_owner_bytes(home)?;
+        }
+        for (home, bytes) in self.owner_writes {
+            *execution.byte_owner_bytes_mut(&home)? = bytes;
+        }
         execution.structural_scalar_fields.extend(self.scalars);
         execution.structural_byte_sequence_fields.extend(self.bytes);
         execution.structural_element_view_fields.extend(self.views);
@@ -618,5 +656,6 @@ impl ConstructorStorage {
             .extend(self.primitives);
         execution.structural_byte_storage.extend(self.byte_arrays);
         execution.structural_cases.extend(self.cases);
+        Ok(())
     }
 }
