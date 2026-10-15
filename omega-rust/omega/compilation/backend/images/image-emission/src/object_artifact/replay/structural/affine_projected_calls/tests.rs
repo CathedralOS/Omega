@@ -2,8 +2,7 @@ use super::{
     CallSiteOwner, InternalUnitCallArgumentRecord, InternalUnitCallRecord, StructuralAccess,
     StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape,
     TerminalAffineCleanupAction, UnitAffineCleanupRecord, UnitParameterHomeRecord,
-    exact_fully_consumed_affine_parameter, exact_owned_projection,
-    exact_partially_consumed_affine_parameter,
+    exact_owned_projection, exact_projected_affine_parameter,
 };
 use calling_conventions::{ValuePlacement, ValueShape};
 use semantic_vocabulary::{
@@ -431,7 +430,7 @@ fn full_path_layout_keeps_root_array_metadata_and_record_root_absence() {
 }
 
 #[test]
-fn function_closure_checks_calls_and_partition_even_when_cleanup_is_empty() {
+fn function_closure_checks_calls_and_partition_even_when_no_residual_remains() {
     let parameter = home(2, 5);
     let mut cleanup = UnitAffineCleanupRecord {
         psi_edge: EdgeId::new(1).unwrap(),
@@ -447,7 +446,9 @@ fn function_closure_checks_calls_and_partition_even_when_cleanup_is_empty() {
         ]
         .into(),
         locals: Vec::new(),
-        actions: Vec::new(),
+        // Every projected owner retires its home last; a parameter its calls
+        // consume completely keeps an empty residual partition before it.
+        actions: vec![TerminalAffineCleanupAction::RetireHome(parameter.place)],
         code_offset: 20,
         byte_count: 4,
     };
@@ -478,52 +479,54 @@ fn function_closure_checks_calls_and_partition_even_when_cleanup_is_empty() {
         })
         .collect::<Vec<_>>();
     let homes = [parameter];
-    assert!(exact_fully_consumed_affine_parameter(
+    assert!(exact_projected_affine_parameter(
         &homes,
         &calls,
         Some(&cleanup)
     ));
-    assert!(!exact_fully_consumed_affine_parameter(
+    assert!(!exact_projected_affine_parameter(
         &homes,
         &calls[..4],
         Some(&cleanup)
     ));
     let mut bad_owner = calls.clone();
     bad_owner[2].owner = bad_owner[0].owner;
-    assert!(!exact_fully_consumed_affine_parameter(
+    assert!(!exact_projected_affine_parameter(
         &homes,
         &bad_owner,
         Some(&cleanup)
     ));
     let mut bad_order = calls.clone();
     bad_order[1].operation_ordinal = 0;
-    assert!(!exact_fully_consumed_affine_parameter(
+    assert!(!exact_projected_affine_parameter(
         &homes,
         &bad_order,
         Some(&cleanup)
     ));
     let mut bad_span = calls.clone();
     bad_span[1].code_offset = 3;
-    assert!(!exact_fully_consumed_affine_parameter(
+    assert!(!exact_projected_affine_parameter(
         &homes,
         &bad_span,
         Some(&cleanup)
     ));
     cleanup.actions = [4, 3, 1, 0]
         .map(|value| TerminalAffineCleanupAction::DiscardResidual(residual(vec![index(value)], 1)))
-        .to_vec();
-    assert!(exact_partially_consumed_affine_parameter(
+        .into_iter()
+        .chain([TerminalAffineCleanupAction::RetireHome(homes[0].place)])
+        .collect();
+    assert!(exact_projected_affine_parameter(
         &homes,
         &calls[..1],
         Some(&cleanup)
     ));
-    assert!(!exact_fully_consumed_affine_parameter(
+    assert!(!exact_projected_affine_parameter(
         &homes,
         &calls,
         Some(&cleanup)
     ));
     cleanup.actions.swap(0, 1);
-    assert!(!exact_partially_consumed_affine_parameter(
+    assert!(!exact_projected_affine_parameter(
         &homes,
         &calls[..1],
         Some(&cleanup)

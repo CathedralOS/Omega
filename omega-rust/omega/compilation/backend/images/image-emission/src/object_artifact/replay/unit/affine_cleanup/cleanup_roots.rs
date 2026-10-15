@@ -32,7 +32,6 @@ pub(super) fn cleanup_roots(inputs: &CleanupInputs<'_>) -> CleanupRoots {
         internal_unit_calls,
         boundary_settlements,
         cleanup,
-        fully_consumed_affine_parameter,
         continuation_discards,
         ..
     } = *inputs;
@@ -60,7 +59,6 @@ pub(super) fn cleanup_roots(inputs: &CleanupInputs<'_>) -> CleanupRoots {
             home.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                 && home.access == terminal_psi::StructuralAccess::Owned
                 && !transferred_roots.contains(&home.place)
-                && !fully_consumed_affine_parameter
                 && !continuation_discards.contains(&home.place)
         })
         .map(|home| home.place)

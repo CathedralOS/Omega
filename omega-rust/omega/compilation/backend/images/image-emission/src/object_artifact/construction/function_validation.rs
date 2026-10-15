@@ -24,7 +24,7 @@ use crate::object_artifact::replay::scalar::control_cleanup::{
 use crate::object_artifact::replay::scalar::stack::validate_scalar_stack;
 use crate::object_artifact::replay::scalar::structural_scalar_field_store::validate_scalar_structural_scalar_field_stores;
 use crate::object_artifact::replay::structural::affine_projected_calls::{
-    exact_fully_consumed_affine_parameter, exact_partially_consumed_affine_parameter,
+    exact_projected_affine_parameter,
 };
 use crate::object_artifact::replay::structural::return_record::validate_structural_return_record;
 use crate::object_artifact::replay::unit::affine_cleanup::validate_unit_affine_cleanup;
@@ -157,8 +157,7 @@ struct AffineParameterFacts<'a> {
     parameter_homes: &'a [machine_code::UnitParameterHomeRecord],
     default_affine_cleanup: Option<&'a machine_code::UnitAffineCleanupRecord>,
     continuation_discards: Vec<PlaceId>,
-    fully_consumed_affine_parameter: bool,
-    partially_consumed_affine_parameter: bool,
+    projected_affine_parameter: bool,
 }
 
 /// The function's Unit stack evidence, replayed against its bytes; a hosted
@@ -612,12 +611,7 @@ fn affine_parameter_facts<'a>(
             function.machine,
         ));
     }
-    let fully_consumed_affine_parameter = exact_fully_consumed_affine_parameter(
-        parameter_homes,
-        &function.internal_unit_calls,
-        default_affine_cleanup,
-    );
-    let partially_consumed_affine_parameter = exact_partially_consumed_affine_parameter(
+    let projected_affine_parameter = exact_projected_affine_parameter(
         parameter_homes,
         &function.internal_unit_calls,
         default_affine_cleanup,
@@ -627,8 +621,7 @@ fn affine_parameter_facts<'a>(
         parameter_homes,
         default_affine_cleanup,
         continuation_discards,
-        fully_consumed_affine_parameter,
-        partially_consumed_affine_parameter,
+        projected_affine_parameter,
     })
 }
 
@@ -646,7 +639,6 @@ fn validate_internal_unit_call_custodies(
 ) -> Result<(), ObjectError> {
     let parameter_homes = facts.parameter_homes;
     let default_affine_cleanup = facts.default_affine_cleanup;
-    let fully_consumed_affine_parameter = facts.fully_consumed_affine_parameter;
     let continuation_discards = &facts.continuation_discards;
     for custody in &function.internal_unit_calls {
         let target_returns_scalar =
@@ -754,11 +746,10 @@ fn validate_internal_unit_call_custodies(
             target_structural_return,
             custody,
             affine_cleanup,
-            fully_consumed_affine_parameter
-                || custody
-                    .arguments
-                    .iter()
-                    .any(|argument| continuation_discards.contains(&argument.place)),
+            custody
+                .arguments
+                .iter()
+                .any(|argument| continuation_discards.contains(&argument.place)),
         )?;
     }
     Ok(())
@@ -811,8 +802,7 @@ fn validate_affine_cleanups(
     machine_functions: &std::collections::BTreeMap<MachineId, &MachineCodeFunction>,
     facts: &AffineParameterFacts<'_>,
 ) -> Result<(), ObjectError> {
-    let fully_consumed_affine_parameter = facts.fully_consumed_affine_parameter;
-    let partially_consumed_affine_parameter = facts.partially_consumed_affine_parameter;
+    let projected_affine_parameter = facts.projected_affine_parameter;
     let continuation_discards = &facts.continuation_discards;
     match (&function.unit_stack, &function.unit_affine_cleanup) {
         (Some(_), Some(cleanup)) => validate_unit_affine_cleanup(
@@ -827,8 +817,7 @@ fn validate_affine_cleanups(
             machine_functions,
             cleanup,
             false,
-            fully_consumed_affine_parameter,
-            partially_consumed_affine_parameter,
+            projected_affine_parameter,
             continuation_discards,
         )?,
         (None, None) => {}
@@ -856,7 +845,6 @@ fn validate_affine_cleanups(
             machine_functions,
             cleanup,
             true,
-            false,
             false,
             &[],
         )?;
@@ -892,7 +880,6 @@ fn validate_affine_cleanups(
                 machine_functions,
                 &record.cleanup,
                 true,
-                false,
                 false,
                 &[],
             )?;

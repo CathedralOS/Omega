@@ -476,7 +476,7 @@ pub(crate) fn validate_internal_unit_call_custody(
     callee_structural_return: Option<&StructuralReturnRecord>,
     custody: &machine_code::InternalUnitCallRecord,
     affine_cleanup: Option<&machine_code::UnitAffineCleanupRecord>,
-    fully_consumed_affine_parameter: bool,
+    continuation_discarded: bool,
 ) -> Result<(), ObjectError> {
     let inputs = CallInputs {
         target,
@@ -497,7 +497,7 @@ pub(crate) fn validate_internal_unit_call_custody(
         callee_structural_return,
         custody,
         affine_cleanup,
-        fully_consumed_affine_parameter,
+        continuation_discarded,
     };
     inputs.validate_call_shape()?;
     let span = inputs.call_span()?;

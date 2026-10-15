@@ -509,14 +509,14 @@ impl InternalUnitCallCustody<'_> {
     }
 
     /// Whether a projected argument is left unsettled: it is neither a claim
-    /// transfer nor an exact borrowed projection, and no fully consumed
-    /// parameter, projected result or disjoint residual discard accounts for
+    /// transfer nor an exact borrowed projection, and no continuation
+    /// discard, projected result or disjoint residual discard accounts for
     /// it.
     pub(super) fn projected_arguments_are_unsettled(&self) -> bool {
         let CallInputs {
             custody,
             affine_cleanup,
-            fully_consumed_affine_parameter,
+            continuation_discarded,
             ..
         } = self.inputs;
         let ProjectionFacts {
@@ -535,7 +535,7 @@ impl InternalUnitCallCustody<'_> {
                 return false;
             }
             argument.path.is_empty()
-                || (!fully_consumed_affine_parameter
+                || (!continuation_discarded
                     && projected_result.is_none()
                     && no_disjoint_residual_discard(argument, affine_cleanup))
         })

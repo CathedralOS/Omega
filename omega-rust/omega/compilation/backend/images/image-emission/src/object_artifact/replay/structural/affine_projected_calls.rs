@@ -13,22 +13,17 @@ use terminal_psi::{
     TerminalAffineCleanupAction, find_structural_type,
 };
 
-pub(crate) fn exact_fully_consumed_affine_parameter(
+/// Whether the function's projected calls and its cleanup's retired residual
+/// partition together exactly cover its one owned affine parameter. Every
+/// such cleanup ends by retiring the parameter's home, so a parameter whose
+/// projections consume all of it carries an empty residual partition and is
+/// covered here too; no separate "fully consumed" shape exists.
+pub(crate) fn exact_projected_affine_parameter(
     parameter_homes: &[UnitParameterHomeRecord],
     calls: &[InternalUnitCallRecord],
     cleanup: Option<&UnitAffineCleanupRecord>,
 ) -> bool {
-    cleanup.is_some_and(|cleanup| cleanup.actions.is_empty())
-        && exact_affine_projected_calls(parameter_homes, calls, cleanup)
-}
-
-pub(crate) fn exact_partially_consumed_affine_parameter(
-    parameter_homes: &[UnitParameterHomeRecord],
-    calls: &[InternalUnitCallRecord],
-    cleanup: Option<&UnitAffineCleanupRecord>,
-) -> bool {
-    cleanup.is_some_and(|cleanup| !cleanup.actions.is_empty())
-        && exact_affine_projected_calls(parameter_homes, calls, cleanup)
+    exact_affine_projected_calls(parameter_homes, calls, cleanup)
 }
 
 fn exact_affine_projected_calls(

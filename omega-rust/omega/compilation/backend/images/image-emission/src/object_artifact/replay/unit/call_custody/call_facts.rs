@@ -34,7 +34,9 @@ pub(super) struct CallInputs<'a> {
     pub(super) callee_structural_return: Option<&'a StructuralReturnRecord>,
     pub(super) custody: &'a machine_code::InternalUnitCallRecord,
     pub(super) affine_cleanup: Option<&'a machine_code::UnitAffineCleanupRecord>,
-    pub(super) fully_consumed_affine_parameter: bool,
+    /// One of the call's arguments is discarded by a continuation, which
+    /// settles a projected argument without a residual row.
+    pub(super) continuation_discarded: bool,
 }
 
 /// The call site's span: the relocation that encodes the call, the end of the

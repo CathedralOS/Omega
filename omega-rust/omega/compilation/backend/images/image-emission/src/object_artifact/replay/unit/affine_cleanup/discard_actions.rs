@@ -35,7 +35,7 @@ pub(super) fn residual_discards_are_malformed(
         parameter_homes,
         internal_unit_calls,
         cleanup,
-        partially_consumed_affine_parameter,
+        projected_affine_parameter,
         ..
     } = *inputs;
     let expected_parameter_suffix = &roots.expected_parameter_suffix;
@@ -73,7 +73,7 @@ pub(super) fn residual_discards_are_malformed(
             path.iter().any(|segment| {
                 matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_))
             })
-        }) && !partially_consumed_affine_parameter)
+        }) && !projected_affine_parameter)
         || residuals.iter().any(|residual| {
             Some(residual.place) != residual_root
                 || residual.path.is_empty()

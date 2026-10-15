@@ -169,8 +169,7 @@ struct CleanupInputs<'a> {
     functions: &'a std::collections::BTreeMap<MachineId, &'a MachineCodeFunction>,
     cleanup: &'a UnitAffineCleanupRecord,
     allow_mixed_nominal_roots: bool,
-    fully_consumed_affine_parameter: bool,
-    partially_consumed_affine_parameter: bool,
+    projected_affine_parameter: bool,
     continuation_discards: &'a [PlaceId],
 }
 
@@ -190,8 +189,7 @@ pub(crate) fn validate_unit_affine_cleanup(
     functions: &std::collections::BTreeMap<MachineId, &MachineCodeFunction>,
     cleanup: &UnitAffineCleanupRecord,
     allow_mixed_nominal_roots: bool,
-    fully_consumed_affine_parameter: bool,
-    partially_consumed_affine_parameter: bool,
+    projected_affine_parameter: bool,
     continuation_discards: &[PlaceId],
 ) -> Result<(), ObjectError> {
     let inputs = CleanupInputs {
@@ -204,8 +202,7 @@ pub(crate) fn validate_unit_affine_cleanup(
         functions,
         cleanup,
         allow_mixed_nominal_roots,
-        fully_consumed_affine_parameter,
-        partially_consumed_affine_parameter,
+        projected_affine_parameter,
         continuation_discards,
     };
     let invalid = || ObjectError::InvalidUnitAffineCleanupEvidence(machine);
